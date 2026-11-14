@@ -75,18 +75,33 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// </summary>
         public static Entity Ensure<TResult>(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, long key = 0)
             where TResult : unmanaged
+            => Ensure<TResult>(view, parent, siteId, in sensor, out _, key);
+
+        /// <summary>⭐ E-3 (CE-4509) — as <see cref="Ensure{TResult}(ISimulationView, Entity, int, in EqsSensor, long)"/>; when the creation is
+        /// DEFERRED (Null returned, inside a per-entity phase) <paramref name="pending"/> is the child in the batch's command buffer (⚠ a buffer entity has a NEGATIVE index — test it with <c>!= default</c>, never <see cref="Entity.IsNull"/>), so a typed
+        /// sensor DRESSES it in the same buffer and the child lands complete at the merge (else <see cref="Entity.Null"/>).</summary>
+        public static Entity Ensure<TResult>(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, out Entity pending, long key = 0)
+            where TResult : unmanaged
         {
+            pending = Entity.Null;
             var existing = Find(view, parent, siteId, key);
             if (!existing.IsNull) return existing;
 
+            // ⭐ N-11 (CE-4473; F-8) — inside a per-entity phase the creation is DEFERRED (the batch's buffer, merged after the phase) and
+            //   IDEMPOTENT while pending: a second Ensure of the same site this phase returns Null again, and a second site of the same parent
+            //   takes the next free part id (the pending ones are reserved)
+            bool phase = view is EntityRepository live && Fdp.Core.ParallelReadCheck.Defers(live);
+            if (phase && PendingThisPhase(parent, siteId, key, out _)) return Entity.Null;
+
             uint owner  = BehaviorOwnedParts.OwnerOf(view, parent);
-            int partId  = AllocatePartId(view, parent);
+            int partId  = AllocatePartId(view, parent, phase);
             var config  = sensor;
             config.Epoch = StampLifetime(StampOwner(config.Epoch, owner), NextLifetime(view, parent, partId));
             var meta    = new PartMetadata { ParentEntity = parent, InstanceId = partId };
             var stamp   = new BehaviorOwnedPart { OwnerInstanceId = owner, SiteId = siteId, Key = key };
 
-            if (view is EntityRepository repo)
+            if (phase) RecordPending(parent, siteId, key, partId);
+            else if (view is EntityRepository repo)
             {
                 var child = repo.CreateEntity();
                 repo.AddComponent(child, meta);
@@ -98,7 +113,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             }
 
             var cmd     = view.GetCommandBuffer();
-            var pending = cmd.CreateEntity();
+            pending = cmd.CreateEntity();
             cmd.AddComponent(pending, meta);
             cmd.AddComponent(pending, config);
             cmd.AddComponent(pending, default(TResult));
@@ -109,7 +124,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>The lowest part id ≥ 1 not held by a live EQS sensor child of <paramref name="parent"/> (0 is the legacy
         /// "sensor on the entity itself").</summary>
-        public static int AllocatePartId(ISimulationView view, Entity parent)
+        public static int AllocatePartId(ISimulationView view, Entity parent) => AllocatePartId(view, parent, reservePending: false);
+
+        private static int AllocatePartId(ISimulationView view, Entity parent, bool reservePending)
         {
             ulong low = 0;                       // ids 1..64 as a bitset — the common case
             System.Collections.Generic.HashSet<int>? high = null;
@@ -125,6 +142,14 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if (id >= 1 && id <= 64) low |= 1ul << (id - 1);
                 else if (id > 64) (high ??= new System.Collections.Generic.HashSet<int>()).Add(id);
             }
+            if (reservePending && t_pending != null && t_pendingPhase == Fdp.Core.ParallelReadCheck.PhaseSequence)
+                for (int k = 0; k < t_pending.Count; k++)
+                {
+                    var pend = t_pending[k];
+                    if (pend.Parent != parent) continue;
+                    if (pend.PartId >= 1 && pend.PartId <= 64) low |= 1ul << (pend.PartId - 1);
+                    else if (pend.PartId > 64) (high ??= new System.Collections.Generic.HashSet<int>()).Add(pend.PartId);
+                }
             for (int id = 1; id <= 64; id++)
                 if ((low & (1ul << (id - 1))) == 0) return id;
             int next = 65;
@@ -163,14 +188,47 @@ namespace Fdp.Toolkit.Spatial.Eqs
         // The next lifetime number of (parent, part id), per world. ⭐ Per PART: consecutive lifetimes on one part always differ (until
         // 256 of them wrap — the one before is the only one that matters). The first lifetime is 0, so a part's first sensor stamps
         // exactly as before. Deterministic: creation order is the world's.
-        private static readonly ConditionalWeakTable<object, Dictionary<(Entity Parent, int Part), byte>> s_lifetimes = new();
+        // ⭐ N-11 (CE-4473) — a CONCURRENT map: parallel brains create children of DIFFERENT parents at once; each (parent, part) key is
+        //   touched only by its parent's own thread, so the per-key sequence — and the result — stays deterministic (an update of an existing
+        //   byte value is in place: no allocation in the steady state).
+        private static readonly ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<(Entity Parent, int Part), byte>> s_lifetimes = new();
 
         internal static byte NextLifetime(ISimulationView view, Entity parent, int partId)
         {
-            var parts = s_lifetimes.GetValue(view, static _ => new Dictionary<(Entity, int), byte>());
+            var parts = s_lifetimes.GetValue(view, static _ => new System.Collections.Concurrent.ConcurrentDictionary<(Entity, int), byte>());
             parts.TryGetValue((parent, partId), out byte next);
             parts[(parent, partId)] = unchecked((byte)(next + 1));
             return next;
+        }
+
+        // ── N-11: the creations this batch thread deferred in the current phase (cleared lazily when the phase changes; grown, never shrunk) ──
+        private readonly struct Pending
+        {
+            public readonly Entity Parent; public readonly int SiteId; public readonly long Key; public readonly int PartId;
+            public Pending(Entity parent, int siteId, long key, int partId) { Parent = parent; SiteId = siteId; Key = key; PartId = partId; }
+        }
+
+        [System.ThreadStatic] private static System.Collections.Generic.List<Pending>? t_pending;
+        [System.ThreadStatic] private static int t_pendingPhase;
+
+        private static bool PendingThisPhase(Entity parent, int siteId, long key, out int partId)
+        {
+            partId = 0;
+            if (t_pending == null || t_pendingPhase != Fdp.Core.ParallelReadCheck.PhaseSequence) return false;
+            for (int k = 0; k < t_pending.Count; k++)
+            {
+                var p = t_pending[k];
+                if (p.Parent == parent && p.SiteId == siteId && p.Key == key) { partId = p.PartId; return true; }
+            }
+            return false;
+        }
+
+        private static void RecordPending(Entity parent, int siteId, long key, int partId)
+        {
+            int phase = Fdp.Core.ParallelReadCheck.PhaseSequence;
+            t_pending ??= new System.Collections.Generic.List<Pending>(8);
+            if (t_pendingPhase != phase) { t_pending.Clear(); t_pendingPhase = phase; }
+            t_pending.Add(new Pending(parent, siteId, key, partId));
         }
 
         /// <summary>

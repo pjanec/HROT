@@ -14,12 +14,29 @@ namespace Fdp.Core
     {
         internal readonly bool[] InSlot;
 
-        // the window cache: (from, to] as of the accumulator's capture stamp — several readers of one window share it
-        internal uint WindowFrom;
-        internal uint WindowTo;
-        internal long WindowStamp = -1;
+        // the window cache, per LANE: (from, to] as of the accumulator's capture stamp — several readers of one window share it.
+        // ⭐ N-11 (CE-4473) — lane 0 serves serial code; during a per-entity phase every batch thread reads through its own lane
+        //   (EventAccumulator.CurrentLane), so one thread refilling a window never rewrites the span another is reading
+        internal uint[] WindowFrom = new uint[1];
+        internal uint[] WindowTo = new uint[1];
+        internal long[] WindowStamp = { -1 };
 
         private protected EventStreamHistory(int slotCapacity) => InSlot = new bool[slotCapacity];
+
+        /// <summary>Makes room for <paramref name="lane"/> (under the accumulator's lock; grown, never shrunk).</summary>
+        internal void EnsureLane(int lane)
+        {
+            if (lane < WindowStamp.Length) return;
+            int n = Math.Max(lane + 1, WindowStamp.Length * 2);
+            Array.Resize(ref WindowFrom, n);
+            Array.Resize(ref WindowTo, n);
+            int old = WindowStamp.Length;
+            Array.Resize(ref WindowStamp, n);
+            for (int i = old; i < n; i++) WindowStamp[i] = -1;
+            GrowLanes(n);
+        }
+
+        private protected abstract void GrowLanes(int lanes);
 
         /// <summary>The bus type id of the stream.</summary>
         internal abstract int TypeId { get; }
@@ -36,11 +53,11 @@ namespace Fdp.Core
         /// <summary>Appends <paramref name="slot"/>'s events to <paramref name="replica"/>'s READ buffer of the same type.</summary>
         internal abstract void InjectSlot(int slot, FdpEventBus replica);
 
-        /// <summary>Starts a new window (empties the window buffer).</summary>
-        internal abstract void BeginWindow();
+        /// <summary>Starts a new window on <paramref name="lane"/> (empties its window buffer).</summary>
+        internal abstract void BeginWindow(int lane);
 
-        /// <summary>Appends <paramref name="slot"/> to the window; true when the window buffer had to grow.</summary>
-        internal abstract bool AppendToWindow(int slot);
+        /// <summary>Appends <paramref name="slot"/> to <paramref name="lane"/>'s window; true when the window buffer had to grow.</summary>
+        internal abstract bool AppendToWindow(int lane, int slot);
     }
 
     /// <summary>A native (unmanaged) stream's history, as bytes — it serves typed and untyped (replayed) streams alike.</summary>
@@ -49,8 +66,8 @@ namespace Fdp.Core
         private readonly INativeEventStream _stream;
         private readonly byte[]?[] _slots;
         private readonly int[] _lengths;
-        private byte[] _window = Array.Empty<byte>();
-        private int _windowLength;
+        private byte[]?[] _window = new byte[1][];
+        private int[] _windowLength = new int[1];
 
         public NativeStreamHistory(INativeEventStream stream, int slotCapacity) : base(slotCapacity)
         {
@@ -63,7 +80,9 @@ namespace Fdp.Core
         internal int ElementSize => _stream.ElementSize;
         internal override int CurrentCount => _stream.ElementSize == 0 ? 0 : _stream.GetRawBytes().Length / _stream.ElementSize;
 
-        internal ReadOnlySpan<byte> Window => new(_window, 0, _windowLength);
+        internal ReadOnlySpan<byte> Window(int lane) => new(_window[lane], 0, _windowLength[lane]);
+
+        private protected override void GrowLanes(int lanes) { Array.Resize(ref _window, lanes); Array.Resize(ref _windowLength, lanes); }
 
         internal override bool Capture(int slot)
         {
@@ -82,17 +101,17 @@ namespace Fdp.Core
             replica.InjectIntoCurrentBySize(_stream.EventTypeId, _stream.ElementSize, new ReadOnlySpan<byte>(_slots[slot], 0, _lengths[slot]));
         }
 
-        internal override void BeginWindow() => _windowLength = 0;
+        internal override void BeginWindow(int lane) => _windowLength[lane] = 0;
 
-        internal override bool AppendToWindow(int slot)
+        internal override bool AppendToWindow(int lane, int slot)
         {
             int len = _lengths[slot];
             if (len == 0) return false;
-            byte[]? window = _window;
-            bool grew = Ensure(ref window, _windowLength + len, _windowLength);
-            _window = window!;
-            new ReadOnlySpan<byte>(_slots[slot], 0, len).CopyTo(_window.AsSpan(_windowLength));
-            _windowLength += len;
+            byte[]? window = _window[lane];
+            bool grew = Ensure(ref window, _windowLength[lane] + len, _windowLength[lane]);
+            _window[lane] = window!;
+            new ReadOnlySpan<byte>(_slots[slot], 0, len).CopyTo(window!.AsSpan(_windowLength[lane]));
+            _windowLength[lane] += len;
             return grew;
         }
 
@@ -117,7 +136,7 @@ namespace Fdp.Core
     {
         private readonly ManagedEventStream<T> _stream;
         private readonly List<T>?[] _slots;
-        private readonly List<T> _window = new();
+        private List<T>?[] _window = { new() };
 
         public ManagedStreamHistory(ManagedEventStream<T> stream, int slotCapacity) : base(slotCapacity)
         {
@@ -128,7 +147,14 @@ namespace Fdp.Core
         internal override int TypeId => FdpEventBus.ManagedTypeId<T>.Id;
         internal override int CurrentCount => _stream.ReadCount;
 
-        internal IReadOnlyList<T> Window => _window;
+        internal IReadOnlyList<T> Window(int lane) => _window[lane]!;
+
+        private protected override void GrowLanes(int lanes)
+        {
+            int old = _window.Length;
+            Array.Resize(ref _window, lanes);
+            for (int i = old; i < lanes; i++) _window[i] = new List<T>();   // once per new lane (a new batch thread), never per frame
+        }
 
         internal override bool Capture(int slot)
         {
@@ -149,14 +175,15 @@ namespace Fdp.Core
             if (list != null && list.Count > 0) replica.InjectManagedIntoCurrent(list);
         }
 
-        internal override void BeginWindow() => _window.Clear();
+        internal override void BeginWindow(int lane) => _window[lane]!.Clear();
 
-        internal override bool AppendToWindow(int slot)
+        internal override bool AppendToWindow(int lane, int slot)
         {
             var list = _slots[slot];
             if (list == null || list.Count == 0) return false;
-            bool grew = _window.Capacity < _window.Count + list.Count;
-            _window.AddRange(list);
+            var window = _window[lane]!;
+            bool grew = window.Capacity < window.Count + list.Count;
+            window.AddRange(list);
             return grew;
         }
     }

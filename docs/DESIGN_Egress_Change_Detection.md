@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (§7 the state egress off the main thread — APPROVED as an experiment, READY-TO-BUILD, CE-3427 N-1) · 2026-11-05 (§3a the real-node measurement; §4 write batching)
+updated: 2026-11-13 (§5c H1 per entity, CE-4519) · 2026-11-10 (§7 the state egress off the main thread — APPROVED as an experiment, READY-TO-BUILD, CE-3427 N-1) · 2026-11-05 (§3a the real-node measurement; §4 write batching)
 build-state: BUILDING — E1 approved by the user 2026-11-05 ("yes, build E1 with a rail per hazard"); §5 is the build design (CE-2407)
 current-answer: ⭐ §7 the state egress off the main thread (2026-11-10, APPROVED experiment, not built) · §2 the measured hazards, §3 the options with a lean, §3a measured on real nodes (answers §3's 'what would change the lean'), §4 DDS write batching
 stale-below: none
@@ -173,7 +173,7 @@ graph TD
 
 | hazard | how E1 handles it | rail (`EgressVisitGateTests`) |
 |---|---|---|
-| H1 authority arrives | any write to `NetworkAuthority` / `DescriptorOwnership` / `PartMetadata` since the last scan ⇒ a FULL scan that frame (covers a part whose ROOT changed) | `H1_*` |
+| H1 authority arrives | ⭐ **per entity (§5c, CE-4519):** the three facts `HasAuthority` reads — the entity's `PartMetadata` root, the root's `NetworkAuthority` bytes, the root's `DescriptorOwnership` reference — differ from its last visit ⇒ visit. ⛔ SUPERSEDED: any write to one of the three tables since the last scan ⇒ a FULL scan | `H1_AuthorityArriving_VisitsThatEntityAndItsParts_NotAFullScan`, `Equivalence_WithAuthorityMoving_*` |
 | H2 heartbeats | GeoSpatial / NavigationStatus NOT gated; the sweep also bounds any entity's longest skip to `SweepPeriod` frames | `H2_*` (sweep bound) |
 | H3 seek / restore / wipe | `ForceMarkAllDirty` and `WorldEpoch` ⇒ `EgressSignals.AllDirty` ⇒ full scan; the clock going BACK (playback `SetGlobalVersion`) ⇒ full scan | `H3_*` |
 | H4 several inputs | the translator declares every component it reads; a write to ANY ⇒ visit (`NetworkIdentity` always included) | `H4_*` |
@@ -214,6 +214,24 @@ copy is memory (index × size per input). Rail `ANeighboursWrite_AndASameBytesRe
 translators got ≈ 13–15 % cheaper, egress overall moved within noise. ⭐ The saving scales with ENTITIES (the skipped work is per entity);
 the CE-2408 stress run is where it should show. ⚠ Next levers inside egress: the per-translator FIXED cost (each costs ≈ 0.1–0.3 ms a frame
 even when it skips nearly everything — to be profiled) and the ungated translators (WorldPos is the largest).
+
+### 5c. ⚠ AS BUILT — H1 per entity *(CE-4519 / CE-3442, `2026-11-13`, branch `exp/next-conversions`)*
+
+⛔ **§5's H1 ("any authority write ⇒ a full scan") made the gate useless at scale.** 📐 On the 1 000-man CGF (`HROT_EGRESS_GATE_STATS=1`):
+begins 27 361, full 5 281 — **5 205 forced by a `DescriptorOwnership` write somewhere** — and **0 visits skipped**. The writes are ordinary
+traffic: `OwnershipIngressSystem` → `OwnershipApplier.Apply` for every `OwnershipUpdate` (~5 a frame, repeats included), parts stamped by the
+brains, `NetworkAuthority` through command-buffer playback. ⭐ **As built, two halves:**
+1. **The gate remembers, per entity, what `AuthorityExtensions.HasAuthority` reads** — its root (the `PartMetadata` parent, else itself), the
+   root's `NetworkAuthority` bytes, the root's `DescriptorOwnership` REFERENCE (an immutable record, replaced whole — CE-4046 ⇒ a change is a new
+   reference) — and visits when one differs; compared only in a frame where one of the three tables moved. The claim bits (`SetAuthority`)
+   stamp the structural clock and were already a visit. A part whose root's record or owner changed is visited — what the full scan was for.
+2. **`OwnershipApplier` writes nothing on a repeat** (the record already says so and nothing was pinned; `NetworkAuthority` already has that
+   owner) — the class was documented idempotent; now it is idempotent in WRITES too.
+
+Rails: `H1_AuthorityArriving_VisitsThatEntityAndItsParts_NotAFullScan` (one entity's owner ⇒ that entity only; a root's record or owner ⇒ the
+root and its part; a same-bytes rewrite ⇒ nothing) and `Equivalence_WithAuthorityMoving_OnRootsAndTheirParts_…` (300 frames, primary-owner and
+record moves on roots with 60 parts, no sweep: the gated publications equal the ungated, and > 5× more skipped than visited). 🔴 Both fail with
+the mark compare off.
 
 ## 6. ⭐ ONE WALK FOR EVERY TRANSLATOR — a query-candidate index scoped to the egress pass *(CE-2418, `2026-11-05`; user: "go to egress option b")*
 

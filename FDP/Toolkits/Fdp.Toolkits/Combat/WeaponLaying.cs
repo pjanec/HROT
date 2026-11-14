@@ -38,7 +38,14 @@ namespace Fdp.Toolkit.Combat
             if (mount < 0 || mount >= MaxMounts || !world.IsAlive(man)) return false;
             if (!world.IsComponentTypeRegistered<LaidDownWeapons>()) world.RegisterComponent<LaidDownWeapons>();
             byte bit = (byte)(1 << mount);
-            if (!world.HasComponent<LaidDownWeapons>(man)) world.AddComponent(man, default(LaidDownWeapons));
+            if (!world.HasComponent<LaidDownWeapons>(man))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = default(LaidDownWeapons);
+                fresh.Mounts = down ? (byte)(fresh.Mounts | bit) : (byte)(fresh.Mounts & ~bit);
+                world.AddComponent(man, fresh);
+                return true;
+            }
             ref var laid = ref world.GetComponentRW<LaidDownWeapons>(man);
             laid.Mounts = down ? (byte)(laid.Mounts | bit) : (byte)(laid.Mounts & ~bit);
             return true;

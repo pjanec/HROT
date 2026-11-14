@@ -52,7 +52,7 @@ public sealed class FireTraceGizmo : IGlobalStatelessGizmo
         // ⭐ CE-3117 (R-226) — the RECORDED ShotTraces singleton (mirrored from ShotLog by CombatTraceSystem), so a replay seek
         //   shows the shots again. Same shapes as before; the text explanation stays on GET /combat/shots.
         if (view is not EntityRepository repo || !repo.HasSingletonUnmanaged<ShotTraces>()) return;
-        var traces = repo.GetSingletonUnmanaged<ShotTraces>();
+        var traces = repo.GetSingletonUnmanagedRO<ShotTraces>();
         var slots = traces.SlotsRO();
 
         // ⭐ CE-3153 — the family's own clock, the same one DetonationGizmo ages a burst against.

@@ -283,8 +283,6 @@ internal sealed class PlayerNodeBootstrapper : SharedApplicationBootstrapper
     /// </summary>
     public System.Collections.Generic.IReadOnlyList<Hrot.Map.Common.ClusterLoad.LoadPart> ProfileLoadParts { get; set; } = System.Array.Empty<Hrot.Map.Common.ClusterLoad.LoadPart>();
 
-    /// <summary>⭐ CE-4078 — where the 3-D map step polls the map's build from (the application's <c>MapBuildStatus</c>; null result = no map attached, resolved).</summary>
-    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
 
     /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default true here).</summary>
     /// <summary>⭐ Seats and hats H1 — this host's default seat (§2.2).</summary>

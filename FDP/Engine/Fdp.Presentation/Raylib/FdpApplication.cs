@@ -78,7 +78,7 @@ public abstract class FdpApplication : IDisposable
             // B2. UI Rendering (ImGui)
             rlImGui.Begin();
             OnDrawUI();
-            rlImGui.End();
+            ImGuiRenderer.End();
 
             HiddenWindow.EndFrame();
             Raylib_cs.Raylib.EndDrawing();
@@ -98,7 +98,7 @@ public abstract class FdpApplication : IDisposable
         HiddenWindow.AfterInit();
         Raylib_cs.Raylib.SetTargetFPS(Config.TargetFPS);
         
-        rlImGui.Setup(true); // Enable Docking by default
+        ImGuiRenderer.Setup(true); // Enable Docking by default
 
         if (Config.PersistenceEnabled)
         {

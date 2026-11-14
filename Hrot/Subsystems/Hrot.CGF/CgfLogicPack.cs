@@ -213,6 +213,9 @@ namespace Hrot.CGF
             // ⭐ CE-3172 (docs/DESIGN_Entity_Control.md §8b) — the brain owner's side of possession: a station's request starts
             //   OperatorControl at origin Possession (pausing the task), its frames become OperatorInput, a release resumes the task.
             //   First, so the assignment it publishes is on the bus before the behaviour ingress reads it.
+            // ⭐ CE-2125 / CE-514 (R-272) — the owner places a unit at its members' centre. ⭐⭐ F-3 (CE-4503): FIRST, in Input — before anything
+            //   of the frame reads a unit's position, so a step reads what a paused frame would compute (⛔ was mid-Simulation, below).
+            inputList.Add(new Fdp.Toolkit.Squad.Systems.UnitCentroidSystem());
             inputList.Add(new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl));
             inputList.Add(_missionExecutionSystem);
             foreach (var s in _missionControlModule.InputSystems) inputList.Add(s);
@@ -244,7 +247,6 @@ namespace Hrot.CGF
             // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
             simList.Add(new Fdp.Toolkit.Combat.Systems.WeaponAmmoMirrorSystem());
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
-            simList.Add(new Fdp.Toolkit.Squad.Systems.UnitCentroidSystem());   // ⭐ CE-2125 / CE-514 (R-272) — the owner places a unit at its members' centre
             // ⭐⭐ CE-2293 CC-C (Command Chain §5) — the staff: compose and send the standing reports, then fold the ones that arrived into
             //   each commander's picture — after the merge (the pool is fresh), before the brain tick (this frame's guards see it).
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
@@ -260,6 +262,10 @@ namespace Hrot.CGF
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));
+            // ⭐ N-11 (CE-4473) — the rules' tree is an index the rule brains read: with the brains a parallel phase it is refreshed serially
+            //   before the phase (BrainPhase), never rebuilt inside it
+            Fdp.Toolkit.Behavior.BrainPhase.Contribute("Hrot.AI.Behaviors.Rules", registerTypes: null,
+                prepareFrame: Hrot.AI.Behaviors.Brains.Objectives.RuleTree.PrepareFrame);
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem(nodeBus));   // ⭐ the NODE bus — a production host passes HrotNodeContext.EventBus

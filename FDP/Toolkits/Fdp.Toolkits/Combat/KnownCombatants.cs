@@ -44,18 +44,29 @@ namespace Fdp.Toolkit.Combat
             if (man.IsNull || !world.IsAlive(observer) || !world.IsComponentTypeRegistered<TargetMemory>()
                 || !world.HasComponent<TargetMemory>(observer)) return false;
             if (!world.IsComponentTypeRegistered<KnownCombatantList>()) world.RegisterComponent<KnownCombatantList>();
-            if (!world.HasComponent<KnownCombatantList>(observer)) world.AddComponent(observer, new KnownCombatantList());
-            ref var list = ref world.GetComponentRW<KnownCombatantList>(observer);
             long id = (long)man.PackedValue;
+            if (!world.HasComponent<KnownCombatantList>(observer))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new KnownCombatantList();
+                Remember(ref fresh, id);
+                world.AddComponent(observer, fresh);
+                return true;
+            }
+            Remember(ref world.GetComponentRW<KnownCombatantList>(observer), id);
+            return true;
+        }
+
+        private static void Remember(ref KnownCombatantList list, long id)
+        {
             for (int i = 0; i < list.Count; i++)
-                if (list.Ids[i] == id) return true;
+                if (list.Ids[i] == id) return;
             if (list.Count == Max)
             {
                 for (int i = 1; i < Max; i++) list.Ids[i - 1] = list.Ids[i];   // the oldest goes
                 list.Count--;
             }
             list.Ids[list.Count++] = id;
-            return true;
         }
 
         /// <summary>KC-2 — every unit on this node whose memory holds <paramref name="actor"/> IDENTIFIED and perceived within

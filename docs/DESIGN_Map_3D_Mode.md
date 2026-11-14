@@ -7,7 +7,7 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — APPROVED, READY-TO-BUILD) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
@@ -3791,7 +3791,7 @@ drawing must tolerate, not use.*
   the hosts' render source on a view that only received the damage: breach, heap, 0 B and no rebuild on an unchanged table) · `TheBuildingDamagePlanTests` (the plan's building marks,
   the overlay, the hidden strokes; the production 2-D attach: gap and rubble). Frames under `HROT_RAIL_SHOTS` (never git).
 
-### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: READY-TO-BUILD — approved by the user `2026-11-13` (R-4226); building overnight on the Windows machine)*
+### 6ak. CE-4554 — drawing bodies and doors at scale: by screen size, instanced; the pick on input *(coordinator, `2026-11-13`; build-state: BUILT `2026-11-14` (Windows session, `exp/render-perf`, CE-4555 … CE-4562) — approved by the user `2026-11-13` (R-4226); ⭐ the as-built in §6ak.6, the classes below as built)*
 
 🔒 User, `2026-11-13`: *"that scenario has very poor rendering framerate when all terrain in frustum. some graphical performance optimization is a
 must"* · *"the terrain is still ridiculously small and characters are made of few boxes. there must be huge performance improvement opportunities"* ·
@@ -3827,64 +3827,71 @@ through a spatial index** — never a scan of every box every frame. Each piece 
 
 ⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI).
 
-### 6ak.1 Classes
+### 6ak.1 Classes *(as built `2026-11-14`; the designed diagram is in HISTORY at the end)*
 
 ```mermaid
 classDiagram
   class EntityBodyLayer3D {
-    <<existing — changed>>
+    <<existing - changed>>
     Draw3D(ctx)
-    per body: LodBand(screenHeightPx)
-    Full: pose + parts into the batch
-    Far: one box into the batch
-    Hidden: nothing
+    BandFor(scale, position, size) ScreenBand
+    FarBox(stance, soldier, size)
+    FarColour(outfit, fallback)
+    ForcePerDraw
+    PickIndex
   }
-  class BodyBatch {
-    <<NEW>>
+  class LitInstanceBatch {
+    <<NEW - Fdp.Presentation Vis3D>>
+    Register(mesh) bucket
     Begin()
-    Add(meshKind, paintMode, model, colour, paint)
-    Flush(shader) : one instanced draw per bucket
-    buffers grown, never shrunk : 0 B steady
-  }
-  class InstancedLitShader {
-    <<NEW — a variant of LitShader>>
-    in mat4 instanceTransform
-    in vec4 instanceColour
-    in vec4 instancePaint
-    the same lighting, fog and BodySurface
+    Add(bucket, model, colour, data)
+    Flush(lit, perDrawSurface)
+    grown never shrunk - 0 B steady
   }
   class LitShader {
-    <<existing>>
-    uniform colDiffuse, matModel
+    <<existing - changed>>
+    Shader : per-draw program
+    Instanced : the instanced program
+    FragmentSource(surface, instanced)
+    ApplyAtmosphere / ApplyFrame : both programs
   }
   class BodySurface {
-    <<existing>>
-    camouflage, faces : GLSL
+    <<existing - changed>>
+    Glsl : uniforms, or instData under INSTANCED
+    FaceData / CamouflageData / PlainData
+    Apply(lit, data) : the per-draw path
   }
-  class DoorLeaf3D {
-    <<existing — changed>>
-    leaves into the batch, by screen size
+  class ScreenScale {
+    <<NEW - ViewFrustum>>
+    PixelsOf(point, metres)
+    CurrentScale() : the pass's matrices
   }
   class BodyPickIndex {
     <<NEW>>
-    Rebuild(drawn boxes) : once per drawn frame
-    Query(ray) : the cells the ray crosses
+    Begin / Add / End : the window frame's boxes
+    TryPick(ray) : the grid cells under it
   }
   class EntityBoxPicker {
-    <<existing — changed>>
-    TryPick only on mouse / camera move
-    through BodyPickIndex
+    <<existing - changed>>
+    TryPick : index once a frame was drawn, else the scan
   }
-  EntityBodyLayer3D --> BodyBatch : fills
-  DoorLeaf3D ..> BodyBatch : fills
-  BodyBatch ..> InstancedLitShader : draws with
-  InstancedLitShader ..> BodySurface : same surface code
-  InstancedLitShader ..> LitShader : same lighting code
-  EntityBodyLayer3D --> BodyPickIndex : the drawn boxes
+  class MapCamera3D {
+    <<existing - changed>>
+    Pick : 4 cached entries per pose
+    InvalidatePicks() : a press or release
+  }
+  EntityBodyLayer3D --> LitInstanceBatch : fills, flushes once
+  EntityBodyLayer3D --> BodyPickIndex : records the drawn boxes
+  EntityBodyLayer3D ..> ScreenScale : bands
+  LitInstanceBatch ..> LitShader : draws with Instanced
+  LitInstanceBatch ..> BodySurface : per-draw fallback Apply
+  LitShader ..> BodySurface : one surface text, both programs
   EntityBoxPicker ..> BodyPickIndex : queries
+  MapCamera3D ..> EntityBoxPicker : on input only
 ```
-*What it shows that prose hid: nothing in the figure model changes (`ShapeKit`, `BlockFigure`, poses, outfits) — the change is only WHERE a part
-goes: into a batch instead of a draw call. One new shader variant reuses the existing lighting and surface code rather than copying it.*
+*What the as-built picture shows that the designed one did not: the instanced program is a second program of `LitShader` (it must take the same
+per-frame atmosphere and eye), the batch is a generic Vis3D class beside it, and the camera's pick cache is the "on input" half of D-6 — the index
+makes the pick cheap, the cache makes it rare.*
 
 ### 6ak.2 One frame
 
@@ -3962,6 +3969,59 @@ People Display — applies: the figure's look (parts, faces, camouflage) must su
 4. The pick: 0 work while the mouse and camera are still (a counter); the pick rails green.
 5. 0 B per steady frame in the layer and the batch.
 
+### 6ak.6 As built *(Windows session, `2026-11-14`, `exp/render-perf` — CE-4555 … CE-4562; the auto-decisions with their reasons in [`STATUS_Render_Performance.md`](blueprints/batches/STATUS_Render_Performance.md) DECISIONS)*
+
+| | as built | ⚠ against §6ak |
+|---|---|---|
+| G-1 the batch | `LitInstanceBatch`: one instance buffer per mesh (cube, cylinder, cone), attributes 6–15 (transform, colour, five data vectors), one `glDrawElementsInstanced` per mesh; `LitShader.Instanced` from the SAME fragment text | ⚠ D-5's "one paint vec4" → five (a face needs ~20 floats); the face axes come from a table generated out of `BodySurface.AxesOf` |
+| G-2 the layer | every part, face box, outfit detail, stain and door leaf is an `Add`; a driver that refuses the program (and `ForcePerDraw`) draws each instance with the per-draw program and the paint as uniforms (`BodySurface.Apply`) — the old picture | — the rail compares the two pictures (equal; red-proved) |
+| G-3 the bands | Hidden < 1.5 px · Far < 12 px · Full; by the body's LARGEST extent; doors < 2 px (a 3 m pre-test on the door's position before its leaf is looked up); SUMO's ambient bodies too | ⚠ D-2's "a box at the body's size" read thin at the edge → the FIGURE'S OWN part bounds in that stance × 0.5 across, its outfit's colour with the camouflage averaged in (measured at the edge: area 0.94 of the expected, colour 19 levels apart) |
+| G-4 the pick | `BodyPickIndex` (the window frame's boxes, a ground grid built when a pick needs it, walked under the ray); the FREE camera keeps 4 cached picks across frames until its pose changes or a mouse press / release; a DRIVEN camera (first person, follow, film) re-picks every frame | ⚠ D-6 "only on input" holds for the free camera; a station's crosshair must follow what changes ahead of it (CE1158) |
+| the UI thread's other pieces (G-5 … G-7, G-8) | the 2-D plan from a cached render texture; sound sources searched at 20 Hz, distance first, each type's reach learned from its bodies; the message log's rows kept while unchanged | — |
+
+⛔⛔ **CORRECTED 2026-11-14 — the targets are NOT met in real use** (CE-4580). The table after this one was measured with the map's gizmo frame
+EMPTY under the threaded node (CE-4579, the published frame never leased — no unit symbols, cards, labels or layers menu) and with the street camera
+under the terrain. With the gizmos drawn:
+
+| pose | reported overnight | ⭐ real use — gizmos drawn (`fixed`, the lease fix) | target |
+|---|---|---|---|
+| whole terrain (centre, 7 500 m, pitch −60) | 22 ms | **39.5 · 41.8 · 39.9 ms** (p95 57) | ≤ 33 ms ❌ |
+| street — a soldier followed, 30 m, pitch −8 (Blue 1-1, #1004) | 15.4 ms — ⛔ the camera was UNDER the ground (`[2750, 2750, 1.7]`, the terrain is ~550 m there) | **31.9 · 32.0 · 34.3 ms** (p95 61) | ≤ 16.7 ms ❌ |
+| 2-D map (the start view) | 12 ms | **23.3 · 21.7 · 20.5 ms** (p95 42) | — |
+
+⛔ SUPERSEDED — as first reported (keep for the like-for-like comparison only; the baseline lacked the gizmos too):
+
+**Measured** (Windows, Release, `scale-rig-scale-1-1000-2s` live and playing, the editor hidden, uncapped; mean of three 2-s windows):
+
+| pose | before | after | target |
+|---|---|---|---|
+| the whole terrain (centre, 7 500 m, pitch −60) | 88 – 91 ms | **22 ms** (1 draw call, 29 far boxes, 1 091 hidden, 6 911 doors hidden) | ≤ 33 ms ✅ |
+| a street (`[2750, 2750, 1.7]`, 30 m, pitch −8) | 31 – 42 ms | **15.4 – 15.9 ms** | ≤ 16.7 ms ✅ |
+| the 2-D map | 23 – 43 ms | **12 ms** | — |
+
+The frame is still CPU-bound (UI thread ≈ 97 %); what is left is spread thin — the staged pull with the gizmo system, the effects' sphere draws, ImGui.
+
+### 6al. CE-6007 — the bulldozer *(showcase world, `2026-11-13`; build-state: BUILT — as-built below)*
+
+Owner of the TYPE: [DESIGN_City_Battle_Showcase.md](designs/group-maneuvers/DESIGN_City_Battle_Showcase.md) §6 `Bulldozer` / D-6 (🔒 user: *"just new bulldozer model … no need to look armored"*); armour in
+[DESIGN_Armour_Hit_Model.md](designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md) (CE-6006).
+
+**INVENTORY** *(`search_graph` `.*(Bulldozer|Dozer|Engineer).*` Class: none before this; `.*VisualFamil.*`: `VisualFamily`, `VisualFamilies`; `scripts/find.sh ShapeKit`)*: a new family, because no existing
+one draws a tracked machine with a blade — Tank / Afv / SpArtillery all carry a turret and a gun, the wheeled kits roll on wheels. ⇒ ⛔ not a re-skinned tank (a
+bulldozer that looks like one is the opposite of the user's *"not armoured-looking"*).
+
+| what | as built |
+|---|---|
+| class | `EntityClassTable` `Bulldozer` = DIS `1.1.*.9.1` (a large tracked utility vehicle, subcategory 1; HROT) ⇒ `VisualFamilies.FamilyOfClass["Bulldozer"] = VisualFamily.Bulldozer` (more specific than `LargeTrackedUtilityVehicle`, which has no family) |
+| size | `ShapeKits.DefaultSize` 8.0 × 4.3 × 4.0 m — a D9: 8 m with the blade, the blade 4.3 m, 4 m to the ROPS roof (the TKB's `Body.Geometry` states the same) |
+| kit | `ShapeKits.Bulldozer`, ~45 parts from METRES (`Dz`, `DzCyl`): two track units (run, front idler, HIGH rear sprocket, slope, top run, fender), the hull with the hood in FRONT (a dozer's engine is forward, behind the radiator grille; the handoff said *"at the back"* — the ripper and final-drive deck are there), exhaust stack and pre-cleaner, an open ROPS cab (floor, seat, four pillars, roof, glass in the upper half only), the blade (mould-board leaning 8°, cutting edge, back brace, end wings) on two push arms outside the tracks with two lift rams, a rear ripper. Construction yellow `#E3B01C` (the TKB colour; `DefaultColour` the same). No articulated part: blade and ripper are drawn lowered (a lift pose would be a part role of its own) |
+| not done | the 2-D family icon (`IconName` null ⇒ the tool glyph; the 2-D symbol is the TKB's `SFGPEVEE-------`); a hit-location kit (`VehicleBody` is generated from the kits for the families in `VehicleBodyParityTests.Families`; the dozer is deliberately outside it — no `bodies.json` profile, so its whole hull is hit) |
+
+Rails: `BulldozerModelRail` — the type resolves to the family, kit and size (red-proof: the family mapping removed ⇒ `Unknown`); every part lies inside the 8 × 4.3 × 4 m box;
+the real frame under `xvfb-run -a` draws side, front and rear three-quarter and top views beside a T-72 and a rifleman for scale, then the dozer alone for the gallery
+(`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
+and the atlas count).
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |
@@ -3986,5 +4046,68 @@ People Display — applies: the figure's look (parts, faces, camouflage) must su
 | ⚠ `LogicalStance.Of` and `StanceStatus` are present on every host's entities (they are `NoScenario` runtime components; the Editor may not run the stance systems) — no stance ⇒ standing, as the rule itself says | S1 rail |
 
 ## ⛔ HISTORY — superseded the same day, do NOT quote
+
+- **§6ak.1 as designed (`2026-11-13`), superseded by the as-built diagram `2026-11-14`:** `BodyBatch` (in the body layer) and a separate `InstancedLitShader` class; one paint vec4 per instance; the pick on input with no cache detail.
+
+#### (history) 6ak.1 Classes as designed
+
+```mermaid
+classDiagram
+  class EntityBodyLayer3D {
+    <<existing — changed>>
+    Draw3D(ctx)
+    per body: LodBand(screenHeightPx)
+    Full: pose + parts into the batch
+    Far: one box into the batch
+    Hidden: nothing
+  }
+  class BodyBatch {
+    <<NEW>>
+    Begin()
+    Add(meshKind, paintMode, model, colour, paint)
+    Flush(shader) : one instanced draw per bucket
+    buffers grown, never shrunk : 0 B steady
+  }
+  class InstancedLitShader {
+    <<NEW — a variant of LitShader>>
+    in mat4 instanceTransform
+    in vec4 instanceColour
+    in vec4 instancePaint
+    the same lighting, fog and BodySurface
+  }
+  class LitShader {
+    <<existing>>
+    uniform colDiffuse, matModel
+  }
+  class BodySurface {
+    <<existing>>
+    camouflage, faces : GLSL
+  }
+  class DoorLeaf3D {
+    <<existing — changed>>
+    leaves into the batch, by screen size
+  }
+  class BodyPickIndex {
+    <<NEW>>
+    Rebuild(drawn boxes) : once per drawn frame
+    Query(ray) : the cells the ray crosses
+  }
+  class EntityBoxPicker {
+    <<existing — changed>>
+    TryPick only on mouse / camera move
+    through BodyPickIndex
+  }
+  EntityBodyLayer3D --> BodyBatch : fills
+  DoorLeaf3D ..> BodyBatch : fills
+  BodyBatch ..> InstancedLitShader : draws with
+  InstancedLitShader ..> BodySurface : same surface code
+  InstancedLitShader ..> LitShader : same lighting code
+  EntityBodyLayer3D --> BodyPickIndex : the drawn boxes
+  EntityBoxPicker ..> BodyPickIndex : queries
+```
+*What it shows that prose hid: nothing in the figure model changes (`ShapeKit`, `BlockFigure`, poses, outfits) — the change is only WHERE a part
+goes: into a batch instead of a draw call. One new shader variant reuses the existing lighting and surface code rather than copying it.*
+
+
 
 - **rev 6 card:** dedicated `CardHeader` and `CardBar` primitive shapes and a mandatory `EntityCardGizmo` header. Superseded by U20 — the card is created by any primitive that targets it; frame, bar and name are ordinary gizmos; no new shapes.

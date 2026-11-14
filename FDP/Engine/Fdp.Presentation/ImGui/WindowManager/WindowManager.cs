@@ -72,7 +72,38 @@ public class WindowManager
         if (draw is null) throw new ArgumentNullException(nameof(draw));
         if (_frameOverlays.Contains(draw)) return;
         _frameOverlays.Add(draw);
+        if (_registeringGate != null) _overlayGates[draw] = _registeringGate;
     }
+
+    // ⭐ N-13 (CE-4475; docs/DESIGN_Threaded_Simulation_Presentation.md §14.8) — a registration's DRAW GATE: windows and frame overlays registered
+    //   inside RegisteringUnder draw only while the gate holds. The runner registers each subsystem's windows under "its world is not ticking on
+    //   the host's sim worker" — the orchestrator's own draw rule (a staged subsystem draws beside the worker; a plain one does not), applied to
+    //   everything it put in the ONE shared manager. 📌 Measured: --mode all threaded crashed when CGF's rules watcher queried CGF's live world
+    //   on the main thread while the worker ticked it (QueryCandidateIndex.Build, both threads).
+    private Func<bool>? _registeringGate;
+    private readonly Dictionary<string, Func<bool>> _windowGates = new();
+    private readonly Dictionary<Action, Func<bool>> _overlayGates = new();
+
+    /// <summary>⭐ N-13 — windows and frame overlays registered until the returned scope ends draw only while <paramref name="gate"/> holds.</summary>
+    public IDisposable RegisteringUnder(Func<bool> gate)
+    {
+        ArgumentNullException.ThrowIfNull(gate);
+        var was = _registeringGate;
+        _registeringGate = gate;
+        return new GateScope(this, was);
+    }
+
+    private sealed class GateScope : IDisposable
+    {
+        private readonly WindowManager _wm; private readonly Func<bool>? _was;
+        public GateScope(WindowManager wm, Func<bool>? was) { _wm = wm; _was = was; }
+        public void Dispose() => _wm._registeringGate = _was;
+    }
+
+    /// <summary>Does the window draw this frame (no gate, or its gate holds)?</summary>
+    public bool WindowDraws(string windowId) => !_windowGates.TryGetValue(windowId, out var gate) || gate();
+
+    private bool OverlayDraws(Action overlay) => !_overlayGates.TryGetValue(overlay, out var gate) || gate();
 
     /// <summary>
     /// Editor font pipeline, injected by the presentation shell. When set, the Settings
@@ -154,6 +185,7 @@ public class WindowManager
     public void RegisterWindow(ManagedWindow window)
     {
         _windows[window.Id] = window;
+        if (_registeringGate != null) _windowGates[window.Id] = _registeringGate;   // ⭐ N-13 — its draw gate (RegisteringUnder)
         window.OnRegistered(this);
 
         // ⭐⭐⭐ CE-076 (user-approved `2026-08-27`) — EVERY registered window is visible to `/panels`
@@ -744,10 +776,11 @@ public class WindowManager
 
     public void Render()
     {
+        using var traceChrome = Fdp.Core.AccessTrace.Scope("windowmanager:chrome (menus, toolbar, status bar, dialogs, overlays)", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1 — whatever is not a window below
         if (Cinema)
         {
             foreach (var overlay in _frameOverlays.ToList())
-                overlay();
+                if (OverlayDraws(overlay)) overlay();
             return;
         }
 
@@ -853,7 +886,10 @@ public class WindowManager
             //    Start must hide them explicitly. Measured: ManagedWindow.Render shows `Scope == Global || IsPinned || owner == current`.
             //    ⭐ A VOLATILE window is a dialog spawned on demand (a file picker, a confirm) and still draws.
             if (IsStartShowing && !win.IsVolatile && win.OwningPerspective != StartPerspectiveName) continue;
+            if (!WindowDraws(win.Id)) continue;   // ⭐ N-13 — its subsystem's world is ticking on the host's sim worker
 
+            if (Fdp.Core.AccessTrace.On) Fdp.Core.AccessTrace.Declare("window:" + win.Id);   // ⭐ A-1 — every window the editor offers, entered or not
+            using var traceWindow = Fdp.Core.AccessTrace.On && win.IsOpen ? Fdp.Core.AccessTrace.Scope("window:" + win.Id, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1 — one reader per OPEN window
             long t0 = WindowTimings.Start();   // ⭐ W-P1 — HROT_FRAME_STATS: the time of THIS window's whole ImGui build
             win.Render(CurrentPerspective, _atlas);
             WindowTimings.Record(win.Id, t0);
@@ -876,7 +912,7 @@ public class WindowManager
         // this batch needs it. Folding it in is a follow-up, not a side effect.
         long t1 = WindowTimings.Start();
         foreach (var overlay in _frameOverlays.ToList())
-            overlay();
+            if (OverlayDraws(overlay)) overlay();
         WindowTimings.Record("(frame overlays)", t1);
 
         // ⭐⭐ B-10 K1 — the keys, ONCE, after every window drew (so the focus is this frame's).

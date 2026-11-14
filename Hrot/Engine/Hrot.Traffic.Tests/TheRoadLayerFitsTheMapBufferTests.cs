@@ -117,6 +117,30 @@ public sealed class TheRoadLayerFitsTheMapBufferTests
         Assert.Equal(0, buffer3D.GetFrame().Length);
     }
 
+    /// <summary>
+    /// ⭐ CE-6020 — far out, a two-way street is ONE line (its two direction edges between the same junctions share one midline), and the faster roads come first.
+    /// 📐 The defect: an OSM import of Týn nad Vltavou needed 2 801 segments in the whole-terrain view of the 2 048 the layer may draw, each street twice and in the net's
+    /// edge order — 27 % of the roads, whole town streets among them, were not drawn. 🔴 Red-proof (compiles): the pairing in <c>EdgePolylines</c> off ⇒ one polyline per edge ⇒ red.
+    /// </summary>
+    [Fact]
+    public void FarOut_ATwoWayStreet_IsOneLine_AndTheFasterRoadsComeFirst()
+    {
+        var net = TrafficRoadSceneTests.Load();
+        var edges = net.Model.Edges.Where(e => !e.Id.StartsWith(':') && e.Lanes.Any(l => l.AllowsRoadVehicle && l.Shape.Count >= 2)).ToList();
+        var ends = edges.Select(e => (e.From, e.To)).ToHashSet();
+        int pairs = edges.Count(e => e.From != e.To && ends.Contains((e.To, e.From))) / 2;
+        Assert.True(pairs > 10, $"anti-vacuity: {pairs} two-way streets");
+        var level = net.Roads.Plan.EdgeLevels[0];
+        Assert.Equal(edges.Count - pairs, level.Lines.Length);
+        Assert.True(level.Lines.Length < edges.Count, "each two-way street is drawn once, not per direction");
+        // fastest first: the first polyline is on the fastest road of the net (any of its lanes within 4 m of it)
+        double top = edges.Max(e => e.Lanes.Max(l => l.Speed));
+        var fastest = edges.Where(e => e.Lanes.Max(l => l.Speed) >= top - 1e-6).SelectMany(e => e.Lanes).SelectMany(l => l.Shape)
+            .Select(p => { var (x, y) = net.Placement.ToLocal(p.X, p.Y); return new System.Numerics.Vector2((float)x, (float)y); }).ToList();
+        var firstPoint = level.Points[level.Lines[0].Start];
+        Assert.Contains(fastest, p => System.Numerics.Vector2.Distance(p, firstPoint) < 4f);
+    }
+
     /// <summary>⭐ CE-4388 — a plan over the whole-net budget (the earlier "nothing") still keeps every road's polylines, so the view draws them.</summary>
     [Fact]
     public void APlanOverTheBudget_StillDrawsTheRoadsInView()

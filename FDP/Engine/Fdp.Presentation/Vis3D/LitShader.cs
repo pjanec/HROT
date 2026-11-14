@@ -67,7 +67,64 @@ void main() { finalColor = fragColor * colDiffuse; }";
         /// <summary>The default surface: the colour as it is.</summary>
         public const string PlainSurface = "vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n) { return base; }";
 
-        private const string FragmentHead = @"#version 330
+        /// <summary>
+        /// ⭐ CE-4555 (docs/DESIGN_Map_3D_Mode.md §6ak G-1) — the INSTANCED vertex program: the same outputs as <see cref="Vertex"/>, but the model matrix,
+        /// the colour (what <c>colDiffuse</c> is per draw) and five data vectors come per INSTANCE (<see cref="LitInstanceBatch"/>), so every copy of one
+        /// mesh is one draw call. The data reach the surface function as <c>instData0..4</c> (flat), where a host maps them onto its own parameters
+        /// (<c>BodySurface</c>'s <c>#ifdef INSTANCED</c>). The fragment program is the SAME text as the per-draw one (<see cref="FragmentSource"/>).
+        /// Attribute locations are explicit, above raylib's defaults (0–5): the transform 6–9, the colour 10, the data 11–15.
+        /// </summary>
+        private const string InstancedVertex = @"#version 330
+in vec3 vertexPosition;
+in vec3 vertexNormal;
+in vec4 vertexColor;
+layout(location = 6) in mat4 instanceTransform;
+layout(location = 10) in vec4 instanceColour;
+layout(location = 11) in vec4 instanceData0;
+layout(location = 12) in vec4 instanceData1;
+layout(location = 13) in vec4 instanceData2;
+layout(location = 14) in vec4 instanceData3;
+layout(location = 15) in vec4 instanceData4;
+uniform mat4 mvp;
+out vec3 fragPos;
+out vec3 fragNormal;
+out vec4 fragColor;
+out vec3 localUnit;
+out vec3 localMetres;
+out vec3 localNormal;
+flat out vec4 instData0;
+flat out vec4 instData1;
+flat out vec4 instData2;
+flat out vec4 instData3;
+flat out vec4 instData4;
+void main()
+{
+    fragPos = vec3(instanceTransform * vec4(vertexPosition, 1.0));
+    fragNormal = vec3(transpose(inverse(instanceTransform)) * vec4(vertexNormal, 0.0));
+    fragColor = vertexColor * instanceColour;
+    vec3 scale = vec3(length(instanceTransform[0].xyz), length(instanceTransform[1].xyz), length(instanceTransform[2].xyz));
+    vec3 metres = vertexPosition * scale;
+    localUnit = vec3(vertexPosition.x, -vertexPosition.z, vertexPosition.y);
+    localMetres = vec3(metres.x, -metres.z, metres.y);
+    localNormal = vec3(vertexNormal.x, -vertexNormal.z, vertexNormal.y);
+    instData0 = instanceData0; instData1 = instanceData1; instData2 = instanceData2; instData3 = instanceData3; instData4 = instanceData4;
+    gl_Position = mvp * vec4(fragPos, 1.0);
+}";
+
+        /// <summary>⭐ CE-4555 — the per-instance attribute locations of <see cref="InstancedVertex"/> (the transform takes four).</summary>
+        public const int InstanceTransformLocation = 6, InstanceColourLocation = 10, InstanceDataLocation = 11, InstanceDataVectors = 5;
+
+        /// <summary>
+        /// ⭐ CE-4555 — the fragment program's text: ONE source for both programs. The instanced one gets <c>#define INSTANCED</c> and the five flat
+        /// <c>instData</c> inputs ahead of the host's surface function, so a surface written for both (<c>BodySurface</c>) reads its parameters
+        /// from the instance there and from its uniforms in the per-draw program.
+        /// </summary>
+        private static string FragmentSource(string surface, bool instanced)
+            => "#version 330\n"
+             + (instanced ? "#define INSTANCED 1\nflat in vec4 instData0;\nflat in vec4 instData1;\nflat in vec4 instData2;\nflat in vec4 instData3;\nflat in vec4 instData4;\n" : "")
+             + FragmentHead + surface + FragmentMain;
+
+        private const string FragmentHead = @"
 in vec3 fragPos;
 in vec3 fragNormal;
 in vec4 fragColor;
@@ -265,7 +322,7 @@ void main()
 
         private unsafe LitShader()
         {
-            var shader = Raylib.LoadShaderFromMemory(Vertex, FragmentHead + _surface + FragmentMain);
+            var shader = Raylib.LoadShaderFromMemory(Vertex, FragmentSource(_surface, instanced: false));
             IsValid = Raylib.IsShaderValid(shader);
             shader.Locs[(int)ShaderLocationIndex.MatrixModel] = Raylib.GetShaderLocation(shader, "matModel");
             shader.Locs[(int)ShaderLocationIndex.MatrixNormal] = Raylib.GetShaderLocation(shader, "matNormal");
@@ -300,24 +357,89 @@ void main()
         }
 
         /// <summary>⭐ CE-1146 (docs/DESIGN_Map_3D_Mode.md §6aa) — per frame: the sun's direction, the light (ambient + sun) and the colour
-        /// the fog fades into (the sky's horizon). <see cref="SceneAtmosphere.Default"/> reproduces the look the shader always had.</summary>
+        /// the fog fades into (the sky's horizon). <see cref="SceneAtmosphere.Default"/> reproduces the look the shader always had.
+        /// ⭐ CE-4555 — the instanced program (<see cref="Instanced"/>) gets the same values.</summary>
         public void ApplyAtmosphere(in SceneAtmosphere a)
         {
             var travel = HrotToRaylib.Position(-a.ToSun);   // the light travels AWAY from the sun
-            Raylib.SetShaderValue(Shader, _sunDir, travel.LengthSquared() > 0f ? Vector3.Normalize(travel) : new Vector3(0f, -1f, 0f), ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(Shader, _fogColor, new Vector3(a.SkyHorizon.R, a.SkyHorizon.G, a.SkyHorizon.B) / 255f, ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(Shader, _ambient, a.Ambient, ShaderUniformDataType.Float);
-            Raylib.SetShaderValue(Shader, _sunLight, a.SunLight, ShaderUniformDataType.Float);
+            _sunTravel = travel.LengthSquared() > 0f ? Vector3.Normalize(travel) : new Vector3(0f, -1f, 0f);
+            _fog = new Vector3(a.SkyHorizon.R, a.SkyHorizon.G, a.SkyHorizon.B) / 255f;
+            _ambientValue = a.Ambient;
+            _sunLightValue = a.SunLight;
+            SetAtmosphere(Shader, _sunDir, _fogColor, _ambient, _sunLight);
+            if (_instancedBuilt && InstancedIsValid) SetAtmosphere(_instanced, _iSunDir, _iFogColor, _iAmbient, _iSunLight);
+        }
+
+        private void SetAtmosphere(Shader s, int sunDir, int fogColor, int ambient, int sunLight)
+        {
+            Raylib.SetShaderValue(s, sunDir, _sunTravel, ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(s, fogColor, _fog, ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(s, ambient, _ambientValue, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(s, sunLight, _sunLightValue, ShaderUniformDataType.Float);
         }
 
         /// <summary>Per frame: where the eye is (Raylib coordinates), how far the fog lets you see, and ⭐ CE-1146 how far from the eye it
-        /// starts (0 = at the eye — first person; the free camera starts it at what it looks at).</summary>
+        /// starts (0 = at the eye — first person; the free camera starts it at what it looks at). ⭐ CE-4555 — the instanced program too.</summary>
         public void ApplyFrame(Vector3 eyeRaylib, float fogDensity, float fogStart = 0f)
         {
-            Raylib.SetShaderValue(Shader, _viewPos, eyeRaylib, ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(Shader, _fogDensity, fogDensity, ShaderUniformDataType.Float);
-            Raylib.SetShaderValue(Shader, _fogStart, fogStart, ShaderUniformDataType.Float);
+            _eye = eyeRaylib; _fogDensityValue = fogDensity; _fogStartValue = fogStart;
+            SetFrame(Shader, _viewPos, _fogDensity, _fogStart);
+            if (_instancedBuilt && InstancedIsValid) SetFrame(_instanced, _iViewPos, _iFogDensity, _iFogStart);
         }
+
+        private void SetFrame(Shader s, int viewPos, int fogDensity, int fogStart)
+        {
+            Raylib.SetShaderValue(s, viewPos, _eye, ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(s, fogDensity, _fogDensityValue, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(s, fogStart, _fogStartValue, ShaderUniformDataType.Float);
+        }
+
+        // ⭐ CE-4555 — the last atmosphere and frame values, so the instanced program, compiled on first use mid-frame, starts with this frame's
+        private Vector3 _sunTravel = Vector3.Normalize(HrotToRaylib.Position(new Vector3(0.45f, 0.6f, -1f))), _fog = new Vector3(SkyHorizon.R, SkyHorizon.G, SkyHorizon.B) / 255f, _eye;
+        private float _ambientValue = 0.42f, _sunLightValue = 0.58f, _fogDensityValue, _fogStartValue;
+
+        private Shader _instanced;
+        private bool _instancedBuilt;
+        private int _iViewPos, _iSunDir, _iFogColor, _iFogDensity, _iFogStart, _iAmbient, _iSunLight, _iMvp, _iVertexColor;
+
+        /// <summary>⭐ CE-4555 (§6ak G-1) — false when the GL driver refused the instanced program; <see cref="LitInstanceBatch"/> then draws each
+        /// instance with the per-draw program instead (the same picture, one call each).</summary>
+        public bool InstancedIsValid { get; private set; }
+
+        /// <summary>⭐ CE-4555 — the instanced program (<see cref="InstancedVertex"/> + the SAME fragment source), compiled on first use, with this
+        /// frame's atmosphere and eye already set. Unlit uniforms it does not use (<c>depthBias</c>, <c>groundDetail</c>) are 0, <c>colDiffuse</c> white —
+        /// the colour comes per instance.</summary>
+        public Shader Instanced
+        {
+            get
+            {
+                if (_instancedBuilt) return _instanced;
+                _instancedBuilt = true;
+                var s = Raylib.LoadShaderFromMemory(InstancedVertex, FragmentSource(_surface, instanced: true));
+                InstancedIsValid = Raylib.IsShaderValid(s);
+                _instanced = s;
+                if (!InstancedIsValid) return s;
+                _iViewPos = Raylib.GetShaderLocation(s, "viewPos");
+                _iSunDir = Raylib.GetShaderLocation(s, "sunDir");
+                _iFogColor = Raylib.GetShaderLocation(s, "fogColor");
+                _iFogDensity = Raylib.GetShaderLocation(s, "fogDensity");
+                _iFogStart = Raylib.GetShaderLocation(s, "fogStart");
+                _iAmbient = Raylib.GetShaderLocation(s, "ambient");
+                _iSunLight = Raylib.GetShaderLocation(s, "sunLight");
+                _iMvp = Raylib.GetShaderLocation(s, "mvp");
+                _iVertexColor = Raylib.GetShaderLocationAttrib(s, "vertexColor");
+                Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "depthBias"), 0f, ShaderUniformDataType.Float);
+                Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "groundDetail"), 0f, ShaderUniformDataType.Float);
+                Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "colDiffuse"), Vector4.One, ShaderUniformDataType.Vec4);
+                SetAtmosphere(s, _iSunDir, _iFogColor, _iAmbient, _iSunLight);
+                SetFrame(s, _iViewPos, _iFogDensity, _iFogStart);
+                return s;
+            }
+        }
+
+        /// <summary>⭐ CE-4555 — the instanced program's <c>mvp</c> uniform location and its <c>vertexColor</c> attribute location (−1 when unused).</summary>
+        internal int InstancedMvpLocation => _iMvp;
+        internal int InstancedVertexColorLocation => _iVertexColor;
 
         /// <summary>⭐ <c>CE-1196</c> (§6z CA-4) — moves what this program draws next <paramref name="ndc"/> toward the eye in clip depth
         /// (<see cref="MapCamera3D.GroundBiasNdc"/> for a layer lying on the ground; 0 for everything else). ⚠ It holds until set again —

@@ -31,12 +31,13 @@ public static class ScenarioEntityWalk
                     foreach (var task in plan.Plan.Tasks)
                     {
                         pass.Entering($"task {++n} ({task.BehaviorName}) params");
-                        task.BehaviorParams = behaviorRemapper.ApplyJson(task.BehaviorName, task.BehaviorParams, pass) ?? task.BehaviorParams;
+                        // ⭐ N-9 (CE-4471) — written only when the pass CHANGED it: a reading pass (the editor's Collector) leaves a live plan untouched
+                        if (behaviorRemapper.ApplyJson(task.BehaviorName, task.BehaviorParams, pass) is { } p1 && p1 != task.BehaviorParams) task.BehaviorParams = p1;
                     }
                     break;
                 case InitialBrainIntent brain when behaviorRemapper != null:
-                    if (brain.Behavior is { } b) { pass.Entering("Behavior.Params"); b.Params = behaviorRemapper.ApplyJson(b.Name, b.Params, pass) ?? b.Params; }
-                    if (brain.Sop is { } sop) { pass.Entering("Sop.Params"); sop.Params = behaviorRemapper.ApplyJson(sop.Name, sop.Params, pass) ?? sop.Params; }
+                    if (brain.Behavior is { } b) { pass.Entering("Behavior.Params"); if (behaviorRemapper.ApplyJson(b.Name, b.Params, pass) is { } p2 && p2 != b.Params) b.Params = p2; }
+                    if (brain.Sop is { } sop) { pass.Entering("Sop.Params"); if (behaviorRemapper.ApplyJson(sop.Name, sop.Params, pass) is { } p3 && p3 != sop.Params) sop.Params = p3; }
                     break;
                 case RoutePlan route:
                     comps[ci] = route.WithWaypoints(list =>

@@ -22,12 +22,20 @@ public static class TrafficAmbientBodies
         var bodies = t_bodies ??= new List<EntityBodyLayer3D.AmbientBody>();
         bodies.Clear();
         if (TrafficFrame.Of(world) is not { } frame) return bodies;
-        foreach (var ped in frame.Pedestrians)
-            if (!frame.IsPedEntity(ped))
+        var peds = frame.Pedestrians;
+        for (int i = 0; i < peds.Count; i++)
+        {
+            var ped = peds[i];
+            if (!frame.IsPedEntityAt(i))
                 bodies.Add(new(KeyOf(ped.NetworkId, ped.Name), (Fdp.Core.TkbTypeId)(TrafficReplicas.PedestrianTypeOf(ped.NetworkId)), new Vector3(ped.X, ped.Y, ped.Z), ped.YawRad));
-        foreach (var car in frame.Cars)
-            if (!frame.IsEntity(car))
+        }
+        var cars = frame.Cars;
+        for (int i = 0; i < cars.Count; i++)
+        {
+            var car = cars[i];
+            if (!frame.IsEntityAt(i))
                 bodies.Add(new(KeyOf(car.NetworkId, car.Id), (Fdp.Core.TkbTypeId)(TrafficReplicas.CarTypeOf(car)), new Vector3(car.X, car.Y, car.Z), car.YawRad, car.Color));
+        }
         return bodies;
     }
 

@@ -305,7 +305,12 @@ namespace CarKinem.Trajectory
                         Vector2 t1 = waypoints[i].Tangent;
 
                         Vector2 xy = EvaluateHermite(t, a, t0, b, t1);
-                        tangent = Vector2.Normalize(EvaluateHermiteTangent(t, a, t0, b, t1));
+                        // ⭐ CE-4462 (found by the overnight threaded build) — a ZERO curve tangent (a Catmull-Rom path whose first two
+                        //   waypoints coincide — a path starting at the vehicle's own position — has t0 = 0, and at t = 0 the curve's
+                        //   tangent IS t0) was normalised into NaN: the vehicle's speed and position went NaN on its first step and every
+                        //   passenger inherited it. The linear branch above always guarded this; the curve falls back to the chord, then +X.
+                        tangent = CarKinem.Core.VectorMath.SafeNormalize(EvaluateHermiteTangent(t, a, t0, b, t1),
+                                      CarKinem.Core.VectorMath.SafeNormalize(b - a, new Vector2(1, 0)));
                         speed = waypoints[i - 1].DesiredSpeed +
                                 (waypoints[i].DesiredSpeed - waypoints[i - 1].DesiredSpeed) * t;
                         pos = new Vector3(xy.X, xy.Y, zLerp);

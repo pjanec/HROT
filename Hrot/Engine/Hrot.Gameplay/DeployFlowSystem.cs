@@ -42,7 +42,7 @@ public sealed record DeployFlowEnvironment(Func<bool> GateOpen, Func<bool> Opera
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
 [TickMode(TickPolicy.EveryFrame)]
-public sealed class DeployFlowSystem : IEcsModuleSystem
+public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
 {
     /// <summary>D-7 — every wait times out after this many milliseconds.</summary>
     public const long TimeoutMs = 10_000;

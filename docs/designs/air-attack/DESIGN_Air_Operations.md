@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: uses the air assault, the air defence and the strike aircraft in its phase 3
   - ../../UX/DESIGN_Map_Interaction.md — E8: places a Mobility = Air type airborne at its route / hover height (SpawnHeight.AboveLevel); CE-4272
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — §8d OWNS the armed search (`AirArmedSearch`, HQ-9, `CE-2311`, built on this design's `AirAttackNodes.Run` and `FlyTo`) and the headquarters that sends aircraft on a report (`SupportCommand`, HQ-6…HQ-8)
@@ -667,7 +668,7 @@ events, and the decision WHEN to dispense stays with the aircraft's brain while 
 | AD3 | flares and chaff | dispensers on the aircraft type; the BRAIN raises the dispense; the SimHost spawns decoys and a homing round with the decoy in its cone re-targets by its seeker's rejection chance, drawn once per salvo (`SimRng`) | the decision is behaviour, the physics is the engine's; deterministic for replay |
 | AD4 | the warning | a sensor change on the target's brain (bearing, seeker kind, time to impact), beside V8a's `AirThreat` | the reaction needs it on the BRAIN node; one sensor path |
 | AD5 | the AA gun | a ZU-23-2 weapon system (Ground, Pintle), high elevation, fast traverse, no proximity fuze — AT2's lead does the work | the commonest light AA; it rides the technicals the demos already use |
-| AD6 | the radar SAM | ⏸ later — a design question for the user once AD1–AD5 land; chaff is built to the decoy against a test radar round | keeps the batch to what the user asked for |
+| AD6 | the radar SAM | ⏸ later — tracked as **CE-7020** (parked, `2026-11-13`; the city battle's air threat) — a design question for the user once AD1–AD5 land; chaff is built to the decoy against a test radar round | keeps the batch to what the user asked for |
 
 Dispatched: `HANDOFF_Behaviors_To_Backend_Air_Defence.md`
 (CE-2187 MANPADS + IR · CE-2188 flares / chaff · CE-2189 warning · CE-2190 ZU-23-2); behaviors' half is CE-2191.

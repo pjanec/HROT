@@ -20,7 +20,7 @@ public sealed class WorldUndoRecorder : IEditStepRecorder
     /// <summary>How close a repeat of the same action must follow to join the last step (the design's "~1 s").</summary>
     public const double CoalesceSeconds = 1.0;
 
-    private readonly EditHistory _history;
+    private readonly IUndoStepSink _history;
     private readonly WorldSnapshotRing _ring;
     private readonly Func<bool> _recording;
     private readonly Func<double> _now;
@@ -34,7 +34,7 @@ public sealed class WorldUndoRecorder : IEditStepRecorder
     private double _lastEnd = double.NegativeInfinity;
     private int _lastVersion = -1;
 
-    public WorldUndoRecorder(EditHistory history, WorldSnapshotRing ring, Func<bool> recording, Func<double>? now = null)
+    public WorldUndoRecorder(IUndoStepSink history, WorldSnapshotRing ring, Func<bool> recording, Func<double>? now = null)
     {
         _history = history ?? throw new ArgumentNullException(nameof(history));
         _ring = ring ?? throw new ArgumentNullException(nameof(ring));
@@ -71,6 +71,7 @@ public sealed class WorldUndoRecorder : IEditStepRecorder
             _history.Push(_label,
                 redo: () => _ring.Restore(repo, after),
                 undo: () => { after = _ring.Capture(repo); _ring.Restore(repo, before); },
+                beforeSlot: before,
                 available: () => _ring.Holds(before));
             Recorded++;
         }

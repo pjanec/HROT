@@ -311,6 +311,37 @@ export const TOOLS_CATALOG = [
     "manualVerify": false
   },
 
+  {
+    "name": "get_world_hash",
+    "group": "A — Lifecycle & status",
+    "summary": "The world's content hash: every live entity and every unmanaged component's bytes (managed components by presence).",
+    "http": {
+      "method": "GET",
+      "path": "/world/hash"
+    },
+    "params": [
+      {
+        "name": "byType",
+        "type": "boolean",
+        "required": false,
+        "description": "Also return `types`: one hash per component type (order-free) — compare two runs type by type",
+        "default": false
+      },
+      {
+        "name": "rows",
+        "type": "string",
+        "required": false,
+        "description": "A component type name: also return `rows`, entity index → that type's row hash @ network id — which entities differ"
+      }
+    ],
+    "returns": "{ hash, simTime, tick, entities, types?, rows? }",
+    "notes": [
+      "In a threaded node it hashes the SIMULATION's world (S), between ticks on the sim thread."
+    ],
+    "hint": "Opt: byType (true ⇒ `types`: one hash per component type, to name WHAT differs). Example: get_world_hash({byType:true}). Two runs that took the same steps with the same edits agree on `hash` exactly when their state is identical — e.g. the same stepped run at 1 / 2 / 4 / 8 sim threads (N-15).",
+    "manualVerify": false
+  },
+
   // ── Group B — Queries ───────────────────────────────────────────────────────
 
   {
@@ -6321,6 +6352,12 @@ export const TOOLS_CATALOG = [
         "type": "string",
         "required": false,
         "description": "Filter to one category, e.g. \"Edit\""
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "required": false,
+        "description": "\"shell\" = the shell's own commands (Edit ▸ Undo / Redo, File ▸ …); default = the active document's"
       }
     ],
     "returns": "{ count, total, commands[{id,displayName,category,doc,defaultKey?,isEnabled,isChecked?}], note }",
@@ -6395,6 +6432,12 @@ export const TOOLS_CATALOG = [
         "type": "object",
         "required": false,
         "description": "Canvas position {x,y} for context-menu-style commands"
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "required": false,
+        "description": "\"shell\" = a shell command (edit.undo, edit.redo …); default = the active document's"
       }
     ],
     "returns": "{ commandId, displayName, invoked, success, message, note }",
@@ -7884,6 +7927,12 @@ export const TOOLS_CATALOG = [
         "type": "number",
         "required": false,
         "description": "Vertical field of view, degrees (default: the camera's 45; narrow = telephoto)"
+      },
+      {
+        "name": "twoD",
+        "type": "boolean",
+        "required": false,
+        "description": "⭐ CE-4385 — hold the shot on the 2-D map instead (look-at = the centre, distance = the scale; default false)"
       },
       {
         "name": "spec",

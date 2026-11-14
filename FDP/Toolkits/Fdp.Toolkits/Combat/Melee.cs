@@ -50,7 +50,8 @@ namespace Fdp.Toolkit.Combat
         public const float KnockdownSeconds = 3f;
 
         /// <summary>Blows struck on this process (a diagnostics counter and a rail read it).</summary>
-        public static int Strikes { get; private set; }
+        public static int Strikes => System.Threading.Volatile.Read(ref s_strikes);
+        private static int s_strikes;   // ⭐ N-11 — counted from parallel brains
 
         /// <summary>True when <paramref name="victim"/> is within <see cref="ReachMetres"/> of <paramref name="striker"/>.</summary>
         public static bool InReach(EntityRepository repo, Entity striker, Entity victim)
@@ -76,7 +77,7 @@ namespace Fdp.Toolkit.Combat
                 HitEntity = victim, TotalDamage = damage, Effect = HitEffect.Blunt, EffectSeconds = knockdownSeconds,
                 Source = striker,   // ⭐ CE-3237 (B-15, DS-1)
             });
-            Strikes++;
+            System.Threading.Interlocked.Increment(ref s_strikes);
             return true;
         }
     }

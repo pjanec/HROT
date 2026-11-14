@@ -55,6 +55,20 @@ namespace Fdp.Toolkit.Behavior
             return phase + (System.Math.Floor((now - phase) / p) + 1) * p;
         }
 
+        /// <summary>
+        /// ⭐ P-5 (the parallel experiment, E-4; DESIGN_Parallel_Simulation §8.1) — INTERLEAVING for a per-entity system, stateless: is
+        /// <paramref name="entityIndex"/> due in the frame that advanced sim time from <paramref name="prevNow"/> to <paramref name="now"/>? True
+        /// once per <paramref name="period"/> on the entity's phase (the <see cref="NextOnGrid"/> grid), so the entities spread over the frames.
+        /// ⚠ The system must integrate the time ELAPSED since the entity's last update, never one frame's dt. A period ≤ 0, or a time that did
+        /// not advance forward, is every frame.
+        /// </summary>
+        public static bool DueOnGrid(double prevNow, double now, double period, int entityIndex)
+        {
+            if (period <= 0 || now <= prevNow) return true;
+            double phase = (entityIndex % Phases) * (period / Phases);
+            return System.Math.Floor((now - phase) / period) != System.Math.Floor((prevNow - phase) / period);
+        }
+
         /// <summary>Does a slot in this state need its event window kept (an EveryFrame slot reads the bus; an indefinite sleep reads nothing)?</summary>
         public static bool KeepsWindow(CadenceMode mode, double nextTick)
             => mode == CadenceMode.Periodic || (mode == CadenceMode.Asleep && nextTick < Never);

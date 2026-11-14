@@ -445,6 +445,7 @@ namespace Hrot.Editor.DebugApi
                 ["gen1"]                = GC.CollectionCount(1),
                 ["gen2"]                = GC.CollectionCount(2),
                 ["pauseTimePercent"]    = Math.Round(gc.PauseTimePercentage, 2),
+                ["threads"]             = p.Threads.Count,   // ⭐ POC 4 J-2 (DESIGN_Parallel_Simulation §13) — the process's OS threads: one worker pool or two
             };
         }
     }

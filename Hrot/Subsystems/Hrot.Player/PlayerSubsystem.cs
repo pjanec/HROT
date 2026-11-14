@@ -27,7 +27,7 @@ namespace Hrot.Player
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class PlayerSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
+    public sealed class PlayerSubsystem : ISubsystem, Fdp.Toolkit.Runner.ISimSteppedSubsystem, IMapCameraProvider, IWindowRegistrar, Hrot.Common.Diagnostics.Gizmos.IGizmoControllable,
         Hrot.Common.EntityCreation.IEntityCreationHost,
         Hrot.Presentation.DebugApi.IProvidesDebugSurface,
         Hrot.UI.Common.RunMode.IProvidesRunControls
@@ -152,6 +152,15 @@ namespace Hrot.Player
         {
             _app?.Update(deltaTime);
         }
+
+        // ⭐⭐ CE-3446 (§15) — a threaded player is a STAGED subsystem like the editor: the host's sim worker runs its node frame through the shared
+        //   presentation's step (SubsystemOrchestrator.Draws then draws its windows); unstaged it is a plain subsystem (both calls are no-ops)
+
+        /// <inheritdoc/>
+        public void UseHostSimWorker() => _app?.Presentation?.UseHostSimWorker();
+
+        /// <inheritdoc/>
+        public bool SimStepOnHostWorker() => _app?.Presentation?.StepOnHostWorker() ?? false;
 
         /// <inheritdoc/>
         /// <remarks>

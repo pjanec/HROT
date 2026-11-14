@@ -108,6 +108,14 @@ namespace Fdp.Toolkit.Combat
             if (mount == null || mount.MuzzleVelocity <= 0f || mount.MuzzleVelocity >= CombatConstants.HighArcMinMuzzleVelocity) return false;
             if (CombatTkb.WarheadOf(world, mount) is not { Indirect: true } wh) return false;
             if (world.GetComponentRO<WeaponState>(mountEntity).Ammo == 0) return false;
+            // ⭐ CE-2278 — with a loadout (M67 + smoke) the round IN HIS HAND decides: none while it is being switched, none of an empty
+            //   entry, and never a smoke grenade (smoke is thrown only when a squad orders it)
+            if (world.IsComponentTypeRegistered<AmmoLoadout>() && world.HasComponent<AmmoLoadout>(mountEntity))
+            {
+                ref readonly var load = ref world.GetComponentRO<AmmoLoadout>(mountEntity);
+                if (load.Count > 0 && (load.SwitchRemaining > 0f || load.RoundsAt(load.Loaded) == 0
+                                        || CombatTkb.WarheadOf(world, load.LoadedAmmo) is { Kind: Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke })) return false;
+            }
             dto = mount; warhead = wh;
             return true;
         }

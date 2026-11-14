@@ -88,7 +88,7 @@ namespace Hrot.Network.Translators
             // ⭐ CE-2380 part 2 — not "from my own node id" (some nodes fall back to id 0, so two nodes can share one): an answer THIS node already holds
             //   (same request, same status, same responder) is its own coming back — skip it. Another node's answer, even from id 0, is a different tuple.
             if (EditOutcomeLog.Of(repo).Holds(m.RequestId, (EditStatus)m.Status, m.RespondingNode)) return false;
-            var outcome = EditOutcome.Create(m.RequestId, m.EntityId, (EditStatus)m.Status, m.Reason, m.RespondingNode, at: repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : 0d, fromNetwork: true);
+            var outcome = EditOutcome.Create(m.RequestId, m.EntityId, (EditStatus)m.Status, m.Reason, m.RespondingNode, at: repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0d, fromNetwork: true);
             EditOutcomeLog.Of(repo).Add(outcome);
             EditOutcomes.Publish(repo, outcome);
             return true;

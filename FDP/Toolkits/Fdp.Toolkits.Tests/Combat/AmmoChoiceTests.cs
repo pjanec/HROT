@@ -81,6 +81,35 @@ namespace Fdp.Toolkit.Combat.Tests
 
         public void Dispose() => _w.Dispose();
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-7025</c> (City Battle §5, Indirect Fire IF-5) — a mortar's loadout of HE then SMOKE: <see cref="AmmoChoice.IndexOfKind"/>
+        /// finds the smoke entry (none left ⇒ −1); <see cref="AmmoChoice.LoadIndex"/> loads it at the cost of one reload (true while the switch
+        /// runs, false once drained), and loading the entry already in the breech costs nothing. ✅ Red-proof: <c>LoadIndex</c> never switching ⇒
+        /// the HE stays loaded.
+        /// </summary>
+        [Fact]
+        public void CE7025_AMortarLoadsItsSmoke_ForOneReload_AndFindsNoneWhenSpent()
+        {
+            const long MortarHe = 9301, MortarSmoke = 9302;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var he = new TkbTemplate("81mm HE", MortarHe); he.AddDescriptor(new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 5 });
+            var smoke = new TkbTemplate("81mm smoke", MortarSmoke); smoke.AddDescriptor(new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20, CloudSeconds = 90 });
+            db.Register(he); db.Register(smoke);
+            _w.RegisterComponent<AmmoLoadout>();
+            var mortar = _w.CreateEntity();
+            _w.AddComponent(mortar, AmmoLoadout.From(new System.Collections.Generic.List<AmmoLoadDto>
+                { new() { AmmoGuid = MortarHe, Rounds = 30 }, new() { AmmoGuid = MortarSmoke, Rounds = 2 } }));
+            Assert.Equal(MortarHe, AmmoChoice.LoadedAmmo(_w, mortar));
+            Assert.Equal(1, AmmoChoice.IndexOfKind(_w, mortar, WarheadKind.Smoke));
+            Assert.False(AmmoChoice.LoadIndex(_w, mortar, 0, 3f));                 // already in the breech: no switch
+            Assert.True(AmmoChoice.LoadIndex(_w, mortar, 1, 3f));                  // the switch runs
+            Assert.Equal(MortarSmoke, AmmoChoice.LoadedAmmo(_w, mortar));
+            Fdp.Toolkit.Behavior.Systems.WeaponDispatcherSystem.DrainSwitch(ref _w.GetComponentRW<AmmoLoadout>(mortar), 3.1f);
+            Assert.False(AmmoChoice.LoadIndex(_w, mortar, 1, 3f));                 // switched: it may fire
+            _w.GetComponentRW<AmmoLoadout>(mortar).SetRounds(1, 0);
+            Assert.Equal(-1, AmmoChoice.IndexOfKind(_w, mortar, WarheadKind.Smoke)); // no smoke left
+        }
+
         private static TkbTemplate Target(string name, long type, CombatPlatformDefDto platform)
         {
             var t = new TkbTemplate(name, type);

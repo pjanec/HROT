@@ -5,7 +5,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
-using Fdp.ModuleHost.Threading;
 
 namespace Fdp.Network.Cyclone.Egress
 {
@@ -236,7 +235,7 @@ namespace Fdp.Network.Cyclone.Egress
             }
             using var scope = _replica.QueryIndexScope();
             _replica.PrepareQueryIndex();
-            if (_workers > 1 && _order.Length > 1 && WorkerPool.Shared(_workers).TryRun(_order.Length, _scanOne)) return;
+            if (_workers > 1 && _order.Length > 1 && Fdp.Core.Jobs.FdpWorkerPool.Shared.TryRun(_order.Length, _scanOne)) return;   // ⭐ POC 4 J-1 — the ONE pool, background lane
             for (int i = 0; i < _order.Length; i++) ScanOne(i);
         }
 

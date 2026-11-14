@@ -264,7 +264,7 @@ public sealed class TheFileReviewTests : IDisposable
             RecordingFiles: () => host.Files, CurrentFrame: () => host.Frame, Seek: f => host.Seeks.Add(f),
             Selection: () => host.Selected, Select: id => { host.Selects.Add(id); return true; },
             Serializer: new ScenarioSerializerBuilder("test").Build(), Behaviors: null, Blueprints: null, Reader: _reader,
-            Merged: () => manager));
+            Review: Fdp.Toolkit.ReplayBrowser.Federation.InlineReviewChannel.OverManager(manager)));
         review.SearchPanel.IsMergedViewActive = true;
         review.SearchPanel.PrepareForTest();
         review.SearchPanel.FriendlyCondition = XOver24();

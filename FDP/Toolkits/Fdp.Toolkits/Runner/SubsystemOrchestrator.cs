@@ -233,10 +233,97 @@ namespace Fdp.Toolkit.Runner
             return dt;
         }
 
+        // ════ ⭐⭐ N-13 (CE-4475; U-2 / F-21) — ONE sim worker for every kernel of the process ════════════════════════════════════════════
+        //   A windowed threaded process (HROT_THREADED_KERNEL=3) hosting several kernels runs them ALL on one worker thread, in sequence: the
+        //   host's sim-side frame-boundary work (its debug API's sim-side routes), then each subsystem's sim step — a staged subsystem's own
+        //   (ISimSteppedSubsystem), a plain subsystem's Update. The main thread runs only the staged subsystems' presentation. ⭐ One thread for
+        //   every kernel ⇒ the process-wide statics (the worker pool, the per-job runners, the timers) are never entered from two threads.
+        //   ⚠ A subsystem with no presentation split is not DRAWN while its kernel runs on the worker (it would read its world beside the tick);
+        //   only a staged subsystem presents. Headless processes keep everything inline (nothing is drawn: no race to prevent).
+
+        private System.Threading.Thread? _simWorker;
+        private Action? _simBoundary;
+        private readonly object _simDtLock = new();
+        private double _simPendingDt;
+        private long _simWorkerFaults;
+
+        /// <summary>The kernels run on the host's one sim worker (<see cref="StartSimWorker"/>).</summary>
+        public bool SimOnWorker => _simWorker != null;
+
+        /// <summary>⭐ N-13 — may <paramref name="subsystem"/>'s presentation run on the main thread now? Always without a sim worker; beside it only a
+        /// staged subsystem (<see cref="ISimSteppedSubsystem"/> — the UI reads its published copy), never one whose live world the worker ticks.
+        /// ⭐ The ONE rule: this orchestrator's draw passes and the window gate the runner gives each subsystem's windows (WindowManager.RegisteringUnder).</summary>
+        public bool Draws(ISubsystem subsystem) => _simWorker == null || subsystem is ISimSteppedSubsystem;
+
+        /// <summary>Faults the sim worker caught (each is also logged, the first 20).</summary>
+        public long SimWorkerFaults => System.Threading.Interlocked.Read(ref _simWorkerFaults);
+
+        /// <summary>
+        /// ⭐ N-13 — starts the ONE sim worker of this process. <paramref name="simBoundary"/> is the host's sim-side frame-boundary work, run on the
+        /// worker before each pass (the debug API's sim-side routes). Call once, after <see cref="Initialize"/>.
+        /// </summary>
+        public void StartSimWorker(Action? simBoundary)
+        {
+            if (_simWorker != null) return;
+            _simBoundary = simBoundary;
+            for (int i = 0; i < _subsystems.Count; i++)
+                if (_subsystems[i] is ISimSteppedSubsystem staged) staged.UseHostSimWorker();
+            _simWorker = new System.Threading.Thread(SimWorkerLoop) { IsBackground = true, Name = "HROT sim (all kernels)" };
+            _simWorker.Start();
+        }
+
+        private void SimWorkerLoop()
+        {
+            Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();   // ⭐ N-14 — the sim thread
+            while (_running)
+            {
+                bool did = false;
+                try
+                {
+                    _simBoundary?.Invoke();
+                    float dt;
+                    lock (_simDtLock)
+                    {
+                        dt = (float)Math.Min(_simPendingDt, 0.25);
+                        _simPendingDt = _simPendingDt - dt > 0.25 ? 0 : _simPendingDt - dt;   // never more than a quarter second behind
+                    }
+                    for (int i = 0; i < _subsystems.Count; i++)
+                    {
+                        if (_subsystems[i] is ISimSteppedSubsystem staged) did |= staged.SimStepOnHostWorker();
+                        else if (dt > 0f)
+                        {
+                            using var trace = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.Update (sim worker): ", Fdp.Core.TraceContext.Tick);
+                            _subsystems[i].Update(dt);
+                            did = true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (System.Threading.Interlocked.Increment(ref _simWorkerFaults) <= 20) Console.WriteLine("[N-13] sim worker fault: " + ex);
+                }
+                if (!did) System.Threading.Thread.Sleep(1);
+            }
+        }
+
         public void Update(float dt)
         {
+            if (_simWorker != null)
+            {   // ⭐ N-13 — the main thread: the staged subsystems' presentation only; the plain kernels' time goes to the worker
+                lock (_simDtLock) _simPendingDt += dt;
+                for (int i = 0; i < _subsystems.Count; i++)
+                    if (_subsystems[i] is ISimSteppedSubsystem)
+                    {
+                        using var traceStaged = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.Update: ", Fdp.Core.TraceContext.Presentation);
+                        _subsystems[i].Update(dt);
+                    }
+                return;
+            }
             for (int i = 0; i < _subsystems.Count; i++)
+            {
+                using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.Update: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1 — the presentation half of the frame, one reader per subsystem
                 _subsystems[i].Update(dt);
+            }
         }
 
         public void DrawWorldAll()
@@ -244,15 +331,22 @@ namespace Fdp.Toolkit.Runner
             // Only the active map owner draws the world layer.
             for (int i = 0; i < _subsystems.Count; i++)
             {
-                if (IsMapOwner(_subsystems[i]))
+                if (IsMapOwner(_subsystems[i]) && Draws(_subsystems[i]))   // ⭐ N-13 — only a staged subsystem draws beside the worker
+                {
+                    using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawWorld: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                     _subsystems[i].DrawWorld();
+                }
             }
         }
 
         public void DrawUIAll()
         {
             for (int i = 0; i < _subsystems.Count; i++)
+            {
+                if (!Draws(_subsystems[i])) continue;   // ⭐ N-13 — its world is ticking on the worker
+                using var traceSub = Fdp.Core.AccessTrace.Scope(_subsystems[i], "subsystem.DrawUI: ", Fdp.Core.TraceContext.Presentation);   // ⭐ A-1
                 _subsystems[i].DrawUI();
+            }
         }
 
         /// <summary>

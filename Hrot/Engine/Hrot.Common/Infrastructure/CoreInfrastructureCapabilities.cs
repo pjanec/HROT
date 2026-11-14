@@ -66,13 +66,17 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.HealthApplicationSystem _system = new();
         // ⭐ CE-2155 (R-2011 I3) — an incapacitated person bleeds out where his Health is owned: the other Health writer, beside damage.
         private readonly Fdp.Toolkit.Combat.Systems.BleedOutSystem _bleedOut = new();
+        // ⭐ CE-6003 (city battle O-1) — a destructible obstacle at 0 HP is removed by its Health owner, right after the damage that emptied it.
+        private readonly Fdp.Toolkit.Combat.Systems.ObstacleRemovalSystem _obstacles = new();
+        // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
+        private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
 
         public string Key => CapabilityKeys.HealthApplication;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -83,6 +87,8 @@ public static class CoreInfrastructureCapabilities
             if (simulation is null) throw new ArgumentNullException(nameof(simulation));
             simulation.Add(_system);
             simulation.Add(_bleedOut);
+            simulation.Add(_obstacles);
+            simulation.Add(_wrecks);
         }
     }
 

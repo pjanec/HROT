@@ -84,6 +84,8 @@ namespace Fdp.Toolkit.Runner.Testing
         {
             _runStopwatch.Restart();
             _logger.LogInformation("Starting test: {TestName}", _script.TestName);
+            // ⭐ R-4218 (CE-4481) — a test harness runs Deterministic even in continuous play: the pin holds for the whole run
+            using var deterministic = Fdp.Core.Jobs.SimulationModeSelector.RequireDeterministic();
 
             // 1. Initialise the orchestrator (headless — no Raylib window).
             _orchestrator.Initialize();

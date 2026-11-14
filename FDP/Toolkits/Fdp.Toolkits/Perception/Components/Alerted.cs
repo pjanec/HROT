@@ -32,8 +32,20 @@ namespace Fdp.Toolkit.Perception.Components
         public static bool Pin(EntityRepository repo, Entity man, long memoryId, double now)
         {
             if (memoryId == 0 || !repo.IsComponentTypeRegistered<Alerted>() || !repo.IsAlive(man)) return false;
-            if (!repo.HasComponent<Alerted>(man)) repo.AddComponent(man, new Alerted());
-            ref var a = ref repo.GetComponentRW<Alerted>(man);
+            if (!repo.HasComponent<Alerted>(man))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new Alerted();
+                PinInto(ref fresh, memoryId, now);
+                repo.AddComponent(man, fresh);
+                return true;
+            }
+            PinInto(ref repo.GetComponentRW<Alerted>(man), memoryId, now);
+            return true;
+        }
+
+        private static void PinInto(ref Alerted a, long memoryId, double now)
+        {
             double until = now + LeaseSeconds;
             int slot = -1, oldest = 0;
             double oldestUntil = double.MaxValue;
@@ -44,7 +56,6 @@ namespace Fdp.Toolkit.Perception.Components
                 if (u < oldestUntil) { oldestUntil = u; oldest = i; }
             }
             Set(ref a, slot >= 0 ? slot : oldest, memoryId, until);
-            return true;
         }
 
         /// <summary><paramref name="memoryId"/> is pinned on <paramref name="man"/> at <paramref name="now"/>.</summary>

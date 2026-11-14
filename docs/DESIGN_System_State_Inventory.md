@@ -828,6 +828,21 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.UI.Common.Effects.WreckSpawnSystem._gone` | **A** | scratch cleared before each use | Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs:394 |
 | `Hrot.UI.Common.Effects.WreckSpawnSystem._seen` | **A** | scratch cleared before each pass | Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs:379 |
 | `Hrot.UI.Common.Effects.WreckSpawnSystem._wasDestroyed` | **A** | visual edge memory (first seen never burns); designed to drop on replay/world change | Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs:390 |
+| `Fdp.Toolkit.Blueprints.Systems.BlueprintTickSystem._before` | **A** | scratch — one slot's payload copied before its tick and compared after (stamp on change, exp/perf); filled per slot | FDP/Toolkits/Fdp.Toolkits/Blueprints/Systems/BlueprintTickSystem.cs:162 |
+| `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._list` | **A** | scratch — the parallel batch list, refilled from 0 each tick (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:97 |
+| `Fdp.Toolkit.Perception.Systems.ThreatEvaluationSystem._threatsOut` | **A** | scratch — each batch entity's threat count, written by this tick's job, read back the same tick (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Perception/Systems/ThreatEvaluationSystem.cs:101 |
+| `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._gridData` | **A** | scratch — the grid singleton copied at the top of Execute for the parallel job (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:137 |
+| `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._reqs` | **A** | scratch — this frame's requests copied for the parallel job (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:146 |
+| `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._results` | **A** | scratch — this frame's hits, written by the job, published the same frame (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:311 |
+| `Fdp.Toolkit.Physics.Systems.RaycastSolverSystem._turretOf` | **A** | scratch — built at the top of Execute, nulled in its finally (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Physics/Systems/RaycastSolverSystem.cs:149 |
+| `Hrot.AI.Behaviors.Brains.CalloutSystem._list` | **A** | scratch — the parallel batch list, refilled from 0 each run (exp/perf) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/Callouts.cs:169 |
+| `Hrot.AI.Behaviors.Brains.CalloutSystem._about` | **A** | scratch — written by this run's job at its own index, read by the same run's deferred Say (exp/perf) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/Callouts.cs:194 |
+| `Hrot.AI.Behaviors.Brains.StressSystem._list` | **A** | scratch — the parallel batch list, refilled from 0 each run (exp/perf) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/StressSystem.cs:384 |
+| `Hrot.AI.Behaviors.Brains.StressSystem._prevNow` | **A** | the previous frame's sim time for the step cadence; empty (−∞) or a later time makes every man due once (`CadenceGate.DueOnGrid`: now ≤ prev ⇒ due), and the step integrates from his own `Stress.LastStepAt` — nothing lost (exp/perf) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/StressSystem.cs:370 |
+| `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._gate` | **A** | the egress visit gate: a new world ⇒ it resets itself (`ReferenceEquals(repo)`), the clock going back ⇒ a full scan (exp/perf) | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:60 |
+| `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._held` | **A** | sensors visited every frame until their slot's id exists; cleared per world, and an empty set only means one more gated visit (exp/perf) | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:107 |
+| `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator._knownThisScan` | **A** | scratch — the node ids read once per scan, nulled at its start (exp/perf) | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:120 |
+| `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator.<GateSkipped>k__BackingField` | **A** | a diagnostic counter (exp/perf) | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:64 |
 
 ### 5c. K — not state: dependencies and configuration fixed at start-up
 
@@ -942,6 +957,9 @@ A reference to a concrete class is classified by what that OBJECT carries. A sys
 | `Hrot.Editor.Debugging.NodeBreakpointEvaluator._armedHere` | **A** | units this evaluator armed, re-derived from the mounted steps each frame; forgotten at the world boundary (WorldEpoch.Moved) (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:54 |
 | `Hrot.Editor.Debugging.NodeBreakpointEvaluator._forUnit` | **A** | scratch cleared per unit (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:56 |
 | `Hrot.Editor.Debugging.NodeBreakpointEvaluator._unresolved` | **A** | diagnostic: why a step resolves to nothing; refilled with the cache (CE-1323) | Hrot/Subsystems/Hrot.Editor/Debugging/NodeBreakpointEvaluator.cs:60 |
+| `Fdp.Toolkit.Blueprints.Systems.BlueprintTickSystem.<StampOnChange>k__BackingField` | **K** | an experiment switch (`HROT_BP_STAMP_ON_CHANGE`), fixed at start-up (exp/perf) | FDP/Toolkits/Fdp.Toolkits/Blueprints/Systems/BlueprintTickSystem.cs:27 |
+| `Hrot.AI.Behaviors.Brains.StressSystem.<StepPeriod>k__BackingField` | **K** | an experiment knob (`HROT_STRESS_PERIOD`), fixed at start-up (exp/perf) | Hrot/Subsystems/Hrot.AI.Behaviors/Brains/StressSystem.cs:350 |
+| `Hrot.Network.NED.SimHost.EqsSensorConfigEgressTranslator.<GateOn>k__BackingField` | **K** | an experiment switch (`HROT_EQS_CONFIG_GATE`), fixed at start-up (exp/perf) | Hrot/Network/Hrot.Network.NED/SimHost/EqsSensorConfigEgressTranslator.cs:59 |
 
 ## 6. ⭐ S1 — where each C field goes (design `2026-10-22`; build-state: BUILT `2026-10-22`)
 

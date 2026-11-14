@@ -299,8 +299,6 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
     // ── phase 5: the ONE slave, OFFLINE ──────────────────────────────────────────────────────
 
-    /// <summary>⭐ <c>CE-3354</c> ③ — where this host's 3-D map step polls the map's build from (lazy: the map is attached after the bootstrap; a null result = no map ⇒ the step resolves). The map-in-load setting makes THIS node's load wait for it.</summary>
-    public System.Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; set; }
 
     /// <summary>⭐ Node Features F-17 — this host supplies a 3-D map status, so it declares `map3d.in-load` (default false here).</summary>
     protected override System.Collections.Generic.IEnumerable<Hrot.Common.Infrastructure.FeatureDeclaration> HostFeatures

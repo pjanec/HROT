@@ -140,11 +140,33 @@ namespace Fdp.Toolkit.Squad.Command
                 entry.CounterpartNetId = CommandPictureOps.NetIdOf(world, member);
                 Push(ref world.GetComponentRW<CommandOrderHistory>(giver), entry);
             }
-            if (!member.Equals(giver) && world.IsAlive(member) && world.HasComponent<CommandOrderHistory>(member))
+            if (!member.Equals(giver))
             {
-                entry.Traffic = CommandTraffic.Incoming;
-                entry.CounterpartNetId = CommandPictureOps.NetIdOf(world, giver);
-                Push(ref world.GetComponentRW<CommandOrderHistory>(member), entry);
+                // ⭐ N-11 (CE-4473; R-4212 ②) — the member's INCOMING copy is a write to another unit: inside the brains' parallel phase it is a
+                //   follow-up, written after the phase in batch order (an order reaches its listener a tick later); its cause is taken then
+                if (Fdp.Core.ParallelReadCheck.Defers(world))
+                    Fdp.Core.ParallelReadCheck.CurrentBatch!.Later(IncomingOrder.Instance, member, behaviourHash, (long)giver.PackedValue);
+                else Incoming(world, giver, member, entry);
+            }
+        }
+
+        private static void Incoming(EntityRepository world, Entity giver, Entity member, CommandOrderEntry entry)
+        {
+            if (!world.IsAlive(member) || !world.HasComponent<CommandOrderHistory>(member)) return;
+            entry.Traffic = CommandTraffic.Incoming;
+            entry.CounterpartNetId = CommandPictureOps.NetIdOf(world, giver);
+            Push(ref world.GetComponentRW<CommandOrderHistory>(member), entry);
+        }
+
+        private sealed class IncomingOrder : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly IncomingOrder Instance = new();
+            public void Apply(EntityRepository repo, Entity member, int behaviourHash, long giverPacked)
+            {
+                var giver = new Entity((ulong)giverPacked);
+                var entry = new CommandOrderEntry { At = CommandPictureOps.Now(repo), Behaviour = behaviourHash };
+                CauseOf(repo, giver, ref entry);
+                Incoming(repo, giver, member, entry);
             }
         }
 

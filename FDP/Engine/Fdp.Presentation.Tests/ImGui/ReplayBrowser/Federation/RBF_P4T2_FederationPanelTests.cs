@@ -60,7 +60,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_ActiveMode_InitialValue_IsSingleNode()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         Assert.Equal(ViewMode.SingleNode, panel.ActiveMode);
     }
 
@@ -68,7 +68,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_ModeToggle_FiresViewModeChanged()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         ViewMode? received = null;
         panel.OnViewModeChanged += m => received = m;
         panel.SetMode(ViewMode.Merged);
@@ -79,7 +79,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_OffsetEdit_CallsManagerSetNodeOffset()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         panel.SetNodeOffset(1, 5000L);
         Assert.Equal(5000L, manager.NodeOffsets[1]);
     }
@@ -88,7 +88,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_BaseTickEdit_CallsManagerSetBaseWallTicks()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         panel.SetBaseWallTicks(2_000_000L);
         Assert.Equal(2_000_000L, manager.BaseWallTicks);
     }
@@ -97,7 +97,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_NonZeroOffset_ShowsWarningGlyph()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         Assert.False(panel.HasNonZeroOffset);
         panel.SetNodeOffset(1, 100L);
         Assert.True(panel.HasNonZeroOffset);
@@ -107,7 +107,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_ProviderDropdown_DefaultsToLowestNodeId()
     {
         using var manager = MakeSingleNodeManager(nodeId: 1);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         Assert.Equal(1, manager.LocalEntitiesProviderNodeId);
     }
 
@@ -115,7 +115,7 @@ public sealed class RBF_P4T2_FederationPanelTests : IDisposable
     public void RBF_P4T2_ProviderDropdownChange_CallsManagerSetLocalEntitiesProvider()
     {
         using var manager = MakeTwoNodeManager(nodeId1: 1, nodeId2: 2);
-        var panel = new FederationPanel(manager);
+        var panel = new FederationPanel(InlineReviewChannel.OverManager(manager));
         panel.SetMode(ViewMode.Merged);
         panel.SetLocalEntitiesProvider(2);
         Assert.Equal(2, manager.LocalEntitiesProviderNodeId);

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Diagnostics.Contracts.Panels;
@@ -48,8 +47,9 @@ public sealed record FederationPanelViewModel(
 /// </summary>
 public sealed class FederationPanel
 {
-    private readonly FederatedReplayManager _manager;
-    private readonly int[] _nodeIds;   // the loaded nodes, ascending — fixed for a manager, so a drawn frame allocates nothing for the row order
+    // ⭐ CE-4496 R-2 (docs/DESIGN_Threaded_Review_Source.md §2) — reads ONLY the review read model and writes ONLY through the commands; ⛔ no federation manager here,
+    //   so the same panel draws inline (Replay Browser, switch off) and from the staging (mode 3).
+    private readonly IReviewChannel _review;
 
     /// <summary>⭐ G-7 S3 — the slider's range, ± ms (the sync contract allows 80 ms between nodes, SimTimeSyncIntegrationTests.cs:35-37).</summary>
     public const int OffsetRangeMs = 500;
@@ -57,7 +57,10 @@ public sealed class FederationPanel
     /// <summary>⭐ G-7 S3 — names a node's row (Q-B6: by role) — the editor passes its participants' names; default <c>Node N</c> (a recording's sidecar carries no role).</summary>
     public Func<int, string>? NodeName { get; set; }
 
-    public string NameOf(int nodeId) => NodeName?.Invoke(nodeId) ?? ("Node " + nodeId);
+    public string NameOf(int nodeId) => NodeName?.Invoke(nodeId) ?? _review.Model.Participant(nodeId)?.Name ?? ("Node " + nodeId);
+
+    /// <summary>The loaded nodes, ascending (the model's participants).</summary>
+    private IReadOnlyList<ReviewParticipant> Rows => _review.Model.Participants;
 
     public ViewMode ActiveMode { get; private set; } = ViewMode.SingleNode;
     public event Action<ViewMode>? OnViewModeChanged;
@@ -67,8 +70,7 @@ public sealed class FederationPanel
     {
         get
         {
-            foreach (var v in _manager.NodeOffsets.Values) if (v != 0L) return true;
-            return false;
+            return _review.Model.HasNonZeroOffset;
         }
     }
 
@@ -78,60 +80,58 @@ public sealed class FederationPanel
     internal static string MergedViewDisclaimerText =>
         "Note: Merged View scrub may stutter -- this is by design (offline synthesis).";
 
-    public FederationPanel(FederatedReplayManager manager)
+    public FederationPanel(IReviewChannel review)
     {
-        _manager = manager ?? throw new ArgumentNullException(nameof(manager));
-        _nodeIds = manager.Contexts.Keys.OrderBy(x => x).ToArray();
+        _review = review ?? throw new ArgumentNullException(nameof(review));
     }
 
     public void SetMode(ViewMode mode)
     {
-        if (_manager == null) return;  // defensive
         ActiveMode = mode;
         OnViewModeChanged?.Invoke(mode);
     }
 
     public void SetNodeOffset(int nodeId, long offsetTicks)
-        => _manager.SetNodeOffset(nodeId, offsetTicks);
+        => _review.SetNodeOffsetTicks(nodeId, offsetTicks);
 
     /// <summary>⭐ G-7 S3 (R-4183) — the node's manual offset in ms (0 when none was set).</summary>
     public double GetNodeOffsetMs(int nodeId)
-        => _manager.NodeOffsets.TryGetValue(nodeId, out long ticks) ? (double)ticks / TimeSpan.TicksPerMillisecond : 0d;
+        => _review.Model.Participant(nodeId)?.OffsetMs ?? 0d;
 
     /// <summary>
-    /// ⭐ G-7 S3 (R-4183) — the slider's write: the node's manual offset in ms, applied to that node's wall stamps. It is <see cref="FederatedReplayManager.SetNodeOffset"/> — which
+    /// ⭐ G-7 S3 (R-4183) — the slider's write: the node's manual offset in ms, applied to that node's wall stamps. It is the source's <c>SetNodeOffset</c> — which
     /// re-seeks every node at the current time (so the merged view reflects it) and raises <c>OnTimeChanged</c> (the Replay Browser and the editor's Review source re-merge).
     /// </summary>
     public void SetNodeOffsetMs(int nodeId, double offsetMs)
-        => _manager.SetNodeOffset(nodeId, (long)Math.Round(offsetMs * TimeSpan.TicksPerMillisecond));
+        => _review.SetNodeOffsetTicks(nodeId, (long)Math.Round(offsetMs * TimeSpan.TicksPerMillisecond));
 
     public void SetBaseWallTicks(long ticks)
-        => _manager.SetBaseWallTicks(ticks);
+        => _review.SetBaseWallTicks(ticks);
 
     /// <summary>⭐ G-7 S5 — a rail's measurement of mockup ③: the screen position of each <i>Local entities shown from</i> checkbox as last drawn (filled only while <see cref="CaptureLayout"/> is true).</summary>
     public readonly List<(int Node, bool On, float X, float Y)> LocalsRows = new();
     public bool CaptureLayout { get; set; }
 
-    /// <summary>The PRIMARY node (the clock / timeline node — see <see cref="FederatedReplayManager.LocalEntitiesProviderNodeId"/>); ⭐ S5: no longer picks which locals show.</summary>
+    /// <summary>The PRIMARY node (the clock / timeline node — the manager's <c>LocalEntitiesProviderNodeId</c>); ⭐ S5: no longer picks which locals show.</summary>
     public void SetLocalEntitiesProvider(int nodeId)
-        => _manager.SetLocalEntitiesProvider(nodeId);
+        => _review.SetLocalEntitiesProvider(nodeId);
 
     /// <summary>⭐ G-7 S5 (I7) — the node's <i>Local entities shown from</i> checkbox (default on): whether its local (no network id) entities are in the merged world. Re-merges at once.</summary>
-    public bool IsLocalEntitiesShown(int nodeId) => _manager.IsLocalEntitiesShown(nodeId);
+    public bool IsLocalEntitiesShown(int nodeId) => _review.Model.Participant(nodeId)?.LocalShown ?? true;
 
-    /// <summary>⭐ G-7 S5 (I7) — the checkbox's write: <see cref="FederatedReplayManager.SetLocalEntitiesShown"/> (raises <c>OnTimeChanged</c>, so both hosts re-merge).</summary>
-    public void SetLocalEntitiesShown(int nodeId, bool shown) => _manager.SetLocalEntitiesShown(nodeId, shown);
+    /// <summary>⭐ G-7 S5 (I7) — the checkbox's write: the source's <c>SetLocalEntitiesShown</c> (raises <c>OnTimeChanged</c>, so both hosts re-merge).</summary>
+    public void SetLocalEntitiesShown(int nodeId, bool shown) => _review.SetLocalEntitiesShown(nodeId, shown);
 
     /// <summary>⭐⭐⭐ BUILD — a pure projection of the manager's node offsets. No ImGui. ⚠ Not wired to
     /// any host yet — see the view-model's own remarks.</summary>
     public FederationPanelViewModel BuildViewModel(string panelId, string panelKind)
     {
-        var nodes = _nodeIds
-            .Select(nodeId => new FederationNodeRowViewModel(
-                (Fdp.Core.NodeId)(nodeId), _manager.NodeOffsets.TryGetValue(nodeId, out long off) ? off : 0L, NameOf(nodeId), GetNodeOffsetMs(nodeId), _manager.IsLocalEntitiesShown(nodeId)))
-            .ToList();
+        var model = _review.Model;
+        var nodes = new List<FederationNodeRowViewModel>(model.Participants.Count);
+        foreach (var p in model.Participants)
+            nodes.Add(new FederationNodeRowViewModel((Fdp.Core.NodeId)p.Node, p.OffsetTicks, NameOf(p.Node), p.OffsetMs, p.LocalShown));
         return new FederationPanelViewModel(
-            panelId, panelKind, ActiveMode, HasNonZeroOffset, _manager.LocalEntitiesProviderNodeId, nodes);
+            panelId, panelKind, ActiveMode, model.HasNonZeroOffset, model.PrimaryNode, nodes);
     }
 
     /// <summary>⭐ G-7 S5 follow-up — whether <see cref="DrawContent"/> draws the Single-Node / Merged radio (+ its disclaimer). The Replay Browser's window does; ⛔ the editor's Federation window does not — its Source menu's rows ARE that choice (ONE control per choice).</summary>
@@ -148,11 +148,12 @@ public sealed class FederationPanel
     {
         if (header) Gui.TextDisabled(LocalsHeader);
         LocalsRows.Clear();
-        _localLabels ??= new string[_nodeIds.Length]; _localNames ??= new string[_nodeIds.Length];
-        for (int i = 0; i < _nodeIds.Length; i++)
+        var rows = Rows;
+        if (_localLabels is null || _localLabels.Length != rows.Count) { _localLabels = new string[rows.Count]; _localNames = new string[rows.Count]; }
+        for (int i = 0; i < rows.Count; i++)
         {
-            int nodeId = _nodeIds[i];
-            bool on = _manager.IsLocalEntitiesShown(nodeId);
+            int nodeId = rows[i].Node;
+            bool on = rows[i].LocalShown;
             var at = Gui.GetCursorScreenPos();
             string name = NameOf(nodeId);
             if (_localLabels[i] is null || !string.Equals(_localNames![i], name, StringComparison.Ordinal)) { _localNames![i] = name; _localLabels[i] = $"{name}##locals_{nodeId}"; }
@@ -198,11 +199,12 @@ public sealed class FederationPanel
         // ⭐ G-7 S3 (R-4183) — Offsets: ONE slider per node, in ms, default 0, named by role (Q-B6); live — every change re-seeks at the current time (SetNodeOffsetMs).
         //   The editor's Review draws THIS panel in its Source switch, so there is no second slider.
         Gui.TextDisabled("Offsets (ms) — shifts a node's wall stamps; 0 = none");
-        for (int i = 0; i < _nodeIds.Length; i++)
+        var offsetRows = Rows;
+        for (int i = 0; i < offsetRows.Count; i++)
         {
-            int nodeId = _nodeIds[i];
+            int nodeId = offsetRows[i].Node;
             NodeEditor.Core.Widgets.FormGrid.BeginField("fed.rows", NameOf(nodeId));
-            int ms = (int)Math.Round(GetNodeOffsetMs(nodeId));
+            int ms = (int)Math.Round(offsetRows[i].OffsetMs);
             Gui.SetNextItemWidth(200f);
             if (Gui.SliderInt($"##offset_{nodeId}", ref ms, -OffsetRangeMs, OffsetRangeMs, "%d ms"))
                 SetNodeOffsetMs(nodeId, ms);

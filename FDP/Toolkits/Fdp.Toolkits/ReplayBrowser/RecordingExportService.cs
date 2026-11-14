@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.ReplayBrowser
                 long simFrameNumber = 0;
                 if (sandboxRepo.HasSingletonUnmanaged<GlobalTime>())
                 {
-                    var gt = sandboxRepo.GetSingletonUnmanaged<GlobalTime>();
+                    var gt = sandboxRepo.GetSingletonUnmanagedRO<GlobalTime>();
                     simTimeSec = gt.TotalTime;
                     simFrameNumber = gt.FrameNumber;
                 }
@@ -391,7 +391,7 @@ namespace Fdp.Toolkit.ReplayBrowser
 
                 double simTimeSec = 0.0;
                 if (sandboxRepo.HasSingletonUnmanaged<GlobalTime>())
-                    simTimeSec = sandboxRepo.GetSingletonUnmanaged<GlobalTime>().TotalTime;
+                    simTimeSec = sandboxRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
 
                 var currentTargets = new System.Collections.Generic.HashSet<Entity>();
                 if (options.FilterBySelection)

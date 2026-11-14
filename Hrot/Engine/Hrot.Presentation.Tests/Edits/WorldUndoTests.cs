@@ -136,6 +136,29 @@ public sealed class WorldUndoTests
         Assert.NotEqual(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused, rename.Route);
     }
 
+    /// <summary>⭐ N-15 (CE-4477) — an entity a host keeps OUT of the scenario (<c>ScenarioIgnoreTag</c>: derived parts, effects, traffic replicas, rounds —
+    /// no <c>EntityGuid</c>, by design) stays out after an undo / redo: the tag rides the undo step like the replication identity (CE-4411), so the next save does
+    /// not meet a guid-less entity. 📌 Measured: an editor session's save after edit → undo → redo threw "entity 5 has no EntityGuid" (both kernel modes); a save
+    /// with no undo saved. 🔴 Red-proof (compiles): drop the tag from <c>IsReplicationIdentity</c> ⇒ the restored entity loses it ⇒ red.</summary>
+    [Fact]
+    public void N15_AnEntityKeptOutOfTheScenario_StaysOutAfterUndoAndRedo_AndTheSceneStillSaves()
+    {
+        using var rig = new Rig();
+        rig.World.AddComponent(rig.Unit, new Fdp.Toolkit.Scenario.EntityGuid(System.Guid.NewGuid()));
+        var derived = rig.World.CreateEntity();
+        rig.World.AddComponent(derived, new SimTransform { Position = new Vector3(1f, 2f, 0f) });
+        rig.World.AddComponent(derived, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
+        rig.World.Tick();
+
+        rig.Drag(new Vector3(10f, 20f, 0f), new Vector3(40f, 50f, 0f));
+        Assert.True(rig.History.Undo());
+        Assert.True(rig.History.Redo());
+
+        Assert.True(rig.World.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(derived));
+        var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        serializer.Serialize(rig.World, new Fdp.Toolkit.Scenario.ScenarioHeader("Hrot.Scenario"));   // throws on a guid-less saveable entity (CE-4153)
+    }
+
     /// <summary>🔴 Red-proof (compiles): the world step pushed without <c>available</c> ⇒ an evicted step stays enabled ⇒ red.</summary>
     [Fact]
     public void B14_AStepWhoseSnapshotWasEvicted_IsGreyed_SaveIsTheCleanPoint()
@@ -175,4 +198,61 @@ public sealed class WorldUndoTests
         Fdp.Toolkit.Replication.Edits.Edits.Submit(rig.World, EditOp.Command(rig.Unit, _ => { }, "Move"));
         Assert.Equal(1, rig.History.Count);
     }
+
+    private sealed class ListOutbox : Fdp.Core.Threading.IPresentationOutbox
+    {
+        public readonly List<System.Action<EntityRepository>> Items = new();
+        public void Post(System.Action<EntityRepository> a) => Items.Add(a);
+        public void DrainOn(EntityRepository ui) { var copy = Items.ToArray(); Items.Clear(); foreach (var a in copy) a(ui); }
+    }
+
+    /// <summary>
+    /// ⭐ N-7 (CE-4469, U-1) — the THREADED editor's undo: the recorder runs on the SIMULATION world (S) and hands each step to the UI's history
+    /// through the publish queue; the history's undo / redo are sim jobs that restore S; a step whose snapshot the ring evicted is greyed through
+    /// the same queue (the UI never reads the ring); a write made inside an undo job joins that step (Applying is the sim side's).
+    /// 🔴 Red-proof (run): the sink's undo running its action at once on the UI thread instead of posting it ⇒ S changes before the sim drains.
+    /// </summary>
+    [Fact]
+    public void N7_TheThreadedUndo_RecordsOnS_UndoesAndRedoesThroughSimJobs_AndGreysAnEvictedStep()
+    {
+        using var s = new EntityRepository();
+        using var ui = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(s);
+        var unit = s.CreateEntity();
+        s.AddComponent(unit, new SimTransform { Position = new Vector3(10f, 20f, 0f) });
+        s.AddComponent(unit, new NetworkIdentity { Value = 55 });
+        s.Tick();
+        var ring = new WorldSnapshotRing();
+        var history = new EditHistory();
+        var toUi = new ListOutbox();
+        var simJobs = new List<System.Action>();
+        var sink = new ThreadedUndoSink(history, toUi, (_, a) => simJobs.Add(a), ring);
+        EditSteps.Install(s, new WorldUndoRecorder(sink, ring, () => true));
+
+        // an edit on the sim thread, bracketed
+        EditSteps.Begin(s, "Move");
+        s.GetComponentRW<SimTransform>(unit).Position = new Vector3(50f, 60f, 0f);
+        EditSteps.End(s);
+        Assert.Equal(0, history.Count);                       // nothing on the UI history until the publish queue is drained
+        toUi.DrainOn(ui);
+        Assert.True(history.CanUndo);
+        Assert.Equal("Move", history.UndoLabel);
+
+        Assert.True(history.Undo());                          // the UI's undo …
+        Assert.Equal(50f, s.GetComponentRO<SimTransform>(unit).Position.X);   // … is a JOB: S untouched until the sim runs it
+        Assert.Single(simJobs);
+        simJobs[0](); simJobs.Clear();
+        Assert.Equal(10f, s.GetComponentRO<SimTransform>(unit).Position.X);
+        Assert.Equal(0, history.Position);                    // the one step, undone
+
+        Assert.True(history.Redo());
+        simJobs[0](); simJobs.Clear();
+        Assert.Equal(50f, s.GetComponentRO<SimTransform>(unit).Position.X);
+
+        ring.Clear();                                         // the snapshots go (a scenario opened, an eviction) …
+        toUi.DrainOn(ui);
+        Assert.False(history.StepAvailable(0));               // … and the UI's step is greyed through the queue
+        Assert.False(history.CanUndo);
+    }
 }
+

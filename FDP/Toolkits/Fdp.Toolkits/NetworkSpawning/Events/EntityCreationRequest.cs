@@ -41,7 +41,18 @@ public sealed class EntityCreationRequest
     /// Examples: <c>EditablePolyline</c> from <c>dtMapVisualOverlay</c>,
     /// <c>RoutePlan</c> from <c>dtMapRoute</c>.
     /// </summary>
-    public List<object>? InitialComponents { get; init; }
+    public List<object>? InitialComponents { get => _initialComponents; init => _initialComponents = value; }
+    private List<object>? _initialComponents;
+
+    /// <summary>⭐ N-9 (CE-4471) — this request with OTHER initial components: a member-wise copy, never a change of this one. A request held by a
+    /// managed component (a macro's parked children) is shared by every shallow copy of that component (a snapshot, the presentation world),
+    /// so a caller that must change a parked request's components builds a new one through here. ⭐ The ONE copy of the request's fields.</summary>
+    public EntityCreationRequest WithInitialComponents(List<object>? components)
+    {
+        var copy = (EntityCreationRequest)MemberwiseClone();
+        copy._initialComponents = components;
+        return copy;
+    }
 
     /// <summary>
     /// When non-zero, <c>Hrot.Common.Systems.CreateEntityRequestSystem</c> uses

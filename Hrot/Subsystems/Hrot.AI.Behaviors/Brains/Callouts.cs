@@ -31,6 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary><paramref name="man"/> calls <paramref name="kind"/> (about <paramref name="target"/>) when the policy lets him. True when said.</summary>
         public static bool Say(EntityRepository world, Entity man, UtteranceKind kind, Entity target = default)
         {
+            // ⭐ N-11 / N-12 (CE-4473 / CE-4474; R-4212 ②, F-10) — inside the brains' per-entity phase a callout is a REQUEST: queued with the batch
+            //   and said after the phase, in batch order, through this same method — so the policy (cooldown, hush, AQ105 E "the same call within
+            //   10 m / 2 s is not repeated") is applied serially and a burst of contacts calls once. True = asked (it may still be refused then).
+            if (Fdp.Core.ParallelReadCheck.Defers(world))
+            {
+                Fdp.Core.ParallelReadCheck.CurrentBatch!.Later(SayAfterPhase.Instance, man, (int)kind, (long)target.PackedValue);
+                return true;
+            }
             if (!world.IsComponentTypeRegistered<Utterance>() || !world.IsComponentTypeRegistered<CalloutState>()) return false;
             if (!world.IsAlive(man) || !world.HasComponent<SimTransform>(man) || !Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, man)) return false;
             double now = OneManCommand.Now(world);
@@ -42,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!urgent && st.LastAt > 0 && now - st.LastAt < CoolDownSeconds) return false;
             if (SaidNearby(world, man, at, kind, now)) return false;
             if (!Utterances.Say(world, man, kind, target, now, SpeakSeconds)) return false;
+            if (Fdp.Toolkit.Diagnostics.QueryTimings.Enabled) Fdp.Toolkit.Diagnostics.QueryTimings.Add(S_Spoken, 1);   // F-10 — what was said (measurement)
             st.LastAt = (SimInstant)now;
             st.LastKind = kind;
             return true;
@@ -84,6 +93,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (commanded && !bound && !ack.IsNull) Say(world, ack, UtteranceKind.CallAck);
         }
 
+        private sealed class SayAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly SayAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg)
+                => Say(repo, e, (UtteranceKind)code, new Entity((ulong)arg));
+        }
+
         /// <summary>AQ105 C — must he keep quiet: his task is a hidden one (ambush, trigger man, bomber, window duel), or he holds his fire and
         /// nothing has come at him (no near miss, no hit) in <see cref="HushQuietSeconds"/>.</summary>
         public static bool Hushed(EntityRepository world, Entity man, double now)
@@ -111,21 +127,44 @@ namespace Hrot.AI.Behaviors.Brains
 
 
         private static readonly int S_SaidNearby = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Callouts.SaidNearby");
+        private static readonly int S_Spoken = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Callouts.spoken (count)");
 
 
         private static bool SaidNearbyCore(EntityRepository world, Entity man, Vector3 at, UtteranceKind kind, double now)
         {
             if (!world.HasComponent<EntityInfo>(man)) return false;
             var force = world.GetComponentRO<EntityInfo>(man).ForceId;
-            foreach (var e in world.Query().With<Utterance>().With<SimTransform>().Build())
+            // ⭐ M-4 (CE-4483) — the speakers near him from ONE per-frame grid (CE-2411, the pattern UnderFire.FriendNear uses), each candidate
+            //   re-read live with the exact rule. 📐 Measured (Release, 1 000 men, dotnet-trace): it walked every Utterance holder — every man
+            //   once he has spoken — per call, in the serial pass after the callout phase: 548 ms in 20 s of the sim thread.
+            var speakers = Speakers.Of(world);
+            lock (speakers)
             {
-                if (e == man) continue;
-                ref readonly var u = ref world.GetComponentRO<Utterance>(e);
-                if (u.Kind != kind || u.Until + RepeatSeconds - SpeakSeconds < now) continue;
-                if (!world.HasComponent<EntityInfo>(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
-                if (Vector3.Distance(world.GetComponentRO<SimTransform>(e).Position, at) <= RepeatMetres) return true;
+                speakers.Query ??= world.Query().With<Utterance>().With<SimTransform>().Build();
+                speakers.Grid.EnsureFresh(world, speakers.Query, Speakers.Member);
+                speakers.Grid.Circle(new Vector2(at.X, at.Y), RepeatMetres + UnderFire.MovedSlackMetres);   // flat ≤ 3-D: a superset
+                foreach (int k in speakers.Grid.Found)
+                {
+                    var e = speakers.Grid.EntityAt(k);
+                    if (e == man || !world.IsAlive(e) || !Speakers.Member(world, e)) continue;
+                    ref readonly var u = ref world.GetComponentRO<Utterance>(e);
+                    if (u.Kind != kind || u.Until + RepeatSeconds - SpeakSeconds < now) continue;
+                    if (!world.HasComponent<EntityInfo>(e) || world.GetComponentRO<EntityInfo>(e).ForceId != force) continue;
+                    if (Vector3.Distance(world.GetComponentRO<SimTransform>(e).Position, at) <= RepeatMetres) return true;
+                }
             }
             return false;
+        }
+
+        /// <summary>⭐ M-4 — the per-world grid of everyone who holds an <see cref="Utterance"/> (the set the no-echo rule looks in).</summary>
+        private sealed class Speakers
+        {
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, Speakers> s_of = new();
+            public static Speakers Of(EntityRepository world) => s_of.GetValue(world, static _ => new Speakers());
+            public readonly Fdp.Toolkit.Spatial.FrameEntityGrid Grid = new();
+            public EntityQuery? Query;
+            public static readonly Func<EntityRepository, Entity, bool> Member =
+                static (w, e) => w.HasComponent<Utterance>(e) && w.HasComponent<SimTransform>(e);
         }
     }
 
@@ -153,6 +192,24 @@ namespace Hrot.AI.Behaviors.Brains
                     if (evt.What == SensorChange.SquadMemberDown) ManDown(world, evt.Unit, evt.Target);
 
             _men ??= world.Query().With<UnitSubordinate>().With<SimTransform>().With<BehaviorState>().Build();
+            if (Fdp.Core.Jobs.ParallelEntities.Enabled)
+            {
+                // ⭐ P-1 (the parallel experiment, E-3) — ① SERIAL: the men we own, CalloutState ADDED where missing (structural);
+                //   ② PARALLEL: each man DECIDES what to call, writing only his own watch fields (grenades, reload, contacts called);
+                //   ③ SERIAL, in batch order: he SAYS it. ⭐ Equivalent to the serial loop: Say writes LastAt / LastKind and his Utterance,
+                //   which no man's decision reads; SaidNearby (who spoke first) still runs in entity order.
+                int n = 0;
+                foreach (var man in _men)
+                {
+                    if (_gateOnAuthority && !world.HasAuthority<BehaviorState>(man)) continue;
+                    if (world.GetComponentRO<UnitSubordinate>(man).Commander.IsNull) continue;
+                    if (!world.HasComponent<CalloutState>(man)) world.AddComponent(man, new CalloutState { Grenades = -1 });
+                    if (n == _list.Length) { Array.Resize(ref _list, _list.Length * 2); Array.Resize(ref _about, _list.Length); }
+                    _list[n++] = man;
+                }
+                Fdp.Core.Jobs.ParallelEntities.Run(world, _list, n, new DecideJob { Owner = this, Repo = world });
+                return;
+            }
             foreach (var man in _men)
             {
                 if (_gateOnAuthority && !world.HasAuthority<BehaviorState>(man)) continue;
@@ -162,7 +219,33 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
-        private static unsafe void Watch(EntityRepository world, Entity man)
+        private Entity[] _list = new Entity[64];
+        private Entity[] _about = new Entity[64];   // the contact a deferred call is about, by the man's index in _list
+
+        private struct DecideJob : Fdp.Core.Jobs.IEntityBatchJob
+        {
+            public CalloutSystem Owner;
+            public EntityRepository Repo;
+            public void Execute(Entity man, int index, Fdp.Core.Jobs.BatchContext ctx)
+            {
+                var kind = Decide(Repo, man, out var contact);
+                if (kind == UtteranceKind.UtterNone) return;
+                Owner._about[index] = contact;
+                ctx.Defer(man, (int)kind, index);
+            }
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d)
+                => Callouts.Say(repo, d.Entity, (UtteranceKind)d.Code, Owner._about[(int)d.Value]);
+        }
+
+        private static void Watch(EntityRepository world, Entity man)
+        {
+            var kind = Decide(world, man, out var contact);
+            if (kind != UtteranceKind.UtterNone) Callouts.Say(world, man, kind, contact);
+        }
+
+        /// <summary>⭐ P-1 — what he would call now (<see cref="UtteranceKind.UtterNone"/>: nothing), updating only his own watch fields. Safe in a
+        /// parallel batch.</summary>
+        private static unsafe UtteranceKind Decide(EntityRepository world, Entity man, out Entity contactOut)
         {
             ref var st = ref world.GetComponentRW<CalloutState>(man);
             int grenades = Grenades(world, man);
@@ -174,9 +257,10 @@ namespace Hrot.AI.Behaviors.Brains
             st.Grenades = grenades;
             st.WasReloading = reloading ? (byte)1 : (byte)0;
             st.Seeded = 1;
-            if (threw) Callouts.Say(world, man, UtteranceKind.CallFragOut);
-            else if (!contact.IsNull) Callouts.Say(world, man, UtteranceKind.CallContact, contact);
-            else if (startedReload) Callouts.Say(world, man, UtteranceKind.CallReloading);
+            contactOut = default;
+            if (threw) return UtteranceKind.CallFragOut;
+            if (!contact.IsNull) { contactOut = contact; return UtteranceKind.CallContact; }
+            return startedReload ? UtteranceKind.CallReloading : UtteranceKind.UtterNone;
         }
 
         /// <summary>The first identified, armed, non-neutral enemy in his memory (seen now) that he has not called yet; remembered either way.</summary>

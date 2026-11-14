@@ -25,5 +25,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>How far around the casualty to look for cover (m); 0 ⇒ 25 m.</summary>
         [JsonPropertyName("coverSearchRadius")]
         public float CoverSearchRadius;
+
+        /// <summary>⭐ <c>CE-7009</c> (lane default R-7009) — a man down is carried this far straight back, away from the threat (the collection
+        /// point; the showcase's 150 m), instead of to the nearest cover; 0 = off (cover).</summary>
+        [JsonPropertyName("evacuateMetres")]
+        public float EvacuateMetres;
     }
 }

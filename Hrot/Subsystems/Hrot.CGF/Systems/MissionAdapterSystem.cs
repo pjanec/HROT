@@ -47,8 +47,9 @@ namespace Hrot.CGF.Systems
 
             foreach (var entity in query)
             {
-                ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+                // ⭐ The parallel experiment, E-4 (M-1: MissionPlanQueue 1 229 writable refs / frame, 99 % of its dirty chunks unchanged) — the
+                //   adapter only READS the queue and never touched the BehaviorState it took writable, so neither stamps its chunk any more.
+                ref readonly var queue = ref repo.GetComponentRO<MissionPlanQueue>(entity);
 
                 if (!repo.HasComponent<Hrot.CGF.Components.MissionAdapterState>(entity))
                     repo.AddComponent(entity, new Hrot.CGF.Components.MissionAdapterState { LastPhase = byte.MaxValue });
@@ -85,7 +86,7 @@ namespace Hrot.CGF.Systems
                     continue;
                 }
 
-                Span<MissionTaskSlot> phases = queue.Tasks;
+                ReadOnlySpan<MissionTaskSlot> phases = queue.Tasks;
                 var phase = phases[queue.CurrentTask];
 
                 string jsonParams = "{}";

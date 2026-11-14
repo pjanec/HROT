@@ -32,10 +32,14 @@ namespace Fdp.Toolkit.Utility
             var commander = repo.GetComponentRO<UnitSubordinate>(self).Commander;
             if (!repo.IsAlive(commander) || !repo.HasComponent<SquadCognitiveState>(commander) || !repo.HasComponent<UnitRoster>(commander))
                 return false;
-            ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
+            // ⭐ The parallel experiment (M-1 + the brain write inventory) — a READ, called every tick by every soldier's threat ranking and
+            //   PeekAndFire: it took the COMMANDER's roster and squad state writable, stamping both chunks dirty every frame (UnitRoster 95 %,
+            //   SquadCognitiveState 75 % unchanged) and racing the squad brain's real writes. ⭐ Read-only refs; the `ref` alias exists only
+            //   because IndexOf / GetSlot take `ref` (the InlineArray defensive-copy rule) — nothing is written through it.
+            ref var roster = ref System.Runtime.CompilerServices.Unsafe.AsRef(in repo.GetComponentRO<UnitRoster>(commander));
             int idx = UnitRoster.IndexOf(ref roster, self);
             if (idx < 0) return false;
-            handle = repo.GetComponentRW<SquadCognitiveState>(commander).Assignment.GetAssignedTarget(idx);
+            handle = System.Runtime.CompilerServices.Unsafe.AsRef(in repo.GetComponentRO<SquadCognitiveState>(commander)).Assignment.GetAssignedTarget(idx);
             return handle != 0L;
         }
     }

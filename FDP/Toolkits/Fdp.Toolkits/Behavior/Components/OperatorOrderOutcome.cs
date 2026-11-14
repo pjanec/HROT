@@ -32,6 +32,12 @@ namespace Fdp.Toolkit.Behavior.Components
         public SimInstant FinishedAt;
 
         /// <summary>Records the end of an operator run on <paramref name="entity"/> (registers the type on first use).</summary>
+        /// <summary>⭐ N-11 — the table, before a per-entity phase (<see cref="Fdp.Toolkit.Behavior.BrainPhase"/>).</summary>
+        public static void RegisterTypes(EntityRepository repo)
+        {
+            if (!repo.TryGetTable(typeof(OperatorOrderOutcome), out _)) repo.RegisterComponent<OperatorOrderOutcome>();
+        }
+
         public static void Record(EntityRepository repo, Entity entity, int behaviorHash, uint instanceId,
             BehaviorOutcome outcome, BehaviorFaultCode fault)
         {

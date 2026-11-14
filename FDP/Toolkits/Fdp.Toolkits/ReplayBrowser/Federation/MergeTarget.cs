@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         /// <summary>Forgets every mapping (the caller cleared the world, or is about to bind a new one). Destroys nothing.</summary>
         public void Reset()
         {
-            _byNet.Clear(); _local.Clear(); _localNode.Clear();
+            _byNet.Clear(); _local.Clear(); if (_localNode.Count > 0) LocalVersion++; _localNode.Clear();
             Repo = null;
         }
 
@@ -65,13 +65,19 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
         {
             var key = (node, source.Index, source.Generation);
             ref var slot = ref CollectionsMarshal.GetValueRefOrAddDefault(_local, key, out bool existed);
-            if (!existed || !Repo!.IsAlive(slot.Entity)) { slot.Entity = Repo!.CreateEntity(); LastCreated++; _localNode[slot.Entity] = node; }
+            if (!existed || !Repo!.IsAlive(slot.Entity)) { slot.Entity = Repo!.CreateEntity(); LastCreated++; _localNode[slot.Entity] = node; LocalVersion++; }
             slot.Pass = _pass;
             return slot.Entity;
         }
 
         /// <summary>⭐ S5 (I7) — the node a LOCAL (non-networked) target entity came from; false for a networked entity or one this map does not know.</summary>
         public bool TryGetLocalNode(Entity target, out int node) => _localNode.TryGetValue(target, out node);
+
+        /// <summary>⭐ CE-4498 — moves whenever the local-entity → node map changes (a local entity created, destroyed, the map forgotten): a reader on another thread re-copies it only then.</summary>
+        public int LocalVersion { get; private set; }
+
+        /// <summary>⭐ CE-4498 — a copy of the local-entity → node map (for a read model published to another thread).</summary>
+        public Dictionary<Entity, int> CopyLocalOrigins() => new(_localNode);
 
         /// <summary>The target entity of network id <paramref name="netId"/> if the map has one.</summary>
         public bool TryGet(long netId, out Entity entity)
@@ -93,7 +99,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Federation
 
         private void Destroy(Entity e)
         {
-            _localNode.Remove(e);
+            if (_localNode.Remove(e)) LocalVersion++;
             if (Repo!.IsAlive(e)) { Repo.DestroyEntity(e); LastDestroyed++; }
         }
     }

@@ -35,6 +35,9 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-1103 (§6s) — an attack helicopter (class <c>AttackHelicopter</c>, the AH-64): a slim fuselage, a tandem canopy, stub
     /// wings with rocket pods and missile rails, a chin gun on a turret.</summary>
     AttackHelicopter,
+    /// <summary>⭐ CE-6007 (showcase world, DESIGN_City_Battle_Showcase V-1b) — a bulldozer (class <c>Bulldozer</c>, a D9): two track units on a high-drive
+    /// chassis, a hood, an open ROPS cab, a lifted blade on push arms with hydraulic rams, a rear ripper. ⛔ Not armoured-looking.</summary>
+    Bulldozer,
 }
 
 /// <summary>
@@ -72,6 +75,7 @@ public static class VisualFamilies
         ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
+        ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>

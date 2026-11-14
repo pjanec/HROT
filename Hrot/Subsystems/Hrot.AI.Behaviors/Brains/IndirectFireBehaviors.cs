@@ -161,6 +161,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Adjust;
         public float SheafWidthM;
         public float ImpactInS;
+        /// <summary>⭐ <c>CE-7025</c> (IF-5) — the round every gun loads (0 HE, 1 smoke).</summary>
+        public byte Round;
         /// <summary>Time on target: when every first round lands (sim s); 0 = when ready.</summary>
         public SimInstant ImpactAt;
         public fixed float AimX[16];
@@ -204,6 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
                 DangerClose = order.DangerClose ? (byte)1 : (byte)0,
                 SheafWidthM = order.SheafWidthM,
                 ImpactInS = order.ImpactInS,
+                Round = order.Smoke ? (byte)1 : (byte)0,   // ⭐ CE-7025 (IF-5)
             };
             block.State = default;
         }
@@ -383,6 +386,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Mount = p.Mount[member],
                 FireAt = (SimInstant)(p.ImpactAt > 0d ? p.ImpactAt - p.Tof[member] : 0d),
                 RoleId = BatteryFireMissionManeuver.RoleFiring,
+                Round = p.Round,   // ⭐ CE-7025
             };
         }
 

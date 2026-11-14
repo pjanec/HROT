@@ -114,6 +114,63 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(Nav(derived).PathExists(from, to, (uint)NavLayerMask.Infantry), "after the collapse nothing carries a unit across the river");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-6002</c> (showcase world, T-2 measured) — the bridge over the river carries BOTH layers, and the way over it is the only way: a man AND a ground vehicle go bank to bank, their path is
+        /// at least the straight distance and keeps to the bridge's strip (y 198..202, never in the water at x 200..230), the river alone has no crossing, and once the bridge collapses neither layer has one.
+        /// 🔴 Red-proof: expand a bridge to its deck only (no ramps) ⇒ the vehicle layer has no way on to the deck ⇒ no crossing.
+        /// </summary>
+        [Fact]
+        public void ABridge_IsTheOnlyCrossing_ForMenAndGroundVehicles_AndAFallenBridgeLeavesNone()
+        {
+            var layers = NavLayerMask.Infantry | NavLayerMask.Vehicle;
+            INavmeshProvider Both(TerrainWorld w) => new RecastNavmeshFactory { Layers = layers, TileCache = new NavTileCache() }.Build(w) ?? throw new InvalidOperationException("no navmesh");
+            var from = new Vector3(150, 200, 0); var to = new Vector3(280, 200, 0);
+
+            var riverOnly = Both(Merged((G1, River())));
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var spanned = Both(world);
+            Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+            foreach (var layer in new[] { NavLayerMask.Infantry, NavLayerMask.Vehicle })
+            {
+                Assert.False(riverOnly.PathExists(from, to, (uint)layer), $"{layer}: the river alone has a crossing");
+                Assert.True(spanned.PathExists(from, to, (uint)layer), $"{layer}: no way over the bridge");
+                int n = spanned.PlanPath(from, to, wps, (uint)layer);
+                Assert.True(n >= 2);
+                float length = 0f;
+                for (int i = 1; i < n; i++) length += Vector3.Distance(wps[i - 1].Position, wps[i].Position);
+                Assert.True(length >= Vector3.Distance(from, to) - 0.5f, $"{layer}: path {length:F1} m is shorter than the straight line");
+                for (int i = 0; i < n; i++)
+                    if (wps[i].Position.X > 200f && wps[i].Position.X < 230f)
+                        Assert.InRange(wps[i].Position.Y, 197.5f, 202.5f);   // over the river only inside the bridge's 4 m strip
+            }
+
+            int bridge = world.Buildings.ToList().FindIndex(b => b.Label == G2);
+            using var repo = BreachFixtures.World(world);
+            BreachFixtures.Collapsed(repo, world, bridge);
+            var fallen = Both(TerrainObstacles.With(world, Array.Empty<TerrainPrism>(), DoorStates.Of(repo, world).Damage));
+            foreach (var layer in new[] { NavLayerMask.Infantry, NavLayerMask.Vehicle })
+                Assert.False(fallen.PathExists(from, to, (uint)layer), $"{layer}: a fallen bridge still carries");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-6001</c> (§18k T-7a for a SAVED terrain) — <c>TerrainBake.SaveAs</c> folds the bridge's ROAD into the saved terrain: its segment is appended to the saved road network (the base's indices stay).
+        /// 🔴 Red-proof: skip the fold in <c>SaveAs</c> ⇒ the saved roads have the base's two segments only.
+        /// </summary>
+        [Fact]
+        public void SaveAs_FoldsTheBridgesRoad_IntoTheSavedRoadNetwork()
+        {
+            _f.WithRoads();
+            File.WriteAllText(Path.Combine(_f.ScenarioDir, "scenario.json"), _f.Scenario((G1, River()), (G2, Bridge())).ToJsonString());
+            string target = Path.Combine(_f.Assets, "terrain", "saved-t");
+            TerrainBake.SaveAs(_f.ScenarioDir, target, "saved-t", _f.Resolve, new[] { _f.Recipes }, bakeNavtiles: false);
+            var roads = JsonNode.Parse(File.ReadAllText(Path.Combine(target, "roads.json")))!;
+            var segs = roads["segments"]!.AsArray();
+            Assert.Equal(3, segs.Count);                                 // the base's WEST and EAST roads + the bridge, appended
+            Assert.Equal(2, (int)segs[2]!["id"]!);
+            Assert.Equal(1, (int)segs[2]!["startNodeId"]!);              // snapped to the west road's end node and the east road's start node
+            Assert.Equal(2, (int)segs[2]!["endNodeId"]!);
+        }
+
         // ── a scatter is deterministic ────────────────────────────────────────────────────────────────────────────
 
         /// <summary>

@@ -171,7 +171,7 @@ namespace Hrot.SimHost.Modules.Orchestration
         /// <remarks>During a replay the kernel does not push the clock singleton (<c>SuspendGlobalTimePush</c>), so the world's
         /// <c>GlobalTime</c> is the one the playback restored — the frame's recorded clock.</remarks>
         public double? CurrentReplaySimSeconds
-            => _activeReplayModule != null && _repo.HasSingletonUnmanaged<GlobalTime>() ? _repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : null;
+            => _activeReplayModule != null && _repo.HasSingletonUnmanaged<GlobalTime>() ? _repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : null;
 
         /// <inheritdoc />
         public ReplayTimeMap? ActiveReplayTimeMap => _activeReplayModule?.TimeMap;

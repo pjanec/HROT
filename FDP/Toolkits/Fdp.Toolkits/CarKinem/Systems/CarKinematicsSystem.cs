@@ -99,11 +99,13 @@ namespace CarKinem.Systems
             }
             else
             {
-                // Kernel optimized parallel execution
-                query.ForEachParallel(entity =>
-                {
-                    UpdateVehicle(repo, entity, dt, spatialGrid, roadNetwork);
-                });
+                // ⭐⭐ N-15 (CE-4477) — the per-entity phase (ParallelEntities, the per-entity rule): each body moves itself, and its NEIGHBOURS'
+                //   position and velocity — written by this same loop — are read from the tick-start view (declared). ⛔ Was ForEachParallel with
+                //   live neighbour reads: whether a neighbour had already moved this tick depended on the thread schedule ⇒ the stepped editor run
+                //   was repeatable at 1 thread and not at 2 (measured: two 2-thread runs, every other phase serial, differed in VehicleState /
+                //   SimTransform / SimVelocity). Batches by index, effects merged in batch order: the same answer at any thread count.
+                DeclareNeighbourReads();
+                Fdp.Core.Jobs.ParallelEntities.Run(repo, query, new MoveJob { System = this, Repo = repo, Dt = dt, Grid = spatialGrid, Road = roadNetwork });
             }
 
             if (EnablePerformanceLogging && _perfStopwatch != null)
@@ -123,6 +125,35 @@ namespace CarKinem.Systems
             }
         }
         
+        private static bool s_declared;
+
+        /// <summary>⭐ N-15 — what the avoidance reads on OTHER bodies that this loop also writes: served from the tick-start view (declared once,
+        /// before the first parallel run — the kernel then takes the view before every dispatch).</summary>
+        private static void DeclareNeighbourReads()
+        {
+            if (s_declared) return;
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<SimTransform>();
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<SimVelocity>();
+            s_declared = true;
+        }
+
+        /// <summary>⭐ N-15 — one body's move as a per-entity job.</summary>
+        private struct MoveJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        {
+            public CarKinematicsSystem System;
+            public EntityRepository Repo;
+            public float Dt;
+            public SpatialHashGrid Grid;
+            public RoadNetworkBlob Road;
+            public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx) => System.UpdateVehicle(Repo, e, Dt, Grid, Road);
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
+            // what the avoidance reads on a neighbour that nothing writes while bodies move: is he a person, is he still in the fight
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<VehicleParams>()
+                .Unmanaged<Fdp.Toolkit.Combat.Components.Health>()
+                .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+        }
+
         // THREAD-SAFE: Method operates on unique entity and uses read-only shared data
         /// <summary>The terrain world for this tick (W8), or null on a flat / terrain-less world.</summary>
         private Fdp.Toolkit.World.IWorldQuery? _terrain;

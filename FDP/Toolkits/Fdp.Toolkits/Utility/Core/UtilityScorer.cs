@@ -202,7 +202,9 @@ namespace Fdp.Toolkit.Utility
                 cadence.CountReuse();
                 return kept.Winner;
             }
-            byte winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, TraceOf(repo, self), tick);
+            var trace = TraceOf(repo, self);
+            byte winner;
+            winner = SelectPosture(repo, self, in def, lastWinner, lastWinner == 0 ? 0f : hysteresis, ref output, trace, tick);
             LogDecision(repo, self, decisionId, in output, isOption: true);
             // ⭐ CE-1249 (BV-10) — always on, only on a SWITCH (a steady winner writes nothing; the caller holds the memory)
             if (lastWinner != 0 && winner != 0 && winner != lastWinner)
@@ -255,7 +257,8 @@ namespace Fdp.Toolkit.Utility
                 top = kept.Top; topScore = kept.TopScore;
                 return kept.HasTop;
             }
-            EvaluateCandidates(repo, self, in def, default, ref output, TraceOf(repo, self), tick);
+            var trace = TraceOf(repo, self);
+            EvaluateCandidates(repo, self, in def, default, ref output, trace, tick);
             LogDecision(repo, self, decisionId, in output, isOption: false);
             bool has = output.Count > 0;
             if (has)
@@ -556,7 +559,22 @@ namespace Fdp.Toolkit.Utility
         {
             // Step 1: score all options normally (no bias). The winner record waits for step 5 (CE-3069 F3).
             Evaluate(repo, self, in def, default, ref output, trace, tick, writeWinnerRecord: false);
+            return RankWithHysteresis(in def, activePostureId, hysteresisBonus, ref output, trace, tick);
+        }
 
+        /// <summary>
+        /// ⭐ POC 2 Q-4 (DESIGN_Parallel_Simulation §10) — <see cref="SelectPosture(EntityRepository, Entity, in UtilityDecisionDef, byte, float, ref UtilityResultBuffer, UtilityTraceWorkingMemory1024*, ushort)"/>'s
+        /// steps 2–5 on an <paramref name="output"/> that step 1 (<c>Evaluate</c>) already filled: the hysteresis bonus, the re-sort, the
+        /// winner record. Split out so a scoring computed earlier (the parallel pre-score) is ranked exactly as a fresh one.
+        /// </summary>
+        public static byte RankWithHysteresis(
+            in UtilityDecisionDef def,
+            byte activePostureId,
+            float hysteresisBonus,
+            ref UtilityResultBuffer output,
+            UtilityTraceWorkingMemory1024* trace,
+            ushort tick = 0)
+        {
             if (output.Count == 0)
                 return 0;
 

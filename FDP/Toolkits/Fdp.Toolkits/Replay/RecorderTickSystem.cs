@@ -88,7 +88,7 @@ namespace Fdp.Toolkit.Replay
                 //   proves nothing; the master's return SNAPS AND PAUSES at L, so the clock stands there frame after frame (bounded).
                 if (_resumeAtSimSeconds is { } live && resumed.HasSingletonUnmanaged<GlobalTime>())
                 {
-                    bool atLive = Math.Abs(resumed.GetSingletonUnmanaged<GlobalTime>().TotalTime - live) <= 1e-6;
+                    bool atLive = Math.Abs(resumed.GetSingletonUnmanagedRO<GlobalTime>().TotalTime - live) <= 1e-6;
                     _framesAtLivePoint = atLive ? _framesAtLivePoint + 1 : 0;
                     if (_framesAtLivePoint < FramesAtLivePointToResume && ++_framesWaitingForLivePoint <= MaxFramesWaitingForLivePoint)
                         return;
@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Replay
             //   before. 📌 Measured on the editor: the clock resets to 0 during the unload into a replay, and the old fallback stamped
             //   that last frame with the host calendar clock — the replay's span ran from 17 s to the year 2026 (63 928 598 528 s), so its
             //   length and every moment past the first frame were nonsense. ⛔ A wall stamp on a second clock poisons the frame index.
-            var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
+            var globalTime = repo.GetSingletonUnmanagedRO<GlobalTime>();
             long wallClockTicks = Math.Max(globalTime.TotalWallTicks, _lastWallTicks);
             _lastWallTicks = wallClockTicks;
 

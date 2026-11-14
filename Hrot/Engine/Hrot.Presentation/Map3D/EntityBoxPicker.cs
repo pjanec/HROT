@@ -55,13 +55,23 @@ public sealed class EntityBoxPicker : IBodyPicker3D
             _queryWorld = world;
             _query = world.Query().With<SimTransform>().With<TkbIdentity>().WithLifecycle(EntityLifecycle.All).Build();
         }
+        // ⭐ CE-4558 (§6ak D-6) — through the boxes the last window frame DREW (BodyPickIndex): the cells under the ray, not every entity in the world
+        var index = _bodies.PickIndex;
+        if (index.HasFrame)
+        {
+            if (!index.TryPick(origin, direction, maxDistance, _metresPerPixelAt, _bodies.FirstPerson, out _, out int hitNet, out var at, out float hitAt)) return false;
+            hit = new PickResult(at, PickKind.Entity, hitAt, hitNet);
+            return true;
+        }
         var tkb = _tkb();
         bool hasNet = world.IsComponentTypeRegistered<NetworkIdentity>();
         float best = maxDistance;
+        int tested = 0;
         foreach (var e in _query!)
         {
             if (e == _bodies.FirstPerson) continue;   // ⭐ CE-1080 — the eye is inside the operator's own body: never pick it
             if (!_bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half)) continue;
+            tested++;
             // ⭐ U-9 (CE-4340) — the drawn box plus a few PIXELS of margin at the box's depth: tight on a near body, a few metres on a far one (a screen tolerance, never a world one)
             float margin = _metresPerPixelAt is null ? 0f : MarginPixels * _metresPerPixelAt(centre);
             if (!RayBox.Intersect(origin, direction, centre, rotation, half + new Vector3(margin), out float t) || t > best) continue;
@@ -69,6 +79,7 @@ public sealed class EntityBoxPicker : IBodyPicker3D
             int net = hasNet && world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : 0;
             hit = new PickResult(world.GetComponentRO<SimTransform>(e).Position, PickKind.Entity, t, net);
         }
+        BodyDrawStats.RecordPick(tested);
         return hit.Kind == PickKind.Entity;
     }
 }

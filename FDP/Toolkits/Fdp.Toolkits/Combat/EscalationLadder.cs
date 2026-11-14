@@ -73,10 +73,21 @@ namespace Fdp.Toolkit.Combat
         {
             if (man.IsNull || !world.IsAlive(unit)) return;
             if (!world.IsComponentTypeRegistered<WarningLog>()) world.RegisterComponent<WarningLog>();
-            if (!world.HasComponent<WarningLog>(unit)) world.AddComponent(unit, new WarningLog());
-            ref var log = ref world.GetComponentRW<WarningLog>(unit);
             double now = Now(world);
             long id = (long)man.PackedValue;
+            if (!world.HasComponent<WarningLog>(unit))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new WarningLog();
+                Stamp(ref fresh, id, now);
+                world.AddComponent(unit, fresh);
+            }
+            else Stamp(ref world.GetComponentRW<WarningLog>(unit), id, now);
+            if (world.IsComponentTypeRegistered<Gesture>()) Gestures.Set(world, unit, GestureKind.Warning);
+        }
+
+        private static void Stamp(ref WarningLog log, long id, double now)
+        {
             bool known = false;
             for (int i = 0; i < log.Count && !known; i++) known = log.TargetIds[i] == id;
             if (!known)
@@ -91,7 +102,6 @@ namespace Fdp.Toolkit.Combat
                 log.Count++;
             }
             log.ShowUntil = (SimInstant)(now + WarningShowSeconds);
-            if (world.IsComponentTypeRegistered<Gesture>()) Gestures.Set(world, unit, GestureKind.Warning);
         }
 
         /// <summary>When (sim seconds) <paramref name="unit"/> first warned <paramref name="man"/>; 0 = never (EL-4: per warner).</summary>

@@ -330,6 +330,15 @@ namespace Hrot.AI.Behaviors.Brains
             }
             KeepSensors(ref ws, in p, self, world, in was, in threat);
 
+            // ⭐ F-9 (CE-4474) — a friend committed to my point in the same tick and his claim is older (or equal and his index lower): I give
+            //   it up and pick again (the pick already skips his claim)
+            if (ws.Phase != PeekPhase.Choose && LostTie(in ws, self, world, now))
+            {
+                if (ws.Moving == 1) { LocomotionMoveTo.Stop(world, self); ws.Moving = 0; }
+                if (world.HasComponent<CoverClaim>(self)) world.GetComponentRW<CoverClaim>(self).Until = (SimInstant)0d;
+                ws.Phase = PeekPhase.Choose;
+            }
+
             ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
             switch (ws.Phase)
             {
@@ -1198,9 +1207,36 @@ namespace Hrot.AI.Behaviors.Brains
         private static void Claim(ref PeekAndFireState ws, Entity self, EntityRepository world, double now)
         {
             if (ws.Phase == PeekPhase.Choose || !world.IsComponentTypeRegistered<CoverClaim>()) return;
-            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.PeekPoint, Until = (SimInstant)(now + ClaimTtlSeconds) };
-            if (world.HasComponent<CoverClaim>(self)) world.GetComponentRW<CoverClaim>(self) = claim;
+            var claim = new CoverClaim { Hide = ws.HidePoint, Peek = ws.PeekPoint, Until = (SimInstant)(now + ClaimTtlSeconds), Since = (SimInstant)now };
+            if (world.HasComponent<CoverClaim>(self))
+            {
+                ref var held = ref world.GetComponentRW<CoverClaim>(self);
+                if (held.Until > now && held.Hide == ws.HidePoint) claim.Since = held.Since;   // the same point, still held: its age carries on
+                held = claim;
+            }
             else world.AddComponent(self, claim);
+        }
+
+        /// <summary>⭐ F-9 (CE-4474) — another unit of my force holds a live claim on my hide point that is OLDER than mine (equal age ⇒ the lower
+        /// entity index wins). Only reachable when two units committed in the same tick (a pick skips live claims), i.e. in the parallel phase.</summary>
+        internal static bool LostTie(in PeekAndFireState ws, Entity self, EntityRepository world, double now)
+        {
+            if (!world.IsComponentTypeRegistered<CoverClaim>()) return false;
+            double mine = world.HasComponent<CoverClaim>(self) && world.GetComponentRO<CoverClaim>(self) is { } own && own.Until > now && own.Hide == ws.HidePoint
+                ? (double)own.Since : now;
+            bool forces = world.IsComponentTypeRegistered<EntityInfo>();
+            var force = forces && world.HasComponent<EntityInfo>(self) ? world.GetComponentRO<EntityInfo>(self).ForceId : default;
+            foreach (var other in world.Query().With<CoverClaim>().Build())
+            {
+                if (other == self) continue;
+                ref readonly var c = ref world.GetComponentRO<CoverClaim>(other);
+                if (c.Until <= now || Vector3.Distance(c.Hide, ws.HidePoint) > ClaimRadius) continue;
+                var theirs = forces && world.HasComponent<EntityInfo>(other) ? world.GetComponentRO<EntityInfo>(other).ForceId : default;
+                if (!theirs.Equals(force)) continue;
+                double since = c.Since;
+                if (since < mine || (since == mine && other.Index < self.Index)) return true;
+            }
+            return false;
         }
 
         /// <summary>⭐ <c>CE-3158</c> G5 — whether <paramref name="at"/> is within <see cref="ClaimRadius"/> (3-D) of another unit's live
@@ -1228,6 +1264,10 @@ namespace Hrot.AI.Behaviors.Brains
             if (self.IsNull || !world.IsComponentTypeRegistered<CoverClaim>()) return false;
             bool forces = world.IsComponentTypeRegistered<EntityInfo>();
             var mine = forces && world.HasComponent<EntityInfo>(self) ? world.GetComponentRO<EntityInfo>(self).ForceId : default;
+            // ⭐ F-9 (CE-4474) — my own live claim: a friend's claim that LOSES the tie to it (on my point, younger — equal age ⇒ higher index)
+            //   is his to give up, so it blocks nothing of mine (else both men of a same-tick tie would leave the point)
+            bool held = world.HasComponent<CoverClaim>(self) && world.GetComponentRO<CoverClaim>(self).Until > now;
+            var myClaim = held ? world.GetComponentRO<CoverClaim>(self) : default;
             foreach (var other in world.Query().With<CoverClaim>().Build())
             {
                 if (other == self) continue;
@@ -1235,6 +1275,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (c.Until <= now) continue;
                 var theirs = forces && world.HasComponent<EntityInfo>(other) ? world.GetComponentRO<EntityInfo>(other).ForceId : default;
                 if (!theirs.Equals(mine)) continue;
+                if (held && Vector3.Distance(c.Hide, myClaim.Hide) <= ClaimRadius
+                    && (c.Since > myClaim.Since || (c.Since == myClaim.Since && other.Index > self.Index))) continue;
                 if (Vector3.Distance(c.Hide, at) <= ClaimRadius || Vector3.Distance(c.Peek, at) <= ClaimRadius) return true;
             }
             return false;

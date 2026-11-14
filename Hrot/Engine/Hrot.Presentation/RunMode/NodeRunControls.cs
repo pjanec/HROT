@@ -38,6 +38,22 @@ public static class NodeRunControls
     public static ClusterTimeTransportAdapter For(HrotNodeContext node, NodeRunProfile profile, Func<double>? simTime = null)
     {
         if (node is null) throw new ArgumentNullException(nameof(node));
+        // ⭐⭐ CE-3446 — a threaded node: the UI's controls read the orchestration MIRROR and the UI's cluster view, the time from A's clock, and the
+        //   cancel goes to the sim as a job — the same for every staged host (DESIGN_Threaded_Simulation_Presentation §15)
+        if (node.Presentation is { } staged)
+            return For(staged.UiEventBus, () => staged.UiClusterView,
+                simTime ?? (() => staged.World.HasSingletonUnmanaged<Fdp.Core.GlobalTime>() ? staged.World.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime : 0.0),
+                reason => staged.Post("cluster: cancel load", () => node.ClusterSlave.CancelLoad(reason)), profile);
+        return ForSimSide(node, profile, simTime);
+    }
+
+    /// <summary>
+    /// ⭐ CE-3446 — the NODE's controls (the sim thread's on a threaded node: its HTTP routes, Run to …): the orchestration bus itself, the slave's view,
+    /// the kernel's time. A host's UI uses <see cref="For(HrotNodeContext, NodeRunProfile, Func{double}?)"/>, which is this on an unstaged node.
+    /// </summary>
+    public static ClusterTimeTransportAdapter ForSimSide(HrotNodeContext node, NodeRunProfile profile, Func<double>? simTime = null)
+    {
+        if (node is null) throw new ArgumentNullException(nameof(node));
         return For(node.EventBus, () => node.ClusterSlave.View, simTime ?? (() => node.Kernel.CurrentTime.TotalTime),
             reason => node.ClusterSlave.CancelLoad(reason), profile);   // ⛔ the core drops it for a Player
     }

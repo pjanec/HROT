@@ -282,7 +282,7 @@ public sealed class TrafficRuntimeTests
         for (int i = 0; i < 160; i++) Frame(world, mirror, runtime, t += 0.25);   // 40 s of cluster time
         Assert.NotEmpty(mirror.Cars);
         Assert.Equal(505.25, runtime.Session!.StartTime, 2);   // N3 — SUMO started at the cluster time it was first asked at (the first frame with the entity)
-        Assert.Same(mirror.Cars, TrafficFrame.Of(world)!.Cars);
+        Assert.Equal(mirror.Cars, TrafficFrame.Of(world)!.Cars);   // N-9 — the frame owns a copy of this tick's rows
         long steps = runtime.StepsTaken;
 
         for (int i = 0; i < 10; i++) Frame(world, mirror, runtime, t);            // paused
@@ -500,6 +500,30 @@ public sealed class TrafficRuntimeTests
         mirror.Execute(world, 0.25f);
         runtime.SteppingTick();   // the stepping thread, run inline
         mirror.Execute(world, 0f);
+    }
+
+    /// <summary>
+    /// ⭐ R-4030 / E2b — a car (and a pedestrian) on a FLAT net rides OUR ground: on a terrain whose ground is 350 m the resolved Z is the ground there
+    /// (it was 0, under the terrain). ✅ Red-proof: the mirror's <c>drape</c> ignored ⇒ z 0 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void E2b_ACarOnAFlatNet_RidesTheGround()
+    {
+        using var city = TrafficRoadSceneTests.ElevatedDemoCity.Load(350f);
+        var cache = city.Cache;
+        using var session = new TrafficSession(Key(cache), Options(), NoTypes, startTime: 0.0);
+        var mirror = new TrafficMirror(cache.Placement, owner: 7);
+        var cars = new List<TrafficCarPose>();
+
+        session.StepTo(60.0);
+        session.Source.Pump();
+        mirror.Resolve(session.Source, session.Lanes, 58.0, cars, cache.Drape);
+
+        Assert.NotEmpty(cars);
+        Assert.All(cars, p => Assert.InRange(p.Z, 349.95f, 350.1f));   // the ground, plus the reconstructor's own centimetre of ride height
+        var undraped = new List<TrafficCarPose>();
+        new TrafficMirror(cache.Placement, owner: 7).Resolve(session.Source, session.Lanes, 58.0, undraped);
+        Assert.All(undraped, p => Assert.InRange(p.Z, -0.05f, 0.1f));   // the net itself is flat: the lift is the drape's, nothing else's
     }
 
     private static TrafficSessionKey Key(TrafficNetCache? cache = null)

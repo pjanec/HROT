@@ -72,8 +72,6 @@ namespace Fdp.Toolkit.Perception.Systems
             var ecb  = view.GetCommandBuffer();
             uint tick = PerceptionClock.Now(view);   // ⭐ CE-3292 — LastSeenTick is stamped in sim steps
             double now = view is EntityRepository nowRepo && nowRepo.HasSingleton<GlobalTime>() ? nowRepo.GetSingleton<GlobalTime>().TotalTime : 0d;   // ⭐ CE-2371 — the Alerted leases
-            System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
-
             // ⭐ CE-3063 — what each unit HEARD this frame (anonymous estimates; R-205). Lists are reused across frames.
             foreach (var list in _heard.Values) list.Clear();
             if (view is EntityRepository heardRepo && heardRepo.Bus.IsRegistered<SoundContactEvent>())
@@ -86,155 +84,28 @@ namespace Fdp.Toolkit.Perception.Systems
             // Iterate all entities that have TargetMemory: apply decay and optional boost.
             _nextThreats.Clear();
             var memQuery = view.Query().With<TargetMemory>().Build();
-            foreach (var entity in memQuery)
+            // ⭐ P-1 (DESIGN_Parallel_Simulation §5; the parallel experiment E-3) — on the LIVE world the per-unit evaluation runs in parallel
+            //   batches: each unit writes only its own TargetMemory (in place); its edges go to its batch's command buffer, merged in batch
+            //   order — the same order as this serial loop's buffer; its threat count to its own slot of _threatsOut (the dictionary is
+            //   filled after, serially). ⛔ The snapshot path (not a live world) stays serial.
+            if (Fdp.Core.Jobs.ParallelEntities.Enabled && view is EntityRepository liveRepo)
             {
-                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(entity);
-
-                // Local copy so we can mutate without violating the snapshot contract.
-                TargetMemory mem = memRO;
-                int countBefore = mem.Count;
-
-                // Decay all existing threat scores.
-                float decayFactor = 1f - (deltaTime * PerceptionConstants.ThreatScoreDecayPerSecond);
-                if (decayFactor < 0f) decayFactor = 0f;
-
-                bool changed = false;
-                for (int i = 0; i < mem.Count; i++)
+                int n = 0;
+                foreach (var entity in memQuery)
                 {
-                    float newScore = mem.Freshness[i] * decayFactor;
-                    if (newScore != mem.Freshness[i])
-                    {
-                        mem.Freshness[i] = newScore;
-                        changed = true;
-                    }
+                    if (n == _list.Length) System.Array.Resize(ref _list, System.Math.Max(64, _list.Length * 2));
+                    _list[n++] = entity;
                 }
-
-                // Boost from ActiveSensorTracks (Brain cognitive buffer written by
-                // SensorTrackStateIngressTranslator on the CGF node).
-                if (view.HasComponent<ActiveSensorTracks>(entity))
+                if (_threatsOut.Length < n) _threatsOut = new int[System.Math.Max(n, _threatsOut.Length * 2)];
+                Fdp.Core.Jobs.ParallelEntities.Run(liveRepo, _list, n, new EvaluateJob { Owner = this, Repo = liveRepo, DeltaTime = deltaTime, Tick = tick, Now = now });
+                for (int i = 0; i < n; i++) _nextThreats[_list[i]] = _threatsOut[i];
+            }
+            else
+            {
+                foreach (var entity in memQuery)
                 {
-                    ref readonly var tracksRO = ref view.GetComponentRO<ActiveSensorTracks>(entity);
-                    if (tracksRO.Count > 0)
-                    {
-                        // Continuous boost: 50 threat-score units per second per active track.
-                        float continuousBoost = PerceptionConstants.TrackBoostPerSecond * deltaTime;   // CE-3054: the one constant
-
-                        for (int i = 0; i < tracksRO.Count; i++)
-                        {
-                            // Default to the cached entry position (ActiveSensorTracks is 2D; no
-                            // cached altitude, so the flat fallback is Z = 0).
-                            float posX = tracksRO.PositionsX[i];
-                            float posY = tracksRO.PositionsY[i];
-                            float posZ = 0f;
-                            byte seenStance = 0;
-
-                            // If we have a live replica of the target, track its real-time 3D
-                            // position — including the authoritative altitude (P3D-206).
-                            var targetEntity = new Entity((ulong)tracksRO.EntityIds[i]);
-                            if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
-                            {
-                                ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);
-                                posX = targetTf.Position.X;
-                                posY = targetTf.Position.Y;
-                                posZ = targetTf.Position.Z;
-                                // ⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — and the LOGICAL stance he is in, so a blind burst at this spot
-                                //   later is aimed as at that body. Only a SEEN contact: a heard or thermal-only track says nothing of his pose;
-                                //   and only a PERSON (no hull — AimPoint.Middle's own test): a vehicle has no stance to remember.
-                                if ((tracksRO.Modalities[i] == 0 || (tracksRO.Modalities[i] & (byte)SensorModality.Visual) != 0)
-                                    && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, targetEntity) <= 0f)
-                                    seenStance = (byte)(Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(view, targetEntity) + 1);
-                            }
-
-                            // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
-                            TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
-
-                            TargetMemory.AddOrUpdateTarget(
-                                ref mem,
-                                entityId:   tracksRO.EntityIds[i],
-                                posX:       posX,
-                                posY:       posY,
-                                scoreBoost: continuousBoost,
-                                tick:       tick,
-                                // ⭐ CE-3060 — the kinds that actually hold the track (was: always Visual, so a thermal or heard
-                                //   contact read as "in sight" — StandardInputs.HasLineOfSight).
-                                modality:   tracksRO.Modalities[i] == 0 ? SensorModality.Visual : (SensorModality)tracksRO.Modalities[i],
-                                posZ:       posZ,
-                                seenStance: seenStance);
-                        }
-                        changed = true;
-                    }
-                }
-
-                // ⭐ CE-3063 — HEARD: refresh what is known there, else fuse with a compatible heard contact, else a new one.
-                if (_heard.TryGetValue(entity, out var heardHere) && heardHere.Count > 0)
-                {
-                    foreach (var h in heardHere)
-                        TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
-                                                 PerceptionConstants.HeardBoostPerContact, tick);
-                    changed = true;
-                }
-
-                // ⭐ CE-3046 — FORGET: a target that no longer exists, or one no sensor tracks whose score has faded.
-                //   🔴 Nothing used to remove an entry, so dead and long-lost targets kept their slots forever.
-                bool hasTracks = view.HasComponent<ActiveSensorTracks>(entity);
-                for (int i = mem.Count - 1; i >= 0; i--)
-                {
-                    var target = new Entity((ulong)mem.EntityIds[i]);
-                    // ⭐ CE-3063 — an anonymous slot is not an entity: it fades by freshness only.
-                    bool dead  = !TargetMemory.IsAnonymous(in mem, i) && !view.IsAlive(target);
-                    bool faded = mem.Freshness[i] < PerceptionConstants.ForgetThreatScore
-                              && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
-                    // ⭐ CE-2371 (AQ104 D, R-2079) — an ALERTED contact (a lease his task renews) is never forgotten while it lives: held at the
-                    //   forget line, so it stays remembered (TopAim fights it, the hunt follows it) until he is down or the task lets go
-                    if (faded && !dead && Alerts.IsPinned(view, entity, mem.EntityIds[i], now))
-                    {
-                        mem.Freshness[i] = PerceptionConstants.ForgetThreatScore;
-                        changed = true;
-                        continue;
-                    }
-                    if (!dead && !faded) continue;
-                    TargetMemory.Forget(ref mem, i);
-                    changed = true;
-                }
-
-                // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired, seen or not.
-                //   ⭐ R-3039 S1 — the previous value is on the memory (LastHealth); the first sight of a unit only records it.
-                if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
-                {
-                    float hp = view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(entity).Current;
-                    if (mem.HasLastHealth != 0 && hp < mem.LastHealth)
-                        ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.Hit });
-                    if (mem.HasLastHealth == 0 || hp != mem.LastHealth) { mem.LastHealth = hp; mem.HasLastHealth = 1; changed = true; }
-                }
-
-                // ⭐ CE-3039 — the memory's edges, from the system that holds the memory (design §7.3). AllClear is reachable
-                //   since CE-3046 made the memory forget.
-                // ⭐ CE-2233 (CIV-0, docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS, not contacts: a soldier
-                //   remembers the civilians he sees, and counted as contacts the first civilian took the one FirstThreat (the SOP
-                //   reacted, found nothing to engage, went idle) and a Hostile seen after it raised none — measured live on
-                //   ua-civ-neutral-gate. ⛔ SUPERSEDED: countBefore == 0 && mem.Count > 0 (any contact).
-                int threatsBefore = _lastThreats.TryGetValue(entity, out int tb) ? tb : ThreatCount(view, in memRO);
-                int threatsNow = ThreatCount(view, in mem);
-                _nextThreats[entity] = threatsNow;
-                if (threatsBefore == 0 && threatsNow > 0)
-                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.FirstThreat });
-                else if (threatsBefore > 0 && threatsNow == 0)
-                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AllClear });
-
-                // ⭐ CE-2165 V8 — AIR THREAT: more air contacts than before this frame (a flyer seen, rotors heard). A COUNT, not new
-                //   ids: a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063), not a second alarm.
-                if (AirContacts.Count(view, in mem) > AirContacts.Count(view, in memRO))
-                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AirThreat });
-
-                // ⭐ CE-2429 (Next_3 H-2) — on the LIVE world (the CGF adapter runs synchronously "immediately before CognitiveRuntimeModule, so
-                //   B-Trees evaluate against freshly decayed scores") the memory is written IN PLACE: the brains see this frame's evaluation,
-                //   and a seed a behaviour writes after it survives. 📐 Measured live (ua-technical-scoot): through the command buffer this whole
-                //   copy was played back AFTER the brain tick and erased the attack order's same-frame seed. A snapshot view keeps the buffer.
-                // ⚠ the write comes LAST: memRO is a reference into the live component, and the edges above compare it (before) with mem (now).
-                if (changed)
-                {
-                    if (view is EntityRepository live) live.GetComponentRW<TargetMemory>(entity) = mem;
-                    else ecb.SetComponent(entity, mem);
+                    EvaluateOne(view, entity, deltaTime, tick, now, ecb, out int threatsNow);
+                    _nextThreats[entity] = threatsNow;
                 }
             }
             (_lastThreats, _nextThreats) = (_nextThreats, _lastThreats);
@@ -244,6 +115,188 @@ namespace Fdp.Toolkit.Perception.Systems
         /// ⭐ CE-2233 (CIV-0) — how many of the memory's contacts are THREATS: a heard (anonymous) contact always is (a sound has no
         /// side); a seen one unless it is Neutral (<see cref="ThreatDanger.IsNeutral"/>, read live). What FirstThreat / AllClear count.
         /// </summary>
+
+        // ⭐ P-1 — the parallel path's buffers (grown, never shrunk; 0 B per steady frame)
+        private Entity[] _list = new Entity[64];
+        private int[] _threatsOut = new int[64];
+
+        private struct EvaluateJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        {
+            // ⭐ N-11 (D-6) — what the ranking reads on its targets that nothing writes while it runs (measured: the scale-rig survey)
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
+                .Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>()
+                .Unmanaged<global::CarKinem.Core.VehicleParams>()
+                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            public ThreatEvaluationSystem Owner;
+            public EntityRepository Repo;
+            public float DeltaTime;
+            public uint Tick;
+            public double Now;
+            public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
+            {
+                Owner.EvaluateOne(Repo, e, DeltaTime, Tick, Now, ctx.Commands, out int threatsNow);
+                Owner._threatsOut[index] = threatsNow;   // this entity's own slot
+            }
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
+        }
+
+        /// <summary>⭐ P-1 — ONE unit's evaluation (decay, boost from tracks, heard contacts, forget, the edges, the in-place write). Called by
+        /// the serial loop and by the parallel batches alike: it reads <c>_heard</c> and <c>_lastThreats</c> only, writes only
+        /// <paramref name="entity"/>'s memory, and sends its edges to <paramref name="ecb"/>.</summary>
+        private unsafe void EvaluateOne(ISimulationView view, Entity entity, float deltaTime, uint tick, double now, Fdp.Interfaces.IEntityCommandBuffer ecb, out int threatsNow)
+        {
+            System.Span<byte> classBuffer = stackalloc byte[3];   // CE-3063 — a target's sound classes
+
+            ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(entity);
+
+            // Local copy so we can mutate without violating the snapshot contract.
+            TargetMemory mem = memRO;
+            int countBefore = mem.Count;
+
+            // Decay all existing threat scores.
+            float decayFactor = 1f - (deltaTime * PerceptionConstants.ThreatScoreDecayPerSecond);
+            if (decayFactor < 0f) decayFactor = 0f;
+
+            bool changed = false;
+            for (int i = 0; i < mem.Count; i++)
+            {
+                float newScore = mem.Freshness[i] * decayFactor;
+                if (newScore != mem.Freshness[i])
+                {
+                    mem.Freshness[i] = newScore;
+                    changed = true;
+                }
+            }
+
+            // Boost from ActiveSensorTracks (Brain cognitive buffer written by
+            // SensorTrackStateIngressTranslator on the CGF node).
+            if (view.HasComponent<ActiveSensorTracks>(entity))
+            {
+                ref readonly var tracksRO = ref view.GetComponentRO<ActiveSensorTracks>(entity);
+                if (tracksRO.Count > 0)
+                {
+                    // Continuous boost: 50 threat-score units per second per active track.
+                    float continuousBoost = PerceptionConstants.TrackBoostPerSecond * deltaTime;   // CE-3054: the one constant
+
+                    for (int i = 0; i < tracksRO.Count; i++)
+                    {
+                        // Default to the cached entry position (ActiveSensorTracks is 2D; no
+                        // cached altitude, so the flat fallback is Z = 0).
+                        float posX = tracksRO.PositionsX[i];
+                        float posY = tracksRO.PositionsY[i];
+                        float posZ = 0f;
+                        byte seenStance = 0;
+
+                        // If we have a live replica of the target, track its real-time 3D
+                        // position — including the authoritative altitude (P3D-206).
+                        var targetEntity = new Entity((ulong)tracksRO.EntityIds[i]);
+                        if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
+                        {
+                            ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);
+                            posX = targetTf.Position.X;
+                            posY = targetTf.Position.Y;
+                            posZ = targetTf.Position.Z;
+                            // ⭐ CE-2326 (R-3030; Peek and Fire §11.6a) — and the LOGICAL stance he is in, so a blind burst at this spot
+                            //   later is aimed as at that body. Only a SEEN contact: a heard or thermal-only track says nothing of his pose;
+                            //   and only a PERSON (no hull — AimPoint.Middle's own test): a vehicle has no stance to remember.
+                            if ((tracksRO.Modalities[i] == 0 || (tracksRO.Modalities[i] & (byte)SensorModality.Visual) != 0)
+                                && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(view, targetEntity) <= 0f)
+                                seenStance = (byte)(Hrot.MuscleCharacter.Animation.Components.LogicalStance.Of(view, targetEntity) + 1);
+                        }
+
+                        // ⭐ CE-3063 — a sighting inside a heard contact's circle IS that contact: absorb it, no duplicate.
+                        TargetMemory.AbsorbBySighting(ref mem, tracksRO.EntityIds[i], posX, posY, ClassesOf(view, targetEntity, classBuffer));
+
+                        TargetMemory.AddOrUpdateTarget(
+                            ref mem,
+                            entityId:   tracksRO.EntityIds[i],
+                            posX:       posX,
+                            posY:       posY,
+                            scoreBoost: continuousBoost,
+                            tick:       tick,
+                            // ⭐ CE-3060 — the kinds that actually hold the track (was: always Visual, so a thermal or heard
+                            //   contact read as "in sight" — StandardInputs.HasLineOfSight).
+                            modality:   tracksRO.Modalities[i] == 0 ? SensorModality.Visual : (SensorModality)tracksRO.Modalities[i],
+                            posZ:       posZ,
+                            seenStance: seenStance);
+                    }
+                    changed = true;
+                }
+            }
+
+            // ⭐ CE-3063 — HEARD: refresh what is known there, else fuse with a compatible heard contact, else a new one.
+            if (_heard.TryGetValue(entity, out var heardHere) && heardHere.Count > 0)
+            {
+                foreach (var h in heardHere)
+                    TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
+                                             PerceptionConstants.HeardBoostPerContact, tick);
+                changed = true;
+            }
+
+            // ⭐ CE-3046 — FORGET: a target that no longer exists, or one no sensor tracks whose score has faded.
+            //   🔴 Nothing used to remove an entry, so dead and long-lost targets kept their slots forever.
+            bool hasTracks = view.HasComponent<ActiveSensorTracks>(entity);
+            for (int i = mem.Count - 1; i >= 0; i--)
+            {
+                var target = new Entity((ulong)mem.EntityIds[i]);
+                // ⭐ CE-3063 — an anonymous slot is not an entity: it fades by freshness only.
+                bool dead  = !TargetMemory.IsAnonymous(in mem, i) && !view.IsAlive(target);
+                bool faded = mem.Freshness[i] < PerceptionConstants.ForgetThreatScore
+                          && !(hasTracks && IsTracked(in view.GetComponentRO<ActiveSensorTracks>(entity), mem.EntityIds[i]));
+                // ⭐ CE-2371 (AQ104 D, R-2079) — an ALERTED contact (a lease his task renews) is never forgotten while it lives: held at the
+                //   forget line, so it stays remembered (TopAim fights it, the hunt follows it) until he is down or the task lets go
+                if (faded && !dead && Alerts.IsPinned(view, entity, mem.EntityIds[i], now))
+                {
+                    mem.Freshness[i] = PerceptionConstants.ForgetThreatScore;
+                    changed = true;
+                    continue;
+                }
+                if (!dead && !faded) continue;
+                TargetMemory.Forget(ref mem, i);
+                changed = true;
+            }
+
+            // ⭐ CE-3039 — HIT: the unit's health dropped (replicated to this Brain node by EntityDamage) — whoever fired, seen or not.
+            //   ⭐ R-3039 S1 — the previous value is on the memory (LastHealth); the first sight of a unit only records it.
+            if (view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
+            {
+                float hp = view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(entity).Current;
+                if (mem.HasLastHealth != 0 && hp < mem.LastHealth)
+                    ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.Hit });
+                if (mem.HasLastHealth == 0 || hp != mem.LastHealth) { mem.LastHealth = hp; mem.HasLastHealth = 1; changed = true; }
+            }
+
+            // ⭐ CE-3039 — the memory's edges, from the system that holds the memory (design §7.3). AllClear is reachable
+            //   since CE-3046 made the memory forget.
+            // ⭐ CE-2233 (CIV-0, docs/DESIGN_Civilians_And_Crowd_Control.md §5b) — the edges count THREATS, not contacts: a soldier
+            //   remembers the civilians he sees, and counted as contacts the first civilian took the one FirstThreat (the SOP
+            //   reacted, found nothing to engage, went idle) and a Hostile seen after it raised none — measured live on
+            //   ua-civ-neutral-gate. ⛔ SUPERSEDED: countBefore == 0 && mem.Count > 0 (any contact).
+            int threatsBefore = _lastThreats.TryGetValue(entity, out int tb) ? tb : ThreatCount(view, in memRO);
+            threatsNow = ThreatCount(view, in mem);
+            if (threatsBefore == 0 && threatsNow > 0)
+                ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.FirstThreat });
+            else if (threatsBefore > 0 && threatsNow == 0)
+                ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AllClear });
+
+            // ⭐ CE-2165 V8 — AIR THREAT: more air contacts than before this frame (a flyer seen, rotors heard). A COUNT, not new
+            //   ids: a heard drone later SEEN is one contact (the sighting absorbs the heard slot, CE-3063), not a second alarm.
+            if (AirContacts.Count(view, in mem) > AirContacts.Count(view, in memRO))
+                ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.AirThreat });
+
+            // ⭐ CE-2429 (Next_3 H-2) — on the LIVE world (the CGF adapter runs synchronously "immediately before CognitiveRuntimeModule, so
+            //   B-Trees evaluate against freshly decayed scores") the memory is written IN PLACE: the brains see this frame's evaluation,
+            //   and a seed a behaviour writes after it survives. 📐 Measured live (ua-technical-scoot): through the command buffer this whole
+            //   copy was played back AFTER the brain tick and erased the attack order's same-frame seed. A snapshot view keeps the buffer.
+            // ⚠ the write comes LAST: memRO is a reference into the live component, and the edges above compare it (before) with mem (now).
+            if (changed)
+            {
+                if (view is EntityRepository live) live.GetComponentRW<TargetMemory>(entity) = mem;
+                else ecb.SetComponent(entity, mem);
+            }
+        }
+
         public static unsafe int ThreatCount(ISimulationView view, in TargetMemory mem)
         {
             int n = 0;

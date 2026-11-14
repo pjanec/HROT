@@ -163,7 +163,8 @@ namespace Fdp.Toolkit.Utility
             float maxRange = ctx.Params.MaxRange > 0f ? ctx.Params.MaxRange : 1000f;
             float distance = Vector3.Distance(selfPos, ctxPos);
             float result   = Math.Clamp(1f - distance / maxRange, 0f, 1f);
-            Debug.Assert(result >= 0f && result <= 1f);
+            Debug.Assert(result >= 0f && result <= 1f,
+                $"DistanceToContext: not in [0,1] ({result}) — self {ctx.Self.Index} at {selfPos}, context {ctx.Context.Index} at {ctxPos}, maxRange {maxRange}");
             return result;
         }
 

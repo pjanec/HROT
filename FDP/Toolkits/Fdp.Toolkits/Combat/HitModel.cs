@@ -141,7 +141,8 @@ namespace Fdp.Toolkit.Combat
         public static uint NextOrdinal(EntityRepository repo, Entity shooter)
         {
             if (!repo.IsComponentTypeRegistered<ShotOrdinal>()) return 1u;
-            if (!repo.HasComponent<ShotOrdinal>(shooter)) { repo.AddComponent(shooter, new ShotOrdinal { Count = 1 }); return 1u; }
+            if (!repo.HasComponent<ShotOrdinal>(shooter)) { // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                repo.AddComponent(shooter, new ShotOrdinal { Count = 1 }); return 1u; }
             ref var o = ref repo.GetComponentRW<ShotOrdinal>(shooter);
             return ++o.Count;
         }

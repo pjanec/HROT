@@ -86,12 +86,81 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
             }
 
-            var q = repo.Query()
+            _channels ??= repo.Query()
                 .With<WeaponChannel>()
                 .With<ActorCapabilityState>()
                 .Build();
 
-            foreach (var entity in q)
+            if (Fdp.Core.Jobs.ParallelEntities.Enabled)
+            {
+                // ⭐⭐ M-6 (CE-4485; DESIGN_Parallel_Simulation §18.5) — each unit's dispatch is a PER-ENTITY phase: it writes its own channel and
+                //   weapon, its parts (mount children, turret parts), and the weapon systems it CONTROLS (a station's M2, the Javelin it carries,
+                //   the tripod it mans — WeaponSystems.Controlled) — claimed with OwnAlso, their parts with them. ⭐ Disjoint BY CONSTRUCTION:
+                //   a weapon has ONE controller (WeaponSystems.ControllerOf, §6 W-D), a function of seats and possession, which nothing in this
+                //   phase changes. Everything else follows the rule: other units read as of the tick start, the fire intents (publishes)
+                //   deferred and played in batch order.
+                int n = 0;
+                foreach (var entity in _channels)
+                {
+                    if (n == _list.Length) Array.Resize(ref _list, _list.Length * 2);
+                    _list[n++] = entity;
+                }
+                DeclareTickReads();
+                // ⭐ CE-4516 — the parts index made fresh serially first (as the brains' and the squads' phases do): every PartsOf in the weapon
+                //   phase then reads lock-free and never takes the late-add path inside it (📐 the read-check survey named PartMetadata, read by
+                //   PartIndex.TakeLateAdds from AimAndFireExecutor.EngagementMount within the phase)
+                Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);
+                Fdp.Core.Jobs.ParallelEntities.Run(repo, _list, n, new DispatchJob { System = this, Repo = repo, Dt = deltaTime });
+                return;
+            }
+            foreach (var entity in _channels) DispatchOne(repo, entity, deltaTime);
+        }
+
+        private EntityQuery? _channels;
+        private Entity[] _list = new Entity[64];
+
+        /// <summary>
+        /// ⭐ M-7 (CE-4486) — what a unit's weapon frame reads on OTHER units that this phase also writes: from the tick-start view. 📐 Measured
+        /// (the read-check survey, 1 000 men, 4 threads): the force level read the TARGET's <see cref="Fdp.Toolkit.Combat.Components.WeaponPosture"/>
+        /// (<c>ForceLevels.AimsAt</c>) while the target's own job wrote it — the engagement mount it chose, kept in the channel, differed in one
+        /// 4-thread run in three. The aim point reads the target's stance intent, which a shooter's own frame writes (<c>StanceRequest</c>).
+        /// </summary>
+        private static void DeclareTickReads()
+        {
+            if (s_declared) return;
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+            Fdp.Core.ParallelReadCheck.DeclareUnmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+            s_declared = true;
+        }
+        private static bool s_declared;
+
+        private struct DispatchJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        {
+            // ⭐ M-7 — what it reads on others that nothing writes while it runs (the survey): who controls a weapon (seats, stations), and a
+            //   target's size for the aim point
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
+                .Unmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>()
+                .Unmanaged<IsEmbarkedTag>()
+                .Unmanaged<PassengerBuffer>()
+                .Unmanaged<CarrierStations>()
+                .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
+                .Unmanaged<global::CarKinem.Core.VehicleParams>();
+            public WeaponDispatcherSystem System;
+            public EntityRepository Repo;
+            public float Dt;
+            public void Execute(Entity entity, int index, Fdp.Core.Jobs.BatchContext ctx)
+            {
+                Span<Entity> controlled = stackalloc Entity[Fdp.Toolkit.Combat.WeaponSystems.MaxControlled];
+                int k = Fdp.Toolkit.Combat.WeaponSystems.Controlled(Repo, entity, controlled);
+                for (int i = 0; i < k; i++) Fdp.Core.ParallelReadCheck.OwnAlso(controlled[i]);
+                System.DispatchOne(Repo, entity, Dt);
+            }
+            public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
+        }
+
+        /// <summary>One unit's weapon frame: its barrel's cooldown / ask / reload, the capability gate, the action's lifecycle and execution.</summary>
+        private void DispatchOne(EntityRepository repo, Entity entity, float deltaTime)
+        {
             {
                 if (repo.HasComponent<Fdp.Toolkit.Combat.Components.WeaponState>(entity))
                 {
@@ -113,7 +182,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     channel.Status = NodeStatus.Failure;
                     Fdp.Toolkit.Combat.WeaponPostureOf.Idle(repo, entity, deltaTime);
-                    continue;
+                    return;
                 }
 
                 // Lifecycle: detect when a new action has been dispatched.

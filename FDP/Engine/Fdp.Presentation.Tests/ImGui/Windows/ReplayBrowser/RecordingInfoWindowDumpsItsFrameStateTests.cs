@@ -72,7 +72,7 @@ public sealed class RecordingInfoWindowDumpsItsFrameStateTests : IDisposable
 
     private static ReplayTimelinePanel MakePanel(FederatedReplayManager? manager, Func<int>? getNodeId = null) =>
         new ReplayTimelinePanel(
-            manager, getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
+            manager is null ? null : InlineReviewChannel.OverManager(manager), getNodeId ?? (() => manager?.LocalEntitiesProviderNodeId ?? 0),
             new StubExportService(), new StubFileDialogService(),
             new PlaybackHistoryTracker(), new InspectorState());
 

@@ -103,6 +103,9 @@ public sealed class PanelSnapshotTests : SystemTestBase
 
         Assert.NotNull(frame.Field("count"));
         int count = frame.Int("count");
+        // ⭐ the map always draws something — the layer control's mask and its "Tactical Map Layers…" menu binding at least. An EMPTY frame is a map
+        //   that shows no unit symbol, no label and no layers menu (📌 2026-11-14: the threaded node read a published frame it never leased).
+        Assert.True(count > 0, "the map's gizmo frame is EMPTY: no unit symbols, labels or the layers menu would draw");
 
         var primitives = frame.Field("primitives") as JsonArray;
         Assert.NotNull(primitives);
@@ -118,6 +121,30 @@ public sealed class PanelSnapshotTests : SystemTestBase
 
         Output.WriteLine($"{count} primitives this frame, {primitives.Count} emitted, "
                          + $"truncated={frame.Bool("truncated")}");
+    }
+
+    /// <summary>
+    /// ⭐ 2026-11-14 — the same frame under the THREADED NODE (HROT_THREADED_KERNEL=3, the shared presentation of N-13 / CE-3446): the drawing thread
+    /// reads the published copy of the gizmo frame, and must lease it. 📌 It never did — `DrawWorld` leased only when the editor owned a kernel worker,
+    /// which the shared presentation does not ⇒ the map drew an empty frame: no unit symbols in 2-D, no labels, no "Tactical Map Layers…" menu.
+    /// 🔴 Red-proof: the lease keyed back on `_kernelWorker` ⇒ count 0 ⇒ red.
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task The_gizmo_frame_is_drawn_under_the_threaded_node()
+    {
+        await using var ed = await EditorProcess.StartAsync("threaded-gizmo",
+            environment: new Dictionary<string, string> { ["HROT_THREADED_KERNEL"] = "3" });
+        ApiResult? frame = null;
+        bool menu = false;
+        for (int i = 0; i < 40 && !menu; i++)   // the first frames publish before the first draw leases one
+        {
+            frame = (await ed.Client.GetGizmoFrameAsync(max: 100_000)).EnsureOk();
+            if (frame.Field("primitives") is JsonArray all)
+                foreach (var p in all) menu |= p?["shape"]?.GetValue<string>() == "MainMenuBinding";
+            if (!menu) await Task.Delay(250);
+        }
+        Assert.True(frame!.Int("count") > 0, "under the threaded node the map's gizmo frame is EMPTY — the published frame is never leased");
+        Assert.True(menu, "under the threaded node no MainMenuBinding reaches the map — View ▸ Tactical Map Layers… is missing from the menu");
     }
 
     /// <summary>

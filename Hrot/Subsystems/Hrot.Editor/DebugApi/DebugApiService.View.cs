@@ -53,7 +53,7 @@ namespace Hrot.Editor.DebugApi
                 if (view.MapBuilt is { } built)
                     result["map"] = new JsonObject { ["built"] = built, ["step"] = view.MapBuildStep is { Length: > 0 } step ? step : null };
             }
-            var (primary, all) = SelectionOf(_world, _entityMap);
+            var (primary, all) = SelectionOf(ShownWorld, ShownMap);
             result["selection"] = all;
             result["primary"] = primary;
             if (ViewControl.Of(_world)?.Following is { } follow)   // ⭐ CE-1293 (UC-10) — the unit the camera follows
@@ -78,7 +78,7 @@ namespace Hrot.Editor.DebugApi
                 view.StopFollowing();
                 return (new JsonObject { ["following"] = null }, null);
             }
-            if (!_entityMap.TryGetEntity(id, out var entity) || !_world.IsAlive(entity))
+            if (!ShownMap.TryGetEntity(id, out var entity) || !ShownWorld.IsAlive(entity))
                 return (null, $"Entity {id} not found.");
             if (view.FollowUnit(entity, distance) is { } refusal) return (null, refusal);
             return (new JsonObject { ["following"] = id, ["distance"] = MathF.Round(view.Following!.Distance, 2) }, null);
@@ -86,7 +86,7 @@ namespace Hrot.Editor.DebugApi
 
         public JsonNode GetSelection()
         {
-            var (primary, all) = SelectionOf(_world, _entityMap);
+            var (primary, all) = SelectionOf(ShownWorld, ShownMap);
             return new JsonObject { ["primary"] = primary, ["selection"] = all };
         }
 

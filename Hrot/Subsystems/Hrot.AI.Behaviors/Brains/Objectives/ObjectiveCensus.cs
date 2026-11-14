@@ -41,7 +41,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         /// Not <c>MenOf</c> (bodies in the fight only) — a commander has no body.</summary>
         public static void RosterOf(EntityRepository world, Entity subject, List<Entity> into) => Fdp.Toolkit.Squad.UnitTree.Collect(world, subject, into);   // ⭐ the ONE walk (condition editor C1 lifted it)
 
-        private static readonly List<Entity> s_men = new();
+        [System.ThreadStatic] private static List<Entity>? t_men;
+        private static List<Entity> s_men => t_men ??= new();   // ⭐ N-11 (CE-4473) — per THREAD: the brains tick in parallel; scratch is never shared
 
         /// <summary>How many of the subject's men stand inside <paramref name="area"/>.</summary>
         public static int MenInside(EntityRepository world, EntityRef subject, in AreaLink area)

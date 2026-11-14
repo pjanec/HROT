@@ -29,6 +29,9 @@ namespace Fdp.Toolkit.Civilians
         Gather = 12,
         /// <summary>⭐ <c>CE-2241</c> ① — a man who committed a hostile act, covered by the forces: hands up, standing still (§5h.3).</summary>
         Surrender = 13,
+        /// <summary>⭐ <c>CE-7030</c> (City Battle §3c) — CURIOUS: fighting heard far off (not close enough to frighten him); he stops and looks,
+        /// some film it with a phone.</summary>
+        Watch = 14,
     }
 
     /// <summary>

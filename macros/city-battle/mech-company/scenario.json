@@ -1,0 +1,382 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "Kind": "macro",
+    "description": "What: CE-6009 (city battle M-1, §4) - a MECHANISED COMPANY (attacker): three rifle-platoon macros (nested instances, 60 m apart, named 1st / 2nd / 3rd Platoon) and the company SUPPORT ELEMENT - a tank section (unit 301, 2 M1) and 4 Bradley IFVs, 25-40 m behind. ⚠ NO company commander: the slot stays empty until the brains lane's CE-7002 (CompanyCommander) - the platoons are top-level until then. Params: side, p1 / p2 / p3 (the platoons' RefKeys, default Platoon1-3 - CE-6010).",
+    "Anchor": {
+      "Position": [
+        0,
+        0,
+        0
+      ],
+      "Heading": 0
+    },
+    "Params": [
+      {
+        "Name": "side",
+        "TypeId": "ForceId",
+        "Default": "Friend"
+      },
+      {
+        "Name": "p1",
+        "TypeId": "string",
+        "Default": "Platoon1"
+      },
+      {
+        "Name": "p2",
+        "TypeId": "string",
+        "Default": "Platoon2"
+      },
+      {
+        "Name": "p3",
+        "TypeId": "string",
+        "Default": "Platoon3"
+      }
+    ]
+  },
+  "entities": {
+    "c6009c00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -60.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/rifle-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/rifle-platoon",
+        "Args": {
+          "name": "1st Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p1"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/rifle-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/rifle-platoon",
+        "Args": {
+          "name": "2nd Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p2"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          60.0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8813
+      },
+      "EntityInfo": {
+        "Name": "city-battle/rifle-platoon"
+      },
+      "MacroInstance": {
+        "Macro": "city-battle/rifle-platoon",
+        "Args": {
+          "name": "3rd Platoon"
+        }
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "MacroInstance.Args.side": "side",
+          "MacroInstance.Args.key": "p3"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          0,
+          -40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 301
+      },
+      "EntityInfo": {
+        "Name": "Tank Section",
+        "ForceId": "Friend"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          -10,
+          -40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009c00-0000-4000-8000-000000000020",
+        "Designation": "SquadLeader"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          10,
+          -40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c6009c00-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000030": {
+      "SimTransform": {
+        "Position": [
+          -75,
+          -25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000031": {
+      "SimTransform": {
+        "Position": [
+          -25,
+          -25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000032": {
+      "SimTransform": {
+        "Position": [
+          25,
+          -25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    },
+    "c6009c00-0000-4000-8000-000000000033": {
+      "SimTransform": {
+        "Position": [
+          75,
+          -25,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "IFV 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "ParamBindings": {
+        "Bindings": {
+          "EntityInfo.ForceId": "side"
+        }
+      }
+    }
+  }
+}

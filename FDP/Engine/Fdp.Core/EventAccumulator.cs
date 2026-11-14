@@ -409,8 +409,9 @@ namespace Fdp.Core
             {
                 if (!_nativeById.TryGetValue(typeId, out var history)) { elementSize = 0; return ReadOnlySpan<byte>.Empty; }
                 elementSize = history.ElementSize;
-                FillWindow(history, _seen[reader]);
-                return history.Window;
+                int lane = CurrentLane;
+                FillWindow(history, _seen[reader], lane);
+                return history.Window(lane);
             }
         }
 
@@ -422,8 +423,9 @@ namespace Fdp.Core
                 if (!_managedById.TryGetValue(FdpEventBus.ManagedTypeId<T>.Id, out var history)
                     || history is not ManagedStreamHistory<T> typed)
                     return Array.Empty<T>();
-                FillWindow(typed, _seen[reader]);
-                return typed.Window;
+                int lane = CurrentLane;
+                FillWindow(typed, _seen[reader], lane);
+                return typed.Window(lane);
             }
         }
 
@@ -446,19 +448,35 @@ namespace Fdp.Core
             }
         }
 
-        private void FillWindow(EventStreamHistory history, uint from)
+        private void FillWindow(EventStreamHistory history, uint from, int lane)
         {
-            if (history.WindowStamp == _stamp && history.WindowFrom == from && history.WindowTo == _currentKey) return;
-            history.BeginWindow();
+            history.EnsureLane(lane);
+            if (history.WindowStamp[lane] == _stamp && history.WindowFrom[lane] == from && history.WindowTo[lane] == _currentKey) return;
+            history.BeginWindow(lane);
             for (int k = 0; k < _count; k++)
             {
                 int idx = _ring[(_head + k) % _capacity];
                 if (_last[idx] <= from || !history.InSlot[idx]) continue;
-                if (history.AppendToWindow(idx)) Growth++;
+                if (history.AppendToWindow(lane, idx)) Growth++;
             }
-            history.WindowFrom  = from;
-            history.WindowTo    = _currentKey;
-            history.WindowStamp = _stamp;
+            history.WindowFrom[lane]  = from;
+            history.WindowTo[lane]    = _currentKey;
+            history.WindowStamp[lane] = _stamp;
+        }
+
+        // ⭐ N-11 (CE-4473) — the window LANE of the calling thread: 0 for serial code; a batch thread of a per-entity phase gets its own
+        //   (a small per-thread number, handed out once), so concurrent cadenced brains each read their own window buffer
+        [ThreadStatic] private static int t_lane;
+        private static int s_lanes;
+
+        private static int CurrentLane
+        {
+            get
+            {
+                if (!ParallelReadCheck.AnyPhase || ParallelReadCheck.CurrentBatch == null) return 0;
+                if (t_lane == 0) t_lane = System.Threading.Interlocked.Increment(ref s_lanes);
+                return t_lane;
+            }
         }
 
         // ───────────────────────────── flush to a background module ─────────────────────────────

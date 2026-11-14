@@ -1154,6 +1154,32 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ Exposed for the forwarding rail — ⛔ a rail must reach the CONSTRUCTED object.</summary>
         internal bool HasEditorCommands => ResolveEditorCommands() != null;
 
+        private Func<NodeEditor.Core.Action.IEditorCommands?>? _shellCommands;
+
+        /// <summary>
+        /// ⭐ N-15 (CE-4477) — the SHELL's command set (Edit ▸ Undo / Redo, File ▸ …, the menu commands the window manager owns), served by the
+        /// same list / invoke routes with <c>?scope=shell</c>. ⛔ It is NOT folded into the default set: <c>/editor/commands</c> keeps meaning the
+        /// active document's commands (MD-008); the shell set had no HTTP door at all, so the editor's undo could not be driven.
+        /// </summary>
+        public void AttachShellCommands(Func<NodeEditor.Core.Action.IEditorCommands?> commands)
+            => _shellCommands = commands ?? throw new ArgumentNullException(nameof(commands));
+
+        private NodeEditor.Core.Action.IEditorCommands? ResolveCommands(string? scope)
+            => string.Equals(scope, "shell", StringComparison.OrdinalIgnoreCase) ? _shellCommands?.Invoke() : ResolveEditorCommands();
+
+        /// <summary><see cref="ListEditorCommands(string?)"/> over the set <paramref name="scope"/> names (<c>shell</c>, else the document's).</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) ListEditorCommands(string? category, string? scope)
+        {
+            if (!string.Equals(scope, "shell", StringComparison.OrdinalIgnoreCase)) return ListEditorCommands(category);
+            var shell = _shellCommands?.Invoke();
+            if (shell == null) return (null, "No shell command set is attached on this host.", DebugApiHints.Panel);
+            var arr = new JsonArray();
+            foreach (var d in shell.All)
+                if (string.IsNullOrWhiteSpace(category) || string.Equals(d.Category, category, StringComparison.OrdinalIgnoreCase))
+                    arr.Add(DescribeEditorCommand(d));
+            return (new JsonObject { ["scope"] = "shell", ["count"] = arr.Count, ["total"] = shell.All.Count, ["commands"] = arr }, null, null);
+        }
+
         /// <summary>⭐ The explicitly-attached set if there is one, else the ACTIVE document's.</summary>
         private NodeEditor.Core.Action.IEditorCommands? ResolveEditorCommands()
         {
@@ -1243,9 +1269,13 @@ namespace Hrot.Editor.DebugApi
         /// directly and the ORIGIN-SIDE LOG is the safety net. The response carries what ran.</para>
         /// </remarks>
         public (JsonNode? Result, string? Error, string? HintCategory) InvokeEditorCommand(
-            string? id, JsonNode? body)
+            string? id, JsonNode? body) => InvokeEditorCommand(id, body, scope: null);
+
+        /// <summary><see cref="InvokeEditorCommand(string?, JsonNode?)"/> over the set <paramref name="scope"/> names (<c>shell</c>, else the document's).</summary>
+        public (JsonNode? Result, string? Error, string? HintCategory) InvokeEditorCommand(
+            string? id, JsonNode? body, string? scope)
         {
-            var commands = ResolveEditorCommands();
+            var commands = ResolveCommands(scope);
             if (commands == null) return (null, NoEditorCommands, DebugApiHints.Panel);
 
             if (string.IsNullOrWhiteSpace(id))

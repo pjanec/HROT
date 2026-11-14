@@ -54,6 +54,42 @@ public class FrameOverlayTests : IDisposable
         }
     }
 
+    // ══ ⭐ N-13 (CE-4475) — a registration's draw gate ════════════════════════
+
+    /// <summary>
+    /// ⭐ N-13 — windows and frame overlays registered inside <c>RegisteringUnder(gate)</c> draw only while the gate holds; what was registered
+    /// outside the scope always draws. The runner registers each subsystem's windows under <c>SubsystemOrchestrator.Draws</c>, so a subsystem
+    /// whose live world the host's sim worker ticks puts nothing on the main thread. 🔴 Red-proof: drop the <c>WindowDraws</c> / <c>OverlayDraws</c>
+    /// test from <c>Render</c> ⇒ the gated window and overlay draw while the gate is off.
+    /// </summary>
+    [Fact]
+    public void N13_AGatedRegistration_DrawsOnlyWhileItsGateHolds()
+    {
+        using var fixture = new ImGuiTestFixture();
+        var wm  = CreateManager();
+        var log = new List<string>();
+        bool open = false;
+        int gated = 0, plain = 0;
+        using (wm.RegisteringUnder(() => open))
+        {
+            wm.RegisterWindow(new SpyWindow(log));
+            wm.RegisterFrameOverlay(() => gated++);
+        }
+        wm.RegisterFrameOverlay(() => plain++);
+
+        fixture.NewFrame(); wm.Render(); fixture.Render();
+        Assert.Empty(log);
+        Assert.Equal(0, gated);
+        Assert.Equal(1, plain);
+        Assert.False(wm.WindowDraws("spy_win"));
+
+        open = true;
+        fixture.NewFrame(); wm.Render(); fixture.Render();
+        Assert.Equal(new[] { "window" }, log);
+        Assert.Equal(1, gated);
+        Assert.Equal(2, plain);
+    }
+
     // ══ the slot invokes what is in it ══════════════════════════════════════
 
     /// <summary>

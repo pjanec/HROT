@@ -350,6 +350,12 @@ classDiagram
 
 A participant GROUP with no part of this node now fills the editor's ONE world — Merged, or one part — instead of opening empty.
 
+> ⭐ **`2026-11-13` (backend, CE-4495…CE-4499 — [DESIGN_Threaded_Review_Source](../DESIGN_Threaded_Review_Source.md)):** the review UI below no longer reads `ReviewSource` or
+> `FederatedReplayManager`. Every surface (the Federation panel, the timeline, By node, the watch lane, the search, the Source menu / face / combo / status, the
+> Offsets window, the AAR transport) reads ONE immutable `ReviewReadModel` and commands through an `IReviewChannel` — inline with the switch off and in the
+> standalone Replay Browser, threaded (sim jobs + the staging) in mode 3. The editor's UI side is `ReviewUi`; the source is stepped at the end of the node frame.
+> The behaviour described here is unchanged (the review's own rails are green).
+
 ```mermaid
 classDiagram
     direction LR

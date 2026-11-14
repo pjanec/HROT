@@ -103,11 +103,13 @@ namespace Fdp.Toolkit.Vis2D
             Camera.Update(dt);
 
             // Handle Input Routing
-            ProcessInputPipeline();
+            using (Fdp.Core.AccessTrace.Scope("map-input: pipeline (hover, drag, press, release, keys across the layers)", Fdp.Core.TraceContext.Presentation))   // ⭐ A-1
+                ProcessInputPipeline();
 
             // Update Layers
             foreach (var layer in _layers)
             {
+                using var traceUpdate = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Update: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                 layer.Update(dt);
             }
         }
@@ -146,6 +148,7 @@ namespace Fdp.Toolkit.Vis2D
             {
                 if (!IsLayerVisible(layer) || (sceneOnly && layer is not ISceneLayer)) continue;
                 if (Camera.Is3D && !layer.Has3D) continue;
+                using var traceOverlay = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Overlay: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                 long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — HROT_FRAME_STATS: each map layer's time + garbage (no-op when off)
                 layer.DrawOverlay(ctx);
                 Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -172,6 +175,7 @@ namespace Fdp.Toolkit.Vis2D
             foreach (var layer in _layers)
                 if (IsLayerVisible(layer) && (!sceneOnly || layer is ISceneLayer))
                 {
+                    using var traceDraw = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw2D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                     long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
                     layer.Draw(ctx);
                     Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -192,6 +196,7 @@ namespace Fdp.Toolkit.Vis2D
                 if (sceneOnly && layer is not ISceneLayer) continue;
                 if (layer.Has3D)
                 {
+                    using var traceDraw3 = Fdp.Core.AccessTrace.On ? Fdp.Core.AccessTrace.Scope("layer.Draw3D: " + layer.Name, Fdp.Core.TraceContext.Presentation) : default;   // ⭐ A-1
                     long t = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4387 — per map layer, under HROT_FRAME_STATS
                     layer.Draw3D(ctx);
                     Fdp.Presentation.WindowManager.WindowTimings.Record(layer.Name, t);
@@ -203,8 +208,13 @@ namespace Fdp.Toolkit.Vis2D
             return ctx;
         }
 
+        /// <summary>⭐ EXPERIMENT (threaded kernel X-4) — when set, a layer it refuses is not drawn this frame (a frame without the world lock
+        /// draws only the layers that read no world).</summary>
+        public Func<IMapLayer, bool>? DrawFilter { get; set; }
+
         private bool IsLayerVisible(IMapLayer layer)
         {
+            if (DrawFilter != null && !DrawFilter(layer)) return false;
             if (layer.LayerBitIndex < 0) return true; // Always visible
             if (layer.LayerBitIndex >= 32) return false; // Out of range
 
@@ -239,14 +249,16 @@ namespace Fdp.Toolkit.Vis2D
             if (_input.IsMouseCaptured) return;
 
             Vector2 mouseScreen = _input.MousePosition;
-            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
-            
             bool leftPressed = _input.IsMouseButtonPressed(MapMouseButton.Left);
             bool rightPressed = _input.IsMouseButtonPressed(MapMouseButton.Right);
             bool leftDown = _input.IsMouseButtonDown(MapMouseButton.Left);
             bool rightDown = _input.IsMouseButtonDown(MapMouseButton.Right);
             bool leftReleased = _input.IsMouseButtonReleased(MapMouseButton.Left);
             bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
+            // ⭐ CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak D-6) — the 3-D pick is cached while the mouse and the camera are still; a press or a release picks afresh,
+            //   so a click selects what is under the cursor NOW, not what was there when the mouse stopped
+            if ((leftPressed || rightPressed || leftReleased || rightReleased) && Camera is Fdp.Toolkit.Vis3D.MapCamera3D camera3D) camera3D.InvalidatePicks();
+            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
 
             Vector2 delta = _input.MouseDelta;
             Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)

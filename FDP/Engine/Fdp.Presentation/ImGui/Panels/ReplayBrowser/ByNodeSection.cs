@@ -14,15 +14,15 @@ namespace Fdp.Presentation.Panels.ReplayBrowser;
 /// <summary>
 /// ⭐ G-7 / CE-4354 S5 (docs/UX/DESIGN_Review_Perspective.md §6.4 I5, M-5; mockup <c>docs/UX/better-merge-visual.svg</c> ①) — <b>Details ▸ a component ▸ <i>By node</i></b>: the OWNER's value (the crown, from
 /// the recorded ownership, I8) and each replica's below the component's own tree, <b>amber</b> where a replica differs from the owner's beyond the existing diff ε (<see cref="ReplicaViews.Epsilon"/> — the ONE differ).
-/// It is the <see cref="Fdp.Presentation.Utils.ComponentReflector.ComponentFooter"/> hook of the Details components view, drawn only in the MERGED view (<see cref="Manager"/> non-null) for a component at least
+/// It is the <see cref="Fdp.Presentation.Utils.ComponentReflector.ComponentFooter"/> hook of the Details components view, drawn only in the MERGED view (<see cref="ReviewReadModel.IsMerged"/>) for a component at least
 /// two nodes hold. ⭐ The lens is computed when the merged frame, the selection or the open component changes — never per frame (a drawn steady frame allocates nothing).
 /// </summary>
 public sealed class ByNodeSection
 {
     public const string HeaderLabel = "By node";
 
-    /// <summary>The host's merged view's manager, or null outside the merged view (nothing is drawn).</summary>
-    public Func<FederatedReplayManager?> Manager { get; }
+    /// <summary>⭐ CE-4496 R-2 — the review's view: the section ASKS for its views (<see cref="ReviewRequestCollector"/>) and reads them from the published model; ⛔ no manager here.</summary>
+    public IReviewView Review { get; }
     /// <summary>The network id of a merged-world entity (0: none — a local entity has no views).</summary>
     public Func<Entity, long> NetworkIdOf { get; }
     /// <summary>A node's name for the rows (a role when the host knows it).</summary>
@@ -31,14 +31,13 @@ public sealed class ByNodeSection
     /// <summary>⭐ §6.13 RW-6 — the session's replica watch (null: no eye, no attribute sections). The header's eye toggles it; <see cref="DrawAttribute"/> shows a watched attribute's per-node values.</summary>
     public ReplicaWatchList? Watch { get; set; }
 
-    private readonly ReplicaViews _views;
     private readonly Dictionary<(string, int), AttrCache> _attr = new();
 
     private sealed class AttrCache
     {
-        public FederatedReplayManager? M; public long Net, Key; public int WatchVersion = -1; public ReplicaView? View; public string Title = ""; public string[] Names = Array.Empty<string>(), Notes = Array.Empty<string>();
+        public ReviewReadModel? M; public long Net; public int WatchVersion = -1; public ReplicaView? View; public string Title = ""; public string[] Names = Array.Empty<string>(), Notes = Array.Empty<string>();
     }
-    private (FederatedReplayManager? m, long net, Type? type, long key) _cacheKey;
+    private (ReviewReadModel? m, long net, Type? type) _cacheKey;
     private ReplicaView? _view;
     private string[] _names = Array.Empty<string>(), _notes = Array.Empty<string>();
 
@@ -46,26 +45,28 @@ public sealed class ByNodeSection
     public readonly List<(int Node, bool Owner, bool Amber, float NameX, float ValueX, float NoteX, float Y)> Rows = new();
     public bool Capture { get; set; }
 
-    public ByNodeSection(ReplicaViews views, Func<FederatedReplayManager?> manager, Func<Entity, long> networkIdOf, Func<int, string> nameOf)
+    public ByNodeSection(IReviewView review, Func<Entity, long> networkIdOf, Func<int, string> nameOf)
     {
-        _views = views ?? throw new ArgumentNullException(nameof(views));
-        Manager = manager ?? throw new ArgumentNullException(nameof(manager));
+        Review = review ?? throw new ArgumentNullException(nameof(review));
         NetworkIdOf = networkIdOf ?? throw new ArgumentNullException(nameof(networkIdOf));
         NameOf = nameOf ?? throw new ArgumentNullException(nameof(nameOf));
     }
 
-    /// <summary>The views drawn for <paramref name="entity"/> / <paramref name="type"/> now, or null when there is nothing to show (not merged, no id, fewer than two copies). Cached while the merged frame is unchanged.</summary>
+    /// <summary>
+    /// The views drawn for <paramref name="entity"/> / <paramref name="type"/> now, or null when there is nothing to show (not merged, no id, fewer than two copies, or the view not yet in the model —
+    /// it is ASKED for here and arrives with the next model). Cached per model (0 B steady).
+    /// </summary>
     public ReplicaView? ViewOf(Entity entity, Type type)
     {
-        var m = Manager();
-        if (m == null) return null;
+        var m = Review.Model;
+        if (!m.IsMerged) return null;
         long net = NetworkIdOf(entity);
         if (net <= 0) return null;
-        long key = ReplicaViews.StateKey(m);
-        if (_cacheKey.m != m || _cacheKey.net != net || _cacheKey.type != type || _cacheKey.key != key)
+        Review.Requests.AskByNode(net, type);
+        if (!ReferenceEquals(_cacheKey.m, m) || _cacheKey.net != net || _cacheKey.type != type)
         {
-            _cacheKey = (m, net, type, key);
-            _view = _views.Compute(m, net, type);
+            _cacheKey = (m, net, type);
+            _view = m.TryByNode(net, type, out var v) ? v : null;
             int n = _view?.Rows.Count ?? 0;
             _names = new string[n]; _notes = new string[n];
             for (int i = 0; i < n; i++)
@@ -164,17 +165,17 @@ public sealed class ByNodeSection
     public void DrawAttribute(Entity entity, ReplicaWatchItem item)
     {
         Rows.Clear();
-        var m = Manager();
-        if (m == null || Watch == null) return;
+        var m = Review.Model;
+        if (!m.IsMerged || Watch == null) return;
         long net = NetworkIdOf(entity);
         if (net <= 0) return;
+        Review.Requests.AskWatch(net, item);
         var id = (item.Path, item.SubIndex);
         if (!_attr.TryGetValue(id, out var c)) _attr[id] = c = new AttrCache();
-        long key = ReplicaViews.StateKey(m);
-        if (c.M != m || c.Net != net || c.Key != key || c.WatchVersion != Watch.Version)
+        if (!ReferenceEquals(c.M, m) || c.Net != net || c.WatchVersion != Watch.Version)
         {
-            c.M = m; c.Net = net; c.Key = key; c.WatchVersion = Watch.Version;
-            c.View = _views.ComputeItem(m, net, item);
+            c.M = m; c.Net = net; c.WatchVersion = Watch.Version;
+            c.View = m.TryWatch(net, item, out var v) ? v : null;
             c.Title = item.Label + " — by node";
             int n = c.View?.Rows.Count ?? 0;
             c.Names = new string[n]; c.Notes = new string[n];

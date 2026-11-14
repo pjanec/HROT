@@ -2585,9 +2585,11 @@ public sealed partial class ClusterMaster : IDisposable
             if (tracker.ResyncsOnSuccess && tracker.Targets != null)
             {
                 // ⭐ C3 — everyone who answered a trajectory through Idle is in sync with what it reached.
+                var before = InSyncLog ? string.Join(",", _inSync.OrderBy(i => i)) : null;
                 _inSync.Clear();
                 foreach (var id in tracker.Targets)
                     if (_roster.ActiveNodes.ContainsKey(id)) _inSync.Add(id);
+                if (InSyncLog) NoteInSync($"reset by round {txId} (targets [{string.Join(",", tracker.Targets)}], was [{before}])");
             }
             var aggregated = tracker.SuccessResult
                 ?? (tracker.ResultFromResponses ? ResponsesByNode(tracker.NodeResponses) : TryAggregate(txId, tracker.NodeResponses));

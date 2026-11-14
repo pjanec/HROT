@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: civilians curious at a distance (a NEW Watch mode, some film), panic only when the danger is close (CIV-2), fear spreads (CIV-3), a boldness trait for the few who stay filming; no organised evacuation
   - UX/DESIGN_Initial_State.md — E15: carry stations and HeldItem authored as start state (the Unit form)
   - UX/DESIGN_Editing_UX.md — §1.8 / E15: the carry stations (Hands / Back / Hidden) and WeaponPosture / HeldItem as authored start state
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-3: a soldier throws a landed frag back through RoundPickUp (AW-8, B-13)
@@ -685,7 +686,7 @@ own fear states and guards (Alarmed → Panic → Shelter / Cower → Inside; Ca
 idle ⇒ his routine again. On his routine the SOP stands aside (the HSM keeps his fear). Rails `CivilianHsmTests.CE2322_*`,
 `CivilianFearSystemTests.CE2322_*`; demo `df-civilian-ordered`. 📄 [AQ97](blueprints/Architect_Question_97_Default_Reflexes_Soldiers_And_Civilians.md) §6.
 
-## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: READY-TO-BUILD)*
+## 5f. CIV-3 behaviour — crowds: onlookers gather, fear spreads *(behaviors, `CE-2237`, 2026-10-17; build-state: BUILT — measured `2026-11-13` by showcase-brains: the contagion is `CrowdSystem.cs:400-421` (`ContagionMetres` 20, `ContagionShare` 0.9), rails `CrowdSystemTests.CE2237_FearSpreads_*`; §5f.1 is its as-built grid)*
 
 INVENTORY *(codebase-memory CLI, re-indexed 2026-10-17 after the backend/ui merges; `check_index_coverage` not available through the CLI)*:
 `search_graph .*Crowd.* Class` = **18**, every one a dtCrowd MOVEMENT agent (`CrowdAgent`, `CrowdMotorIntent`, `IDtCrowdProvider`,

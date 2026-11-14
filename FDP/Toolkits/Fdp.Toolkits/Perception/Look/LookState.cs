@@ -96,14 +96,26 @@ namespace Fdp.Toolkit.Perception.Look
         public static bool Want(EntityRepository world, Entity e, Vector3 point, Entity target = default)
         {
             if (!world.IsComponentTypeRegistered<LookState>() || !world.IsAlive(e)) return false;
-            if (!world.HasComponent<LookState>(e)) world.AddComponent(e, default(LookState));
-            ref var look = ref world.GetComponentRW<LookState>(e);
             bool follow = !target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target);
-            look.Target = follow ? world.GetComponentRO<SimTransform>(target).Position : point;
-            look.TargetEntity = follow ? target : Entity.Null;
+            Vector3 at = follow ? world.GetComponentRO<SimTransform>(target).Position : point;
+            if (!world.HasComponent<LookState>(e))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = default(LookState);
+                Order(ref fresh, at, follow ? target : Entity.Null);
+                world.AddComponent(e, fresh);
+                return true;
+            }
+            Order(ref world.GetComponentRW<LookState>(e), at, follow ? target : Entity.Null);
+            return true;
+        }
+
+        private static void Order(ref LookState look, Vector3 at, Entity target)
+        {
+            look.Target = at;
+            look.TargetEntity = target;
             look.HasTarget = 1;
             look.Source = LookSource.LookOrdered;
-            return true;
         }
 
         /// <summary>Stop looking: the head returns to the body.</summary>

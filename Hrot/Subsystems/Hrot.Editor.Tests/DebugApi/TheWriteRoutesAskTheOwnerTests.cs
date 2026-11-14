@@ -200,6 +200,28 @@ public sealed class TheWriteRoutesAskTheOwnerTests
         Assert.Null(error);
         Assert.Equal(999f, node.World.GetComponent<SimTransform>(node.Entity).Position.X, precision: 3);
     }
+
+    /// <summary>⭐ N-15 (CE-4477) — the component route is the inspector's write over HTTP, so it is ONE step of the editor's history where one is recorded
+    /// (Edit mode): Undo brings the old value back. Outside Edit (the recorder off) it leaves no entry. 🔴 Red-proof: the route without its
+    /// <c>EditSteps</c> bracket ⇒ <c>CanUndo</c> false.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_component_edit_is_one_undo_step_in_edit_mode(bool editMode)
+    {
+        using var node = new Node(ownsSimTransform: true, simTransformIsNetworked: false);
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        EditSteps.Install(node.World, new Hrot.Presentation.Edits.WorldUndoRecorder(history, new Fdp.Toolkit.Replay.WorldSnapshotRing(maxDepth: 8), () => editMode));
+
+        var (_, error) = node.Service.EditEntityComponent(
+            NetworkId, nameof(SimTransform), JsonNode.Parse("{\"Position\":{\"X\":999,\"Y\":0,\"Z\":0}}"));
+
+        Assert.Null(error);
+        Assert.Equal(editMode, history.CanUndo);
+        if (!editMode) return;
+        history.Undo();
+        Assert.Equal(0f, node.World.GetComponent<SimTransform>(node.Entity).Position.X, precision: 3);
+    }
     // ── CE-2380 part 1 — the OUTCOME of the request comes back to the node that asked ───────
 
     private sealed class OneShotSource : Hrot.Map.Common.Systems.IUpdateEntityAttributeRequestSource

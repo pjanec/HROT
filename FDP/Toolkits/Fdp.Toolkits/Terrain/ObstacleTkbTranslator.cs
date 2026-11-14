@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Terrain
             yield return typeof(StaticObstacle);
             yield return typeof(ObstacleShape);
             yield return typeof(PhysicsCollider);
+            yield return typeof(Fdp.Toolkit.Combat.Components.Health);   // ⭐ CE-6003 — only on a destructible type (MaxHealth > 0)
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -53,6 +54,12 @@ namespace Fdp.Toolkit.Terrain
                     CollisionLayer = PhysicsConstants.EntityCollisionLayer,
                     Height         = shape.Height,
                 });
+
+            // ⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — a destructible type carries the ORDINARY Health (no new damage component): the
+            //   existing damage pipeline drains it, and its owner removes the obstacle at 0. A scenario's own Health (a damaged block) wins.
+            if (dto.MaxHealth > 0f && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()
+                && !repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Combat.Components.Health { Current = dto.MaxHealth, Max = dto.MaxHealth });
         }
     }
 }

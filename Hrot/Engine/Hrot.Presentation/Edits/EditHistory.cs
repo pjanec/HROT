@@ -10,7 +10,7 @@ namespace Hrot.Presentation.Edits;
 /// world step's undo / redo is a restore from the snapshot ring, and a step whose snapshot the ring evicted is NOT available (greyed, never a partial undo).
 /// <see cref="MarkSaved"/> is the clean point: <see cref="IsDirty"/> = the position is not the saved one. <see cref="Clear"/> on open / create / Live.</para>
 /// </summary>
-public sealed class EditHistory
+public sealed class EditHistory : IUndoStepSink
 {
     private sealed record Step(string Label, Action Redo, Action Undo, Func<bool>? Available, object? Owner, bool Dirties);
 
@@ -99,6 +99,9 @@ public sealed class EditHistory
         _at = _done.Count;
         Version++;
     }
+
+    /// <inheritdoc/> — a single-threaded host: the step goes straight onto this history.
+    void IUndoStepSink.Push(string label, Action redo, Action undo, long beforeSlot, Func<bool> available) => Push(label, redo, undo, available);
 
     public bool Undo() { if (!CanUndo) return false; Run(_done[--_at].Undo); Version++; return true; }
     public bool Redo() { if (!CanRedo) return false; Run(_done[_at++].Redo); Version++; return true; }

@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Time
         /// </summary>
         private GlobalTime Current =>
             _world != null && _world.HasSingletonUnmanaged<GlobalTime>()
-                ? _world.GetSingletonUnmanaged<GlobalTime>()
+                ? _world.GetSingletonUnmanagedRO<GlobalTime>()
                 : default;
 
         /// <inheritdoc />

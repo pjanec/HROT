@@ -206,6 +206,22 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ReactionUrgency.UnderFire, w.Task.Urgency);
         }
 
+        /// <summary>⭐ <c>CE-7029</c> (City Battle R-1d) — a LONE soldier under a drone takes cover: React(<c>ShelterFromAir</c>, UnderFire) — the vehicle's
+        /// own reaction. (A man under command gets it from his squad — <c>SquadManeuverTests.CE7029_*</c>.) ✅ Red-proof: the drone row removed ⇒ he
+        /// stays idle ⇒ red.</summary>
+        [Fact]
+        public void CE7029_ADroneOverALoneSoldier_SendsHimToCover()
+        {
+            var w = new World();
+            w.StartSop();
+            w.Run(0.3);
+            Assert.Equal("Idle", w.TaskName);
+            w.Sense(SensorChange.AirThreat);
+            w.Run(0.1);
+            Assert.Equal("ShelterFromAir", w.TaskName);
+            Assert.Equal(ReactionUrgency.UnderFire, w.Task.Urgency);
+        }
+
         /// <summary>⭐ AQ97 A — under a live commander, or aboard a vehicle, his own rows stand aside: a hit orders nothing (his unit or his
         /// vehicle decides) and he gets no idle choice either. His commander gone, the same hit sends him to cover.
         /// ✅ Red-proof: the UnderCommand row removed ⇒ the hit sends the squad man to cover ⇒ red.</summary>

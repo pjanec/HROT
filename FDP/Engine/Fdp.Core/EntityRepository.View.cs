@@ -32,6 +32,8 @@ namespace Fdp.Core
         
         IEntityCommandBuffer ISimulationView.GetCommandBuffer()
         {
+            // ⭐ N-11 (CE-4473) — inside a per-entity phase over this world the world's command buffer IS the batch's (merged in batch order)
+            if (ParallelReadCheck.Defers(this)) return ParallelReadCheck.CurrentBatch!.Commands;
             return _commandBufferOverride ?? _perThreadCommandBuffer.Value!;
         }
 
@@ -117,38 +119,61 @@ namespace Fdp.Core
         /// </summary>
         public int OpenStepWindow(int reader)
         {
+            int open = _eventHistory != null && reader >= 0 && !_eventHistory.WindowIsCurrentFrame(reader) ? reader : -1;
+            if (ParallelReadCheck.Defers(this))
+            {   // ⭐ N-11 (CE-4473) — inside a per-entity phase each batch thread has its OWN window (a cadenced brain reads the events since
+                //   ITS last tick while its neighbours, on other threads, read theirs); the previous value is that thread's
+                int prevThread = t_window;
+                t_window = open + 2; t_windowRepo = this;
+                return prevThread;
+            }
             int previous = _windowReader;
-            _windowReader = _eventHistory != null && reader >= 0 && !_eventHistory.WindowIsCurrentFrame(reader) ? reader : -1;
+            _windowReader = open;
             return previous;
         }
 
         /// <summary>Closes the window <see cref="OpenStepWindow"/> opened, restoring <paramref name="previous"/>.</summary>
-        public void CloseStepWindow(int previous) => _windowReader = previous;
+        public void CloseStepWindow(int previous)
+        {
+            if (ParallelReadCheck.Defers(this)) { t_window = previous; return; }
+            _windowReader = previous;
+        }
+
+        // N-11 — a batch thread's own window during a phase: 0 = none (the system's window applies), else reader + 2 (1 = the plain bus)
+        [ThreadStatic] private static int t_window;
+        [ThreadStatic] private static EntityRepository? t_windowRepo;
+
+        private int WindowReader
+        {
+            [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+            get => ParallelReadCheck.AnyPhase && t_window != 0 && ReferenceEquals(t_windowRepo, this) ? t_window - 2 : _windowReader;
+        }
 
         /// <summary>Every event of type <typeparamref name="T"/> the running system is owed (rule 5), oldest first.</summary>
         public ReadOnlySpan<T> ReadEvents<T>() where T : unmanaged
-            => _windowReader >= 0 ? _eventHistory!.ReadWindow<T>(_windowReader) : Bus.Read<T>();
+            => WindowReader >= 0 ? _eventHistory!.ReadWindow<T>(WindowReader) : Bus.Read<T>();
 
         /// <summary>The managed twin of <see cref="ReadEvents{T}"/>.</summary>
         public System.Collections.Generic.IReadOnlyList<T> ReadManagedEvents<T>()
-            => _windowReader >= 0 ? _eventHistory!.ReadManagedWindow<T>(_windowReader) : Bus.ReadManaged<T>();
+            => WindowReader >= 0 ? _eventHistory!.ReadManagedWindow<T>(WindowReader) : Bus.ReadManaged<T>();
 
         /// <summary>Is there any managed event of type <typeparamref name="T"/> for this reader (rule 4)?</summary>
         public bool HasManagedEvents<T>() => ReadManagedEvents<T>().Count > 0;
 
         /// <summary>The raw bytes of every event of a type id (the blueprint dispatch, which knows types only by id) — rule 4.</summary>
         public ReadOnlySpan<byte> ReadRawEventsByTypeId(int typeId, out int elementSize)
-            => _windowReader >= 0 ? _eventHistory!.ReadRawWindow(_windowReader, typeId, out elementSize) : Bus.ReadRawByTypeId(typeId, out elementSize);
+            => WindowReader >= 0 ? _eventHistory!.ReadRawWindow(WindowReader, typeId, out elementSize) : Bus.ReadRawByTypeId(typeId, out elementSize);
 
         /// <summary>Is there any event of a type id for this reader — the cheap gate in front of <see cref="ReadRawEventsByTypeId"/>.</summary>
         public bool HasEventsByTypeId(int typeId)
-            => _windowReader >= 0 ? _eventHistory!.HasInWindow(_windowReader, typeId, native: true) : Bus.HasEvent(typeId);
+            => WindowReader >= 0 ? _eventHistory!.HasInWindow(WindowReader, typeId, native: true) : Bus.HasEvent(typeId);
 
         /// <summary>Is there any event of a runtime type for this reader (the replay search and breakpoint scanners) — rule 4.</summary>
         public bool HasEvents(Type eventType)
         {
-            if (_windowReader < 0) return Bus.HasEvent(eventType);
-            return FdpEventBus.TryGetTypeId(eventType, out int id, out bool native) && _eventHistory!.HasInWindow(_windowReader, id, native);
+            int window = WindowReader;
+            if (window < 0) return Bus.HasEvent(eventType);
+            return FdpEventBus.TryGetTypeId(eventType, out int id, out bool native) && _eventHistory!.HasInWindow(window, id, native);
         }
         
         QueryBuilder ISimulationView.Query()

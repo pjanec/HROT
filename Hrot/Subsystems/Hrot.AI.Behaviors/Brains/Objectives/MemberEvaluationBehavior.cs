@@ -141,8 +141,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             ObjectiveHost.Settle(ref s, Kind, done ? ObjectiveState.Achieved : ObjectiveState.Active, note.Length == 0 ? reason : reason + "; " + note, now);
         }
 
-        private static readonly List<Entity> s_side = new();
-        private static readonly HashSet<long> s_current = new();
+        [System.ThreadStatic] private static List<Entity>? t_side;
+        [System.ThreadStatic] private static HashSet<long>? t_current;
+        private static List<Entity> s_side => t_side ??= new();   // ⭐ N-11 (CE-4473) — per THREAD: the brains tick in parallel; scratch is never shared
+        private static HashSet<long> s_current => t_current ??= new();
 
         /// <summary>
         /// Inserts the macro of every member not served yet; returns why it could not (a refused request / no library), else empty. <c>roster</c>: the subject's <see cref="UnitRoster"/>; ⭐ S7 P-5 <c>side</c>:

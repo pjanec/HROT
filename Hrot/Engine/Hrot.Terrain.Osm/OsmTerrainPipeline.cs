@@ -104,7 +104,13 @@ public sealed class OsmTerrainPipeline : IOsmTerrainPipeline
         progress?.Report(new OsmProgress(OsmStage.Roads, 0, "Building the road net…"));
         // ⭐ CE-4409 — roads are OPTIONAL: a failing netconvert imports the terrain WITHOUT roads and says so (a warning, never a stop). 🔒 User, 2026-11-10: "if sumo roadnet fails, it shouldn't fail the whole import."
         string roadsDir = Path.Combine(dir, "roads");
-        try { await _roads.BuildAsync(a.OsmFile, bounds.Frame, roadsDir, ct).ConfigureAwait(false); }
+        try
+        {
+            await _roads.BuildAsync(a.OsmFile, bounds.Frame, roadsDir, ct).ConfigureAwait(false);
+            // ⭐ AQ93 E2b — netconvert writes a FLAT net: give it OUR heights (the grid just written), so the roads lie on the ground in SUMO's own sim and in the 3-D map
+            string net = Path.Combine(roadsDir, "roads.net.xml");
+            if (File.Exists(net)) await Task.Run(() => NetElevation.Apply(net, dir), ct).ConfigureAwait(false);
+        }
         catch (Exception e) when (e is not OperationCanceledException)
         {
             try { if (Directory.Exists(roadsDir)) Directory.Delete(roadsDir, true); } catch (IOException) { /* best effort */ } catch (UnauthorizedAccessException) { }

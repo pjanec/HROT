@@ -24,6 +24,11 @@ namespace Hrot.Map.Common
         public const long Technical_Zu23 = 110;
         /// <summary>⭐ 2026-10-31 — the HMMWV (102) with NO crew: the M2 in its roof ring, the gunner and driver seats empty (a player takes them).</summary>
         public const long Truck_HMMWV_NoCrew = 111;
+        /// <summary>⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 / D-6) — the BULLDOZER: a D9-class armoured engineering dozer, tracked, no weapon. ⛔ A permanent wire value: never reuse or renumber it.</summary>
+        public const long Engineer_Bulldozer = 112;
+        /// <summary>⭐ <c>CE-7014</c> (City Battle §11 R-2) — the HMMWV (102) carrying a DRONE JAMMER (a 400 m bubble, <c>JammerDto</c>): an enemy drone inside
+        /// loses its link. ⛔ A permanent wire value: never reuse or renumber it.</summary>
+        public const long Ew_DroneJammer = 113;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;
@@ -109,6 +114,10 @@ namespace Hrot.Map.Common
         public const long Obstacle_SandbagWall   = 8807;
         public const long Obstacle_ConcreteBlock = 8808;
         public const long Obstacle_Crate         = 8809;
+        // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — a heavy vehicle's WRECK as a static obstacle: created on the hulk when a tank / IFV
+        //   dies (its footprint per instance), cleared by a charge or a blade (CE-6003). ⛔ PERMANENT WIRE VALUE; 8819 measured free on every lane
+        //   (git grep of every origin branch, 2026-11-13). Not in Obstacles (the palette's starter set): the simulation makes it.
+        public const long Obstacle_Wreck         = 8819;
 
         /// <summary>The four starter obstacle types (O4).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate };
@@ -185,6 +194,12 @@ namespace Hrot.Map.Common
         /// <summary>⭐ Air Ops slice 6a (DESIGN_Air_Operations §7a, AW-5) — an AH-64-class ATTACK HELICOPTER: a Rotorcraft with a chin M134
         /// turret (mount 0) and a fixed-forward Hydra-70 rocket pod (mount 1, munition 6025).</summary>
         public const long Heli_AH64 = 406;
+        /// <summary>⭐ <c>CE-7028</c> (City Battle §11 R-1c) — a RECON quadcopter: the FPV's airframe with no warhead, a 30-minute battery and its
+        /// camera; it orbits an area (<c>DroneRecon</c>) and, as a member of its team's squad, its sightings reach the observer chain. ⛔ A permanent wire value.</summary>
+        public const long Drone_Recon = 407;
+        /// <summary>⭐ <c>CE-7027</c> (City Battle §11 R-1b) — a BOMBER quadcopter: the quadcopter airframe with a drop rack of two M67s; it hovers
+        /// over a point, drops one and flies back (<c>AirAttackProfile.HoverDrop</c>). ⛔ A permanent wire value.</summary>
+        public const long Drone_Bomber = 408;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;
@@ -195,6 +210,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-2262</c> SL-0 (CB-16, R-2030) — an INFANTRY PLATOON: a body-less commander whose roster is three
         /// <see cref="Unit_InfantrySquad"/> commanders — the first composite of composites (the platoon plays, Command Chain CC-D).</summary>
         public const long Unit_InfantryPlatoon = 305;
+        /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — an INFANTRY COMPANY: a body-less commander over <see cref="Unit_InfantryPlatoon"/>
+        /// commanders (and a support element), running <c>CompanyAttack</c> / <c>CompanyDefend</c>. ⛔ A permanent wire value.</summary>
+        public const long Unit_InfantryCompany = 306;
 
         // Civilian & Insurgent Types
         // ⛔ CE-3220 part 2 — 501 (CivilianPedestrian) retired: a person is the civilian family (Hrot.Core.Tkb.CivilianTkbCatalog 1101–1104).

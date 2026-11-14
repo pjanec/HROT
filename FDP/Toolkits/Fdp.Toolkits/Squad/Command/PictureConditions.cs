@@ -45,8 +45,19 @@ namespace Fdp.Toolkit.Squad.Command
         public static int EnsureRow(EntityRepository world, Entity commander, int unitNetId)
         {
             if (!world.IsComponentTypeRegistered<CommandPicture>()) return -1;
-            if (!world.HasComponent<CommandPicture>(commander)) world.AddComponent(commander, new CommandPicture());
-            ref var picture = ref world.GetComponentRW<CommandPicture>(commander);
+            if (!world.HasComponent<CommandPicture>(commander))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new CommandPicture();
+                int added = AddRow(ref fresh, unitNetId);
+                world.AddComponent(commander, fresh);
+                return added;
+            }
+            return AddRow(ref world.GetComponentRW<CommandPicture>(commander), unitNetId);
+        }
+
+        private static int AddRow(ref CommandPicture picture, int unitNetId)
+        {
             int row = RowOf(picture, unitNetId);
             if (row >= 0 || picture.Subordinates.Count >= CommandPicture.MaxSubordinates) return row;
             row = picture.Subordinates.Count++;
@@ -58,11 +69,26 @@ namespace Fdp.Toolkit.Squad.Command
         /// waiting for "Set" waits for THIS order's Set (a stale Set from the previous leg would pass it at once).</summary>
         public static void OrderGiven(EntityRepository world, Entity commander, Entity subordinate)
         {
-            int row = EnsureRow(world, commander, NetIdOf(world, subordinate));
+            if (!world.IsComponentTypeRegistered<CommandPicture>()) return;
+            int netId = NetIdOf(world, subordinate);
+            if (!world.HasComponent<CommandPicture>(commander))
+            {
+                // N-11 (CE-4473) — added with its final value: inside the brains' parallel phase an add is deferred
+                var fresh = new CommandPicture();
+                int freshRow = AddRow(ref fresh, netId);
+                if (freshRow >= 0) Restart(ref fresh.Subordinates.Items[freshRow], Now(world));
+                world.AddComponent(commander, fresh);
+                return;
+            }
+            int row = EnsureRow(world, commander, netId);
             if (row < 0) return;
-            ref var sub = ref world.GetComponentRW<CommandPicture>(commander).Subordinates.Items[row];
+            Restart(ref world.GetComponentRW<CommandPicture>(commander).Subordinates.Items[row], Now(world));
+        }
+
+        private static void Restart(ref SubordinateRow sub, SimInstant now)
+        {
             sub.Progress = ProgressKind.NoProgress;
-            sub.OrderedAt = Now(world);   // CE-2294: a PROGRESS observed before this order is the last order's
+            sub.OrderedAt = now;   // CE-2294: a PROGRESS observed before this order is the last order's
         }
 
         /// <summary>The latest progress the subordinate in <paramref name="slot"/> reported for its current order.</summary>
@@ -99,7 +125,7 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <summary>The sim clock now (the world clock, a double — CE-4201), time zero when none.</summary>
         public static SimInstant Now(ISimulationView view)
-            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanaged<GlobalTime>().TotalTime : SimInstant.Zero;
+            => view is EntityRepository repo && repo.HasSingletonUnmanaged<GlobalTime>() ? (SimInstant)repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : SimInstant.Zero;
     }
 
     /// <summary>Params of <see cref="PictureConditions.ProgressReached"/>.</summary>

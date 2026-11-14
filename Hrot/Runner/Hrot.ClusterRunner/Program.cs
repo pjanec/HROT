@@ -47,6 +47,12 @@ class Program
 {
     static async Task<int> Main(string[] args)
     {
+        // ⭐ N-14 (CE-4476, §19) — every HROT process opts out of Windows' power throttling (a windowless node ran at ~half speed, CE-4453) and
+        //   turns console QuickEdit off (a click froze every write); a no-op off Windows; HROT_ECOQOS=1 keeps Windows' default.
+        bool optedOut = Fdp.Core.Threading.WindowsScheduling.OptOutProcess();
+        Fdp.Core.Threading.WindowsScheduling.OptOutCurrentThread();
+        bool quickEditOff = Fdp.Core.Threading.WindowsScheduling.DisableConsoleQuickEdit();
+        Console.WriteLine(Fdp.Core.Threading.WindowsScheduling.Describe(optedOut, quickEditOff, OperatingSystem.IsWindows()));   // ⭐ F-5 — what it did, once
         FdpConfig.EnforceExplicitComponentIds = true;
         FdpConfig.EnforceExplicitEventRegistration = true;
         // ⭐ CE-3427 C-1 — live play paces slow modules by wall clock (FdpConfig.SlowModulesByWallClock); FDP_SLOW_WALLCLOCK=0 bisects
@@ -97,6 +103,10 @@ class Program
             Console.Error.WriteLine($"[Runner] Configuration error: {ex.Message}");
             return 1;
         }
+
+        // ⭐⭐ U-2 / U-3 (CE-4531 / CE-4532, R-4224) — every optimisation ON by default, switchable in View ▸ Settings ▸ Performance (the user
+        //   file); an explicit HROT_* variable wins; -m all runs serial. Before ANY kernel, pool or host exists.
+        Console.WriteLine(Hrot.ClusterRunner.Configuration.PerformanceStartup.Apply(config));
 
         // ⭐ CE-1249 (BV-16) — the brain journal switch, before any unit is attached
         Fdp.Toolkit.Behavior.Diagnostics.BrainJournalSettings.Enabled =
@@ -447,7 +457,7 @@ class Program
 
             var shell = new Hrot.ClusterRunner.Presentation.RaylibPresentationShell();
             windowCtrl = new Hrot.ClusterRunner.Presentation.LocalWindowController(
-                shell, subsystems, options, coordinator);   // ⭐ CE-1437: ⭐ CE-1443: there is no host armed default — the armed mode is the cluster's, bootstrapped by the master
+                shell, subsystems, options, coordinator, orchestrator.Draws);   // ⭐ N-13 — a subsystem's windows draw by the orchestrator's rule · ⭐ CE-1437: ⭐ CE-1443: there is no host armed default — the armed mode is the cluster's, bootstrapped by the master
 
             // ══ THE LIFTED DEBUG API — item ② of the conformance harness ═══════════════════════════════
             //
@@ -663,6 +673,16 @@ class Program
                 using var clickLatch = Fdp.Presentation.Input.ClickLatch.Create();
                 var frameStats = Hrot.ClusterRunner.Presentation.FrameStats.FromEnvironment();   // ⭐ CE-1072 — HROT_FRAME_STATS=1
 
+                // ⭐⭐ N-13 (CE-4475; U-2 / F-21) — a windowed threaded process runs EVERY kernel on ONE sim worker, in sequence; the cluster API's
+                //   sim-side routes and the startup load run on that worker between passes, its UI-side routes (N-8's split) stay on this thread
+                bool simWorker = Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds && !Fdp.ModuleHost.ThreadedKernelGate.ComposedSingleThread;
+                Hrot.Editor.DebugApi.MainThreadJobQueue? clusterUiQueue = null;
+                if (simWorker)
+                {
+                    if (clusterApiQueue is not null) clusterApiQueue.UiQueue = clusterUiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
+                    orchestrator.StartSimWorker(() => { startupLoad?.Tick(); clusterApiQueue?.DrainAll(); });
+                }
+
                 while (true)
                 {
                     // ③ + ④ — THE FRAME BOUNDARY. 🔴 ORDER MATTERS (HN-007): the API's jobs drain FIRST,
@@ -671,7 +691,8 @@ class Program
                     //    panel read return an empty set in the editor, and it would do the same here.
                     if (clusterApiQueue is not null)
                     {
-                        clusterApiQueue.DrainAll();
+                        if (clusterUiQueue is not null) clusterUiQueue.DrainAll();   // N-13 — the sim-side routes drain on the sim worker
+                        else clusterApiQueue.DrainAll();
                         Fdp.Diagnostics.Contracts.Panels.PanelSnapshot.ClearCaptured();
                     }
 
@@ -700,7 +721,10 @@ class Program
                     if (windowCtrl.ExitDue(Raylib_cs.Raylib.WindowShouldClose() | windowCtrl.TakeExitRequest()))
                         break; // nothing (left) to ask → exit (skip this frame's render)
 
-                    startupLoad?.Tick();   // ⭐ CE-3354 ⑥
+                    // ⭐ EXPERIMENT (threaded kernel X-4) — HROT_THREADED_KERNEL=1: take the world if the kernel's worker is between ticks (OFF: always true)
+                    bool haveWorld = Fdp.ModuleHost.ThreadedKernelGate.MainTryEnter();
+                    try {
+                    if (haveWorld && !simWorker) startupLoad?.Tick();   // ⭐ CE-3354 ⑥ (N-13: on the sim worker when it runs)
                     frameStats?.Begin();
                     orchestrator.Update(dt);
                     frameStats?.EndUpdate();
@@ -721,6 +745,7 @@ class Program
                     frameStats?.EndDraw();
 
                     frameStats?.Begin();
+                    if (haveWorld) {   // ⭐ X-4 — the panels read the world: only on a frame that holds it (map-only frames draw no ImGui)
                     rlImGui_cs.rlImGui.Begin();
 
                     // --- DOCKSPACE SETUP (§4.1.2: inset bottom by status bar) ---
@@ -766,7 +791,8 @@ class Program
                     windowCtrl.TickStartGate();   // ⭐ CE-4096 — the ONE start gate, fed once a frame, before the window manager draws
                     windowCtrl.WindowManager!.Render();
                     orchestrator.DrawUIAll();
-                    rlImGui_cs.rlImGui.End();
+                    Fdp.Presentation.Raylib.ImGuiRenderer.End();
+                    }   // ⭐ X-4
                     frameStats?.EndUi();
                     frameStats?.NoteDrawLists();
 
@@ -774,6 +800,7 @@ class Program
                     Raylib_cs.Raylib.EndDrawing();
                     Fdp.Presentation.Raylib.HiddenWindow.AfterFrame();
                     frameStats?.EndFrame();
+                    } finally { Fdp.ModuleHost.ThreadedKernelGate.MainExit(); }   // ⭐ X-4
 
                 }
 

@@ -58,8 +58,17 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public IReadOnlyList<Entity> About(Entity subject)
             => !subject.IsNull && _bySubject.TryGetValue(subject, out var list) ? list : System.Array.Empty<Entity>();
 
+        /// <summary>⭐ N-11 — refreshes <paramref name="world"/>'s index serially before the brains' per-entity phase (BrainPhase).</summary>
+        public static void PrepareFrame(EntityRepository world)
+        {
+            if (world.IsComponentTypeRegistered<ObjectiveLinks>()) Of(world);   // a world with no rules has no tree to keep fresh
+        }
+
         private void Refresh(EntityRepository world)
         {
+            // ⭐ N-11 (CE-4473) — inside a per-entity phase the index is FROZEN as BrainPhase prepared it: many threads read it, none rebuilds it
+            //   (a link made in the phase is a deferred structural change anyway — it lands after the phase, seen next tick)
+            if (ParallelReadCheck.Defers(world)) return;
             if (!_dirty && _version == world.GlobalVersion) return;
             _dirty = false;
             _version = world.GlobalVersion;

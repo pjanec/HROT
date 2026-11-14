@@ -66,7 +66,7 @@ public static class ShellTimeControlToolbar
         ITimeTransportFacade facade,
         RunModeChoice? runChoice = null,
         Func<IReadOnlyList<string>>? runSetupLines = null,
-        RunToController? runTo = null)
+        IRunTo? runTo = null)
     {
         if (toolbar is null) throw new ArgumentNullException(nameof(toolbar));
         if (facade  is null) throw new ArgumentNullException(nameof(facade));

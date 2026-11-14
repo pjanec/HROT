@@ -25,6 +25,12 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Designates <paramref name="target"/> for <paramref name="entity"/>'s running behaviour (registers the type on
         /// first use). No-op when the unit runs no behaviour.</summary>
+        /// <summary>⭐ N-11 — the table, before a per-entity phase (<see cref="Fdp.Toolkit.Behavior.BrainPhase"/>).</summary>
+        public static void RegisterTypes(EntityRepository repo)
+        {
+            if (!repo.TryGetTable(typeof(DesignatedTarget), out _)) repo.RegisterComponent<DesignatedTarget>();
+        }
+
         public static void Set(EntityRepository repo, Entity entity, Entity target)
         {
             if (!repo.IsComponentTypeRegistered<BehaviorState>() || !repo.HasComponent<BehaviorState>(entity)) return;

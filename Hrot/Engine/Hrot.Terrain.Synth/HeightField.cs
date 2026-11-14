@@ -16,6 +16,7 @@ public sealed class HeightField
     private readonly SynthProfile _p;
     private readonly ulong _seed;
     private bool _flat;   // ⭐ T-3 part 2 — a site-only field: ground 0 everywhere (see Flat)
+    private Func<double, double, double>? _fn;   // ⭐ CE-6001 — an AUTHORED field (the town plan's hill): the height at a point, in the profile's own metres
 
     public int Cols { get; }
     public int Rows { get; }
@@ -36,6 +37,9 @@ public sealed class HeightField
 
     /// <summary>⭐ T-3 part 2 (CE-4430) — a FLAT field (ground 0) over <paramref name="p"/>'s bounds: what a site-only building run stands on (the caller places the result on its own ground).</summary>
     public static HeightField Flat(SynthProfile p) => new(p, new Rng(0)) { _flat = true };
+
+    /// <summary>⭐ CE-6001 (showcase world, docs/DESIGN_Terrain_Authoring.md §18l) — a field that is the function <paramref name="height"/> (profile metres in, metres up out) over <paramref name="p"/>'s bounds: what an authored town plan's relief is. Pure.</summary>
+    public static HeightField FromFunction(SynthProfile p, Func<double, double, double> height) => new(p, new Rng(0)) { _fn = height };
 
     public bool IsNoData(double x, double y)
     {
@@ -64,6 +68,7 @@ public sealed class HeightField
     private double Raw(double x, double y)
     {
         if (_flat) return 0.0;
+        if (_fn != null) return _fn(x, y);
         double v = Noise.Fbm(_seed, x, y, 1200.0, 6);
         double r1 = Noise.Ridge(_seed ^ 0xA5A5A5A5A5A5A5A5UL, x + 0.6 * y, y - 0.6 * x, 2400.0);
         double r2 = Noise.Ridge(_seed ^ 0x5A5A5A5A5A5A5A5AUL, x - 0.4 * y, y + 0.4 * x, 700.0);
