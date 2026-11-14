@@ -4337,13 +4337,14 @@ def run_morale_barrage(c, timeout):
         call("POST", f"/entities/{sq[k]}/reports", {"kind": "Progress", "subtype": "Set"})
     wait_for(lambda: False, 3, every=1.0)
     call("POST", f"/entities/{sq[9320]}/reports", {"kind": "Spot", "at": [120, 60, 0], "count": 3, "size": "Team"})   # inside the EA: Engage
-    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on Squad 1 (x 121) — converged, ten
-    #   bombs a tube, danger close (its own crew ~260 m off). ⚠ measured: an open 45 m sheaf across both squads put 20 bursts near
-    #   neither (none within 11.8 m; Green peak stress 0.73, one man broken) — the fall-back needs ONE of the two line squads failing.
-    #   ⚠ measured: here a geo_of() Location lands at (lat, lon) read as LOCAL metres (bursts at (52.3, 14.0)) — the order takes a local [x, y]; a three-element one fired nothing
+    # the barrage: once the crews man the tubes (ua-indirect-fire's precedent), the battery's Strike on Squad 2 (in the open at (80, 155)) —
+    #   converged, ten bombs a tube, danger close (its own crew ~260 m off); one failing line squad of two is the fall-back (DA-67).
+    #   ⚠ measured on the way: an open 45 m sheaf across both squads near-missed nobody · Location is LOCAL metres [x, y, z] (CE-2433;
+    #   geo_of() is stale here: it landed at (52, 14)) · a Strike on (120.8, 156, 0) — Squad 1, upstairs in OBJ, 199 m off — RAN 60 s
+    #   and fired nothing, without a word (CE-7038)
     crews = [ids.get("Mortar Man 1"), ids.get("Mortar Man 2")]
     c.ok(wait_for(lambda: all("IsEmbarkedTag" in comps(m) for m in crews), 90), "the mortar crews man their tubes")
-    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [120.8, 156], "Rounds": 10,
+    c.ok(_if_order(ids.get("Insurgent Mortar"), "Strike", {"Location": [78, 152, 0], "Rounds": 10,
                                                          "Sheaf": "Converged", "DangerClose": True}), "the battery takes the barrage (Strike)")
     t0 = sim_time() or 0.0
     first = {}
