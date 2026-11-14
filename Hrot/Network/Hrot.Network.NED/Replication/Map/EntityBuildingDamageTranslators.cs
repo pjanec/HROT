@@ -203,7 +203,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             // ⭐ CE-4427 R-2 — resolve in THIS node's world, or not at all: never the sender's index. A world that is still loading (no terrain, or one with no buildings yet) DEFERS the sample and retries it on
             //   the next poll; a resident world that does not know the key DROPS it (a breach must never land on another house).
             var terrain = TerrainOf(view);
-            if (terrain == null || terrain.Buildings.Count == 0) { _deferred[netId] = data; return; }
+            if (terrain == null || WallGroups.Count(terrain) == 0) { _deferred[netId] = data; return; }
             _deferred.Remove(netId);
             if (!TryFromSample(in data, terrain, out var component))
             {
@@ -229,7 +229,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             if (_deferred.Count == 0) return;
             var terrain = TerrainOf(view);
-            if (terrain == null || terrain.Buildings.Count == 0) return;   // still loading
+            if (terrain == null || WallGroups.Count(terrain) == 0) return;   // still loading
             _retry.Clear();
             foreach (var id in _deferred.Keys) _retry.Add(id);
             foreach (var id in _retry)
@@ -287,7 +287,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             if (data is not EntityBuildingDamage d || Owns(repo, entity)) return;
             var terrain = TerrainOf(repo);
-            if (terrain == null || terrain.Buildings.Count == 0) { _deferred[d.EntityId] = d; return; }   // ⭐ CE-4427 R-2 — as Apply: wait for the world
+            if (terrain == null || WallGroups.Count(terrain) == 0) { _deferred[d.EntityId] = d; return; }   // ⭐ CE-4427 R-2 — as Apply: wait for the world
             if (!TryFromSample(in d, terrain, out var component)) return;                                    // resident and unknown: dropped
             repo.SetComponent(entity, component);
             if (!string.IsNullOrEmpty(d.Key)) repo.SetManagedComponent(entity, new TerrainObjectKey { Key = d.Key });

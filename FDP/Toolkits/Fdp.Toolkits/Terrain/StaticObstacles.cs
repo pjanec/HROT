@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Terrain
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
+            var bakedPassages = new List<(Vector2 Min, Vector2 Max)>();   // ⭐ CE-4599 (V-10)
             if (!overlay) prisms.AddRange(terrain.Prisms);
             else
             {
@@ -135,7 +136,19 @@ namespace Fdp.Toolkit.Terrain
                     prisms.Add(p);
                 }
                 foreach (var (pi, passages) in byPanel)
+                {
                     TerrainBuildingExpander.ExpandPanelPieces(terrain.Panels[pi], pi, WithGaps(terrain.Panels[pi], passages), prisms, "damage overlay");
+                    var panel = terrain.Panels[pi];
+                    float len = panel.Length;
+                    if (len <= 1e-6f) continue;
+                    var dir = (panel.B - panel.A) / len;
+                    var pad = new Vector2(panel.Thickness * 0.5f + 1f);
+                    foreach (var b in passages)
+                    {
+                        var a = panel.A + dir * b.From; var e = panel.A + dir * b.To;
+                        bakedPassages.Add((Vector2.Min(a, e) - pad, Vector2.Max(a, e) + pad));
+                    }
+                }
                 foreach (int c in collapsed)
                 {
                     foreach (var r in BuildingDamageTable.PiecesOf(terrain, c))   // ⭐ CE-3438 — the mound clipped to land
@@ -168,6 +181,7 @@ namespace Fdp.Toolkit.Terrain
                 Prisms    = prisms,
                 Walkables = walkables,
                 BakedCollapsed = bakedCollapse,
+                BakedPassages = bakedPassages,
                 Surfaces  = terrain.Surfaces,
                 Panels    = terrain.Panels,
                 Buildings = terrain.Buildings,

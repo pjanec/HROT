@@ -193,6 +193,10 @@ namespace Fdp.Toolkit.Terrain
         /// their pieces are gone and their rubble prism is among the <see cref="Prisms"/>), so the damage view does not skip or add them again. Empty on a content world.</summary>
         public IReadOnlyList<int> BakedCollapsed { get; init; } = Array.Empty<int>();
 
+        /// <summary>⭐ <c>CE-4599</c> (B-2, V-10) — the plan boxes of the PASSAGE breaches baked into this world's geometry (a derived world), each padded by a metre: where the
+        /// navmesh bakes FINE cells, so a 0.8–1 m gap in a garden wall is resolved (CE-3111 measured a 0.8–0.9 m opening failing at the coarse cell). Empty on a content world.</summary>
+        public IReadOnlyList<(Vector2 Min, Vector2 Max)> BakedPassages { get; init; } = Array.Empty<(Vector2, Vector2)>();
+
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 
@@ -200,7 +204,7 @@ namespace Fdp.Toolkit.Terrain
         /// ⭐ <c>CE-4391</c> S-1 — true when this terrain can have LIVE state a view's <see cref="DoorStates"/> must carry: it has doors, or buildings
         /// whose walls can be breached. The gate every "build a <see cref="DoorStates"/> only when it matters" site reads (was <c>Doors.Count &gt; 0</c>).
         /// </summary>
-        public bool HasLiveState => Doors.Count > 0 || Buildings.Count > 0;
+        public bool HasLiveState => Doors.Count > 0 || Buildings.Count > 0 || Panels.Count > 0;   // ⭐ CE-4599 — a free wall can be breached too
 
         /// <summary>⭐ <c>CE-4391</c> S-1 (§8.2 B-5) — the lazy grid of this world's BUILDING wall panels, for "the panels near this burst"; built on first use.</summary>
         public BuildingPanelGrid BuildingPanels

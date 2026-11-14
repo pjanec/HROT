@@ -124,7 +124,7 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
         if (!ReferenceEquals(terrain, _built)) Rebuild(terrain);
         if (terrain == null || !_visible()) return;
         // ⭐ CE-4392 — the replicated damage of this view (R-4196: drawn, the terrain never changed); the same instance while nothing changed ⇒ nothing done
-        var damage = terrain.Buildings.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;
+        var damage = terrain.Panels.Count > 0 ? BuildingDamageTable.Of(repo!, terrain) : null;   // ⭐ CE-4599 (V-16) — a free wall's breach draws too
         if (!ReferenceEquals(damage, _drawnDamage)) ApplyDamage(terrain, damage);
 
         var camera = _camera();
@@ -263,7 +263,8 @@ public sealed class TerrainLayer2D : ISceneLayer, IDisposable   // ⭐ CE-1380 �
     {
         _drawnDamage = damage;
         DamageBuilds++;
-        if (_hidden.Length != terrain.Buildings.Count) _hidden = new bool[terrain.Buildings.Count];
+        int groups = Fdp.Toolkit.Terrain.WallGroups.Count(terrain);   // ⭐ CE-4599 — buildings and free-wall lines
+        if (_hidden.Length != groups) _hidden = new bool[groups];
         Array.Clear(_hidden);
         var set = new HashSet<int>();
         if (damage != null) DamagedBuildings.Touched(terrain, null, damage, set);

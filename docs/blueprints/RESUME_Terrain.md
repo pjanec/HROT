@@ -19,9 +19,9 @@ related-designs:
 |---|---|
 | branch | `terrain` (pushed also to the session branch) — started at `8e3a8000` (coordinator merged) |
 | order | B-1 → P-0 → B-2 → P-1 → P-2 → B-3 → P-3 → P-4 → B-6 → B-4 → B-5 → P-5 → P-6 ([handoff §2](batches/HANDOFF_Coordinator_To_Terrain.md)) |
-| done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596) |
+| done | **B-1** (CE-4598), **CE-6014** (found by B-1), **P-0** (CE-4596), **B-2** (CE-4599) |
 | last green | this commit (see STATUS §3) |
-| next | **B-2** (CE-4599 — one breach record for every wall: free-wall lines keyed, the grid indexes every panel, Passage rule for low walls, FineAreas, drawing) |
+| next | **P-1** (CE-4403 — house pads at import first: `GroundPatches` over `TerrainHeightGrid.Patched`, applied in `TerrainImporter` after the buildings; then road corridors + net re-elevation) |
 | open from P-0 | stepped-hash 1/4/8 not run; no per-host rail (one system, no host gate left) |
 
 ## 2. Decisions taken (lane rulings, for the user's review)
@@ -30,4 +30,4 @@ See [STATUS_Terrain.md](STATUS_Terrain.md) §1 — the list is kept there, once.
 
 ## 3. Log
 
-- `2026-11-14` — lane started; B-1 built (see STATUS §2).
+- `2026-11-14` — lane started; B-1, CE-6014, P-0 built (`d09510a6`); B-2 built.

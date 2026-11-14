@@ -671,7 +671,7 @@ public sealed class TerrainResidency
         foreach (var b in damage.Passages())
         {
             if ((uint)b.Panel >= (uint)world.Panels.Count) continue;
-            int building = world.Panels[b.Panel].Building;
+            int building = WallGroups.Of(world, b.Panel);   // ⭐ CE-4599 — a free-wall line's passages move the navmesh too
             if (building < 0) continue;
             ulong h = map.TryGetValue(building, out var cur) ? cur : 1469598103934665603UL;
             void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }

@@ -161,8 +161,11 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **A player's tank breaks through weak barriers:** a player driving a tank goes through fences, hedges, garden walls and sandbags (an IFV
   through the lighter ones; wheeled vehicles stop); a tank bumps a building wall open for the infantry without driving in; the driver sees
   and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243) 📐
-- **Blasts breach garden walls too,** and every breach — by a blast, a tank or the bulldozer — is a gap infantry walks through and the AI uses
-  as a way into a building. (B-2, B-5, CE-4599, CE-4602) 📐
+- **Blasts breach garden walls too:** a charge, a shell or a bomb beside a garden wall, a fence or a hedge breaches it like a house wall —
+  sight and fire pass at once, every node draws the gap, and a gap cut to the ground is walkable after the bake. (B-2, CE-4599, R-4236; rails
+  `CE4599_*`) ✅
+- **Every breach is a way in for the AI** — a gap by a blast, a tank or the bulldozer is a gap infantry walks through and the AI uses as a way
+  into a building. (B-5, CE-4602) 📐
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242) 📐
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐

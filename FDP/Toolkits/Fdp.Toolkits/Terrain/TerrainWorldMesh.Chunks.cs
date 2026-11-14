@@ -224,8 +224,13 @@ namespace Fdp.Toolkit.Terrain
                     {
                         var map = new Dictionary<int, List<int>>();
                         void Add(int building, int chunk) { if (building < 0) return; if (!map.TryGetValue(building, out var l)) map[building] = l = new List<int>(2); if (!l.Contains(chunk)) l.Add(chunk); }
-                        for (int k = 0; k < Prisms.Length; k++) { foreach (int p in Prisms[k]) Add(world.Prisms[p].Building, k); foreach (int w in Walkables[k]) Add(world.Walkables[w].Building, k); }
-                        for (int pi = 0; pi < world.Panels.Count; pi++) { var mid = (world.Panels[pi].A + world.Panels[pi].B) * 0.5f; Add(world.Panels[pi].Building, Of(mid, mid)); }
+                        // ⭐ CE-4599 (V-16) — by WALL GROUP: a free-wall line's pieces and panels are found like a building's, so its breach redraws its chunks
+                        for (int k = 0; k < Prisms.Length; k++)
+                        {
+                            foreach (int p in Prisms[k]) { var pr = world.Prisms[p]; Add(pr.Panel >= 0 ? WallGroups.Of(world, pr.Panel) : pr.Building, k); }
+                            foreach (int w in Walkables[k]) Add(world.Walkables[w].Building, k);
+                        }
+                        for (int pi = 0; pi < world.Panels.Count; pi++) { var mid = (world.Panels[pi].A + world.Panels[pi].B) * 0.5f; Add(WallGroups.Of(world, pi), Of(mid, mid)); }
                         for (int bi = 0; bi < world.Buildings.Count; bi++)
                         {
                             var fp = world.Buildings[bi].Footprint;

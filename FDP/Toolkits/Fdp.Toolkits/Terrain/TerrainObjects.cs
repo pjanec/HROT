@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Terrain
             var r = OfCore(view, world);
             // ⭐ CE-4391 S-1 (B-3) — the breaches of this view ride along. The door table (above) is cached on its own; the damage table has its
             //   own stamp, so a breach written this frame forces a rebuild of IT and of nothing else, and an unchanged frame hands back the same instance.
-            var damage = world.Buildings.Count > 0 ? BuildingDamageTable.Of(view, world) : null;
+            var damage = world.Panels.Count > 0 ? BuildingDamageTable.Of(view, world) : null;   // ⭐ CE-4599 — free walls too
             if (!ReferenceEquals(r.Damage, damage)) r = t_last = new DoorStates(r._states, damage);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;

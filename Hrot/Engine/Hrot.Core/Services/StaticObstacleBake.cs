@@ -231,7 +231,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
     /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>
     private static BuildingDamageTable? DamageOf(EntityRepository world)
-        => world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { Buildings.Count: > 0 } t
+        => world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { Panels.Count: > 0 } t
             ? DoorStates.Of(world, t).Damage : null;
 
     private void Finish(EntityRepository world)

@@ -110,8 +110,13 @@ namespace Fdp.Toolkit.Terrain
         public const long TkbType = 7203;
 
         /// <summary>The terrain-object key of building <paramref name="building"/>: <c>"&lt;terrain&gt;/&lt;label&gt;"</c> (a world with no name drops the first part).</summary>
+        /// <remarks>⭐ CE-4599 (B-2) — <paramref name="building"/> is a WALL GROUP (<see cref="WallGroups"/>): past the buildings a free-wall line, keyed <c>"&lt;terrain&gt;/wall:&lt;label&gt;"</c>.</remarks>
         public static string KeyOf(TerrainWorld world, int building)
-            => string.IsNullOrEmpty(world.Name) ? world.Buildings[building].Label : world.Name + "/" + world.Buildings[building].Label;
+        {
+            string own = WallGroups.IsBuilding(world, building) ? world.Buildings[building].Label
+                : WallGroups.LineKey(world, building) ?? throw new ArgumentOutOfRangeException(nameof(building), $"no wall group {building}");
+            return string.IsNullOrEmpty(world.Name) ? own : world.Name + "/" + own;
+        }
 
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, System.Collections.Generic.Dictionary<string, int>> s_byKey = new();
 
@@ -127,12 +132,12 @@ namespace Fdp.Toolkit.Terrain
             int nb = -1;
             // ⭐ CE-3439 — the entity's OWN key (its TerrainObjectKey) wins when it has one: an Unpack re-keys a house, and the old numbering's label no longer names it in the new world
             if (!string.IsNullOrEmpty(key)) nb = IndexOfKey(to, key);
-            else if ((uint)d.Building < (uint)from.Buildings.Count) nb = IndexOfKey(to, KeyOf(from, d.Building));
+            else if ((uint)d.Building < (uint)WallGroups.Count(from)) nb = IndexOfKey(to, KeyOf(from, d.Building));
             var n = default(BuildingDamage);
             n.Building = nb;
             if (nb >= 0)
             {
-                n.Collapsed = d.Collapsed;
+                n.Collapsed = WallGroups.IsBuilding(to, nb) ? d.Collapsed : (byte)0;
                 int k = 0;
                 for (int i = 0; i < d.Count; i++)
                 {
@@ -165,6 +170,11 @@ namespace Fdp.Toolkit.Terrain
                 {
                     m.TryAdd(KeyOf(w, i), i);
                     if (!string.IsNullOrEmpty(w.Buildings[i].Label)) m.TryAdd(w.Buildings[i].Label, i);
+                }
+                for (int g = w.Buildings.Count, n = WallGroups.Count(w); g < n; g++)   // ⭐ CE-4599 — the free-wall lines, full and bare keys
+                {
+                    m.TryAdd(KeyOf(w, g), g);
+                    m.TryAdd(WallGroups.LineKey(w, g)!, g);
                 }
                 return m;
             });

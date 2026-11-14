@@ -430,7 +430,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
-            if (terrain == null || terrain.Buildings.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
+            if (terrain == null || terrain.Panels.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             var table = terrain.Breaches;
             if (w.ExplosiveKg < table.MinKg) return;
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
@@ -452,14 +452,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 int pi = _panels[k];
                 var panel = terrain.Panels[pi];
                 if (panel.Building >= 0 && (_collapsedNow.Contains(panel.Building) || doors?.Damage?.Collapsed(panel.Building) == true)) continue;
+                int group = WallGroups.Of(terrain, pi);   // ⭐ CE-4599 (B-2, B-D7) — a building, or a free-wall line: blasts breach garden walls too
                 if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, w.Fuze, out var breach)) continue;
                 if (!LineClearToFace(terrain, doors, panel, burst)) continue;
                 repo.Bus.Publish(new BuildingDamageEvent
                 {
-                    Building = panel.Building, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
+                    Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
                 });
-                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, panel.Building)} panel {pi} {breach.Kind} " +
+                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
                     $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
             }
         }

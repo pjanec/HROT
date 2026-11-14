@@ -454,3 +454,79 @@ line); a standing man is avoided as before. [R-5005](blueprints/RULINGS.md).
 Rails: `CarKinematicsSystemTests.CE4598_*` (an AI hull held at a brick wall, a fence and a hedge-high wall; a 0.4 m wall met, never climbed; a
 possessed car at full throttle held; a tank at a building's breach stays out; the gate), `BuildingBreachTests.Hull_*` (the trace meanings, a
 free-wall breach opens / a building's never / a raised hole never, 0 B steady).
+
+### 7.9 As built — B-2 *(`terrain` lane, `2026-11-14`, CE-4599)*
+
+```mermaid
+classDiagram
+  direction LR
+  class WallGroups {
+    <<NEW static>>
+    Count(world) = buildings + free-wall lines
+    Of(world, panel) · IsBuilding · LineKey · Anchor
+  }
+  class BuildingPanelIndex {
+    <<existing, EXTENDED>>
+    per world, once: group and rank of every panel
+    + the free-wall lines and their keys
+    ToLocal / ToGlobal by GROUP
+  }
+  class BuildingDamage {
+    <<existing, wire and layout UNCHANGED>>
+    Building = a WALL GROUP index
+  }
+  class BuildingDamages {
+    <<existing, EXTENDED>>
+    KeyOf / IndexOfKey: a line is terrain/wall:label
+  }
+  class BuildingPanelGrid {
+    <<existing, CHANGED>>
+    every panel - blasts breach free walls
+  }
+  class BreachRule {
+    <<existing, EXTENDED>>
+    Classify: base-to-top cut = Passage
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + BakedPassages - the fine-cell boxes
+  }
+  class RecastNavmeshFactory {
+    <<existing, EXTENDED>>
+    FineAreas += BakedPassages
+  }
+  class TerrainPlan2D {
+    <<existing, ui, EXTENDED>>
+    pieces tagged by wall group
+  }
+  BuildingDamage ..> WallGroups : Building is a group
+  BuildingDamages ..> BuildingPanelIndex
+  WallGroups ..> BuildingPanelIndex
+  RecastNavmeshFactory ..> TerrainWorld : BakedPassages
+  TerrainPlan2D ..> WallGroups
+```
+*What it shows that prose hid: ONE record (D-1) by renaming nothing — a free-wall line becomes a wall GROUP numbered after the buildings, and every consumer
+that already went through the group key and rank (the wire, the save, the load, the remap, the drawing) carries free walls with no new path. The
+fields of `BuildingDamage` and `EntityBuildingDamage` did not change.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one record for every wall | `BuildingDamage.Building` = `WallGroups` index; `KeyOf` gives `<terrain>/wall:<label>` for a line | D-1, R-4236 |
+| a free-wall line has a stable key | consecutive free panels, same label, end-to-start continuous = one line; key `wall:<label>`, `#n` for a later same-label line, `wall@<x>,<y>` (cm, first post) unlabelled; panels ranked within it | V-11 |
+| blasts breach free walls | `BuildingPanelGrid` indexes every panel; `AreaEffectSystem.BreachWalls` publishes the group; gates that were "has buildings" are "has panels" | B-D7, V-2 |
+| a garden wall's breach is walkable | `BreachRule.Classify`: a cut from base to TOP ≥ the passage width is a Passage | V-6 |
+| narrow gaps resolve in the navmesh | `TerrainObstacles.With` records `BakedPassages`; `FineAreas` bakes them fine | V-10 |
+| every node draws the gap | `DamagedBuildings.Touched`, the 3-D chunks' group map and `TerrainPlan2D` key by wall group | V-16 |
+| a line never collapses | `ApplyCollapse` only for buildings; remap and load clear `Collapsed` off a line | — |
+| one cut across two panels | ⛔ not here — B-3's `BarrierHit` makes such cuts; blasts decide each panel already | V-12 |
+
+⭐ **Lane decisions (for the user's review):** [R-5006](blueprints/RULINGS.md) the record's field and wire are NOT widened — a group index in the existing
+`Building` field (the reversible, smaller choice; the handoff allowed widening); [R-5007](blueprints/RULINGS.md) a line's key is derived from its
+content (label + occurrence, else its first post) instead of a label written at import — no importer change, no re-import; [R-5008](blueprints/RULINGS.md)
+V-12 moves to B-3.
+
+Rails: `BuildingDamageSystemTests.CE4599_ACharge_BreachesAGardenWall_OnATerrainWithNoBuilding` (acceptance §6 item 5's blast, on the record and sight at
+once), `BuildingBreachTests.CE4599_*` (keys and ranks, remap and load across renumbering, the Passage rule incl. a 1.5 m hedge-high wall),
+`BuildingDamageBakeTests.CE4599_AGardenWallAndAHedgeGap_AreWalkable_AfterTheBake` (§7.5 item 14), `EntityBuildingDamageTranslatorTests.CE4599_*` (the
+wire), `TheBuildingDamagePlanTests.CE4599_*` (the 2-D drawing). ⚠ Save → reload of a free-wall breach is covered at the load's resolve and the save's
+group filter, not by a scenario file round-trip; the 3-D chunk redraw has no new frame rail.

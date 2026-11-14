@@ -20,6 +20,9 @@ related-designs:
 | [R-5003](RULINGS.md) | the bake's latency cap is 2 s | back-to-back bakes cost too much frame time ⇒ a longer cap |
 | [R-5004](RULINGS.md) | avoidance never steers a hull into a wall (swerve checked ~1 s ahead; dropped if it meets the guard) | — |
 | [R-5005](RULINGS.md) | a vehicle swerves for a man DOWN only when he lies in its hull's way | a wider berth from casualties wanted ⇒ a larger margin |
+| [R-5006](RULINGS.md) | a free-wall line is a wall group after the buildings; `BuildingDamage.Building` holds the group — record and wire NOT widened | a need to tell a line from a building on the wire without the terrain |
+| [R-5007](RULINGS.md) | a line's key comes from its content (`wall:<label>`, `#n`, else its first post), not a label written at import | an import that re-orders / re-splits lines between versions |
+| [R-5008](RULINGS.md) | V-12 (one cut across panels) moves to B-3 | — |
 
 ## 2. Tasks
 
@@ -28,7 +31,8 @@ related-designs:
 | **B-1** CE-4598 — the hull sees every wall | ✅ built | [Breaching §7.8](../DESIGN_Vehicle_Breaching.md); rails `CarKinematicsSystemTests.CE4598_*`, `BuildingBreachTests.Hull_*`; red-proved |
 | **CE-6014** (showcase-world's row, cross-lane) — vehicles swerve through walls round a man down | ✅ fixed (B-1 exposed it: `RoadblockBlastScenarioTests` ④ went red) | rails `CE6014_*`; see the tracker row |
 | **P-0** CE-4596 — cheap terrain change on every node | ✅ built (no runtime caller of the height patch yet — P-1/P-3/P-4) | [Ground §9.6](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `HeightStoreTests.CE4596_*`, `StaticObstacleBakeTests.CE4596_*` |
-| next | **B-2** CE-4599 — one breach record for every wall | |
+| **B-2** CE-4599 — one breach record for every wall | ✅ built | [Breaching §7.9](../DESIGN_Vehicle_Breaching.md); rails `CE4599_*` in five suites; red-proved (the old building-only blast grid ⇒ the garden-wall charge rail red) |
+| next | **P-1** CE-4403 — house pads + road corridors at import | |
 
 ## 3. Gates
 
@@ -41,11 +45,17 @@ related-designs:
 | ledger | `python3 scripts/rulings-check.py` | 624/624 |
 | tracker | `python3 scripts/tracker-counts.py --check` | OK |
 | design digest | `python3 scripts/design-digest.py --check` | 1 red, pre-existing (AQ13 has no INVENTORY — same at the base) |
-| mermaid | `scripts/mermaid-check.mjs` on both designs | 11/11 parse |
+| mermaid | `scripts/mermaid-check.mjs` on both designs | all parse |
+| B-2: toolkit suite, full (T1) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | 5028 / 5 failed — all 5 are S0 type rails on members this lane never touched (`TerrainBlock.HeadingDeg`, `TerrainFeature.HeadingDeg`, `ReviewHostFacts.ExerciseId`, …; `git diff 8e3a8000` on them is empty) — from the coordinator merge, not B-2 |
+| B-2: SimHost damage suites | `--filter BuildingDamageBakeTests\|EntityBuildingDamageTranslatorTests\|StaticObstacleBakeTests\|LiveOverlayBakeTests` | 38 / 0 |
+| B-2: drawing (Xvfb) | `xvfb-run -a … --filter TheBuildingDamagePlanTests\|TheBuildingDamageDrawsTests\|TheTerrainChunks` | 9 / 0, 4 skipped (the scale-terrain look rails: their assets are not here) |
+| B-2: scenarios | roadblock-blast, wreck-blocks-street | 2 / 0 |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 
 ## 4. Designs updated · ids
 
 - `DESIGN_Vehicle_Breaching.md` §7.8 (B-1 as built, CE-6014) · `DESIGN_Ground_Patches_And_Road_Blockage.md` §9.6 (P-0 as built) · `CAPABILITIES.md` §2b (✅ every wall stops a vehicle)
-- ids: R-5000…R-5005. No new CE rows (B-1, P-0 and CE-6014 are existing rows).
+- `DESIGN_Vehicle_Breaching.md` §7.9 (B-2 as built) · `CAPABILITIES.md` §2b (✅ blasts breach garden walls)
+- ids: R-5000…R-5008. No new CE rows (B-1, P-0, B-2 and CE-6014 are existing rows).
+- ⚠ cross-lane edits (said): ui's `TerrainPlan2D` / `TerrainLayer2D` (the plan keyed by wall group), the network lane's `EntityBuildingDamageTranslators` (the "terrain resident" gate counts free walls).

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -116,6 +117,43 @@ public sealed class TheBuildingDamagePlanTests
         Assert.DoesNotContain(collapse.FillColors, IsBrick);
         Assert.True(Covers(collapse, new Vector2(25f, 24f), IsRubble), "the rubble covers the footprint");
         Assert.Contains(collapse.Strokes, s => s.Shape == DebugPrimitiveShape.Text && s.TextContent.ToString().Contains("rubble"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4599</c> (B-2, V-16) — a GARDEN WALL breach draws on every node from the replicated record, like a building's: the plan tags the free wall's pieces with
+    /// its wall GROUP (1 — after the house), and the damaged overlay of that group draws the wall with the gap and its other segment whole. 🔴 Red-proof: tag a prism by
+    /// <c>p.Building</c> (−1 for a free wall) in <c>TerrainPlan2D.Emit</c> ⇒ the overlay holds no wall at all and the plan cannot hide its own copy.
+    /// </summary>
+    [Fact]
+    public void CE4599_AGardenWallBreach_IsDrawnAsAGap_ByItsWallGroup()
+    {
+        var w = TerrainWorldParser.Parse(House.Replace("\"features\": [", """
+            "features": [ { "type": "Feature", "properties": { "kind": "wall", "label": "Garden", "height": 1.0, "thickness": 0.3, "material": "brick" },
+              "geometry": { "type": "LineString", "coordinates": [[10,10],[30,10],[50,10]] } },
+            """), "house");
+        var repo = new EntityRepository();
+        repo.RegisterComponent<BuildingDamage>();
+        repo.RegisterManagedComponent<TerrainObjectKey>();
+        repo.SetSingletonManaged(w);
+        int group = BuildingDamages.IndexOfKey(w, "house/wall:Garden");
+        Assert.Equal(1, group);
+        var plain = TerrainLayer2D.PlanOf(w);
+        Assert.Contains(plain.FillBuilding, b => b == group);
+        Assert.True(Covers(plain, new Vector2(20f, 10f), IsBrick), "the plain plan draws the garden wall");
+
+        int panel = BuildingPanelIndex.ToGlobal(w, group, 0);
+        var d = new BuildingDamage { Building = group };
+        BuildingDamages.Add(ref d, new WallBreach(panel, 8f, 12f, 0f, 1f, BreachKind.Passage), null);
+        var e = repo.CreateEntity(); repo.AddComponent(e, d); repo.SetManagedComponent(e, new TerrainObjectKey { Key = "house/wall:Garden" });
+        var damage = DoorStates.Of(repo, w).Damage!;
+        var touched = new HashSet<int>();
+        DamagedBuildings.Touched(w, null, damage, touched);
+        Assert.Contains(group, touched);
+        var overlay = TerrainLayer2D.PlanOf(w, damage, b => b == group);
+        Assert.False(Covers(overlay, new Vector2(20f, 10f), IsBrick), "the breach is a gap in the garden wall");
+        Assert.True(Covers(overlay, new Vector2(14f, 10f), IsBrick), "beside the gap the wall stands");
+        Assert.True(Covers(overlay, new Vector2(40f, 10f), IsBrick), "its other segment stands");
+        Assert.False(Covers(plain, new Vector2(40f, 10f), IsBrick, new[] { false, true }), "the plan's own copy of the line is hidden");
     }
 
     // the wall's own colour (its brick fill or its darker outline) in a 9 × 9 box round the point

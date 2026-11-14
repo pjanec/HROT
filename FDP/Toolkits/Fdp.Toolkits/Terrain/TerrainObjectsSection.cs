@@ -69,14 +69,14 @@ namespace Fdp.Toolkit.Terrain
             {
                 if (!BuildingDamageSystem.OwnsDamage(repo, e)) continue;
                 var d = repo.GetComponentRO<BuildingDamage>(e);
-                if ((uint)d.Building >= (uint)terrain.Buildings.Count) continue;
+                if ((uint)d.Building >= (uint)WallGroups.Count(terrain)) continue;   // ⭐ CE-4599 — free-wall lines are saved too
                 string key = BuildingDamages.KeyOf(terrain, d.Building);
                 if (!result.TryGetValue(key, out var saved)) result[key] = saved = new SavedBuildingDamage();
                 for (int i = 0; i < d.Count; i++)
                 {
                     var b = d.Get(i);
                     int local = BuildingPanelIndex.ToLocal(terrain, b.Panel);
-                    if (local < 0 || terrain.Panels[b.Panel].Building != d.Building) continue;
+                    if (local < 0 || WallGroups.Of(terrain, b.Panel) != d.Building) continue;
                     saved.AddDistinct(b with { Panel = local });
                 }
                 if (d.Collapsed != 0) saved.Collapsed = true;

@@ -219,6 +219,9 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         }
         foreach (var d in world.Doors)
             areas.Add(new RecastNavmeshBaker.Area(d.Center.X - 1f, d.Center.Y - 1f, d.Center.X + 1f, d.Center.Y + 1f));
+        // ⭐ CE-4599 (B-2, V-10) — every baked PASSAGE breach: a gap in a garden wall stands outside any building box and would bake at the coarse cell
+        foreach (var (min, max) in world.BakedPassages)
+            areas.Add(new RecastNavmeshBaker.Area(min.X, min.Y, max.X, max.Y));
         return areas;
     }
 }

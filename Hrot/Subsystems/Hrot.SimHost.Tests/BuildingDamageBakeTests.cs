@@ -191,6 +191,52 @@ namespace Hrot.SimHost.Tests
             Assert.False(_world.GetSingletonManaged<TerrainWorld>()!.SegmentBlocked(new Vector3(25f, 15f, 1f), new Vector3(25f, 25f, 1f)));   // the resident world has the gap
         }
 
+        /// <summary>A field cut in two by a 1 m brick garden wall along y = 30 (beyond the bounds both ways — no way round), and a 1.5 m hedge-high wall along y = 45.</summary>
+        private const string Garden = """
+            { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 60, 60], "groundZ": 0 }, "features": [
+              { "type": "Feature", "properties": { "kind": "wall", "label": "Garden", "height": 1.0, "thickness": 0.3, "material": "brick" },
+                "geometry": { "type": "LineString", "coordinates": [[-5,30],[65,30]] } },
+              { "type": "Feature", "properties": { "kind": "wall", "label": "Hedge", "height": 1.5, "thickness": 0.6, "material": "brick" },
+                "geometry": { "type": "LineString", "coordinates": [[-5,45],[65,45]] } } ] }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4599</c> (B-2, V-6, V-10; acceptance §7.5 item 14, §6 item 6) — a 1.2 m cut from a 1 m garden wall's base to its top, and one through a 1.5 m
+        /// hedge-high wall, are PASSAGES and become WALKABLE once the bake commits: before it the far field is out of reach; after it an infantry path goes through the
+        /// gaps (the passages' boxes are baked at the fine cell). 🔴 Red-proof: drop the <c>BakedPassages</c> fine areas in <c>RecastNavmeshFactory.FineAreas</c> ⇒ the
+        /// 1.2 m gap is closed by the coarse cell; key the nav hash by building only (<c>Panels[..].Building</c>) ⇒ no bake runs.
+        /// </summary>
+        [Fact]
+        public void CE4599_AGardenWallAndAHedgeGap_AreWalkable_AfterTheBake()
+        {
+            var garden = TerrainWorldParser.Parse(Garden, "range");
+            var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
+            INavmeshFactory factory = Recast();
+            residency.AttachNavmesh(factory, _node);
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = garden, TerrainName = "range", Navmesh = factory.Build(garden) });
+            var sys = Sys();
+            Vector3 near = new(30f, 20f, 0f), far = new(30f, 55f, 0f);
+            Assert.False(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "the walls close the far field");
+
+            int wall = BuildingPanelIndex.ToGlobal(garden, 0, 0), hedge = BuildingPanelIndex.ToGlobal(garden, 1, 0);
+            foreach (var (group, panel, key) in new[] { (0, wall, "range/wall:Garden"), (1, hedge, "range/wall:Hedge") })
+            {
+                var p = garden.Panels[panel];
+                var d = new BuildingDamage { Building = group };
+                Assert.Equal(BuildingDamages.KeyOf(garden, group), key);
+                BuildingDamages.Add(ref d, new WallBreach(panel, 34.4f, 35.6f, p.BaseZ, p.TopZ, BreachRule.Classify(in p, garden.Breaches, 34.4f, 35.6f, p.BaseZ, p.TopZ)), garden);
+                Assert.Equal(BreachKind.Passage, d.Get(0).Kind);
+                var e = _world.CreateEntity();
+                _world.AddComponent(e, d);
+                _world.SetManagedComponent(e, new TerrainObjectKey { Key = key });
+            }
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6;
+            RunUntilBaked(sys, 1);
+            Assert.True(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "a man walks through both gaps");
+            Assert.NotEmpty(_world.GetSingletonManaged<TerrainWorld>()!.BakedPassages);
+        }
+
         /// <summary>
         /// ⭐ CE-3436 (HOT PATH) — on a node that BAKES DAMAGE (the muscle's) a steady frame — an obstacle present, a passage breach laid, the bake committed, nothing changing — allocates NOTHING: neither the obstacle walk
         /// nor <c>DoorStates.Of</c> / the damage hash. 🔴 Red-proof: restore the per-frame <c>CollectPrisms</c> in <c>StaticObstacleBakeSystem.Execute</c>.

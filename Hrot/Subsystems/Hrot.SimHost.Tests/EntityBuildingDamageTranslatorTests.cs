@@ -132,6 +132,51 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4599</c> (B-2, D-1, V-11) — a GARDEN WALL's breach crosses the wire on the same record: the sender's world has one extra house (so the line is group 2
+        /// there, group 1 on the receiver); the sample names the line by its key <c>range/wall:Garden</c> and the segment by its rank, and the receiver opens ITS garden
+        /// wall's second segment. 🔴 Red-proof: key a line by its group index ⇒ the receiver resolves nothing (or the wrong wall).
+        /// </summary>
+        [Fact]
+        public void CE4599_AGardenWallBreach_LandsOnTheSameWall_WhenTheTwoWorldsNumberItDifferently()
+        {
+            const string Wall = """
+                { "type": "Feature", "properties": { "kind": "wall", "label": "Garden", "height": 1.0, "thickness": 0.3, "material": "brick" },
+                  "geometry": { "type": "LineString", "coordinates": [[0,10],[20,10],[40,10]] } }
+                """;
+            const string Garage = """
+                { "type": "Feature", "properties": { "kind": "building", "label": "G",
+                    "building": { "footprint": [[0,0],[6,0],[6,6],[0,6]],
+                      "storeys": [ { "height": 3, "walls": [
+                        { "from": [0,0], "to": [6,0], "thickness": 0.3 }, { "from": [6,0], "to": [6,6], "thickness": 0.3 },
+                        { "from": [6,6], "to": [0,6], "thickness": 0.3 }, { "from": [0,6], "to": [0,0], "thickness": 0.3 } ] } ] } },
+                  "geometry": { "type": "Point", "coordinates": [-40, -40] } }
+                """;
+            var sender = TerrainWorldParser.Parse(BrickHouse.Replace("\"features\": [ ", "\"features\": [ " + Garage + ", " + Wall + ", "), "range");
+            int senderLine = BuildingDamages.IndexOfKey(sender, "range/wall:Garden");
+            Assert.Equal(2, senderLine);
+            int senderPanel = BuildingPanelIndex.ToGlobal(sender, senderLine, 1);
+            var decided = new BuildingDamage { Building = senderLine };
+            BuildingDamages.Add(ref decided, new WallBreach(senderPanel, 4f, 6f, 0f, 1f, BreachKind.Passage), null);
+            var sample = EntityBuildingDamageEgressTranslator.ToSample(5204, decided, "range/wall:Garden", sender);
+
+            var repo = World(out _);
+            var terrain = TerrainWorldParser.Parse(BrickHouse.Replace("\"features\": [ ", "\"features\": [ " + Wall + ", "), "range");
+            repo.SetSingletonManaged(terrain);
+            using (repo)
+            {
+                var map = new NetworkEntityMap();
+                var ingress = new EntityBuildingDamageIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 2);
+                using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, repo); cmd.Playback(repo); }
+                Assert.True(map.TryGetEntity(5204, out var ghost));
+                var got = repo.GetComponentRO<BuildingDamage>(ghost);
+                Assert.Equal(1, got.Building);
+                Assert.Equal(BuildingPanelIndex.ToGlobal(terrain, 1, 1), got.Get(0).Panel);
+                Assert.False(terrain.SegmentBlocked(new Vector3(25f, 5f, 0.5f), new Vector3(25f, 15f, 0.5f), DoorStates.Of(repo, terrain)), "the gap in THIS node's garden wall");
+                Assert.True(terrain.SegmentBlocked(new Vector3(10f, 5f, 0.5f), new Vector3(10f, 15f, 0.5f), DoorStates.Of(repo, terrain)), "its first segment stands");
+            }
+        }
+
+        /// <summary>
         /// ⭐ CE-4427 R-2 — a breach whose KEY the receiver cannot resolve NEVER breaches another house: the sample names panel 2 of a building this node does not have; the old fallback stored 2 as a GLOBAL index (a wall of
         /// house "H"). Dropped, once the world is resident. 🔴 Red-proof: in <c>TryFromSample</c> fall back to the sender's building and raw panel when the key resolves nothing ⇒ H's wall 2 is breached.
         /// </summary>

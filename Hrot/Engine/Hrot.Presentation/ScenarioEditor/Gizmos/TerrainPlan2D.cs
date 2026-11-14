@@ -110,9 +110,11 @@ public sealed class TerrainPlan2D
 
         foreach (var p in world.Prisms)
         {
-            if (!Wanted(p.Building)) continue;
+            // ⭐ CE-4599 (V-16) — a piece's WALL GROUP: a free wall's (garden wall, fence, hedge) pieces belong to its line, so a breached one is hidden and re-drawn like a building's
+            int group = p.Panel >= 0 ? Fdp.Toolkit.Terrain.WallGroups.Of(world, p.Panel) : p.Building;
+            if (!Wanted(group)) continue;
             if (damage != null && !Fdp.Toolkit.Terrain.DamagedBuildings.Keeps(p, damage)) continue;
-            mark?.Invoke(p.Building);
+            mark?.Invoke(group);
             EmitPrism(draw, p);
         }
 
@@ -123,10 +125,10 @@ public sealed class TerrainPlan2D
             var pieces = new List<TerrainPrism>();
             foreach (int pi in panels)
             {
-                if ((uint)pi >= (uint)world.Panels.Count || !Fdp.Toolkit.Terrain.DamagedBuildings.IsRecut(world, damage, pi) || !Wanted(world.Panels[pi].Building)) continue;
+                if ((uint)pi >= (uint)world.Panels.Count || !Fdp.Toolkit.Terrain.DamagedBuildings.IsRecut(world, damage, pi) || !Wanted(Fdp.Toolkit.Terrain.WallGroups.Of(world, pi))) continue;
                 pieces.Clear();
                 Fdp.Toolkit.Terrain.DamagedBuildings.RecutPanel(world, damage, pi, pieces);
-                mark?.Invoke(world.Panels[pi].Building);
+                mark?.Invoke(Fdp.Toolkit.Terrain.WallGroups.Of(world, pi));
                 var panel = world.Panels[pi];
                 var dir = Vector2.Normalize(panel.B - panel.A);
                 var across = new Vector2(-dir.Y, dir.X) * ((panel.Thickness * 0.5f) + 0.2f);

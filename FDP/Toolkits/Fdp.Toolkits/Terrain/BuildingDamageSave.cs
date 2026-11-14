@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Text.Json.Nodes;
 
 namespace Fdp.Toolkit.Terrain
@@ -39,14 +40,18 @@ namespace Fdp.Toolkit.Terrain
         public bool IsEmpty => Breaches.Count == 0 && !Collapsed;
     }
 
-    /// <summary>⭐ <c>CE-4391</c> S-4 — a panel's index WITHIN its building (rank among the panels with the same <see cref="TerrainWallPanel.Building"/>, in <see cref="TerrainWorld.Panels"/> order) ⇄ its global index. Written once, used by the save and the load.</summary>
+    /// <summary>⭐ <c>CE-4391</c> S-4 — a panel's index WITHIN its WALL GROUP (rank among the group's panels, in <see cref="TerrainWorld.Panels"/> order) ⇄ its global index. Written once, used by the save, the load,
+    /// the wire and the remap. ⭐ <c>CE-4599</c> (B-2, R-4236) — a group is a building OR a free-wall line (<see cref="WallGroups"/>).</summary>
     public static class BuildingPanelIndex
     {
-        /// <summary>⭐ CE-4427 R-3 — per world, built ONCE (a world is immutable): each panel's rank within its building, and each building's panels (global indices) in order.</summary>
-        private sealed class Table
+        /// <summary>⭐ CE-4427 R-3 / CE-4599 — per world, built ONCE (a world is immutable): each panel's group and rank within it, each group's panels (global indices) in order, the free-wall lines' keys.</summary>
+        internal sealed class Table
         {
+            public int[] Group = Array.Empty<int>();
             public int[] Rank = Array.Empty<int>();
             public int[][] PanelsOf = Array.Empty<int[]>();
+            public string[] LineKeys = Array.Empty<string>();
+            public int Buildings;
         }
 
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, Table> s_tables = new();
@@ -55,38 +60,55 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>How many rank tables have been built (diagnostics / rails: a steady caller must not rebuild).</summary>
         public static int TablesBuilt => System.Threading.Volatile.Read(ref s_built);
 
-        private static Table TableOf(TerrainWorld world) => s_tables.GetValue(world, static w =>
+        internal static Table TableOf(TerrainWorld world) => s_tables.GetValue(world, static w =>
         {
             System.Threading.Interlocked.Increment(ref s_built);
-            var t = new Table { Rank = new int[w.Panels.Count] };
-            int max = -1;
-            for (int i = 0; i < w.Panels.Count; i++) if (w.Panels[i].Building > max) max = w.Panels[i].Building;
-            var counts = new int[max + 1];
+            int nb = w.Buildings.Count;
+            var t = new Table { Group = new int[w.Panels.Count], Rank = new int[w.Panels.Count], Buildings = nb };
+            // ⭐ CE-4599 (V-11) — free-wall LINES: a run of consecutive free panels (Building < 0) with the same label, each starting where the last ended
+            //   (one LineString's segments, in parse order). A line's key is "wall:<label>" (or "wall@<x>,<y>" of its first post, in cm, when unlabelled),
+            //   with "#n" for the n-th later line of the same name — content-derived, so every node and every re-load names it the same.
+            var lineKeys = new List<string>();
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            int line = -1;
             for (int i = 0; i < w.Panels.Count; i++)
             {
-                int b = w.Panels[i].Building;
-                if (b < 0) { t.Rank[i] = -1; continue; }
-                t.Rank[i] = counts[b]++;
+                var p = w.Panels[i];
+                if (p.Building >= 0) { t.Group[i] = p.Building; continue; }
+                bool continues = line >= 0 && i > 0 && w.Panels[i - 1].Building < 0
+                    && string.Equals(w.Panels[i - 1].Label, p.Label, StringComparison.Ordinal)
+                    && Vector2.DistanceSquared(w.Panels[i - 1].B, p.A) < 1e-4f;
+                if (!continues)
+                {
+                    string name = !string.IsNullOrEmpty(p.Label) ? "wall:" + p.Label
+                        : "wall@" + ((long)MathF.Round(p.A.X * 100f)).ToString(System.Globalization.CultureInfo.InvariantCulture) + ","
+                                  + ((long)MathF.Round(p.A.Y * 100f)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    int n = seen.TryGetValue(name, out int c) ? c : 0;
+                    seen[name] = n + 1;
+                    lineKeys.Add(n == 0 ? name : name + "#" + n.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    line = lineKeys.Count - 1;
+                }
+                t.Group[i] = nb + line;
             }
-            t.PanelsOf = new int[max + 1][];
-            for (int b = 0; b <= max; b++) t.PanelsOf[b] = new int[counts[b]];
-            var fill = new int[max + 1];
-            for (int i = 0; i < w.Panels.Count; i++)
-            {
-                int b = w.Panels[i].Building;
-                if (b >= 0) t.PanelsOf[b][fill[b]++] = i;
-            }
+            t.LineKeys = lineKeys.ToArray();
+            int groups = nb + lineKeys.Count;
+            var counts = new int[groups];
+            for (int i = 0; i < w.Panels.Count; i++) t.Rank[i] = counts[t.Group[i]]++;
+            t.PanelsOf = new int[groups][];
+            for (int g = 0; g < groups; g++) t.PanelsOf[g] = new int[counts[g]];
+            var fill = new int[groups];
+            for (int i = 0; i < w.Panels.Count; i++) { int g = t.Group[i]; t.PanelsOf[g][fill[g]++] = i; }
             return t;
         });
 
-        /// <summary>The index of global panel <paramref name="panel"/> within its building, or −1 when it is not a building's panel (or out of range). O(1) after the world's table exists (CE-4427 R-3).</summary>
+        /// <summary>The index of global panel <paramref name="panel"/> within its wall group, or −1 when out of range. O(1) after the world's table exists (CE-4427 R-3).</summary>
         public static int ToLocal(TerrainWorld world, int panel)
         {
             if ((uint)panel >= (uint)world.Panels.Count) return -1;
             return TableOf(world).Rank[panel];
         }
 
-        /// <summary>The global index of panel <paramref name="local"/> of building <paramref name="building"/>, or −1 when the building has no such panel.</summary>
+        /// <summary>The global index of panel <paramref name="local"/> of wall group <paramref name="building"/> (a building, or a free-wall line — <see cref="WallGroups"/>), or −1 when the group has no such panel.</summary>
         public static int ToGlobal(TerrainWorld world, int building, int local)
         {
             if (local < 0 || building < 0) return -1;
@@ -94,6 +116,44 @@ namespace Fdp.Toolkit.Terrain
             if (building >= of.Length) return -1;
             var list = of[building];
             return local < list.Length ? list[local] : -1;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4599</c> (B-2; 📄 docs/DESIGN_Vehicle_Breaching.md §7.3 D-1, R-4236, V-11) — the WALL GROUPS of a world: what one damage record
+    /// (<see cref="BuildingDamage"/>) belongs to. Groups 0 … <c>Buildings.Count − 1</c> are the buildings (unchanged numbering); after them come the
+    /// free-wall LINES — a garden wall, a fence, a hedge, each the panels of one line. ⭐ So <see cref="BuildingDamage.Building"/> holds a GROUP index, and
+    /// everything keyed by <see cref="BuildingDamages.KeyOf"/> / <see cref="BuildingPanelIndex"/> (the wire, the save, the load, the remap) carries a free
+    /// wall's breaches with no second record. A line is never collapsed (it has no footprint).
+    /// </summary>
+    public static class WallGroups
+    {
+        /// <summary>Buildings + free-wall lines.</summary>
+        public static int Count(TerrainWorld world) => world.Buildings.Count + BuildingPanelIndex.TableOf(world).LineKeys.Length;
+
+        /// <summary>The group of global panel <paramref name="panel"/>, −1 out of range.</summary>
+        public static int Of(TerrainWorld world, int panel)
+            => (uint)panel < (uint)world.Panels.Count ? BuildingPanelIndex.TableOf(world).Group[panel] : -1;
+
+        /// <summary>True when <paramref name="group"/> is a building (not a free-wall line).</summary>
+        public static bool IsBuilding(TerrainWorld world, int group) => (uint)group < (uint)world.Buildings.Count;
+
+        /// <summary>A free-wall line's own key (no terrain prefix), e.g. <c>wall:Garden#1</c>; null for a building or out of range.</summary>
+        public static string? LineKey(TerrainWorld world, int group)
+        {
+            int l = group - world.Buildings.Count;
+            var keys = BuildingPanelIndex.TableOf(world).LineKeys;
+            return l >= 0 && l < keys.Length ? keys[l] : null;
+        }
+
+        /// <summary>Where a group's damage entity stands: a building's position, a line's first post (its base).</summary>
+        public static System.Numerics.Vector3 Anchor(TerrainWorld world, int group)
+        {
+            if (IsBuilding(world, group)) { var b = world.Buildings[group]; return new System.Numerics.Vector3(b.Position, b.BaseZ); }
+            int first = BuildingPanelIndex.ToGlobal(world, group, 0);
+            if (first < 0) return default;
+            var p = world.Panels[first];
+            return new System.Numerics.Vector3(p.A, p.BaseZ);
         }
     }
 
@@ -179,7 +239,7 @@ namespace Fdp.Toolkit.Terrain
             TerrainWorld world, IReadOnlyDictionary<string, SavedBuildingDamage> saved, Action<string>? warn)
         {
             var byKey = new Dictionary<string, int>(StringComparer.Ordinal);
-            for (int i = 0; i < world.Buildings.Count; i++) byKey[BuildingDamages.KeyOf(world, i)] = i;
+            for (int i = 0, n = WallGroups.Count(world); i < n; i++) byKey[BuildingDamages.KeyOf(world, i)] = i;   // ⭐ CE-4599 — free-wall lines too
 
             var keys = new List<string>(saved.Keys);
             keys.Sort(StringComparer.Ordinal);
@@ -193,7 +253,7 @@ namespace Fdp.Toolkit.Terrain
                 }
                 var s = saved[key];
                 var entities = new List<BuildingDamage>();
-                var d = new BuildingDamage { Building = building, Collapsed = (byte)(s.Collapsed ? 1 : 0) };
+                var d = new BuildingDamage { Building = building, Collapsed = (byte)(s.Collapsed && WallGroups.IsBuilding(world, building) ? 1 : 0) };
                 bool any = s.Collapsed;
                 foreach (var b in s.Breaches)
                 {
