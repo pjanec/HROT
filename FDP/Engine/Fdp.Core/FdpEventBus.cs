@@ -512,6 +512,25 @@ namespace Fdp.Core
         /// Gets debug inspectors for all active event streams.
         /// Use this to populate an Event Inspector UI.
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-4565 (X-10) — the same inspectors as <see cref="GetDebugInspectors"/>, as an array rebuilt only when a stream was added (no iterator,
+        /// no copy of the dictionaries per call): a per-tick reader walks it with an index. ⚠ The array is the bus's own — read it, never keep it.
+        /// </summary>
+        public ReadOnlySpan<IEventStreamInspector> DebugInspectors()
+        {
+            int streams = _nativeStreams.Count + _managedStreams.Count;
+            if (streams != _inspectorStreams)
+            {
+                var list = new List<IEventStreamInspector>(streams);
+                foreach (var i in GetDebugInspectors()) list.Add(i);
+                _inspectors = list.ToArray();
+                _inspectorStreams = streams;
+            }
+            return _inspectors;
+        }
+        private IEventStreamInspector[] _inspectors = Array.Empty<IEventStreamInspector>();
+        private int _inspectorStreams = -1;
+
         public IEnumerable<IEventStreamInspector> GetDebugInspectors()
         {
             // 1. Native Streams
