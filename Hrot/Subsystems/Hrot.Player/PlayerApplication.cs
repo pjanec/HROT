@@ -991,9 +991,14 @@ public class PlayerApplication : IDisposable
 
                 _measureToolGizmoAdapter?.Update();
 
-                _canvas.Update(dt);
-
             }
+
+            // ⭐⭐ CE-1472 — the canvas updates every frame its host owns the map, as the editor's and CGF's do: its layers are not all input (the
+            //   MapStatsOverlay feeds RenderTelemetry ⇒ GET /diagnostics/render), and its input provider already treats an ImGui capture as captured
+            //   (RaylibInputProvider.IsMouseCaptured). 📌 Gated on WantCaptureMouse too, the Player's /diagnostics/render froze at its first frame while
+            //   any ImGui surface held the mouse (the waiting screen's modal does, for the whole load) — measured: frames 1, the same 358 ms on every read.
+            if (_isActiveMapOwner())
+                _canvas.Update(dt);
 
             HandleGizmoUndoInput();
 

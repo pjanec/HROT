@@ -444,8 +444,8 @@ namespace Hrot.Editor.DebugApi
         /// host cannot serve now (null: <c>--help-api</c>, no host).</summary>
         public static string HelpText(Func<string, bool?>? available) => AgentGuide.Render(EnumerateRouteTemplates(), available, HelpAppendix());
 
-        /// <summary>Sections other owners render into the guide (CE-4586's environment variables join here).</summary>
-        internal static IEnumerable<string> HelpAppendix() => Array.Empty<string>();
+        /// <summary>Sections other owners render into the guide: ⭐ CE-4586 — the environment variables, from the one table (<c>Fdp.Core.EnvVars</c>).</summary>
+        internal static IEnumerable<string> HelpAppendix() => new[] { Fdp.Core.EnvVars.RenderHelp() };
 
         /// <summary>⭐ The editor's capability cells: one node, every editor capability wired (the same set <c>GET /capabilities</c> reports).</summary>
         private static Dictionary<string, bool> EditorCapabilities() => new(StringComparer.Ordinal)
@@ -517,6 +517,9 @@ namespace Hrot.Editor.DebugApi
                     // ⭐ Editor mode: one context, and every cell is measured from the service being
                     //   constructible with those deps at all.
                     _dispatcher is null ? EditorCapabilities() : null)))));
+
+            // ⭐ CE-4585 (B-5) — what this process runs with and where each switch came from (PerformanceStatus — the one source)
+            _routes.Add(new("GET", "/performance", _ => Task.FromResult(Ok(Fdp.Core.Jobs.PerformanceStatus.Report())), NeedsService: false));
 
             // ⭐⭐ CE-4525 (H-3) — GET /help: the agent guide, prose + every route rendered from the route docs, each marked when THIS host
             //   cannot serve it now. Plain text (markdown), not the JSON envelope: it is read, not parsed.
@@ -2207,6 +2210,7 @@ namespace Hrot.Editor.DebugApi
                 var (result, error, hintCategory) =
                     s.InvokeEditorCommand(ctx.RouteValue("commandId"), ctx.Body, ctx.Body?["scope"]?.GetValue<string>());   // N-15 — {"scope":"shell"}; ⭐ CE-4523 a POST reads its body (was ?scope=)
                 if (error == null) return Ok(result);
+                if (error.StartsWith(DebugApiService.HttpRefusedPrefix, StringComparison.Ordinal)) return Fail(403, error, hintCategory);   // ⭐ CE-4585
                 if (error.StartsWith("No editor-command dispatcher", StringComparison.Ordinal))
                     return Fail(503, error, hintCategory);
                 if (error.StartsWith("No editor command", StringComparison.Ordinal))
@@ -2581,10 +2585,20 @@ namespace Hrot.Editor.DebugApi
             bool wait = ctx.Body?["waitForReady"]?.GetValue<bool>() ?? false;
             if (!wait || r.Result?["published"]?.GetValue<bool>() != true) return Ok(r.Result);
 
+            // ⭐⭐ CE-1950 — and the ROUND's outcome, as the scenario loads follow theirs (CE-3354 ④, the same LoadPhaseOf): the master advances the
+            //   state at the round's START, so the state alone is not "done" — a replay that failed to open on a node read OperatingReplay 1 s later
+            //   and answered ok. ⭐ Failed ⇒ 409 with the node's reason at once; reached is ok only once the master said Success (a host with no
+            //   cluster view keeps the state-only rule).
+            Guid? round = Guid.TryParse(r.Result?["transactionId"]?.GetValue<string>(), out var tx) ? tx : null;
             var sw = Stopwatch.StartNew();
             while (sw.Elapsed.TotalSeconds < ScenarioReadyTimeoutSeconds)
             {
-                if (await _jobQueue.RunOnMainThread(() => Service().PollClusterStateIs(waitFor.Value)).ConfigureAwait(false))
+                var (reached, phase) = await _jobQueue.RunOnMainThread(() =>
+                    (Service().PollClusterStateIs(waitFor.Value), round is { } id ? Service().LoadPhaseOf(id) : null)).ConfigureAwait(false);
+                var (done, failure) = RoundSettled(reached, phase);
+                if (failure != null)
+                    return Fail(409, $"The cluster did not reach {waitFor.Value}: {failure}", DebugApiHints.Scenario);
+                if (done)
                 {
                     if (r.Result is JsonObject o) { o["awaited"] = true; o["reached"] = waitFor.Value.ToString(); }
                     return Ok(r.Result);
@@ -2593,6 +2607,14 @@ namespace Hrot.Editor.DebugApi
             }
             return Fail(504, $"The cluster did not reach {waitFor.Value} within {ScenarioReadyTimeoutSeconds}s.");
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-1950</c> — one poll of a publishing route's wait: the round FAILED (⇒ its reason), or it is done (the state reached AND the master answered
+        /// Success; with no cluster view the state alone), or not yet. The ONE rule <see cref="PublishAndAwait"/> applies — <c>TheClusterMembershipRoutesTests</c> rails it.
+        /// </summary>
+        internal static (bool Done, string? Failure) RoundSettled(bool reached, (string Phase, string? Reason)? phase)
+            => phase is { Phase: "Failed" } f ? (false, f.Reason ?? "the round failed")
+             : (reached && (phase is null || phase.Value.Phase == "Loaded"), null);
 
         /// <summary>⭐ How long the ack-gate waits before calling the cluster stuck. Generous: a lockstep tick
         /// over DDS is milliseconds, so anything near this is a real stall, not slowness.</summary>

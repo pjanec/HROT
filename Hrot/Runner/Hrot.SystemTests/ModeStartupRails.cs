@@ -93,6 +93,33 @@ public sealed class ModeStartupRails
             + $"expected to keep running until stopped.{run.OutputTail()}");
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1474</c> — the fused server (<c>--mode server</c>: Orchestrator + CGF) is drivable over HTTP: <c>/status</c> reports
+    /// <c>simTime</c> and <c>POST /sim/play</c> runs the clock. 📌 It answered 501 (NOT_SUPPORTED_HERE time.drive) with <c>simTime: null</c>:
+    /// two providers and no claimed perspective resolved to none. ⭐ Fixed in <c>PerspectiveScopedDispatcher</c> (the one world-holder answers);
+    /// the unit rails are <c>AHeadlessSingleProviderNodeIsReadableTests</c>. This one proves the real composition.
+    /// </summary>
+    [SystemSmokeFact]
+    public async Task TheFusedServer_ReportsSimTime_AndPlayRunsTheClock()
+    {
+        await using var server = await EditorProcess.StartAsync("ce1474", mode: "server").ConfigureAwait(false);
+        var status = await server.Client.GetStatusAsync().ConfigureAwait(false);
+        Assert.True(status.Ok, status.Error);
+        Assert.NotNull(status.Data?["simTime"]);
+
+        var play = await server.Client.PlayAsync().ConfigureAwait(false);
+        Assert.True(play.Ok, $"POST /sim/play on --mode server: {play.StatusCode} {play.Error}");
+
+        double t0 = status.Data!["simTime"]!.GetValue<double>(), t = t0;
+        var sw = Stopwatch.StartNew();
+        while (t <= t0 && sw.Elapsed.TotalSeconds < 20)
+        {
+            await Task.Delay(250).ConfigureAwait(false);
+            t = (await server.Client.GetStatusAsync().ConfigureAwait(false)).Data?["simTime"]?.GetValue<double>() ?? t0;
+        }
+        Assert.True(t > t0, $"simTime did not advance after play ({t0} → {t} in 20 s)");
+    }
+
     // ── the launch ────────────────────────────────────────────────────────────────────────────────
 
     private sealed record ModeRun(

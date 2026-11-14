@@ -98,5 +98,49 @@ namespace Hrot.ClusterRunner.Tests
             }
             finally { ParallelEntities.Enabled = before; }
         }
-    }
+    
+        /// <summary>⭐ CE-4585 (B-5) — <c>GET /performance</c>'s source: a process started with <c>HROT_PARALLEL_SIM=0</c> reports it from the
+        /// <c>environment</c>; without it and with no saved file, from the <c>default</c>; a saved file is <c>file</c>; a headless node's threaded node
+        /// is <c>not a UI host</c>. 🔴 Red-proof: <c>SourcesOf</c> ignoring the environment ⇒ the first assertion red.</summary>
+        [Fact]
+        public void ThePerformanceReport_SaysWhereEachSwitchCameFrom()
+        {
+            bool before = ParallelEntities.Enabled;
+            try
+            {
+                PerformanceStartup.Apply(Mode("editor"), k => k == "HROT_PARALLEL_SIM" ? "0" : null);
+                Assert.Equal("environment", PerformanceStatus.Sources.ParallelSimulation);
+                Assert.False(PerformanceStatus.Running!.Value.ParallelSimulation);
+                var report = PerformanceStatus.Report();
+                Assert.Equal("environment", report["running"]!["sources"]!["parallelSimulation"]!.GetValue<string>());
+                Assert.Contains("HROT_PARALLEL_SIM", report["howToChange"]!.GetValue<string>());
+
+                PerformanceStartup.Apply(Mode("editor"), NoEnv);
+                Assert.Equal(("default", "default"), (PerformanceStatus.Sources.ParallelSimulation, PerformanceStatus.Sources.ThreadedNode));
+                Assert.True(PerformanceStatus.Running!.Value.ParallelSimulation);
+
+                PerformanceMenu.Save(PerformanceMenu.Saved with { WorkerThreads = 2 });
+                PerformanceStartup.Apply(Mode("cgf"), NoEnv);
+                Assert.Equal(("file", "not a UI host"), (PerformanceStatus.Sources.WorkerThreads, PerformanceStatus.Sources.ThreadedNode));
+            }
+            finally { ParallelEntities.Enabled = before; Fdp.Core.FdpConfig.MaxDegreeOfParallelism = -1; }
+        }
+
+        /// <summary>⭐ CE-4585 (B-5) — the menu's performance toggles are refused over HTTP (they would rewrite the user's own saved file); the file
+        /// is untouched. 🔴 Red-proof: the refusal predicate returning false ⇒ red.</summary>
+        [Fact]
+        public void ThePerformanceToggles_AreRefusedOverHttp_AndTheFileIsUntouched()
+        {
+            Assert.True(Hrot.Editor.DebugApi.DebugApiService.RefusedOverHttp("settings.performance.parallel"));
+            Assert.True(Hrot.Editor.DebugApi.DebugApiService.RefusedOverHttp("settings.performance.threads.4"));
+            Assert.False(Hrot.Editor.DebugApi.DebugApiService.RefusedOverHttp("edit.undo"));
+            var svc = new Hrot.Editor.DebugApi.DebugApiService(new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
+                Array.Empty<Hrot.Presentation.DebugApi.ISubsystemDebugProvider>(), currentPerspective: () => "Scenario", acksPending: null));
+            var (result, error, _) = svc.InvokeEditorCommand("settings.performance.parallel", null, "shell");
+            Assert.Null(result);
+            Assert.StartsWith(Hrot.Editor.DebugApi.DebugApiService.HttpRefusedPrefix, error);
+            Assert.Contains("HROT_PARALLEL_SIM", error);
+            Assert.False(File.Exists(PerformanceStartup.PathOverride));   // nothing was saved
+        }
+}
 }

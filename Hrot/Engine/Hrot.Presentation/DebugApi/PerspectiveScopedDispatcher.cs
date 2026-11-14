@@ -124,8 +124,26 @@ public sealed class PerspectiveScopedDispatcher
     private static bool IsStart(string perspective)
         => string.Equals(perspective, Fdp.Presentation.WindowManager.WindowManager.StartPerspectiveName, StringComparison.Ordinal);
 
+    /// <remarks>
+    /// ⭐⭐ <c>CE-1474</c> — and on a process whose providers hold exactly ONE world between them, that world's provider: 📌 the headless
+    /// fused server (<c>-m server</c>: Orchestrator + CGF, no window manager ⇒ perspective <c>""</c>) answered <c>POST /sim/play</c> with
+    /// NOT_SUPPORTED_HERE and <c>/status</c> with no <c>simTime</c>. The orchestrator holds no world, so there is still no "wrong node" to
+    /// answer for, and time routes to CGF's <c>ClusterTimeTransportAdapter</c> — the same transport the editor and the cluster drive.
+    /// ⛔ Two world-holding providers (<c>-m all</c>) still resolve to none.
+    /// </remarks>
     private string OrSoleProvider(string name)
-        => _providers.Count == 1 && Resolve(name) is null ? _providers[0].Perspective : name;
+    {
+        if (Resolve(name) is not null) return name;
+        if (_providers.Count == 1) return _providers[0].Perspective;
+        ISubsystemDebugProvider? only = null;
+        for (int i = 0; i < _providers.Count; i++)
+        {
+            if (_providers[i].World is null) continue;
+            if (only is not null) return name;
+            only = _providers[i];
+        }
+        return only?.Perspective ?? name;
+    }
 
     /// <summary>
     /// ⭐⭐ The provider owning the active perspective, or <see langword="null"/> when nothing claims it.

@@ -154,7 +154,7 @@ public static class CapabilityManifest
             return Hrot.Presentation.DebugApi.DebugCapabilities.ArchitectureDiagnostics;
 
         // ⭐ Always available, by construction: they describe or end the host itself.
-        if (path is "/" or "/status" or "/shutdown" or "/capabilities" or "/help") return "host";   // ⭐ CE-4525 — /help too
+        if (path is "/" or "/status" or "/shutdown" or "/capabilities" or "/help" or "/performance") return "host";   // ⭐ CE-4525 — /help too
 
         return null;   // ⛔ unclassified — the rail names it
     }

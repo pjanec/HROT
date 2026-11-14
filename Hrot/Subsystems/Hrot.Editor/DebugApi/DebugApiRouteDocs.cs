@@ -68,6 +68,20 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{}",
             ExampleGist: "check runner liveness and sim state"),
 
+        [("GET", "/performance")] = new RouteDoc(
+            Tool:    "get_performance",
+            Group:   "A — Lifecycle & status",
+            Summary: "What THIS process runs with — the threaded node, the per-entity parallel phases, the worker threads — and where each came from (environment, -m all, not a UI host, file, default), plus the saved choice for the next start.",
+            Returns: "{ running{threadedNode, threadedKernelMode, parallelSimulation, workerThreads, source, sources{…}}, savedForNextStart, userFile, workerThreadsNow, environment{HROT_…}, howToChange }",
+            Hint:    "No params. To run with other switches, START the process with them: HROT_PARALLEL_SIM=0|1, HROT_THREADED_KERNEL=0|3, HROT_SIM_THREADS=n.",
+            Notes: new[]
+            {
+                "The switches are read ONCE, at process start — there is no live toggle (it would give a mixed state). An explicit HROT_* variable wins over the saved file.",
+                "The menu's settings.performance.* commands are refused over HTTP (403): they would rewrite the user's own saved file for every later process.",
+            },
+            ExampleArgsJson: "{}",
+            ExampleGist: "confirm the process runs with the switches it was started with"),
+
         [("GET", "/help")] = new RouteDoc(
             Tool:    "get_help",
             Group:   "A — Lifecycle & status",

@@ -1380,6 +1380,43 @@ public sealed class ClusterMasterBootstrapTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-1950</c> — a REPLAY is a load too: a recording that fails to open on one node (📌 measured: an old schema — <c>SchemaValidator.Validate</c>
+    /// throws in <c>PlaybackController</c>) fails the round at once with the node's reason, and the cluster goes back to <b>Idle</b> (where a replay is
+    /// entered from) instead of staying in <c>OperatingReplay</c>, the state the master advanced to at the round's start.
+    /// 🔴 Mutation: <c>IsLoadTrajectory</c> without <c>LoadingReplay</c> ⇒ the master stays in OperatingReplay ⇒ red.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void P2b_AReplayRoundThatFailsOnOneNode_FailsAtOnce_WithTheNodesReason_AndTheClusterGoesToIdle()
+    {
+        const string reason = "the recording's schema is older than TerrainFeature's layout";
+        var bus = new FdpEventBus();
+        using var master = new ClusterMaster(bus, NoRolesConfig());
+        PhaseBeat(bus, master, CgfNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.Brain }, name: "CGF");
+        PhaseBeat(bus, master, SimHostNode, NodePhase.Ready, advert: new[] { NodeRoleTokens.MuscleGround }, name: "SimHost");
+        bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+
+        var request = Guid.NewGuid();
+        bus.PublishManaged(new TransitionStateIntent
+            { TransactionId = request, TargetState = Fdp.Toolkit.Orchestration.ClusterState.OperatingReplay, ExerciseId = (Fdp.Core.ExerciseId)Guid.NewGuid() });
+        Step(bus, master);
+        var ops = bus.ReadManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.Equal(ClusterState.OperatingReplay, master.CurrentClusterState);   // the optimistic advance
+
+        var failing = ops.First(i => i.TargetNodeId == CgfNode && i.Operation == FdpNodeOpType.PrepareReplay);
+        bus.PublishManaged(new NodeOpCompletedEvent
+        {
+            TransactionId = failing.TransactionId, Operation = failing.Operation, NodeId = (Fdp.Core.NodeId)(CgfNode),
+            StatusCode = OrchestrationStatusCode.Failure, IsParticipating = true, ResultPayload = reason,
+        });
+        Step(bus, master);
+
+        var status = Assert.Single(StatusesOf(bus, request));
+        Assert.Equal((OrchestrationStatusCode.Failure, reason), (status.StatusCode, (string?)status.ResultPayload));
+        Assert.Equal(ClusterState.Idle, master.CurrentClusterState);
+        Assert.Contains(bus.ReadManaged<ExecuteNodeOpIntent>(), i => i.Operation == FdpNodeOpType.AbortTransaction && i.TargetNodeId == SimHostNode);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-3345</c> control for P2 — the return to Idle is for a failed LOAD only: a failing round to Idle itself ends there (no abort, no second Idle round — no loop), and the reason still reaches its status.
     /// 🔴 Mutation: <c>IsLoadRound</c> true for every transition ⇒ the failing Idle round fans out another abort + Idle.
     /// </summary>

@@ -35,6 +35,34 @@ public sealed class AHeadlessSingleProviderNodeIsReadableTests
         Assert.Null(dispatcher.Active());
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-1474 — the headless fused server's shape: Orchestrator (no world) + CGF (the world), no window ⇒ perspective "". Reads AND the
+    /// time drive route to the one world-holder. 🔴 Mutation: the world-holder loop removed ⇒ Active() null ⇒ red (as /sim/play was 501).
+    /// </summary>
+    [Fact]
+    public void SeveralProviders_OnlyOneHoldsAWorld_ResolvesToIt()
+    {
+        var world = new EntityRepository();
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new[] { new SubsystemDebugProvider("Orchestrator", "Orchestrator"), new SubsystemDebugProvider("CGF", "Scenario", world: () => world) },
+            currentPerspective: () => "", acksPending: null);
+
+        Assert.Equal("Scenario", dispatcher.CurrentPerspective);
+        Assert.Same(world, dispatcher.World);
+    }
+
+    /// <summary>⛔ Two world-holders (the -m all shape) with no claimed perspective still resolve to none — the wrong node is possible there.</summary>
+    [Fact]
+    public void SeveralProviders_TwoHoldAWorld_ResolveToNone()
+    {
+        var a = new EntityRepository(); var b = new EntityRepository();
+        var dispatcher = new PerspectiveScopedDispatcher(
+            new[] { new SubsystemDebugProvider("SimHost", "SimHost", world: () => a), new SubsystemDebugProvider("CGF", "Scenario", world: () => b) },
+            currentPerspective: () => "", acksPending: null);
+
+        Assert.Null(dispatcher.Active());
+    }
+
     [Fact]
     public void OneProvider_ClaimedPerspective_IsUnchanged()
     {
