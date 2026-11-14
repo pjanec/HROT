@@ -10,7 +10,7 @@ namespace Hrot.Terrain.Import;
 /// </summary>
 internal static class Pads
 {
-    public static void Apply(float[] z, int cols, int rows, IReadOnlyList<BuiltBuilding> built, ImportReport rep)
+    public static void Apply(float[] z, int cols, int rows, IReadOnlyList<BuiltBuilding> built, ImportReport rep, bool[]? roadLock = null)
     {
         float Ground(float x, float y)
         {
@@ -28,6 +28,6 @@ internal static class Pads
             if (pad.Skirt > GroundPatches.MinSkirt + 1e-3f) rep.PadsWidened++;
         }
         rep.Pads = patches.Count;
-        rep.PadPostsCut = GroundPatches.ApplyTo(z, cols, rows, Vector2.Zero, 1f, patches);
+        rep.PadPostsCut = GroundPatches.ApplyTo(z, cols, rows, Vector2.Zero, 1f, patches, roadLock);
     }
 }

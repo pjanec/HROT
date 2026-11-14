@@ -188,6 +188,66 @@ public class ImporterTests : IDisposable
         Assert.True(steepest - 0.5f <= 1.0f + 0.02f, $"the cut's bank adds {steepest - 0.5f:F2} m per metre to the 0.5 slope (> 45°)");
     }
 
+    /// <summary>A two-lane edge along y = 0 (lanes at y ±1.6, 3.2 m each) from x −90 to 90, in input coordinates.</summary>
+    private const string TwoLaneNet = "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\" from=\"a\" to=\"b\">" +
+        "<lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-90,-1.6 90,-1.6\"/><lane id=\"e_1\" index=\"1\" width=\"3.2\" shape=\"-90,1.6 90,1.6\"/></edge></net>\n";
+
+    private static List<(float X, float Y, float Z)> NetPoints(string folder)
+    {
+        var net = Directory.GetFiles(folder, "*.net.xml").Single();
+        var doc = System.Xml.Linq.XDocument.Load(net);
+        return doc.Descendants("lane").SelectMany(l => l.Attribute("shape")!.Value.Split(' ').Select(p =>
+        {
+            var c = p.Split(',');
+            return (float.Parse(c[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(c[1], System.Globalization.CultureInfo.InvariantCulture),
+                    float.Parse(c[2], System.Globalization.CultureInfo.InvariantCulture));
+        })).ToList();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (G-21, G-25, R-4231; acceptance §6 item 1) — a road ACROSS a slope (0.1 / m rising north) is LEVEL across its full width + shoulder
+    /// (the uphill edge cut, the downhill edge filled), the skirt blends back to the slope, and the shipped net's z EQUALS the store under every road point
+    /// (re-elevated from the levelled ground, forced). 🔴 Red-proof: skip <c>Corridors.Apply</c> ⇒ the two road edges differ by 0.84 m; drop <c>force</c> ⇒
+    /// the net keeps the old (unlevelled) z.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ARoadAcrossASlope_IsLevelAcrossItsWidth_AndTheNetSitsOnTheStore()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.1 * y), Net = true, NetXml = TwoLaneNet };
+        var (folder, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.RoadCorridors);
+        Assert.True(rep.RoadPostsLevelled > 0);
+        Assert.InRange(L(0, 4.0) - L(0, -4.0), -0.02, 0.02);           // level across the lanes and the shoulder
+        Assert.InRange(L(0, 0), 9.97, 10.03);                          // at the centreline's ground
+        Assert.InRange(L(0, 20), 12 - 0.01, 12 + 0.01);                // past the skirt: the slope
+        Assert.True(rep.NetPointsElevated > 0);
+        foreach (var (x, y, z) in NetPoints(folder))
+            Assert.InRange(z - L(x, y), -0.02, 0.02);                   // the net sits on the store
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (D-3, G-24, R-4234) — houses close to a road are TOLERATED: one standing ON the road (an old town, OSM drift) leaves the road its
+    /// natural cross-slope there and is counted as information, never an error; one beside it gets its pad, and the pad's skirt never alters the road's
+    /// levelled posts (the corridor is locked). 🔴 Red-proof: pass no lock to the pads ⇒ the road beside the house is cut below its level.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_HousesByTheRoad_AreTolerated_AndThePadsNeverAlterTheRoad()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.1 * y + 0.1 * x), Net = true, NetXml = TwoLaneNet };
+        mini.Buildings.Add(MiniSet.Rect("on", -60, -2, -52, 6, baseZ: 3.8 + 10 - 0.2));                // straddles the road
+        mini.Buildings.Add(MiniSet.Rect("by", 40, 6, 48, 14, baseZ: 10 + 0.1 * 6 + 0.1 * 40));        // beside it, uphill
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.True(rep.RoadPostsUnderHouses > 0, "the house on the road is reported");
+        Assert.Contains(rep.Warnings, w => w.Contains("inside a house footprint"));
+        Assert.Equal(2, rep.Pads);
+        Assert.InRange(L(44, 4.0) - L(44, -4.0), -0.02, 0.02);          // the road beside the house stays level across
+        Assert.InRange(L(44, 4.0) - L(44, 0), -0.02, 0.02);
+    }
+
     // ---- openings
     [Fact]
     public async Task OpeningsOnWalls_ArePlaced_NoisyOnesWithin06m_TheHeadingIgnored_FarOnesDropped()

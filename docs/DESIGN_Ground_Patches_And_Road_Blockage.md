@@ -545,3 +545,47 @@ unchanged until then.
 Rails: `ImporterTests.CE4403_*` (a house on a 0.2 slope stands on its pad, ground ≤ 0.3 m at its uphill door, the slope past the skirt, untouched far
 away, the house keeps its base; a 0.5 slope gets a wider skirt and a 3 m cap) — red-proved; `HeightStoreTests.CE4403_TheGroundPatchRule_*` (in place ≡
 copy-on-write, either order, never above the ground).
+
+### 9.8 As built — P-1, part 2: road corridors at import *(`terrain` lane, `2026-11-14`, CE-4403)*
+
+```mermaid
+sequenceDiagram
+  participant I as TerrainImporter
+  participant C as Corridors (importer)
+  participant R as RoadCorridors (toolkit)
+  participant P as Pads
+  participant E as NetElevation (shared)
+  I->>C: Apply(posts, net, buildings)
+  C->>C: Read - normal edges (lanes, widths), junction outlines and centres
+  C->>R: Level(posts, corridors, junctions, house footprints)
+  R-->>C: the LOCK mask - the posts a road levelled
+  I->>P: Apply(posts, buildings, lock) - pads never touch a locked post
+  I->>I: Write the store
+  I->>E: Apply(copied net, the levelled store, force)
+```
+*What it shows that prose hid: the roads go FIRST and hand a lock to the pads (G-24), and the net is re-elevated from the very store that ships — so
+SUMO, the drawn road and the ground agree by construction (G-25). `NetElevation` gained one switch (`force`); every other caller keeps its behaviour.*
+
+| claim | code — as built | design |
+|---|---|---|
+| per edge: smoothed profile, level across width + shoulder, 3 m skirt | `RoadCorridors.Level`: profile = a 30 m moving average of the ground along the reference line (the mean of the outer lanes), half-width = lanes / 2 + 1 m, skirt max(3 m, 1.5 × depth) | G-21, V-16 |
+| ends pinned to the junctions | the profile's ends pulled to each junction's ground over 15 m | V-22 |
+| junctions flat | each outline at its centre's ground | G-21 |
+| cut / fill capped at 6 m | a post deeper than 6 m keeps the natural ground (counted) | G-23 |
+| overlapping corridors | the NEAREST road decides a post; a junction over every corridor | — |
+| houses tolerated | a post inside a house footprint is never levelled — the road keeps its cross-slope there, a report line (information) | D-3, R-4234 |
+| corridors locked | `GroundPatches.ApplyTo(…, locked)` | G-24 |
+| the net re-elevated from the store | `NetElevation.Apply(…, force: true)`, net − anchor = local | G-25, V-21 |
+| bridges / tunnels skipped | ⛔ the net carries no such data (V-15): the 6 m cap is the guard (a valley under a bridge is deeper) | G-22 |
+| D-3's straight ramp to a façade | ⚠ approximated: the road's skirt and the pad's skirt meet; no explicit ramp | D-3 |
+| road graph edge ids, both directions | ⛔ not here — P-2's (V-18) | V-18 |
+| a re-import is a new terrain version | ⛔ not here — D-4 is a tooling step on its own; the committed terrains are unchanged until re-imported | D-4 |
+
+⭐ **Lane decisions (for the user's review):** [R-5010](blueprints/RULINGS.md) with no bridge / tunnel data the 6 m cap is the bridge guard (no
+`--osm.all-attributes` netconvert change now); [R-5011](blueprints/RULINGS.md) where corridors overlap the nearest road decides, a junction over all;
+[R-5012](blueprints/RULINGS.md) D-3's ramp is the two skirts meeting (no ramp primitive); D-4 (versioned re-import) and V-18 (edge ids) are left to their
+own steps.
+
+Rails: `ImporterTests.CE4403_ARoadAcrossASlope_IsLevelAcrossItsWidth_AndTheNetSitsOnTheStore` (level across, the slope past the skirt, every net point on
+the store — §6 item 1's last clause), `CE4403_HousesByTheRoad_AreTolerated_AndThePadsNeverAlterTheRoad` (D-3 reported, never an error; the lock) —
+both red-proved (no corridors ⇒ both red).

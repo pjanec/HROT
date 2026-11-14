@@ -39,6 +39,15 @@ public sealed class ImportReport
     public int Pads { get; set; }
     public long PadPostsCut { get; set; }
     public int PadsWidened { get; set; }
+
+    /// <summary>⭐ CE-4403 (P-1 part 2) — road corridors levelled into the ground: corridors, junctions, posts levelled, posts kept natural (a cut / fill over 6 m), road posts under a house (D-3).</summary>
+    public int RoadCorridors { get; set; }
+    public int RoadJunctions { get; set; }
+    public long RoadPostsLevelled { get; set; }
+    public long RoadPostsKeptNatural { get; set; }
+    public long RoadPostsUnderHouses { get; set; }
+    /// <summary>⭐ G-25 — the net's points re-elevated from the levelled store.</summary>
+    public int NetPointsElevated { get; set; }
     public int ScrubSkipped { get; set; }
     public int UnassignedSkipped { get; set; }
 
@@ -62,6 +71,7 @@ public static class ImportReportText
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
         w.WriteLine(string.Create(inv, $"pads: {r.Pads} house pads, {r.PadPostsCut} posts cut, {r.PadsWidened} skirts widened for a deep cut"));
+        w.WriteLine(string.Create(inv, $"roads: {r.RoadCorridors} corridors, {r.RoadJunctions} junctions levelled ({r.RoadPostsLevelled} posts; {r.RoadPostsKeptNatural} kept natural past 6 m; {r.RoadPostsUnderHouses} under houses); {r.NetPointsElevated} net points re-elevated"));
         if (r.NavmeshTiles > 0)
             w.WriteLine(string.Create(inv, $"navmesh: {r.NavmeshTiles} tiles ({r.NavmeshBaked} baked), {r.NavmeshFiles} files, {r.NavmeshBytes / 1e6:0.0} MB in navtiles/"));
         string stages = string.Join(", ", r.StageSeconds.Select(kv => string.Create(inv, $"{kv.Key} {kv.Value:0.0}")));

@@ -36,7 +36,9 @@ public static class NetElevation
     }
 
     /// <summary>Gives <paramref name="netPath"/> the heights <paramref name="ground"/> returns, in place.</summary>
-    public static Result Apply(string netPath, Func<double, double, double> ground, double spacing = Spacing)
+    /// <param name="force">⭐ CE-4403 (G-25, V-21) — overwrite a z a point (or a junction) already has: the importer re-elevates the net over the LEVELLED ground,
+    /// where the pipeline's z (on the unlevelled ground) is stale. False (the default) keeps netconvert's own z, as before.</param>
+    public static Result Apply(string netPath, Func<double, double, double> ground, double spacing = Spacing, bool force = false)
     {
         string text = File.ReadAllText(netPath);
         long before = new FileInfo(netPath).Length;
@@ -44,14 +46,14 @@ public static class NetElevation
 
         string rewritten = ShapeAttribute.Replace(text, m =>
         {
-            var (s, pb, pa) = Shape(m.Groups[1].Value, ground, spacing);
+            var (s, pb, pa) = Shape(m.Groups[1].Value, ground, spacing, force);
             shapes++; pointsBefore += pb; pointsAfter += pa;
             return " shape=\"" + s + "\"";
         });
         rewritten = JunctionTag.Replace(rewritten, m =>
         {
             string tag = m.Value;
-            if (Regex.IsMatch(tag, "\\sz=\"")) return tag;
+            if (Regex.IsMatch(tag, "\\sz=\"")) { if (!force) return tag; tag = Regex.Replace(tag, "\\sz=\"[^\"]*\"", ""); }
             var xy = Regex.Match(tag, "\\sx=\"([^\"]*)\"\\s+y=\"([^\"]*)\"");
             if (!xy.Success) return tag;
             double x = D(xy.Groups[1].Value), y = D(xy.Groups[2].Value);
@@ -65,14 +67,14 @@ public static class NetElevation
     private static readonly Regex ShapeAttribute = new("\\sshape=\"([^\"]*)\"", RegexOptions.Compiled);
     private static readonly Regex JunctionTag = new("<junction\\b[^>]*>", RegexOptions.Compiled);
 
-    private static (string Shape, int Before, int After) Shape(string shape, Func<double, double, double> ground, double spacing)
+    private static (string Shape, int Before, int After) Shape(string shape, Func<double, double, double> ground, double spacing, bool force = false)
     {
         var pts = new List<(double X, double Y, double? Z, string XText, string YText)>();
         foreach (var pair in shape.Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             var c = pair.Split(',');
             if (c.Length < 2) return (shape, 0, 0);   // not a coordinate list: leave it
-            pts.Add((D(c[0]), D(c[1]), c.Length >= 3 ? D(c[2]) : null, c[0], c[1]));
+            pts.Add((D(c[0]), D(c[1]), c.Length >= 3 && !force ? D(c[2]) : null, c[0], c[1]));
         }
         if (pts.Count == 0) return (shape, 0, 0);
 

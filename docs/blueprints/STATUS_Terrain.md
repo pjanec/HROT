@@ -24,6 +24,9 @@ related-designs:
 | [R-5007](RULINGS.md) | a line's key comes from its content (`wall:<label>`, `#n`, else its first post), not a label written at import | an import that re-orders / re-splits lines between versions |
 | [R-5008](RULINGS.md) | V-12 (one cut across panels) moves to B-3 | — |
 | [R-5009](RULINGS.md) | overlapping pad skirts combine by the minimum over the pads, each against the natural ground (G-3 said a weighted blend) | stepped terraces between close houses |
+| [R-5010](RULINGS.md) | no bridge / tunnel data in the net ⇒ the 6 m corridor cap is the bridge guard (netconvert unchanged) | a shallow valley under a real bridge filled in |
+| [R-5011](RULINGS.md) | overlapping corridors: the nearest road decides, a junction over all | seams between parallel carriageways |
+| [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
 
@@ -34,7 +37,8 @@ related-designs:
 | **P-0** CE-4596 — cheap terrain change on every node | ✅ built (no runtime caller of the height patch yet — P-1/P-3/P-4) | [Ground §9.6](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `HeightStoreTests.CE4596_*`, `StaticObstacleBakeTests.CE4596_*` |
 | **B-2** CE-4599 — one breach record for every wall | ✅ built | [Breaching §7.9](../DESIGN_Vehicle_Breaching.md); rails `CE4599_*` in five suites; red-proved (the old building-only blast grid ⇒ the garden-wall charge rail red) |
 | **P-1** CE-4403 part 1 — house pads at import | ✅ built | [Ground §9.7](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved), `HeightStoreTests.CE4403_*`; importer suite 50/0 |
-| next | **P-1** part 2 — road corridors at import + the net re-elevated | |
+| **P-1** CE-4403 part 2 — road corridors at import + the net re-elevated | 🟡 built; ⛔ open before DONE: V-15 (bridge data), D-4 (versioned re-import), CE-4402 (needs the scale terrains re-imported) | [Ground §9.8](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved); importer suite 52/0; InputSet suite 6/0 |
+| next | **P-2** CE-4590 — road blockage: SUMO + our road graph | |
 
 ## 3. Gates
 

@@ -93,8 +93,17 @@ public sealed partial class TerrainImporter : ITerrainImporter
             var built = BuildingTemplateGenerator.Generate(set.ReadBuildings(), swX, swY, rep, ct);
             // ⭐⭐ CE-4403 (P-1; 📄 DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-2…G-4, R-4228) — every house stands on a PAD: the ground under it cut
             //   down to its own base (the lowest ground under it — no house moves), a skirt blending it into the slope; then the store is written
-            Pads.Apply(posts, postCols, postRows, built, rep);
+            // ⭐⭐ CE-4403 part 2 (G-21…G-24, D-3) — the roads level the ground under them FIRST; their posts are LOCKED for the pads
+            bool[]? roadLock = set.RoadsNet is string levelNet ? Corridors.Apply(posts, postCols, postRows, levelNet, ax, ay, built, rep) : null;
+            Pads.Apply(posts, postCols, postRows, built, rep, roadLock);
             HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
+            // ⭐ G-25 / V-21 — the copied net re-elevated from the LEVELLED store (forced: netconvert's / the pipeline's old z overwritten; net − anchor = local)
+            if (netFile != null)
+            {
+                var levelled = new TerrainHeightGrid(System.Numerics.Vector2.Zero, 1f, postCols, postRows, posts);
+                var res = Hrot.Terrain.InputSet.NetElevation.Apply(Path.Combine(tmp, netFile), (x, y) => levelled.Sample((float)(x - ax), (float)(y - ay)), force: true);
+                rep.NetPointsElevated = res.PointsAfter;
+            }
             posts = null!;
             progress?.Report(new ImportProgress("heights", 1));
             Stage("pads");

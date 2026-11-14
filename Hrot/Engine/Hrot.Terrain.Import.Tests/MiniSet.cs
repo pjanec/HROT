@@ -8,6 +8,8 @@ public sealed class MiniSet
     public double MinX = -100, MinY = -100, MaxX = 100, MaxY = 100;
     public double AnchorX, AnchorY;
     public bool Net;
+    /// <summary>⭐ CE-4403 — a net of the rail's own (written when <see cref="Net"/> is set), in input coordinates; null = the one-lane default.</summary>
+    public string? NetXml;
     public Func<double, double, float> Ground = (x, y) => (float)(10 + 0.01 * x);
     public List<Building> Buildings = new();
     public List<(double X, double Y, double Z)> Trees = new();
@@ -51,7 +53,7 @@ public sealed class MiniSet
         {
             Directory.CreateDirectory(Path.Combine(dir, "roads"));
             File.WriteAllText(Path.Combine(dir, InputSetLayout.RoadsNet),
-                "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\"><lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-100,0 100,0\"/></edge></net>\n");
+                NetXml ?? "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\"><lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-100,0 100,0\"/></edge></net>\n");
         }
         Manifest.Write(dir, new ManifestHead("mini", frame, MinX, MinY, MaxX, MaxY, AnchorX, AnchorY), "generator", w => w.WriteString("name", "mini"));
         var problems = InputSetChecks.Check(dir);
