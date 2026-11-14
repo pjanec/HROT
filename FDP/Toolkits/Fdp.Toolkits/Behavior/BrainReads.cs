@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponState>();          // SquadGates.Track — a member firing
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();      // RoomDrill.FindThrower — a member's grenade mount
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>();              // SquadDefendPlay.LiftOwnHold — a member's weapon
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponAmmo>();               // CE-4610 — the SITREP ammo colour (StaffComposerSystem.AmmoOf): a man's rounds, a tick old
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();      // a member aboard
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();    // SquadEmbarkPlay.Outcome — the carrier's seats
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.EngagementArea>();     // EngagementAreas.HasSuperiorSet — the superior's sector

@@ -405,6 +405,8 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus NextObjective(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
+            // ⭐ CE-4610 — objective k taken is phase line k (1-based) reached, reported up
+            CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective(p.Current), p.Current + 1);
             p.Current++;
             return NodeStatus.Success;
         }
@@ -413,6 +415,8 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe NodeStatus EnterConsolidate(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, PlatoonAttackPlan.PhaseConsolidate);
+            // ⭐ CE-4610 (Platoon Attack §4: "the platoon's staff sends PROGRESS ObjectiveSecure up") — the last objective taken
+            if (p.Objectives > 0) CommandNodes.ReportProgress(world, self, ProgressKind.ObjectiveSecure, p.Objective(Math.Max(0, p.Current - 1)));
             if (p.Preset == (byte)PlatoonAttackPreset.ReactToFireFromBuilding) Answered(ref p, world, self);
             Fire(world, self, p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity), RoeFire.FireAtWill);
             return NodeStatus.Success;

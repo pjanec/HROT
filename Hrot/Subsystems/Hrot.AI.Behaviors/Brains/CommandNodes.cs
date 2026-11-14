@@ -208,6 +208,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>How long a play's own report waits before it goes (R-2031: a leader's report goes ~3 s after the fact).</summary>
         public const float ReportDelaySeconds = 3f;
 
+        /// <summary>⭐ <c>CE-4610</c> — a commander's own PROGRESS report (a phase line, an objective secured), sent after the report delay; the
+        /// one shape every commander play uses (<c>RoomDrill.Report</c> is the squad's, from its play context). <paramref name="count"/> rides in
+        /// <see cref="CommandReport.Count"/> (PhaseLine: the line's index).</summary>
+        public static void ReportProgress(EntityRepository world, Entity self, ProgressKind kind, Vector3 at, int count = 0)
+        {
+            SimInstant now = (SimInstant)CommandPictureOps.Now(world);
+            ReportQueue.Enqueue(world, self, new CommandReport
+            {
+                Kind = ReportKind.Progress, Subtype = (byte)kind, At = at, Count = (byte)System.Math.Clamp(count, 0, 255), ObservedAt = now,
+            }, now + ReportDelaySeconds);
+        }
+
         /// <summary>Order the subordinate in <see cref="OrderSubordinateParams.Slot"/> to Move or Hold — ABSTRACT (CC-9): its class decides
         /// how. A fresh order: the picture forgets its progress on the last one.</summary>
         [SharedAiAction]

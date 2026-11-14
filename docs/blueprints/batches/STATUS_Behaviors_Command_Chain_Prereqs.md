@@ -19,7 +19,7 @@ Started at `8952cdb87` (merged `coordinator@a70f497cb`), marker `a1bb312a7`.
 | 1 | CE-4612 orders as typed state (closes CE-4609) | ✅ | Orders design §15; R-2088 derived `CurrentOrder` · R-2089 `Fulfils` · R-2090 the order's identity is its `RequestId` (user's question) |
 | 2 | CE-4613 `UnitStrength` | ✅ | Aggregate Squad §18; R-2091, R-2092 |
 | 3 | CE-4614 `Strength` / `QuietArea` objectives (closes CE-6018 ①) | ✅ (overnight run) | Scenario Rules §10.2; R-2093 |
-| 4 | CE-4589 · 5 CE-4610 · 7 CE-7037 · 8 CE-4605 · 9 CE-4606 · 10 CE-4607 · 11 CE-4608 · 12 CE-7038 | ⏳ the overnight run (`STATUS_Behaviors_Command_Chain_Overnight.md`) | — |
+| 4 | CE-4589 ✅ · 5 CE-4610 ✅ (overnight run) · 7 CE-7037 · 8 CE-4605 · 9 CE-4606 · 10 CE-4607 · 11 CE-4608 · 12 CE-7038 | ⏳ the overnight run (`STATUS_Behaviors_Command_Chain_Overnight.md`) | — |
 | 6 | CE-7035 | ✅ drill half DONE by backend before this run (X-1); ⏳ the civilian fixture half not checked yet | tracker |
 
 ## 2. The gates

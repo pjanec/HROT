@@ -198,6 +198,8 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus NextObjective(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
+            // ⭐ CE-4610 — objective k taken is phase line k (1-based) reached: reported up, so the battalion sees the company's progress
+            CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective(p.Current), p.Current + 1);
             p.Current++;
             return NodeStatus.Success;
         }
@@ -207,6 +209,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             p.Current = Math.Max(0, p.Objectives - 1);
             SetPhase(ref p, CompanyAttackPlan.PhaseConsolidate);
+            // ⭐ CE-4610 (Platoon Attack §4 Consolidate) — the last objective is taken: ObjectiveSecure up (reached only through CNext, never a bypass)
+            if (p.Objectives > 0) CommandNodes.ReportProgress(world, self, ProgressKind.ObjectiveSecure, p.Objective(p.Current));
             return NodeStatus.Success;
         }
 
@@ -801,7 +805,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!CompanyAttackBehavior.Alive(world, self, slot)) return true;
             var progress = CommandPictureOps.ProgressOf(world, self, slot);
-            if (progress == ProgressKind.TaskFailed || progress == ProgressKind.FallingBack) return true;
+            if (progress == ProgressKind.TaskFailed) return true;   // ⭐ CE-4610 — FallingBack retired: a fall-back's end is Set (DA E-3a), a failure TaskFailed
             var colour = new SubordinateColourParams { Slot = slot, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
         }
