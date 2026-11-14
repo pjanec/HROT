@@ -831,7 +831,8 @@ red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
 | an obstacle, priced per mover | a ditch (not a foxhole) is `Obstacle`; `NavDoorways.Ditches` marks its quad (+ banks) `CraterArea` — every vehicle keeps out, infantry crosses (D-2: one vehicle layer) | G-28, D-2 |
 | the merged and baked worlds keep the shapes | `TerrainWorldMerge` concatenates base + overlay shapes; `TerrainObstacles.With` carries them | — |
 | the picks | Earthworks: Ditch, Anti-tank ditch (line tools), Foxhole (a point tool with a heading) — live | mockup panel A |
-| ⚠ not yet (part 2) | cover points along the banks and the foxhole's (G-27, G-36, V-29/V-30), a ditch stopping at a road corridor (G-29), the coarse-grid warning (G-37), Details (presets, width, depth, read-outs — mockup D, E) | part 2 |
+| ⭐ part 2 — cover | `TerrainCoverProvider.AddGroundCover`: along BOTH banks of a ditch a point every 2.5 m, 0.4 m in from the bank, facing it (a pair, V-30); a foxhole's four ALL-ROUND points at its centre (V-29); the stance by depth (the wall rule) — built with the bake like every terrain cover point | G-27, G-36, V-29, V-30 |
+| ⚠ not yet | a ditch stopping at a road corridor (G-29), the coarse-grid warning (G-37), Details (presets, width, depth, read-outs — mockup D, E), the defending squad's re-plan when the cover set changes (V-29's behaviour half) | — |
 
 ⭐ **Lane decision (for the user's review):** [R-5027](blueprints/RULINGS.md). Rail: `TerrainWorldMergeTests.CE4593_*` (the floor, the steep bank, the anti-tank depth, the foxhole along its heading, the two
-obstacle areas) — red-proved (a Lower's skirt ⇒ red).
+obstacle areas) and `…CE4593_ADitchGivesCover…` (both banks facing out, the foxhole all-round) — red-proved (a Lower's skirt ⇒ red; no `AddGroundCover` ⇒ red).

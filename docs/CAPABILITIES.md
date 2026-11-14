@@ -148,9 +148,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234) 📐
 - **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597; rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*`) ✅
 - **Shape the ground while authoring a scenario:** draw an area and level it, raise a hill, lower a hollow or make a crater; roads stay
-  level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) 📐
+  level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) — ✅ built: the Level,
+  Raise and Lower tools (the newest shape wins, houses stay on their ground; rails `TerrainWorldMergeTests.CE4592_*`); 📐 still to come: the
+  Details read-out and the grade warning, roads re-levelled under a shape
 - **Ditches and foxholes:** draw a ditch along a line or click a foxhole into place; a man in it is hidden by the ground, the AI finds it as
-  cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) 📐
+  cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) — ✅ built:
+  the ditch, anti-tank ditch and foxhole tools, every ditch closed to vehicles, cover along the banks and round a foxhole (rails
+  `TerrainWorldMergeTests.CE4593_*`); 📐 still to come: the Details panel, a ditch stopping at a road
 - **Craters:** a bomb or a shell leaves a hole in the ground on every node at once — the ground height, sight and fire change in the same
   moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) — ✅ built:
   the crater record from the warhead's charge, the cratered ground for height, sight and fire the same tick on every node (a standalone brain

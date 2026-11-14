@@ -461,5 +461,25 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(4, Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged).Count);   // two triangles each
             Assert.All(Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged), v => Assert.Equal(Fdp.Toolkit.Navigation.Recast.NavDoorways.CraterArea, v.Area));
         }
+    
+        /// <summary>
+        /// ⭐ G-27 / G-36 / V-29 / V-30 — cover: a 1 m ditch 40 m long gives crouch points along BOTH banks, each facing its bank, on the ditch's floor; a foxhole gives four
+        /// all-round points. 🔴 Red-proof: drop <c>AddGroundCover</c> from the build ⇒ none.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitchGivesCoverAlongBothBanks_AFoxholeFourAllRound()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("f", "foxhole", 0f, 2, new Vector2(0f, -40f), 90f)));
+            var cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(merged).Points;
+            var ditch = cover.Where(p => MathF.Abs(p.PositionY) < 1.5f).ToList();
+            Assert.True(ditch.Count >= 30, $"{ditch.Count} ditch points");
+            Assert.Contains(ditch, p => p.DirectionY > 0.99f && p.PositionY > 0f);   // the north bank, facing north
+            Assert.Contains(ditch, p => p.DirectionY < -0.99f && p.PositionY < 0f);  // the south bank, facing south
+            Assert.All(ditch, p => { Assert.Equal((byte)1, p.StanceHeight); Assert.Equal(-1f, p.PositionZ, 2); });
+            var fox = cover.Where(p => MathF.Abs(p.PositionY + 40f) < 0.1f && MathF.Abs(p.PositionX) < 0.1f).ToList();
+            Assert.Equal(4, fox.Count);
+        }
     }
 }
