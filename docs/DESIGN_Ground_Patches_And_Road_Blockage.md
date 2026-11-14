@@ -232,7 +232,13 @@ bridge's (T-7b); a crater mid-segment closes the whole segment.
    outside it (CE-4402's case passes); a pad over the 3 m cap keeps TH-C; the road net's z equals the store's under every road point.
 2. **P-2**: `RoadblockBlastScenarioTests` / `WreckBlocksStreetScenarioTests` gain: a SUMO car stops or swerves at a partial blocker, re-routes
    round a full one; a road-graph vehicle re-plans round it; clearing it (CE-6003) re-opens both.
-3. **P-3**: a scenario house on a slope stands on its pad on every node (the overlay hash equal), and in the editor while authoring.
+3. **P-3**: a scenario house on a slope stands on its pad on every node (the overlay hash equal), and in the editor while authoring: placing it
+   brings the building AND its levelled ground in ONE live bake (Terrain Authoring §18e B; ≈ 5 s warm on scale-1, faster on a small terrain);
+   moving it restores the old slope (the world is always base + the current patches); the 3-D view rebuilds only the touched chunks off the
+   frame (`TerrainChunks3D.Adopt`, U-6 — its 8 m margin covers the 4 m skirt; the pad part's dirty rectangle = footprint + skirt); the 2-D map
+   draws no heights, nothing to rebuild. ⚠ Not yet measured: what a single placed house shows during the wait (a block shows its outline,
+   U-3) — P-3 measures it and, if the house is invisible meanwhile, keeps its ghost drawn until the bake commits. 🔒 User, `2026-11-14`:
+   *"when I am placing the house, I will see it buried into the hill. But after a while … will I see the terrain flattened?"*
 4. **P-4**: a bomb on open ground makes a crater on every query node within one bake; a wheeled vehicle routes round it, a tracked one through a
    small one; seek before / after the blast shows / removes it; a scenario saved after the blast reloads it; `HROT_PARALLEL_SIM=1` +
    `HROT_READ_CHECK=1` + `stepped-hash.py --threads 1,4,8` equal; the swap's time measured under a barrage.
