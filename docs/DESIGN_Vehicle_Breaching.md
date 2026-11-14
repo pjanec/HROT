@@ -157,7 +157,7 @@ never reaches a damage record.*
 
 | # | decision | why | rejected |
 |---|---|---|---|
-| **B-D1** ✅ | **only a hull with a player's `ManualDrive` at that tick can break**; an AI hull keeps today's refusal and back-out (CE-3286) | the user: no vehicle breaks a wall on purpose; an AI corner hold makes no hole | an AI that plans through barriers |
+| **B-D1** ✅ | **only a hull with a player's `ManualDrive` at that tick can break** (the one AI exception: the bulldozer's clearing task, B-D11); an AI hull keeps today's refusal and back-out (CE-3286) | the user: no vehicle breaks a wall on purpose; an AI corner hold makes no hole | an AI that plans through barriers |
 | **B-D2** ✅ | **only the speed INTO the barrier counts** (the step's component along the barrier's normal) | scraping along a corner is not a ram | total speed |
 | **B-D3** ✅ | **the starting table, data** (`contact-breach.json`): tank ~60 t — fences, hedges, brick garden walls, sandbags, small concrete blocks · IFV ~25 t — fences, hedges, sandbags · wheeled — nothing; each row a minimum mass and a minimum speed into the wall; barrier strength = material resistance × thickness × height (`TerrainMaterials`) | tunable; the inputs exist | hard-coded classes |
 | **B-D4** ✅ | **a building wall is breached hull-wide and hull-high, but the hull never ENTERS** (R-3025 stays; it holds at the hole) | floors, rubble and collapse are another question | driving into houses |
@@ -166,6 +166,7 @@ never reaches a damage record.*
 | **B-D7** lean | **blasts breach free walls too**: `AreaEffectSystem.BreachWalls` also asks the free walls near a burst (a cell index of wall prisms, like `BuildingPanelGrid`), by the same `BreachRule` and `breaches.json` | today a bomb cannot breach a garden wall — the same record closes it | — |
 | **B-D8** lean | **sight / fire read a free-wall breach at QUERY time** (as panel breaches do, UTM §8.3 #6); only the navmesh and the 3-D mesh wait for the bake | R-4232's rule; a shot through the new hole must not wait for a wall-clock bake | the bake as truth |
 | **B-D9** lean | **the slip-through holes closed** (B-1, reproduced first): the guard also probes the hull's EDGES (front, sides at the hull's spacing), and the step is SWEPT (a segment test against wall prisms, not before / after samples) | otherwise a thin wall is crossed whatever the rule says | — |
+| **B-D11** ✅ | **the BULLDOZER is the one AI exception** (🔒 user, `2026-11-14`: *"the bulldozer could create such an opening … the bulldozer is the exception. It is an AI-driven vehicle which is allowed to create breaches"*) — ⭐ lean on its shape: it breaches **only while running a clearing task AIMED at that barrier**: `ClearObstacle` (CE-7012, `ClearObstacleBehavior.cs`) learns a second target — a wall POINT (a free wall's key or a building panel + the point) beside today's obstacle entity; it drives to the face and, while the blade is in contact, PUSHES a breach (blade-wide, hull-high) through the same outlets (`WallDamage` / `BuildingDamage`; an obstacle as today) — the push model, seconds of blade contact (`PushSeconds`), not the ram; a building wall is opened but never entered (B-D4); ordered by the company's support call (CE-7003's bulldozer tasking), a scenario order or the instructor | the existing push path, already parallel-safe (its damage rides the batch buffer); a bulldozer merely DRIVING (a corner hold) breaches nothing — the user's corner rule holds for it too | any bulldozer contact breaching (an accidental hole at every corner) |
 | **B-D10** lean | **the Muscle decides; the write is a phase follow-up** (`BatchContext.Later`), never a direct write from the per-entity phase (CLAUDE.md "behaviour code runs in parallel") | the parallel rule | — |
 
 ⚠ To measure in B-1: whether every free wall has a STABLE key (an overlay feature's `<guid>/i` does; an imported wall's `Label` may be absent) —
@@ -179,6 +180,7 @@ if not, B-2 gives imported walls one at import (D-4 of the ground-patch design: 
 | **B-1** | reproduce the slip-through (a possessed vehicle at speed into a 0.3 m wall and a sandbag row, both frame rates); close it (B-D9); measure the free walls' stable keys |
 | **B-2** | `WallDamage` + the bake's re-cut + query-time sight / fire + save / seek (B-D6, B-D8) + blasts breach free walls (B-D7) |
 | **B-3** | the contact rule (B-D1…B-D5, B-D10): `BarrierHit`, `ContactBreachRule` + `contact-breach.json`, the three outlets |
+| **B-4** | the bulldozer's breach (B-D11): `ClearObstacle` aimed at a wall point; the push breach through the same outlets; its order from the support call (with CE-7003) |
 
 ## 6. Acceptance
 
@@ -189,4 +191,5 @@ if not, B-2 gives imported walls one at import (D-4 of the ground-patch design: 
 5. A Mk-82 beside a garden wall breaches it (blasts, B-D7); a rifleman sees and fires through the gap at once (query time); the navmesh opens it
    within one bake; a seek before the blast restores the wall; a scenario saved after reloads the gap.
 6. A crushed roadblock across a road re-opens it for SUMO and our road graph (the ground-patch design's P-2).
-7. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on every rail; the 1 / 4 / 8-thread stepped hash equal on a breach scenario.
+7. **The bulldozer** (B-D11): ordered to clear a garden wall at a point, it opens a blade-wide gap and infantry and vehicles route through it; the same bulldozer driving past and holding at a corner breaches nothing (a rail).
+8. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on every rail; the 1 / 4 / 8-thread stepped hash equal on a breach scenario.
