@@ -49,7 +49,8 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         [SharedAiAction]
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
-            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);   // Hold: it settles itself, after the measures it reads have closed
+            var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick   // Hold: it settles itself, after the measures it reads have closed
             if (f.Reset) { b.Settled = 0; b.Winner = default; b.ShownValue = float.NaN; }
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (f.Evaluate)

@@ -21,6 +21,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             public bool Reset;
             /// <summary>⭐ V-4 — a <see cref="RuleRequest"/> the trigger itself carries out this tick (<c>Fire</c> / <c>Rearm</c>); the rest the host already applied.</summary>
             public RuleRequest Control;
+            /// <summary>⭐ CE-4568 (X-6; the per-entity rule) — false on the tick that ADDED this rule's components inside a per-entity phase: the adds land
+            /// at the batch merge, so nothing of them may be read or written yet — the kind does nothing this tick (<c>Running</c>) and begins on the next.
+            /// True on every other tick.</summary>
+            public bool Ready;
         }
 
         /// <summary>⭐ SR-116 — how a status meets the exercise closing: <b>Own</b> = closed by its kind's OnClose rule at its next tick · <b>Composite</b> = closed
@@ -51,6 +55,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 world.SetAuthority(self, ManagedComponentType<RuleEdit>.ID, true);
             }
             RuleCadence.Own(world, self);   // ⭐ CE-2383 — the rules' cadence policy owns this slot (DESIGN_Evaluation_Cost_And_Cadence §3.2)
+            // ⭐ CE-4568 (X-6) — a rule created at run time ticks first inside the parallel brain phase: its adds above are deferred to the batch merge
+            //   (CLAUDE.md "add a component, then write it" ⇒ written next tick). 📐 It read ObjectiveStatus by ref here and threw — the instructor's End did nothing.
+            if (!world.HasComponent<ObjectiveStatus>(self) || !world.HasComponent<ObjectiveLinks>(self))
+                return new Frame { Now = Now(world), Ready = false };
             double now = Now(world);
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             var control = HonourControl(world, self, ref s, role, now);
@@ -89,7 +97,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             // ⭐ SR-116 — the exercise is closing (or ended): this status takes its kind's OnClose rule, once, and nothing changes it afterwards.
             if (close == CloseMode.Own && s.Closed == 0 && ExerciseResult.PhaseOf(world) != ExercisePhase.Running)
                 ObjectiveRules.OnClose(ref s, ObjectiveRules.CloseRuleOf(kind, capture), now);
-            return new Frame { Now = now, Dt = dt, Reset = then != 0, Evaluate = s.Closed == 0 && s.State == ObjectiveState.Active, Control = control };
+            return new Frame { Ready = true, Now = now, Dt = dt, Reset = then != 0, Evaluate = s.Closed == 0 && s.State == ObjectiveState.Active, Control = control };
         }
 
         /// <summary>

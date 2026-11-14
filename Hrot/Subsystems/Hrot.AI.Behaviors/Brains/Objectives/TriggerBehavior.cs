@@ -210,6 +210,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         {
             // a trigger closes by its OWN rule below (never the objectives' OnClose: an unfired trigger did not "fail")
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Trigger, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Hold);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick
             double now = f.Now;
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (b.LinksPending != 0 && b.LinkTries < MaxLinkTries)   // ⭐ V-1: a ref that did not resolve at assignment — ask again (the world fills in)

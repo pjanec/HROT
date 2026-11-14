@@ -104,6 +104,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (ObjectiveChildren.Evaluates(in s))   // ⭐ not StartActive: a composite that started Inactive and is switched on later (S2) must evaluate
             {
@@ -156,6 +157,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static NodeStatus Tick(ref Block b, Entity self, EntityRepository world)
         {
             var f = ObjectiveHost.Enter(world, self, Kind, ObjectiveRole.Objective, in b.Common, ref b.Run, ObjectiveHost.CloseMode.Composite);
+            if (!f.Ready) return NodeStatus.Running;   // ⭐ CE-4568 — its components land at the merge; it begins next tick
             ref var s = ref world.GetComponentRW<ObjectiveStatus>(self);
             if (ObjectiveChildren.Evaluates(in s)) Aggregate(world, self, ref s, b.PassScore, f.Now);
             ObjectiveHost.CloseComposite(world, self, ref s, f.Now);

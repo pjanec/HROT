@@ -654,6 +654,11 @@ died on the unhandled exception. ⭐ Now an authority change on a component that
 (`EntityCommandBuffer.SetAuthority`) and played right after the add. Outside a phase a missing component is still an error. Rail
 `PerEntityRuleTests.X6_*`, red-proved. Live: a one-shot End trigger ends the exercise (*"exercise closing (Ended by the instructor)"*) with
 the threaded editor and with it off.
+⭐ **And the rule's first tick waits** (the authority fix alone only moved the throw a line down). `ObjectiveHost.Enter` then read
+`ObjectiveStatus` by `ref`, and an own pending add is never served by `ref` (E-3). Now, on the tick that ADDS a rule's components in a phase,
+`Enter` returns `Frame.Ready = false`; every kind (20 call sites) answers `Running` and begins on the next tick. 📐 The rule suites under
+`HROT_PARALLEL_SIM=1`: 121 / 190 red at the base (every runtime-created rule faulted) → 26 red; with the phase off, 190 / 190 before and after.
+The 26 left are timing and refusal-text differences of the rules under the phase (CE-3448).
 
 ### 18.3 ⭐ As measured — the cost of the per-read cross-entity check *(branch `exp/read-check`, CE-4454; status: [`STATUS_Read_Check.md`](blueprints/batches/STATUS_Read_Check.md); the design is §18.2 above)*
 
