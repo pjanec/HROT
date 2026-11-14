@@ -103,9 +103,12 @@ public sealed class BodyScaleFrameRail
         canvas.Camera = two;
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => ground(x, y);
-        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        var terrain = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world));
+        canvas.AddLayer(terrain);
         canvas.AddLayer(bodies);
         sw.Set(true, animate: false);
+        // the terrain's meshes are built on a worker and arrive frames later (CE-1394): a rail that compares two frames waits for them first
+        Map3DFrameRail.StepUntil(frame, canvas, () => terrain.TriangleCount > 1000);
         return (frame, canvas, sw);
     }
 
@@ -167,11 +170,198 @@ public sealed class BodyScaleFrameRail
         var (frame, canvas, sw) = Open(world, probe, G);
         using var _ = frame;
         sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y + 1f, G(spot.X, spot.Y) + 1.0f), 9f, MathF.PI * 0.15f, -0.18f);
-        for (int i = 0; i < 6; i++) frame.Step(canvas.Draw);
+        for (int i = 0; i < 30; i++) frame.Step(canvas.Draw);   // warm: the first frames grow the layer's maps and lists once
         Assert.True(bodies.BatchInstances > 100, $"the squad is in the batch ({bodies.BatchInstances} instances)");
-        long worst = 0;
-        for (int i = 0; i < 5; i++) { frame.Step(canvas.Draw); worst = Math.Max(worst, probe.LastBytes); }
-        Assert.True(worst == 0, $"a steady frame of the body layer allocated {worst} B");
+        int allocating = 0; long worst = 0;
+        for (int i = 0; i < 20; i++) { frame.Step(canvas.Draw); worst = Math.Max(worst, probe.LastBytes); if (probe.LastBytes > 0) allocating++; }
+        Assert.True(worst == 0, $"{allocating} of 20 steady frames of the body layer allocated (worst {worst} B)");
+    }
+
+    /// <summary>
+    /// ⭐ CE-4557 (§6ak D-1) — the bands' edges, pure: a man 1.8 m tall at a distance where he is 13 / 11 / 1.6 / 1.4 px on screen is Full / Far / Far / Hidden;
+    /// a vehicle is banded by its LARGEST extent (a 6 m car seen from afar keeps its length). The scale: w = the point's x, 600 px per unit at w = 1.
+    /// </summary>
+    [Fact]
+    public void CE4557_TheBandEdges_ByTheBodysLargestExtentOnScreen()
+    {
+        var scale = new ViewFrustum.ScreenScale(new Vector4(1f, 0f, 0f, 0f), 600f);
+        var man = new Vector3(0.5f, 0.5f, 1.8f);
+        Vector3 At(float px) => new(1.8f * 600f / px, 0f, 0f);   // where he covers px pixels
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Full, EntityBodyLayer3D.BandFor(scale, At(13f), man));
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Far, EntityBodyLayer3D.BandFor(scale, At(11f), man));
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Far, EntityBodyLayer3D.BandFor(scale, At(1.6f), man));
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Hidden, EntityBodyLayer3D.BandFor(scale, At(1.4f), man));
+        var car = new Vector3(6f, 2f, 1.5f);   // at the man's 11 px distance a 6 m car is ~37 px: Full
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Full, EntityBodyLayer3D.BandFor(scale, At(11f), car));
+        Assert.Equal(EntityBodyLayer3D.ScreenBand.Full, EntityBodyLayer3D.BandFor(default, At(0.1f), man));   // no pass: everything Full, as before
+    }
+
+    private static (EntityRepository World, Fdp.Interfaces.ITkbDatabase Tkb, Vector2 Spot, Func<float, float, float> Ground, Entity Man) OneMan()
+    {
+        var (world, tkb, spot, G) = Squad(riflemen: 1);
+        Entity man = default;
+        var keep = new List<Entity>();
+        foreach (var e in world.Query().With<SimTransform>().Build()) keep.Add(e);
+        foreach (var e in keep)
+            if (man.IsNull && world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current > 0f
+                && world.GetComponentRO<TkbIdentity>(e).TkbType == (TkbTypeId)TkbEntityTypes.Infantry_Rifleman) man = e;
+            else world.DestroyEntity(e);
+        return (world, tkb, spot, G, man);
+    }
+
+    /// <summary>
+    /// ⭐ CE-4557 (§6ak D-1, D-2, D-7) — on this GL, through the production camera: one rifleman swept from near to far — his band follows his height on screen as
+    /// the CAMERA measures it (<c>MapCamera3D.ZoomAt</c> × 1.8 m: Full from 12 px, one box below, nothing below 1.5 px); a Far man is ONE instance (no pose, no
+    /// face); a SELECTED man is drawn in full however far. And at the Full / Far edge the figure does not pop: just above and just below 12 px he covers about
+    /// the same pixels in about the same colour (screenshots <c>band-edge-*.png</c>).
+    /// </summary>
+    [SkippableFact]
+    public void CE4557_TheBands_FollowTheScreenHeight_ASelectedManStaysFull_AndTheEdgeDoesNotPop()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (world, tkb, spot, G, man) = OneMan();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var (frame, canvas, sw) = Open(world, bodies, G);
+        using var _ = frame;
+        string shots = Shots();
+        var at = world.GetComponentRO<SimTransform>(man).Position;
+        var mid = at + new Vector3(0f, 0f, 0.9f);
+        float PixelsAt(float distance)
+        {
+            sw.Camera3D.Pose = new CameraPose(mid, distance, MathF.PI * 0.25f, -0.12f);
+            frame.Step(canvas.Draw);
+            frame.Step(canvas.Draw);
+            return sw.Camera3D.ZoomAt(mid) * 1.8f;
+        }
+        foreach (float d in new[] { 20f, 60f, 150f, 300f, 900f, 2500f })
+        {
+            float px = PixelsAt(d);
+            if (MathF.Abs(px - EntityBodyLayer3D.FullFromPx) < 0.5f || MathF.Abs(px - EntityBodyLayer3D.HiddenBelowPx) < 0.1f) continue;   // too close to an edge to call
+            var expected = px >= EntityBodyLayer3D.FullFromPx ? "full" : px >= EntityBodyLayer3D.HiddenBelowPx ? "far" : "hidden";
+            var got = bodies.BodiesFull == 1 ? "full" : bodies.BodiesFar == 1 ? "far" : bodies.BodiesHidden == 1 ? "hidden" : "?";
+            Assert.True(expected == got, $"at {d} m he is {px:0.0} px: expected {expected}, drawn {got}");
+            if (got == "far") Assert.Equal(1, bodies.BatchInstances);   // one box, nothing posed
+            if (got == "hidden") Assert.Equal(0, bodies.BatchInstances);
+        }
+
+        // the Full / Far edge: the distances for 13.5 px and 10.5 px, looking DOWN onto open ground; each frame rendered with the man and with him moved
+        // out of view — the pixels that differ are exactly his silhouette (no building, no sky in the comparison)
+        float pxTimesDistance = PixelsAt(100f) * 100f;   // px · distance is constant along the view
+        var (fullPx, fullColour) = Silhouette(pxTimesDistance / 13.5f, "full", expectFull: true);
+        var (farPx, farColour) = Silhouette(pxTimesDistance / 10.5f, "far", expectFull: false);
+        // from 13.5 to 10.5 px his area scales by (10.5 / 13.5)^2 — the box must cover about what the figure covered at that size, not a blob or nothing
+        float expectedRatio = (10.5f / 13.5f) * (10.5f / 13.5f);
+        Assert.True(fullPx > 10 && farPx > 5, $"the figure is on screen ({fullPx} / {farPx} px)");
+        float ratio = farPx / (float)fullPx / expectedRatio;
+        Assert.True(ratio is > 0.6f and < 1.6f, $"the far box covers about what the figure covered: {farPx} px vs {fullPx} px (x{ratio:0.00} of the expected)");
+        Assert.True(Vector3.Distance(fullColour, farColour) < 30f, $"the far box keeps his colour: full {fullColour}, far {farColour}");
+
+        (int Pixels, Vector3 Colour) Silhouette(float distance, string name, bool expectFull)
+        {
+            sw.Camera3D.Pose = new CameraPose(mid, distance, MathF.PI * 0.25f, -0.55f);
+            frame.Step(canvas.Draw); frame.Step(canvas.Draw);
+            Assert.Equal(expectFull ? 1 : 0, bodies.BodiesFull);
+            Assert.Equal(expectFull ? 0 : 1, bodies.BodiesFar);
+            string with = Path.Combine(shots, $"band-edge-{name}.png");
+            frame.Screenshot(with);
+            var home = world.GetComponentRO<SimTransform>(man);
+            world.SetComponent(man, home with { Position = home.Position + new Vector3(0f, 0f, -500f) });   // out of view, under the ground
+            frame.Step(canvas.Draw); frame.Step(canvas.Draw);
+            string without = Path.Combine(shots, $"band-edge-{name}-empty.png");
+            frame.Screenshot(without);
+            world.SetComponent(man, home);
+            frame.Step(canvas.Draw);
+            return Diff(with, without);
+        }
+
+        // a SELECTED man is drawn in full at any distance (D-7)
+        world.AddComponent(man, new Hrot.Map.Common.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
+        PixelsAt(900f);
+        Assert.Equal(1, bodies.BodiesFull);
+        Assert.True(bodies.BatchInstances > 10, $"his parts are drawn ({bodies.BatchInstances} instances)");
+        Assert.Equal(1, bodies.SelectionBoxesDrawn);
+    }
+
+    /// <summary>The pixels of <paramref name="with"/> that differ from <paramref name="without"/> (by more than 12 levels in a channel) — what was drawn in one and
+    /// not the other — and their mean colour in <paramref name="with"/>.</summary>
+    private static (int Pixels, Vector3 Colour) Diff(string with, string without)
+    {
+        var a = Raylib.LoadImage(with);
+        var b = Raylib.LoadImage(without);
+        try
+        {
+            int n = 0; var sum = Vector3.Zero;
+            for (int y = 0; y < a.Height; y++)
+                for (int x = 0; x < a.Width; x++)
+                {
+                    var p = Raylib.GetImageColor(a, x, y);
+                    var q = Raylib.GetImageColor(b, x, y);
+                    if (Math.Abs(p.R - q.R) > 12 || Math.Abs(p.G - q.G) > 12 || Math.Abs(p.B - q.B) > 12) { n++; sum += new Vector3(p.R, p.G, p.B); }
+                }
+            return (n, n > 0 ? sum / n : Vector3.Zero);
+        }
+        finally { Raylib.UnloadImage(a); Raylib.UnloadImage(b); }
+    }
+
+    /// <summary>
+    /// ⭐ CE-4558 (§6ak D-6, G-4) — the pick through the boxes the frame DREW: after a drawn frame, a pick at each body's pixel (and between bodies) through
+    /// <see cref="BodyPickIndex"/> hits what the old scan of every entity hits, at the same distance (a picker over a layer that never drew scans); it tests a
+    /// handful of boxes, not every body; and while the mouse and the camera are still, frame after frame, NO pick runs (the camera's pick cache).
+    /// 🔴 Red-proof: the walk stopping at its first cell ⇒ a body behind the first cell is missed ⇒ the scan and the index disagree ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE4558_ThePick_ThroughTheDrawnBoxes_HitsWhatTheScanHits_AndNothingRunsWhileStill()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var (world, tkb, spot, G) = Squad();
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var (frame, canvas, sw) = Open(world, bodies, G);
+        using var session = frame;
+        var cam = sw.Camera3D;
+        Func<Vector3, float> mpp = p => 1f / cam.ZoomAt(p);
+        var indexed = new EntityBoxPicker(() => world, () => tkb, bodies, mpp);
+        var scanned = new EntityBoxPicker(() => world, () => tkb, new EntityBodyLayer3D(() => world, () => tkb), mpp);   // never draws: scans
+        cam.Pickers.Add(indexed);
+        cam.Pose = new CameraPose(new Vector3(spot.X + 1f, spot.Y + 1f, G(spot.X, spot.Y) + 1.0f), 14f, MathF.PI * 0.15f, -0.25f);
+        for (int i = 0; i < 3; i++) frame.Step(canvas.Draw);
+        Assert.True(bodies.PickIndex.HasFrame && bodies.PickIndex.Count >= 15, $"the frame recorded its boxes ({bodies.PickIndex.Count})");
+
+        // every body's centre pixel, and points between them
+        var targets = new List<Vector3>();
+        foreach (var e in world.Query().With<SimTransform>().Build())
+            if (bodies.TryGetBox(world, e, tkb, out var c, out _, out _)) { targets.Add(c); targets.Add(c + new Vector3(0.7f, 0.3f, 0.4f)); }
+        int hits = 0, maxTested = 0;
+        foreach (var t in targets)
+        {
+            var px = cam.WorldToScreen(t);
+            var eye = cam.Eye;
+            var dir = Vector3.Normalize(t - eye);
+            bool a = indexed.TryPick(eye, dir, 500f, out var ha);
+            maxTested = Math.Max(maxTested, bodies.PickIndex.LastTested);
+            bool b = scanned.TryPick(eye, dir, 500f, out var hb);
+            Assert.True(a == b, $"at {t}: index {(a ? "hit" : "miss")}, scan {(b ? "hit" : "miss")}");
+            if (!a) continue;
+            hits++;
+            Assert.True(Vector3.Distance(ha.Point, hb.Point) < 1e-3f && MathF.Abs(ha.Distance - hb.Distance) < 1e-3f,
+                        $"at {t}: index hit {ha.Point} at {ha.Distance:0.000}, scan hit {hb.Point} at {hb.Distance:0.000}");
+        }
+        Assert.True(hits >= targets.Count / 2, $"most rays hit a body ({hits} of {targets.Count})");
+        Assert.True(maxTested < 15, $"a pick tests the boxes near its ray, not every body ({maxTested} tested)");
+
+        // still: the hover asks for the same pixel every frame — the pick runs once, then not again until something moves
+        var pixel = cam.WorldToScreen(targets[0]);
+        cam.Pick(pixel, PickFilter.All);
+        long picks = BodyDrawStats.Picks;
+        for (int i = 0; i < 10; i++) { frame.Step(canvas.Draw); cam.Pick(pixel, PickFilter.All); }
+        Assert.Equal(picks, BodyDrawStats.Picks);
+        cam.Pose = cam.Pose with { Yaw = cam.Pose.Yaw + 0.05f };   // the camera moves: the next pick runs
+        frame.Step(canvas.Draw);
+        cam.Pick(pixel, PickFilter.All);
+        long moved = BodyDrawStats.Picks;
+        Assert.True(moved > picks, "the camera moved: the picks ran again");
+        frame.Step(canvas.Draw);
+        cam.Pick(pixel, PickFilter.All);
+        Assert.Equal(moved, BodyDrawStats.Picks);   // and still again: nothing
     }
 
     /// <summary>Pixels of <paramref name="a"/> that differ from <paramref name="b"/> by more than 6 levels in a channel, of the pixels that are not sky.</summary>

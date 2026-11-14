@@ -252,7 +252,11 @@ namespace Fdp.Toolkit.Vis3D
 
         public override void Update(float dt)
         {
-            _cachePixel = new Vector2(float.NaN);   // a new frame: entities may have moved
+            // ⭐ CE-4558 (§6ak D-6) — the FREE camera's pick cache is NOT cleared each frame any more (it was: "a new frame: entities may have moved" — the hover pick
+            //   then ran every frame while nothing moved, 21 % of a street frame): it holds while the pose holds, and a mouse press or release clears it (MapCanvas),
+            //   so a click always picks what is under the cursor now. ⭐ A DRIVEN camera (first person's crosshair, a follow, a film shot) still picks afresh every
+            //   frame: what is ahead of a station changes while it stands still (a door opens, a man falls), and its prompt must say so at once.
+            if (_driver != null) InvalidatePicks();
             ResetFrameCache();                      // ⭐ CE-1072 / CE-4084 — the window may have been resized, the visible area moved
             if (!float.IsFinite(dt) || dt < 0f) dt = 0f;
             _dt = dt;
@@ -501,11 +505,18 @@ namespace Fdp.Toolkit.Vis3D
             return false;
         }
 
-        // One pick per (pixel, filter, camera pose) per frame: the canvas, the gizmo layer and the hover all ask for the same pixel.
-        private Vector2 _cachePixel = new(float.NaN);
-        private PickFilter _cacheFilter;
+        // One pick per (pixel, filter) while the camera pose holds: the canvas, the gizmo layer, the hover and the crosshair all ask, some for other pixels or
+        // filters. ⭐ CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak D-6) — a few entries, not one: with one, two callers asking for different pixels evicted each
+        // other and the pick ran every frame while nothing moved (measured: twice a frame). The pose changing clears them all.
+        private const int CacheSlots = 4;
+        private readonly Vector2[] _cachePixel = { new(float.NaN), new(float.NaN), new(float.NaN), new(float.NaN) };
+        private readonly PickFilter[] _cacheFilter = new PickFilter[CacheSlots];
+        private readonly PickResult[] _cacheResult = new PickResult[CacheSlots];
         private CameraPose _cachePose;
-        private PickResult _cacheResult;
+        private int _cacheNext;
+
+        /// <summary>⭐ CE-4558 — forget the cached picks: the next <see cref="Pick"/> runs (a mouse press or release, so a click never uses a stale hover).</summary>
+        public void InvalidatePicks() { for (int i = 0; i < CacheSlots; i++) _cachePixel[i] = new Vector2(float.NaN); }
 
         /// <summary>The ground point under a screen pixel: an entity's own position when its box is hit (so its 2-D pick box
         /// contains it), else the terrain, else the plane at the look-at height, capped at the horizon (§3.8).</summary>
@@ -526,7 +537,13 @@ namespace Fdp.Toolkit.Vis3D
         public PickResult Pick(Vector2 screenPos, PickFilter filter)
         {
             // ⭐ CE-1126 — keyed on the FILTER (it was "is it a drag"): the crosshair's Aim and a click's All differ by more than that
-            if (screenPos == _cachePixel && filter == _cacheFilter && Pose == _cachePose) return _cacheResult;
+            if (Pose != _cachePose)
+            {
+                for (int i = 0; i < CacheSlots; i++) _cachePixel[i] = new Vector2(float.NaN);
+                _cachePose = Pose;
+            }
+            for (int i = 0; i < CacheSlots; i++)
+                if (_cachePixel[i] == screenPos && _cacheFilter[i] == filter) return _cacheResult[i];
 
             var dir = RayDirection(screenPos);
             var eye = Eye;
@@ -552,7 +569,8 @@ namespace Fdp.Toolkit.Vis3D
                     best = new PickResult(new Vector3(far, LookAt.Z), PickKind.None, maxRange);
                 }
             }
-            _cachePixel = screenPos; _cacheFilter = filter; _cachePose = Pose; _cacheResult = best;
+            _cachePixel[_cacheNext] = screenPos; _cacheFilter[_cacheNext] = filter; _cacheResult[_cacheNext] = best;
+            _cacheNext = (_cacheNext + 1) % CacheSlots;
             return best;
         }
 

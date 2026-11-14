@@ -379,7 +379,7 @@ public sealed class Map3DTests
         string Box(KitPart p)
         {
             var m = p.Extent * metres;
-            return string.Join(" ", new[] { m.X, m.Y, m.Z }.Select(v => v.ToString("0.00")).OrderBy(v => v));
+            return string.Join(" ", new[] { m.X, m.Y, m.Z }.Select(v => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).OrderBy(v => v));   // ⭐ R-4221 — never the machine's decimal comma
         }
         var head = BlockFigure.Parts(StanceId.Standing, soldier: false)[BlockFigure.HeadIndex];
         Assert.Equal(1.60f / 1.8f, head.Centre.Z, 3);

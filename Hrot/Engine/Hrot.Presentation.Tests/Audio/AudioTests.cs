@@ -410,6 +410,37 @@ public sealed class AudioTests
         Assert.Contains(output.Looping, v => v.Clip == SoundTkbCatalog.BattleRumble);
     }
 
+    /// <summary>
+    /// ⭐ CE-4560 (render-perf G-6, docs/designs/audio/DESIGN_FPS_Audio.md) — the moving sources are SEARCHED at the audio's own rate (<see cref="SoundSources.MoverSearchHz"/>),
+    /// not every frame, and a body out of any hearing costs no lookup: over one second of 60 frames the world is searched about 20 times; between searches the
+    /// tank in earshot is still HELD every frame (its loop never drops) and keeps its Doppler; 400 men 5 km off are never heard.
+    /// 🔴 Red-proof: searching every frame ⇒ ~60 searches ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4560_MovingSources_AreSearchedAtTheAudiosRate_AndHeldEveryFrameBetween()
+    {
+        var (world, tkb) = World();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var tank = Unit(world, TkbEntityTypes.Tank_T72, new Vector3(100f, 0f, 0f));
+        world.AddComponent(tank, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Tracked });
+        for (int i = 0; i < 400; i++) Unit(world, TkbEntityTypes.Infantry_Rifleman, new Vector3(5000f + i, 0f, 0f));
+        var (layer, output) = Listening(world, tkb, me);
+        int searchesBefore = layer.Sources.MoverSearches;
+        int framesHeld = 0;
+        for (int i = 0; i < 60; i++)
+        {
+            Move(world, tank, new Vector3(-0.16f, 0f, 0f));   // 10 m/s toward him
+            layer.Update(1f / 60f);
+            if (output.Looping.Any(v => v.Clip == SoundTkbCatalog.TrackedEngine)) framesHeld++;
+        }
+        int searches = layer.Sources.MoverSearches - searchesBefore;
+        Assert.InRange(searches, 15, 26);                      // ~20 a second (+ the follow-up when the tank was first heard)
+        Assert.True(framesHeld >= 58, $"the engine is held every frame between searches ({framesHeld} of 60)");
+        var engine = output.Looping.Single(v => v.Clip == SoundTkbCatalog.TrackedEngine);
+        Assert.True(engine.Pitch > 0.95f, $"and it keeps its Doppler (coming: pitch {engine.Pitch:0.000})");
+    }
+
     /// <summary>⭐ CE-1120 A2/A3 — a door opening is heard where it is (§2 "doors, boarding"); a body boarding or leaving a vehicle is
     /// heard as a vehicle door; the town bed follows how built-up it is around the ear.</summary>
     [Fact]

@@ -96,6 +96,33 @@ public sealed class MessageLogCostRail
         Assert.True(LastBytesPerFrame < 48 * 1024, $"{LastBytesPerFrame} B/frame");
     }
 
+    /// <summary>
+    /// ⭐ CE-4561 (render-perf G-7) — a log that does not change is not re-filtered and its rows' heights are not summed again each frame: over 20 steady frames of
+    /// 20 000 messages the rows are built ONCE, and the visible band (found by a binary search over the kept running total) is still drawn — the same rows as the
+    /// first frame. 🔴 Red-proof: <c>SameAsLastFrame</c> always false ⇒ 20+ builds ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void ASteadyLog_IsFilteredOnce_AndItsVisibleRowsStillDrawn()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var src = new Source(20_000);
+        var registry = new MessageLogRegistry(); registry.RegisterSource(src);
+        var panel = new MessageLogPanel(registry);
+        using var frame = UiFrameHarness.Begin(900, 600);
+        void Step() => frame.Step(() =>
+        {
+            ImGui.SetNextWindowPos(new Vector2(0, 0)); ImGui.SetNextWindowSize(new Vector2(900, 600));
+            ImGui.Begin("Message Log", ImGuiWindowFlags.NoCollapse);
+            panel.DrawContent();
+            ImGui.End();
+        });
+        for (int i = 0; i < 6; i++) Step();
+        int builds = panel.RowBuilds, rows = panel.RowsDrawn;
+        for (int i = 0; i < 20; i++) Step();
+        Assert.Equal(builds, panel.RowBuilds);
+        Assert.True(rows >= 10 && panel.RowsDrawn == rows, $"the visible band is drawn ({panel.RowsDrawn} rows; first frame {rows})");
+    }
+
     [Fact]
     public void ASource_KeepsAtMostMaxRetained_DroppingTheOldestBlock()
     {

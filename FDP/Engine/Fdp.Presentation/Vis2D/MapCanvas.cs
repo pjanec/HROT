@@ -249,14 +249,16 @@ namespace Fdp.Toolkit.Vis2D
             if (_input.IsMouseCaptured) return;
 
             Vector2 mouseScreen = _input.MousePosition;
-            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
-            
             bool leftPressed = _input.IsMouseButtonPressed(MapMouseButton.Left);
             bool rightPressed = _input.IsMouseButtonPressed(MapMouseButton.Right);
             bool leftDown = _input.IsMouseButtonDown(MapMouseButton.Left);
             bool rightDown = _input.IsMouseButtonDown(MapMouseButton.Right);
             bool leftReleased = _input.IsMouseButtonReleased(MapMouseButton.Left);
             bool rightReleased = _input.IsMouseButtonReleased(MapMouseButton.Right);
+            // ⭐ CE-4558 (docs/DESIGN_Map_3D_Mode.md §6ak D-6) — the 3-D pick is cached while the mouse and the camera are still; a press or a release picks afresh,
+            //   so a click selects what is under the cursor NOW, not what was there when the mouse stopped
+            if ((leftPressed || rightPressed || leftReleased || rightReleased) && Camera is Fdp.Toolkit.Vis3D.MapCamera3D camera3D) camera3D.InvalidatePicks();
+            Vector2 mouseWorld = Camera.ScreenToWorld(mouseScreen);
 
             Vector2 delta = _input.MouseDelta;
             Vector2 deltaWorld = Camera.ScreenDeltaToWorld(delta);   // ⭐ CE-1033 S1 — the camera knows its own scale (2-D: /Zoom)

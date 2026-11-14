@@ -112,6 +112,7 @@ namespace Hrot.UI.Common.Audio
             _lastBurst.Clear(); _lastPos.Clear(); _passes.Clear();
             _said.Clear(); _saidKnown = false;
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
+            _movers.Clear(); _sinceSearch = float.PositiveInfinity; _moverWorld = null;   // ⭐ CE-4560 — the next frame searches
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
         }
 
@@ -192,28 +193,75 @@ namespace Hrot.UI.Common.Audio
                 _mixer.Request(hit, b.At, true, Spatializer.Gain(d, h.ReferenceM, h.RangeM) * Volume(h), Jitter(h), h.Priority, now, Spatializer.Delay(d));
         }
 
+        /// <summary>⭐ CE-4560 (render-perf G-6) — how often the world is searched for moving sources (Hz): the audio's own rate. Between two searches the
+        /// sources found are HELD every frame (the mixer stops a loop nobody held), with the gain, pan and pitch of the last search.</summary>
+        public const float MoverSearchHz = 20f;
+
+        /// <summary>⭐ CE-4560 — searches for moving sources run (a rail: about <see cref="MoverSearchHz"/> a second, not one a frame).</summary>
+        public int MoverSearches { get; private set; }
+
+        private float _sinceSearch = float.PositiveInfinity;
+        private bool _followUp;
+        private EntityRepository? _moverWorld;
+        private EntityQuery? _moverQuery;
+        private ITkbDatabase? _acousticTkb;
+        private readonly Dictionary<long, AcousticSignatureDto?> _acoustic = new();
+        private readonly List<Entity> _goneMovers = new();
+        private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
+
+        /// <summary>⭐ CE-4560 — the farthest any moving source can be heard (m): a type's own range when it names one, else the loudest locomotion's (a jet).</summary>
+        private float ReachOf(ITkbDatabase? tkb, long type) => AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange : MaxDefaultRange;
+
+        private const float MaxDefaultRange = 4000f;   // MovingDefault's widest (a fixed wing)
+
+        private AcousticSignatureDto? AcousticCached(ITkbDatabase? tkb, long type)
+        {
+            if (!ReferenceEquals(tkb, _acousticTkb)) { _acoustic.Clear(); _acousticTkb = tkb; }
+            if (_acoustic.TryGetValue(type, out var a)) return a;
+            a = Acoustic(tkb, type);
+            _acoustic[type] = a;
+            return a;
+        }
+
         private void Movers(EntityRepository w, ITkbDatabase? tkb, Entity own, in Ear ear, float dt, IAudioOutput output)
         {
-            _movers.Clear();
             MoversHeard = 0;
-            if (dt <= 0f || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) return;
+            if (dt <= 0f || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) { _movers.Clear(); return; }
+            // ⭐ CE-4560 (G-6) — the search runs at the audio's rate; between searches the last one's sources are held as they were
+            _sinceSearch += dt;
+            if (_sinceSearch < 1f / MoverSearchHz && !_followUp && ReferenceEquals(w, _moverWorld)) { HoldMovers(w, own, ear, dt, output); return; }
+            _followUp = false;
+            float span = float.IsPositiveInfinity(_sinceSearch) ? dt : _sinceSearch;   // the time the positions moved over (the first search: this frame)
+            _sinceSearch = 0f;
+            MoverSearches++;
+            _movers.Clear();
+            if (!ReferenceEquals(w, _moverWorld))
+            {
+                _moverWorld = w;
+                _moverQuery = w.Query().With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>().Build();
+                _lastPos.Clear();
+            }
             bool embarked = w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             bool flight = w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
-            foreach (var e in w.Query().With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>().Build())
+            foreach (var e in _moverQuery!)
             {
                 var at = w.GetComponentRO<SimTransform>(e).Position;
+                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
+                // ⭐ CE-4560 — out of any hearing first: no component, TKB or locomotion read for a body nobody can hear
+                float reach = ReachOf(tkb, type);
+                if (Vector3.DistanceSquared(at, ear.Position) >= reach * reach) { _lastPos.Remove(e); continue; }
                 bool had = _lastPos.TryGetValue(e, out var before);
                 _lastPos[e] = at;
+                if (!had) _followUp = true;   // first heard: the next frame searches again, so it moves (and sounds) at once, not a search later
                 if (embarked && w.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;   // its vehicle is heard
-                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
                 var loco = Fdp.Toolkit.Motion.Locomotions.Of(w, e);
-                var a = Acoustic(tkb, type) is { MovingAudibleRange: > 0f } own_ ? own_ : MovingDefault(loco);
+                var a = AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } own_ ? own_ : MovingDefault(loco);
                 if (a == null) continue;
                 float d = Vector3.Distance(at, ear.Position);
                 if (d >= a.MovingAudibleRange) continue;
-                // ⭐ CE-1305 TE-11 — the velocity per SIM second (dt is the frame's wall time): an engine keeps its natural pitch in slow motion
+                // ⭐ CE-1305 TE-11 — the velocity per SIM second (span is wall time): an engine keeps its natural pitch in slow motion
                 double rate = _mixer.Rate;
-                var vel = had && rate > 1e-9 && double.IsFinite(rate) ? (at - before) / (dt * (float)rate) : Vector3.Zero;
+                var vel = had && rate > 1e-9 && double.IsFinite(rate) ? (at - before) / (span * (float)rate) : Vector3.Zero;
                 float speed = vel.Length();
                 bool airborne = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) && w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0;
                 float reference = a.ReferenceSpeed > 0f ? a.ReferenceSpeed : 5f;
@@ -228,11 +276,29 @@ namespace Hrot.UI.Common.Audio
             }
             // forget the gone
             if (_lastPos.Count > 4 * Math.Max(16, _movers.Count))
-                foreach (var gone in new List<Entity>(_lastPos.Keys)) if (!w.IsAlive(gone)) _lastPos.Remove(gone);
-            _movers.Sort((x, y) => y.Gain.CompareTo(x.Gain));
+            {
+                _goneMovers.Clear();
+                foreach (var gone in _lastPos.Keys) if (!w.IsAlive(gone)) _goneMovers.Add(gone);
+                foreach (var gone in _goneMovers) _lastPos.Remove(gone);
+            }
+            _movers.Sort(LouderFirst);
+            HoldMovers(w, own, ear, 0f, output);
+        }
+
+        /// <summary>⭐ CE-4560 — the loudest <see cref="MaxMovers"/> sources of the last search held this frame (the mixer stops a loop not held).</summary>
+        private void HoldMovers(EntityRepository w, Entity own, in Ear ear, float dt, IAudioOutput output)
+        {
+            double rate = _mixer.Rate;
             for (int i = 0; i < _movers.Count && i < MaxMovers; i++)
             {
                 var m = _movers[i];
+                // between searches the held few follow their source: where it is now and how fast it moves (pan, Doppler) — at most MaxMovers reads
+                if (dt > 0f && w.IsAlive(m.E) && w.HasComponent<SimTransform>(m.E))
+                {
+                    var now = w.GetComponentRO<SimTransform>(m.E).Position;
+                    var vel = rate > 1e-9 && double.IsFinite(rate) ? (now - m.At) / (dt * (float)rate) : Vector3.Zero;
+                    _movers[i] = m = m with { At = now, Vel = vel };   // (_lastPos keeps the search's sample: the next search measures over its own span)
+                }
                 float pitch = (0.9f + 0.25f * MathF.Min(1f, m.Vel.Length() / 15f)) * (m.E == own ? 1f : Spatializer.Doppler(ear, m.At, m.Vel));
                 _mixer.Hold(output, m.E.Index + 1L, m.Clip, m.Gain, m.E == own ? 0f : Spatializer.Pan(ear, m.At), pitch, m.Priority);
                 MoversHeard++;
@@ -246,13 +312,20 @@ namespace Hrot.UI.Common.Audio
         /// </summary>
         public static AcousticSignatureDto? MovingDefault(LocomotionClass loco) => loco switch
         {
-            LocomotionClass.Pedestrian => new AcousticSignatureDto { MovingAudibleRange = 60f, MovingClass = SoundSourceClass.Footsteps, ReferenceSpeed = 3f },
-            LocomotionClass.Wheeled => new AcousticSignatureDto { MovingAudibleRange = 400f, MovingClass = SoundSourceClass.WheeledEngine, ReferenceSpeed = 10f },
-            LocomotionClass.Tracked => new AcousticSignatureDto { MovingAudibleRange = 800f, MovingClass = SoundSourceClass.TrackedEngine, ReferenceSpeed = 8f },
-            LocomotionClass.Rotorcraft => new AcousticSignatureDto { MovingAudibleRange = 2500f, MovingClass = SoundSourceClass.Rotor, ReferenceSpeed = 30f },
-            LocomotionClass.FixedWing => new AcousticSignatureDto { MovingAudibleRange = 4000f, MovingClass = SoundSourceClass.Rotor, ReferenceSpeed = 100f },
+            // ⭐ CE-4560 — one instance each (it was a new one per entity per frame); ⛔ never mutated
+            LocomotionClass.Pedestrian => DefaultSteps,
+            LocomotionClass.Wheeled => DefaultWheeled,
+            LocomotionClass.Tracked => DefaultTracked,
+            LocomotionClass.Rotorcraft => DefaultRotor,
+            LocomotionClass.FixedWing => DefaultJet,
             _ => null,
         };
+
+        private static readonly AcousticSignatureDto DefaultSteps = new() { MovingAudibleRange = 60f, MovingClass = SoundSourceClass.Footsteps, ReferenceSpeed = 3f };
+        private static readonly AcousticSignatureDto DefaultWheeled = new() { MovingAudibleRange = 400f, MovingClass = SoundSourceClass.WheeledEngine, ReferenceSpeed = 10f };
+        private static readonly AcousticSignatureDto DefaultTracked = new() { MovingAudibleRange = 800f, MovingClass = SoundSourceClass.TrackedEngine, ReferenceSpeed = 8f };
+        private static readonly AcousticSignatureDto DefaultRotor = new() { MovingAudibleRange = 2500f, MovingClass = SoundSourceClass.Rotor, ReferenceSpeed = 30f };
+        private static readonly AcousticSignatureDto DefaultJet = new() { MovingAudibleRange = MaxDefaultRange, MovingClass = SoundSourceClass.Rotor, ReferenceSpeed = 100f };
 
         /// <summary>⭐ A2 — a round passing the ear cracks once (⭐ CE-1216 — the detection is <see cref="RoundPasses"/>, shared with the
         /// first-person station's edge darkening).</summary>

@@ -583,10 +583,12 @@ namespace Fdp.Presentation.Panels
             var messages = _messages;
             source.CopyMessagesTo(messages);
 
-            // Build filtered index list for this frame
+            // Build filtered index list for this frame — ⭐ CE-4561 (render-perf G-7): only when the messages or the filter changed (the same entries, the same
+            //   filter ⇒ the same rows; their heights' running total is kept with them, so the visible band is found by a binary search, not a sum of every row)
             var filtered = _filtered;
-            filtered.Clear();
-            for (int i = 0; i < messages.Count; i++)
+            bool unchanged = SameAsLastFrame(source, messages, state);
+            if (!unchanged) filtered.Clear();
+            for (int i = 0; !unchanged && i < messages.Count; i++)
             {
                 var msg = messages[i];
                 if (state.HiddenSeverities.Contains(msg.Severity))
@@ -645,16 +647,23 @@ namespace Fdp.Presentation.Panels
                 float lineH = Gui.GetTextLineHeight(), spacing = Gui.GetStyle().ItemSpacing.Y;
                 float scrollY = Gui.GetScrollY(), viewH = Gui.GetWindowHeight();
                 float from = scrollY - viewH, to = scrollY + 2f * viewH;   // a viewport of margin each side: a frame's lag in the scroll never shows a gap
-                float y = 0f, topH = 0f, bottomH = 0f; int first = -1, last = -1;
-                for (int fi = 0; fi < filtered.Count; fi++)
+                // ⭐ CE-4561 — the rows' tops as a running total (_rowTop[fi] = the summed heights before row fi), rebuilt only with the rows or the font
+                if (!unchanged || lineH != _rowLineH || spacing != _rowSpacing || _rowTop.Count != filtered.Count + 1)
                 {
-                    float h = LinesOf(messages[filtered[fi]]) * lineH + spacing;
-                    if (y + h < from) topH += h;
-                    else if (y > to) bottomH += h;
-                    else { if (first < 0) first = fi; last = fi; }
-                    y += h;
+                    _rowLineH = lineH; _rowSpacing = spacing;
+                    _rowTop.Clear();
+                    float acc = 0f;
+                    _rowTop.Add(0f);
+                    for (int fi = 0; fi < filtered.Count; fi++) { acc += LinesOf(messages[filtered[fi]]) * lineH + spacing; _rowTop.Add(acc); }
                 }
-                if (first < 0) { first = 0; last = -1; }
+                // the first row whose bottom reaches `from`, the last whose top is at or before `to` — the same band the sum found, by binary search
+                int first = UpperBound(_rowTop, from) - 1, last = UpperBound(_rowTop, to) - 1;
+                first = Math.Clamp(first, 0, filtered.Count);
+                last = Math.Min(last, filtered.Count - 1);
+                if (first < filtered.Count && _rowTop[first + 1] < from) first++;
+                float topH = first < filtered.Count ? _rowTop[first] : _rowTop[filtered.Count];
+                float bottomH = last >= first ? _rowTop[filtered.Count] - _rowTop[last + 1] : 0f;
+                if (last < first) { topH = _rowTop[Math.Min(first, filtered.Count)]; bottomH = _rowTop[filtered.Count] - topH; first = 0; last = -1; }   // none in the band: the scroll height kept
                 if (topH > 0f) Gui.Dummy(new Vector2(1f, Math.Max(0f, topH - spacing)));
                 RowsDrawn = 0;
                 for (int fi = first; fi <= last; fi++)
@@ -680,6 +689,43 @@ namespace Fdp.Presentation.Panels
 
         /// <summary>⭐ W-P1 — the rows built in the last frame (the rail that bounds the draw cost as the log grows reads it).</summary>
         public int RowsDrawn { get; private set; }
+
+        /// <summary>⭐ CE-4561 — how many times the filtered rows were rebuilt (a rail: a log that does not change rebuilds nothing).</summary>
+        public int RowBuilds { get; private set; }
+
+        // ⭐ CE-4561 (render-perf G-7) — what the rows were built from last frame
+        private readonly List<float> _rowTop = new();
+        private float _rowLineH = float.NaN, _rowSpacing = float.NaN;
+        private string? _rowSource, _rowFilter;
+        private int _rowCount = -1, _rowSeverities, _rowLoggers;
+        private MessageLogEntry? _rowFirst, _rowLast;
+
+        /// <summary>⭐ CE-4561 — the same messages (count, first and last entry — a log only appends and trims) and the same filter as last frame.</summary>
+        private bool SameAsLastFrame(IMessageLogSource source, List<MessageLogEntry> messages, TabState state)
+        {
+            int severities = 0;
+            foreach (var sev in state.HiddenSeverities) severities |= 1 << (int)sev;
+            int loggers = 0;
+            lock (state.HiddenLoggers) { foreach (var l in state.HiddenLoggers) loggers ^= l.GetHashCode(); loggers ^= state.HiddenLoggers.Count * 397; }
+            var firstMsg = messages.Count > 0 ? messages[0] : null;
+            var lastMsg = messages.Count > 0 ? messages[^1] : null;
+            bool same = ReferenceEquals(source.SourceId, _rowSource) && messages.Count == _rowCount && ReferenceEquals(firstMsg, _rowFirst)
+                        && ReferenceEquals(lastMsg, _rowLast) && string.Equals(state.FilterText, _rowFilter, StringComparison.Ordinal)
+                        && severities == _rowSeverities && loggers == _rowLoggers;
+            if (same) return true;
+            _rowSource = source.SourceId; _rowCount = messages.Count; _rowFirst = firstMsg; _rowLast = lastMsg; _rowFilter = state.FilterText;
+            _rowSeverities = severities; _rowLoggers = loggers;
+            RowBuilds++;
+            return false;
+        }
+
+        /// <summary>The index of the first element of the ascending <paramref name="tops"/> greater than <paramref name="y"/> (its count when none is).</summary>
+        private static int UpperBound(List<float> tops, float y)
+        {
+            int lo = 0, hi = tops.Count;
+            while (lo < hi) { int mid = (lo + hi) >> 1; if (tops[mid] <= y) lo = mid + 1; else hi = mid; }
+            return lo;
+        }
 
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<MessageLogEntry, object> s_lines = new();
 
