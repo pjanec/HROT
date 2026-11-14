@@ -740,6 +740,23 @@ namespace Hrot.Map.Common.Tests
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
         }
 
+        /// <summary>⭐ <c>CE-7026</c> / <c>CE-7014</c> (City Battle R-1a, R-2) — the FPV drone has FEET (four ground contacts: a drone landed beside its
+        /// operator can take off on its strike order); the jammer type 113 is the crewed HMMWV carrying a 400 m <c>JammerDto</c>, its DIS told apart
+        /// from the HMMWV's by its subcategory.</summary>
+        [Fact]
+        public void CE7026_CE7014_TheFpvHasFeet_TheJammerIsAHmmwvWithA400mBubble()
+        {
+            var db = BuildDatabase();
+            var fpv = db.GetByType(TkbEntityTypes.Drone_Fpv)!;
+            Assert.Equal(4, fpv.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!.GroundContacts.Count);
+            var jammer = db.GetByType(TkbEntityTypes.Ew_DroneJammer)!;
+            var hmmwv = db.GetByType(TkbEntityTypes.Truck_HMMWV)!;
+            Assert.Equal(400f, jammer.GetDescriptor<Fdp.Toolkit.Tkb.Domain.JammerDto>()!.RadiusM);
+            Assert.Null(hmmwv.GetDescriptor<Fdp.Toolkit.Tkb.Domain.JammerDto>());
+            Assert.Equal((hmmwv.DisType.Kind, hmmwv.DisType.Domain, hmmwv.DisType.Category), (jammer.DisType.Kind, jammer.DisType.Domain, jammer.DisType.Category));
+            Assert.NotEqual(hmmwv.DisType.Subcategory, jammer.DisType.Subcategory);
+        }
+
         /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — the INFANTRY COMPANY: a land unit of the infantry arm at company echelon whose roster
         /// is three platoon commanders, a brain with NO standing orders (lane default R-7000: its work is its task).</summary>
         [Fact]

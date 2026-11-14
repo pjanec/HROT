@@ -26,7 +26,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | 7 | CE-7010 the air gate | ⏭ ignored — the user | — |
 | 10 | CE-7012 `ClearObstacle` (the bulldozer) | ✅ | `Brains/ClearObstacleBehavior.cs`; City Battle §6c |
 | 8 | CE-7014 the jammer · CE-7029 infantry take cover from drones | ✅ · ✅ | `JammerDto` + type 113 `Ew_DroneJammer`; `DroneJamming` (serial pre-pass index) read by the FPV's dive (FPV Drone §5a) · |
-| 8b | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
+| 8b | CE-7026 the operator launches | ✅ (R-7007: an order to his authored stock; the FPV got feet) | `DroneOperator`; FPV Drone §5b |
+| 8c | CE-7029 infantry take cover from drones | ✅ | `SquadSensing.AirThreat` → `BasicSquadSop` drone row → `SquadShelterFromAir`; a lone man's `BasicInfantrySop` row |
 | 9 | CE-7030 Watch · CE-7031 boldness · CE-7011 | ✅ · ✅ · ✅ (the noise-panicked driver: `TrafficPanicSystem.Deafened`, R-7005) | `CivilianBehavior` Watch state; civilians design §5f CIV-3 marked BUILT |
 
 ## 2. The gates
@@ -52,7 +53,8 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | CE-7011 driver: `Hrot.Traffic.Tests` (after `dotnet restore` — the test project's assets predated a merged reference: the third stale-binary trap) | 85 / 85; red-proof: the noise arm off ⇒ `CE7011_…` red |
 | CE-7029: `SquadCoordinationSystemTests` 21 / 21 · `SquadManeuverTests.CE7029_*`, `BasicInfantrySopTests.CE7029_*` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`); clean build: drills 275 / 275 `PAR=1` · 328 / 328 `PAR=0`; alone, `PAR=1` and `=0`: `BasicInfantrySopTests` 18 / 18 · `BasicVehicleSopTests` 4 / 4 · `ShippedTreesAreCSharpTests` 31 / 31 | red-proofs: the system not raising it ⇒ red · the squad row's sense changed ⇒ red · the lone row on the wrong sense ⇒ red. ⚠ Mixed in ONE `PAR=1` run with the drills, the SOP classes give 10–23 ROTATING reds — PRE-EXISTING (the base before CE-7029 in a clean worktree: 23, 20) ⇒ **CE-7036**; six shipped-tree snapshots red on the base (`0926ff85c` re-filed groups) re-recorded (group line only) |
 | CE-7014: `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 22 / 22; clean build: `Fdp.Toolkits.Tests` Motion + Combat + Squad 798 / 798 · drills + drones 297 / 297 both ways · `Hrot.Core.Tests` 366 / 367 (the pre-existing geo red) | red-proof: the jammed check off ⇒ the enemy-jammer case red |
-| `tracker-counts.py --check` · `rulings-check.py` | OK · 606 / 606 |
+| CE-7026: `DroneOperatorBehaviorTests` + `AirAttackNodesTests` `PAR=1` / `=0` (+ `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) 24 / 24 · `NedTkbBuilderCombatTests.CE7026_CE7014_*`; clean build: drills + drones + operator 299 / 299 both ways · Fdp Motion 70 / 70 · `Hrot.Core.Tests` 367 / 368 (the pre-existing geo red) | red-proofs: the in-the-air wait dropped ⇒ red · one FPV foot removed ⇒ red |
+| `tracker-counts.py --check` · `rulings-check.py` | OK · 607 / 607 |
 
 ## 3. The morning report
 
@@ -66,6 +68,7 @@ them, do not act against the parallelism rules"* · *"and skip fixing 7001"* · 
 | R-7004 the bulldozer clears ANY obstacle in 10 s of blade contact (`PushSeconds`, a task param) | the handoff's frame; no TKB field yet |
 | R-7005 a SUMO car's driver abandons it within 25 m of a shot or a burst (≤ 2 cars a frame, each once) | closer than the walkers' 50 m: a driver in a running car hears less |
 | R-7006 a jammer's 400 m bubble (type 113) downs every drone of another force inside it (an FPV falls where it is) | the battery's existing path; its own side flies through |
+| R-7007 a drone launch is the operator's ORDER to his authored stock (no runtime creation) | creation would need a new pending component + system |
 | R-7001 a smoke request = the `ElementEquipment.Smoke` flag; the gun loads the round its strike names | a request's `Count` is already 1 in production |
 
 | for the user to look at | |

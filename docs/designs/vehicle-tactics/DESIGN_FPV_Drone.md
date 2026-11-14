@@ -205,6 +205,13 @@ its bubble. `DroneJamming` (Fdp.Toolkits/Motion) rebuilds the live jammers' posi
 takes the battery's path — straight down where it is (`AirAttackState.BatteryOut` = `BatteryOutJammed` 2). A dead jammer jams nothing; its own
 side's drones fly through. The type: 113 `Ew_DroneJammer`, the crewed HMMWV with a 400 m bubble (lane default R-7006).
 
+## 5b. The operator's launch — as built `2026-11-13` (showcase-brains, CE-7026 — obligation ⑤)
+
+⭐ §1's *"launch from an operator … later"*: `DroneOperator` (Brains/DroneOperatorBehavior.cs) — his stock is up to four AUTHORED drones landed beside
+him; he launches one at a time by ORDERING it (`AirPlatformStrike` on the area, `CommandOrders.Assign`), the next `IntervalSeconds` (20) after the last
+is gone. ⚠ The FPV type now carries a `BodyGeometryDto` with four feet: `RotorcraftModel` takes off only a body with ground contacts, so before this a
+landed FPV stayed down for good. ⛔ No runtime creation (lane default R-7007).
+
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 
 The design carries **15 classes** (§2) and **1 sequence** (§3); the Muscle half is built, the Brain half (`FpvAttackNodes`, `FpvAttackParams`,

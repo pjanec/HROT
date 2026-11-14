@@ -1284,6 +1284,29 @@ namespace Hrot.SimHost.Tests
                 $"straight down: dest {dest}, at {here}");
         }
 
+        /// <summary>⭐ <c>CE-7026</c> (City Battle R-1a) — a LANDED drone (its feet on the ground, <c>Airborne</c> 0) given a strike on a point takes off
+        /// and flies to search it — the operator's launch. ✅ Red-proof: the drone type without ground contacts ⇒ it stays down ⇒ red.</summary>
+        [Fact]
+        public void CE7026_ALandedDrone_TakesOffOnItsStrikeOrder()
+        {
+            var drone = SpawnDrone(new Vector3(0f, 0f, 0f));
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            db.TryGetByType(Drone, out var t);
+            t!.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+            {
+                ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity, Length = 0.35f, Width = 0.35f, Height = 0.15f,
+                GroundContacts = { new() { Name = "foot", X = 0.12f, Z = -0.075f, WheelRadius = 0.01f, StrutLength = 0.02f } },
+            });
+            _w.GetComponentRW<Fdp.Toolkit.Motion.FlightState>(drone).Airborne = 0;
+            var p = new AirAttackParams { Point = new Vector3(400f, 0f, 0f) };
+            var ws = default(AirAttackState);
+            for (int frame = 0; frame < 60 * 8; frame++) DroneStep(ref p, ref ws, drone, frame);
+            var at = _w.GetComponentRO<SimTransform>(drone).Position;
+            Assert.Equal(1, _w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(drone).Airborne);
+            Assert.True(at.Z > 10f, $"it took off: z {at.Z:F1}");
+            Assert.True(at.X > 20f, $"and flies to the point: x {at.X:F1}");
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-7014</c> (City Battle R-2) — a JAMMER: an FPV pursuing a tank flies into the 200 m bubble of an ENEMY jammer (its TKB type carries
         /// <c>JammerDto</c>) and loses its link — it comes down WHERE IT IS (<c>BatteryOut</c> = jammed), never reaching the tank; outside the bubble it

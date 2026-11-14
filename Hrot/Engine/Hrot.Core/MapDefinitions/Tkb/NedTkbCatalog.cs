@@ -1305,6 +1305,20 @@ namespace Hrot.Map.Definitions.Tkb
                 .DefineVehicle(type, "FPV drone")
                 .WithVisual(type, v => { v.SymbolCode = "SHAPMFQ-------"; v.ColorHex = "#4A4A4A"; v.Scale = 0.3f; v.ShowLabel = true; })
                 .WithFlight(type, LocomotionClass.Rotorcraft, flight)
+                // ⭐ CE-7026 (City Battle R-1a) — its four feet: a drone LANDED beside its operator (Airborne 0) can take off on its strike order
+                //   (RotorcraftModel takes off only a body with ground contacts; without them a landed drone stayed down for good)
+                .WithBodyGeometry(type, new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 0.35f, Width = 0.35f, Height = 0.15f, BodyCentreZ = 0f,
+                    GroundContacts =
+                    {
+                        Wheel("foot front left",   0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot front right",  0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot rear left",   -0.12f,  0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                        Wheel("foot rear right",  -0.12f, -0.12f, -0.075f, 0.01f, 0.02f, retractable: false),
+                    },
+                })
                 .WithCombat(type, c =>
                 {
                     c.MaxHealth = 10;
