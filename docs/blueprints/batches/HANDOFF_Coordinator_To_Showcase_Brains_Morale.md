@@ -14,7 +14,7 @@ related-designs:
 
 # HANDOFF — coordinator → `showcase-brains`: morale — a burst is fire, a broken platoon falls back (R-4227)
 
-**For:** the `showcase-brains` lane. **From:** coordinator. **Dispatched at `27a8354d3`**; ⛔ **scope FROZEN
+**For:** the `showcase-brains` lane. **From:** coordinator. **Dispatched at `d9353eb5d`** *(re-stamped under rule 1a, unstarted: CE-4582 → CE-4584 at the merge)*; ⛔ **scope FROZEN
 there** — later documents are FYI; one that invalidates an item ⇒ STOP that item and report it (R-106, never the batch).
 🔒 User, `2026-11-14`: *"agreed with the leans but you need to measure the unknowns first"* · *"approved"* (R-4227).
 ⭐ Autonomous, no questions: each item's decisions are made below; anything left open is decided the closest way and named in the report.
