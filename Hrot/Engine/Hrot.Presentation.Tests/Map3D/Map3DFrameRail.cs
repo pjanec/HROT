@@ -1320,6 +1320,174 @@ public sealed class Map3DFrameRail
         Assert.Equal(0, Cards(true));
     }
 
+    /// <summary>A RIDGE for <see cref="CE4582_TheCardsHideBehindTheRidge_TheSelectedOneAndTheToggleOff_DoNot"/>: a long low wall across the view, drawn in
+    /// the 3-D pass with depth (as the terrain is).</summary>
+    private sealed class Ridge : Fdp.Toolkit.Vis2D.Abstractions.IMapLayer
+    {
+        public float Y = 10f, Height = 7f;
+        public string Name => "Ridge";
+        public int LayerBitIndex => -1;
+        public bool Has3D => true;
+        public void Update(float dt) { }
+        public void Draw(Fdp.Toolkit.Vis2D.Abstractions.RenderContext ctx) { }
+        public void Draw3D(Fdp.Toolkit.Vis2D.Abstractions.RenderContext ctx) => Raylib.DrawCube(HrotToRaylib.Position(new Vector3(0f, Y, Height / 2f)), 200f, Height, 1f, new Color(40, 120, 40, 255));
+        public bool HandleInput(Vector2 worldPos, Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton button, bool isPressed) => false;
+        public Entity? PickEntity(Vector2 worldPos) => null;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am, acceptance 1 and 5) — through the REAL chain (the layer gizmo's row → the buffer's bit → the
+    /// overlay's occlusion scope → the card renderer and the label overlay): a unit BEYOND a ridge has its card cut at the ridge line — the part above it
+    /// drawn, nothing below; a unit in FRONT keeps its whole card; the SELECTED unit beyond the ridge keeps its whole card (D-4); a place label beyond the
+    /// ridge is cut the same way (D-8); with Units ▸ Hide labels behind terrain unticked every card is drawn whole (M13, today).
+    /// 🔴 Red-proofs (compile): <c>Occlusion3D.Begin</c> not called ⇒ the magenta card below the ridge line; <c>AlwaysOnTop</c> not consulted ⇒ the
+    /// yellow card cut.
+    /// </summary>
+    [SkippableFact]
+    public void CE4582_TheCardsHideBehindTheRidge_TheSelectedOneAndTheToggleOff_DoNot()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        using var world = new EntityRepository();
+        world.SetSingletonManaged(new Hrot.Common.Orders.OrdersOffered());
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+        var layers = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(7, new Fdp.Core.FdpEventBus(), new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), settings: new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry());
+        var gizmos = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new Fdp.Core.FdpEventBus(), camera: two) { CurrentCamera = () => canvas.Camera };
+        // the production wiring (MapInteractionPack.AttachMapLayers): the switch is the buffer's bit, the selection always on top
+        gizmos.Occlusion3D.Enabled = () => buffer.IsLayerActive(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.HideLabelsBehindTerrain);
+        const long Behind = 301, Front = 302, Selected = 303;
+        gizmos.Cards.AlwaysOnTop = id => id == Selected;
+        canvas.AddLayer(new Ridge());
+        canvas.AddLayer(gizmos);
+        var sw = new MapViewSwitch(canvas, two);
+        layers.Is3D = () => sw.Is3D;
+        sw.Set(true, animate: false);
+        // looking north, a little down, from 60 m south of the origin; the ridge 10 m north of it, 7 m high
+        sw.Camera3D.Pose = new CameraPose(Vector3.Zero, 60f, MathF.PI * 0.5f, -0.15f);
+
+        var magenta = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 0, 255);
+        var cyan = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(0, 255, 255);
+        var yellow = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 230, 0);
+        var white = new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(240, 240, 240);
+        void Card(long id, Vector3 at, Fdp.Toolkit.Diagnostics.Gizmos.Rgba32 side)
+        {
+            buffer.DrawSpatialAnchor((int)id, at.X, at.Y, at.Z, 0f, 0f, 0f);
+            var card = Fdp.Toolkit.Diagnostics.Gizmos.EntityCards.Card(buffer, (int)id, Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);
+            card.Row(0).Frame(side, backgroundAlpha: 0);
+            for (byte r = 20; r < 25; r++) card.Row(r).Text("Bravo 1-2", white);   // a tall card: the ridge line crosses it
+        }
+        Image Shot(string name)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                buffer.Clear();
+                layers.UpdateAndDraw(world, 0.016f, buffer);   // the mask, as the global gizmo manager runs it
+                Card(Behind, new Vector3(-14f, 30f, 0f), magenta);
+                Card(Front, new Vector3(14f, -20f, 0f), cyan);
+                Card(Selected, new Vector3(14f, 30f, 0f), yellow);
+                // a PLACE label beyond the ridge (D-8): orange, big
+                buffer.DrawText(-34f, 30f, new Fdp.Core.FixedString32("WP 7"), new Fdp.Toolkit.Diagnostics.Gizmos.Rgba32(255, 140, 0), fontSizePx: 40f);
+                gizmos.Update(0.016f);
+                frame.Step(canvas.Draw);
+            }
+            string png = Path.Combine(shots, name);
+            frame.Screenshot(png);
+            return Raylib.LoadImage(png);
+        }
+
+        var cam = sw.Camera3D;
+        int bx = (int)cam.WorldToScreen(new Vector3(-14f, 30f, 2f)).X, fx = (int)cam.WorldToScreen(new Vector3(14f, -20f, 2f)).X, sx = (int)cam.WorldToScreen(new Vector3(14f, 30f, 2f)).X;
+        int lx = (int)cam.WorldToScreen(new Vector3(-34f, 30f, 0f)).X;
+
+        var on = Shot("ce4582-hidden-behind-ridge.png");
+        Untick();
+        var off = Shot("ce4582-toggle-off.png");
+        try
+        {
+            int top = RidgeTop(on, bx);
+            Assert.True(top > 0, "the ridge must draw (fixture)");
+            var bOn = Count(on, 255, 0, 255, bx - 80, bx + 80, top);
+            var bOff = Count(off, 255, 0, 255, bx - 80, bx + 80, top);
+            Assert.True(bOff.Below > 0 && bOff.Above > 0, $"fixture: the ridge line must cross the card beyond it (toggle off: above {bOff.Above}, below {bOff.Below})");
+            Assert.True(bOn.Above > 0, $"the part of the card ABOVE the ridge line is drawn (above {bOn.Above})");
+            Assert.Equal(0, bOn.Below);   // ⭐ D-1 — below the ridge line: hidden
+            var fOn = Count(on, 0, 255, 255, fx - 80, fx + 80, 0); var fOff = Count(off, 0, 255, 255, fx - 80, fx + 80, 0);
+            Assert.True(fOn.Below > 0 && fOn.Below == fOff.Below, $"a unit in FRONT keeps its whole card (on {fOn.Below}, off {fOff.Below})");
+            var sOn = Count(on, 255, 230, 0, sx - 80, sx + 80, 0); var sOff = Count(off, 255, 230, 0, sx - 80, sx + 80, 0);
+            Assert.True(sOn.Below > 0 && sOn.Below == sOff.Below, $"⭐ D-4 — the SELECTED unit beyond the ridge keeps its whole card (on {sOn.Below}, off {sOff.Below})");
+            int ltop = RidgeTop(on, lx);
+            // in FRONT of the ridge's face only (below the wall there is open sky: nothing stands in front of the label there, so it shows — rightly)
+            int lbottom = RidgeBottom(on, lx);
+            int lInOff = CountIn(off, 255, 140, 0, lx - 120, lx + 120, ltop + 2, lbottom - 2), lInOn = CountIn(on, 255, 140, 0, lx - 120, lx + 120, ltop + 2, lbottom - 2);
+            Assert.True(lInOff > 0, $"fixture: the place label lies over the ridge's face (off: {lInOff})");
+            Assert.Equal(0, lInOn);   // ⭐ D-8 — a place label beyond the ridge is cut the same way
+            Assert.True(gizmos.Occlusion3D.Tested == 0, "the toggle OFF frame opens no scope");
+        }
+        finally { Raylib.UnloadImage(on); Raylib.UnloadImage(off); }
+
+        // ⭐ D-10 (R-2084) — the scope adds 0 B per steady frame: the overlay pass allocates the same with it as without it
+        long Overlay()
+        {
+            long delta = 0;
+            frame.Step(() => { canvas.Draw(); var ctx = new Fdp.Toolkit.Vis2D.Abstractions.RenderContext { VisibleLayersMask = uint.MaxValue }; long a0 = GC.GetAllocatedBytesForCurrentThread(); gizmos.DrawOverlay(ctx); delta = GC.GetAllocatedBytesForCurrentThread() - a0; });
+            return delta;
+        }
+        for (int i = 0; i < 5; i++) Overlay();
+        long without = Overlay();
+        gizmos.Occlusion3D.Enabled = () => true;
+        for (int i = 0; i < 5; i++) Overlay();
+        long with = Overlay();
+        Assert.True(gizmos.Occlusion3D.Tested > 0, "the measured frame opened the scope");
+        Assert.True(with <= without, $"the occlusion scope allocated {with - without} B more per frame (with {with}, without {without})");
+
+        void Untick()
+        {
+            var dto = new Hrot.Common.Diagnostics.Gizmos.LayerControlDto { View = Hrot.Common.Diagnostics.Gizmos.LayerControlSets.View3D, Units = { HideLabelsBehindTerrain = false } };
+            using var s = new StructEdit.Reflection.ComponentEditServiceBuilder().Build().Open(dto, typeof(Hrot.Common.Diagnostics.Gizmos.LayerControlDto));
+            layers.OnStructUpdate(StructEdit.Json.EditSessionJsonExtensions.ToJson(s));
+        }
+    }
+
+    private static bool IsRgb(Color c, int r, int g, int b) => Math.Abs(c.R - r) < 40 && Math.Abs(c.G - g) < 40 && Math.Abs(c.B - b) < 40;
+
+    /// <summary>The ridge's top edge in a column: the first ridge-green pixel from the top (−1 = none).</summary>
+    private static int RidgeTop(Image img, int x)
+    {
+        for (int y = 0; y < img.Height; y++) if (IsRgb(Raylib.GetImageColor(img, x, y), 40, 120, 40)) return y;
+        return -1;
+    }
+
+    /// <summary>The ridge's bottom edge in a column: the last ridge-green pixel (−1 = none).</summary>
+    private static int RidgeBottom(Image img, int x)
+    {
+        for (int y = img.Height - 1; y >= 0; y--) if (IsRgb(Raylib.GetImageColor(img, x, y), 40, 120, 40)) return y;
+        return -1;
+    }
+
+    /// <summary>Pixels of one colour in columns [x0, x1) and rows [y0, y1].</summary>
+    private static int CountIn(Image img, int r, int g, int b, int x0, int x1, int y0, int y1)
+    {
+        int n = 0;
+        for (int y = Math.Max(0, y0); y <= Math.Min(img.Height - 1, y1); y++)
+            for (int x = Math.Max(0, x0); x < Math.Min(img.Width, x1); x++)
+                if (IsRgb(Raylib.GetImageColor(img, x, y), r, g, b)) n++;
+        return n;
+    }
+
+    /// <summary>Pixels of one colour in columns [x0, x1) above and below a row (±1 px of the row itself not counted).</summary>
+    private static (int Above, int Below) Count(Image img, int r, int g, int b, int x0, int x1, int row)
+    {
+        int above = 0, below = 0;
+        for (int y = 0; y < img.Height; y++)
+            for (int x = Math.Max(0, x0); x < Math.Min(img.Width, x1); x++)
+                if (IsRgb(Raylib.GetImageColor(img, x, y), r, g, b)) { if (y < row - 1) above++; else if (y > row + 1) below++; }
+        return (above, below);
+    }
+
     /// <summary>
     /// ⭐ CE-1040 — the 2-D map draws NORTH UP (docs/DESIGN_Map_North_Up.md): a red filled triangle north of the centre lands in
     /// the top half of the picture, a blue box south of it in the bottom half, and both SURVIVE the mirror (back-face culling is

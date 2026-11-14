@@ -48,7 +48,7 @@
 <text x='28' y='496' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>② Bravo 1-2 behind the building: only the part above the roof shows — frame, bar and stress row cut together, never one piece alone</text>
 <text x='28' y='510' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>③ Alpha 1-1 in a wood: trees never hide a card (§6am D-3, step 2) · ④ the selected unit: always whole, on top (as its body, §6ak D-7)</text>
 <text x='820' y='62' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>B — the squad leader's ONE card, every row on</text>
-<rect x='820' y='82' width='190' height='173' fill='#101418' rx='0' stroke='#5AA9FF' stroke-width='1.2' opacity='1'/>
+<rect x='820' y='82' width='190' height='188' fill='#101418' rx='0' stroke='#5AA9FF' stroke-width='1.2' opacity='1'/>
 <text x='826' y='99' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1  #1001</text>
 <text x='1020' y='99' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Labels · 20 name</text>
 <rect x='826' y='106' width='178' height='5' fill='#2A2A30' rx='0' opacity='1'/>
@@ -58,30 +58,32 @@
 <text x='1020' y='129' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Mind state · 11–12</text>
 <text x='826' y='144' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SQUAD 4 ph2</text>
 <text x='1020' y='144' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Squad command · 60 (was free text)</text>
-<text x='826' y='159' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2/3 sections set</text>
-<text x='1020' y='159' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Squad command · 61 (was free text)</text>
+<text x='826' y='159' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>no picture on this node yet</text>
+<text x='1020' y='159' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Squad command · 63 (was free text)</text>
 <text x='826' y='174' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>CombatPosture: advance</text>
-<text x='1020' y='174' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Actions · 70 (was free text)</text>
-<text x='826' y='189' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>peek: fire 2/4</text>
-<text x='1020' y='189' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Actions · 71 (was free text)</text>
+<text x='1020' y='174' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Actions · 70–72, one per channel</text>
+<text x='826' y='189' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PF hidden 2.1s</text>
+<text x='1020' y='189' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Actions · 73 (was free text)</text>
 <text x='826' y='204' fill='#B07CF0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D3: TakeCover Δ0.12</text>
-<text x='1020' y='204' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Utility · 72 (was free text)</text>
-<text x='826' y='219' fill='#F29B38' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>kneel · 312°</text>
-<text x='1020' y='219' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit details · 80 (was free text)</text>
-<text x='826' y='234' fill='#A0A0AA' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>hidden: AK-47</text>
-<text x='1020' y='234' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Concealed · 46</text>
-<text x='826' y='249' fill='#E8C04A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BOUNTY</text>
-<text x='1020' y='249' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Labels · 10b</text>
-<text x='820' y='275' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>each row keeps ITS layer and shows only while that layer is on</text>
-<text x='820' y='289' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>AND the card's own layer (Units ▸ Labels) is on — no orphan card</text>
+<text x='1020' y='204' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Utility · 74–79, one per decision</text>
+<text x='826' y='219' fill='#F29B38' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Crouched</text>
+<text x='1020' y='219' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit details · 80 stance</text>
+<text x='826' y='234' fill='#F29B38' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>312*</text>
+<text x='1020' y='234' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Unit details · 81 heading</text>
+<text x='826' y='249' fill='#A0A0AA' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>hidden: AK-47</text>
+<text x='1020' y='249' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Concealed · 46</text>
+<text x='826' y='264' fill='#E8C04A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>BOUNTY</text>
+<text x='1020' y='264' fill='#8A8A96' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Labels · 10b</text>
+<text x='820' y='290' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>each row keeps ITS layer and shows only while that layer is on</text>
+<text x='820' y='304' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>AND the card's own layer (Units ▸ Labels) is on — no orphan card</text>
 <text x='820' y='322' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>C — a member: what was about HIM is on HIS card</text>
 <rect x='820' y='334' width='170' height='68' fill='#101418' rx='0' stroke='#5AA9FF' stroke-width='1.2' opacity='1'/>
 <text x='826' y='348' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Alpha 1-2  #1006</text>
 <rect x='826' y='356' width='158' height='5' fill='#2A2A30' rx='0' opacity='1'/>
 <rect x='826' y='356' width='120' height='5' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='826' y='370' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>E1 R2</text>
-<text x='826' y='384' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>→ bound 2 of 3</text>
-<text x='820' y='422' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SquadGizmo's E/R and CommandPictureGizmo's subordinate progress</text>
+<text x='826' y='370' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>E1R2</text>
+<text x='826' y='384' fill='#3EC6B0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Moving</text>
+<text x='820' y='422' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SquadGizmo's E/R (row 61) and CommandPictureGizmo's progress (row 62)</text>
 <text x='820' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>were drawn at the member as free text by the LEADER's gizmo;</text>
 <text x='820' y='450' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>now a row of the member's own card (Squad command layer)</text>
 <text x='20' y='552' fill='#C8C8D0' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>D — Map ▸ Layers, the Units group (rows unchanged except the NEW one)</text>

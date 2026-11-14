@@ -40,6 +40,7 @@ public sealed class EntityBoxPicker : IBodyPicker3D
     {
         var world = _world();
         if (world == null || networkId == 0 || networkId > int.MaxValue || !world.IsComponentTypeRegistered<TkbIdentity>()) return false;
+        if (_bodies.Hidden) return false;   // ⭐ CE-4582 (§6am D-9) — Units ▸ Entities off: no body drawn, none to press on
         var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, (int)networkId);   // the entity itself, not its carrier
         if (e.IsNull || e == _bodies.FirstPerson || !world.IsAlive(e) || !world.HasComponent<TkbIdentity>(e)) return false;
         return _bodies.TryGetBox(world, e, _tkb(), out _, out _, out _);

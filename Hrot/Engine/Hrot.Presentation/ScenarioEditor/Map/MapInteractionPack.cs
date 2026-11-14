@@ -596,6 +596,12 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1033 S3 — gizmos in 3-D: z = 0 shapes drape on the ground (M18); labels sit on top of the bodies (M13).
             gizmoLayer.Renderer3D.GroundHeight = viewSwitch.Camera3D.GroundHeight;
             gizmoLayer.LabelLift = bodies.TopAbove;
+            // ⭐ CE-4582 (§6am D-9) — the bodies honour Units ▸ Entities: the buffer's bit 0, as the 2-D terrain reads its own bit above
+            bodies.Visible = () => buffer.IsLayerActive(0);
+            // ⭐ CE-4582 (§6am D-4, D-5) — cards and place labels hidden behind the terrain: the switch is the buffer's bit (Units ▸ Hide labels
+            //   behind terrain, on by default); the selected unit's card always shows
+            gizmoLayer.Occlusion3D.Enabled = () => buffer.IsLayerActive(DebugTraceLayers.HideLabelsBehindTerrain);
+            gizmoLayer.Cards.AlwaysOnTop = id => Hrot.UI.Common.Map3D.EntityBodyLayer3D.IsSelectedNet(worldProvider(), id);
             // ⭐ CE-1033 S2 (M17) — what a 3-D click can hit: the drawn terrain, then the entity boxes (nearest wins).
             viewSwitch.Camera3D.Pickers.Add(new Fdp.Toolkit.Vis3D.TerrainPicker(() =>
                 worldProvider() is { } w ? Fdp.Toolkit.World.WorldQuery.RenderGeometryOf(w) : null));

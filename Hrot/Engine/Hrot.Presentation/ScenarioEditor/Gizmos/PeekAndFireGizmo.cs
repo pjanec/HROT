@@ -57,7 +57,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             var text = PhaseText(in m, now);
             if (text == null) return;
             var unit = view.GetComponentRO<SimTransform>(entity).Position;
-            draw.DrawText(unit.X, unit.Y, new FixedString32(text), Phase, fontSizePx: 11f, lineOffsetPx: -40f, layer: DebugTraceLayers.Actions);
+            // ⭐ CE-4582 (§6am D-7) — the phase is about HIM: a row of his card (the slots, hide and peek points stay at their places)
+            int net = EntityCardRows.CardIdOf(view, entity);
+            if (net != 0) draw.Card(net, DebugTraceLayers.Actions).Row(EntityCardRows.PeekPhase).Text(text, Phase, 11f);
             draw.DrawSphere(m.HidePoint, 0.35f, Hide, thickness: 2f, layer: DebugTraceLayers.Actions);
             // ⭐ CE-3158 G5 (§10.7 "seen") — the unit's live CoverClaim: an owner line from him to the point he holds, so who keeps
             //   squad-mates off which cover is visible on the map
@@ -74,7 +76,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         }
 
         /// <summary>A slot's label: its heat now and its uses (public for the rail).</summary>
-        public static string SlotText(float heat, int uses) => $"h{heat:0.0} x{uses}";
+        public static string SlotText(float heat, int uses) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"h{heat:0.0} x{uses}");   // R-4221
 
         /// <summary>The phase line, or null when the node has not run within <see cref="FreshSeconds"/> (public for the rail).</summary>
         public static string? PhaseText(in FiringPositionMemory m, double now)
@@ -93,7 +95,7 @@ namespace Hrot.ScenarioEditor.Gizmos
                 _                    => phase.ToString(),
             };
             double left = m.PhaseUntil - now;
-            return phase == PeekPhase.Hidden && left > 0d ? $"PF {name} {left:0.0}s" : $"PF {name}";
+            return phase == PeekPhase.Hidden && left > 0d ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"PF {name} {left:0.0}s") : $"PF {name}";   // R-4221
         }
 
         private static Rgba32 Mix(float t)

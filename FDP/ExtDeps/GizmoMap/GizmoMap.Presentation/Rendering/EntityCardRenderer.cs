@@ -187,17 +187,45 @@ namespace GizmoMap.Presentation
         {
             _measureCached ??= MeasureCached;
             var cards = Layout(primitives, anchorScreen, _measureCached);
+            // ⭐ CE-4582 (§6am D-1, D-2, D-4) — with an open occlusion scope each card is drawn at ITS entity's depth (the whole stack at one depth,
+            //   so frame, bars and rows are cut by the same line); the cards that must always show (the selected unit's) after the scope ends.
+            var occ = Occlusion;
+            bool tested = occ is { Active: true };
+            int onTop = 0;
             for (int c = 0; c < cards.Count; c++)
             {
                 var card = cards[c];
-                // row 0 backgrounds first, then the rows, then row 0's outlines — the frame is on top, the background behind
-                var items = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(card.Items);
-                for (int i = 0; i < items.Length; i++) if (items[i].CardWide && IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
-                for (int i = 0; i < items.Length; i++) if (!items[i].CardWide) DrawItem(card, in items[i]);
-                for (int i = 0; i < items.Length; i++) if (items[i].CardWide && !IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
-                Raylib.DrawLineEx(new Vector2(card.Anchor.X, card.Rect.Y + card.Rect.Height), card.Anchor, 1f, card.LeaderColour);
+                if (tested && AlwaysOnTop?.Invoke(card.NetworkId) == true)
+                {
+                    if (onTop == _onTop.Length) Array.Resize(ref _onTop, onTop * 2);
+                    _onTop[onTop++] = c;
+                    continue;
+                }
+                if (tested) occ!.Push(card.NetworkId);
+                DrawCard(card);
+                if (tested) occ!.Pop();
             }
+            if (tested) occ!.End();
+            for (int k = 0; k < onTop; k++) DrawCard(cards[_onTop[k]]);
             CardsDrawn = cards.Count;
+        }
+
+        /// <summary>⭐ CE-4582 (§6am D-1) — set by a 3-D host: the cards are hidden behind what stands in front of their entity. Null ⇒ on top (2-D, M13).</summary>
+        public ICardOcclusion? Occlusion { get; set; }
+
+        /// <summary>⭐ CE-4582 (§6am D-4) — a card that is never hidden (the host's selection), drawn after the occlusion scope.</summary>
+        public Func<long, bool>? AlwaysOnTop { get; set; }
+
+        private int[] _onTop = new int[8];
+
+        private void DrawCard(Card card)
+        {
+            // row 0 backgrounds first, then the rows, then row 0's outlines — the frame is on top, the background behind
+            var items = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(card.Items);
+            for (int i = 0; i < items.Length; i++) if (items[i].CardWide && IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
+            for (int i = 0; i < items.Length; i++) if (!items[i].CardWide) DrawItem(card, in items[i]);
+            for (int i = 0; i < items.Length; i++) if (items[i].CardWide && !IsFill(items[i].Primitive)) DrawItem(card, in items[i]);
+            Raylib.DrawLineEx(new Vector2(card.Anchor.X, card.Rect.Y + card.Rect.Height), card.Anchor, 1f, card.LeaderColour);
         }
 
         private Func<string, float, float>? _measureCached;

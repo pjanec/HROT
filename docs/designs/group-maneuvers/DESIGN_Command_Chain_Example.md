@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-14 (§8e the battalion's reserve, CE-4587)
+updated: 2026-11-14 (§8e the battalion's reserve, CE-4589)
 build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) ✅ BUILT 2026-10-19 (§8a, end); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050)
 current-answer: ⭐ §8e the battalion's reserve (READY-TO-BUILD 2026-11-14) · §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
@@ -827,7 +827,7 @@ air, the live rung (the demo ladder, step 8).
 | the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
 | dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |
 
-## 8e. The battalion's reserve — a company asks for more, and the HQ sends its reserve *(`CE-4587`, CE-7004 ②, coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
+## 8e. The battalion's reserve — a company asks for more, and the HQ sends its reserve *(`CE-4589`, CE-7004 ②, coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
 
 🔒 User, `2026-11-14`: *"design 3"* — the City Battle showcase's C-3, *"local counterattack, asking the battalion for more — ⭐ MUST-HAVE"*
 ([showcase §3a, §11 C-3](DESIGN_City_Battle_Showcase.md)); the counterattack half is built (showcase §6a, R-7008), this is the other half.

@@ -58,9 +58,9 @@ BX, BY = 820, 70
 s.text(BX, BY - 8, "B — the squad leader's ONE card, every row on", C.SUB, 12)
 rows = [("Alpha 1  #1001", C.TXT, "Labels · 20 name"), ('bar', 0.8, C.GREEN, "Labels · 10 health"),
         ("stress ▮▮▮▯▯   (BROKEN in red)", C.PEND, "Mind state · 11–12"),
-        ("SQUAD 4 ph2", C.TEAL, "Squad command · 60 (was free text)"), ("2/3 sections set", C.TEAL, "Squad command · 61 (was free text)"),
-        ("CombatPosture: advance", C.AMBER, "Actions · 70 (was free text)"), ("peek: fire 2/4", C.AMBER, "Actions · 71 (was free text)"),
-        ("D3: TakeCover Δ0.12", C.VIOLET, "Utility · 72 (was free text)"), ("kneel · 312°", C.ORANGE, "Unit details · 80 (was free text)"),
+        ("SQUAD 4 ph2", C.TEAL, "Squad command · 60 (was free text)"), ("no picture on this node yet", C.TEAL, "Squad command · 63 (was free text)"),
+        ("CombatPosture: advance", C.AMBER, "Actions · 70–72, one per channel"), ("PF hidden 2.1s", C.AMBER, "Actions · 73 (was free text)"),
+        ("D3: TakeCover Δ0.12", C.VIOLET, "Utility · 74–79, one per decision"), ("Crouched", C.ORANGE, "Unit details · 80 stance"), ("312*", C.ORANGE, "Unit details · 81 heading"),
         ("hidden: AK-47", C.GREY, "Concealed · 46"), ("BOUNTY", "#E8C04A", "Labels · 10b")]
 y = BY + 12
 s.rect(BX, y, 190, 8 + 15 * len(rows), "#101418", stroke=BLUE_SIDE, sw=1.2)
@@ -78,10 +78,10 @@ s.note(BX, yy + 22, ["each row keeps ITS layer and shows only while that layer i
 CX, CY = 820, 330
 s.text(CX, CY - 8, "C — a member: what was about HIM is on HIS card", C.SUB, 12)
 s.rect(CX, CY + 4, 170, 68, "#101418", stroke=BLUE_SIDE, sw=1.2)
-for i, (t, c) in enumerate([("Alpha 1-2  #1006", C.TXT), (None, None), ("E1 R2", C.TEAL), ("→ bound 2 of 3", C.TEAL)]):
+for i, (t, c) in enumerate([("Alpha 1-2  #1006", C.TXT), (None, None), ("E1R2", C.TEAL), ("Moving", C.TEAL)]):
     if t is None: s.rect(CX + 6, CY + 26, 158, 5, "#2A2A30"); s.rect(CX + 6, CY + 26, 120, 5, C.GREEN); continue
     s.text(CX + 6, CY + 18 + i * 14 - (6 if i > 1 else 0), t, c, 10.5)
-s.note(CX, CY + 92, ["SquadGizmo's E/R and CommandPictureGizmo's subordinate progress", "were drawn at the member as free text by the LEADER's gizmo;", "now a row of the member's own card (Squad command layer)"], C.SUB, 11)
+s.note(CX, CY + 92, ["SquadGizmo's E/R (row 61) and CommandPictureGizmo's progress (row 62)", "were drawn at the member as free text by the LEADER's gizmo;", "now a row of the member's own card (Squad command layer)"], C.SUB, 11)
 
 # ── D: the layers panel — Units group ─────────────────────────────────────────────────────────────────────────
 DX, DY = 20, 560
