@@ -59,6 +59,8 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Dirty[Capacity];
         /// <summary>AT-11 — 1 = this reserve is out on a casevac.</summary>
         public fixed byte Casevac[Capacity];
+        /// <summary>⭐ CE-4608 — 1 = this slot was the assault and was relieved to the reserve (spent): in the assault it HOLDS the objective's foothold.</summary>
+        public fixed byte Spent[Capacity];
         public Vector3 SupportAt;
         public Vector3 AssaultAt;
         public Vector3 ReserveAt;
@@ -512,6 +514,10 @@ namespace Hrot.AI.Behaviors.Brains
                 case PlatoonAttackPlan.PhaseSupport:
                 case PlatoonAttackPlan.PhaseApproach:
                 case PlatoonAttackPlan.PhaseAssault:
+                    // ⭐ CE-4608 (Building Clearing §6a — "the remnant holds the foothold") — a relieved assault squad stops clearing and defends
+                    //   the objective it was in (⛔ no order left its ClearBuilding running on)
+                    if (role == PlatoonAttackPlan.Reserve && p.Phase == PlatoonAttackPlan.PhaseAssault && p.Spent[slot] != 0)
+                        return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order);
                     if (role == PlatoonAttackPlan.Support && p.Preset != (byte)PlatoonAttackPreset.ClearBuilding)
                         return Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order);
                     if (role == PlatoonAttackPlan.Assault && p.Phase == PlatoonAttackPlan.PhaseAssault)
@@ -672,6 +678,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (a < 0 || r < 0) return NodeStatus.Success;
             p.Role[a] = PlatoonAttackPlan.Reserve;
             p.Role[r] = PlatoonAttackPlan.Assault;
+            p.Spent[a] = 1; p.Spent[r] = 0;   // ⭐ CE-4608
             p.Dirty[a] = p.Dirty[r] = 1;
             return NodeStatus.Success;
         }

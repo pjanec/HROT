@@ -108,5 +108,34 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 12 && result == null; i++) { p.Tick(); if (p.S.Finished(out var r)) result = r; }
             Assert.Equal(Fbt.NodeStatus.Success, result);
         }
+
+        /// <summary>⭐ <c>CE-4608</c> (Building Clearing §6a: "the remnant holds the foothold") — the assault clearing a building reports BLACK and the
+        /// reserve relieves it: the reserve takes over the <c>ClearBuilding</c>, and the SPENT squad's last order is <c>SquadDefend</c> at the
+        /// building (it got no order, so its clearing ran on). ✅ Red-proof: the Spent branch of <c>OrderFor</c> dropped ⇒ its last order stays
+        /// the ClearBuilding.</summary>
+        [Fact]
+        public void CE4608_PlatoonAttack_ARelievedAssaultSquad_HoldsTheBuilding_InsteadOfClearingOn()
+        {
+            var p = new Platoon(squads: 3);
+            var house = new Vector3(0f, 150f, 0f);
+            p.ReportSpot(p.Bravo, house + new Vector3(0f, 50f, 0f), 2);
+            p.ReportSpot(p.Alpha, house + new Vector3(2f, 1f, 0f), 2);
+            p.Ticks(2);
+            Attack(p, new Vector3(0f, 175f, 0f), radius: 80f);
+            p.Ticks(3);
+            AnswerArea(p, (7, new Vector2(house.X, house.Y)));
+            p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            p.ReportSet(p.Alpha); p.Ticks(4);
+            Assert.Equal(BehaviorNames.ClearBuilding, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);
+            Assert.Equal(0, p.OrdersTo(p.Charlie, BehaviorNames.ClearBuilding));
+
+            Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
+            p.Ticks(6);
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.ClearBuilding));                                           // the reserve clears on
+            Assert.Equal(BehaviorNames.SquadDefend, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);              // the spent one holds
+            var hold = DefendOrderTo(p, p.Alpha);
+            Assert.True(Vector3.Distance(hold.Position, new Vector3(house.X, house.Y, 0f)) < 0.5f);
+        }
     }
 }
