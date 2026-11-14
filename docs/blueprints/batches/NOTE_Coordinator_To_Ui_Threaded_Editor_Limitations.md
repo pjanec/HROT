@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-13
+updated: 2026-11-14 (backend marks the threaded-fixes items resolved per row: [STATUS](STATUS_Threaded_Fixes.md))
 current-answer: the whole file
 related-designs:
   - NOTE_Coordinator_To_Ui_Showcase_On_The_Parallel_Branch.md — where the showcase's behaviour code lives (a branch from exp/threaded-build)
@@ -35,8 +35,8 @@ ON, the stepped gate is EQUAL at 1 / 4 / 12 threads (W-4, `--kernel 0`), and the
 |---|---|---|---|
 | L-1 | ⛔ **stepped runs are NOT repeatable**: the same 10 men start a reaction one step apart at 1 vs 4 threads (`BehaviorState`, `BlueprintBlackboard*`, `BrainJournal`); positions equal. A regression since this morning's build | W-4 | ✅ EQUAL |
 | L-2 | ⛔ **entering the preview paused lets one extra step through** in 1 run in 3–6 (121 vs 120 steps); `stepped-hash.py` refuses to compare such runs (exit 2) | W-4 | ✅ a constant count every run |
-| L-3 | ⛔ **`GET /view` and `POST /view/follow` fail** ("a headless host"): they look the camera up on the sim's world (`DebugApiService.View.cs:18`, `:74`) | W-5 row 2 | ✅ works |
-| L-4 | ⚠ **Undo after an HTTP `DELETE /entities/{id}` is refused** — the HTTP delete records no undo step | W-5 row 3 | ⛔ the same (not a threading issue) |
+| L-3 | ✅ **RESOLVED `2026-11-14` (backend X-7, CE-4571 — they read the shown world)** ~~`GET /view` and `POST /view/follow` fail~~ ("a headless host"): they look the camera up on the sim's world (`DebugApiService.View.cs:18`, `:74`) | W-5 row 2 | ✅ works |
+| L-4 | ✅ **RESOLVED `2026-11-14` (backend X-8, CE-4572 — the delete is one undo step)** ~~Undo after an HTTP `DELETE /entities/{id}` is refused~~ — the HTTP delete records no undo step | W-5 row 3 | ⛔ the same (not a threading issue) |
 | L-5 | ⚠ the `[Performance]` status line ("restart to apply") is not readable over HTTP (`GET /editor/commands/…status` has no `?scope=shell`) | W-1 | — (cosmetic) |
 | L-6 | cosmetic: the log's `·` separator is written in the console's OEM code page (`ú` in a UTF-8 reader) | W-5 | the same |
 
