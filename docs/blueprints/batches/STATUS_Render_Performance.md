@@ -19,11 +19,11 @@ related-designs:
 |---|---|---|
 | G-1 · CE-4555 | `LitInstanceBatch` + the instanced program in `LitShader` | ✅ `029427648` |
 | G-2 · CE-4556 | the body layer fills the batch | ✅ `029427648` |
-| G-3 · CE-4557 | the screen-size bands | ✅ (see the commit after `3168c7716`) |
-| G-4 · CE-4558 | the pick on input, through the drawn boxes | ✅ (same commit) |
-| G-5 · CE-4559 | the 2-D terrain layer from a cache | ⬜ |
-| G-6 · CE-4560 | sound sources within hearing | ✅ (same commit) |
-| G-7 · CE-4561 | the message log's visible rows | ✅ (same commit) |
+| G-3 · CE-4557 | the screen-size bands | ✅ `6aaf70d30` |
+| G-4 · CE-4558 | the pick on input, through the drawn boxes | ✅ `6aaf70d30` |
+| G-5 · CE-4559 | the 2-D terrain layer from a cache | ✅ (this commit) |
+| G-6 · CE-4560 | sound sources within hearing | ✅ `6aaf70d30` |
+| G-7 · CE-4561 | the message log's visible rows | ✅ `6aaf70d30` |
 | G-8 · CE-4562 | the proof on this machine | ⬜ |
 | G-9 · CE-4562 | the as-built into Map 3D §6ak | ⬜ |
 
@@ -68,6 +68,8 @@ after this run, A-9), sound 12 % (G-6), effects 11 %, ImGui 9 %, the message log
 | A-12 | the camera cached ONE (pixel, filter): two callers asking for different pixels evicted each other, so the pick ran every frame anyway (measured: twice a frame in the rail) | one entry · a few | **four entries** | every caller of a still frame is answered from the cache | `MapCamera3D.Pick` |
 | A-13 | G-6's mechanism ("only the sources within hearing, at the audio's own rate") | a spatial index · a rate · distance first | **search at 20 Hz** (`MoverSearchHz`), **distance first** against the widest range the type can have (a type's own, else a jet's 4 km) before any component, TKB or locomotion read; per-type acoustic cache; the held few (≤ 8) follow their source every frame between searches (pan, Doppler); a body first heard triggers a search next frame (so a newly moving source sounds at once) | the world changes slowly for the ear; the ear needs only the loudest 8 | `SoundSources.Movers` |
 | A-14 | G-7 — the log was already virtualised (W-P1); the cost left was filtering every message and summing every row's height each frame | a source version · change detection in the panel | **the panel detects the change** (count, first and last entry, filter text, hidden severities, a hash of the hidden loggers) and keeps the filtered rows with their heights' running total; the visible band by binary search | `IMessageLogSource` has no version; a log only appends and trims | `MessageLogPanel.DrawMessageList` |
+| A-15 | G-5's cache (the 2-D terrain was 21 % of the 2-D frame: 17 % its strokes and labels through the gizmo renderer, 4 % the cull) | cache the cull · a render texture | **a render texture of the plan**, re-rendered when the camera's offset / target / zoom, the framebuffer, the plan, the overlay or the damage changed, else ONE quad; colour blended as on screen and alpha as coverage (separate factors), composited premultiplied (a translucent fill blends once); a film's pass draws directly | the strokes are the cost, and a still map is the common case | `TerrainLayer2D.Draw` |
+| A-16 | the window's 4× MSAA does not reach a render texture | a 2× supersample · the screen's size | **the screen's size** — measured: at 2× the plan's 1-px outlines (GL lines, one texel wide at any scale) came out at half strength; at 1× only a fill's edge lacks the MSAA smoothing (the rail compares within one pixel) | thin lines exact over smoother fill edges | `TerrainLayer2D.CacheSupersample` |
 | A-5 | a driver that refuses the instanced program | draw nothing · plain colour · the old per-draw path | **the old per-draw path, paint included** (`BodySurface.Apply`) | the same picture on every GL; the rail compares the two paths | `LitInstanceBatch.FlushOneByOne` |
 
 ## BUGS FIXED

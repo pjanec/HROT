@@ -364,6 +364,91 @@ public sealed class BodyScaleFrameRail
         Assert.Equal(moved, BodyDrawStats.Picks);   // and still again: nothing
     }
 
+    /// <summary>
+    /// ⭐ CE-4559 (render-perf G-5) — the 2-D plan drawn from its cache is the plan drawn directly: demo-city at two zooms (the whole town; a street with its
+    /// labels), each frame through the cache and with <see cref="Hrot.UI.Common.Map2D.TerrainLayer2D.UseCache"/> off, compared pixel by pixel (an edge's anti-aliasing
+    /// differs between the window's MSAA and the supersampled cache, so a pixel counts as different only when nothing within one pixel matches it); and the cache renders ONCE while the view holds, again
+    /// when it moves. Screenshots <c>plan2d-cache-*.png</c>. 🔴 Red-proof (run 2026-11-14): the cache rendered without the camera's transform ⇒ 95 436 of
+    /// 105 282 px differ ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE4559_ThePlanFromItsCache_IsThePlanDrawnDirectly_AndRendersOnlyWhenTheViewChanges()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Shots();
+        using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        var plan = Hrot.UI.Common.Map2D.TerrainLayer2D.PlanOf(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>());
+        var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
+        foreach (var v in plan.FillVertices) { lo = Vector2.Min(lo, v); hi = Vector2.Max(hi, v); }
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        var canvas = new MapCanvas(input: null);
+        var cam = new MapCamera();
+        canvas.Camera = cam;
+        var layer = new Hrot.UI.Common.Map2D.TerrainLayer2D(() => world, () => true, () => cam);
+        canvas.AddLayer(layer);
+        void Look(Vector2 centre, float zoom)
+        {
+            var target = centre + new Vector2(-1280f / 2f / zoom, 800f / 2f / zoom);   // north-up: the top-left corner's world point
+            cam.ApplyCameraView(new MapCameraView { Target = target, Zoom = zoom, SmoothTarget = target, SmoothZoom = zoom });
+        }
+        var centre = (lo + hi) / 2f;
+        float fit = Math.Min(1280f / (hi.X - lo.X), 800f / (hi.Y - lo.Y)) * 0.95f;
+        foreach (var (name, zoom) in new[] { ("town", fit), ("street", 3f) })
+        {
+            Look(centre, zoom);
+            layer.UseCache = false;
+            for (int i = 0; i < 3; i++) frame.Step(canvas.Draw);
+            string direct = Path.Combine(shots, $"plan2d-cache-{name}-direct.png");
+            frame.Screenshot(direct);
+            layer.UseCache = true;
+            for (int i = 0; i < 3; i++) frame.Step(canvas.Draw);
+            string cached = Path.Combine(shots, $"plan2d-cache-{name}-cached.png");
+            frame.Screenshot(cached);
+            var (differ, inked) = Ink(direct, cached);
+            Assert.True(inked > 20_000, $"{name}: the plan covers the frame ({inked} px)");
+            Assert.True(differ <= inked / 50, $"{name}: the cached plan is the direct plan — {differ} of {inked} px differ");
+        }
+        int renders = layer.CacheRenders;
+        for (int i = 0; i < 10; i++) frame.Step(canvas.Draw);
+        Assert.Equal(renders, layer.CacheRenders);                  // the view holds: no re-render
+        Look(centre + new Vector2(20f, 0f), 3f);
+        frame.Step(canvas.Draw);
+        Assert.Equal(renders + 1, layer.CacheRenders);              // it moved: one
+    }
+
+    /// <summary>Pixels of either shot that are not the map's background, and of those the ones differing by more than 24 levels in a channel.</summary>
+    private static (int Differ, int Inked) Ink(string a, string b)
+    {
+        var ia = Raylib.LoadImage(a); var ib = Raylib.LoadImage(b);
+        try
+        {
+            var bg = Raylib.GetImageColor(ia, 2, 2);
+            int differ = 0, inked = 0;
+            for (int y = 0; y < ia.Height; y++)
+                for (int x = 0; x < ia.Width; x++)
+                {
+                    var p = Raylib.GetImageColor(ia, x, y); var q = Raylib.GetImageColor(ib, x, y);
+                    bool pb = Math.Abs(p.R - bg.R) < 6 && Math.Abs(p.G - bg.G) < 6 && Math.Abs(p.B - bg.B) < 6;
+                    bool qb = Math.Abs(q.R - bg.R) < 6 && Math.Abs(q.G - bg.G) < 6 && Math.Abs(q.B - bg.B) < 6;
+                    if (pb && qb) continue;
+                    inked++;
+                    // an edge's anti-aliasing differs between the window's MSAA and the supersampled cache: a pixel differs only when NO pixel within one of it
+                    // in the other frame is within 24 levels (a flipped, shifted or missing plan still fails everywhere)
+                    bool near = false;
+                    for (int dy = -1; dy <= 1 && !near; dy++)
+                        for (int dx = -1; dx <= 1 && !near; dx++)
+                        {
+                            int xx = Math.Clamp(x + dx, 0, ib.Width - 1), yy = Math.Clamp(y + dy, 0, ib.Height - 1);
+                            var r = Raylib.GetImageColor(ib, xx, yy);
+                            near = Math.Abs(p.R - r.R) <= 24 && Math.Abs(p.G - r.G) <= 24 && Math.Abs(p.B - r.B) <= 24;
+                        }
+                    if (!near) differ++;
+                }
+            return (differ, inked);
+        }
+        finally { Raylib.UnloadImage(ia); Raylib.UnloadImage(ib); }
+    }
+
     /// <summary>Pixels of <paramref name="a"/> that differ from <paramref name="b"/> by more than 6 levels in a channel, of the pixels that are not sky.</summary>
     internal static (int Differ, int Lit) Compare(string a, string b)
     {
