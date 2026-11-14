@@ -66,6 +66,8 @@ namespace Hrot.CGF.Configuration
             // ⭐ CE-2377 — and the optional [BehaviorValidator] statics, from the same pinned copy.
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorRegistry, aiAssembly);
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorRegistry, aiAssembly);   // ⭐ rules ② R4 — beside the validators
+            // ⭐ CE-7035 — the AI assembly's cross reads for the brains' parallel phase (the toolkit's are BrainReads), here so no host or test can lack them
+            Hrot.AI.Behaviors.Brains.AiBrainReads.Contribute();
         }
 
         /// <summary>
