@@ -46,6 +46,12 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.RecentSenses>();       // SquadDefendPlay.RoundAtAMan — a round at a member
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Locomotion>();                      // Locomotions.Of — a member's locomotion
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Terrain.TerrainObjectKey>();                 // RoomDrill.OrderFor — a door / room key
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.DoorState>();                      // RoomDrill.OrderFor — the door's state
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); // an HSM condition on a member's capabilities
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CombatTemperament>();  // TemperamentOf.Has — a member's temperament
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Descent>();                         // SquadFastRopePlay — a member on the rope
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.TurretPose>();           // BatteryFireMissionPlay.Plan — a gun's pose
+            ParallelReadCheck.DeclareUnmanaged<SimVelocity>();                                        // SquadAirborneExitBehavior.Plan — the carrier's velocity
         }
     }
 }
