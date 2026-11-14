@@ -7,13 +7,17 @@ namespace Fdp.Core.Diagnostics
     /// ⭐ M-1 (docs/DESIGN_Parallel_Simulation.md §8.3; the parallel experiment E-1) — the WRITE instrument: per component table, per frame,
     /// how many writable references were handed out (<c>GetRefRW</c>), how many chunks ended the frame stamped (dirty), and how many of those
     /// dirty chunks hold EXACTLY the bytes they held at the previous frame's end (written, nothing changed). ⇒ it names the tables where
-    /// check-before-write or quantizing pays (§8.2). Opt-in: <c>HROT_WRITE_STATS=1</c> or <c>HROT_FRAME_STATS=1</c>, read once — off it costs a
-    /// static readonly branch the JIT removes. On, it copies every committed chunk once per frame (an instrument, not a production path).
+    /// check-before-write or quantizing pays (§8.2). Opt-in: <c>HROT_WRITE_STATS=1</c> ONLY, read once — off it costs a static readonly branch the
+    /// JIT removes. On, it copies every committed chunk once per frame (an instrument, not a production path).
+    /// ⭐ CE-4566 (X-11) — ⛔ <c>HROT_FRAME_STATS=1</c> no longer turns it on: 📐 it cost ~13 ms per tick, so every frame-time measurement (which sets
+    /// FRAME_STATS) measured the instrument too. A measuring script sets only what it measures.
     /// </summary>
     public static class TableWriteStats
     {
-        public static readonly bool On =
-            Environment.GetEnvironmentVariable("HROT_WRITE_STATS") == "1" || Environment.GetEnvironmentVariable("HROT_FRAME_STATS") == "1";
+        public static readonly bool On = SwitchedOn(Environment.GetEnvironmentVariable);
+
+        /// <summary>Is the instrument on under <paramref name="env"/>? Its own switch, <c>HROT_WRITE_STATS=1</c>, and nothing else.</summary>
+        public static bool SwitchedOn(Func<string, string?> env) => env("HROT_WRITE_STATS") == "1";
 
         /// <summary>One table's sample for one frame.</summary>
         public readonly record struct Sample(long Refs, int Dirty, int Identical, int Committed);
