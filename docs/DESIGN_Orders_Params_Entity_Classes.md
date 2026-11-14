@@ -2781,3 +2781,107 @@ AND loop stays in ONE helper both callers use.
 
 **Rails:** `BehaviorFitTests` (Hrot.Core.Tests, 6) · `TheOfferedBehavioursFitTheEntityTests` (Hrot.Editor.Tests: the golden + tank / squad / rifleman / civilian / aircraft / objective + authored-asset rails) · `TheOrdersAddTaskPopupFitsTheEntityTests` (a real ImGui frame of the Orders tab's open popup for a tank and a squad, `xvfb-run -a`).
 
+
+## 15. CE-4612 — orders as TYPED state, not behaviour names *(behaviors, `2026-11-14` · build-state: BUILT `2026-11-14` · R-4251 R-D11 A′ steps ①–⑤; ⛔ step ⑥, routing the 18 `CommandOrders.Assign` sites, is NOT here)*
+
+🔒 User (R-D11): *"name comparisons to find out what entity is doing is pretty fragile"*. 📄 basis: [Aggregate Squad §17.2 R-D11](designs/aggregate-units/DESIGN_Aggregate_Squad.md).
+
+### 15.0 INVENTORY *(step ①; `scripts/cbm.sh search_graph name_pattern ".*(CurrentOrder|OrderKind|CommandOrders|OrderJournal).*"` (27 rows: `OrderKind` + its vocabulary rail, no `CurrentOrder`) + grep for every `ActiveBehaviorHash ==/!=`, `BehaviorHash.FromName(..) ==`, `.Behavior/BehaviorName == BehaviorNames.X` outside tests; ⚠ coverage not checkable through the CLI)*
+
+| reader | asks | verdict |
+|---|---|---|
+| `SquadContactBehaviors.HoldsFirm` (paused task's NAME ∈ {SquadDefend, SquadHold}) | was I ORDERED to hold? | ⭐ **migrate** → kind ∈ {Defend, Hold} — fixes CE-4609 (`InfantrySquadHold`) |
+| `SquadDefendBehavior.NotDefending` · `PlatoonDefendBehavior.NotDefending` (`ActiveBehaviorHash != Defend`) | is my order a defence? (CE-2359, DA-55) | ⭐ **migrate** → kind ≠ Defend |
+| `CommandOrders.StillRunning` (member's hash == the behaviour I named) | does he still run MY order? | ⭐ **migrate** → his order's request id == the one I gave |
+| `CommandVerbs` order verb (target's hash == `runs`) | was my order accepted? | ⭐ **migrate** → his order's request id == the one the verb sent |
+| `UrbanMovementBehavior :240, :260` | is the platoon on UrbanMovement — and its ROUTE (the start record's params) | keep — it reads that behaviour's own params; a kind cannot give them |
+| the order journal (`CommandNodes.Journal`, `CommandHistoryOf.Order`) | — (it WRITES the hash for display) | keep — not a decision; a surface can show `OrderKinds.Of(hash)` |
+| the replay search (`PredicateCompiler :430, :475`) | did the entity run behaviour X (the user's query) | keep — the user searches by behaviour |
+| `NotAttacking`, `NotCommandingSupport`, `RestlessSystem.HoldOrders` | not in R-D11's list | keep this round (`SupportCommand` has no kind) |
+| reaction identities (`PlatoonConvoy :466`, `CasualtyCare :232`, `SquadDismount :300`, `HillAttack :685, :696`, `CivilianBehavior :338`), the gizmos, the ingress, the SOP, visualizers | WHICH TREE runs (not what was ordered) | keep — behaviour identity is the question |
+
+### 15.1 Claims
+
+| the design rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an order's kind is known from the behaviour alone | ✅ an `Order.X` resolves to `<Class>X` whose DTO carries `[Order(X)]` (`TacticalIntentResolutionSystem.cs:139-150`, `ParamsDtoRegistry` DTO → OrderName) | ✅ §1 O1–O2 |
+| a reaction PAUSES the order, it does not replace it | ✅ `PauseRecord` → `PausedTask` (`BehaviorIngressSystem.cs:357`); `HoldsFirm` reads the paused task | ✅ §4.9a (CE-2081) |
+| the slot already owns "what runs and who started it" | ✅ `BehaviorState.{ActiveBehaviorHash, Origin}` + `BehaviorStartRecord` + `PausedTask` | ⭐ CLAUDE.md "one owner per piece of state" |
+| a commander's own memory of its order | ✅ `SubordinateOrders.Entry` (`SubordinateOrders.cs`) | ✅ §7 |
+
+### 15.2 Classes
+
+```mermaid
+classDiagram
+  direction LR
+  class OrderKind { <<existing enum, Hrot.AI.Behaviors — EXTENDED>> Move · Attack · Hold · Strike · ObserveFire · NEW Defend · Bound · FireAndMovement · ClearBuilding · BreakContact · Recover · Embark · March }
+  class BehaviorAttribute { <<existing, Hrot.Core>> +Params · NEW +string? Fulfils }
+  class ParamsDtoRegistry { <<existing, Hrot.Core>> NEW +OrderNameOf(behaviour) = Fulfils ?? the DTO's Order name }
+  class OrderKinds { <<NEW, Hrot.AI.Behaviors>> +Of(int behaviourHash) OrderKind · built ONCE from the registry (load / the brain phase's serial pre-pass) · a bad Fulfils is a load error }
+  class CurrentOrder { <<NEW readonly struct, Hrot.AI.Behaviors>> +OrderKind Kind · +BehaviorOrigin Origin · +Guid RequestId · +int BehaviorHash · +bool Paused }
+  class CurrentOrders { <<NEW, Hrot.AI.Behaviors>> +Of(world, unit) CurrentOrder — DERIVED, no new component }
+  class BehaviorState { <<existing, unchanged>> ActiveBehaviorHash · Origin · InstanceId }
+  class BehaviorStartRecord { <<existing record>> BehaviorName · JsonParams · InstanceId · NEW +RequestId }
+  class PausedTask { <<existing record>> Hash · Origin · … · NEW +RequestId }
+  class AssignTacticalIntentEvent { <<existing>> RequestId (now ALSO the order identity) }
+  class AssignBehaviorEvent { <<existing>> RequestId · NEW +IsResume }
+  class SubordinateOrders_Entry { <<existing>> Member · Behavior · Run · Json · NEW +RequestId }
+  class RequestIds { <<NEW, Fdp.Toolkits>> +For(issuer, run, member, now) · +ForStart(entity, instance) — deterministic Guids }
+  BehaviorAttribute ..> ParamsDtoRegistry : read by
+  OrderKinds ..> ParamsDtoRegistry
+  OrderKinds ..> OrderKind
+  CurrentOrders ..> BehaviorState
+  CurrentOrders ..> BehaviorStartRecord : running
+  CurrentOrders ..> PausedTask : paused under a reaction
+  CurrentOrders ..> OrderKinds
+  CurrentOrders --> CurrentOrder
+  SubordinateOrders_Entry ..> RequestIds
+  AssignTacticalIntentEvent --> AssignBehaviorEvent : TacticalIntentResolution copies RequestId
+  AssignBehaviorEvent --> BehaviorStartRecord : ingress Start
+```
+
+*What the picture shows that prose hid: nothing new is STORED except the request id beside records that already exist — the kind is a function of the
+behaviour, the origin and "running or paused" are already the slot's, so `CurrentOrder` cannot disagree with what the unit runs.*
+
+### 15.3 Sequence — a commander orders, a reaction pauses, the order resumes
+
+```mermaid
+sequenceDiagram
+  participant C as commander (CommandOrders.Assign)
+  participant T as TacticalIntentResolution
+  participant I as BehaviorIngress (member's node)
+  participant M as member slot
+  participant R as reader (HoldsFirm / StillRunning)
+  C->>C: id = RequestIds.For(commander, run, member, now) · Entry.RequestId = id
+  C->>T: AssignTacticalIntent(SquadDefend, json, Superior, RequestId = id)
+  T->>I: AssignBehavior(SquadDefend, Superior, RequestId = id)
+  I->>M: Start → BehaviorState(Defend hash, Superior) · BehaviorStartRecord.RequestId = id · no outcome reply (not an Operator)
+  R->>M: CurrentOrders.Of → {Defend, Superior, id, running}
+  Note over I,M: a contact: ReactToContact (Reaction) pauses it
+  I->>M: PausedTask{Defend hash, Superior, RequestId = id}
+  R->>M: CurrentOrders.Of → {Defend, Superior, id, PAUSED} ⇒ HoldsFirm holds
+  I->>M: the reaction ends → resume: BehaviorStartRecord.RequestId = id again
+```
+
+### 15.4 Modules — who writes, who reads, each frame
+
+```mermaid
+graph TD
+  CN[CommandNodes / CommandVerbs — AI, the commander's brain phase] -->|AssignTacticalIntentEvent + RequestId| TIR[TacticalIntentResolutionSystem — CGF pack, serial]
+  TIR -->|AssignBehaviorEvent + RequestId| ING[BehaviorIngressSystem — serial, before the brains]
+  ING -->|writes its OWN entity: BehaviorStartRecord / PausedTask| SLOT[(the member's task slot)]
+  SLOT -->|read: CurrentOrders.Of — the member's OWN slot, or a declared read| RD[readers in the brain phase: HoldsFirm, NotDefending, StillRunning, the order verb]
+  LOAD[CgfBehaviorSetup / BrainPhase serial pre-pass] -->|OrderKinds.Build once| OK[OrderKinds table — immutable]
+  OK --> RD
+```
+
+*Caption: the only cross-entity read is the commander's `StillRunning` / the order verb reading its MEMBER's slot — the same read
+`StillRunning` already makes (`BehaviorState`), now with the member's `BehaviorStartRecord` declared beside it.*
+
+### 15.5 Decisions *(lane decisions — for the user's review)*
+
+| # | decision | why |
+|---|---|---|
+| **R-2088** | ⭐ `CurrentOrder` is **DERIVED** (`CurrentOrders.Of`: the running task when its origin is Superior / Operator, else the paused task's when it is), not a second component "written on acceptance, cleared on the end" as R-D11 worded it; only the order's **request id** is stored, beside the start record and the paused task | the slot already owns what runs, who started it and what a reaction paused; a second copy would have to be kept in step on every start, pause, resume, restart, drop and clear path of a 1 933-line ingress — CLAUDE.md "one owner per piece of state" |
+| **R-2089** | ⭐ a behaviour's kind = `[Behavior(Fulfils = "<OrderKind>")]` if declared, else its params DTO's `[Order]` name; `Fulfils` names an `OrderKind` member or the load FAILS | the name rule O2 already gives every `<Class><K>` its kind through the DTO; a concrete play (`SquadDefend`) declares the kind it fulfils in one place — never inferred from its name |
+| **R-2090** | ⭐⭐ an order's identity is its **`RequestId`** — the edit framework's existing id (CE-4306 F5), ONE id, never a second (🔒 user, `2026-11-14`: *"why order id when we have request id?"* · *"isnt request id unique enough? what for order id?"*). A station mints it as today (`Guid.NewGuid`); a COMMANDER now mints one for every order (`RequestIds.For(issuer, run, member, now)`, deterministic — no shared counter or RNG); an order that arrives without one (a mission phase, a direct assign) gets `RequestIds.ForStart(entity, instance)`; a non-order start (SOP, reaction, self) has none. The task keeps it (`BehaviorStartRecord`, `PausedTask`, the commander's `SubordinateOrders` entry); it already crosses the wire. ⭐ The outcome reply (`InteractionOutcomes`) goes to every request a STATION made, as before (any origin — `F5_ARefusedOrder_AnswersRefused_WithTheGatesWords`), never to an id minted here: `RequestIds` stamps its Guids **UUIDv8** (RFC 9562's vendor-specific version; a station's `Guid.NewGuid` is v4), and `RequestIds.IsMinted` gates the reply — a superior's order is answered by its subordinates' reports, a resumed task was answered already | ⛔ SUPERSEDED the same day: a separate `uint OrderId` beside it — the user's question showed it was a second identity for one order. The obstacle was only the reply side effect (a non-empty id sends an `EditOutcome`, `InteractionOutcomes.cs:15-24`) — gated by origin instead |

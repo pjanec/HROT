@@ -36,5 +36,7 @@ namespace Fdp.Toolkit.Behavior.Events
         public Fdp.Toolkit.Perception.Events.SensorChange Cause;
         /// <summary>⭐ CE-4306 (edit framework F5) — the order's request id (<see cref="System.Guid.Empty"/> = nobody asked); the gate (<c>BehaviorIngressSystem</c>) answers Applied / Refused under it.</summary>
         public System.Guid RequestId;
+        /// <summary>⭐ <c>CE-4612</c> — a paused task RESTARTED after its reaction: the same order, already answered (no second outcome reply).</summary>
+        public bool IsResume;
     }
 }

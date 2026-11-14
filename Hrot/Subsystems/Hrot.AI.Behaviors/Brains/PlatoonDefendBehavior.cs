@@ -200,7 +200,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
-        [Behavior(BehaviorNames.PlatoonDefend, Params = typeof(PlatoonDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.PlatoonDefend, Params = typeof(PlatoonDefendParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Defend), Categories = BehaviorCategory.Commander)]
         [HsmDefinition(BehaviorNames.PlatoonDefend, Curated = true, Group = "Library/Combat", ParamsType = typeof(PlatoonDefendBlackboard))]
         public static StateMachineGraph BuildPlatoonDefend()
         {
@@ -912,7 +912,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// trigger.</summary>
         [SharedAiCondition]
         public static bool NotDefending(Entity self, EntityRepository world)
-            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend;   // ⭐ CE-4612 — the order's kind
 
         private static int RosterCount(EntityRepository world, Entity self)
             => world.HasComponent<UnitRoster>(self) ? world.GetComponentRO<UnitRoster>(self).Count : 0;

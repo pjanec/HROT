@@ -847,6 +847,27 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Execute(world, 0.016f);
         }
 
+        /// <summary>⭐ <c>CE-4612</c> (R-2090) — a COMMANDER's order carries a request id minted here (<see cref="RequestIds.For"/>, UUIDv8): the task
+        /// keeps it, and the edit framework answers NOBODY (its subordinates' reports answer a superior); a station's own id is still answered.
+        /// ✅ Red-proof: the reply gate open to minted ids ⇒ the minted id is logged ⇒ red.</summary>
+        [Fact]
+        public void CE4612_ACommandersOrder_KeepsItsMintedRequestId_AndSendsNoOutcomeReply()
+        {
+            var (world, sys, e) = CreateGateFixture();
+            var minted = Fdp.Toolkit.Behavior.RequestIds.For(e, 7u, e, 12.5);
+            Assert.True(Fdp.Toolkit.Behavior.RequestIds.IsMinted(minted));
+            Assert.False(Fdp.Toolkit.Behavior.RequestIds.IsMinted(Guid.NewGuid()));
+            Assert.Equal(minted, Fdp.Toolkit.Behavior.RequestIds.For(e, 7u, e, 12.5));   // deterministic
+            AssignWithId(world, sys, e, "GatePatrol", BehaviorOrigin.Superior, minted);
+            Assert.Equal(GatePatrolId, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            Assert.Equal(minted, world.GetComponent<BehaviorStartRecord>(e).RequestId);
+            Assert.False(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).TryGet(minted, out _));
+            var station = Guid.NewGuid();
+            AssignWithId(world, sys, e, "GateCover", BehaviorOrigin.Superior, station);
+            Assert.True(Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(world).TryGet(station, out _));
+            world.Dispose();
+        }
+
         /// <summary>F5 — a unit running an Operator-origin behaviour refuses a Superior order that carries an id: the log holds Refused with the gate's words.
         /// ✅ Red-proof: the <c>InteractionOutcomes.Refused</c> after <c>Admit</c> removed ⇒ no outcome ⇒ red.</summary>
         [Fact]

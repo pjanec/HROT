@@ -52,7 +52,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
-[Behavior(BehaviorNames.SquadHold, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadHoldParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.SquadHold, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadHoldParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Hold), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.SquadHold, Curated = true, Group = "Library/Combat", ParamsType = typeof(SquadHoldBlackboard))]
         public static BTreeBuilder<SquadHoldBlackboard, BTreeContext> BuildTree()
@@ -154,7 +154,7 @@ namespace Hrot.AI.Behaviors.Brains
             ArrivalRadius       = arrival > 0f ? arrival : 8f,
             BoundTimeoutSeconds = timeout > 0f ? timeout : 60f,
         };
-[Behavior(BehaviorNames.BreakContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.BreakContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.BreakContact), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.BreakContact, Curated = true, Group = "Library/Reactions", ParamsType = typeof(BreakContactBlackboard))]
         public static BTreeBuilder<BreakContactBlackboard, BTreeContext> BuildTree()
@@ -384,11 +384,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// is the superior's call — the platoon's <c>FallBack</c>, CE-2276). 📐 <c>ua-casualty-care-heavy</c>: three hostiles in the pool,
         /// BreakContact won (0.63 vs Assault 0.37) and the drill dragged the wounded away inside the 30 s the demo holds under fire.
         /// </summary>
+        /// <remarks>⭐⭐ <c>CE-4612</c> / <c>CE-4609</c> (R-2088) — the squad's ORDER, typed: a Defend or a Hold, by any behaviour that fulfils it
+        /// (<c>SquadDefend</c>, <c>SquadHold</c>, the routed <c>InfantrySquadHold</c> — which the two names missed: a squad given <c>Order.Hold</c>
+        /// broke contact).</remarks>
         public static bool HoldsFirm(EntityRepository world, Entity self)
-        {
-            var paused = Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(world, self);
-            return paused != null && (paused.BehaviorName == BehaviorNames.SquadDefend || paused.BehaviorName == BehaviorNames.SquadHold);
-        }
+            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).IsOneOf(Hrot.AI.Behaviors.Orders.OrderKind.Defend, Hrot.AI.Behaviors.Orders.OrderKind.Hold);
 
         private static void Firm(ref UtilityChoice choice, Entity self, EntityRepository world)
         {

@@ -33,9 +33,15 @@ public sealed class OrderVocabularyTests
         var dtos = OrderDtos();
         var kinds = Enum.GetNames<OrderKind>();
 
+        // ⭐ CE-4612 (R-2089) — a kind no order DTO issues YET (step ⑥ routes it) must be fulfilled by a declared play instead; an issuable
+        //   kind still has exactly one DTO.
+        var fulfilled = Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors.Select(b => b.Fulfils).Where(f => f != null).ToHashSet();
         foreach (var kind in kinds)
-            Assert.True(dtos.Count(d => d.Order.Name == kind) == 1,
-                $"OrderKind.{kind} needs exactly one [Order(nameof(OrderKind.{kind}))] DTO; found {dtos.Count(d => d.Order.Name == kind)}");
+        {
+            int n = dtos.Count(d => d.Order.Name == kind);
+            Assert.True(n == 1 || (n == 0 && fulfilled.Contains(kind)),
+                $"OrderKind.{kind} needs exactly one [Order(nameof(OrderKind.{kind}))] DTO, or (not issuable yet) a [Behavior(Fulfils = …)] play; found {n} DTO(s)");
+        }
 
         foreach (var (dto, order) in dtos)
             Assert.True(kinds.Contains(order.Name), $"{dto.Name} is [Order(\"{order.Name}\")] but OrderKind has no {order.Name}");

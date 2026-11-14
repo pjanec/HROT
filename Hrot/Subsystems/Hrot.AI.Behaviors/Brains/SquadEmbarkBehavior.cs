@@ -56,7 +56,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SquadEmbark, Params = typeof(SquadEmbarkParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.SquadEmbark, Params = typeof(SquadEmbarkParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Embark), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.SquadEmbark, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadEmbarkBlackboard))]
         public static BTreeBuilder<SquadEmbarkBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadEmbarkBlackboard, BTreeContext>()

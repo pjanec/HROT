@@ -61,7 +61,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
-[Behavior(BehaviorNames.SquadMarch, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadMarchParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.SquadMarch, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadMarchParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.March), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.SquadMarch, Curated = true, Group = "Library/Movement", ParamsType = typeof(SquadMarchBlackboard))]
         public static BTreeBuilder<SquadMarchBlackboard, BTreeContext> BuildTree()

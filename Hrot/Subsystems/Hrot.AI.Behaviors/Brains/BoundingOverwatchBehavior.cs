@@ -74,7 +74,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
             block.State = default;
         }
-[Behavior(BehaviorNames.BoundingOverwatch, Params = typeof(global::Hrot.Map.Definitions.Behavior.BoundingOverwatchParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.BoundingOverwatch, Params = typeof(global::Hrot.Map.Definitions.Behavior.BoundingOverwatchParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Bound), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.BoundingOverwatch, Curated = true, Group = "Library/Combat", ParamsType = typeof(BoundingOverwatchBlackboard))]
         public static BTreeBuilder<BoundingOverwatchBlackboard, BTreeContext> BuildTree()

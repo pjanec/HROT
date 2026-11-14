@@ -57,7 +57,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Both = new WithdrawReportingParams { SlotA = asked ? support : -1, SlotB = asked ? assault : -1 };
         }
 
-        [Behavior(BehaviorNames.PlatoonBound, Params = typeof(PlatoonBoundParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.PlatoonBound, Params = typeof(PlatoonBoundParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Bound), Categories = BehaviorCategory.Commander)]
         [HsmDefinition(BehaviorNames.PlatoonBound, Curated = true, Group = "Library/Movement", ParamsType = typeof(PlatoonBoundBlackboard))]
         public static StateMachineGraph BuildPlatoonBound()
         {
@@ -114,7 +114,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.PlatoonHold, Params = typeof(PlatoonHoldParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.PlatoonHold, Params = typeof(PlatoonHoldParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Hold), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.PlatoonHold, Curated = true, Group = "Library/Orders", ParamsType = typeof(PlatoonHoldBlackboard))]
         public static BTreeBuilder<PlatoonHoldBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<PlatoonHoldBlackboard, BTreeContext>()

@@ -1055,6 +1055,7 @@ namespace Hrot.SimHost.Tests
         /// ✅ Red-proof: <c>Firm</c> removed ⇒ the held squad breaks contact too.</summary>
         [Theory]
         [InlineData("SquadHold", "{}", false)]
+        [InlineData("InfantrySquadHold", "{}", false)]   // ⭐ CE-4609 / CE-4612 — Order.Hold's routed behaviour: a Hold by its KIND, not its name
         [InlineData("BoundingOverwatch", "{\"Objective\":[0,100,0],\"BoundMetres\":30}", true)]
         public void CE2351_ReactToContact_ASquadOrderedToHold_DoesNotBreakContact_OnItsOwn(string task, string json, bool breaks)
         {
@@ -1069,6 +1070,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
             for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
             Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
+        }
+
+        /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
+        /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
+        /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the
+        /// reaction · <c>PauseRecord</c> not copying the request id ⇒ a different id.</summary>
+        [Fact]
+        public void CE4612_TheSquadsOrder_IsTyped_AndAReactionPausesTheSameOrder_NotAnotherOne()
+        {
+            var s = new Squad(members: 2);
+            s.Order("{}", BehaviorNames.SquadHold);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            var held = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander);
+            Assert.True(held.Exists);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, held.Kind);
+            Assert.Equal(BehaviorOrigin.Superior, held.Origin);
+            Assert.NotEqual(System.Guid.Empty, held.RequestId);
+            Assert.False(held.Paused);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            var paused = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander);
+            Assert.True(paused.Paused);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, paused.Kind);
+            Assert.Equal(held.RequestId, paused.RequestId);
+            Assert.True(ReactToContactBehavior.HoldsFirm(s.Repo, s.Commander));
+            // the SOP's own choice is no order
+            var idle = new Squad(members: 2);
+            idle.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) idle.Tick();
+            Assert.False(Hrot.AI.Behaviors.Orders.CurrentOrders.Of(idle.Repo, idle.Commander).Exists);
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Defend, Hrot.AI.Behaviors.Orders.OrderKinds.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.SquadDefend)));
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, Hrot.AI.Behaviors.Orders.OrderKinds.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.InfantrySquadHold)));
         }
 
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
@@ -2961,9 +2997,22 @@ namespace Hrot.SimHost.Tests
             {
                 s.Teleport(m, given[m].Objective);
                 s.Repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), Origin = BehaviorOrigin.Superior });
+                RunsHisOrder(s, m);
             }
             s.Tick();
             return s.Members.Single(m => given[m].Objective == new Vector3(0, 5, 0));
+        }
+
+        /// <summary>⭐ <c>CE-4612</c> — what the ingress records when a member starts his order (as this fixture fakes the start): the start record
+        /// with the request id his commander sent, so <c>CommandOrders.StillRunning</c> recognises HIS order by id.</summary>
+        private static void RunsHisOrder(Squad s, Entity m)
+        {
+            var entry = SubordinateOrders.Of(s.Repo, s.Commander)!.Orders.Single(e => e.Member.Equals(m));
+            if (!s.Repo.TryGetTable(typeof(BehaviorStartRecord), out _)) s.Repo.RegisterManagedComponent<BehaviorStartRecord>();
+            s.Repo.SetManagedComponent(m, new BehaviorStartRecord
+            {
+                BehaviorName = entry.Behavior, JsonParams = entry.Json, InstanceId = s.Repo.GetComponentRO<BehaviorState>(m).InstanceId, RequestId = entry.RequestId,
+            });
         }
 
         private static void RoundAt(Squad s, Entity m)
@@ -2987,9 +3036,12 @@ namespace Hrot.SimHost.Tests
             RoundAt(s, first); RoundAt(s, first); RoundAt(s, first);
             Assert.Equal(new Vector3(0, 9, 0), s.LastOrders()[first].Objective);
             Assert.Equal(new[] { first }, s.Orders.Select(o => o.Entity).Distinct().ToArray());
+            RunsHisOrder(s, first);   // ⭐ CE-4612 — he started the new order (the ingress would record its request id)
 
             var other = s.Members.First(m => !m.Equals(first));
-            s.Repo.GetComponentRW<BehaviorState>(other).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            ref var reacting = ref s.Repo.GetComponentRW<BehaviorState>(other);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Suppress);   // his own reaction
+            reacting.Origin = BehaviorOrigin.Reaction;                                     // ⭐ CE-4612 — as the ingress marks one (it was left Superior)
             s.Repo.GetComponentRW<BehaviorState>(first).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture);
             s.Orders.Clear();
             s.Pause(1.0);   // back from a pause: the runner re-issues every order (S1-G)
@@ -3740,13 +3792,16 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
             p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SquadDefend), Origin = BehaviorOrigin.Superior });
+            RunsHisOrder(p.S, p.Bravo);   // ⭐ CE-4612 — as the ingress records his start
 
             p.ReportSet(p.Bravo);
             p.Ticks(4);
             Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch) > 0, "the approach began");
             Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));
 
-            p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            reacting.Origin = BehaviorOrigin.Reaction;   // ⭐ CE-4612 — a reaction, as the ingress marks one (it was left Superior)
             p.ReportSet(p.Alpha);   // the assault phase re-dirties again
             p.Ticks(4);
             Assert.Equal(2, p.OrdersTo(p.Bravo, BehaviorNames.SquadDefend));

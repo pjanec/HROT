@@ -54,6 +54,9 @@ namespace Fdp.Toolkit.Behavior.Events
         public bool ClearsPriorIntent;
 
         /// <summary>⭐ CE-4306 (edit framework F5) — the id a station's <c>EditOp.Command</c> minted for this order (<see cref="System.Guid.Empty"/> = nobody asked: the AI's own orders). Crosses the wire and rides onto the <see cref="AssignBehaviorEvent"/>; the brain's owner answers accepted / refused under it.</summary>
+        /// <remarks>⭐⭐ <c>CE-4612</c> (R-2090) — it is ALSO the order's identity: a commander mints one for every order it gives
+        /// (<see cref="Fdp.Toolkit.Behavior.RequestIds.For"/>), the member's task keeps it, and "does he still run MY order?" compares it. The
+        /// outcome reply (CE-4306 F5) goes only to an <c>Operator</c>'s request — a superior's order is answered by its subordinates' reports.</remarks>
         public System.Guid RequestId;
     }
 

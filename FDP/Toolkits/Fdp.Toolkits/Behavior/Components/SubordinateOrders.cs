@@ -34,10 +34,13 @@ namespace Fdp.Toolkit.Behavior.Components
             public uint Run;
             /// <summary>⭐ <c>CE-2304</c> — the order's params as sent ("" = not kept): an unchanged re-send is recognised by them.</summary>
             public string Json;
+            /// <summary>⭐ <c>CE-4612</c> (R-2090) — the request id this order was sent with (<see cref="Fdp.Toolkit.Behavior.RequestIds.For"/>): the
+            /// member's task carries it, so "does he still run MY order?" is an id compare.</summary>
+            public System.Guid RequestId;
 
-            public Entry(Entity member, string behavior, BehaviorOrigin origin, uint run, string json = "")
+            public Entry(Entity member, string behavior, BehaviorOrigin origin, uint run, string json = "", System.Guid requestId = default)
             {
-                Member = member; Behavior = behavior ?? string.Empty; Origin = origin; Run = run; Json = json ?? string.Empty;
+                Member = member; Behavior = behavior ?? string.Empty; Origin = origin; Run = run; Json = json ?? string.Empty; RequestId = requestId;
             }
         }
 
@@ -56,7 +59,8 @@ namespace Fdp.Toolkit.Behavior.Components
             if (!repo.TryGetTable(typeof(SubordinateOrders), out _)) repo.RegisterManagedComponent<SubordinateOrders>();
         }
 
-        public static void Record(EntityRepository repo, Entity commander, Entity member, string behavior, BehaviorOrigin origin, string json = "")
+        public static void Record(EntityRepository repo, Entity commander, Entity member, string behavior, BehaviorOrigin origin, string json = "",
+                                  System.Guid requestId = default)
         {
             uint run = BehaviorOwnedParts.OwnerOf(repo, commander);
             if (run == 0) return;
@@ -65,7 +69,7 @@ namespace Fdp.Toolkit.Behavior.Components
             var after = new Entry[before.Count + 1];
             int n = 0;
             foreach (var e in before) if (!e.Member.Equals(member)) after[n++] = e;
-            after[n++] = new Entry(member, behavior, origin, run, json);
+            after[n++] = new Entry(member, behavior, origin, run, json, requestId);
             Array.Resize(ref after, n);
             repo.SetManagedComponent(commander, new SubordinateOrders(after));
         }

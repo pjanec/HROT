@@ -306,7 +306,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>rf-wall-hugger</c>): a grenade, then a contact, and two posted defenders were sent 50–60 m out of the house.</summary>
         [SharedAiCondition]
         public static bool NotDefending(Entity self, EntityRepository world)
-            => !world.HasComponent<BehaviorState>(self) || world.GetComponentRO<BehaviorState>(self).ActiveBehaviorHash != DefendHash;
+            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend;   // ⭐ CE-4612 — the order's kind
 
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {
@@ -314,7 +314,7 @@ namespace Hrot.AI.Behaviors.Brains
             SearchRadius = radius > 0f ? radius : 30f,
             Speed        = speed > 0f ? speed : 3f,
         };
-[Behavior(BehaviorNames.SquadDefend, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.SquadDefend, Params = typeof(global::Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Defend), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.SquadDefend, Curated = true, Group = "Library/Combat", ParamsType = typeof(SquadDefendBlackboard))]
         public static BTreeBuilder<SquadDefendBlackboard, BTreeContext> BuildTree()

@@ -50,6 +50,8 @@ namespace Hrot.CGF.Configuration
             // behavior and blueprint definitions share one type identity across the process.
             var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
 
+            Hrot.AI.Behaviors.Orders.OrderKinds.Build();   // ⭐ CE-4612 (R-2089) — the kind table at load, never first-built mid-tick
+
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);
             (blueprintRegistry ?? new BlueprintRegistry()).CommitStaging(bpStaging);

@@ -44,5 +44,7 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2081</c> — true when this pause could not keep the task (the reaction's storage overlaps it):
         /// the task restarts through the gate instead of resuming.</summary>
         public bool Restart { get; init; }
+        /// <summary>⭐ <c>CE-4612</c> — the paused run's order request id (<see cref="BehaviorStartRecord.RequestId"/>), given back on resume.</summary>
+        public System.Guid RequestId { get; init; }
     }
 }
