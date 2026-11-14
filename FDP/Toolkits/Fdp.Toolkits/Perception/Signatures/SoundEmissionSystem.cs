@@ -113,6 +113,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                 }
 
             HearDoors(repo, ring);
+            HearBreaks(repo, ring);   // ⭐ CE-4600 (B-3b, V-17) — a vehicle breaking a barrier is heard
 
             // ⭐ CE-3315/CE-3316 — the world's count of this timeline's sounds and the newest of them, kept beside the ring (a checkpoint
             //   carries them; the ring it cannot)
@@ -156,6 +157,27 @@ namespace Fdp.Toolkit.Perception.Signatures
                 var e = Emission(repo, actor.IsNull ? d : actor, SoundKind.Movement, (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps, at, carry, ring.Now, 0L, 0);
                 if (actor.IsNull) e.Force = 0;
                 ring.Append(e);
+            }
+        }
+
+        /// <summary>⭐ CE-4600 (B-3b; 📄 docs/DESIGN_Vehicle_Breaching.md §7.2 V-17) — how far a vehicle breaking a barrier is heard (m): a crash, louder than its engine.</summary>
+        public const float BreakAudibleMetres = 300f;
+
+        /// <summary>
+        /// ⭐ CE-4600 (B-3b, V-17) — a barrier BROKEN or BUMPED open by a vehicle (<see cref="Fdp.Toolkit.Terrain.ContactBreachEvent"/>, Broke / Bumped) is a sound at the contact point,
+        /// heard by AI ears like any other: a Movement sound of the hull's engine class (tracked / wheeled), carried <see cref="BreakAudibleMetres"/>. A push in progress or a "too strong"
+        /// cue makes none (the engine's own sound covers them).
+        /// </summary>
+        private static void HearBreaks(EntityRepository repo, SoundEmissionRing ring)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.ContactBreachEvent>()) return;
+            foreach (ref readonly var b in repo.ReadEvents<Fdp.Toolkit.Terrain.ContactBreachEvent>())
+            {
+                if (b.Kind != (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke && b.Kind != (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Bumped) continue;
+                if (!repo.IsAlive(b.Vehicle)) continue;
+                byte cls = Fdp.Toolkit.Motion.Locomotions.Of(repo, b.Vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
+                    ? (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine : (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.WheeledEngine;
+                ring.Append(Emission(repo, b.Vehicle, SoundKind.Movement, cls, new System.Numerics.Vector3(b.X, b.Y, b.Z), BreakAudibleMetres, ring.Now, TypeOf(repo, b.Vehicle), 0));
             }
         }
 

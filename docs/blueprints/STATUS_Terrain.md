@@ -63,7 +63,7 @@ related-designs:
 | **P-5** CE-4592 part 1 — ground shapes, the data path | 🟡 built: kind Ground, compile, parse, `GroundShapes.Apply` at merge (islands, newest wins); ⛔ open: corridors (G-24), the overlay SUMO net (G-16), grade read-out (G-19), the UI + mockup | [Ground §9.12](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4592_*` (red-proved) |
 | **P-5** CE-4592 part 2a — the Earthworks picks | ✅ built (cross-lane into ui's picker, said) | [Ground §9.13](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainAuthoringPickerTests.CE4592_*`; `EntityTypeCatalogTests.CE2138_*` red is pre-existing (the drone-jammer type `e81eaa50`, behaviors) |
 | **P-6** CE-4593 part 1 — ditches and foxholes | 🟡 built: presets, steep banks, obstacle areas, picks, cover along the banks and the foxhole's all-round (G-27/G-36); ⛔ open: road corridors (G-29), coarse-grid warning, Details, the squad's re-plan (V-29) | [Ground §9.14](../DESIGN_Ground_Patches_And_Road_Blockage.md); rail `TerrainWorldMergeTests.CE4593_*` (red-proved) |
-| next | the open parts, in order: P-6 cover points · P-5 part 2b (Details, grade, tint, fidelity) · P-1 V-15/D-4/CE-4402 · B-3b · CE-5000 | |
+| next | the open parts, in order: P-6 cover points · P-5 part 2b (Details, grade, tint, fidelity) · P-1 V-15/D-4/CE-4402 · B-3b (dust, the player's sound, the HUD cue — ui) · CE-5000 | |
 
 ## 3. Gates
 
@@ -96,6 +96,8 @@ related-designs:
 | P-5 part 2a | `Hrot.Presentation.Tests --filter TerrainAuthoringPickerTests\|TerrainBirth\|AddEntity` | 96 / 1 — the 1 is pre-existing (`CE2138_*`, a TKB type from behaviors' CE-7014) |
 | regression, full (T1/T2) | `Fdp.Toolkits.Tests` + `Hrot.SimHost.Tests`, `--no-build` after a SimHost rebuild | toolkit 5052 / 11 → fixed here: the ids 492 / 493 clashed with TEST-local structs (`GroundDamage` → 490, `TreeDamage` → 489), `ClearObstacleOrder.At` is a `PointLink` (the S0 authored-types rail); the 5 S0 rails pre-existing; `MissionDirector…`, `BinaryMerger…Allocates…` pass alone (flaky under the full run). SimHost 2767 / 9 → fixed here: the damage module's system count (12 → 16) and the Brain group's descriptors (+ `dtBladeCut`); pre-existing (code this lane never touched): Hrot.Gameplay DDS placement, ReplayBrowser → Orchestrator, the UTM zone of the committed terrains, the AirArmedSearch hosting snapshot (272 → 288, `PointLink` untouched here), a civilian HSM flake |
 | stepped hash (P-4 / B-6 / B-4 / P-5 / P-6 in the product) | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8 --scenario bt-mortar-roof` · `… --scenario roadblock-blast` (Release runner) | **STATE EQUAL** at 1 / 4 / 8 threads on both (0 types differ). ⚠ The gate steps ~2 s of sim: whether a crater / breach formed inside that window was not measured |
+| drawing (Xvfb), after V-11 | `xvfb-run -a … Hrot.Presentation.Tests --filter FrameRail\|Map3D\|TerrainChunks` | 729 / 5, 7 skipped — the 5 fail IDENTICALLY at the pre-P-4 commit `ab59df05` (measured in a clean worktree): the mind-state bar, the FPV drone's body, a film frame's symbol, the wire-sphere timing, DemoCity's retained layer |
+| B-3b part 1 | `--filter SoundEmission\|Acoustic\|CarKinematicsSystemTests` | 143 / 0 |
 
 ⚠ Not yet run: drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

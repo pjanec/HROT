@@ -657,3 +657,12 @@ drive, mark, the Muscle cuts, success, the mark cleared, the gap open and the re
 | ⚠ not here | sound through a passage (`SoundPaths` reads the cached layout's portals) — a later item | — |
 
 Rails: `BreachEntryTests` (a doorless house: no way in; a passage ⇒ a Gap from outside in the survey, and the room order enters by it) — red-proved (no `AppendBreachPortals` ⇒ red).
+
+### 7.14 As built — B-3b, part 1: the break is heard *(`terrain` lane, `2026-11-14`, CE-4600)*
+
+| claim | code — as built | design |
+|---|---|---|
+| AI ears hear a break | `SoundEmissionSystem.HearBreaks`: a `ContactBreachEvent` of kind Broke or Bumped is ONE Movement sound at the contact point, the hull's engine class (tracked / wheeled), carried 300 m — the door's precedent (AQ104 E ③); a "too strong" cue or a push in progress makes none | V-17 |
+| ⚠ not yet | the dust effect and the player's crash sound (the presentation's effect / audio layers) and the HUD contact cue — mockup `UX/vehicle-breaching.svg`: the ui lane's surfaces | V-17 |
+
+Rail: `SoundEmissionSystemTests.CE4600_*`.
