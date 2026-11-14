@@ -41,6 +41,20 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             f.Run = o.Run; f.ClearFor = o.ClearFor; f.LastEnemy = o.LastEnemy;
         }
 
+        [BehaviorStateKeeper(BehaviorNames.StrengthObjective)]
+        public static void KeepStrength(ref StrengthObjectiveBehavior.StrengthObjectiveBlackboard fresh, in StrengthObjectiveBehavior.StrengthObjectiveBlackboard old)
+        {
+            ref var f = ref fresh.Block; ref readonly var o = ref old.Block;
+            f.Run = o.Run; f.LastPercent = o.LastPercent;
+        }
+
+        [BehaviorStateKeeper(BehaviorNames.QuietAreaObjective)]
+        public static void KeepQuietArea(ref QuietAreaObjectiveBehavior.QuietAreaObjectiveBlackboard fresh, in QuietAreaObjectiveBehavior.QuietAreaObjectiveBlackboard old)
+        {
+            ref var f = ref fresh.Block; ref readonly var o = ref old.Block;
+            f.Run = o.Run; f.QuietFor = o.QuietFor; f.LastBurst = o.LastBurst; f.Started = o.Started;
+        }
+
         // ── the measures ── (a Counter's Value lives on its status, which an edit never touches; `Started` stops the start value being written again)
         [BehaviorStateKeeper(BehaviorNames.Counter)]
         public static void KeepCounter(ref CounterBehavior.CounterBlackboard fresh, in CounterBehavior.CounterBlackboard old)

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-14 (§8e the battalion's reserve, CE-4589)
 build-state: BUILT — CC-A ✅ CC-B ✅ CC-C ✅ CC-E ✅ CC-D ✅ BUILT 2026-10-19 (§8a; cc-platoon-bound passes live, all five end conditions); CE-2288 (one read route over every behaviour slot) ✅ BUILT 2026-10-19 (§8a, end); CC-1 ✅ APPROVED (R-2043); CC-2…CC-11 ✅ APPROVED 2026-10-18 (R-2044); §7c CC-12…CC-15 ✅ APPROVED (R-2045); CC-16 ✅ APPROVED with its follow-up CE-2288 (R-2050)
-current-answer: ⭐ §8e the battalion's reserve (READY-TO-BUILD 2026-11-14) · §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
+current-answer: ⭐ §8e the battalion's reserve (BUILT 2026-11-14, the showcase wiring HQ-15 → CE-2434) · §1 the example · §1a where each piece lives (by scope) · §7a who reports, which order, autonomy · §7b mission plans and sub-behaviours · §7c reports on the debug HTTP · §2 INVENTORY · §3–§5 the diagrams · §6 the code shapes · §7 decisions · §8 slices and the check
 stale-below: nothing.
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ✅ RESOLVED 2026-10-19 — ROE crosses nodes by backend's BR-13 (CE-3251, wire kind 2) and the reporting requirements by CE-2299 (wire kind 3, §8a); ⚠ CC-11's Initiative must join RoeDirectiveJson when it joins Roe. WAS: ⛔ 2026-10-18 (measured in the hand-off audit) — CC-2 and CC-11 copy the ROE pattern, and the ROE pattern is LOCAL ONLY: `SetRoeEvent` is a local bus event applied by `RoeSystem` on the node that raised it, and nothing forwards it to the node that owns the subordinate's brain (an order does cross: `TacticalIntentEgressTranslator` forwards an `AssignTacticalIntentEvent` whose target's brain is not here as a `TacticalIntentRequest`). ⇒ a superior whose brain runs on another node than its subordinate's sets ROE, `Initiative` and reporting requirements with no effect. CB-42 (requirements inside the order) had that property and CC-2 lost it. Fix asked of backend as BR-13 (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Platoon_Programme.md §4, `CE-2299`); the two INVENTORY rows below now say so.
 known-conflict: CC-12's "the raw report stream is GET /events" is revised by docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md PC-11 (lean: Building Clearing §5a's SquadReportLog, since the /events ring holds 500 events of every type) · docs/designs/group-maneuvers/DESIGN_Building_Clearing.md CB-33 (reported contacts into the commander's TargetMemory) and CB-42 (requirements inside the order, stamped by the ingress) are revised by CC-1 and CC-2
@@ -828,7 +828,7 @@ air, the live rung (the demo ladder, step 8).
 | the chain, end to end | `uc-request-chain` 9/9 once (a launch heard at 1075 m ⇒ SPOT ⇒ FireSupport ⇒ the AH-64), a coin-flip on demo-city (HQ-1's 1 km on the heard estimate; the terrain allows ~1.1 km) | unchanged |
 | dry rungs | `uc-request-chain-dry` 9/9 (the attack: the cell's crew killed) · `uc-a10-zu23-dry` 7/7 (HQ-7) · `uc-reinforce-dry` 6/6 (HQ-9; the staff's strength is REAL — faked SITREPs never make it Red) | unchanged |
 
-## 8e. The battalion's reserve — a company asks for more, and the HQ sends its reserve *(`CE-4589`, CE-7004 ②, coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
+## 8e. The battalion's reserve — a company asks for more, and the HQ sends its reserve *(`CE-4589`, CE-7004 ②, coordinator, `2026-11-14`; build-state: BUILT `2026-11-14` (behaviors) — HQ-10…HQ-14; HQ-15 → CE-2434)*
 
 🔒 User, `2026-11-14`: *"design 3"* — the City Battle showcase's C-3, *"local counterattack, asking the battalion for more — ⭐ MUST-HAVE"*
 ([showcase §3a, §11 C-3](DESIGN_City_Battle_Showcase.md)); the counterattack half is built (showcase §6a, R-7008), this is the other half.
@@ -927,6 +927,16 @@ counterattack (dashed) replaces whatever the HQ gave the reserve; the scripted t
 3. A platoon reserve gets `PlatoonDefend`, a squad `SquadDefend` (HQ-8 kept).
 4. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on every new rail (the HQ reads its roster's busy state and its own picture only).
 5. Live, the showcase: a defender company that goes Red brings the reserve company across the river; recorded in the dynamism report.
+
+**As built** *(behaviors, `2026-11-14`)* — matches the class and sequence diagrams above, with three details the design left open:
+
+| | as built |
+|---|---|
+| the echelon helper | `Fdp.Toolkit.Squad.Echelon.DepthOf` (`FDP/Toolkits/Fdp.Toolkits/Squad/Echelon.cs`) — the roster's depth in UNITS, capped at `CombatEffective.MaxDepth`; `SupportCommandBehavior.IsUnitOfUnits` retired |
+| the reserve mask | `SupportCommandParams.Reserve` / DTO `Reserve` (int, bit k = roster slot k, slots ≥ 32 never reserve); `Free(world, self, kind, not, slots)` |
+| the company's threat | the HQ picture's nearest element with men, seen ≤ `ThreatFreshSeconds` (120 s) — the same freshness as the air-defence rule; none ⇒ zero (north) |
+
+⭐ **R-2094** *(lane decision — for the user's review)*: **HQ-15 (the showcase wiring) is NOT built here** — the `city-battle/defender-company` macro has no company commander (its own description: *"the slot stays empty until CE-7002"*), so wiring a battalion HQ needs the macro rebuilt, which is the skeleton lane's content (CE-6010, still open for the re-anchor). The reserve is proved on `cc-battalion` (CE-4615) instead — the same wiring at platoon scale — and the showcase half is **CE-2434**. Would change: the user wanting the showcase wired in this lane regardless. Rails: `SquadManeuverTests.CE4589_*` (`SquadManeuverTests.Reserve.cs`).
 
 **Design docs checked:** §8d here — applies (owns HQ-5…HQ-9; this extends HQ-8) · [City Battle §3a / §6a / §11 C-3](DESIGN_City_Battle_Showcase.md) —
 applies (the requirement; the counterattack half as built) · [Defend & Attack DA-61 / DA-65](DESIGN_Defend_And_Attack_Position.md) — does not

@@ -19,7 +19,7 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public Entity Drone0, Drone1, Drone2, Drone3;
         public Vector3 Point;
-        public float IntervalSeconds;
+        public Fdp.Core.SimDuration IntervalSeconds;
         /// <summary>The stock index in the air (<see cref="DroneOperatorBehavior.None"/> = none).</summary>
         public byte Current;
         /// <summary>Bit k = stock drone k was launched (and is not to be sent again).</summary>
