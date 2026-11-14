@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the critical review (§17) found 18 gaps; R-D1…R-D13 are leans for the user; NOT ready to build until they are ruled
+build-state: READY-TO-BUILD — the critical review's R-D1…R-D13 approved (R-4251); ⚠ §17's rulings override the earlier rows they name (fold into §3–§11 at build time, obligation ⑤); the stochastic design's SV items still open
 updated: 2026-11-14 (first version — coordinator)
 current-answer: ⭐ §17 the critical review (read FIRST) · the FusionSquad — §1 the request · §4–§4b decisions (all approved) · §5 every behaviour with one member · §6 real-squad defects · §7 slices · §8 acceptance · §11 the commander entity's delta; the stochastic future is DESIGN_Stochastic_Units_And_Resolution.md — §1 the request · §2 INVENTORY · §3 diagrams · §4 decisions · §5 every squad behaviour with one member · §6 real-squad defects found · §7 slices · §8 acceptance · §9 design docs checked
 stale-below: nothing
@@ -74,7 +74,7 @@ classDiagram
     Health = Represents x 25
     no injury model
   }
-  class SquadMen {
+  class UnitStrength {
     <<NEW static seam>>
     Of(unit) float
     Of(member) float
@@ -91,24 +91,24 @@ classDiagram
     <<later>>
     no member, attrition over unit points
   }
-  class CombatEffective { <<existing, EXTENDED>> FightingMembers from SquadMen }
-  class StaffSystems { <<existing, EXTENDED>> StrengthOf from SquadMen }
-  class ObjectiveCensus { <<existing, EXTENDED>> men weighted by SquadMen }
-  class SquadInputs { <<existing, EXTENDED>> OwnStrength from SquadMen }
+  class CombatEffective { <<existing, EXTENDED>> FightingMembers from UnitStrength }
+  class StaffSystems { <<existing, EXTENDED>> StrengthOf from UnitStrength }
+  class ObjectiveCensus { <<existing, EXTENDED>> men weighted by UnitStrength }
+  class SquadInputs { <<existing, EXTENDED>> OwnStrength from UnitStrength }
   class ThreatDanger { <<existing, EXTENDED>> danger x men }
   SquadUnit "1" o-- "1" Representative : roster
   SquadUnit *-- AggregateSquad
   AggregateResolution <|.. ByFusionSoldier
   AggregateResolution <|.. ByStochastic
-  SquadMen ..> AggregateSquad
-  CombatEffective ..> SquadMen
-  StaffSystems ..> SquadMen
-  ObjectiveCensus ..> SquadMen
-  SquadInputs ..> SquadMen
-  ThreatDanger ..> SquadMen
+  UnitStrength ..> AggregateSquad
+  CombatEffective ..> UnitStrength
+  StaffSystems ..> UnitStrength
+  ObjectiveCensus ..> UnitStrength
+  SquadInputs ..> UnitStrength
+  ThreatDanger ..> UnitStrength
 ```
 *What it shows that prose hid: the squad's state lives on the UNIT (`AggregateSquad`), not on the member — so every reader (strength, colour,
-census, ratios, threat) goes through ONE seam (`SquadMen`) and does not care whether a representative or a probability model fills it. That is
+census, ratios, threat) goes through ONE seam (`UnitStrength`) and does not care whether a representative or a probability model fills it. That is
 the open door to the fully aggregated squad.*
 
 ### 3.2 One engagement — a real tank meets an aggregate squad
@@ -127,7 +127,7 @@ sequenceDiagram
   R->>T: WeaponChoice picks the RPG mount (armour)
   T->>R: coax rounds hit, Health falls, capped at 2 men a hit (D-6)
   R->>U: AggregateSquad.Men = Represents x Health / Max
-  U->>S: SITREP colour from SquadMen
+  U->>S: SITREP colour from UnitStrength
   S->>P: Amber, the platoon reacts as for a real squad
 ```
 *What it shows: nothing between the tank and the representative is new — sight, weapon choice, rounds and damage are today's paths; the only new
@@ -143,7 +143,7 @@ graph TD
   MU[Muscle] --> KIN[walker kinematics moves the representative]
   MU --> DMG[HealthApplication - the per-hit cap]
   DMG --> MEN[AggregateMenSystem - serial: Men from Health]
-  MEN --> SEAM[SquadMen read by CombatEffective, StaffSystems, census, ratios, threat]
+  MEN --> SEAM[UnitStrength read by CombatEffective, StaffSystems, census, ratios, threat]
   LATER[ByStochastic resolver]:::later -.writes Men, no member.-> MEN
   classDef later stroke:#888,color:#888,stroke-dasharray: 5 5
 ```
@@ -155,12 +155,12 @@ same field with no member (dashed) — nothing downstream changes.*
 | # | decision | ⭐ lean | why | rejected |
 |---|---|---|---|---|
 | **D-1** ⚠ *(adjusted by §13 X-1, R-4250: the routing key is `<Resolution><Class><Order>` from a run-time field; the TKB type below is only a preset)* | how an aggregate squad gets its OWN version of a play | ⭐ **the order routing, staged** (`Order.<name>` → `<Class><Order>`; class `AggregateInfantrySquad` = `11.1.*.1.2.2`, TKB 307, more specific than `InfantrySquad`, falls back to it) — FIRST make the order bookkeeping order-aware (record the order + its resolved name, the CE-4307 sender-side precedent) and fix the three readers that compare a behaviour hash (`StillRunning` / `Gave`, `NotDefending`, `HoldsFirm`), THEN move the platoons' squad orders one by one (Defend first) | it is what the routing was built for (R-273), the user's model ("orders will be translated to whatever the unit can do"), and the staging also fixes a latent bug (a squad given `Order.Hold` breaks contact today — `HoldsFirm` misses `InfantrySquadHold`) | a dispatch inside each behaviour (a second mechanism for one concept) · moving every call site at once (CE-2346 / CE-2359 return) |
-| **D-2** | where the squad's state lives | ⭐ **on the UNIT**: `AggregateSquad { Represents, Men, Suppression }`; ONE seam `SquadMen.Of` feeds `CombatEffective`, `StrengthOf`, the census, `SquadEnemyStrengthRatio`, `ThreatDanger`, target weights (FPV, spotter) and seats; v1 writes `Men` from the representative's health | the open door to the fully aggregated squad (user): a probability resolver writes the same field | state on the member only (the no-member squad would have nowhere to keep it) |
+| **D-2** | where the squad's state lives | ⭐ **on the UNIT**: `AggregateSquad { Represents, Men, Suppression }`; ONE seam `UnitStrength.Of` feeds `CombatEffective`, `StrengthOf`, the census, `SquadEnemyStrengthRatio`, `ThreatDanger`, target weights (FPV, spotter) and seats; v1 writes `Men` from the representative's health | the open door to the fully aggregated squad (user): a probability resolver writes the same field | state on the member only (the no-member squad would have nowhere to keep it) |
 | **D-3** | where the one member stands | ⭐ **where the squad's firepower decides**: in a defence with a threat area, the MG's post — the longest view down it (D-2h's view fan over the candidate posts, run for the lone man); all round, coverage rank 0 + the lone man's guard round (DL-4, already built); in a march, the lead; elsewhere what the play gives its first element | the MG is the squad's base of fire (DA-48, DA-19); the member carries it | the centre of the posts (an unaimed compromise) · the leader's post (the unit is the leader) |
 | **D-4** ⛔ SUPERSEDED by D-4′ below (user, `2026-11-14`: rotate the weapons) | firing the squad's weapons | ~~v1: one fire stream, scaled~~ | — | — |
 | **D-5** | the plays that fail with one man | ⭐ **make them work with one man** (they fail for a REAL squad's last man too): fire and movement (Start `live < 1`; an empty half is skipped, not a failure), break contact's smoke (the mover throws it when nobody covers); **aggregate versions only where one man cannot mean the squad**: suppress-and-manoeuvre's assault and `ClearBuilding` (§5) | R-4244: no hack into the half logic — a play either works with one man or is replaced | — |
 | **D-6** | damage to a representative | ⭐ health = `Represents × 25` (a rifle hit ≈ one man); a hit removes at most **2 men**; a burst's fragments scaled by the squad's frontage (`PresentedAreaM2`); no injury model | measured: a 125 mm hit (1100) would empty the pool; a burst tests one man-sized body | per-round dispersion (no hook; under-represents, never over) |
-| **D-7** | the squad's nerve | ⭐ squad-level stress on the representative: stimuli scaled `1/Represents`, "alone" off, leader calming on, outnumbering by `SquadMen` | measured: ~4 hits break one body standing for 8; "alone" grows for ever | per-man stress unchanged (it routs the squad on four hits) |
+| **D-7** | the squad's nerve | ⭐ squad-level stress on the representative: stimuli scaled `1/Represents`, "alone" off, leader calming on, outnumbering by `UnitStrength` | measured: ~4 hits break one body standing for 8; "alone" grows for ever | per-man stress unchanged (it routs the squad on four hits) |
 | **D-8** | seats | ⭐ a representative takes `ceil(Men)` seats | else one carrier "carries" 12 squads | one seat |
 | **D-9** | role tag | ⭐ the representative is the squad's `SquadLeader` (succession is then a no-op) and carries the MG mount; ⚠ check DA-13 (snipers rank MG gunners) before tagging it `MachineGunner` | the leader-only case is designed (`SquadSensing.cs:113-117`) | — |
 
@@ -195,7 +195,7 @@ while the target is the same, so the member's volume of fire becomes the SUM of 
 | | the lean |
 |---|---|
 | ⭐ **R-1 — rotate the weapons on the ENGAGED target** | the representative carries a `FireRotation` marker (aggregate only — real men keep today's choice); `EngagementMount` then returns the NEXT weapon that is suitable for the target (`WeaponChoice` score > 0) AND has cooled, round-robin from the last one fired; none ready ⇒ wait for the first to cool. Same target ⇒ no new aim ⇒ the rate is the sum of the suitable weapons' rates |
-| ⭐ **R-2 — weapons by TYPE, each standing for its men** | one weapon per type the squad carries: the rifles (one weapon standing for k rifles: rate × k), the LMG / MG, the RPG / AT, grenades; each its own ammo pool (the squad's real totals); the rifles' k and the others' availability shrink with the men left (`SquadMen`, a gun is lost when the men left fall below its crew) |
+| ⭐ **R-2 — weapons by TYPE, each standing for its men** | one weapon per type the squad carries: the rifles (one weapon standing for k rifles: rate × k), the LMG / MG, the RPG / AT, grenades; each its own ammo pool (the squad's real totals); the rifles' k and the others' availability shrink with the men left (`UnitStrength`, a gun is lost when the men left fall below its crew) |
 | ⭐ **R-3 — the RPG goes to vehicles by itself** | `WeaponChoice` already scores it 0 against men and high against armour ⇒ against infantry it is skipped; when the behaviour engages a vehicle it joins the rotation (and the rifles drop out if they cannot hurt it) |
 | ⏳ **R-4 — two targets at once (later)** | a real squad fires the RPG at the tank WHILE the rifles keep the infantry down. v1 engages ONE target at a time (switching costs an aim and a turn, measured). Later: a target per weapon from the squad's fire distribution, with the aim kept per target — its own decision when v1 is seen · ⭐ **rare in this model** (🔒 user, `2026-11-14`: *"For a squad, very likely the target would be another squad, which would be represented by one single man. So one squad might mean one target in many cases."*): against an aggregate squad there is ONE body to engage, so the whole rotation lands on it with no aim restarts; R-4 matters only in a MIXED fight (infantry and a vehicle at once) |
 | ⭐ **why squad vs squad comes out right** | the shooter's volume is the sum of its weapons (R-1, R-2); each aimed round has about one man's hit chance (as at a real man); each rifle hit removes about one man (health 25 per man, D-6) ⇒ the exchange tracks a real one with nothing new; suppression the same (near misses on the one body) |
@@ -243,7 +243,7 @@ together that requires really two targets at the same time."*
 | SquadDefend | one post, Set when he reaches it, the lone man's round (DL-4 designed for him), Displace / Flanked / ShootAndMove work (`SquadDefendBehavior.cs:395, :586, :807, :868-881`) | ✅ works · D-3 adds the MG post for a threat area |
 | BoundingOverwatch | bounds; the empty element passes on the next tick; Success → Set (`BoundingOverwatchBehavior.cs:113, :156, :182-201`) | ✅ works (one tick of hold per switch) |
 | FireAndMovement | Start fails `live < 2` (`FireAndMovementBehavior.cs:66`), Outcome fails on an empty half (`:100-104`) | 🔧 D-5 fix; ⚠ changes Squad Tactics §7.6.3 |
-| SuppressAndManeuver / `InfantrySquadAttack` | Start fails `live < 2` (`SuppressAndManeuverBehavior.cs:120`) | ♦ aggregate version: the member holds as the base of fire; the assault is a timed strength exchange (attacker and defender `SquadMen`, intensity, cover), ending Success / TaskFailed |
+| SuppressAndManeuver / `InfantrySquadAttack` | Start fails `live < 2` (`SuppressAndManeuverBehavior.cs:120`) | ♦ aggregate version: the member holds as the base of fire; the assault is a timed strength exchange (attacker and defender `UnitStrength`, intensity, cover), ending Success / TaskFailed |
 | SquadDangerCrossing | crosses alone, empty gates pass, Success | ✅ works |
 | BreakContact | moves to the answer, Success within 8 m; no smoke (only a coverer throws, `SquadContactBehaviors.cs:241`) | ✅ works · 🔧 smoke by the mover |
 | SquadMarch / Move | he is the lead; Success on arrival | ✅ works |
@@ -272,7 +272,7 @@ together that requires really two targets at the same time."*
 |---|---|---|
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged, routing `<Resolution><Class><Order>` first (X-1): order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
-| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`) as a PRESET of the run-time resolution (X-1); `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage, Formation, Depth, Heading, Activity }` + `UnitHoldings` (system types incl. sensors; S-1, S-7, M-3, N-4) and `AggregateStateSystem` (§11); `SquadMen` and its readers (D-2), seats (D-8), role (D-9); the unit keeps its CURRENT ORDER (X-2); children keyed `<unit>/<slot>` (X-3) | — |
+| **A-2** | the type (TKB 307 `FusionInfantrySquad` + `FusionSoldier`) as a PRESET of the run-time resolution (X-1); `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage, Formation, Depth, Heading, Activity }` + `UnitHoldings` (system types incl. sensors; S-1, S-7, M-3, N-4) and `AggregateStateSystem` (§11); `UnitStrength` and its readers (D-2), seats (D-8), role (D-9); the unit keeps its CURRENT ORDER (X-2); children keyed `<unit>/<slot>` (X-3) | — |
 | **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3) with a target per weapon and the view / body as data (D-4″ F-1…F-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
@@ -357,7 +357,7 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 | **new components** | `AggregateSquad { Resolution, Represents, Men, Suppression, Posture, Frontage }` · `UnitHoldings` (S-7; fixed slots: system type, count, minimum crew, readiness, ammo — weapons now, vehicles later) — unmanaged, `DataPolicy.Default` (recorded, saved, seek-safe); replicated so display nodes and the Player show strength (W-10) | S-1, D-2; CLAUDE.md "new components": unmanaged when recorded |
 | **authored where** | the squad's TKB type `FusionInfantrySquad` (307, a variant of 302): `Represents` and the arsenal from its composite (1 leader + 9 riflemen ⇒ rifles 7, LMG 1, RPG 1, grenades); one `FusionSoldier` slot | measured precedent: `AsLandUnit(…, variant)` (`NedTkbCatalog.cs:1055`) |
 | **new system** | `AggregateStateSystem` — per unit in the parallel phase: reads ITS soldier (a declared read), writes ITSELF: `Men = Represents × Health / Max`, ammo per slot from the soldier's mounts, `Suppression` from the soldier's stress, posture from its stance | the parallel rule (write your own entity, declare the read) |
-| **existing systems** | `ThreatMatrixAssignmentSystem`: `Assignment` indexed by element — a man (real squad) or an arsenal slot (FusionSquad) · `UnitCentroidSystem`: unchanged for Fusion (the centroid IS the soldier), skips a Stochastic unit · `CombatEffective` / `StrengthOf` / census / ratio / threat read `SquadMen` (D-2) | F-4, D-2 |
+| **existing systems** | `ThreatMatrixAssignmentSystem`: `Assignment` indexed by element — a man (real squad) or an arsenal slot (FusionSquad) · `UnitCentroidSystem`: unchanged for Fusion (the centroid IS the soldier), skips a Stochastic unit · `CombatEffective` / `StrengthOf` / census / ratio / threat read `UnitStrength` (D-2) | F-4, D-2 |
 | **behaviours (the squad brain on this entity)** | the SOP and the reports unchanged · the plays: the D-5 one-man fixes (generic, every squad) · the two aggregate plays as `FusionInfantrySquad<Order>` (assault, ClearBuilding) through the class routing (D-1) — every other order falls back to `InfantrySquad<Order>` | D-1, D-5 |
 | **ownership** | the unit stays on CGF (brain); the soldier's `Health` is in the brain group (`HrotOwnershipGroups.cs:53, :171-175`) ⇒ the copy is brain-local | measured |
 | **StochasticSquad, later** | the SAME components; no soldier; a `StochasticResolver` writes them and moves the unit's `SimTransform` itself | S-1…S-4 |
@@ -384,26 +384,26 @@ GAINS two state components (S-1) and one system that copies the running resoluti
 | **V-14** | **the rotation flips `WeaponPosture.ActiveMount` every round** — sent on the wire, the 3-D figure swaps weapons each shot | `AimAndFireExecutor.cs:103`, `WeaponPostureOf.cs:109-115` |
 | **V-15** | **ammo duplicated and capped** — `UnitHoldings.Ammo` duplicates `WeaponAmmo` (already per mount, Brain-group, replicated) whose `MaxMounts = 4` ✔ (`WeaponAmmo.cs:17`); the new components are absent from `HrotOwnershipGroups` | — |
 | **V-16** | **replicating `Men` is a second copy** — every node can derive it from the replicated Health × Represents | `EntityDamageIngressTranslator.cs:80-94` |
-| **V-17** | **`SquadMen` in hot paths** — `ThreatDanger.Of` per (self, target) would hop target → commander → state: undeclared reads; the int / float rounding is undefined | `StandardInputs.cs:183-191`, `CombatEffective.cs:59-68` |
+| **V-17** | **`UnitStrength` in hot paths** — `ThreatDanger.Of` per (self, target) would hop target → commander → state: undeclared reads; the int / float rounding is undefined | `StandardInputs.cs:183-191`, `CombatEffective.cs:59-68` |
 | **V-18** | **D-3's limits** — one body cannot be base of fire AND assault; the MG's post leaves other sectors unseen | by design |
 | ✔ | §6's real-squad defects CE-4605…CE-4609 all CONFIRMED by an independent read (CE-4607 refined: `LiveMen` counting the down man is deliberate — fix only the arrival test) | — |
 
-### 17.2 Decisions the review raises — leans for the user
+### 17.2 Decisions the review raises — ✅ ALL APPROVED (user, `2026-11-14`, one by one — R-4251)
 
 | # | decision | ⭐ lean |
 |---|---|---|
-| **R-D1** | the loss model under volume fire (V-1, V-2) | ⭐ **a fusion soldier is a DISPERSED target**: each hit on it makes the shooter RE-AIM (the aim clock restarts, as a real squad's next man would), and the events of one source in one frame are COALESCED before D-6's cap — the existing aim and damage paths, no new attrition model |
-| **R-D2** | frontage (V-3) | a fusion-only `Frontage` read by the PERSON path (the body stays a person); a burst's reach widened by frontage / 2; the casualty share = the burst's area ∩ the frontage — ⛔ not `PresentedAreaM2` |
-| **R-D3** | the focus cap (V-4) | fusion elements are exempt; the cap is weighted by the target's `SquadMen`; the score gets a weapon dimension (× the `WeaponChoice` score); `TargetOf(self, element)` |
-| **R-D4** | strength (V-5, V-17) | the `SquadMen` seam carries BOTH numerator and denominator (`Represents`); colour from the fraction, "in the fight" while ≥ 1 man; reads declared, ref-only, an allocation rail |
-| **R-D5** | kills (V-6) | one `ManDownedEvent` per WHOLE man lost (when `floor(Men)` drops), with the hit's attribution, from the serial owner |
-| **R-D6** | injury (V-7) | the FusionSoldier type has NO injury definition and NO body zones (a flat plan); a rail asserts it |
-| **R-D7** | where things run (V-12, V-13, V-14) | the copy runs in ONE named per-unit phase after the weapon and stress phases, Health / `WeaponState` / stress as stable reads; the per-weapon table is a component on the soldier (Brain group, `NoScenario` like `WeaponChannel`, reset by `OnEnter`); `WeaponPosture` keeps the MAIN element's mount |
-| **R-D8** | state duplication (V-15, V-16) | ammo stays in `WeaponAmmo` (its cap raised, or the soldier's weapons fit 4); `Men` is DERIVED from Health in v1 — no new replicated copy until the stochastic slice; the new components get their ownership bits |
-| **R-D9** | the aggregate assault / ClearBuilding vs real men (V-8) | the abstract exchange only against aggregate or empty occupants; against REAL defenders the fusion soldier fights through today's paths |
-| **R-D10** | A-5 (V-9) | needs CE-4610 (the missing reports), CE-7002, CE-4589; its checks require the reserve to be CAUSED by a Red / Black report and each phase line to be reached BY a report; the dynamism measure weighted by `SquadMen` |
-| **R-D11** | A-1 (V-10) | first a full inventory of every reader of concrete names / hashes; the routed alias REPORTS the concrete play's hash (one "runs order X" predicate), so no reader changes meaning |
-| **R-D12** | the plays (V-11) | partition the LIVE men in the one shared helper (all six plays) BEFORE D-5's empty-half rule |
-| **R-D13** | D-3's limits (V-18) | documented as v1 limits; a rail for the volume of fire while moving |
+| **R-D1** ✅ | the loss model under volume fire (V-1, V-2) | ⭐ **a fusion soldier is a DISPERSED target**: each hit on it makes the shooter RE-AIM (the aim clock restarts, as a real squad's next man would), and the events of one source in one frame are COALESCED before D-6's cap — the existing aim and damage paths, no new attrition model |
+| **R-D2** ✅ | frontage (V-3) | a fusion-only `Frontage` read by the PERSON path (the body stays a person); a burst's reach widened by frontage / 2; the casualty share = the burst's area ∩ the frontage — ⛔ not `PresentedAreaM2` |
+| **R-D3** ✅ | the focus cap (V-4) | fusion elements are exempt; the cap is weighted by the target's `UnitStrength`; the score gets a weapon dimension (× the `WeaponChoice` score); `TargetOf(self, element)` |
+| **R-D4** ✅ | strength (V-5, V-17) | ⭐ the seam is **`UnitStrength`** (🔒 user: *"isnt this applicable there as well as the seam name might be more generic (not squad only?)"*) returning **Present** (float) and **Authorized** (int) for ANY unit — a real squad (live men / roster), a FusionSquad (its pool / Represents), a StochasticUnit (its state), and a platoon / company / battalion as the SUM over its subunits (recursive like `CombatEffective`); colour = Present / Authorized (8.1 / 9 Amber, 6.3 / 9 Red); in the fight while ceil(Present) ≥ `MinEffective(Authorized)`; the platoon's baseline from Authorized; reads declared, ref-only, an allocation rail |
+| **R-D5** ✅ | kills (V-6) | one `ManDownedEvent` per WHOLE man lost (when `floor(Men)` drops), with the hit's attribution, from the serial owner |
+| **R-D6** ✅ | injury (V-7) | the FusionSoldier type has NO injury definition and NO body zones (a flat plan); a rail asserts it |
+| **R-D7** ✅ | where things run (V-12, V-13, V-14) | the copy runs in ONE named per-unit phase after the weapon and stress phases, Health / `WeaponState` / stress as stable reads; the per-weapon table is a component on the soldier (Brain group, `NoScenario` like `WeaponChannel`, reset by `OnEnter`); `WeaponPosture` keeps the MAIN element's mount |
+| **R-D8** ✅ | state duplication (V-15, V-16) | ammo stays in `WeaponAmmo` (its cap raised, or the soldier's weapons fit 4); `Men` is DERIVED from Health in v1 — no new replicated copy until the stochastic slice; the new components get their ownership bits |
+| **R-D9** ✅ | the aggregate assault / ClearBuilding vs real men (V-8) | the abstract exchange only against aggregate or empty occupants; against REAL defenders the fusion soldier fights through today's paths |
+| **R-D10** ✅ | A-5 (V-9) | needs CE-4610 (the missing reports), CE-7002, CE-4589; its checks require the reserve to be CAUSED by a Red / Black report and each phase line to be reached BY a report; the dynamism measure weighted by `UnitStrength` |
+| **R-D11** ✅ (A′) | A-1 (V-10) | ⭐ **A′** (🔒 user: *"inventory first never hurts, ok, but name comparisons to find out what entity is doing is pretty fragile"*): ① inventory every reader of behaviour names / hashes; ② every unit keeps a `CurrentOrder { Kind : OrderKind, Origin, OrderId }` (the same record X-2 needs); ③ every issued order carries an id; ④ each reader migrated to a TYPED question (`NotDefending` → kind == Defend; `HoldsFirm` → kind ∈ {Defend, Hold}, fixing CE-4609 by construction; `StillRunning` → id == mine; the Command verb, urban movement, the journal, the replay search likewise), one at a time with its feature's rails; ⑤ `OrderKind` gains Defend, Bound, FireAndMovement, ClearBuilding, BreakContact, Recover, Embark, March; ⑥ only then the 18 call sites routed, one order at a time — ⛔ no alias pretending to be another behaviour |
+| **R-D12** ✅ | the plays (V-11) | partition the LIVE men in the one shared helper (all six plays) BEFORE D-5's empty-half rule |
+| **R-D13** ✅ | D-3's limits (V-18) | documented as v1 limits; a rail for the volume of fire while moving |
 
 ## 10, 12–16b. ➜ moved to [DESIGN_Stochastic_Units_And_Resolution.md](DESIGN_Stochastic_Units_And_Resolution.md) *(same section numbers)*
