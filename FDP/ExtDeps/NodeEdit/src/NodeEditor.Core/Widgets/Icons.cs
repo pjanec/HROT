@@ -159,12 +159,12 @@ public static class Icons
             case "clutter/booth": icon = new("\uf54e", IconPalette.Orange); return true;   // Store
             // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6; docs/UX/ground-shaping-and-ditches.svg C, D) — a ground shape / ditch's Details tab and its Effect rows
             case "earth/mound": icon = new("\ue52d", IconPalette.Orange); return true;   // Mound — a ground shape
-            case "earth/dig": icon = new("\uf713", IconPalette.Orange); return true;   // Shovel — a ditch
+            case "earth/dig": icon = new("\uf6e3", IconPalette.Orange); return true;   // Hammer — a ditch (the editor font carries no shovel; the canvas faces draw it)
             case "earth/kept": icon = new("\uf023", IconPalette.Grey); return true;   // Lock — kept out (islands)
             case "earth/layers": icon = new("\uf5fd", IconPalette.Violet); return true;   // LayerGroup — the draw order (the newest wins)
             case "earth/cover": icon = new("\uf3ed", IconPalette.Green); return true;   // ShieldHalved — cover points
             case "earth/vehicle": icon = new("\uf1b9", IconPalette.Red); return true;   // Car — closed to vehicles
-            case "earth/infantry": icon = new("\uf554", IconPalette.Green); return true;   // PersonWalking — infantry passes
+            case "earth/infantry": icon = new("\ue54e", IconPalette.Green); return true;   // PersonRifle — infantry passes (the font carries no walking man)
             default: icon = Unknown; return false;
         }
     }
