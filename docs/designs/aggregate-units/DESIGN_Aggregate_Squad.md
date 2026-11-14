@@ -20,6 +20,11 @@ related-designs:
 
 # DESIGN — the aggregate squad: a squad unit with ONE representative member *(R-4244)*
 
+⭐ **Names (lean, 2026-11-14):** *aggregate squad* = the umbrella; **avatar squad** = this design (one body — the squad's AVATAR — carries
+everything); **abstract squad** = the later probabilistic one with no member. In code: `AggregateSquad.Resolution = Avatar | Abstract`, the
+member's type `SquadAvatar`. 🔒 User: *"something that will differentiate the single all-in-one man from a truly aggregated squad with
+probabilistic calculations only."*
+
 ## 1. The request
 
 🔒 User, `2026-11-14`: *"replace the squads with a puppet squad, meaning just the Squad commander will play for the whole squad … a great base for
@@ -196,7 +201,7 @@ while the target is the same, so the member's volume of fire becomes the SUM of 
 | ⭐ **why squad vs squad comes out right** | the shooter's volume is the sum of its weapons (R-1, R-2); each aimed round has about one man's hit chance (as at a real man); each rifle hit removes about one man (health 25 per man, D-6) ⇒ the exchange tracks a real one with nothing new; suppression the same (near misses on the one body) |
 | rejected | one scaled stream (the superseded D-4 — loses the weapon mix) · a second fire channel (simultaneous fire; per-mount tasks were rejected for turrets, Weapon Layers :215) |
 
-## 4b. D-4″ — each weapon its own target; the view and the body as DATA; one model for both kinds of squad *(lean; 🔒 user, `2026-11-14`)*
+## 4b. D-4″ — each weapon its own target; the view and the body as DATA; one model for both kinds of squad *(✅ APPROVED, user `2026-11-14`: "D-4″ Approved." — R-4246)*
 
 🔒 User, `2026-11-14`: *"can't each weapon has its own target? Also the sensors, the field of view, the aggregated squad will need to have some
 aggregated field of view, and maybe we could somehow also fake the body, that the weapon is not really tied to the body location. Maybe this could
@@ -218,6 +223,18 @@ together that requires really two targets at the same time."*
 | ⭐ **F-3 — the body is data** | each weapon's muzzle offset places it across the squad's frontage (the MG on the flank); the body's twist limit becomes a per-type value (all round for the representative ⇒ it never turns to fire); ⏳ optional later: each round's origin drawn within the frontage |
 | ⭐⭐ **F-4 — ONE model for both kinds of squad** | the squad's weapons are a table of **fire elements** — weapon, target, aim, origin. A real squad: one element per man (his weapon, his target, his body). The aggregate squad: one element per weapon type, all on the one representative. The fire distribution assigns TARGETS TO ELEMENTS in both — so it does not care which kind of squad it serves |
 | rejected | each weapon a separate self-controlled weapon-system entity with its own brain (the sentry-gun pattern — simultaneous, but +3 entities a squad and a brain each) · one target at a time (D-4′ R-4's deferral — the user: infantry with tanks needs two targets) |
+
+
+**What a target per weapon does to today's one-target-per-entity code** *(measured `2026-11-14`, the user's question)*:
+
+| what assumes ONE target per entity | code | with F-1 |
+|---|---|---|
+| the fire channel (one action, one target) | `ChannelComponents.cs:29`, `AimAndFireParams.Target` | unchanged — the behaviour still issues ONE action with a main target; only the avatar's executor branch fires each weapon at its own target (the main one for weapons with none) |
+| the squad's fire distribution | `ThreatMatrixAssignmentSystem` → `SquadCognitiveState.Assignment`, by roster place; read only through `SquadAssignment.TargetOf` (`SquadAssignment.cs:18`) | the SOURCE of per-weapon targets: the avatar's slots are one per WEAPON instead of one per man (the fire elements, F-4) |
+| `WeaponPosture` — what the entity is aimed at + the active weapon | `WeaponPosture.cs:31-40`: replicated, saved, read by the 3-D figure, `LookFollowSystem`, the kinematics' body turn, `ForceLevels` / `EscalationLadder`, `Covering` | ⚠ the risk: it keeps the MAIN target (what the figure faces, what is saved and sent); the per-weapon targets stay internal — else the figure would flip its aim every round |
+| the per-shot guards: friendly / neutral on the line, ROE, the muzzle mask, the force level | `AimAndFireExecutor.cs:255-290`, `ForceLevels.LevelFor` | must take the FIRING weapon's target — contained in the one executor |
+| the aim clock and the chosen weapon | `AimTimer` / `EngagementMount` in the channel state | per weapon, in the avatar's fixed table (no allocation, R-2084) |
+| real soldiers | — | unchanged: every branch above is behind the avatar's marker |
 
 ## 5. Every squad behaviour with ONE member *(analysis of design + code, no runs)*
 
