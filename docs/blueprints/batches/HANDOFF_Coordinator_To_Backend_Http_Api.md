@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: the HTTP API — HTTP-only and self-describing, and its open failures
 
-**For:** the `backend` lane, **after** the determinism residue batch. **From:** coordinator. **Dispatched at `1e98d9bb1`**; ⛔ **scope FROZEN
+**For:** the `backend` lane, **after** the determinism residue batch. **From:** coordinator. **Dispatched at `eb43032c3`** *(re-stamped under rule 1a, unstarted: B-6 added)*; ⛔ **scope FROZEN
 there** — later documents are FYI; one that invalidates an item ⇒ STOP that item and report it (R-106). ⭐ Autonomous, no questions.
 🔒 User, `2026-11-14`: *"yes write it"* · *"agreed yes add the central registry and ammend the handoff"* (B-6) · *"how the hhtp api allows running the simulation with those settings changed? (it needs to for various
 tests)"*. ⭐ The ui-filed rows CE-1464 / CE-1472 / CE-1474 / CE-1950 are taken by backend here — **cross-lane, said**.
