@@ -54,6 +54,19 @@ namespace Fdp.Toolkit.Terrain.Tests
             File.WriteAllText(Path.Combine(TerrainFolder, "roads.json"), Roads);
         }
 
+        /// <summary>⭐ CE-4597 (P-3) — the base gets a HEIGHT GRID (a slope rising 0.2 m per metre east, 401 × 401 posts every metre) and a SUMO net (one edge along y = 200, anchor 0).</summary>
+        public void WithSlopeAndNet()
+        {
+            File.WriteAllText(Definition, "{\"schemaVersion\":2,\"name\":\"base-t\",\"world\":\"w.geojson\",\"sumoNet\":{\"file\":\"base-t.net.xml\",\"anchor\":[0,0]}}");
+            var sb = new System.Text.StringBuilder("ncols 401\nnrows 401\nxllcenter 0\nyllcenter 0\ncellsize 1\nNODATA_value -9999\n");
+            for (int row = 0; row < 401; row++)
+                for (int c = 0; c < 401; c++) sb.Append((0.2f * c).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(c < 400 ? " " : "\n");
+            File.WriteAllText(Path.Combine(TerrainFolder, "w.height.asc"), sb.ToString());
+            var world = File.ReadAllText(Path.Combine(TerrainFolder, "w.geojson")).Replace("\"groundZ\":0}", "\"groundZ\":0,\"heightGrid\":\"w.height.asc\"}");
+            File.WriteAllText(Path.Combine(TerrainFolder, "w.geojson"), world);
+            File.WriteAllText(Path.Combine(TerrainFolder, "base-t.net.xml"), "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\"><lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"10,200 390,200\"/></edge></net>\n");
+        }
+
         public TerrainRecipe Recipe(string id) => TerrainRecipe.Find(id, new[] { Recipes });
         public TerrainWorld BaseWorld() => TerrainFolderWorld.ReadWorld(Definition, TerrainFolderWorld.ReadDefinition(Definition), "base-t")!;
         public string? Resolve(string name) => name == "base-t" ? Definition : null;

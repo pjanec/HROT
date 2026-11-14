@@ -31,6 +31,7 @@ related-designs:
 | [R-5015](RULINGS.md) | `contact-breach.json` starting values (tank ≤ 2000 + building bump, IFV ≤ 150, ram 1.5 m/s, push 2.5 s, cut ≥ 4.2 m) | a playtest |
 | [R-5016](RULINGS.md) | push / grace / cue state is per-hull process state, not recorded | a break decided across a save mid-push |
 | [R-5017](RULINGS.md) | V-17 feedback split into B-3b | — |
+| [R-5018](RULINGS.md) | a scenario house's pad is applied at overlay merge (`TerrainWorldMerge.PadHeights`), against the base ground; *Save terrain as* writes the padded store and re-elevates the net | pads wanted only at save, not live ⇒ move it to `SaveAs` |
 | [R-5012](RULINGS.md) | D-3's road-to-façade ramp is the two skirts meeting; D-4 and V-18 left to their own steps | a step between a road and a house on a real town |
 
 ## 2. Tasks
@@ -45,7 +46,8 @@ related-designs:
 | **P-1** CE-4403 part 2 — road corridors at import + the net re-elevated | 🟡 built; ⛔ open before DONE: V-15 (bridge data), D-4 (versioned re-import), CE-4402 (needs the scale terrains re-imported) | [Ground §9.8](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `ImporterTests.CE4403_*` (red-proved); importer suite 52/0; InputSet suite 6/0 |
 | **P-2** CE-4590 — road blockage: SUMO + our road graph | ✅ built | [Ground §9.9](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `BridgeClosureTests.CE4590_*` (red-proved); traffic suite 85/0; scenarios 2/0 |
 | **B-3** CE-4600 — a player's vehicle breaks barriers | 🟡 core built; ⛔ B-3b (dust, crash sound, HUD cue + mockup), barrage numbers (with P-4) | [Breaching §7.10](../DESIGN_Vehicle_Breaching.md); rails `CE4600_*` (red-proved); kinematics 110/0 under the parallel checks |
-| next | **P-3** CE-4597 — scenario house pads + *Save terrain as* | |
+| **P-3** CE-4597 — scenario house pads + *Save terrain as* | ✅ built | [Ground §9.10](../DESIGN_Ground_Patches_And_Road_Blockage.md); rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*` (red-proved) |
+| next | **P-4** CE-4591 — craters | |
 
 ## 3. Gates
 
@@ -63,6 +65,9 @@ related-designs:
 | B-2: SimHost damage suites | `--filter BuildingDamageBakeTests\|EntityBuildingDamageTranslatorTests\|StaticObstacleBakeTests\|LiveOverlayBakeTests` | 38 / 0 |
 | B-2: drawing (Xvfb) | `xvfb-run -a … --filter TheBuildingDamagePlanTests\|TheBuildingDamageDrawsTests\|TheTerrainChunks` | 9 / 0, 4 skipped (the scale-terrain look rails: their assets are not here) |
 | B-2: scenarios | roadblock-blast, wreck-blocks-street | 2 / 0 |
+
+| P-3: toolkit suite, full (T1) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` | 5039 / 5 failed — the same 5 pre-existing S0 rails |
+| P-3: editor save | `Hrot.Editor.Tests --filter TerrainSave\|BlockOperations` | 3 / 1 — `EditorTerrainSourceServiceTests.E2_…IsGreyedWithItsReason` is pre-existing: the catalogue now falls back to the kept ground (`8ccb92a3`, `TerrainCatalog.KeptGroundOf`), so deleting the base no longer greys the terrain; test not touched by this lane |
 
 ⚠ Not yet run: `stepped-hash.py --threads 1,4,8`, drawing rails under Xvfb (nothing drawn changed), the full solution build.
 

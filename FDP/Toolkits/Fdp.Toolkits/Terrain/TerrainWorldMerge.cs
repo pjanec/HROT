@@ -16,6 +16,21 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     public static class TerrainWorldMerge
     {
+        /// <summary>
+        /// ⭐⭐ <c>CE-4597</c> (P-3; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-5, G-6) — the base's heights with every overlay house that stands on a pad
+        /// (<see cref="TerrainBuilding.Pad"/>) cut in: <see cref="GroundPatches.PadOf"/> at its base, applied copy-on-write (the base grid is unchanged and shares every
+        /// tile no pad touches). Every node merges the same overlay over the same base ⇒ the same ground everywhere; the editor's live bake merges the same way.
+        /// </summary>
+        public static TerrainHeightGrid? PadHeights(TerrainHeightGrid? height, TerrainWorld overlay)
+        {
+            if (height == null) return null;
+            List<GroundPatch>? pads = null;
+            foreach (var b in overlay.Buildings)
+                if (b.Pad && b.Footprint.Length >= 3)
+                    (pads ??= new List<GroundPatch>()).Add(GroundPatches.PadOf(b.Footprint, b.BaseZ, height.Sample));
+            return pads == null ? height : GroundPatches.Apply(height, pads);
+        }
+
         public static TerrainWorld Merge(TerrainWorld @base, TerrainWorld overlay)
         {
             if (@base == null) throw new ArgumentNullException(nameof(@base));
@@ -96,7 +111,7 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = overlayHasParts ? Vector2.Min(@base.BoundsMin, overlay.BoundsMin) : @base.BoundsMin,
                 BoundsMax = overlayHasParts ? Vector2.Max(@base.BoundsMax, overlay.BoundsMax) : @base.BoundsMax,
                 GroundZ = @base.GroundZ,
-                Height = @base.Height,
+                Height = PadHeights(@base.Height, overlay),
                 Warnings = warnings,
                 Prisms = prisms,
                 Walkables = walkables,

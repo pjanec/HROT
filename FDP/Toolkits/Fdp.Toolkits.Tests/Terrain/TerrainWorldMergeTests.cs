@@ -340,5 +340,45 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("D  TerrainCoverProvider", "whole only: Build loops every prism and panel (TerrainCoverProvider.cs:47-69); PointsAround (:77) is per piece but the provider is an immutable array");
             File.WriteAllText(Environment.GetEnvironmentVariable("HROT_MEASURE_OUT") ?? Path.Combine(Path.GetTempPath(), "o7.txt"), table.ToString());
         }
-}
+
+
+        // ── CE-4597 (P-3; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-5, G-6) — a scenario house stands on its pad wherever the overlay merges ──
+
+        /// <summary>A 1 m grid over 0..100 rising 0.2 m per metre to the east.</summary>
+        private static TerrainWorld SlopeBase()
+        {
+            var sb = new System.Text.StringBuilder("ncols 101\nnrows 101\nxllcenter 0\nyllcenter 0\ncellsize 1\nNODATA_value -9999\n");
+            for (int row = 0; row < 101; row++)
+                for (int c = 0; c < 101; c++) sb.Append((0.2f * c).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(c < 100 ? " " : "\n");
+            string grid = sb.ToString();
+            const string geojson = "{ \"type\": \"FeatureCollection\", \"hrot\": { \"schemaVersion\": 1, \"bounds\": [0, 0, 100, 100], \"groundZ\": 0, \"heightGrid\": \"s.height.asc\" }, \"features\": [] }";
+            return TerrainWorldParser.Parse(geojson, "slope", new TerrainAssets { ReadFile = n => n == "s.height.asc" ? grid : null });
+        }
+
+        private static string House(string label, float x, float baseZ, bool pad) =>
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"" + label + "\",\"baseZ\":" + baseZ.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            (pad ? ",\"pad\":" + baseZ.ToString(System.Globalization.CultureInfo.InvariantCulture) : "") +
+            ",\"building\":{\"footprint\":[[0,0],[8,0],[8,6],[0,6]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[8,0]},{\"from\":[8,0],\"to\":[8,6]},{\"from\":[8,6],\"to\":[0,6]},{\"from\":[0,6],\"to\":[0,0]}]}]}}," +
+            "\"geometry\":{\"type\":\"Point\",\"coordinates\":[" + x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",40]}}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4597</c> (G-5, G-6) — an overlay house that stands on a pad (its feature carries <c>"pad"</c>) is cut into the base's ground at its base where the overlay
+        /// merges — the same on every node, the base grid unchanged and its far tiles shared; an overlay house with no pad (a bridge, say) leaves the ground alone.
+        /// 🔴 Red-proof: merge with the base's Height as it is ⇒ the uphill corner stays 1.6 m up.
+        /// </summary>
+        [Fact]
+        public void CE4597_AnOverlayHouseOnAPad_IsCutIntoTheBase_AnotherWithoutOne_IsNot()
+        {
+            var b = SlopeBase();
+            var o = TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,100,100],\"groundZ\":0},\"features\":[" +
+                House("p", 20f, 4f, pad: true) + "," + House("n", 60f, 12f, pad: false) + "]}", "slope");
+            Assert.True(o.Buildings[0].Pad); Assert.False(o.Buildings[1].Pad);
+            var m = TerrainWorldMerge.Merge(b, o);
+            Assert.NotSame(b.Height, m.Height);
+            Assert.InRange(m.Height!.Sample(28f, 46f), 3.99f, 4.01f);             // the pad house's uphill corner: on its pad (natural 5.6)
+            Assert.InRange(b.Height!.Sample(28f, 46f), 5.59f, 5.61f);             // the base is unchanged
+            Assert.InRange(m.Height.Sample(68f, 46f), 13.59f, 13.61f);            // the house with no pad: untouched slope
+            Assert.Equal(TerrainWorldMerge.PadHeights(b.Height, o)!.Sample(24f, 43f), m.Height.Sample(24f, 43f));   // the same answer every merge
+        }
+    }
 }

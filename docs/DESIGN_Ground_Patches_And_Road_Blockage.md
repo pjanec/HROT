@@ -624,3 +624,32 @@ obstacle as a body.*
 
 Rails: `BridgeClosureTests.CE4590_*` (a barrier cuts a road and its removal re-opens it, red-proved; a half-road car leaves it open; SUMO edges close only
 with every lane covered at one station; obstacles fed as bodies at rest) + the four T-7b rails unchanged, the 0 B steady frame included.
+
+### 9.10 As built — P-3: scenario house pads, *Save terrain as* *(`terrain` lane, `2026-11-14`, CE-4597)*
+
+```mermaid
+graph TD
+  FE[FeatureExpander - a placed house, a block's houses with Level pads] -->|"pad" = its baseZ| OV[the compiled overlay]
+  OV --> PARSE[TerrainWorldParser - TerrainBuilding.Pad]
+  PARSE --> MERGE[TerrainWorldMerge.PadHeights - GroundPatches.Apply over the base grid]
+  MERGE --> NODE[every node's merged world - the same ground]
+  MERGE --> LIVE[the editor's live bake - the same merge]
+  MERGE --> SAVE[TerrainBake.SaveAs - writes the padded store + re-elevates the net via the caller's hook]
+```
+*What it shows that prose hid: the pad is not a new overlay part — it is a FLAG on the house the overlay already carries, and the merge every host already
+runs applies it; so every node, the live editor and *Save terrain as* get the same ground by construction.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a placed house always stands on a pad; ONE pad rule | `FeatureExpander.House` writes `"pad"` = its `baseZ` always; a block's houses when *Level houses on pads* is on (was the ground at the house's CENTRE) | G-5 |
+| the pad is applied where the overlay merges, every node the same | `TerrainBuilding.Pad` (parser) → `TerrainWorldMerge.PadHeights` → `GroundPatches.Apply` (copy-on-write) | G-5, G-6 |
+| a bridge, an imported house | carry no `"pad"` — untouched (an imported house's pad is in the store, P-1) | — |
+| *Save terrain as* keeps every pad | ④c: the merged (padded) grid is WRITTEN over the copied store (`.heights` or `.asc`); the net re-elevated through `reElevateNet` (the editor / random generator pass `NetElevation.Apply(…, force)`) — on the bridge net when there is one (it was copied just before) | G-20, V-23 |
+| live editing and SUMO | the live bake merges the same way (pads appear while editing); SUMO's net follows only after save + reload | V-25 (said) |
+| a road corridor next to a placed house | ⚠ the runtime pad does not know the import's corridor lock (G-24): a pad's skirt may lower a road's edge; a road under a placed house is the author's | G-24 |
+
+⭐ **Lane decision (for the user's review):** [R-5018](blueprints/RULINGS.md) the pad is a FLAG on the house (its feature's `"pad"`), applied at merge — not a separate
+pad part in the overlay (G-5 said "a pad part"); the FDP save takes the net re-elevation as a caller's hook (FDP cannot see `Hrot.Terrain.InputSet`).
+
+Rails: `TerrainWorldMergeTests.CE4597_*` (a pad house cut into the base, a no-pad house untouched, the base unchanged), `TerrainBakeTests.CE4597_*` (the saved
+store keeps the pad, the net hook called on the saved net) — red-proved (no ④c ⇒ red).

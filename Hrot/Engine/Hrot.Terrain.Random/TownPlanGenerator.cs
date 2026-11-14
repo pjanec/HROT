@@ -37,7 +37,8 @@ public static class TownPlanGenerator
             File.WriteAllText(Path.Combine(scenarioDir, "scenario.json"), BlockLayout.Serialize(TownPlanGround.ScenarioDom(plan, groundName)));
 
             var catalog = new TerrainCatalog(new[] { terrainsRoot });
-            var saved = TerrainBake.SaveAs(scenarioDir, target, plan.Name, catalog.ResolveDefinition, recipeRoots, bakeNavtiles: false, bridgeNet: bridgeNet);
+            var saved = TerrainBake.SaveAs(scenarioDir, target, plan.Name, catalog.ResolveDefinition, recipeRoots, bakeNavtiles: false, bridgeNet: bridgeNet,
+                reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4597 (G-20)
             // a template the SHARED folder (assets/buildings, beside the terrains) already holds is not kept in the terrain too: no template lives in two places (TerrainWorldTests.UI1_*)
             string shared = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(terrainsRoot))!, "buildings"), own = Path.Combine(target, "buildings");
             if (Directory.Exists(own) && Directory.Exists(shared))

@@ -211,5 +211,33 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(new[] { Path.Combine(roots, "s1"), Path.Combine(roots, "s2") }, users.ToArray());
             Assert.Equal(new[] { Path.Combine(roots, "s3") }, TerrainUsers.Of("elsewhere", new[] { roots }).ToArray());
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4597</c> (P-3, G-5, G-20) — a house placed in a scenario on a SLOPE stands on its pad in the SAVED terrain: the saved height store is the merged (padded)
+        /// one, not the base's copied byte for byte, and the saved SUMO net is re-elevated from it (the caller's hook). 🔴 Red-proof: skip the ④c write ⇒ the store under the
+        /// house is the natural slope again (the uphill corner 2 m up).
+        /// </summary>
+        [Fact]
+        public void CE4597_SaveTerrainAs_KeepsAScenarioHousesPad_AndReElevatesTheNet()
+        {
+            var f = new OverlayFixture();
+            try
+            {
+                f.WithSlopeAndNet();
+                var dom = f.Scenario((HouseGuid, OverlayFixture.House("hut", 300, 300, 0)));
+                File.WriteAllText(Path.Combine(f.ScenarioDir, "scenario.json"), dom.ToJsonString());
+                string target = Path.Combine(f.Assets, "terrain", "saved-p");
+                string? netElevated = null;
+                TerrainBake.SaveAs(f.ScenarioDir, target, "saved-p", f.Resolve, new[] { f.Recipes }, bakeNavtiles: false,
+                    reElevateNet: (net, ground) => { netElevated = net; Assert.InRange(ground(305, 304), 59.99, 60.01); });
+                var saved = TerrainFolderWorld.ReadWorld(Path.Combine(target, "terrain.json"), TerrainFolderWorld.ReadDefinition(Path.Combine(target, "terrain.json")), "saved-p")!;
+                var house = saved.Buildings.Single(b => b.Label.StartsWith(HouseGuid, StringComparison.Ordinal));
+                Assert.Equal(60f, house.BaseZ, 1);                                         // its base: the lowest ground under it (x 300 ⇒ 60)
+                Assert.InRange(saved.Height!.Sample(310f, 308f), 59.99f, 60.01f);          // its uphill corner (natural 62) — on the pad in the SAVED store
+                Assert.InRange(saved.Height.Sample(350f, 308f), 69.99f, 70.01f);           // past the skirt: the slope
+                Assert.Equal("base-t.net.xml", Path.GetFileName(netElevated));   // the saved net (re-elevated in the .part folder, before the swap)
+            }
+            finally { f.Dispose(); }
+        }
     }
 }

@@ -111,7 +111,8 @@ public static class TerrainBake
     /// <param name="unique">⭐ T-3 part 2 — the host's generator of unique houses (null ⇒ the shipped templates), the same the editor's live overlay uses</param>
     /// <param name="afterPartWritten">test seam: called with the <c>.part</c> folder once it is complete, before the swap (a throw there is a failed save)</param>
     public static TerrainSaveResult SaveAs(string sourceScenarioDir, string targetFolder, string newName, Func<string, string?> resolveTerrainDefinition,
-        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null, IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null)
+        IEnumerable<string?>? recipeRoots = null, bool bakeNavtiles = true, Action<string>? afterPartWritten = null, IUniqueBuildings? unique = null, IBridgeNet? bridgeNet = null,
+        Action<string, Func<double, double, double>>? reElevateNet = null)
     {
         if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(new[] { '/', '\\' }) >= 0 || newName.Contains("..")) throw new ArgumentException($"'{newName}' is not a terrain name.", nameof(newName));
         string target = Path.GetFullPath(targetFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), part = target + ".part";
@@ -208,6 +209,20 @@ public static class TerrainBake
                 }
                 if (overlay.Header.SumoNet is { Length: > 0 } overlayNet && definition.SumoNet is { } baseNet && File.Exists(Path.Combine(overlayFolder, overlayNet)))
                     File.Copy(Path.Combine(overlayFolder, overlayNet), Path.Combine(part, baseNet.File), overwrite: true);
+
+                // ④c ⭐⭐ CE-4597 (P-3, G-20) — the saved terrain keeps every PAD: the merged (padded) heights are WRITTEN over the copied base store, and the SUMO net
+                //   re-elevated from them (the caller's NetElevation, forced — V-23: over the bridge net when the overlay had one). ⛔ It copied the base's store byte for byte,
+                //   so a saved terrain lost every pad (measured: CopyTree).
+                if (merged.Height is { } padded && !ReferenceEquals(padded, baseWorld.Height) && (string?)hrot["heightGrid"] is { } heightFile)
+                {
+                    string heightPath = Path.Combine(part, heightFile);
+                    if (heightFile.EndsWith(TerrainHeightGrid.StoreSuffix, StringComparison.OrdinalIgnoreCase))
+                        using (var o = File.Create(heightPath)) padded.WriteStore(o);
+                    else
+                        using (var w = new StreamWriter(heightPath)) padded.WriteAsciiGrid(w);
+                    if (reElevateNet != null && definition.SumoNet is { } sumo && File.Exists(Path.Combine(part, sumo.File)))
+                        reElevateNet(Path.Combine(part, sumo.File), (x, y) => padded.Sample((float)(x - sumo.AnchorX), (float)(y - sumo.AnchorY)));
+                }
             }
 
             // ⑤ terrain.json: the new name + where it came from

@@ -147,7 +147,8 @@ namespace Fdp.Toolkit.Terrain
                 // placed: later houses keep out of this one too (its own box, unpadded — the later house pads itself)
                 Avoid.Add(box);
                 var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = rot, ["label"] = $"{Key}/{Houses}", ["name"] = "", ["baseZ"] = BaseZ(Base, world) };
-                if ((Fit & TerrainBlock.LevelPads) != 0) props["pad"] = Round(Base.GroundHeightAt(centre.X, centre.Y));
+                // ⭐ CE-4597 (G-5) — ONE pad rule: a pad at the house's own base (was the ground at its centre); the merge cuts it into the base's ground
+                if ((Fit & TerrainBlock.LevelPads) != 0) props["pad"] = props["baseZ"]!.DeepClone();
                 Features.Add(FeatureExpander.Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(centre.X, centre.Y) }));
                 Points.AddRange(world);
                 HouseShapes.Add(world);
@@ -165,7 +166,8 @@ namespace Fdp.Toolkit.Terrain
         {
             var local = TerrainBuildingExpander.LocalFootprint(assets.LoadTemplate(template, $"feature '{keyPrefix}'"), $"template '{template}'");
             var props = new JsonObject { ["kind"] = "building", ["template"] = template, ["rotation"] = Round(headingDeg), ["label"] = keyPrefix + "/0", ["name"] = "", ["baseZ"] = BaseZ(baseWorld, Place(local, at, headingDeg)) };
-            if (pad != 0f) props["pad"] = Round(pad);
+            _ = pad;   // ⭐ CE-4597 (G-5) — a placed house ALWAYS stands on a pad at its own base; no per-house knob (the field stays unused for a house)
+            props["pad"] = props["baseZ"]!.DeepClone();
             return Feature(props, new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(Round(at.X), Round(at.Y)) });
         }
 
