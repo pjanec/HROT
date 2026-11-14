@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: the determinism / parallel residue after the threaded fixes
 
-**For:** the `backend` lane. **From:** coordinator. **Dispatched at `<sha>`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
+**For:** the `backend` lane. **From:** coordinator. **Dispatched at `885b083c7`**; ⛔ **scope FROZEN there** — later documents are FYI; one that
 invalidates an item ⇒ STOP that item and report it (R-106, never the batch). ⭐ Autonomous, no questions: each item's decision is below; anything
 left open is decided the closest way and named in the report.
 🔒 User, `2026-11-14`: *"what determinism/parallelization issues are still open? lets give those to a backend lane"*.
