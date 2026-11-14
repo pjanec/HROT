@@ -42,8 +42,9 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
         if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<UnitSubordinate>()) return;
         if (repo.IsComponentTypeRegistered<CommandPicture>() && repo.HasComponent<CommandPicture>(entity)) return;
         if (!IsCommander(repo, entity)) return;
-        var at = view.GetComponentRO<SimTransform>(entity).Position;
-        draw.DrawText(at.X, at.Y, new FixedString32(Text), Colour, fontSizePx: 10f, lineOffsetPx: -28f, layer: DebugTraceLayers.SquadCommand);
+        // ⭐ CE-4582 (§6am D-7) — a row of the commander's card, never free text over his head
+        int net = EntityCardRows.CardIdOf(view, entity);
+        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand).Row(EntityCardRows.PictureAbsent).Text(Text, Colour, 11f);
     }
 
     /// <summary>True when some unit names <paramref name="unit"/> as its commander.</summary>
@@ -60,6 +61,8 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
 {
     public static readonly Rgba32 ElementColour = new(230, 60, 40, 255);
     public static readonly Rgba32 SubordinateColour = new(120, 120, 120, 200);
+    /// <summary>⭐ CE-4582 — a subordinate's progress row on his card: light enough for the card's dark background.</summary>
+    public static readonly Rgba32 ProgressColour = new(80, 200, 190, 255);
     public static readonly Rgba32 RequestColour = new(240, 200, 0, 255);
     /// <summary>An element fades to <see cref="MinAlpha"/> over this many seconds since it was observed.</summary>
     public const float FadeSeconds = 120f;
@@ -90,7 +93,8 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
                 if (sub.IsNull || !repo.IsAlive(sub) || !repo.HasComponent<SimTransform>(sub)) continue;
                 var s = repo.GetComponentRO<SimTransform>(sub).Position;
                 draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed, layer: DebugTraceLayers.SquadCommand);
-                draw.DrawText(s.X, s.Y, new FixedString32(row.Progress.ToString()), SubordinateColour, fontSizePx: 10f, lineOffsetPx: -14f, layer: DebugTraceLayers.SquadCommand);
+                // ⭐ CE-4582 (§6am D-7) — what the commander heard from a subordinate is about HIM: a row of the subordinate's card
+                draw.Card(row.UnitNetId, DebugTraceLayers.SquadCommand).Row(EntityCardRows.MemberProgress).Text(row.Progress.ToString(), ProgressColour, 11f);
             }
 
         for (int i = 0; i < pic.Requests.Count && i < CommandPicture.MaxRequests; i++)

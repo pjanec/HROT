@@ -29,6 +29,7 @@ namespace Hrot.Player.Tests.Gizmos
 
             _repo = new EntityRepository();
             _repo.RegisterComponent<SimTransform>();
+            _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -56,8 +57,10 @@ namespace Hrot.Player.Tests.Gizmos
             Assert.Equal(from.Y, to.Y, precision: 3);
         }
 
+        /// <summary>⭐ CE-4582 (§6am D-7) — the heading is a row of the unit's CARD (row 81, Unit details), never free text at the unit.
+        /// 🔴 Red-proof: the free <c>DrawText</c> back ⇒ the card row is missing and a free text appears.</summary>
         [Fact]
-        public void SC_GZ021_ROT_2_Draw_EmitsDrawText_WithDegreeValue()
+        public void SC_GZ021_ROT_2_Draw_TheHeadingIsARowOfHisCard_WithDegreeValue()
         {
             var gizmo = new EntityRotationGizmo(_settings);
             var draw  = new FullCapturingDrawBuilder();
@@ -68,14 +71,17 @@ namespace Hrot.Player.Tests.Gizmos
                 Position = Vector3.Zero,
                 Rotation = Quaternion.Identity
             });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1043 });
 
             gizmo.Draw(_repo, entity, draw);
 
-            Assert.NotEmpty(draw.TextCalls);
-            // The label must contain a degree value (non-empty text string).
-            string label = draw.TextCalls[0].Text.ToString();
-            Assert.False(string.IsNullOrWhiteSpace(label));
-            Assert.Equal("90*", label);   // ⭐ CE-4432 — facing east = compass 90, formatted on the stack (the value the old "{deg:F0}*" gave)
+            Assert.Empty(draw.TextCalls);   // no free text
+            var row = Assert.Single(draw.RawCalls, p => p.Shape == DebugPrimitiveShape.Text);
+            Assert.Equal(CoordinateSpace.EntityCard, row.Space);
+            Assert.Equal(1043, row.AnchorIndex);
+            Assert.Equal(EntityCardRows.Heading, row.ZIndex);
+            Assert.Equal(DebugTraceLayers.UnitDetails, row.DebugLayer);
+            Assert.Equal("90*", row.TextContent.ToString());   // ⭐ CE-4432 — facing east = compass 90, formatted on the stack (the value the old "{deg:F0}*" gave)
         }
 
         /// <summary>⭐ CE-4432 (R-2084) — the gizmo runs for every unit every frame: its label costs 0 B (it was an interpolated string per unit).
@@ -87,6 +93,7 @@ namespace Hrot.Player.Tests.Gizmos
             var draw  = new FullCapturingDrawBuilder();
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.7f) });
+            _repo.AddComponent(entity, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1043 });   // ⭐ CE-4582 — the card row's path too
             for (int i = 0; i < 40; i++) gizmo.Draw(_repo, entity, draw);   // warm (the double's lists grow to 64)
             long a0 = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 10; i++) gizmo.Draw(_repo, entity, draw);

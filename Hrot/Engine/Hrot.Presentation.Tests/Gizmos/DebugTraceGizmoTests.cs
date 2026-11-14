@@ -26,8 +26,19 @@ public sealed class DebugTraceGizmoTests : IDisposable
     public DebugTraceGizmoTests()
     {
         _w.RegisterComponent<SimTransform>();
+        _w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();   // ⭐ CE-4582 — the per-unit lines are rows of his card, keyed by it
         Now(10.0);
     }
+
+    private void Net(Entity e, int id) => _w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = id });
+
+    /// <summary>⭐ CE-4582 — the card rows of entity <paramref name="net"/> in the frame: (row, text).</summary>
+    private (byte Row, string Text)[] CardRows(int net) => _draw.GetFrame().ToArray()
+        .Where(p => p.Space == CoordinateSpace.EntityCard && p.AnchorIndex == net && p.Shape == DebugPrimitiveShape.Text)
+        .Select(p => (p.ZIndex, p.TextContent.ToString())).ToArray();
+
+    /// <summary>⭐ CE-4582 — free text (not a card row) in the frame.</summary>
+    private int FreeTexts() => _draw.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Text && p.Space != CoordinateSpace.EntityCard);
 
     public void Dispose() => _w.Dispose();
 
@@ -249,6 +260,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         _w.RegisterComponent<Fdp.Toolkit.Utility.UtilityDecisionLog>();
         var unit = _w.CreateEntity();
         _w.AddComponent(unit, new SimTransform { Position = new Vector3(30, 40, 0) });
+        Net(unit, 77);
         var log = default(Fdp.Toolkit.Utility.UtilityDecisionLog);
         var slots = log.SlotsRW();
         slots[0].DecisionId = 7; slots[0].Winner = 3; slots[0].Margin = 0.25f;
@@ -257,6 +269,9 @@ public sealed class DebugTraceGizmoTests : IDisposable
 
         new UtilityDecisionGizmo().Draw(_w, unit, _draw);
         Assert.Equal(2, _draw.GetFrame().ToArray().Count(p => p.Shape == DebugPrimitiveShape.Text));
+        // ⭐ CE-4582 (§6am D-7) — rows of HIS card, one per decision, never free text at the unit; invariant numbers (R-4221)
+        Assert.Equal(new[] { (EntityCardRows.UtilityFirst, "D7: 3 Δ0.25"), ((byte)(EntityCardRows.UtilityFirst + 1), "D9: 1 Δ0.50") }, CardRows(77));
+        Assert.Equal(0, FreeTexts());
         // ⭐ CE-1203 (§5e FL-3) — the Utility row: drawn on its own layer, nothing with it hidden
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new UtilityDecisionGizmo().Draw(_w, unit, d), DebugTraceLayers.Utility);
     }
@@ -270,6 +285,7 @@ public sealed class DebugTraceGizmoTests : IDisposable
         _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0, DeltaTime = 0.016f, TimeScale = 1f });
         var unit = _w.CreateEntity();
         _w.AddComponent(unit, new SimTransform { Position = new Vector3(5, 5, 0) });
+        Net(unit, 55);
         var status = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus();
         status.Weapon = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
             { ActionId = 1, Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNotSeen, At = (SimInstant)9.9 };
@@ -280,6 +296,9 @@ public sealed class DebugTraceGizmoTests : IDisposable
         new ActionStatusGizmo().Draw(_w, unit, _draw);
         var texts = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).ToArray();
         Assert.Single(texts);
+        // ⭐ CE-4582 (§6am D-7) — the weapon channel's line is row 71 of HIS card (L 70 · W 71 · I 72), never free text
+        Assert.Equal(new[] { ((byte)(EntityCardRows.ActionsFirst + 1), "W hold: not seen") }, CardRows(55));
+        Assert.Equal(0, FreeTexts());
 
         var aiming = new Fdp.Toolkit.Behavior.Diagnostics.ActionStatusRow
             { Reason = Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Aiming, Progress = 0.4f, Needed = 0.8f, At = (SimInstant)10.0 };
@@ -288,6 +307,31 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.Null(ActionStatusGizmo.Text('L', in status.Locomotion, 10.0));
         // ⭐ CE-1203 (§5e FL-3) — the Actions row
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new ActionStatusGizmo().Draw(_w, unit, d), DebugTraceLayers.Actions);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am D-6, acceptance 2 and 3) — NO ORPHAN CARD: a row on any layer but Labels is drawn only
+    /// while Labels is on (the card API's one rule, so every gizmo gets it), and a row's own layer off removes the row, not the card.
+    /// 🔴 Red-proof: <c>inert: false</c> in <c>EntityCards.Card</c> ⇒ the Actions row survives with Labels off.
+    /// </summary>
+    [Fact]
+    public void CE4582_LabelsOff_NoOrphanCard_AndARowsOwnLayerOff_RemovesTheRowNotTheCard()
+    {
+        LayerMask256 Mask(params byte[] off) { var m = new LayerMask256(); for (int i = 0; i < 256; i++) if (Array.IndexOf(off, (byte)i) < 0) m.SetBit(i); return m; }
+        DebugPrimitive[] Emit(LayerMask256 mask)
+        {
+            var b = new DebugPrimitiveBuffer(1024);
+            b.SetActiveLayers(mask);
+            b.Card(9, DebugTraceLayers.Labels).Row(20).Text("Alpha 1 #9", new Rgba32(255, 255, 255, 255));
+            b.Card(9, DebugTraceLayers.Actions).Row(EntityCardRows.ActionsFirst).Text("L moving 12m", new Rgba32(60, 140, 220, 255));
+            b.Card(9, DebugTraceLayers.MindState).Row(11).Bar(0.5f, new Rgba32(200, 120, 0, 255), new Rgba32(40, 40, 40, 255));
+            return b.GetFrame().ToArray().Where(p => p.Space == CoordinateSpace.EntityCard).ToArray();
+        }
+
+        Assert.Equal(new byte[] { 20, EntityCardRows.ActionsFirst, 11, 11 }, Emit(Mask()).Select(p => p.ZIndex).ToArray());   // everything on
+        Assert.Empty(Emit(Mask(DebugTraceLayers.Labels)));                                                  // Labels off ⇒ no card at all
+        Assert.Equal(new byte[] { 20, 11, 11 }, Emit(Mask(DebugTraceLayers.Actions)).Select(p => p.ZIndex).ToArray());   // a row's layer off ⇒ that row gone
+        Assert.True(new DebugPrimitiveBuffer(16).Card(9, DebugTraceLayers.Actions).IsInert == false, "no mask known ⇒ drawn (a host with no layer panel)");
     }
 
     // ⭐ CE-3136 — the Actions family is a pinnable, scoped family like the others (layer panel + "Pin gizmos" menu).
@@ -334,11 +378,12 @@ public sealed class DebugTraceGizmoTests : IDisposable
     {
         _w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
         _w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
-        var a = _w.CreateEntity(); _w.AddComponent(a, new SimTransform { Position = new Vector3(10, 0, 0) });
-        var b = _w.CreateEntity(); _w.AddComponent(b, new SimTransform { Position = new Vector3(0, 10, 0) });
+        var a = _w.CreateEntity(); _w.AddComponent(a, new SimTransform { Position = new Vector3(10, 0, 0) }); Net(a, 101);
+        var b = _w.CreateEntity(); _w.AddComponent(b, new SimTransform { Position = new Vector3(0, 10, 0) }); Net(b, 102);
         var gone = _w.CreateEntity(); _w.AddComponent(gone, new SimTransform { Position = new Vector3(5, 5, 0) });
         var cmd = _w.CreateEntity();
         _w.AddComponent(cmd, new SimTransform { Position = new Vector3(0, 0, 0) });
+        Net(cmd, 100);
         var roster = default(Fdp.Core.CommandHierarchy.UnitRoster);
         Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, a);
         Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, b);
@@ -350,6 +395,11 @@ public sealed class DebugTraceGizmoTests : IDisposable
         new SquadGizmo().Draw(_w, cmd, _draw);
         var ends = _draw.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Line).Select(p => p.LineEnd).ToArray();
         Assert.Equal(new[] { new Vector3(10, 0, 0), new Vector3(0, 10, 0) }, ends);
+        // ⭐ CE-4582 (§6am D-7, acceptance 3) — the leader's SQUAD line on the LEADER's card, each member's E/R on the MEMBER's own card
+        Assert.Equal(new[] { (EntityCardRows.SquadPhase, "SQUAD 3 ph0") }, CardRows(100));
+        Assert.Equal(new[] { (EntityCardRows.MemberRole, "E0R0") }, CardRows(101));
+        Assert.Equal(new[] { (EntityCardRows.MemberRole, "E0R0") }, CardRows(102));
+        Assert.Equal(0, FreeTexts());
         // ⭐ CE-1203 (§5e FL-3) — the Squad & command row
         Fdp.TestShared.GizmoLayerProbe.AssertOnItsOwnLayer(d => new SquadGizmo().Draw(_w, cmd, d), DebugTraceLayers.SquadCommand);
     }

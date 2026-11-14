@@ -17,8 +17,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     /// </summary>
     public static class EntityCards
     {
-        /// <summary>The card of the entity with network id <paramref name="networkId"/>, on debug layer <paramref name="layer"/>.</summary>
-        public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer = 0) => new(draw, networkId, layer);
+        /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am D-6) — the layer of the card ITSELF (its frame and name): the map's
+        /// "Labels" row. Defined once here, in the card API every gizmo calls; <c>DebugTraceLayers.Labels</c> is this value.</summary>
+        public const byte LabelsLayer = 11;
+
+        /// <summary>The card of the entity with network id <paramref name="networkId"/>, on debug layer <paramref name="layer"/>.
+        /// ⭐ <c>CE-4582</c> (§6am D-6) — no ORPHAN card: a row on any layer but <see cref="LabelsLayer"/> is drawn only while the Labels
+        /// layer is on, so turning Labels off hides the whole card, never leaves a bar or a line floating on its own. The card is then
+        /// INERT (its rows emit nothing) — one rule here, so no gizmo can forget it.</summary>
+        public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer = 0)
+            => new(draw, networkId, layer, inert: layer != LabelsLayer && !draw.IsLayerActive(LabelsLayer));
     }
 
     /// <summary>An entity's card (see <see cref="EntityCards"/>).</summary>
@@ -28,11 +36,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         internal readonly int NetworkId;
         internal readonly byte Layer;
 
-        internal EntityCard(IDebugDrawBuilder draw, int networkId, byte layer)
+        /// <summary>⭐ <c>CE-4582</c> — true when the card's Labels layer is off and this row's layer is not Labels: nothing is emitted.</summary>
+        public bool IsInert { get; }
+
+        internal EntityCard(IDebugDrawBuilder draw, int networkId, byte layer, bool inert = false)
         {
             Draw = draw ?? throw new System.ArgumentNullException(nameof(draw));
             NetworkId = networkId;
             Layer = layer;
+            IsInert = inert;
         }
 
         /// <summary>A row: rows stack top-down by <paramref name="order"/>; 0 is card-wide (frame, background).</summary>
@@ -62,6 +74,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>A line of text at <paramref name="xPx"/> from the row's left (truncated to 31 characters).</summary>
         public EntityCardRow Text(string text, Rgba32 colour, float sizePx = 13f, float xPx = 0f)
         {
+            if (_card.IsInert) return this;   // ⭐ CE-4582 D-6 — no orphan row (and no Substring for nothing)
             var p = New(DebugPrimitiveShape.Text);
             p.Color = colour;
             p.TextX = xPx;
@@ -72,9 +85,25 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return this;
         }
 
+        /// <summary>⭐ <c>CE-4582</c> — <see cref="Text(string, Rgba32, float, float)"/> from characters formatted on the stack: no string per
+        /// frame (R-2084 — a heading per unit per frame was ~2.6 MB/s at 8 000 units).</summary>
+        public EntityCardRow Text(System.ReadOnlySpan<char> text, Rgba32 colour, float sizePx = 13f, float xPx = 0f)
+        {
+            if (_card.IsInert) return this;
+            var p = New(DebugPrimitiveShape.Text);
+            p.Color = colour;
+            p.TextX = xPx;
+            p.TextY = 0f;
+            p.TextContent = new CardText(text);
+            p.ThicknessU16 = (ushort)System.Math.Clamp(sizePx, 6f, 64f);
+            _card.Draw.EmitRaw(in p);
+            return this;
+        }
+
         /// <summary>A bar the card's width: <paramref name="back"/> full width, <paramref name="fill"/> <paramref name="fraction"/> of it.</summary>
         public EntityCardRow Bar(float fraction, Rgba32 fill, Rgba32 back, float heightPx = 4f)
         {
+            if (_card.IsInert) return this;   // ⭐ CE-4582 D-6
             fraction = System.Math.Clamp(fraction, 0f, 1f);
             Box(0.5f, 0.5f, heightPx, back);
             if (fraction > 0f) Box(fraction / 2f, fraction / 2f, heightPx, fill);
@@ -85,6 +114,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// (a threshold: a soldier's breaking point on his stress bar).</summary>
         public EntityCardRow Tick(float fraction, Rgba32 colour, float heightPx = 4f)
         {
+            if (_card.IsInert) return this;   // ⭐ CE-4582 D-6
             Box(System.Math.Clamp(fraction, 0f, 1f), 0.006f, heightPx, colour);
             return this;
         }
@@ -105,6 +135,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>Row 0's frame: a translucent background and a one-pixel outline in <paramref name="colour"/>, the whole card.</summary>
         public EntityCardRow Frame(Rgba32 colour, byte backgroundAlpha = 150)
         {
+            if (_card.IsInert) return this;   // ⭐ CE-4582 D-6
             var back = New(DebugPrimitiveShape.Box2D);
             back.SizeMode = SizeMode.ScreenPercent;
             back.Color = new Rgba32(20, 22, 26, backgroundAlpha);

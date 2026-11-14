@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started (re-stamped as BUILD-ONLY under rule 1a: the design is the coordinator's, Map 3D §6am)
+state: DONE 2026-11-14 — built on exp/threaded-build (not ui — the user asked this session to build it there): L-1…L-4 built; L-5 (step 2) measured over budget and NOT built (CE-4587, the user decides). As built: Map 3D §6am.AB
 updated: 2026-11-14
 current-answer: the whole file
 related-designs:

@@ -21,15 +21,21 @@ public sealed class UtilityDecisionGizmo : IStatelessGizmo
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
         if (!draw.IsLayerActive(DebugTraceLayers.Utility)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
-        var at = view.GetComponentRO<SimTransform>(entity).Position;
+        int net = EntityCardRows.CardIdOf(view, entity);   // ⭐ CE-4582 (§6am D-7) — rows of HIS card, never free text at the unit
+        if (net == 0) return;
+        var card = draw.Card(net, DebugTraceLayers.Utility);
+        if (card.IsInert) return;   // Labels off — no orphan card (D-6)
         var log = view.GetComponentRO<UtilityDecisionLog>(entity);
-        float line = 0f;
+        int row = EntityCardRows.UtilityFirst;
         foreach (ref readonly var slot in log.SlotsRO())
         {
             if (slot.DecisionId == 0) continue;
-            draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32($"D{slot.DecisionId}: {slot.Winner} Δ{slot.Margin:0.00}"), TextColor,
-                fontSizePx: 11f, lineOffsetPx: 14f + line, layer: DebugTraceLayers.Utility);
-            line += 13f;
+            if (row > EntityCardRows.UtilityLast) break;
+            card.Row((byte)row++).Text(Line(in slot), TextColor, 11f);
         }
     }
+
+    /// <summary>One decision's line (public for the rail): its id, winner and margin — ⭐ R-4221, invariant.</summary>
+    public static string Line(in UtilityLogSlot slot)
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"D{slot.DecisionId}: {slot.Winner} Δ{slot.Margin:0.00}");
 }

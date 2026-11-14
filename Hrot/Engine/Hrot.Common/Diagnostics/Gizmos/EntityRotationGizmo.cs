@@ -56,8 +56,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
             System.Span<char> text = stackalloc char[12];
             ((int)MathF.Round(compassDeg, MidpointRounding.AwayFromZero)).TryFormat(text, out int n, default, System.Globalization.CultureInfo.InvariantCulture);
             text[n++] = '*';
-            var label = new FixedString32(text[..n]);
-            draw.DrawText(pos.X, pos.Y, label, new Rgba32(255, 165, 0, 200), layer: DebugTraceLayers.UnitDetails);
+            // ⭐ CE-4582 (§6am D-7) — a row of HIS card, never free text at the unit (the arrow stays: it is drawn on the ground)
+            int net = EntityCardRows.CardIdOf(view, entity);
+            if (net != 0) draw.Card(net, DebugTraceLayers.UnitDetails).Row(EntityCardRows.Heading).Text(text[..n], new Rgba32(255, 165, 0, 200), 12f);
         }
     }
 }

@@ -28,6 +28,9 @@ public sealed class SquadGizmo : IStatelessGizmo
         new(64, 128, 255, 220), new(255, 64, 64, 220), new(64, 200, 64, 220), new(230, 200, 0, 220),
     };
     private static readonly Rgba32 PhaseColor   = new(20, 20, 20, 255);
+    /// <summary>⭐ CE-4582 — the commander's line on his card: teal (§6am mockup B), readable on the card's dark background (the old near-black
+    /// <see cref="PhaseColor"/> was for the light 2-D map).</summary>
+    private static readonly Rgba32 CardText     = new(80, 200, 190, 255);
     private static readonly Rgba32 DangerColor  = new(255, 128, 0, 220);
 
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -37,8 +40,10 @@ public sealed class SquadGizmo : IStatelessGizmo
         var state = view.GetComponentRO<SquadCognitiveState>(entity);
         var roster = view.GetComponentRO<UnitRoster>(entity);
 
-        draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32($"SQUAD {roster.Count} ph{state.PhaseId}"), PhaseColor,
-            fontSizePx: 11f, lineOffsetPx: -16f, layer: DebugTraceLayers.SquadCommand);
+        // ⭐ CE-4582 (§6am D-7) — the commander's line on HIS card, each member's E/R on the MEMBER's card (never free text)
+        int net = EntityCardRows.CardIdOf(view, entity);
+        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand).Row(EntityCardRows.SquadPhase)
+                          .Text(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"SQUAD {roster.Count} ph{state.PhaseId}"), CardText, 11f);
 
         var elements = MemoryMarshal.CreateReadOnlySpan(
             ref Unsafe.As<MemberElementIndexArray, byte>(ref Unsafe.AsRef(in state.Elements.MemberElements)), UnitRoster.Capacity);
@@ -51,7 +56,9 @@ public sealed class SquadGizmo : IStatelessGizmo
             var m = view.GetComponentRO<SimTransform>(member).Position;
             var color = ElementColors[elements[i] % ElementColors.Length];
             draw.DrawLine(at, m, color, 1.5f, layer: DebugTraceLayers.SquadCommand);
-            draw.DrawText(m.X, m.Y, new Fdp.Core.FixedString32($"E{elements[i]}R{roles[i].RoleId}"), color, fontSizePx: 10f, lineOffsetPx: 12f, layer: DebugTraceLayers.SquadCommand);
+            int memberNet = EntityCardRows.CardIdOf(view, member);
+            if (memberNet != 0) draw.Card(memberNet, DebugTraceLayers.SquadCommand).Row(EntityCardRows.MemberRole)
+                                    .Text(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"E{elements[i]}R{roles[i].RoleId}"), color, 11f);
         }
 
         // ⭐ CE-1317 (BV-50) — the shared contacts moved to SquadContactsGizmo, their own family (their own checkbox)

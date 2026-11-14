@@ -7,7 +7,7 @@ updated: 2026-10-23 (§6ac middle-button pan, the 2-D helper grid, the cursor's 
   §3.6 and M14 rewritten. Rev 6 — U19: §3.6 the entity CARD as a new anchoring mode (M14), §3.7 entity colour under R-136 (M15), one
   side palette (M16). Rev 5 — U18: vehicles and aircraft as multi-part SHAPE KITS (M7), one visual-family classifier shared with the icons. Rev 4 — U17: M10 APPROVED, one camera entity; U16: §3.4 labels in 3-D, M13. Rev 3 — U15: every map host gets 3-D; the switch is an ANIMATED camera transition (M12); M10 restated: one
   camera entity for the map in both modes. Rev 2 — U14: block figures)
-current-answer: ⭐ §6am unit cards hidden behind terrain, one card per unit (CE-4582, READY-TO-BUILD 2026-11-14) · ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
+current-answer: ⭐ §6am unit cards hidden behind terrain, one card per unit (CE-4582 — ✅ step 1 BUILT 2026-11-14, as built in §6am.AB; step 2 over budget, the user decides — CE-4587) · ⭐ §6ak bodies and doors at scale (instancing, screen-size bands, the pick on input — ✅ BUILT 2026-11-14, as built in §6ak.6; ⛔ its targets NOT met with the gizmos drawn — §6ak.6 correction, CE-4580) · §6ab filming (CE-3289) · §1 what the user asked · §3 the module / class / sequence diagrams · §4 the reuse ledger · §5 decisions
   with leans · §6 slices · §6a S1, §6d S2, §6e S3, §6f S4 as-built · §6j the crouched figure · §6k doors · §6l smoothness, frame overflow, the FPS eye · §6m the carried / dragged, wounded, seated riders, the jump down · §6n weapon systems, gunners, launchers, mortars and guns, trails, the drone, the attack plane, rotors · §7 what is NOT verified.
 stale-below: the HISTORY heading at the end (rev 6's CardHeader/CardBar card).
 known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists…)"* is overtaken: `PipelineTarget.FlatOnly` now exists (AQ93 §12.4, R-4058) — a primitive carrying it is culled by the 3-D triage whatever else it says; `Map2D` itself still means both modes (§7). · earlier: ⛔ RESOLVED 2026-10-11 (CE-1040): §3.3 / M10 said the 2-D map is "north up" while S1 measured it drawing north DOWN; DESIGN_Map_North_Up.md made it north-up, so the swap keeps orientation and those sections are TRUE again.
@@ -4023,7 +4023,7 @@ the real frame under `xvfb-run -a` draws side, front and rear three-quarter and 
 (`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
 and the atlas count).
 
-### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: READY-TO-BUILD)*
+### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: BUILT step 1 `2026-11-14` — ⭐ read **6am.AB** first: D-1's mechanism, D-7's rows and D-9's mask are SUPERSEDED there; step 2 not built, over budget)*
 
 🔒 User, `2026-11-14`: *"option A with drawing trees after the cards. Selected unit card always visible is ok. toggle is ok if it could be added to
 layers panel"* · *"the whole label needs to be handled like that"* · *"the layer panel offers 'Entities' checkbox but has no effect in 3d map"* ·
@@ -4183,6 +4183,93 @@ only in the 3-D overlay — the dashed edge: the 2-D map has no terrain in front
 6. Step 2 (if within budget): a unit inside a wood keeps its whole card; the numbers in the report; the fallback (a framebuffer that is not
    complete) draws step 1 and logs once.
 7. 0 B steady frame; language-neutral (R-4221) on every moved row.
+
+#### 6am.AB — as built *(`2026-11-14`, built on `exp/threaded-build` from the handoff dispatched at `af9b916ed`; build-state: BUILT — step 1; step 2 see D-3 below)*
+
+The diagrams above hold, with the deviations below. Each one is argued; the prior wording stays above and is SUPERSEDED where a row says so.
+
+```mermaid
+classDiagram
+  class ICardOcclusion {
+    <<NEW, GizmoMap.Presentation>>
+    Active : bool
+    Push(networkId) bool
+    Pop()
+    End()
+  }
+  class CardOcclusion {
+    <<NEW, Fdp.Presentation Vis3D>>
+    Enabled : Func~bool~
+    AnchorOf : Func~long,Vector3~
+    Begin(camera) bool
+    Push(world) bool
+    DepthOf(camera, world)$ float
+    DepthScale$ : float
+  }
+  class EntityCardRenderer {
+    <<existing, GizmoMap>>
+    Occlusion : ICardOcclusion NEW
+    AlwaysOnTop : Func~long,bool~ NEW
+  }
+  class DebugGizmoLayer {
+    <<existing>>
+    Occlusion3D : CardOcclusion NEW
+  }
+  class EntityCards {
+    <<existing, Contracts>>
+    LabelsLayer$ : byte
+    Card(draw, net, layer) EntityCard
+  }
+  class EntityCardRows {
+    <<NEW, Fdp.Toolkits>>
+    SquadCommand rows : 60-63
+    Actions rows : 70-73
+    Utility rows : 74-79
+    UnitDetails rows : 80-81
+    CardIdOf(view, entity)$ int
+  }
+  class EntityBodyLayer3D {
+    <<existing>>
+    Visible : Func~bool~ NEW
+    Hidden : bool NEW
+    IsSelectedNet(world, net)$ NEW
+  }
+  ICardOcclusion <|.. CardOcclusion
+  EntityCardRenderer ..> ICardOcclusion
+  DebugGizmoLayer --> CardOcclusion
+  DebugGizmoLayer --> EntityCardRenderer
+```
+*What it shows that prose hid: the card renderer lives in GizmoMap, which cannot see the 3-D camera, so it asks an INTERFACE; the one implementation sits in Vis3D with the camera. The row numbers live in one class beside the layer bits, not in eight gizmos.*
+
+| § | as designed | as built | why |
+|---|---|---|---|
+| **D-1** | the card drawn in 2-D with a z translate mapping the 2-D ortho depth to the anchor's, depth test on | ✅ the per-card z translate (rlgl's matrix stack, so no draw call per card), but **decoded by a small program** (`CardOcclusion.Vertex` / `.Fragment`) that writes the anchor depth as `gl_FragDepth` and places the vertex on the 2-D plane; depth test on, depth writes off | ⛔ rlgl adds 1/20 000 to its 2-D depth after every shape within a batch (up to ~0.4 of the range); a perspective depth needs ~1e-7. Carried as `depth × 1e7` in z, the drift is ≤ 0.4 / 1e7 ≈ one 24-bit step. The window depth is computed (`DepthOf` = `f(z−n)/((f−n)z)` from the camera's clip planes), never read back |
+| **D-3** | step 2, the occluder depth pass, behind a ≤ 1.0 ms budget | ⛔ **NOT BUILT** — see *step 2* below | the budget measured |
+| **D-4** | `AlwaysOnTop` on the renderer | ✅ as designed; the host's predicate is `EntityBodyLayer3D.IsSelectedNet` (the same `SelectionState` that keeps the body Full) | — |
+| **D-5** | Units ▸ *Hide labels behind terrain*, bit 29 | ✅ `DebugTraceLayers.HideLabelsBehindTerrain = 29`, `FirstUntoggledLayer` 29 → 30, on by default, read through the buffer (`MapInteractionPack`) | — |
+| **D-6** | an inert card unless Labels is on | ✅ `EntityCards.Card` (`IsInert`); every row method returns at once when inert (no `Substring` for nothing) | — |
+| **D-7** | rows 60–61 / 70–71 / 72 / 80–81 (mockup B) | ✅ **one line = one row, so a gizmo that writes several lines owns a RANGE**: Squad command 60 (leader's `SQUAD n ph`), 61 (member `E#R#`, on the member's card), 62 (subordinate progress, on his card), 63 (*no picture on this node yet*); Actions 70–72 (L, W, I), 73 (peek-and-fire phase); Utility 74–79 (one per decision); Unit details 80 (stance), 81 (heading). Mockup B regenerated to these numbers | ⛔ two lines in one row are drawn over each other (`EntityCardRenderer` stacks by row, not by text). ⚠ A unit with no network id has no card, so its moved lines are no longer drawn (they were free text); only `EffectStateGizmo` keeps its fallback, as designed. The two squad rows are teal on the card (the old near-black was for the light 2-D map) |
+| **D-7** | (heading allocation) | ✅ `EntityCardRow.Text(ReadOnlySpan<char>)` + a span constructor on GizmoMap's `FixedString32` | the heading kept its 0 B (CE-4432, R-2084) |
+| **D-8** | place labels through the same scope | ✅ `LabelOverlay3D.Draw(…, occlusion)` | — |
+| **D-9** | `EntityBodyLayer3D` reads `ctx.VisibleLayersMask` bit 0 | ⛔ **SUPERSEDED**: reads the GIZMO BUFFER's bit 0 (`Visible = () => buffer.IsLayerActive(0)`, as `TerrainLayer2D` reads Terrain2D) — window pass AND film pass; the window pass empties the pick index, and `EntityBoxPicker.HasBody` answers false | 📐 `ctx.VisibleLayersMask` is `MapCanvas.ActiveLayerMask`, the OLDER per-kind mask (`ScenarioMapConfigAdapter` — ground, air, vehicles…), not the layer panel. A film draws its layer set intersected with the screen's, and Units ▸ Entities is a film row ⇒ hidden there too |
+
+**Step 2 (D-3) — measured, not built.** Measured on the user's Windows machine, `2026-11-14`, scale-rig-scale-1-1000-2s live and playing, uncapped, hidden window, the threaded node on (the default), Units ▸ Labels on; the frame proved (gizmo frame 3 310 – 5 380 primitives, the eye 7.3 – 7.9 m and 5 888 m above the ground, a capture per state viewed); 5 frame-stats windows (2 s) per state. ⚠ The user's own editor was running beside it (from Visual Studio), so the absolute frame times carry its load; the on / off comparison is within one run.
+
+| view | cards drawn | the `cards` part, toggle off → on (step 1's cost) | whole frame off / on | one terrain draw (`Terrain (3-D)`: ground + objects + trees) |
+|---|---|---|---|---|
+| street — soldier #1004 followed, 30 m, pitch −8 | ~190 | 1.72 → **1.98 ms (+0.26)** | 21.6 / 22.1 ms | 0.8 ms |
+| whole terrain — 7 500 m, pitch −60 | ~955 | 4.18 → **4.44 ms (+0.26)** | 34.1 / 33.5 ms (noise) | **4.7 ms** |
+
+⇒ ⭐ **step 1 costs ~0.26 ms** at both views (the per-card anchor lookup and depth; no extra draw call). ⛔ **Step 2 is over its budget by construction**: its occluder pass re-submits the visible ground and building chunks — the same draw calls the terrain layer makes, minus the vegetation — and the whole terrain layer is 4.7 ms on the CPU-bound UI thread at the whole-terrain view (0.8 ms in the street). Half-size and depth-only cut GPU fill, not that CPU submission. ⚠ Inferred from the terrain layer's own cost, not from a built occluder pass (the ground / objects / trees split of the 4.7 ms is not measured). ⇒ per §6am D-3, **step 1 ships; trees in front of a unit cut its card; the user decides on step 2** (tracker row CE-4587).
+
+**The rails** (each red-proved by one compiling mutation):
+
+| acceptance | rail | red-proof |
+|---|---|---|
+| 1, 5 | `Map3DFrameRail.CE4582_TheCardsHideBehindTheRidge_TheSelectedOneAndTheToggleOff_DoNot` — a ridge in the 3-D pass: the card beyond it cut at the ridge line (above drawn, below 0 px), the card in front whole, the selected card beyond it whole, a place label over the ridge's face hidden, the toggle unticked through the real layer gizmo ⇒ all whole | `Occlusion3D.Begin` not called ⇒ 128 px below the line; `AlwaysOnTop` not consulted ⇒ the yellow card cut |
+| 2, 3 | `DebugTraceGizmoTests.CE4582_LabelsOff_NoOrphanCard_AndARowsOwnLayerOff_RemovesTheRowNotTheCard`; the moved rows on the right card in `CE3121_TheUtilityGizmo…`, `CE3136_TheActionsGizmo…`, `CE3121_TheSquadGizmo…` (the member's E/R on the member's card), `EntityRotationGizmoTests.SC_GZ021_ROT_2…` | `inert: false` ⇒ the Actions row survives Labels off; the utility line back to free text ⇒ red |
+| 4 | `EveryMapHostAttachesTheSharedLayersTests.CE4582_TheSharedAttach_WiresTheEntitiesRow_TheOcclusionSwitch_AndTheSelection` (the forwarding rail: the three switches wired on the constructed objects, read from the buffer) | the wiring line dropped ⇒ null |
+| 7 | the frame rail's tail: the overlay pass allocates no more with the scope than without (R-2084); `SC_GZ021_ROT_2b` keeps the heading at 0 B; the moved rows format with the invariant culture (R-4221) | — |
 
 ## 7. NOT VERIFIED — say so before it is built on
 

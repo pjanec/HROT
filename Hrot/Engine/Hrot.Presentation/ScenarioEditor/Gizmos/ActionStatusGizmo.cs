@@ -24,14 +24,16 @@ public sealed class ActionStatusGizmo : IStatelessGizmo
     public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
     {
         if (!draw.IsLayerActive(DebugTraceLayers.Actions)) return;   // ⭐ CE-1203 — its own checkbox (§5e FL-3): a hidden layer costs no work
-        var at = view.GetComponentRO<SimTransform>(entity).Position;
+        int net = EntityCardRows.CardIdOf(view, entity);   // ⭐ CE-4582 (§6am D-7) — a row of HIS card, never free text at his feet
+        if (net == 0) return;
         ref readonly var s = ref view.GetComponentRO<ActionStatus>(entity);
         // sim time for the staleness check; a view that cannot say (not a repository) draws every row
         double? now = view is EntityRepository repo && repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : null;
-        float line = 0f;
-        Line(draw, at, 'L', in s.Locomotion, now, ref line);
-        Line(draw, at, 'W', in s.Weapon, now, ref line);
-        Line(draw, at, 'I', in s.Interaction, now, ref line);
+        var card = draw.Card(net, DebugTraceLayers.Actions);
+        if (card.IsInert) return;   // Labels off — no orphan card (D-6)
+        Line(card, EntityCardRows.ActionsFirst, 'L', in s.Locomotion, now);
+        Line(card, (byte)(EntityCardRows.ActionsFirst + 1), 'W', in s.Weapon, now);
+        Line(card, (byte)(EntityCardRows.ActionsFirst + 2), 'I', in s.Interaction, now);
     }
 
     /// <summary>The text of one row, or null when there is nothing to say (public for the rail and the debug API's wording).</summary>
@@ -41,21 +43,21 @@ public sealed class ActionStatusGizmo : IStatelessGizmo
         string label = ActionStatusOf.Label(row.Reason);
         return row.Reason switch
         {
-            ActionReason.Aiming or ActionReason.Reloading => $"{channel} {label} {row.Progress:0.0}/{row.Needed:0.0}s",
-            ActionReason.Cooldown                         => $"{channel} {label} {row.Progress:0.0}s",
-            ActionReason.Overheated                       => $"{channel} {label} {row.Progress * 100f:0}%",   // ⭐ CE-1358
-            ActionReason.Moving when row.Progress > 0f    => $"{channel} {label} {row.Progress:0}m",
+            // ⭐ R-4221 — invariant, never a decimal comma
+            ActionReason.Aiming or ActionReason.Reloading => string.Create(Inv, $"{channel} {label} {row.Progress:0.0}/{row.Needed:0.0}s"),
+            ActionReason.Cooldown                         => string.Create(Inv, $"{channel} {label} {row.Progress:0.0}s"),
+            ActionReason.Overheated                       => string.Create(Inv, $"{channel} {label} {row.Progress * 100f:0}%"),   // ⭐ CE-1358
+            ActionReason.Moving when row.Progress > 0f    => string.Create(Inv, $"{channel} {label} {row.Progress:0}m"),
             _                                             => $"{channel} {label}",
         };
     }
 
-    private static void Line(IDebugDrawBuilder draw, System.Numerics.Vector3 at, char channel, in ActionStatusRow row, double? now,
-        ref float line)
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    private static void Line(EntityCard card, byte rowNumber, char channel, in ActionStatusRow row, double? now)
     {
         var text = Text(channel, in row, now);
         if (text == null) return;
-        draw.DrawText(at.X, at.Y, new Fdp.Core.FixedString32(text), ActionStatusOf.IsHold(row.Reason) ? Hold : Busy,
-            fontSizePx: 11f, lineOffsetPx: -14f - line, layer: DebugTraceLayers.Actions);
-        line += 13f;
+        card.Row(rowNumber).Text(text, ActionStatusOf.IsHold(row.Reason) ? Hold : Busy, 11f);
     }
 }
