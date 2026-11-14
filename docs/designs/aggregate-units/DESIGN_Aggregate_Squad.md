@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — the critical review's R-D1…R-D13 approved (R-4251); ⚠ §17's rulings override the earlier rows they name (fold into §3–§11 at build time, obligation ⑤); the stochastic design's SV items still open
+build-state: ⏸ DEFERRED (R-4253, user 2026-11-14: "ok let's leave the fusionSquad for later") — designed and approved (R-D1…R-D13, R-4251); built later as a constructive capability, validated against DESIGN_Command_Chain_Battalion_Test.md; ⚠ §17's rulings override the earlier rows they name (fold into §3–§11 at build time, obligation ⑤); the stochastic design's SV items still open
 updated: 2026-11-14 (first version — coordinator)
 current-answer: ⭐ §17 the critical review (read FIRST) · the FusionSquad — §1 the request · §4–§4b decisions (all approved) · §5 every behaviour with one member · §6 real-squad defects · §7 slices · §8 acceptance · §11 the commander entity's delta; the stochastic future is DESIGN_Stochastic_Units_And_Resolution.md — §1 the request · §2 INVENTORY · §3 diagrams · §4 decisions · §5 every squad behaviour with one member · §6 real-squad defects found · §7 slices · §8 acceptance · §9 design docs checked
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Squad_Tactics.md §7.6.3 ("fire and movement ends … a half gone") — D-5 changes it for a squad down to one man; folded there when built
 related-designs:
+  - ../group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md — the chain test with REAL squads (R-4253); later the FusionSquad's calibration baseline (the same scenario run with FusionSquads)
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS the StochasticUnit, de-aggregation and the resolution policy (§10, §12–§16b, moved there 2026-11-14); its "binds now" items are in §7 here
   - MEASURED_Aggregate_Squad_Seams.md — OWNS the measurements behind every row here (two sweeps, calibration numbers, R-4244 §8)
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — §12 the test ladder: the aggregate battle is a rung between ② (puppet bench) and ③ (dry twins)
