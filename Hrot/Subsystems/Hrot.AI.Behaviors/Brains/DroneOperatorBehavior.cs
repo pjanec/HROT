@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -21,9 +22,13 @@ namespace Hrot.AI.Behaviors.Brains
         public float IntervalSeconds;
         /// <summary>The stock index in the air (<see cref="DroneOperatorBehavior.None"/> = none).</summary>
         public byte Current;
-        /// <summary>Bit k = stock drone k was launched.</summary>
+        /// <summary>Bit k = stock drone k was launched (and is not to be sent again).</summary>
         public byte Launched;
         public SimInstant NextAt;
+        /// <summary>⭐ <c>CE-7027</c> — sorties flown, 8 bits a stock drone (drone k in bits 8k…8k+7).</summary>
+        public uint Sorties;
+        /// <summary>⭐ <c>CE-7027</c> — 1 once the drone in the air was seen running its order (until then "not busy" means "not yet").</summary>
+        public byte SeenBusy;
     }
 
     /// <summary>
@@ -75,8 +80,18 @@ namespace Hrot.AI.Behaviors.Brains
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
             if (p.Current != None)
             {
-                if (Flying(world, Stock(in p, p.Current))) return NodeStatus.Running;
+                var flying = Stock(in p, p.Current);
+                if (Flying(world, flying))
+                {
+                    // ⭐ CE-7027 — a drone that ENDED its order alive (the bomber back from its drop, a recon down on its battery) is done
+                    //   too; one with rounds left for another sortie is sent again (the bomber's second grenade)
+                    if (CommandOrders.Busy(world, self, flying)) { p.SeenBusy = 1; return NodeStatus.Running; }
+                    if (p.SeenBusy == 0) return NodeStatus.Running;   // the order has not reached it yet
+                    if (SortiesOf(in p, p.Current) < Math.Max(1, TemplateArms.Rounds(world, flying)))
+                        p.Launched &= (byte)~(1 << p.Current);
+                }
                 p.Current = None;
+                p.SeenBusy = 0;
                 p.NextAt = (SimInstant)(now + p.IntervalSeconds);
             }
             if (now < p.NextAt) return NodeStatus.Running;
@@ -93,6 +108,7 @@ namespace Hrot.AI.Behaviors.Brains
                     CommandOrders.Assign(world, self, drone, BehaviorNames.AirPlatformStrike,
                         JsonSerializer.Serialize(new StrikeOrder { Location = p.Point }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), newOrder: true);
                 p.Launched |= (byte)(1 << k);
+                p.Sorties += 1u << (8 * k);
                 p.Current = k;
                 return NodeStatus.Running;
             }
@@ -101,6 +117,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ CE-7028 — a drone whose KNOWN type carries no weapon mount (the recon quadcopter); an unknown type keeps the strike.</summary>
         private static bool Unarmed(EntityRepository world, Entity drone) => TemplateArms.KnownUnarmed(world, drone);
+
+        private static int SortiesOf(in DroneOperatorParams p, int k) => (int)((p.Sorties >> (8 * k)) & 0xFF);
 
         private static Entity Stock(in DroneOperatorParams p, int k) => k switch { 0 => p.Drone0, 1 => p.Drone1, 2 => p.Drone2, _ => p.Drone3 };
 
