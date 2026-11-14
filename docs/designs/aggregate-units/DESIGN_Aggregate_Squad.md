@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — decisions D-1…D-9 are leans for the user (2026-11-14); the shape is ruled (R-4244)
+build-state: DESIGN — D-1…D-3, D-5…D-9 approved (R-4245); D-4′ (weapon rotation, §4a) is a lean for the user; the shape is ruled (R-4244)
 updated: 2026-11-14 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 INVENTORY · §3 diagrams · §4 decisions · §5 every squad behaviour with one member · §6 real-squad defects found · §7 slices · §8 acceptance · §9 design docs checked
 stale-below: nothing
@@ -145,19 +145,55 @@ graph TD
 *What it shows: the one new per-frame system writes the unit's `Men` from the representative's health; a later probabilistic resolver writes the
 same field with no member (dashed) — nothing downstream changes.*
 
-## 4. Decisions — leans for the user
+## 4. Decisions — ✅ D-1…D-3, D-5…D-9 APPROVED (user, `2026-11-14`: *"Approved except D4."* — R-4245); D-4 replaced by D-4′ (lean)
 
 | # | decision | ⭐ lean | why | rejected |
 |---|---|---|---|---|
 | **D-1** | how an aggregate squad gets its OWN version of a play | ⭐ **the order routing, staged** (`Order.<name>` → `<Class><Order>`; class `AggregateInfantrySquad` = `11.1.*.1.2.2`, TKB 307, more specific than `InfantrySquad`, falls back to it) — FIRST make the order bookkeeping order-aware (record the order + its resolved name, the CE-4307 sender-side precedent) and fix the three readers that compare a behaviour hash (`StillRunning` / `Gave`, `NotDefending`, `HoldsFirm`), THEN move the platoons' squad orders one by one (Defend first) | it is what the routing was built for (R-273), the user's model ("orders will be translated to whatever the unit can do"), and the staging also fixes a latent bug (a squad given `Order.Hold` breaks contact today — `HoldsFirm` misses `InfantrySquadHold`) | a dispatch inside each behaviour (a second mechanism for one concept) · moving every call site at once (CE-2346 / CE-2359 return) |
 | **D-2** | where the squad's state lives | ⭐ **on the UNIT**: `AggregateSquad { Represents, Men, Suppression }`; ONE seam `SquadMen.Of` feeds `CombatEffective`, `StrengthOf`, the census, `SquadEnemyStrengthRatio`, `ThreatDanger`, target weights (FPV, spotter) and seats; v1 writes `Men` from the representative's health | the open door to the fully aggregated squad (user): a probability resolver writes the same field | state on the member only (the no-member squad would have nowhere to keep it) |
 | **D-3** | where the one member stands | ⭐ **where the squad's firepower decides**: in a defence with a threat area, the MG's post — the longest view down it (D-2h's view fan over the candidate posts, run for the lone man); all round, coverage rank 0 + the lone man's guard round (DL-4, already built); in a march, the lead; elsewhere what the play gives its first element | the MG is the squad's base of fire (DA-48, DA-19); the member carries it | the centre of the posts (an unaimed compromise) · the leader's post (the unit is the leader) |
-| **D-4** | firing the squad's weapons | ⭐ **v1: one fire stream, scaled** — the small-arms mount's rate, ammo and spread scaled to the men left (`SquadMen`), `WeaponChoice` puts the RPG on vehicles; simultaneous fire at two targets is **not** in v1 | one channel per entity (`ChannelComponents.cs:29`) and per-mount tasks were rejected for turrets (Weapon Layers §205-215); the VOLUME of fire is what suppresses and attrits | a second fire loop for the MG now (a separate decision: hull-fixed mounts were never ruled) |
+| **D-4** ⛔ SUPERSEDED by D-4′ below (user, `2026-11-14`: rotate the weapons) | firing the squad's weapons | ~~v1: one fire stream, scaled~~ | — | — |
 | **D-5** | the plays that fail with one man | ⭐ **make them work with one man** (they fail for a REAL squad's last man too): fire and movement (Start `live < 1`; an empty half is skipped, not a failure), break contact's smoke (the mover throws it when nobody covers); **aggregate versions only where one man cannot mean the squad**: suppress-and-manoeuvre's assault and `ClearBuilding` (§5) | R-4244: no hack into the half logic — a play either works with one man or is replaced | — |
 | **D-6** | damage to a representative | ⭐ health = `Represents × 25` (a rifle hit ≈ one man); a hit removes at most **2 men**; a burst's fragments scaled by the squad's frontage (`PresentedAreaM2`); no injury model | measured: a 125 mm hit (1100) would empty the pool; a burst tests one man-sized body | per-round dispersion (no hook; under-represents, never over) |
 | **D-7** | the squad's nerve | ⭐ squad-level stress on the representative: stimuli scaled `1/Represents`, "alone" off, leader calming on, outnumbering by `SquadMen` | measured: ~4 hits break one body standing for 8; "alone" grows for ever | per-man stress unchanged (it routs the squad on four hits) |
 | **D-8** | seats | ⭐ a representative takes `ceil(Men)` seats | else one carrier "carries" 12 squads | one seat |
 | **D-9** | role tag | ⭐ the representative is the squad's `SquadLeader` (succession is then a no-op) and carries the MG mount; ⚠ check DA-13 (snipers rank MG gunners) before tagging it `MachineGunner` | the leader-only case is designed (`SquadSensing.cs:113-117`) | — |
+
+
+## 4a. D-4′ — the member ROTATES through the squad's weapons *(lean; 🔒 user, `2026-11-14`: "the single member can fire just one weapon at a time, but then some special mechanism would switch his weapon to the other one that would belong to the other squad member, and so on. So the single member actually fires from multiple weapons, just not simultaneously.")*
+
+| claim | code — how it is | design |
+|---|---|---|
+| one fire action per entity; one round per decision | one `WeaponChannel` (`ChannelComponents.cs:29`); one `WeaponFireIntent` per pass (`AimAndFireExecutor.cs:293`) | Weapon Layers :205-215 |
+| ✔ the weapon is chosen ONCE per engagement and kept while the target, the force level and its ammo last | `EngagementMount` (`AimAndFireExecutor.cs:850-870`) | WL-4 W-12a |
+| ✔ every weapon keeps its OWN cooldown, ammo, magazine and heat; the cooldown is set on the weapon that fired | mount 0 on the owner, mounts 1+ child entities (`CombatTkbTranslator.cs:86-125`); `CooldownSecondsRemaining` set at `:307`, checked for the chosen weapon only (`:209`) | — |
+| ✔ the AIM restarts only when the TARGET or the STANCE changes — never when the weapon changes | `aim.Restarted(p.Target, stance)` (`:197-198`) | CE-2323 |
+| switching to another TARGET costs an aim time and a body turn | `PacedAimSecondsFor` (`:903`), `BodyAim.HoldsFire` (`:249`) | — |
+| suitability per target already exists | `WeaponChoice.Choose` scores every weapon (armour effect, range, ammo, readiness) (`WeaponChoice.cs:8-27`) | WL-4 |
+| the proven solution | constructive models fire a unit's weapon SYSTEMS by type, each at its own rate; the unit's volume of fire is their sum | ✅ adopted: rotation reproduces the SUM through one channel |
+
+```mermaid
+sequenceDiagram
+  participant E as AimAndFire (the member's one channel)
+  participant R as FireRotation (NEW, aggregate only)
+  participant W as the squad's weapons (own cooldowns)
+  E->>R: which weapon now? (same target)
+  R->>W: suitable for this target? (WeaponChoice score) and cooldown <= 0?
+  W-->>R: rifles ready, LMG cooling, RPG unsuitable (infantry)
+  R-->>E: rifles (round-robin from the last fired)
+  E->>W: one round, cooldown set on the rifles only
+  Note over E,W: next pass: the LMG has cooled, it fires while the rifles cool - the aim is kept (same target)
+```
+*What it shows that prose hid: the rotation costs nothing the engine does not already do — each weapon cools on its own and the aim is kept
+while the target is the same, so the member's volume of fire becomes the SUM of the squad's weapons, one round at a time.*
+
+| | the lean |
+|---|---|
+| ⭐ **R-1 — rotate the weapons on the ENGAGED target** | the representative carries a `FireRotation` marker (aggregate only — real men keep today's choice); `EngagementMount` then returns the NEXT weapon that is suitable for the target (`WeaponChoice` score > 0) AND has cooled, round-robin from the last one fired; none ready ⇒ wait for the first to cool. Same target ⇒ no new aim ⇒ the rate is the sum of the suitable weapons' rates |
+| ⭐ **R-2 — weapons by TYPE, each standing for its men** | one weapon per type the squad carries: the rifles (one weapon standing for k rifles: rate × k), the LMG / MG, the RPG / AT, grenades; each its own ammo pool (the squad's real totals); the rifles' k and the others' availability shrink with the men left (`SquadMen`, a gun is lost when the men left fall below its crew) |
+| ⭐ **R-3 — the RPG goes to vehicles by itself** | `WeaponChoice` already scores it 0 against men and high against armour ⇒ against infantry it is skipped; when the behaviour engages a vehicle it joins the rotation (and the rifles drop out if they cannot hurt it) |
+| ⏳ **R-4 — two targets at once (later)** | a real squad fires the RPG at the tank WHILE the rifles keep the infantry down. v1 engages ONE target at a time (switching costs an aim and a turn, measured). Later: a target per weapon from the squad's fire distribution, with the aim kept per target — its own decision when v1 is seen |
+| rejected | one scaled stream (the superseded D-4 — loses the weapon mix) · a second fire channel (simultaneous fire; per-mount tasks were rejected for turrets, Weapon Layers :215) |
 
 ## 5. Every squad behaviour with ONE member *(analysis of design + code, no runs)*
 
@@ -196,7 +232,7 @@ same field with no member (dashed) — nothing downstream changes.*
 | **A-0** | the real-squad defects CE-4605…CE-4609 (they make every squad better, and the aggregate rests on the same plays) | — |
 | **A-1** | D-1 staged: order-aware bookkeeping + the three hash readers; then `Order.Defend`, … one order at a time | A-0 (CE-4609) |
 | **A-2** | the type (TKB 307 + the representative type), `AggregateSquad` on the unit, `SquadMen` and its readers (D-2), seats (D-8), role (D-9) | — |
-| **A-3** | the combat model: scaled small arms (D-4), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
+| **A-3** | the combat model: the weapon rotation (D-4′ R-1…R-3), damage cap and burst frontage (D-6), squad nerve (D-7), the MG post (D-3), fire and movement / break contact with one man (D-5) | A-2 |
 | **A-4** | the aggregate plays: assault, ClearBuilding | A-1, A-2 |
 | **A-5** | the command-hierarchy scenario on aggregates (battalion → squads, ~80 entities; vehicles, mortars, drones real) + `Strength` / `QuietArea` objective kinds + the battalion reserve (CE-4589) + live checks and the dynamism measure (CE-7033) | A-3, A-4 |
 
