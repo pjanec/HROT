@@ -5343,6 +5343,16 @@ namespace Hrot.SimHost.Tests
         /// Red-proofs: the portal-kind filter dropped ⇒ the stack on the window; the flow released at once ⇒ #2 in with #1; the hostile check
         /// dropped ⇒ RoomClear with an enemy in the room.
         /// </summary>
+        /// <summary>⭐ CE-2436 (R-2116) — stamp pooled contact <paramref name="slot"/> as seen at <paramref name="tick"/> (the perception clock).</summary>
+        private static void SeenAt(Squad s, int slot, uint tick)
+        {
+            ref var squad = ref s.Repo.GetComponentRW<SquadCognitiveState>(s.Commander);
+            System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16)[slot].LastSeenTick = tick;
+        }
+
+        private static void SeenNow(Squad s, int slot) => SeenAt(s, slot, Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo));
+
         [Fact]
         public void CE2257_BC1_ClearRoom_StacksOnTheDoor_OpensIt_FlowsInOneByOne_AndReportsTheRoomClear()
         {
@@ -5402,15 +5412,22 @@ namespace Hrot.SimHost.Tests
             }
 
             for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Point(k));
-            s.PoolMany(1, new Vector3(4f, 15f, 0f));   // an enemy still in the far corner
-            TickFor(s, 4);
+            s.PoolMany(1, new Vector3(4f, 15f, 0f));   // an enemy still in the far corner — SEEN (CB-55: fresh)
+            for (int i = 0; i < 8; i++) { SeenNow(s, 0); TickFor(s, 0.5); }
             Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
             Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
             s.ClearPool();
             // ⭐ CB-55 — a CIVILIAN cowering in the corner is not a hostile: the room clears with him in it (BC-2 controls him).
             //   📌 bc-house-clear: an occupant who stays (CE-2337) held room C uncleared for good. 🔴 Red-proof: the neutral skip dropped.
-            var civilian = s.PoolMany(1, new Vector3(4f, 15f, 0f))[0];
+            // ⭐⭐ CE-2436 R-2116 — and a hostile LAST SEEN in the room long ago (he fell back) does not hold it either: the men are in it looking.
+            //   📌 pc-assault (editor): the entry men stood 290 s in an empty room. 🔴 Red-proof: the freshness skip dropped ⇒ never clear.
+            var two = s.PoolMany(2, new Vector3(4f, 15f, 0f));
+            var civilian = two[1];
             s.Repo.AddComponent(civilian, new EntityInfo { ForceId = ForceId.Neutral });
+            uint nowTick = Fdp.Toolkit.Perception.PerceptionClock.Now(s.Repo);
+            Assert.True(nowTick > RoomDrill.ClearFreshTicks + 10, "the clock has run long enough to hold a stale sighting");
+            SeenAt(s, 0, nowTick - RoomDrill.ClearFreshTicks - 10);   // the hostile: seen > 3 s ago
+            SeenNow(s, 1);                                             // the civilian: seen now
             TickFor(s, RoomDrill.ClearSeconds + 0.5);
             Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
             Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
