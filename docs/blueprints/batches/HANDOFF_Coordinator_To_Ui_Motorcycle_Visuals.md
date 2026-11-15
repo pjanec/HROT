@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → `ui`: the motorcycle's look and the player on it (CE-4621 M-1v, M-2p) — OVERNIGHT, UNATTENDED
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `d040c6f48`** *(re-stamped, rule 1a — unstarted; adds the fixed ids)*; ⛔ scope FROZEN there.
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `91ab130e1`** *(re-stamped, rule 1a — unstarted; the fixed ids, overnight unattended)*; ⛔ scope FROZEN there.
 
 🔒 User, `2026-11-15`: *"the UI might take the visual part of it"* · *"the motorcycle also needs to be possessable and player can also embark it as a
 passenger (the one that can shoot while motorcycle drives)"* (R-4263).
