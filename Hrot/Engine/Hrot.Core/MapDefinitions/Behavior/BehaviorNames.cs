@@ -52,6 +52,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// line of fire; SET once every squad is (DESIGN_Assault_Under_Fire §9.3).</summary>
         public const string PlatoonSupportByFire = "PlatoonSupportByFire";
 
+        /// <summary>⭐ CE-2436 AU-4 (A-4) — a vehicle's support by fire: to a stand-off point, then the exposure cycle from cover, relocating after
+        /// each engagement; it never leads across the open (DESIGN_Assault_Under_Fire §9.4).</summary>
+        public const string VehicleSupportByFire = "VehicleSupportByFire";
+
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
 

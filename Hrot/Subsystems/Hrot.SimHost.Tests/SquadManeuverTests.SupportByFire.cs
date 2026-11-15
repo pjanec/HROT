@@ -252,5 +252,39 @@ namespace Hrot.SimHost.Tests
             p.ReportSet(p.Bravo); p.Ticks(3);
             Assert.Single(Queued(p.S, p.S.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
         }
+    
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-4 (A-4) — a VEHICLE in the company (here slot 0, where a platoon would assault) never takes a platoon's role: it is
+        /// ordered <c>VehicleSupportByFire</c> to a stand-off point <see cref="CompanyAttackBehavior.VehicleSpreadMetres"/> beside the base of fire's,
+        /// never forward to the objective — still there at the consolidation; the platoons take assault / support / reserve in order, and the attack
+        /// ends Success without a Set from the vehicle. ✅ Red-proofs: the vehicle check dropped ⇒ the vehicle is ordered PlatoonAttack · AllSet
+        /// waiting on it ⇒ the run never ends.
+        /// </summary>
+        [Fact]
+        public void CE2436_CompanyAttack_AVehicleSupportsByFireFromTheBaseOfFiresLine_NeverAssaults()
+        {
+            var c = new Company(platoons: 4);
+            var ifv = c.S.Members[0];
+            if (!c.S.Repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) c.S.Repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            c.S.Repo.AddComponent(ifv, new global::CarKinem.Core.VehicleState());
+            Entity assault = c.S.Members[1], support = c.S.Members[2], reserve = c.S.Members[3];
+            var o = new Vector3(0f, 600f, 0f);
+            CompanyAttack(c, 0f, o);
+            c.Ticks(6);
+            var basePoint = c.Last<PlatoonSupportByFireParamsJsonDto>(support, BehaviorNames.PlatoonSupportByFire).Position;
+            var v = c.Last<VehicleSupportByFireParamsJsonDto>(ifv, BehaviorNames.VehicleSupportByFire);
+            Assert.InRange(Vector2.Distance(new(v.Position.X, v.Position.Y), new(basePoint.X, basePoint.Y)),
+                           CompanyAttackBehavior.VehicleSpreadMetres - 0.5f, CompanyAttackBehavior.VehicleSpreadMetres + 0.5f);
+            Assert.InRange(System.MathF.Abs(v.Position.Y - basePoint.Y), 0f, 0.5f);   // beside it on the line, not toward the objective
+
+            c.Set(support); c.Ticks(5);
+            Assert.Equal(1, c.OrdersTo(assault, BehaviorNames.PlatoonAttack));
+            Assert.Equal(0, c.OrdersTo(ifv, BehaviorNames.PlatoonAttack));
+            c.Set(assault); c.Ticks(5);   // taken: consolidate
+            Assert.Equal(BehaviorNames.VehicleSupportByFire, c.S.Orders.Last(x => x.Entity.Equals(ifv)).IntentId);
+            c.Set(assault); c.Set(support); c.Set(reserve);
+            Assert.Equal(Fbt.NodeStatus.Success, c.RunToEnd());
+        }
     }
 }

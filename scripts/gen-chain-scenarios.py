@@ -156,8 +156,10 @@ def build(name, v):
         s.add(ent(2002, f"Blue Mortar {i + 1} Gunner", F, tx - 2, BLUE_HQ[1] - 30, commander=battery,
                   designation="SquadLeader" if i == 0 else "Wingman", behavior=("ManWeapon", {"weapon": tube}), man=True))
         s.add(ent(2002, f"Blue Mortar {i + 1} Loader", F, tx - 2, BLUE_HQ[1] - 33, commander=battery, man=True))
-    for i, dy in enumerate((-12, 12)):   # the IFVs overwatch from the start line (their own SOP; no commander — R-2096)
-        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X, BLUE_START[1] + dy, man=False,
+    # ⭐ CE-2436 AU-4 (A-4) — the IFVs are the COMPANY's (slots after the platoons): CompanyAttack hands them VehicleSupportByFire on the base of
+    #   fire's line; their SOP stays for what they meet on their own (⛔ was: no commander — R-2096 — so they did nothing for the attack)
+    for i, dy in enumerate((-12, 12)):
+        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X, BLUE_START[1] + dy, commander=bco, man=False,
                   extra={"TargetMemory": {"Entries": []}, "Sop": {"Name": "BasicVehicleSop", "Params": {}, "Origin": "Superior"}}))
     # ── Red ──
     rhq = s.add(ent(306, "Red Battalion HQ", H, *RED_HQ, rot=WEST, behavior=("SupportCommand", {"Reserve": 2})))   # slot 1 = its reserve

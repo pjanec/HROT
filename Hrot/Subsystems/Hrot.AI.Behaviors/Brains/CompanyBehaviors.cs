@@ -28,6 +28,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const int Capacity = CommandPicture.MaxSubordinates;
         public const int MaxObjectives = 4;
         public const byte NoRole = 0, Assault = 1, Support = 2, Reserve = 3;
+        /// <summary>⭐ <c>CE-2436</c> AU-4 (A-4) — a VEHICLE subordinate: supports by fire from the base of fire's line, never assaults.</summary>
+        public const byte Vehicle = 4;
         public const byte PhasePlan = 0, PhaseSupport = 1, PhaseAssault = 2, PhaseConsolidate = 3, PhaseAbort = 4;
 
         public float Radius;
@@ -177,8 +179,14 @@ namespace Hrot.AI.Behaviors.Brains
             int n = RosterCount(world, self);
             if (n == 0) return NodeStatus.Running;
             p.Start = StaffComposerSystem.CentreOf(world, self);
+            int k = 0;   // ⭐ CE-2436 AU-4 — the platoons take the roles in order; a VEHICLE subordinate supports by fire (never the assault)
             for (int s = 0; s < n && s < CompanyAttackPlan.Capacity; s++)
-                p.Role[s] = s == 0 ? CompanyAttackPlan.Assault : s == 1 ? CompanyAttackPlan.Support : s == 2 ? CompanyAttackPlan.Reserve : CompanyAttackPlan.NoRole;
+            {
+                var sub = CommandPictureOps.Subordinate(world, self, s);
+                if (!sub.IsNull && Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, sub)) { p.Role[s] = CompanyAttackPlan.Vehicle; continue; }
+                p.Role[s] = k == 0 ? CompanyAttackPlan.Assault : k == 1 ? CompanyAttackPlan.Support : k == 2 ? CompanyAttackPlan.Reserve : CompanyAttackPlan.NoRole;
+                k++;
+            }
             p.Made = 1;
             return NodeStatus.Running;
         }
@@ -288,6 +296,20 @@ namespace Hrot.AI.Behaviors.Brains
         {
             switch (p.Posts) { case 0: p.Post0 = at; break; case 1: p.Post1 = at; break; case 2: p.Post2 = at; break; default: p.Post3 = at; break; }
             p.Posts++;
+        }
+
+        /// <summary>⭐ AU-4 (A-4) — vehicles stand this far to each side of the base of fire's point (m), alternating by slot.</summary>
+        public const float VehicleSpreadMetres = 35f;
+
+        private static bool VehicleSupport(ref CompanyAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order)
+        {
+            var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
+            var toObj = new Vector2(o.X - p.SupportAt.X, o.Y - p.SupportAt.Y);
+            var dir = toObj.LengthSquared() > 1e-4f ? Vector2.Normalize(toObj) : Vector2.UnitY;
+            var across = new Vector2(-dir.Y, dir.X) * ((slot & 1) == 0 ? VehicleSpreadMetres : -VehicleSpreadMetres);
+            behaviour = BehaviorNames.VehicleSupportByFire;
+            order = JsonSerializer.Serialize(new VehicleSupportByFireParamsJsonDto { Position = p.SupportAt + new Vector3(across, 0f) }, json);
+            return true;
         }
 
         private static bool SupportByFire(ref CompanyAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order)
@@ -411,6 +433,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 case CompanyAttackPlan.PhaseSupport:
                 case CompanyAttackPlan.PhaseAssault:
+                    // ⭐⭐ CE-2436 AU-4 (A-4) — a vehicle supports by fire from the base of fire's line, ±VehicleSpreadMetres to its sides, never forward
+                    if (role == CompanyAttackPlan.Vehicle) return VehicleSupport(ref p, slot, json, out behaviour, out order);
                     // ⭐⭐ CE-2436 AU-3 (A-1) — the company's base of fire FIRES on the reported posts (every squad SupportByFire), seen or not
                     if (role == CompanyAttackPlan.Support) return SupportByFire(ref p, json, out behaviour, out order);
                     if (role == CompanyAttackPlan.Reserve) return Defend(p.ReserveAt, o, 0f, 0f, p.Speed, json, out behaviour, out order);
@@ -422,9 +446,11 @@ namespace Hrot.AI.Behaviors.Brains
                     }
                     return false;   // the assault waits for the base of fire
                 case CompanyAttackPlan.PhaseConsolidate:
-                    return Defend(o, o, 0f, 0f, p.Speed, json, out behaviour, out order);
                 case CompanyAttackPlan.PhaseAbort:
-                    return Defend(p.Start, p.Start, 0f, 0f, p.Speed, json, out behaviour, out order);
+                    if (role == CompanyAttackPlan.Vehicle) return VehicleSupport(ref p, slot, json, out behaviour, out order);   // AU-4 — stays back, covering
+                    return p.Phase == CompanyAttackPlan.PhaseConsolidate
+                        ? Defend(o, o, 0f, 0f, p.Speed, json, out behaviour, out order)
+                        : Defend(p.Start, p.Start, 0f, 0f, p.Speed, json, out behaviour, out order);
                 default:
                     return false;
             }
@@ -490,7 +516,7 @@ namespace Hrot.AI.Behaviors.Brains
             int n = Math.Min(RosterCount(world, self), CompanyAttackPlan.Capacity), live = 0;
             for (int s = 0; s < n; s++)
             {
-                if (p.Role[s] == CompanyAttackPlan.NoRole || !Alive(world, self, s)) continue;
+                if (p.Role[s] == CompanyAttackPlan.NoRole || p.Role[s] == CompanyAttackPlan.Vehicle || !Alive(world, self, s)) continue;   // AU-4: a vehicle reports no Set
                 if (CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set) return false;
                 live++;
             }

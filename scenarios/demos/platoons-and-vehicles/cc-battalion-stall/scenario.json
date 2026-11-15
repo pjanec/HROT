@@ -1800,6 +1800,10 @@
     "Name": "Blue IFV 1",
     "ForceId": "Friend"
    },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
+   },
    "TargetMemory": {
     "Entries": []
    },
@@ -1829,6 +1833,10 @@
    "EntityInfo": {
     "Name": "Blue IFV 2",
     "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000002",
+    "Designation": "Wingman"
    },
    "TargetMemory": {
     "Entries": []
