@@ -4037,7 +4037,7 @@ no existing kit has a wheeled body **and** a turntable launcher **and** a second
 | launcher = turret 0 | a turntable + pedestal (`PartRole.Turret`, on the axis) and a cradle of four 2 × 2 canisters with caps, a rear frame and two straps (`PartRole.Gun`, **boxes**) hinged at the REAR (`KitPivots`: axis x −2.4 m, trunnion x −3.0 m, z 3.0 m) ⇒ it turns with `TurretAzimuth` and elevates 0…85° with `GunElevation` from the replicated `TurretPose` (`TurretPoseSource`). ⛔ A `Gun` **cylinder along x** would be re-sized to the TKB's muzzle by `KitFromTkb` (it is "the barrel") and every `Turret` part is re-centred on the TKB's pivot — so the canisters are boxes and the turret parts sit on the axis (a rail pins both) |
 | the spinning mast | a hull mast (it does not turn with the launcher) between the cab and the launcher, a flat 2.2 × 0.8 m search antenna, its backing and an IFF feed: **`PartRole.RadarAntenna`** — spins about the vertical axis through its `SwingPivot` (the mast) by the new **`MotionPose.Antenna`**, so an off-axis part ORBITS the mast |
 | the motion | `MotionTracker` `case AirDefenceVehicle`: the wheels roll on `ShapeKits.SamWheelRadius` (0.6 m — the car kits' radius is a fraction of THEIR height); the antenna spools up / down over `RotorSpoolSeconds` (3 s) and turns at `AntennaRevsPerSecond` = 0.6 (a ~1.7 s sweep) by the frame clock × the sim's pace (CE-1353, the rotor's rule) — the same on every host, still when the sim is paused; 0 B per frame (rail) |
-| the one input | **`RadarActivity.IsOn(world, entity)`** (`Hrot.Presentation/Map3D/RadarActivity.cs`) — the single place the 3-D map asks "is the radar radiating"; it answers **false** until backend's replicated `RadarEmission` (B-1) exists, then reads `RadarEmission.On` there and nowhere else (TODO in the file, CE-4618). `RadarActivity.Source` is the plug a rail / host sets — no second code path |
+| the one input | **`RadarActivity.IsOn(world, entity)`** (`Hrot.Presentation/Map3D/RadarActivity.cs`) — the single place the 3-D map asks "is the radar radiating". ⭐ **AS-BUILT `2026-11-15` (backend's B-1 merged, `ecb5d3447`)**: it calls backend's ONE reader `RadarEmissions.IsOn` of the replicated `RadarEmission` (`Fdp.Toolkits/Perception/Radar/RadarComponents.cs`), so the antenna spins on every node the component reaches. ⛔ SUPERSEDED: the first build answered false behind a `Source` plug (no component existed) — the plug is gone; rails set a real `RadarEmission` |
 
 ```mermaid
 classDiagram
@@ -4046,7 +4046,9 @@ classDiagram
     class PartRole { <<enum>> RadarAntenna }
     class MotionPose { +Antenna float }
     class MotionTracker { +AntennaRevsPerSecond +Advance() MotionPose }
-    class RadarActivity { <<static>> +Source Func +IsOn(world, e) bool }
+    class RadarActivity { <<static>> +IsOn(world, e) bool }
+    class RadarEmissions { <<existing, backend B-1>> +IsOn(view, e) bool }
+    RadarActivity --> RadarEmissions : the one reader
     class EntityBodyLayer3D { +PinLook() }
     ShapeKits --> VisualFamily : For(family)
     ShapeKits ..> PartRole : parts carry a role

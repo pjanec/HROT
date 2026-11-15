@@ -177,37 +177,34 @@ public sealed class AirDefenceVehicleModelRail
         for (int i = 0; i < 2000; i++) { sim += 0.016; t.Advance(e, new Vector3(i * 0.1f, 0, 0), Quaternion.Identity, VisualFamily.AirDefenceVehicle, Size, sim, i % 400 < 300, sim); }
         long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(0L, bytes);   // ⭐ HOT PATH — 0 B
-        // and the one place that reads "is the radar on" — a static method and one delegate call
+        // and the one place that reads "is the radar on" — backend's reader of the replicated RadarEmission, a static call
         using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
         var ent = world.CreateEntity();
-        var old = RadarActivity.Source;
-        try
-        {
-            RadarActivity.Source = static (_, _) => true;
-            Assert.True(RadarActivity.IsOn(world, ent));   // warm
-            before = GC.GetAllocatedBytesForCurrentThread();
-            bool on = true;
-            for (int i = 0; i < 2000; i++) on &= RadarActivity.IsOn(world, ent);
-            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
-            Assert.True(on);
-        }
-        finally { RadarActivity.Source = old; }
+        world.AddComponent(ent, Radiating());
+        Assert.True(RadarActivity.IsOn(world, ent));   // warm
+        before = GC.GetAllocatedBytesForCurrentThread();
+        bool on = true;
+        for (int i = 0; i < 2000; i++) on &= RadarActivity.IsOn(world, ent);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.True(on);
     }
 
+    private static Fdp.Toolkit.Perception.Radar.RadarEmission Radiating()
+        => new() { Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Search, EmitterClass = Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, RangeM = 8000f };
+
     [Fact]
-    public void TheRadarActivitySeam_AnswersOff_UntilBackendsRadarEmissionExists_AndTakesAPluggedSource()
+    public void TheAntenna_ReadsTheReplicatedRadarEmission_OffWithoutIt_OnWhileItRadiates()
     {
         using var world = new EntityRepository();
         var e = world.CreateEntity();
-        var old = RadarActivity.Source;
-        try
-        {
-            RadarActivity.Source = null;
-            Assert.False(RadarActivity.IsOn(world, e));   // ⏸ CE-4618: RadarEmission.On is not replicated yet — every radar is off
-            RadarActivity.Source = (w, x) => x == e;
-            Assert.True(RadarActivity.IsOn(world, e));
-        }
-        finally { RadarActivity.Source = old; }
+        Assert.False(RadarActivity.IsOn(world, e));   // a world that never registered RadarEmission: off
+        world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
+        Assert.False(RadarActivity.IsOn(world, e));   // no component: off
+        world.AddComponent(e, new Fdp.Toolkit.Perception.Radar.RadarEmission { Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Off });
+        Assert.False(RadarActivity.IsOn(world, e));   // silent
+        world.SetComponent(e, Radiating());
+        Assert.True(RadarActivity.IsOn(world, e));    // radiating (CE-4617 B-1 writes it on the owner; replication brings it to every node)
     }
 
     private static float Wrapped(float d)
@@ -252,10 +249,11 @@ public sealed class AirDefenceVehicleModelRail
         Put(TkbEntityTypes.Tank_T72, 0f, 12f, forScale: true);
         Put(TkbEntityTypes.Infantry_Rifleman, 6f, -5f, forScale: true);
 
-        var oldSource = RadarActivity.Source;
+        world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
+        world.AddComponent(sam, new Fdp.Toolkit.Perception.Radar.RadarEmission { Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Off });
         bool radarOn = false;
+        void Radar(bool on) { radarOn = on; world.SetComponent(sam, on ? Radiating() : new Fdp.Toolkit.Perception.Radar.RadarEmission { Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Off }); }
         var pose = ArticulationPose.Neutral;
-        RadarActivity.Source = (w, e) => radarOn && e == sam;
         try
         {
             using var frame = UiFrameHarness.Begin(1280, 800);
@@ -304,13 +302,13 @@ public sealed class AirDefenceVehicleModelRail
             foreach (var e in scale) world.SetComponent(e, new SimTransform { Position = new Vector3(spot.X + 400f, spot.Y + 400f, 0f), Rotation = Quaternion.Identity });   // out of the picture
             var empty = ScreenOf(frame, canvas, () => world.SetComponent(sam, new SimTransform { Position = new Vector3(spot.X + 5000f, spot.Y, ground), Rotation = Quaternion.Identity }), Render);
             world.SetComponent(sam, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground), Rotation = Quaternion.Identity });
-            radarOn = false;
+            Radar(false);
             Clock(0.1); var off1 = ScreenOf(frame, canvas, null, Render, Path.Combine(shots, "sam-4-mast-off.png"));
             Clock(2.0); var off2 = ScreenOf(frame, canvas, null, Render);
             Assert.Equal(0, Diff(off1, off2).Count);   // still: the same picture whatever the clock says
             var vehicle = Diff(empty, off1);
             Assert.True(vehicle.Count > 4000, $"the truck is on screen: {vehicle.Count} px");
-            radarOn = true;
+            Radar(true);
             for (int i = 0; i < 14; i++) { Clock(0.5); Render(); }   // spool up (3 s) and run
             var spun = new List<Pixels>();
             for (int i = 0; i < 4; i++) { Clock(0.37); spun.Add(ScreenOf(frame, canvas, null, Render, i < 2 ? Path.Combine(shots, $"sam-5-mast-on-{i + 1}.png") : null)); }
@@ -325,12 +323,12 @@ public sealed class AirDefenceVehicleModelRail
             Assert.True(Diff(spun[0], spun[1]).Count > 0 || Diff(spun[1], spun[2]).Count > 0, "and it keeps turning between frames");
             // the gallery picture, to the scratchpad only
             foreach (var e in scale) world.DestroyEntity(e);
-            radarOn = false;
+            Radar(false);
             Look(2.0f, 19f, Side + 0.7f, -0.26f);
             Shot("sam-6-thumb.png");
             Assert.Equal(1, bodies.BodiesDrawn);
         }
-        finally { RadarActivity.Source = oldSource; }
+        finally { }
     }
 
     // ── pixels ────────────────────────────────────────────────────────────────────────────────────────────────────────
