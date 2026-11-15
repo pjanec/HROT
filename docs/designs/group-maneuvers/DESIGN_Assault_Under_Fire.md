@@ -39,7 +39,7 @@ never takes Objective 1; its own support sits 120 m back, the company's base of 
 | **the approach bounds** (`BoundingOverwatch`, a pre-contact drill) instead of the in-contact `FireAndMovement` rushes (15 m at 4 m/s) | `PlatoonAttackBehavior.cs:538-541`; `FireAndMovementBehavior.cs:211-215`; Squad Tactics §7.6.3 |
 | no smoke grenade in an approach or assault (only in break contact) | `SquadContactBehaviors.cs:239-247` |
 | suppression is REAL when fire lands within 3 m: σ × 2 for 5 s, no peek for 3 s, stress +0.08 per near miss; three rounds at a man in 10 s ⇒ his post untenable | `CombatConstants.cs:84`, `HitModel.cs:24-25, :55-56`, `PeekAndFireNodes.cs:210`, `StressSystem.cs:26`, `SquadSenseChanges.cs:30-31` |
-| infantry never shoots at drones (only air-capable mounts can), it takes cover | `AirDefenceWeapons.CanEngageAir` (`:22-42`); CE-7029 |
+| infantry never shoots at drones (only a turret MG / autocannon or a SAM is air-capable; rifles explicitly not), it takes cover; ✔ a drone dies from one hit (bomber drone health 10) | `AirDefenceWeapons.CanEngageAir` (`:22-42`); CE-7029 |
 | the jammer downs ANY drone of another side in its bubble | `Motion/DroneJamming.cs:67` |
 | the company cannot task drones (CE-7003's drone half not built) | City Battle §11 |
 
@@ -118,7 +118,7 @@ mechanism; the drones are tasked through the operator that already exists.*
 | **A-7** | the approach | ⭐ in contact the assault moves by **fire and movement** (rushes between cover, its own half covering) — bounding only before contact; smoke grenades thrown at an open crossing (DA-12's open half) | bounding under fire (measured 0.66 m/s) |
 | **A-8** | when the assault goes | when the base of fire reports Set AND suppression is ESTABLISHED: rounds landing on the reported posts for N s (near misses / hits recorded on them) and the drone strike in — a cause, not a clock | the support's Set alone |
 | **A-9** | the stand-offs | the platoon's base of fire 120 m stays; the company's 250 m becomes a covered position chosen by the cover query within the weapon's effective range of the posts (not a fixed number) | fixed distances regardless of cover |
-| **A-10** | counter-drone | v1: protection is physical — cover, concealment, dispersion, moving under the screen (infantry does not shoot at drones yet); small-arms anti-drone fire is a later item | modelling cable range / jamming (the user: irrelevant on our terrains) |
+| **A-10** ⚠ *(revised `2026-11-15`, user: "the infantry has to shoot at the drones because they have basically no other way of defense. Maybe one of them could have a shotgun")* | counter-drone | ⭐ **infantry SHOOTS at drones**: ✔ measured — a drone dies from ONE hit (the bomber drone's health is 10, a rifle round does 25, `NedTkbCatalog.cs:1387`), so the problem is HITTING a small fast target, not killing it. **A-10a** a SHOTGUN weapon (new catalog type): N pellets per shot drawn from a wide pattern through the existing ballistics — a high chance on a small target inside ~40 m, useless beyond ~60 m; carried as a second weapon by ONE man per squad (the anti-drone role). **A-10b** a "can engage a DRONE" rule beside today's "can engage AIRCRAFT" (✔ measured: only a turret MG / autocannon or a SAM counts today, rifles explicitly not — `AirDefenceWeapons.cs:42-49`): the shotgun, the MG and rifles at short range may fire at a drone; the hit chance comes from the existing hit model (the drone's small size and speed). **A-10c** the squad's air-threat row (CE-7029, today: take cover) becomes: the anti-drone man and the MG ENGAGE, the rest take cover; within the last ~20 m everyone fires | infantry that only takes cover (no defence at all) · cable range / jamming (the user: irrelevant on our terrains) |
 
 ## 6. Slices
 
@@ -129,6 +129,7 @@ mechanism; the drones are tasked through the operator that already exists.*
 | **AU-3** | A-5 sustained fire, the screen, the shift beyond + A-9 the covered base of fire | Indirect Fire, City Battle §6a / §6b |
 | **AU-4** | A-4 `VehicleSupportByFire` | City Battle §11 C-5 |
 | **AU-5** | A-6 the drones in the attack (recon over the objective, strikes on reported posts, unjammable) | FPV Drone §5, CE-7003 |
+| **AU-7** | A-10 the counter-drone: the shotgun (pellets), "can engage a drone", the squad's air-threat row engages | City Battle §11 R-1d (CE-7029), FPV Drone §5 |
 | **AU-6** | the test: `cc-battalion` base passes three times (CE-4615's acceptance), with the chain arrows plus "suppression established before the assault moved" | Battalion Test §5 |
 
 ## 7. Acceptance
