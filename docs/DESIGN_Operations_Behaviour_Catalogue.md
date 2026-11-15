@@ -27,6 +27,8 @@ related-designs:
   - DESIGN_Sensors_And_Doctrine.md — OWNS sensor kinds, sensor children, memory, doctrine (Goal mode G2)
   - DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing (shots, near misses) — the base for drone and explosion hearing
   - designs/eqs-2/EQS_Design_v1.3_final.md — OWNS EQS generators, tests, templates
+  - designs/vehicle-tactics/DESIGN_Motorcycle.md — OWNS §12.3 / §12.6 / §12.6a as built design (R-4261)
+  - designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — OWNS §12.4 / §12.5 as built design (R-4260)
   - DESIGN_Peek_And_Fire.md — OWNS the fight-from-cover node and CoverClaim (the claim pattern §8 generalises)
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the open speed / retreat decisions several behaviours here depend on
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §8: SUMO pedestrians that panic become our civilian entities for good (CGF creates them, P4) and need CIV-2/CIV-7 as a production HSM (P5).
