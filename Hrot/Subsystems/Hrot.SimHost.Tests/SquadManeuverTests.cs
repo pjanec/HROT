@@ -3937,12 +3937,13 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐⭐ <c>CE-2436</c> AU-6 (R-2114) — the assault's APPROACH FAILS (its fire and movement lost a half: TaskFailed) while the squad
-        /// still stands: it is ordered forward again. With one man standing it is not (it is lost — the relief's business). 📌 Live cc-battalion
-        /// run #9: each assault squad stopped short with no task. 🔴 Red-proof: the re-order guard off ⇒ no second order.</summary>
+        /// still stands: it is ordered forward again — all four standing, and two (the least that stands, <c>ApproachMinMen</c>). Fewer and it is
+        /// LOST: R-2112's relief takes it (<c>CE2436_ABlackAssaultWithNoReserve…</c>). 📌 Live cc-battalion run #9: each assault squad stopped
+        /// short with no task. 🔴 Red-proof: the re-order guard off ⇒ no second order.</summary>
         [Theory]
-        [InlineData(0, true)]
-        [InlineData(3, false)]
-        public void CE2436_AFailedApproach_WhileTheSquadStands_IsOrderedAgain(int broken, bool again)
+        [InlineData(0)]
+        [InlineData(2)]
+        public void CE2436_AFailedApproach_WhileTheSquadStands_IsOrderedAgain(int broken)
         {
             var p = new Platoon(squads: 2);
             var alpha = MakeSquad(p.S, 0, 4, 100f);
@@ -3961,7 +3962,7 @@ namespace Hrot.SimHost.Tests
             });
             p.Ticks(4);
             int after = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) + p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
-            Assert.Equal(again, after > before);
+            Assert.True(after > before, "the failed assault is ordered forward again");
         }
 
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs
