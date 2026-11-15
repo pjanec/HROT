@@ -4617,7 +4617,7 @@ def run_pc_assault(c, timeout):
     if not EDITOR_HOST:
         call("POST", "/sim/play", {})
     men = {k: v for k, v in ids.items() if k and (" Leader" in k or " Rifleman" in k)}
-    reports, last, log, drill = {}, {}, [], {}
+    reports, last, log, drill, stuck = {}, {}, [], {}, {}
     t = sim_time() or 0.0
     while t < seconds:
         if EDITOR_HOST:
@@ -4635,6 +4635,22 @@ def run_pc_assault(c, timeout):
             if last.get(name) == "ClearBuilding":
                 m = ((data(call("GET", f"/entities/{nid}/squad")) or {}).get("maneuver") or {})
                 sig = (m.get("phaseName"), tuple((x.get("order") or {}).get("kind") for x in m.get("members") or []))
+                if m.get("phaseSince") is not None and t - m["phaseSince"] > 30 and not stuck.get((name, m["phaseSince"])):
+                    stuck[(name, m["phaseSince"])] = True   # ⭐ once per stuck phase: is it a man short of his point, or an enemy still seen in the room?
+                    sq = data(call("GET", f"/entities/{nid}/squad")) or {}
+                    now_tick = sq.get("lastMergeTick") or 0
+                    for x in m.get("members") or []:
+                        o = x.get("order") or {}
+                        at = position(x.get("networkId")) or (0, 0, 0)
+                        pt = o.get("point") or at
+                        print(f"   t={t:6.1f}  {name} STUCK {m.get('phaseName')} {x.get('name')}: {o.get('kind')} to {pt} — {math.dist(at[:2], pt[:2]):.1f} m away, live {_live(x.get('networkId'))}", flush=True)
+                    centre = [sum(c) / max(1, len(m.get("members") or [])) for c in zip(*[(position(x.get("networkId")) or (0, 0, 0)) for x in m.get("members") or []])] or [0, 0, 0]
+                    for cn in sq.get("contacts") or []:
+                        p_ = cn.get("position") or [0, 0, 0]
+                        if math.dist(p_[:2], centre[:2]) < 15:
+                            print(f"   t={t:6.1f}  {name} STUCK contact {cn.get('name') or 'heard'} at {p_} seen {(now_tick - (cn.get('lastSeenTick') or 0)) / 60:.1f} s ago, live {_live(cn.get('networkId')) if cn.get('networkId') else '?'}", flush=True)
+                    if m.get("gates") is not None:
+                        print(f"   t={t:6.1f}  {name} STUCK gates {m.get('gates')}", flush=True)
                 if drill.get(name) != sig:
                     drill[name] = sig
                     pos = [tuple(round(v) for v in (position(x.get("networkId")) or (0, 0, 0))) for x in m.get("members") or []]
