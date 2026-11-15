@@ -76,7 +76,9 @@ related-designs:
 | breach + height + B-1 rails | `… --filter HeightStoreTests\|GroundSightPyramidTests\|CE4598\|Hull_` | 32 / 0 |
 | scenarios | `Hrot.ClusterRunner.Integration.Tests --filter RoadblockBlast\|WreckBlocksStreet` | 2 / 0 — the IFV now drives through the GATE (it used to cross the concrete 7 m off it) |
 | bake suites | `Hrot.SimHost.Tests --filter StaticObstacleBakeTests\|BuildingDamageBakeTests\|LiveOverlayBakeTests` | 28 / 0 (`TenPassagesInsideOneDebounce_GiveOneBake` re-timed to 1.8 s: it asserted the starvation V-1 removes) |
-| ledger | `python3 scripts/rulings-check.py` | 624/624 |
+| ⭐ batch gate `2026-11-15` (the night's work) | the full `Fdp.Toolkits.Tests`, `Hrot.SimHost.Tests`, `Hrot.Presentation.Tests` (Xvfb), `Hrot.Editor.AiShared.Tests` | toolkit 5 red (the S0 rails), SimHost 4 red (OneBootstrap, CE4208 Gameplay DDS, CE1431 hosting, UTM), presentation 9 red, AiShared 3 red — ALL pre-existing: the presentation set fails identically at `3c9c991d` (a clean worktree, measured); the AiShared two name other lanes' files. ⛔ Two of mine found and fixed: the earth icons not in the font (`c0cc1f402`), a stale damage table from CE-5000 part 3 (reverted, `dd028cc93`) |
+| barrage measurement (on demand) | `HROT_RUN_MEASURE=1 … --filter CE4600_ABarrageOnTheShowcaseTown` | met — Breaching §7.17 |
+| ledger | `python3 scripts/rulings-check.py` | 650/650 |
 | tracker | `python3 scripts/tracker-counts.py --check` | OK |
 | design digest | `python3 scripts/design-digest.py --check` | 1 red, pre-existing (AQ13 has no INVENTORY — same at the base) |
 | mermaid | `scripts/mermaid-check.mjs` on both designs | all parse |
