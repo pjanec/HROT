@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "demo-city",
-  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~52 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 300 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
+  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~64 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 300 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
  },
  "entities": {
   "cc461500-0000-4000-8000-000000000001": {
@@ -67,7 +67,7 @@
    "SimTransform": {
     "Position": [
      240.0,
-     365.0,
+     360.0,
      0.0
     ],
     "Rotation": [
@@ -93,7 +93,7 @@
    "SimTransform": {
     "Position": [
      240.0,
-     358.0,
+     346.0,
      0.0
     ],
     "Rotation": [
@@ -119,7 +119,7 @@
    "SimTransform": {
     "Position": [
      237.0,
-     356.0,
+     344.0,
      0.0
     ],
     "Rotation": [
@@ -152,7 +152,7 @@
    "SimTransform": {
     "Position": [
      239.0,
-     356.0,
+     344.0,
      0.0
     ],
     "Rotation": [
@@ -185,7 +185,7 @@
    "SimTransform": {
     "Position": [
      241.0,
-     356.0,
+     344.0,
      0.0
     ],
     "Rotation": [
@@ -218,7 +218,7 @@
    "SimTransform": {
     "Position": [
      243.0,
-     356.0,
+     344.0,
      0.0
     ],
     "Rotation": [
@@ -251,7 +251,7 @@
    "SimTransform": {
     "Position": [
      240.0,
-     372.0,
+     360.0,
      0.0
     ],
     "Rotation": [
@@ -277,7 +277,7 @@
    "SimTransform": {
     "Position": [
      237.0,
-     370.0,
+     358.0,
      0.0
     ],
     "Rotation": [
@@ -310,7 +310,7 @@
    "SimTransform": {
     "Position": [
      239.0,
-     370.0,
+     358.0,
      0.0
     ],
     "Rotation": [
@@ -343,7 +343,7 @@
    "SimTransform": {
     "Position": [
      241.0,
-     370.0,
+     358.0,
      0.0
     ],
     "Rotation": [
@@ -376,7 +376,7 @@
    "SimTransform": {
     "Position": [
      243.0,
-     370.0,
+     358.0,
      0.0
     ],
     "Rotation": [
@@ -408,6 +408,164 @@
   "cc461500-0000-4000-8000-000000000014": {
    "SimTransform": {
     "Position": [
+     240.0,
+     374.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Blue 1st Platoon Squad 3",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000003",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000015": {
+   "SimTransform": {
+    "Position": [
+     237.0,
+     372.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 1st Platoon Squad 3 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "Designation": "SquadLeader"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000016": {
+   "SimTransform": {
+    "Position": [
+     239.0,
+     372.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 1st Platoon Squad 3 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "Designation": "MachineGunner"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000017": {
+   "SimTransform": {
+    "Position": [
+     241.0,
+     372.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 1st Platoon Squad 3 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000018": {
+   "SimTransform": {
+    "Position": [
+     243.0,
+     372.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 1st Platoon Squad 3 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
      260.0,
      405.0,
      0.0
@@ -431,11 +589,11 @@
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000015": {
+  "cc461500-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [
      260.0,
-     398.0,
+     391.0,
      0.0
     ],
     "Rotation": [
@@ -453,15 +611,15 @@
     "ForceId": "Friend"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000019",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000016": {
+  "cc461500-0000-4000-8000-000000000021": {
    "SimTransform": {
     "Position": [
      257.0,
-     396.0,
+     389.0,
      0.0
     ],
     "Rotation": [
@@ -486,15 +644,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000015",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000017": {
+  "cc461500-0000-4000-8000-000000000022": {
    "SimTransform": {
     "Position": [
      259.0,
-     396.0,
+     389.0,
      0.0
     ],
     "Rotation": [
@@ -519,15 +677,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000015",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000018": {
+  "cc461500-0000-4000-8000-000000000023": {
    "SimTransform": {
     "Position": [
      261.0,
-     396.0,
+     389.0,
      0.0
     ],
     "Rotation": [
@@ -552,15 +710,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000015",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000019": {
+  "cc461500-0000-4000-8000-000000000024": {
    "SimTransform": {
     "Position": [
      263.0,
-     396.0,
+     389.0,
      0.0
     ],
     "Rotation": [
@@ -585,15 +743,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000015",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000020": {
+  "cc461500-0000-4000-8000-000000000025": {
    "SimTransform": {
     "Position": [
      260.0,
-     412.0,
+     405.0,
      0.0
     ],
     "Rotation": [
@@ -611,15 +769,15 @@
     "ForceId": "Friend"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000014",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000019",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000021": {
+  "cc461500-0000-4000-8000-000000000026": {
    "SimTransform": {
     "Position": [
      257.0,
-     410.0,
+     403.0,
      0.0
     ],
     "Rotation": [
@@ -644,15 +802,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000022": {
+  "cc461500-0000-4000-8000-000000000027": {
    "SimTransform": {
     "Position": [
      259.0,
-     410.0,
+     403.0,
      0.0
     ],
     "Rotation": [
@@ -677,15 +835,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000023": {
+  "cc461500-0000-4000-8000-000000000028": {
    "SimTransform": {
     "Position": [
      261.0,
-     410.0,
+     403.0,
      0.0
     ],
     "Rotation": [
@@ -710,15 +868,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000024": {
+  "cc461500-0000-4000-8000-000000000029": {
    "SimTransform": {
     "Position": [
      263.0,
-     410.0,
+     403.0,
      0.0
     ],
     "Rotation": [
@@ -743,15 +901,173 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000020",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000025": {
+  "cc461500-0000-4000-8000-000000000030": {
+   "SimTransform": {
+    "Position": [
+     260.0,
+     419.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Blue 2nd Platoon Squad 3",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000019",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     257.0,
+     417.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 2nd Platoon Squad 3 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000030",
+    "Designation": "SquadLeader"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     259.0,
+     417.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 2nd Platoon Squad 3 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000030",
+    "Designation": "MachineGunner"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000033": {
+   "SimTransform": {
+    "Position": [
+     261.0,
+     417.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 2nd Platoon Squad 3 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000030",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000034": {
+   "SimTransform": {
+    "Position": [
+     263.0,
+     417.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 2nd Platoon Squad 3 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000030",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000035": {
    "SimTransform": {
     "Position": [
      210.0,
-     445.0,
+     450.0,
      0.0
     ],
     "Rotation": [
@@ -773,11 +1089,11 @@
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000026": {
+  "cc461500-0000-4000-8000-000000000036": {
    "SimTransform": {
     "Position": [
      210.0,
-     438.0,
+     436.0,
      0.0
     ],
     "Rotation": [
@@ -795,15 +1111,15 @@
     "ForceId": "Friend"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000035",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000027": {
+  "cc461500-0000-4000-8000-000000000037": {
    "SimTransform": {
     "Position": [
      207.0,
-     436.0,
+     434.0,
      0.0
     ],
     "Rotation": [
@@ -828,15 +1144,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000026",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000028": {
+  "cc461500-0000-4000-8000-000000000038": {
    "SimTransform": {
     "Position": [
      209.0,
-     436.0,
+     434.0,
      0.0
     ],
     "Rotation": [
@@ -861,15 +1177,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000026",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000029": {
+  "cc461500-0000-4000-8000-000000000039": {
    "SimTransform": {
     "Position": [
      211.0,
-     436.0,
+     434.0,
      0.0
     ],
     "Rotation": [
@@ -894,15 +1210,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000026",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000030": {
+  "cc461500-0000-4000-8000-000000000040": {
    "SimTransform": {
     "Position": [
      213.0,
-     436.0,
+     434.0,
      0.0
     ],
     "Rotation": [
@@ -927,15 +1243,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000026",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000031": {
+  "cc461500-0000-4000-8000-000000000041": {
    "SimTransform": {
     "Position": [
      210.0,
-     452.0,
+     450.0,
      0.0
     ],
     "Rotation": [
@@ -953,15 +1269,15 @@
     "ForceId": "Friend"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000025",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000035",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000032": {
+  "cc461500-0000-4000-8000-000000000042": {
    "SimTransform": {
     "Position": [
      207.0,
-     450.0,
+     448.0,
      0.0
     ],
     "Rotation": [
@@ -986,15 +1302,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000031",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000041",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000033": {
+  "cc461500-0000-4000-8000-000000000043": {
    "SimTransform": {
     "Position": [
      209.0,
-     450.0,
+     448.0,
      0.0
     ],
     "Rotation": [
@@ -1019,15 +1335,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000031",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000041",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000034": {
+  "cc461500-0000-4000-8000-000000000044": {
    "SimTransform": {
     "Position": [
      211.0,
-     450.0,
+     448.0,
      0.0
     ],
     "Rotation": [
@@ -1052,15 +1368,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000031",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000041",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000035": {
+  "cc461500-0000-4000-8000-000000000045": {
    "SimTransform": {
     "Position": [
      213.0,
-     450.0,
+     448.0,
      0.0
     ],
     "Rotation": [
@@ -1085,11 +1401,169 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000031",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000041",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000036": {
+  "cc461500-0000-4000-8000-000000000046": {
+   "SimTransform": {
+    "Position": [
+     210.0,
+     464.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Blue 3rd Platoon Squad 3",
+    "ForceId": "Friend"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000035",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000047": {
+   "SimTransform": {
+    "Position": [
+     207.0,
+     462.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 3rd Platoon Squad 3 Leader",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "Designation": "SquadLeader"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000048": {
+   "SimTransform": {
+    "Position": [
+     209.0,
+     462.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 3rd Platoon Squad 3 Rifleman 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "Designation": "MachineGunner"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000049": {
+   "SimTransform": {
+    "Position": [
+     211.0,
+     462.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 3rd Platoon Squad 3 Rifleman 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000050": {
+   "SimTransform": {
+    "Position": [
+     213.0,
+     462.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Blue 3rd Platoon Squad 3 Rifleman 3",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000051": {
    "SimTransform": {
     "Position": [
      40.0,
@@ -1115,7 +1589,7 @@
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000037": {
+  "cc461500-0000-4000-8000-000000000052": {
    "SimTransform": {
     "Position": [
      34.0,
@@ -1137,7 +1611,7 @@
     "ForceId": "Friend"
    }
   },
-  "cc461500-0000-4000-8000-000000000038": {
+  "cc461500-0000-4000-8000-000000000053": {
    "SimTransform": {
     "Position": [
      32.0,
@@ -1166,18 +1640,18 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000051",
     "Designation": "SquadLeader"
    },
    "Behavior": {
     "Name": "ManWeapon",
     "Params": {
-     "weapon": "cc461500-0000-4000-8000-000000000037"
+     "weapon": "cc461500-0000-4000-8000-000000000052"
     },
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000039": {
+  "cc461500-0000-4000-8000-000000000054": {
    "SimTransform": {
     "Position": [
      32.0,
@@ -1206,11 +1680,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000051",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000040": {
+  "cc461500-0000-4000-8000-000000000055": {
    "SimTransform": {
     "Position": [
      46.0,
@@ -1232,7 +1706,7 @@
     "ForceId": "Friend"
    }
   },
-  "cc461500-0000-4000-8000-000000000041": {
+  "cc461500-0000-4000-8000-000000000056": {
    "SimTransform": {
     "Position": [
      44.0,
@@ -1261,18 +1735,18 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000051",
     "Designation": "Wingman"
    },
    "Behavior": {
     "Name": "ManWeapon",
     "Params": {
-     "weapon": "cc461500-0000-4000-8000-000000000040"
+     "weapon": "cc461500-0000-4000-8000-000000000055"
     },
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000042": {
+  "cc461500-0000-4000-8000-000000000057": {
    "SimTransform": {
     "Position": [
      44.0,
@@ -1301,11 +1775,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000036",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000051",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000043": {
+  "cc461500-0000-4000-8000-000000000058": {
    "SimTransform": {
     "Position": [
      205.0,
@@ -1335,7 +1809,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000044": {
+  "cc461500-0000-4000-8000-000000000059": {
    "SimTransform": {
     "Position": [
      205.0,
@@ -1365,7 +1839,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000045": {
+  "cc461500-0000-4000-8000-000000000060": {
    "SimTransform": {
     "Position": [
      760.0,
@@ -1394,7 +1868,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000046": {
+  "cc461500-0000-4000-8000-000000000061": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -1416,7 +1890,7 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000045",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000060",
     "Designation": "Wingman"
    },
    "Behavior": {
@@ -1438,7 +1912,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000047": {
+  "cc461500-0000-4000-8000-000000000062": {
    "SimTransform": {
     "Position": [
      720.0,
@@ -1460,11 +1934,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000045",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000060",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000048": {
+  "cc461500-0000-4000-8000-000000000063": {
    "SimTransform": {
     "Position": [
      720.0,
@@ -1486,11 +1960,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000047",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000062",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000049": {
+  "cc461500-0000-4000-8000-000000000064": {
    "SimTransform": {
     "Position": [
      717.0,
@@ -1519,11 +1993,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000048",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000063",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000050": {
+  "cc461500-0000-4000-8000-000000000065": {
    "SimTransform": {
     "Position": [
      719.0,
@@ -1552,11 +2026,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000048",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000063",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000051": {
+  "cc461500-0000-4000-8000-000000000066": {
    "SimTransform": {
     "Position": [
      721.0,
@@ -1585,11 +2059,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000048",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000063",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000052": {
+  "cc461500-0000-4000-8000-000000000067": {
    "SimTransform": {
     "Position": [
      723.0,
@@ -1618,11 +2092,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000048",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000063",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000053": {
+  "cc461500-0000-4000-8000-000000000068": {
    "SimTransform": {
     "Position": [
      720.0,
@@ -1644,11 +2118,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000047",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000062",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000054": {
+  "cc461500-0000-4000-8000-000000000069": {
    "SimTransform": {
     "Position": [
      717.0,
@@ -1677,11 +2151,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000053",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000068",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000055": {
+  "cc461500-0000-4000-8000-000000000070": {
    "SimTransform": {
     "Position": [
      719.0,
@@ -1710,11 +2184,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000053",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000068",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000056": {
+  "cc461500-0000-4000-8000-000000000071": {
    "SimTransform": {
     "Position": [
      721.0,
@@ -1743,11 +2217,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000053",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000068",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000057": {
+  "cc461500-0000-4000-8000-000000000072": {
    "SimTransform": {
     "Position": [
      723.0,
@@ -1776,11 +2250,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000053",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000068",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000058": {
+  "cc461500-0000-4000-8000-000000000073": {
    "SimTransform": {
     "Position": [
      296.0,
@@ -1802,11 +2276,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000045",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000060",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000059": {
+  "cc461500-0000-4000-8000-000000000074": {
    "SimTransform": {
     "Position": [
      296.0,
@@ -1835,11 +2309,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000058",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000073",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000060": {
+  "cc461500-0000-4000-8000-000000000075": {
    "SimTransform": {
     "Position": [
      296.0,
@@ -1868,11 +2342,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000058",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000073",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000061": {
+  "cc461500-0000-4000-8000-000000000076": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -1894,11 +2368,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000061",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000062": {
+  "cc461500-0000-4000-8000-000000000077": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -1920,11 +2394,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000061",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000076",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000063": {
+  "cc461500-0000-4000-8000-000000000078": {
    "SimTransform": {
     "Position": [
      423.0,
@@ -1953,11 +2427,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000062",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000077",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000064": {
+  "cc461500-0000-4000-8000-000000000079": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -1986,11 +2460,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000062",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000077",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000065": {
+  "cc461500-0000-4000-8000-000000000080": {
    "SimTransform": {
     "Position": [
      427.0,
@@ -2019,11 +2493,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000062",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000077",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000066": {
+  "cc461500-0000-4000-8000-000000000081": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -2045,11 +2519,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000061",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000067": {
+  "cc461500-0000-4000-8000-000000000082": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -2071,11 +2545,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000066",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000081",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000068": {
+  "cc461500-0000-4000-8000-000000000083": {
    "SimTransform": {
     "Position": [
      422.0,
@@ -2104,11 +2578,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000067",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000082",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000069": {
+  "cc461500-0000-4000-8000-000000000084": {
    "SimTransform": {
     "Position": [
      424.0,
@@ -2137,11 +2611,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000067",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000082",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000070": {
+  "cc461500-0000-4000-8000-000000000085": {
    "SimTransform": {
     "Position": [
      426.0,
@@ -2170,11 +2644,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000067",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000082",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000071": {
+  "cc461500-0000-4000-8000-000000000086": {
    "SimTransform": {
     "Position": [
      428.0,
@@ -2203,11 +2677,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000067",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000082",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000072": {
+  "cc461500-0000-4000-8000-000000000087": {
    "SimTransform": {
     "Position": [
      425.0,
@@ -2229,11 +2703,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000066",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000081",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000073": {
+  "cc461500-0000-4000-8000-000000000088": {
    "SimTransform": {
     "Position": [
      422.0,
@@ -2262,11 +2736,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000087",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000074": {
+  "cc461500-0000-4000-8000-000000000089": {
    "SimTransform": {
     "Position": [
      424.0,
@@ -2295,11 +2769,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000087",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000075": {
+  "cc461500-0000-4000-8000-000000000090": {
    "SimTransform": {
     "Position": [
      426.0,
@@ -2328,11 +2802,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000087",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000076": {
+  "cc461500-0000-4000-8000-000000000091": {
    "SimTransform": {
     "Position": [
      428.0,
@@ -2361,11 +2835,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000087",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000077": {
+  "cc461500-0000-4000-8000-000000000092": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -2387,11 +2861,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000046",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000061",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000078": {
+  "cc461500-0000-4000-8000-000000000093": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -2413,11 +2887,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000077",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000092",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000079": {
+  "cc461500-0000-4000-8000-000000000094": {
    "SimTransform": {
     "Position": [
      533.0,
@@ -2446,11 +2920,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000093",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000080": {
+  "cc461500-0000-4000-8000-000000000095": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -2479,11 +2953,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000093",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000081": {
+  "cc461500-0000-4000-8000-000000000096": {
    "SimTransform": {
     "Position": [
      537.0,
@@ -2512,11 +2986,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000093",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000082": {
+  "cc461500-0000-4000-8000-000000000097": {
    "EditablePolyline": {
     "Points": [
      {
@@ -2567,7 +3041,7 @@
     "IsClosed": false
    }
   },
-  "cc461500-0000-4000-8000-000000000083": {
+  "cc461500-0000-4000-8000-000000000098": {
    "EditablePolyline": {
     "Points": [
      {
@@ -2618,7 +3092,7 @@
     "IsClosed": false
    }
   },
-  "cc461500-0000-4000-8000-000000000084": {
+  "cc461500-0000-4000-8000-000000000099": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2649,7 +3123,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000085": {
+  "cc461500-0000-4000-8000-000000000100": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2680,7 +3154,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000086": {
+  "cc461500-0000-4000-8000-000000000101": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2713,7 +3187,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000087": {
+  "cc461500-0000-4000-8000-000000000102": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2726,14 +3200,14 @@
     "Params": {
      "common": {
       "title": "Red below 30 %",
-      "subject": "cc461500-0000-4000-8000-000000000045"
+      "subject": "cc461500-0000-4000-8000-000000000060"
      },
      "threshold": 0.3
     },
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000088": {
+  "cc461500-0000-4000-8000-000000000103": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2764,7 +3238,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000089": {
+  "cc461500-0000-4000-8000-000000000104": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2780,7 +3254,7 @@
      },
      "when": {
       "$type": "OnEntity",
-      "ref": "cc461500-0000-4000-8000-000000000088",
+      "ref": "cc461500-0000-4000-8000-000000000103",
       "predicate": {
        "$type": "PropertyMatch",
        "componentType": "ObjectiveStatus",
@@ -2797,7 +3271,7 @@
       {
        "act": "Order",
        "args": {
-        "target": "cc461500-0000-4000-8000-000000000058",
+        "target": "cc461500-0000-4000-8000-000000000073",
         "behavior": "Order.Move",
         "params": {
          "Location": [
@@ -2814,7 +3288,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000090": {
+  "cc461500-0000-4000-8000-000000000105": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2867,7 +3341,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000091": {
+  "cc461500-0000-4000-8000-000000000106": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2887,7 +3361,7 @@
       "conditions": [
        {
         "$type": "OnEntity",
-        "ref": "cc461500-0000-4000-8000-000000000086",
+        "ref": "cc461500-0000-4000-8000-000000000101",
         "predicate": {
          "$type": "PropertyMatch",
          "componentType": "ObjectiveStatus",
@@ -2902,7 +3376,7 @@
        },
        {
         "$type": "OnEntity",
-        "ref": "cc461500-0000-4000-8000-000000000087",
+        "ref": "cc461500-0000-4000-8000-000000000102",
         "predicate": {
          "$type": "PropertyMatch",
          "componentType": "ObjectiveStatus",

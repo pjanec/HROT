@@ -139,9 +139,12 @@ def build(name, v):
     # ── Blue ──
     bhq = s.add(ent(306, "Blue Battalion HQ", F, *BLUE_HQ, behavior=("SupportCommand", {})))
     bco = s.add(ent(306, "Blue Company", F, *BLUE_START, commander=bhq))   # ordered CompanyAttack at t = 30 s (the trigger below)
-    platoon(s, "Blue 1st Platoon", F, BLUE_START[0], BLUE_START[1] - 40, bco)   # slot 0: the assault
-    platoon(s, "Blue 2nd Platoon", F, BLUE_START[0] + 20, BLUE_START[1], bco)   # slot 1: the base of fire
-    platoon(s, "Blue 3rd Platoon", F, BLUE_START[0] - 30, BLUE_START[1] + 40, bco)   # slot 2: the reserve
+    # ⭐ R-2105 (lane decision) — a Blue platoon is THREE squads (base of fire, assault, reserve): with two, a Black assault squad has no reserve
+    #   to relieve it (PlatoonAttack.AssaultLost ⇒ the whole platoon breaks contact — live probe, base run 10: 4 men into a 4-storey office
+    #   held by 8, aborted at 456 s); with three, PlatoonAttack's own Relieve takes over
+    platoon(s, "Blue 1st Platoon", F, BLUE_START[0], BLUE_START[1] - 45, bco, squads=3)   # slot 0: the assault
+    platoon(s, "Blue 2nd Platoon", F, BLUE_START[0] + 20, BLUE_START[1], bco, squads=3)   # slot 1: the base of fire
+    platoon(s, "Blue 3rd Platoon", F, BLUE_START[0] - 30, BLUE_START[1] + 45, bco, squads=3)   # slot 2: the reserve
     battery = s.add(ent(304, "Blue Mortar Section", F, BLUE_HQ[0] - 20, BLUE_HQ[1] - 30, commander=bhq))
     for i in range(2):
         tx = BLUE_HQ[0] - 26 + 12 * i
