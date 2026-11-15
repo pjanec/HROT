@@ -5785,8 +5785,10 @@ def run_cc_battalion(c, timeout):
         for n, nid in u.items():
             k = task_name(nid)
             if k and (n, k) not in first:
-                first[(n, k)] = t
-                print(f"   t={t:6.1f}  {n}: {k}", flush=True)
+                # ⚠ stamp it when NOTICED, not at the loop's start: the loop reads every unit's task after `t`, so an order given in that
+                #   window was stamped BEFORE the request it answered (base run #11: reserve 134.0 s vs the company's request 134.8 s ⇒ ⑥ failed)
+                first[(n, k)] = sim_time() or t
+                print(f"   t={first[(n, k)]:6.1f}  {n}: {k}", flush=True)
         if t - last_dyn >= 15.0:
             dyn.sample(t); last_dyn = t
             op_alive = sum(1 for n, nid in ids.items() if n and n.startswith("Red Outpost ") and _live(nid))
