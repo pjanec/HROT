@@ -173,6 +173,12 @@ namespace Hrot.Map.Definitions.Tkb
         /// implicit ones (CE-3038, CE-2106). 📄 docs/DESIGN_Thermal_And_Acoustic_Sensing.md.
         /// </summary>
         public float ThermalRange { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — the range (m) of an air-search RADAR the vehicle carries, stated
+        /// against a 10 m² target; 0 = none. Like a thermal sight it makes the type LIST its sensors (one list: eyes, ears, thermal if any, radar).
+        /// </summary>
+        public float RadarRange { get; init; }
         
         /// <summary>
         /// Whether entity can engage threats autonomously.
@@ -202,6 +208,7 @@ namespace Hrot.Map.Definitions.Tkb
         public List<WeaponMount> Weapons { get; } = new();
         public float SensorRange { get; set; }
         public float ThermalRange { get; set; }
+        public float RadarRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
 
         /// <summary>Freezes the authored values into the immutable component.</summary>
@@ -223,6 +230,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Weapons = Weapons.ToArray(),
                 SensorRange = SensorRange,
                 ThermalRange = ThermalRange,
+                RadarRange = RadarRange,
                 AutonomousEngagement = AutonomousEngagement,
         };
     }

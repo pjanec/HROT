@@ -1158,6 +1158,17 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
+            // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
+            //   10 m² and scales as RCS^¼): open-source orders of magnitude, frontal. ⇒ an 8 km radar sees a UH-60 at ~6.4 km, an FPV at ~1.4 km.
+            builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
+                   .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Recon, 0.05f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Bomber, 0.3f);
             // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the crewed aircraft with a brain carry a flare / chaff DISPENSER as their last
             //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
             //   brain (nothing could release their flares), so they carry none yet.

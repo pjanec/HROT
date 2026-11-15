@@ -153,7 +153,15 @@ namespace Fdp.Toolkit.Perception.Sensors
         private sealed class BatchMark { public ISimulationView? For; public uint Tick; }
         private readonly System.Threading.ThreadLocal<BatchMark> _mark = new(() => new BatchMark());
 
-        public StrategySightTest(ILosStrategy strategy) => _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        private readonly bool _acquisitionDelay;
+
+        /// <param name="acquisitionDelay">⭐ <c>CE-4617</c> — false: the result carries no exposure, so the memory stage applies no
+        /// acquisition dwell (CE-3260's dwell models an EYE finding a target; a radar acquires in a sweep). True for every eye.</param>
+        public StrategySightTest(ILosStrategy strategy, bool acquisitionDelay = true)
+        {
+            _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+            _acquisitionDelay = acquisitionDelay;
+        }
 
         /// <inheritdoc/>
         public int CostPerCandidate => EqsCost.Sight;
@@ -181,7 +189,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 int clear = unitOk && view.IsAlive(target) && view.HasComponent<SimTransform>(target)
                           ? _strategy.VisiblePoints(view, unit, target, out total) : 0;
                 if (clear <= 0) c.EntityId = -1;
-                else Acquisition.Encode(ref c, clear, total);
+                else if (_acquisitionDelay) Acquisition.Encode(ref c, clear, total);
             }
         }
     }

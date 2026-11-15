@@ -92,6 +92,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();          // ⭐ CE-4617 (RS-10) — is a radar radiating (dtRadarEmission)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
