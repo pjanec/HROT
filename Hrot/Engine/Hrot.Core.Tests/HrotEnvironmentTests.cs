@@ -116,19 +116,27 @@ namespace Hrot.Map.Common.Tests
             }
         }
 
+        /// <summary>⭐ CE-5003 — re-pointed to UTM everywhere (CE-4396, R-4197; docs/DESIGN_Geo_Origin.md §6 UE-2 / UE-a): a node's transform is
+        /// LOCAL-ONLY until a terrain selects its frame — no place on the Earth, so a geodetic conversion is REFUSED (never a silent (0, 0)).
+        /// R-229's "no default Berlin" is kept: before a terrain there is no origin at all. Then the terrain's origin gives a real frame.</summary>
         [Fact]
-        public void CreateGeoTransform_HasNoDefaultOrigin_ZeroUntilATerrainSetsIt()
+        public void CreateGeoTransform_HasNoDefaultOrigin_LocalOnlyUntilATerrainSetsIt()
         {
-            // ⭐ CE-3126 (R-229) — "No default berlin. Missing geo = zeros."
             var transform = HrotEnvironment.CreateGeoTransform();
 
-            var (lat, lon, _) = transform.ToGeodetic(Vector3.Zero);
+            Assert.False(transform.HasFrame);
+            Assert.Null(transform.UtmZone);
+            Assert.Throws<Fdp.Modules.Geographic.Transforms.NoGeoFrameException>(() => transform.ToGeodetic(Vector3.Zero));
+            Assert.Throws<Fdp.Modules.Geographic.Transforms.NoGeoFrameException>(() => transform.ToCartesian(52.5, 13.4, 0));
 
-            Assert.InRange(lat, -CoordinateToleranceDeg, CoordinateToleranceDeg);
-            Assert.InRange(lon, -CoordinateToleranceDeg, CoordinateToleranceDeg);
-            // and a local offset maps to a real point (the matrices are valid at construction, not all zeros)
+            // the terrain commit selects the frame (TerrainResidency.ApplyGeoOrigin → UseOrigin): the origin maps to itself, an offset to a nearby point
+            transform.UseOrigin(52.5, 13.4, 0);
+            Assert.True(transform.HasFrame);
+            var (lat, lon, _) = transform.ToGeodetic(Vector3.Zero);
+            Assert.InRange(lat, 52.5 - CoordinateToleranceDeg, 52.5 + CoordinateToleranceDeg);
+            Assert.InRange(lon, 13.4 - CoordinateToleranceDeg, 13.4 + CoordinateToleranceDeg);
             var (lat2, lon2, _) = transform.ToGeodetic(new Vector3(1000f, 1000f, 0f));
-            Assert.True(lat2 > 0.005 && lon2 > 0.005, $"({lat2}, {lon2})");
+            Assert.True(lat2 > 52.5 + 0.005 && lon2 > 13.4 + 0.005, $"({lat2}, {lon2})");
         }
 
         [Fact]
