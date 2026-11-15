@@ -11,7 +11,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: the assault under fire, built and proved — AUTONOMOUS, OVERNIGHT
 
-**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `<sha>`**; ⛔ scope FROZEN there — later
+**For:** the `behaviors` lane (ids `CE-2000`…, `R-2000`…). **From:** coordinator. **Dispatched at `8d5169c5f`**; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-15`: *"design CE-2436. You are the military expert here … take into consideration the modern weapons. So stuff like suicide drones
