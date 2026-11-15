@@ -20,9 +20,15 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 | A | CE-4614 `Strength` / `QuietArea` objectives | ✅ | Scenario Rules §10.2 · R-2093 |
 | A | CE-4589 the battalion's reserve (`SupportCommand.Reserve`, order by echelon) | ✅ engine · HQ-15 showcase wiring → CE-2434 | Command Chain §8e as built · R-2094 |
 | A | CE-4610 the reports nobody sends | ✅ PhaseLine + ObjectiveSecure from the attacks, the SITREP ammo colour; FallingBack's reader dropped; CB-3 reconciled | Platoon Attack §7a · R-2095 |
-| A | CE-7037 · CE-4605 · CE-4606 · CE-4607 · CE-4608 · CE-7038 · CE-7035 civilian half | ⏳ | — |
-| B | CE-7033 dynamism measure | ⏳ | — |
-| C | CE-4615 generator + 3 scenarios + `run_cc_battalion` | ⏳ | — |
+| A | CE-4605 live-men split by rank (one helper, six callers) | ✅ `f627a975e` (Sonnet worker) | rail `CE4605_*` ×2, red-proved |
+| A | CE-4606 medic falls back to the leader | ✅ `96f0060f9` | rail `CE4606_*` |
+| A | CE-4607 convoy skips a squad with nobody in the fight | ✅ `b3082d184` | rail `CE4607_*` |
+| A | CE-4608 a relieved assault squad holds (SquadDefend at the objective's building point) | ✅ `c10c13f33` | rail `CE4608_*` |
+| A | CE-7038 a battery mission that fires no round is refused with a reason | ✅ `8aac795db` | Indirect Fire as built · R-2098 |
+| A | CE-7035 civilian half (fixture + five real undeclared reads) | ✅ `8aac795db` | Parallel Simulation §18.2a |
+| A | CE-7037 the stepped gate on a big scenario | ⏳ code read: the master runs on WALL time outside `Stepping`, so city-battle's clock ran free for ~8 s; probe written, to run after the live checks | — |
+| B | CE-7033 dynamism measure (`Dynamism` in utility-demo-check.py) | ✅ built; thresholds not yet locked | `2c372f627` |
+| C | CE-4615 generator + 3 scenarios + `run_cc_battalion` | ✅ `2c372f627` | Battalion Test §4a · R-2096, R-2097 |
 | D | live runs ×3 per variant, thresholds X / Y | ⏳ | — |
 
 ## 2. The gates
@@ -45,6 +51,9 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 |---|---|---|
 | R-2093 | `Strength` takes a UNIT (a side = its top HQ); `QuietArea` counts a shot by the shooter's position, a hit by the victim's, a burst by where it lands | a side with no single HQ; fire passing over a sector meant to count |
 | R-2095 | CE-4610 per report: PhaseLine k / ObjectiveSecure SENT by the commander attacks (objective k = line k); SITREP ammo colour SENT (≥ 50 % green, ≥ 25 % amber); FallingBack's reader dropped; FireLifted / LACE left unsent | a squad play with real phase lines; a Lift handshake; other ammo thresholds |
+| R-2096 | Red is a CompanyDefend LINE at Objective 1 (blocks across the street), its depth / fall-back at Objective 2 | a CompanyDefend that holds blocks in depth |
+| R-2097 | the battalion test's tunables: deadline 180 s, frontage 160, depth 220, PL1 by 330 s, PL2 by 630 s | the first runs |
+| R-2098 | a battery mission with no round fired 30 s after its impact time is refused, with a reason | a plan that learns the muscle's refusal reason |
 | R-2094 | CE-4589's showcase wiring (HQ-15) deferred to CE-2434 — the defender-company macro has no company commander; the reserve is proved on `cc-battalion` | the user wanting the showcase wired in this lane |
 
 ## 4. Defects fixed on the way
@@ -56,3 +65,9 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 ## 5. Ids allocated
 
 CE-2434 (HQ-15 showcase wiring). Rulings R-2093, R-2094 (recorded in their designs).
+
+## 6. Lessons on the way
+
+| | |
+|---|---|
+| ⚠ memory | the live cluster was OOM-killed while builds ran: ~10 reusable MSBuild nodes × 400 MB + the compiler server. Builds now use `-nodeReuse:false` and `dotnet build-server shutdown` before a live run; one live cluster at a time, no build during it |
