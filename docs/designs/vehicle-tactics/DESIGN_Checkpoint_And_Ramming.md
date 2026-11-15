@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: DESIGN — decisions APPROVED (R-4260); ⏳ the review (§8) before READY-TO-BUILD
+build-state: ⏳ REVIEWED (§8: 5 blockers) — awaiting rulings; decisions R-4260
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the checkpoint in time · §5 slices and acceptance · §8 the review
 stale-below: nothing
 known-rot: none
@@ -190,3 +190,29 @@ crosses between them on a path that already exists.*
 
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221).
+
+## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+
+⭐ 25 raw findings merged into 15. The design is NOT buildable as drawn until KV-1…KV-5 are ruled.
+
+| # | sev | the defect | evidence | ⭐ lean |
+|---|---|---|---|---|
+| KV-1 | ⛔ BLOCKER | the car-bomb driver CANNOT be shot and killing him changes nothing: a car's seats are ENCLOSED (hidden, never hit), the CAR drives itself (`FollowRoute` on the car), passengers are hit only when the car dies | ✔ `CarrierDefDto.cs:64`, ✔ `UrbanCombatTkbCatalog.cs:198`, `InteractionComponents.cs:91-93` | the VEHICLE is the target: lethal fire is fire at the car, plus ONE soft-skin rule — a penetrating hit may hit an occupant; who drives is stated: the driver's incapacitation ends the car's move |
+| KV-2 | ⛔ BLOCKER | the ladder cannot finish: warning → stop line is 4–5 s at 15–20 m/s; disabling a car takes ~10 rifle hits (~15 s); a dead engine still COASTS | `EscalationLadder.cs:47`, `ArmorModel.cs:119-122`, `CarKinematicsSystem.cs:443` | lines in TIME to the stand-off, not metres; rungs SKIP when time runs out (self-defence overrides the ladder); the warning line 200–300 m out, or the serpentine physically caps speed before it; the coast distance modelled |
+| KV-3 | ⛔ BLOCKER | a car has no engine to aim at: its mobility kill is a whole-body Health fraction, no zones; no aim-at-part path | ✔ `CombatLife.cs:72-79`, `AimPoint.cs:41-122`, `VehicleBody.cs:20` (`VehiclePart.Engine`) | a front ENGINE zone with `WoundEffect.Mobility` on the soft-skin car; `AimPoint.Engine(vehicle)`; the overwatch weapon is a MACHINE GUN; §4 states the expected time to disable |
+| KV-4 | ⛔ BLOCKER | the impact rule missed its precedent and has no build shape: `DroneImpactSystem` already tests a swept body and hurts by `DamageAssessedEvent`; injury states are DERIVED from Health; a knock-down is a blunt-hit effect | ✔ `DroneImpactSystem.cs:122`, `Injury.cs:16-41`, `Melee.cs:69-82` | the GROUND TWIN of `DroneImpactSystem` (one shared swept test, the hull rectangle, a replay gate) after `CarKinematicsSystem`; it publishes a Blunt `DamageAssessedEvent` (the `Melee.Strike` precedent) scaled by CLOSING speed × mass with a seeded spread; riders and men boarding exempt; the existing vehicle scenarios re-checked (hashes, goldens) before done |
+| KV-5 | ⛔ BLOCKER | `HostileActKind.Vehicle` breaks the severity order, the wire, and self-defence (which fires only on `== Lethal`); and the act on the DRIVER is invisible to soldiers who shoot the CAR | ✔ `ForceLevels.cs:62`, `HostileActs.cs:14-76` | commit **Lethal** (AW-19 is the lethality ruling) — no enum, wire or recording change; `RamTarget` commits on its OWN entity, the car; the driver's act a `BatchContext.Later` follow-up; the checkpoint's watch never commits an act |
+| KV-6 | SHOULD | `RamTarget` / RM-5 need state the move order cannot carry; the breach gate is player-only; an AI hull never pushes; a ram into a CROWD still swerves round every other person | ✔ `HullBreakGate.cs:21-29`, `CarKinematicsSystem.cs:483-487, :778, :1078-1150` | ONE unmanaged replicated `RamOrder { EntityRef Target }` on the hull: avoidance skips the target (persons altogether when the target is a crowd), `MayBreak` reads it, the contact branch pushes; pursuit re-issued every 0.5 s to a `TargetLead` point; inside ~50 m a direct move (no path round a weak barrier) |
+| KV-7 | SHOULD | the vehicle rungs do not fit `EscalationLadder` (keyed on a man's posture, warned per warner); a warning shot needs NonLethal or higher | `EscalationLadder.cs:51-57`, `ForceLevels.cs:22-25` | a vehicle branch keyed on the time lines; ONE rung state for the squad (an EL-4 amendment); the warning shot through `FireAtPoint` at the ground, switchable by the ROE |
+| KV-8 | SHOULD | the site cannot come from the terrain recipe (clutter, no names, 25 m radius) | `checkpoint.recipe.json`, `TerrainPicks.cs:263` | the lines and the bay are scenario MAP GRAPHICS (areas / routes) the play takes by link; the recipe stays scenery |
+| KV-9 | SHOULD | `TrafficHold` is unnecessary and cross-node | `TrafficRuntime.cs:78-104`, `TrafficSession.cs:260` | dropped: a soldier or a vehicle in the lane holds SUMO cars (they brake for a crowd disc) |
+| KV-10 | SHOULD | a person search never finds the bomb in the boot | Civilians §5h limit ③ | a VEHICLE search that reveals concealed stations; and the realistic attack: comply, stop, detonate as the searchers come close |
+| KV-11 | SHOULD | nothing makes a routine car obey: the signal is UI-only; nothing orders people out | `OverheadMarkGizmo.cs:44`, `EmbarkBehaviors.cs:84` | a civilian driver who sees the signal slows to the line; "out, hands up" as an EVENT to the civilian's brain (never a write) |
+| KV-12 | SHOULD | "detonates when shot" was NOT approved (RM-4 said on contact or when stopped); no dead-man exists | Civilians §5h limits ② ⑤ | drop it — or a dead-man component on the charge, the user's call |
+| KV-13 | SHOULD | the stand-off has no number; 25 m is inside a real car bomb's lethal radius | `ua-car-bomb` (8 kg, 15 m) | the stand-off DERIVED from the charge's lethal radius; searchers accepted exposed, the rest behind barriers; barriers do not block blast today (stated) |
+| KV-14 | SHOULD | pedestrians, bikes and night are missing | — | a pedestrian lane (the vest bomber — the person search exists); a rung table per vehicle class (a bike has no engine block); detection range at night; the suspicion sensor (D4) named a dependency |
+| KV-15 | NIT | reuse unnamed; the module diagram | — | `HoldTheLine`, `Sentry`, the squad roles, `FireAtPoint`; the ladder's vehicle half is its own state machine; the boot charge fires by phone (`Charges.Ask`); the brain issues the shots (CGF), the impact reaches a Health owner by the hit egress |
+
+⭐ **Found sound:** people and vehicles move in the same system on one node (one impact system covers AI and player vehicles); damage by event
+fits the parallel rule; the brain drives a vehicle through the existing move path; `TargetLead` exists; the hostile act is replicated and
+recorded; SUMO cars carry nobody (search own cars only); the car already has a mobility kill below 60 %.

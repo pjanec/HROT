@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: DESIGN — decisions APPROVED (R-4261); ⏳ the review (§8) before READY-TO-BUILD
+build-state: ⏳ REVIEWED (§8: 5 blockers) — awaiting rulings; decisions R-4261
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review
 stale-below: nothing
 known-rot: none
@@ -207,3 +207,27 @@ seat rule in the boarding / fire path, the timer beside the charge's owner.*
 
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221); a new recorded component unmanaged and fixed before its first recording.
+
+## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+
+⭐ 23 raw findings merged into 13. The design is NOT buildable as drawn until MV-1…MV-5 are ruled.
+
+| # | sev | the defect | evidence | ⭐ lean |
+|---|---|---|---|---|
+| MV-1 | ⛔ BLOCKER | the break turn CANNOT beat the FPV as coded: it re-aims every 0.2 s at the target's TRUE position with a lead, turning ~31 m/s² against the bike's ~8 — the escape is ~0.16 m; and a miss still bursts on the ground (PG-7: 2 m lethal, 5 m casualty) | `AirAttackBehaviors.cs:346, :613-631`, `RotorcraftModel.cs:93`, `DroneImpactSystem.cs:54-67` | ⭐ **cross-lane, the FPV's terminal guidance becomes realistic**: it aims from the drone's own perceived track + an operator delay (~0.3–0.5 s) and STOPS re-aiming at a commit point (time-to-go ≈ 0.7 s); the design states the expected miss ½·a·(commit + delay)²; M-3's acceptance = the riders UNHURT (miss beyond the casualty radius) in a measured share. ⚠ every drone scenario changes — the user's call |
+| MV-2 | ⛔ BLOCKER | the existing reactions break "never stop": the squad SOP dismounts a mounted squad under fire (above the Riding row) and the vehicle SOP sends a bike to `ShelterFromAir` on a drone | ✔ `BasicSquadSop.cs:91-98` (origin/behaviors), `BasicVehicleSop.cs:60-64` | during a dash those rows YIELD (the `PushThrough` precedent: "a carrier never stops in the kill zone"); the bike's drone row becomes MC-4; a rail: a burst nearby in a dash ⇒ no dismount, no route change |
+| MV-3 | ⛔ BLOCKER | the speed factor keyed per MOBILITY CLASS cannot tell a bike from a pickup (both `Wheeled`) | ✔ `NedTkbBuilder.cs:184-189` | per TYPE: three factors on `VehicleParametersDto` → `VehicleParams` (unmanaged, on every node, already read in the integrator), 0 = 1.0 |
+| MV-4 | ⛔ BLOCKER | the ground-class lookup per vehicle per tick walks every surface polygon (`foreach` over an interface — allocates) | `TerrainWorld.cs:1103-1109` | ONE surface-class grid, generalising the 25 m `TerrainWoods` grid (one array index), built in the serial pre-pass; ONE forest source; the tracked-in-woods cap folds into the same table |
+| MV-5 | ⛔ BLOCKER | the route planner cannot do what the dash assumes: a wheeled mover never enters a wood (cost 0 = closed), open / scrub are not navmesh areas, no exposure cost exists | ✔ `NavDoorways.cs:211` (`WheeledWoodsCost = 0f`) | the same per-type table prices the integrator AND the per-mover nav filter (a bike may enter a wood at its factor); the cover-seeking route = waypoints the play authors now, an exposure cost on the planner later (its own row) |
+| MV-6 | SHOULD | the firing seat duplicates an arc that exists, sits at the hull's ground point, and two capability paths bypass it | `CarrierDefDto.cs:128` (`TraverseMinDeg`), `WeaponSystems.InStationArc :128-140`, `EmbarkedStateSystem.cs:129-151`, `CombatLife.cs:93` | reuse the station arc for any seat (wrap through ±180° — a rail); place firing seats at their seat position like stations; the rider = a seat with no fire on the move through the existing `HoldMoving` gate; `RestoreHitCapabilities` asks `StrippedOn`; `ShooterSpeed` dropped (the velocity is already copied) |
+| MV-7 | SHOULD | the lookout and "riding masks hearing" have no hook: the vehicle reacts from its own memory; hearing is masked by weather only | `AirDefenceBehaviors.cs:34-55`, `AcousticPerception.cs:261-263` | the rider reads the exposed crew's memory as a DECLARED cross read; one rule in the acoustic masking: a listener on a moving vehicle hears × k; both in the UML (a third and fourth engine touch) |
+| MV-8 | SHOULD | "40 m" is the wrong trigger; the dive starts ~69 m slant, ~2.3 s out | `AirAttackBehaviors.cs:342, :619-623` | trigger on time-to-go (commit + 0.3 s); break across the approach bearing from two sightings; lower grip off-road (~0.45 g) |
+| MV-9 | SHOULD | the timer calls the wrong API and the wrong host | `Charges.cs:42-57`, `CoreInfrastructureCapabilities.cs:149` | `Charges.Ask(charge, Null)` is the timer path; an unmanaged recorded `ChargeTimer { SimInstant DetonateAt }` ticked beside `ChargeSystem` (every node; acts where it owns the position) |
+| MV-10 | SHOULD | blending: SUMO's own civilian bikes can never become insurgents; our bike handed to SUMO falls back to a CAR's vType | `TrafficHandover.cs:15-65`, `TrafficVehicleCatalog.cs:28` | the insurgent is OUR entity handed to traffic (`TrafficHandover`), then a brain move at the act; the motorcycle type registers its own SUMO vType; a rail that the shadow is despawned |
+| MV-11 | SHOULD | no two-wheeler visual (`CarKits` draws four wheels); no mockup (R-4143) | `VisualFamily.cs:10-35`, `CarKits.cs:43-59` | a `Motorcycle` family + kit (+ riders seated) by the ui lane, with a mockup first |
+| MV-12 | SHOULD | the plays miss steps | §5 | drive-by: fire at 2–5 m/s, a pre-chosen escape route, re-blend (dump the bike); parked bomb: an optional secondary device for responders; swarm: assembly area, rally point, casualty pick-up; night (speed, detection); defenders HEAR massed engines; a defender counter-play |
+| MV-13 | NIT | wording / reuse | — | the drone picks by score (bike 1 > rider 0.3), not "nearest"; spacing's reason = one drone one bike (reuse `PlatoonConvoy`'s gap); an owner for abandoned bikes; the SUMO file path; "only TWO engine changes" → four |
+
+⭐ **Found sound:** a passenger's brain, perception and weapon brain keep running aboard; the weapon dispatcher's only gate is `CanShoot`, so the
+one `StrippedOn` rule reaches the executor; his own bike never blocks his fire; exposed riders are seen and targetable; the FPV numbers in §1 are
+right; the takeover from traffic works (a non-traffic move despawns the shadow); the speed values are sensible (open 0.6 ≈ 60 km/h).
