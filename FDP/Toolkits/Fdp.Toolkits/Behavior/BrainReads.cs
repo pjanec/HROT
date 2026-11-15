@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.EngagementArea>();     // EngagementAreas.HasSuperiorSet — the superior's sector
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.RecentSenses>();       // SquadDefendPlay.RoundAtAMan — a round at a member
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Locomotion>();                      // Locomotions.Of — a member's locomotion
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Radar.RadarSignature>();    // ⭐ CE-4617 — the radar SAM's salvo reads a target's cross-section (AmmoChoice.InDomain's lock floor); stamped at spawn, written by nothing in the phase
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Terrain.TerrainObjectKey>();                 // RoomDrill.OrderFor — a door / room key
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.DoorState>();                      // RoomDrill.OrderFor — the door's state
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); // an HSM condition on a member's capabilities

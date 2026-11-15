@@ -59,7 +59,7 @@ namespace Fdp.Toolkit.Squad.Command
             foreach (var e in _emitters!)
             {
                 var r = repo.GetComponentRO<RadarEmission>(e);
-                if (!r.IsOn) continue;
+                if (!RadarEmissions.Radiates(repo, e, in r)) continue;
                 double on = now - r.OnSince;
                 if (on < ContinuousSeconds) continue;
                 if (_sent.TryGetValue(e, out var last) && last >= r.OnSince && now - last < ResendSeconds) continue;

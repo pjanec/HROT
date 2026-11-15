@@ -81,7 +81,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <inheritdoc cref="CanEngageByRadar"/>
         public static bool IsRadarSam(EntityRepository world, Entity unit)
         {
-            if (!world.IsAlive(unit) || RadarEmissions.RangeOf(world, unit) <= 0f) return false;
+            if (!world.IsAlive(unit) || !Injury.IsInTheFight(world, unit) || RadarEmissions.RangeOf(world, unit) <= 0f) return false;
             for (int i = 0; i < AirDefenceWeapons.MaxMounts; i++)
             {
                 var m = CombatTkb.MountOf(world, unit, i);
@@ -119,6 +119,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var p = Effective(in authored);
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            // ⭐ out of the fight (destroyed): the radar goes off and the engagement ends (sam-site: a destroyed SAM kept its radar on)
+            if (!Injury.IsInTheFight(world, self)) { Release(ref ws, self, world, now); return NodeStatus.Failure; }
             if (ws.StartedAt == 0d)
             {
                 ws.StartedAt = (SimInstant)now;

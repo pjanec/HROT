@@ -112,12 +112,18 @@ namespace Fdp.Toolkit.Perception.Radar
             return 0f;
         }
 
-        /// <summary>Is <paramref name="unit"/>'s radar radiating (false with no component, or a world that does not register it)?</summary>
+        /// <summary>Is <paramref name="unit"/>'s radar radiating (false with no component, or a world that does not register it)?
+        /// ⭐ A vehicle out of the fight (destroyed) radiates nothing, whatever its last state says (<see cref="Radiates"/>).</summary>
         public static bool IsOn(ISimulationView view, Entity unit)
         {
             if (view is EntityRepository r && !r.IsComponentTypeRegistered<RadarEmission>()) return false;
-            return !unit.IsNull && view.IsAlive(unit) && view.HasComponent<RadarEmission>(unit) && view.GetComponentRO<RadarEmission>(unit).IsOn;
+            return !unit.IsNull && view.IsAlive(unit) && view.HasComponent<RadarEmission>(unit) && Radiates(view, unit, view.GetComponentRO<RadarEmission>(unit));
         }
+
+        /// <summary>⭐ <c>CE-4617</c> (found by <c>sam-site</c>: a SAM destroyed while tracking kept "radiating") — THE one rule every consumer reads
+        /// (the radar sensor, the warning receiver, the direction finding): on, and its vehicle still in the fight.</summary>
+        public static bool Radiates(ISimulationView view, Entity unit, in RadarEmission e)
+            => e.IsOn && Fdp.Toolkit.Combat.Injury.IsInTheFight(view, unit);
 
         /// <summary>
         /// The owner sets its radar's state. ⭐ Writes only when something changed (the chunk version — and so the recorder and the

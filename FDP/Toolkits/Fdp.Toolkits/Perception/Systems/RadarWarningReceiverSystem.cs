@@ -44,7 +44,7 @@ namespace Fdp.Toolkit.Perception.Systems
             foreach (var e in _emitters!)
             {
                 var r = repo.GetComponentRO<RadarEmission>(e);
-                if (!r.IsOn || r.RangeM <= 0f) continue;
+                if (!RadarEmissions.Radiates(repo, e, in r) || r.RangeM <= 0f) continue;
                 var at = repo.GetComponentRO<SimTransform>(e).Position;
                 var antenna = at + new Vector3(0f, 0f, Fdp.Toolkit.Spatial.Eqs.EqsTerrainSight.Mount(repo, e).Standing);
                 _on.Add((e, antenna, repo.GetComponentRO<EntityInfo>(e).ForceId, r.RangeM, r.Mode == RadarMode.Track ? r.TrackedTarget : Entity.Null));

@@ -205,7 +205,14 @@ namespace Fdp.Toolkit.Squad.Systems
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
             // what a squad's step reads on units OUTSIDE its squad that nothing writes while the phase runs — measured: the survey of the 1 000-man
             // stepped editor run (HROT_READ_CHECK=2) names one: a contact's sound signature, read by the heard-vs-seen merge (ThreatEvaluationSystem.ClassesOf)
-            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads.Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
+            public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads.Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>()
+                // ⭐ CE-4617 (found by sam-site under HROT_READ_CHECK=1) — the threat level judges a contact's armament through
+                //   WeaponSystems.Controlled (who controls a weapon: seats, stations — the weapon dispatcher's own stable set, M-7); nothing in
+                //   this phase writes them
+                .Unmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>()
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
+                .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
         }
 
         /// <summary>⭐ <c>CE-2283</c> slice M-1 — the fighting-position changes this driver raises (and their per-man memory).</summary>

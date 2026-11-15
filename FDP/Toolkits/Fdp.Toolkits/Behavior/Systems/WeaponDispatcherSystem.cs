@@ -144,7 +144,15 @@ namespace Fdp.Toolkit.Behavior.Systems
                 .Unmanaged<PassengerBuffer>()
                 .Unmanaged<CarrierStations>()
                 .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
-                .Unmanaged<global::CarKinem.Core.VehicleParams>();
+                .Unmanaged<global::CarKinem.Core.VehicleParams>()
+                // ⭐ CE-4617 (found by sam-site under HROT_READ_CHECK=1: an A-10's bomb cue after a burst) — a release / sight cue builds the
+                //   world query (WorldQuery.Of → DoorStates.Of), which reads the terrain's LIVE state: craters, felled trees, building damage, door
+                //   states and their keys. Written only by the SimHost's serial systems, never in this phase
+                .Unmanaged<Fdp.Toolkit.Terrain.GroundDamage>()
+                .Unmanaged<Fdp.Toolkit.Terrain.TreeDamage>()
+                .Unmanaged<Fdp.Toolkit.Terrain.BuildingDamage>()
+                .Unmanaged<Fdp.Toolkit.Terrain.DoorState>()
+                .Managed<Fdp.Toolkit.Terrain.TerrainObjectKey>();
             public WeaponDispatcherSystem System;
             public EntityRepository Repo;
             public float Dt;

@@ -345,6 +345,29 @@ namespace Hrot.SimHost.Tests
             Assert.False(Emission().IsOn);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (found by <c>sam-site</c>) — a radar SAM DESTROYED while tracking radiates nothing: its last <c>RadarEmission</c> says
+        /// Track, but <see cref="Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn"/> answers off; the node releases (radar written Off,
+        /// Failure) and the SOP row no longer fires for it. ✅ Red-proof (mutant): the in-fight test dropped from the one rule ⇒ "on" ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_ADestroyedRadarSam_RadiatesNothing_AndItsEngagementEnds()
+        {
+            var sam = RadarSam(new Vector3(0, 0, 0));
+            var heli = Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(3000, 0, 150), Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(_w, sam, Fdp.Toolkit.Perception.Radar.RadarMode.Track, heli,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, 1.0);
+            Assert.True(Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn(_w, sam));
+            _w.GetComponentRW<Health>(sam).Current = 0f;
+            Assert.False(Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn(_w, sam), "a destroyed radar radiates nothing");
+            Assert.False(RadarSamNodes.IsRadarSam(_w, sam));
+            var p = default(RadarSamParams);
+            var ws = default(RadarSamState);
+            _w.SetSingleton(new GlobalTime { TotalTime = 2.0 });
+            Assert.Equal(NodeStatus.Failure, RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w));
+            Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Off, _w.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarEmission>(sam).Mode);
+        }
+
         // ── ⭐⭐ CE-2436 AU-7 (A-10; DESIGN_Assault_Under_Fire §9.5) — the infantry against drones ─────────────────────────────────
 
         /// <summary>
