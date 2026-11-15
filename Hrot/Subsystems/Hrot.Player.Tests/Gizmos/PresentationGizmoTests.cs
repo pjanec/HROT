@@ -196,6 +196,9 @@ namespace Hrot.Player.Tests.Gizmos
         }
 
         // Terrain world map layer (docs/DESIGN_Terrain_World.md §7.1 W2): fills every footprint, labels buildings.
+        // ⭐ CE-4588 — re-pointed: an `open` surface IS drawn now. The base never writes plain open ground as a surface; an open surface is a
+        // block's lane / street / trench strip, drawn road grey (docs/DESIGN_Terrain_Authoring.md §18i I-3, CE-4430). The rail pinned W2's
+        // "open is skipped", which I-3 superseded.
         [Fact]
         public void TerrainWorldGizmo_FillsTheWorld_OnTheBottomLayer_AndLabelsBuildings()
         {
@@ -214,8 +217,10 @@ namespace Hrot.Player.Tests.Gizmos
             var draw = new FullCapturingDrawBuilder();
             new TerrainPlan2D().Draw(_repo, draw);
 
-            Assert.Equal(4, draw.TriangleCalls.Count);             // building 2 + forest 2; open ground is not drawn
+            Assert.Equal(6, draw.TriangleCalls.Count);             // building 2 + forest 2 + the open strip 2 (I-3)
             Assert.All(draw.TriangleCalls, t => Assert.Equal(TerrainPlan2D.TerrainLayer, t.Layer));
+            Assert.Equal(2, draw.TriangleCalls.Count(t => t.Color.Equals(TerrainPlan2D.ForestFill)));
+            Assert.Equal(2, draw.TriangleCalls.Count(t => t.Color.Equals(TerrainPlan2D.LaneFill)));   // the open strip, road grey
             Assert.Single(draw.TextCalls);                         // one building label
             Assert.Equal(4, draw.LineCalls.Count);                 // the building outline
         }

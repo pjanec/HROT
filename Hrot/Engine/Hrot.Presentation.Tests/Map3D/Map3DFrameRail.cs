@@ -1628,6 +1628,10 @@ public sealed class Map3DFrameRail
         Directory.CreateDirectory(shots);
 
         using var world = Hrot.Presentation.Tests.Map2D.TerrainLayer2DTests.DemoCity();
+        // ⭐ CE-4588 — the city is a scenario WITH content: one entity carrying EntityInfo. Without it the map's empty-scenario hint (L-12 / CE-4311,
+        //   docs/UX/DESIGN_Scenario_Lifecycle_Review.md LC-1 — correct for an empty world) drew its notice band across the centre, ≈ 4 300 "only the layer" samples
+        if (!world.IsComponentTypeRegistered<Fdp.Core.EntityInfo>()) world.RegisterComponent<Fdp.Core.EntityInfo>();
+        world.AddComponent(world.CreateEntity(), new Fdp.Core.EntityInfo());
         var plan = Hrot.UI.Common.Map2D.TerrainLayer2D.PlanOf(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>());
         var lo = new Vector2(float.MaxValue); var hi = new Vector2(float.MinValue);
         foreach (var v in plan.FillVertices) { lo = Vector2.Min(lo, v); hi = Vector2.Max(hi, v); }
@@ -1680,12 +1684,29 @@ public sealed class Map3DFrameRail
         float fit = Math.Min(1280f / (hi.X - lo.X), 800f / (hi.Y - lo.Y)) * 0.95f;
         Look(centre, fit);
         //   Without its labels: at this zoom the layer leaves them out on purpose (LabelMinZoom) — the old path smeared all 1 500.
+        //   ⭐ CE-4588 — and at this OVERVIEW zoom as U-4 draws it (docs/DESIGN_Terrain_Authoring.md U-4, `TerrainLayer2D.InteriorMinZoom`): a template house is its
+        //   footprint TOP — its fills kept, its interior strokes skipped, the tan top over them. The reference used to keep every house's floor-plan strokes,
+        //   whose walls stand just outside the top (≈ 1 400 "only the old path" samples, every one a house's edge) — a superseded look, not a coverage gap.
+        Assert.True(fit < Hrot.UI.Common.Map2D.TerrainLayer2D.InteriorMinZoom, $"anti-vacuity: the whole-city view is an overview zoom ({fit} px/m)");
+        var terrainWorld = world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        var tops = Hrot.UI.Common.Map2D.TerrainLayer2D.HouseTops.Of(terrainWorld);
+        Assert.True(tops.Count > 10, $"anti-vacuity: demo-city has template houses ({tops.Count})");
         var emitted = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(262_144);
-        Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.Emit(world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>(), emitted);
+        var marks = new List<(int Start, int Building)>();
+        Hrot.ScenarioEditor.Gizmos.TerrainPlan2D.Emit(terrainWorld, emitted, null, null, b => marks.Add((emitted.Count, b)));
         Assert.Equal(0, emitted.DroppedCount);
         var refBuffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(262_144);
-        foreach (var p in emitted.GetFrame().ToArray())
-            if (p.Shape != Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text) refBuffer.AppendRaw(p);
+        var all = emitted.GetFrame().ToArray();
+        for (int i = 0, m = 0, building = -1; i < all.Length; i++)
+        {
+            while (m < marks.Count && marks[m].Start <= i) building = marks[m++].Building;
+            var p = all[i];
+            if (p.Shape == Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text) continue;
+            bool templateHouse = building >= 0 && tops.IsHouse != null && building < tops.IsHouse.Length && tops.IsHouse[building];
+            if (templateHouse && p.Shape != Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.FilledTriangle) continue;   // its interior strokes: not at overview zoom
+            refBuffer.AppendRaw(p);
+        }
+        foreach (var p in tops.Prims) refBuffer.AppendRaw(p);   // the tops, over their floor plans
         var refCanvas = new MapCanvas(input: null) { Camera = cam };
         refCanvas.AddLayer(new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, refBuffer, new FdpEventBus(), camera: cam));
         frame.StepN(2, refCanvas.Draw);
@@ -1742,6 +1763,9 @@ public sealed class Map3DFrameRail
         Assert.True(hidden.Red > 20, $"the gizmo box stays (red pixels {hidden.Red})");
 
         // ③ close up: outlines and labels in view only
+        //   ⭐ CE-4588 — read on the UNCACHED path: since CE-4559 (render-perf G-5) a still view is drawn from the plan's cached texture, and a cache-hit
+        //   frame hands NO stroke to the renderer (`StrokesDrawn` = 0, true of that frame). The cull this step pins is the cache's own render path.
+        terrain.UseCache = false;
         buffer.SetActiveLayers(noGrid);
         Look(centre, 6f);
         frame.StepN(2, canvas.Draw);

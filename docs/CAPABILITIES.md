@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -135,26 +135,28 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
   ▶ `bd-destruction`
 
-## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(📐 designed and planned, `2026-11-14`; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
+## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(✅ built `2026-11-14`…`15` by the `terrain` lane — the remainders marked 📐; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
 
-Everything in this chapter is **📐 designed and planned** unless marked ✅ (built by the `terrain` lane, `2026-11-14` on): the designs are ruled, the tasks are filed.
+Everything in this chapter is **✅ built** (by the `terrain` lane, `2026-11-14`…`15`) unless marked 📐 — a named remainder with its owner.
 Designs: [Ground patches and road blockage](DESIGN_Ground_Patches_And_Road_Blockage.md) · [Vehicle breaching](DESIGN_Vehicle_Breaching.md).
 Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [vehicle breaching](UX/vehicle-breaching.svg).
 
 - **Houses stand level on hills:** the importer levels the ground under every house at the house's lowest corner, cutting the uphill side
-  with a gentle skirt, so no house is half buried and every door opens onto the ground. (P-1, CE-4403, R-4228) 📐
+  with a gentle skirt, so no house is half buried and every door opens onto the ground. (P-1, CE-4403, R-4228; rails `ImporterTests.CE4403_*`, `HeightStoreTests.CE4403_*`) ✅ — 📐 still to come: a re-import kept as a new terrain version (D-4, awaits [Architect Question 112](blueprints/Architect_Question_112_Terrain_Versions_On_Reimport.md)); the hilly scale terrains re-imported (CE-4402)
 - **Roads lie flat across a slope:** at import every road levels the ground across its own width (the grade along it kept, junctions
   levelled, bridges left alone); the SUMO road network is re-elevated to match, so SUMO's cars, the drawn road and our vehicles agree. Houses
-  next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234) 📐
+  next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234; rails `ImporterTests.CE4403_ARoad*`, `CE4403_HousesByTheRoad*`, `CE4403_ABridgeOverAValley_*`) ✅
 - **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597; rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*`) ✅
 - **Shape the ground while authoring a scenario:** draw an area and level it, raise a hill, lower a hollow or make a crater; roads stay
   level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) — ✅ built: the Level,
-  Raise and Lower tools (the newest shape wins, houses stay on their ground; rails `TerrainWorldMergeTests.CE4592_*`); 📐 still to come: the
-  Details read-out and the grade warning, roads re-levelled under a shape
+  Raise and Lower tools (the newest shape wins, houses stay on their ground; rails `TerrainWorldMergeTests.CE4592_*`), the Details read-out
+  with the grade warning (`GroundEffectTests`), roads re-levelled under a shape (`TerrainWorldMergeTests.CE4592_AHillOverARoad_*`) and SUMO's
+  network re-elevated in the saved overlay (`OverlayCompilerTests.CE4592_*`); the Crater mode stays greyed (a drawn crater is V-14)
 - **Ditches and foxholes:** draw a ditch along a line or click a foxhole into place; a man in it is hidden by the ground, the AI finds it as
   cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) — ✅ built:
   the ditch, anti-tank ditch and foxhole tools, every ditch closed to vehicles, cover along the banks and round a foxhole (rails
-  `TerrainWorldMergeTests.CE4593_*`); 📐 still to come: the Details panel, a ditch stopping at a road
+  `TerrainWorldMergeTests.CE4593_*`), the Details panel, a ditch stopping at a road (`CE4593_ADitchAcrossARoad_StopsAtTheRoad`); 📐 still to
+  come: a defending squad taking its posts in foxholes (V-29 — the behaviors lane, R-5031)
 - **Craters:** a bomb or a shell leaves a hole in the ground on every node at once — the ground height, sight and fire change in the same
   moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) — ✅ built:
   the crater record from the warhead's charge, the cratered ground for height, sight and fire the same tick on every node (a standalone brain
@@ -167,7 +169,8 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   R-4239; rails `CarKinematicsSystemTests.CE4598_*`, `CE6014_*`; scenario `roadblock-blast`) ✅
 - **A player's tank breaks through weak barriers:** a player driving a tank goes through fences, hedges, garden walls and sandbags (an IFV
   through the lighter ones; wheeled vehicles stop); a tank bumps a building wall open for the infantry without driving in; the driver sees
-  and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243) 📐
+  and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243;
+  rails `CE4600_*`, `AudioTests.CE4600_*`; a barrage on the showcase town measured — Breaching §7.17) ✅
 - **Blasts breach garden walls too:** a charge, a shell or a bomb beside a garden wall, a fence or a hedge breaches it like a house wall —
   sight and fire pass at once, every node draws the gap, and a gap cut to the ground is walkable after the bake. (B-2, CE-4599, R-4236; rails
   `CE4599_*`) ✅
@@ -178,9 +181,10 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
-- **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐
+- **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
-  any thread count. 📐
+  any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;
+  `stepped-hash.py --threads 1,4,8` equal on `bt-mortar-roof` and `roadblock-blast`) ✅
 
 ## 3. Civilians and crowds
 

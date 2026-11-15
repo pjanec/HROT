@@ -174,6 +174,10 @@ public sealed class FilmFrameRail
         var unit = world.CreateEntity();
         world.AddComponent(unit, new SimTransform { Position = unitAt, Rotation = Quaternion.Identity });
         world.AddComponent(unit, new NetworkIdentity(77));
+        // ⭐ CE-4588 — a scenario unit carries EntityInfo; without it the world reads EMPTY to the map's empty-scenario hint (L-12 / CE-4311,
+        //   docs/UX/DESIGN_Scenario_Lifecycle_Review.md LC-1), which then drew its notice over the unit's symbol in the window
+        if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
+        world.AddComponent(unit, new EntityInfo());
 
         var canvas = new MapCanvas(input: null);
         var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(Hrot.ScenarioEditor.Map.MapInteractionContext.DefaultBufferCapacity);
