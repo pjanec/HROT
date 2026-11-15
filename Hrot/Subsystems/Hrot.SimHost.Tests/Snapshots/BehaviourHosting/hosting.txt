@@ -141,7 +141,7 @@ StationWeapon | hostedInput=Hrot.Map.Definitions.Behavior.StationWeaponParamsJso
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
 SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=120
-SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=20
+SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=32
 Suppress | hostedInput=Hrot.Map.Definitions.Behavior.SuppressParamsJsonDto | inputBytes=56
 SuppressAndManeuver | hostedInput=Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto | inputBytes=1216
 Surrender | hostedInput=Hrot.Map.Definitions.Behavior.SurrenderParamsJsonDto | inputBytes=16

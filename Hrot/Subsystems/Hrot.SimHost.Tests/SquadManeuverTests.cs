@@ -4116,6 +4116,92 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
         }
 
+        /// <summary>⭐⭐ <c>CE-4617</c> (B-5, RS-7) — SEAD FIRST: a fresh air-defence SPOT with NO fire-support request ⇒ the free strike plane strikes it;
+        /// with the plane busy the battery fires for effect on it. ✅ Red-proof: the SEAD rule dropped ⇒ no strike without a request.</summary>
+        [Fact]
+        public void CE4617_AFreshAirDefence_IsStruckFirst_WithoutARequest_ThePlaneThenTheBattery()
+        {
+            var p = Headquarters();
+            Entity plane = p.S.Members[4], battery = p.S.Members[2];
+            var sam = new Vector3(800f, 2000f, 0f);
+            p.Report(p.S.Members[0], new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Spot, At = sam, Count = 1, Size = Fdp.Toolkit.Squad.Command.ElementSize.Team,
+                Equipment = Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence | Fdp.Toolkit.Squad.Command.ElementEquipment.Vehicle,
+            });
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(plane, StrikeIntent));
+            Assert.True(Vector3.Distance(StrikePointOf(p, plane), sam) < 1f);
+            Running(p, plane, BehaviorNames.AirPlatformStrike);
+            p.S.Pause(Hrot.AI.Behaviors.Brains.SupportCommandBehavior.SeadIntervalSeconds + 1.0);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(plane, StrikeIntent));   // busy: not twice
+            Assert.Equal(1, p.OrdersTo(battery, StrikeIntent));
+            Assert.True(Vector3.Distance(StrikePointOf(p, battery), sam) < 1f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-5, RS-7) — the side's direction finding end to end: an enemy radar radiating is NOT located before 30 s of
+        /// continuous emission; then a SPOT (AirDefence, error ≤ 200 m) reaches the TOP commander's picture within 200 m of the radar, refining
+        /// to 50 m, and <c>SupportCommand</c> strikes it with the plane; a radar that keeps switching off before 30 s is never located.
+        /// ✅ Red-proofs (mutants): no 30 s clock ⇒ located at once ⇒ red; the side not compared ⇒ the HQ's own radar reported ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_ARadarRadiating30s_IsLocated_ToTheTopCommander_AndStruck_ABurstingOneNever()
+        {
+            var p = Headquarters();
+            var repo = p.S.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarEmission>()) repo.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
+            if (!repo.IsComponentTypeRegistered<EntityInfo>()) repo.RegisterComponent<EntityInfo>();
+            if (repo.HasComponent<EntityInfo>(p.S.Commander)) repo.GetComponentRW<EntityInfo>(p.S.Commander).ForceId = ForceId.Friend;
+            else repo.AddComponent(p.S.Commander, new EntityInfo { ForceId = ForceId.Friend });
+            Entity Radar(Vector3 at, ForceId side)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new EntityInfo { ForceId = side });
+                return e;
+            }
+            var sam = new Vector3(1500f, 2500f, 0f);
+            var enemy = Radar(sam, ForceId.Hostile);
+            var bursting = Radar(new Vector3(-2000f, 2500f, 0f), ForceId.Hostile);
+            var own = Radar(new Vector3(0f, -500f, 0f), ForceId.Friend);
+            var locator = new Fdp.Toolkit.Squad.Command.EmitterLocatingSystem();
+            double start = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(repo);
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(repo, enemy, Fdp.Toolkit.Perception.Radar.RadarMode.Search, Entity.Null,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, start);
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(repo, own, Fdp.Toolkit.Perception.Radar.RadarMode.Search, Entity.Null,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, start);
+
+            Fdp.Toolkit.Squad.Command.ReportedElement[] AirDefence()
+            {
+                var picture = PictureOf(p, p.S.Commander);
+                var list = new System.Collections.Generic.List<Fdp.Toolkit.Squad.Command.ReportedElement>();
+                for (int i = 0; i < picture.Elements.Count; i++)
+                    if ((picture.Elements.Items[i].Equipment & Fdp.Toolkit.Squad.Command.ElementEquipment.AirDefence) != 0) list.Add(picture.Elements.Items[i]);
+                return list.ToArray();
+            }
+            double locatedAt = -1;
+            for (int s = 1; s <= 100; s++)
+            {
+                p.S.Pause(1.0);
+                double now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(repo);
+                // the bursting radar: 20 s on, 5 s off — never 30 s without a break
+                var mode = (s % 25) < 20 ? Fdp.Toolkit.Perception.Radar.RadarMode.Search : Fdp.Toolkit.Perception.Radar.RadarMode.Off;
+                Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(repo, bursting, mode, Entity.Null, Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, now);
+                locator.Execute(repo, 1f);
+                p.Ticks(1);
+                if (locatedAt < 0 && AirDefence().Length > 0) locatedAt = now - start;
+            }
+            Assert.InRange(locatedAt, 29.5, 33.0);   // 30 s of continuous emission
+            var elements = AirDefence();
+            var located = Assert.Single(elements);   // the enemy SAM only: not the bursting one, not the HQ's own
+            Assert.True(Vector2.Distance(new Vector2(located.At.X, located.At.Y), new Vector2(sam.X, sam.Y)) <= 100f, $"located {located.At}");
+            Assert.Equal(Fdp.Toolkit.Squad.Command.EmitterLocatingSystem.BestRadiusM, located.Radius);   // refined after 90 s
+            Assert.True(p.OrdersTo(p.S.Members[4], StrikeIntent) >= 1, "SEAD: the plane is sent on it");
+            Assert.True(Vector3.Distance(StrikePointOf(p, p.S.Members[4]), new Vector3(sam.X, sam.Y, 0f)) <= 200f);
+        }
+
         /// <summary>⭐ <c>CE-2312</c> (HQ-8) — a Reinforce request from the platoon: the squad held back is ordered to <c>SquadDefend</c> at the
         /// requester's point; never the requester itself. ✅ Red-proof: the requester not excluded ⇒ it is ordered to reinforce itself.</summary>
         [Fact]
