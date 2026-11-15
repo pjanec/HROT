@@ -29,6 +29,16 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 | AU-1..3 live #2 | ⛔ — the check's wall limit at 612 s sim | the base of fire paused by its SOP's hold (probe: 31 → 47 s) | 593.7 s | — | not judged — the defect fixed in AU-4's commit |
 | AU-1 + AU-2 live #1 | ⛔ not taken (assault platoon 2 / 12 left) | support Set 116.6 s | 131.2 s | — | ②–⑦ ✓; ① ⛔ (the withdrawal not seen); PL ⛔; ⑧ ⛔ (Red 13 left) |
 
+### 0a. The editor host — deterministic replay *(measured `2026-11-15`; user: "the editor is way lighter", "it has 'run to'")*
+
+`utility-demo-check.py --launch --host editor` (`5664df62a`, `cd0702e16`): an EDIT load, the preview entered PAUSED (zero steps, CE-4570),
+advanced by run-to's FIXED steps in 5 s chunks. ✅ **Two identical runs of `cc-battalion` are IDENTICAL** over the whole 345 s — every task change,
+every arrow time to the microsecond (Set 112.50000335276127 s, request 132.16667060554028 s), the report counts (1352), the survivors; world hash
+`18485A372C15ED3A` at tick 8471 (run 2). ⚠ **Not a stand-in for the cluster on this scenario:** at step 1/6 (the only step faster than the cluster:
+0.6× real time; 1/60 ≈ 0.18×) Red fell below 30 % at **165 s** (the cluster: ~800 s or never) — the fire is far deadlier. ⇒ the editor is for
+REPLAYING a failure; ⭐ behaviour iteration moves to FOCUSED scenarios (one platoon against one building, ~24 men vs 75); `cc-battalion` stays the
+final integration check.
+
 ## 1. Decisions taken (lane decisions — for the user's review)
 
 | id | decision | would change it |
