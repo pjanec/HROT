@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-14
-current-answer: §1 the items · §2 the gates · §3 decisions
+updated: 2026-11-15
+current-answer: §0 the morning report · §1 the items · §2 the gates · §3 decisions
 stale-below: nothing
 related-designs:
   - HANDOFF_Coordinator_To_Behaviors_Command_Chain_Overnight.md — the batch (dispatched at d6a58138a)
@@ -12,6 +12,46 @@ related-designs:
 # STATUS — `behaviors`, the command chain overnight (CE-4615)
 
 Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), marker `b64adc669`.
+
+
+## 0. The morning report
+
+### 0.1 The chain per variant (the last run of each; ✓ seen in order and caused, · not seen)
+
+| arrow (§3.2) | base run 5 | stall run 1 | collapse run 1 |
+|---|---|---|---|
+| ① outpost SPOT → withdraws | · SPOT 3.9 s; the rule fired before it (radius now 100 m, not yet re-run) | (pending) | (pending) |
+| ② base of fire Set → the assault | ✓ Set 90.9 s → PlatoonAttack 102.4 s | (pending) | (pending) |
+| ③ REQUEST FireSupport → fire on the reported point | ✓ request 94.0 s at (425, 425) → HE 2 m from it | (pending) | (pending) |
+| ④ a Red block LOST → the counter-attack | · not seen (the line was destroyed, no LOST/TaskFailed report from a block) | (pending) | (pending) |
+| ⑤ Red company RED → REQUEST Reinforce | ✓ 111.4 s | (pending) | (pending) |
+| ⑥ the battalion reserve sent | ✓ 120.4 s (`PlatoonDefend` — by echelon) | (pending) | (pending) |
+| ⑦ the Blue reserve committed (tempo) | ✓ 344.6 s, after the fires (94 s) | (pending) | (pending) |
+| phase line by a report | · PL 1 REACHED (282 s, the objective), but the company's PhaseLine never sent: its assault platoon was shot down to 2 men on the objective and never Set | (pending) | (pending) |
+| ⑧ the end | · 15 min, Red 13 / 34 left | (pending) | (pending) |
+
+### 0.2 What each run taught (root cause → fix)
+
+| run | measured | fixed |
+|---|---|---|
+| 1 | the report log is a 256-entry ring — the check missed the early reports; zero rounds fired: every call refused *danger close* | the check keeps every report seen; **R-2099** |
+| 2 | the company's only call was SMOKE; the outpost never withdraws (OP play unbuilt) | **R-2100** preparatory HE; **R-2101** a scenario rule + **CE-2435** |
+| 3 | the rule's BreakContact read *not accepted* (the Order verb counts only a RUNNING order) | the rule orders a Move |
+| 4 | Blue won the line's fight but never occupied the objective: the assault bounds ≈ 0.8 m/s to a point 210 m away and the 1.5 × deadline bypassed first | **R-2097 rev. 2** geometry and tempo |
+| 5 | PL 1 reached; the assault platoon is destroyed on the objective, so the company never reports it taken | ⏳ open — the next lever is the assault's strength at the point of attack (2 squads against a dug-in line; doctrine wants 3 : 1) |
+
+### 0.3 Dynamism (CE-7033) — thresholds NOT locked
+
+Base run 5: moved > 50 m per 5 min **66 % · 35 % · 15 %**, contacts **84.6 / min**; runs 1–4 similar (45→6 %, 44→11 %, 52→13 %, 45→13 %). ⚠ the
+battle goes static in the last window in EVERY run — that is the finding the measure exists for. ⇒ X / Y stay unlocked until three CLEAN base runs
+exist (§5 of the design: "set from the first three runs" — a run that fails the chain is not a baseline).
+
+### 0.4 Not reached tonight — stated plainly
+
+⛔ Acceptance 1 (each variant PASSES three times) is not met: the base's last arrows need Blue to take the objective with a platoon alive to Set it.
+⛔ CE-7037 (the stepped gate) — diagnosed from code (the master advances on the WALL clock whenever it is not in `Stepping`, and city-battle's
+clock ran ≈ 8 s free), the probe `scratchpad/cc/clockprobe.py` is written, not run (the CPU went to the live checks); `stepped-hash.py` on
+cc-battalion therefore not run either.
 
 ## 1. The items
 
@@ -29,7 +69,7 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 | A | CE-7037 the stepped gate on a big scenario | ⏳ code read: the master runs on WALL time outside `Stepping`, so city-battle's clock ran free for ~8 s; probe written, to run after the live checks | — |
 | B | CE-7033 dynamism measure (`Dynamism` in utility-demo-check.py) | ✅ built; thresholds not yet locked | `2c372f627` |
 | C | CE-4615 generator + 3 scenarios + `run_cc_battalion` | ✅ `2c372f627` | Battalion Test §4a · R-2096, R-2097 |
-| D | live runs ×3 per variant, thresholds X / Y | ⏳ | — |
+| D | live runs ×3 per variant, thresholds X / Y | ⏳ 5 base runs + 1 per variant so far, each run's failure root-caused and fixed (§0); acceptance (3 clean runs each) NOT reached — §0.4 | §0 |
 
 ## 2. The gates
 
@@ -52,7 +92,11 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 | R-2093 | `Strength` takes a UNIT (a side = its top HQ); `QuietArea` counts a shot by the shooter's position, a hit by the victim's, a burst by where it lands | a side with no single HQ; fire passing over a sector meant to count |
 | R-2095 | CE-4610 per report: PhaseLine k / ObjectiveSecure SENT by the commander attacks (objective k = line k); SITREP ammo colour SENT (≥ 50 % green, ≥ 25 % amber); FallingBack's reader dropped; FireLifted / LACE left unsent | a squad play with real phase lines; a Lift handshake; other ammo thresholds |
 | R-2096 | Red is a CompanyDefend LINE at Objective 1 (blocks across the street), its depth / fall-back at Objective 2 | a CompanyDefend that holds blocks in depth |
-| R-2097 | the battalion test's tunables: deadline 180 s, frontage 160, depth 220, PL1 by 330 s, PL2 by 630 s | the first runs |
+| R-2097 | the battalion test's tunables: frontage 160, depth 220 (rev. 2 below for the rest) | the first runs |
+| R-2099 | the HQ's answer to a subordinate's FireSupport REQUEST is declared danger close | a request that carries its own danger-close flag |
+| R-2100 | `CompanyAttack` asks PREPARATORY HE on the objective as its assault goes in (the half-deadline smoke stays) | the user preferring the tempo's single request |
+| R-2101 | the outpost's withdrawal is a scenario rule (Blue within 100 m ⇒ `Order.Move` behind the line) until the OP play (CE-2435) | CE-2435 built |
+| R-2097 rev. 2 | Blue assembles 185 m out, IFVs at the rear, outpost 45 m before the line, `DeadlineSeconds` 300, PL 1 / 2 by 420 / 720 s — measured | the next runs |
 | R-2098 | a battery mission with no round fired 30 s after its impact time is refused, with a reason | a plan that learns the muscle's refusal reason |
 | R-2094 | CE-4589's showcase wiring (HQ-15) deferred to CE-2434 — the defender-company macro has no company commander; the reserve is proved on `cc-battalion` | the user wanting the showcase wired in this lane |
 
@@ -60,11 +104,14 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 
 | what | fix |
 |---|---|
+| live run 1: every company fire call refused danger close | R-2099 — `SupportCommandBehavior`, rail `CE4615_TheHqsAnswer…`, red-proved |
+| live run 2: the assault met an untouched line (smoke only) | R-2100 — `CompanyAttack.EnterAssault` HE; rail CE7005 extended, red-proved |
+| CE-7035: five civilian reads undeclared (would throw under the read check in production) | declared in `BrainReads` |
 | `S0_EverySecondsTimeoutCooldownMember_IsNotABareFloat` red (8 members from recent behaviour work) | runtime `ClearObstacleParams.PushSeconds` / `DroneOperatorParams.IntervalSeconds` → `SimDuration` (same size); the six JSON-authored forms (`CompanyAttack.DeadlineSeconds`, `*Defend.ShootAndMoveSeconds` ×3, the two orders) added to the authored-form list |
 
 ## 5. Ids allocated
 
-CE-2434 (HQ-15 showcase wiring). Rulings R-2093, R-2094 (recorded in their designs).
+CE-2434 (HQ-15 showcase wiring), CE-2435 (the observation post's play). Rulings R-2093 … R-2101 (recorded in their designs: Scenario Rules §10.2, Command Chain §8e, Platoon Attack §7a, Battalion Test §4a, Indirect Fire as built).
 
 ## 6. Lessons on the way
 
