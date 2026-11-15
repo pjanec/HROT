@@ -54,6 +54,13 @@ the first (275 → 600 s). Root cause: CB-55's `HostileInRoom` counted a defende
 | R-2116 #3 | R-2116 | ⛔ still clearing at 600 s (3 rooms) | slow, not stuck |
 | R-2116 #4 | R-2116 + dump | ⛔ Entering 345 → 600 s | the leader 2.1 m and a rifleman 3.0 m short of their points; the only in-room contact DEAD ⇒ **R-2117** |
 | R-2116 #5 | R-2116 + dump | ✅ **PASS — `BuildingClear`**, the first | stuck 30 s once (the leader 5.6 m off a point upstairs), then through |
+| R-2117 #1 | R-2116 + R-2117 | ⛔ AT-10 break-off at 452 s — Blue 2 / 0 / 1 left, Red 6 | a lost fight, not a stall |
+| R-2117 #2 | R-2116 + R-2117 | ⛔ AT-10 break-off — every Blue man down | a lost fight, not a stall |
+| R-2117 #3 | R-2116 + R-2117 | ✅ **`BuildingClear`** | one 30 s stuck Entering (men 5 m off points upstairs) — through on the bound |
+| R-2117 #4 | R-2116 + R-2117 | ✅ **`BuildingClear` × 2** (OBJ, then the next building) | — |
+
+⭐ **No stall left on the focused loop:** with R-2114…R-2117 every run ends in a decision — the building cleared (2 / 4) or the attack broken off on
+losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is below the doctrinal 3 : 1 — losing half is a fight, not a defect.
 
 ## 1. Decisions taken (lane decisions — for the user's review)
 
