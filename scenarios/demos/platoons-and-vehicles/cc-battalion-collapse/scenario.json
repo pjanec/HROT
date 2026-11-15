@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "demo-city",
-  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~47 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 300 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
+  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~52 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 300 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
  },
  "entities": {
   "cc461500-0000-4000-8000-000000000001": {
@@ -2053,7 +2053,7 @@
    "SimTransform": {
     "Position": [
      425.0,
-     465.0,
+     458.0,
      0.0
     ],
     "Rotation": [
@@ -2078,8 +2078,8 @@
   "cc461500-0000-4000-8000-000000000068": {
    "SimTransform": {
     "Position": [
-     423.0,
-     463.0,
+     422.0,
+     456.0,
      0.0
     ],
     "Rotation": [
@@ -2111,8 +2111,8 @@
   "cc461500-0000-4000-8000-000000000069": {
    "SimTransform": {
     "Position": [
-     425.0,
-     463.0,
+     424.0,
+     456.0,
      0.0
     ],
     "Rotation": [
@@ -2144,8 +2144,8 @@
   "cc461500-0000-4000-8000-000000000070": {
    "SimTransform": {
     "Position": [
-     427.0,
-     463.0,
+     426.0,
+     456.0,
      0.0
     ],
     "Rotation": [
@@ -2177,6 +2177,197 @@
   "cc461500-0000-4000-8000-000000000071": {
    "SimTransform": {
     "Position": [
+     428.0,
+     456.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 1 Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000067",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000072": {
+   "SimTransform": {
+    "Position": [
+     425.0,
+     472.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 2",
+    "ForceId": "Hostile"
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000066",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000073": {
+   "SimTransform": {
+    "Position": [
+     422.0,
+     470.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 2 Leader",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "Designation": "SquadLeader"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000074": {
+   "SimTransform": {
+    "Position": [
+     424.0,
+     470.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 2 Rifleman 1",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "Designation": "MachineGunner"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000075": {
+   "SimTransform": {
+    "Position": [
+     426.0,
+     470.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 2 Rifleman 2",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000076": {
+   "SimTransform": {
+    "Position": [
+     428.0,
+     470.0,
+     0.0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Red 2nd Platoon Squad 2 Rifleman 3",
+    "ForceId": "Hostile"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "Designation": "Wingman"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000077": {
+   "SimTransform": {
+    "Position": [
      535.0,
      425.0,
      0.0
@@ -2200,7 +2391,7 @@
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000072": {
+  "cc461500-0000-4000-8000-000000000078": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -2222,11 +2413,11 @@
     "ForceId": "Hostile"
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000071",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000077",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000073": {
+  "cc461500-0000-4000-8000-000000000079": {
    "SimTransform": {
     "Position": [
      533.0,
@@ -2255,11 +2446,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
     "Designation": "SquadLeader"
    }
   },
-  "cc461500-0000-4000-8000-000000000074": {
+  "cc461500-0000-4000-8000-000000000080": {
    "SimTransform": {
     "Position": [
      535.0,
@@ -2288,11 +2479,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
     "Designation": "MachineGunner"
    }
   },
-  "cc461500-0000-4000-8000-000000000075": {
+  "cc461500-0000-4000-8000-000000000081": {
    "SimTransform": {
     "Position": [
      537.0,
@@ -2321,11 +2512,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "cc461500-0000-4000-8000-000000000072",
+    "CommanderGuid": "cc461500-0000-4000-8000-000000000078",
     "Designation": "Wingman"
    }
   },
-  "cc461500-0000-4000-8000-000000000076": {
+  "cc461500-0000-4000-8000-000000000082": {
    "EditablePolyline": {
     "Points": [
      {
@@ -2376,7 +2567,7 @@
     "IsClosed": false
    }
   },
-  "cc461500-0000-4000-8000-000000000077": {
+  "cc461500-0000-4000-8000-000000000083": {
    "EditablePolyline": {
     "Points": [
      {
@@ -2427,7 +2618,7 @@
     "IsClosed": false
    }
   },
-  "cc461500-0000-4000-8000-000000000078": {
+  "cc461500-0000-4000-8000-000000000084": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2458,7 +2649,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000079": {
+  "cc461500-0000-4000-8000-000000000085": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2489,7 +2680,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000080": {
+  "cc461500-0000-4000-8000-000000000086": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2522,7 +2713,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000081": {
+  "cc461500-0000-4000-8000-000000000087": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2542,7 +2733,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000082": {
+  "cc461500-0000-4000-8000-000000000088": {
    "TkbIdentity": {
     "TkbType": 8860
    },
@@ -2573,7 +2764,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000083": {
+  "cc461500-0000-4000-8000-000000000089": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2589,7 +2780,7 @@
      },
      "when": {
       "$type": "OnEntity",
-      "ref": "cc461500-0000-4000-8000-000000000082",
+      "ref": "cc461500-0000-4000-8000-000000000088",
       "predicate": {
        "$type": "PropertyMatch",
        "componentType": "ObjectiveStatus",
@@ -2623,7 +2814,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000084": {
+  "cc461500-0000-4000-8000-000000000090": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2676,7 +2867,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000085": {
+  "cc461500-0000-4000-8000-000000000091": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -2696,7 +2887,7 @@
       "conditions": [
        {
         "$type": "OnEntity",
-        "ref": "cc461500-0000-4000-8000-000000000080",
+        "ref": "cc461500-0000-4000-8000-000000000086",
         "predicate": {
          "$type": "PropertyMatch",
          "componentType": "ObjectiveStatus",
@@ -2711,7 +2902,7 @@
        },
        {
         "$type": "OnEntity",
-        "ref": "cc461500-0000-4000-8000-000000000081",
+        "ref": "cc461500-0000-4000-8000-000000000087",
         "predicate": {
          "$type": "PropertyMatch",
          "componentType": "ObjectiveStatus",

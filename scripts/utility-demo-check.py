@@ -5796,7 +5796,7 @@ def run_cc_battalion(c, timeout):
         if pos3 and len(pos3) >= 2:
             reserve_at.setdefault("first", pos3)
             if "first" in reserve_at and "moved" not in reserve_at and math.hypot(pos3[0] - reserve_at["first"][0], pos3[1] - reserve_at["first"][1]) > 20:
-                reserve_at["moved"] = (t, o3.get("behavior"), pos3)
+                reserve_at["moved"] = (sim_time() or t, o3.get("behavior"), pos3)   # the time NOW, not the loop's start (an order is seen late)
         for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
             seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}

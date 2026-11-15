@@ -124,7 +124,9 @@ VARIANTS = {
     "cc-battalion-stall": dict(block_squads=3, block_men=4, res_squads=2, res_men=4,
                                proves="Blue's TEMPO against a line one squad stronger per block: fires at half the deadline, the reserve committed "
                                       "at the deadline, the bypass at 1.5x — each AFTER the Set or failure that precedes it"),
-    "cc-battalion-collapse": dict(block_squads=1, block_men=3, res_squads=1, res_men=3,
+    # ⭐ Battalion Test §4: BLOCK 1 thin, the company reserve weak — ⛔ both blocks thin made the company fall back before contact (half its
+    #   blocks Black, CompanyDefend.HalfTheBlocksFailing), so nothing was ever LOST in place (live run collapse-3)
+    "cc-battalion-collapse": dict(block_squads=2, block_men=4, block1_squads=1, block1_men=3, res_squads=1, res_men=3,
                                   proves="Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => "
                                          "REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon)"),
 }
@@ -161,7 +163,8 @@ def build(name, v):
     for i in range(2):
         s.add(ent(2003, f"Red Outpost {'Leader' if i == 0 else 'Rifleman 1'}", H, OUTPOST[0], OUTPOST[1] + 3 * i, WEST, outpost,
                   "SquadLeader" if i == 0 else "Wingman", man=True))
-    platoon(s, "Red 1st Platoon", H, OBJ1[0], OBJ1[1] - FRONTAGE / 4, rco, v["block_squads"], v["block_men"], WEST, 2003)   # block (south)
+    platoon(s, "Red 1st Platoon", H, OBJ1[0], OBJ1[1] - FRONTAGE / 4, rco, v.get("block1_squads", v["block_squads"]),
+            v.get("block1_men", v["block_men"]), WEST, 2003)   # block 1 (south)
     platoon(s, "Red 2nd Platoon", H, OBJ1[0], OBJ1[1] + FRONTAGE / 4, rco, v["block_squads"], v["block_men"], WEST, 2003)   # block (north)
     platoon(s, "Red 3rd Platoon", H, OBJ1[0] + DEPTH / 2, OBJ1[1], rco, v["res_squads"], v["res_men"], WEST, 2003)         # company reserve
     # ── the scripted top: phase lines, objectives, the attack order, the end ──
