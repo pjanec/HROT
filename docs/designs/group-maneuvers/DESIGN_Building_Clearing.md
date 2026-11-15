@@ -759,6 +759,10 @@ live demo (`bc-room-clear` follows the slice).
 - **CB-55 — no freshness filter of its own.** A hostile counts while the squad's pool holds it (named, alive, not out of the fight,
   inside the quad at its storey). The pool is rebuilt from the men's target memory, which forgets on its own clock, so a remembered
   enemy keeps the room uncleared (the safer error).
+  ⛔ **SUPERSEDED `2026-11-15` (`CE-2436` R-2116, lane decision):** the pool did NOT forget soon enough — 📌 measured (`pc-assault` on the editor): the entry men
+  stood at their points in an EMPTY room for 290 s, held by a defender last seen there who had fallen back. ⭐ **As built now: CB-55 as designed — a pooled
+  hostile counts only while FRESH (seen within `RoomDrill.ClearFreshTicks` = 180 ticks, 3 s)**; the men in the room looking and not seeing him refutes him.
+  Rail: `CE2257_BC1_ClearRoom_…` (a fresh hostile holds the room; one seen > 3 s ago does not).
 
 Rails: `SquadManeuverTests.CE2257_BC1_*` (the pure plan · the drill through the brain: the stack on the door, not the nearer window,
 the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an enemy in the room, RoomClear and holding · a small

@@ -542,6 +542,7 @@ and ⛔ **not** play-then-pause (it runs a few seconds on the wall clock first).
 every task change, every report time to the microsecond and the report counts. ⭐ Wired as `utility-demo-check.py --launch --host editor`.
 ⚠ Speed (4 cores, ~75 men): step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× — and 1/6 changed the battle's outcome there (deadlier fire), so a coarse
 step is for replaying, not for judging.
+⛔ **Not every scenario repeats:** `pc-defend-house` (eight parked cars) parted between two identical runs by 30–40 s (CE-2438) — run the pair before trusting a replay.
 
 ### 9.1 ⭐⭐⭐ THE LOCKSTEP DIFF — **step BOTH hosts and diff ONE entity per step**
 

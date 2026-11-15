@@ -39,10 +39,19 @@ every arrow time to the microsecond (Set 112.50000335276127 s, request 132.16667
 REPLAYING a failure; ⭐ behaviour iteration moves to FOCUSED scenarios (one platoon against one building, ~24 men vs 75); `cc-battalion` stays the
 final integration check.
 
+### 0b. The focused loop — `pc-assault` *(user, `2026-11-15`: "iterations taking more than 1 hour seem too long")*
+
+`utility-demo-check.py --launch --host editor --step 1/60 pc-assault` — `pc-defend-house`'s cast (Blue Platoon 3 × 4 vs Red Platoon's 12 in
+three houses, 24 men) run to its OUTCOME: **600 s of battle in ~11 min**. Three runs, all ⛔ (no `BuildingClear`): the base of fire up, the
+approach, the clearing squad entering and clearing rooms one every ~40–60 s, then **stuck in Entering for good** — runs A (310 → 600 s) and
+the first (275 → 600 s). Root cause: CB-55's `HostileInRoom` counted a defender LAST SEEN in the room with no freshness ⇒ **R-2116**.
+⚠ The editor run does NOT repeat on this scenario (CE-2438) — each run is a sample, the check logs the drill per chunk.
+
 ## 1. Decisions taken (lane decisions — for the user's review)
 
 | id | decision | would change it |
 |---|---|---|
+| R-2116 | AU-6 (Building Clearing CB-55 as designed): a hostile in the squad's pool holds a room uncleared only while FRESH (seen within 3 s); the entry men at their points not seeing him for 3 s refute him — the as-built "no freshness filter, the pool forgets" kept men in an empty room for 290 s | a live run where a hidden defender (behind cover in the room) survives the 3 s look and shoots the next man in |
 | R-2115 | AU-6: a squad whose commander is a UNIT still counts as under command while it runs that commander's order, even when the unit is below `IsInTheFight`'s line (AQ97 A: "a live commander above him" — his own master once his unit is wiped out); no order of its ⇒ his own rows as before | a live run where a shattered platoon's squads wait on orders that never come (then: the commander's running play as the test, read from the tick-start view) |
 | R-2114 | AU-6: an assault whose APPROACH failed (`TaskFailed` — fire and movement lost a half) while ≥ 2 of its men stand is ordered forward again (the new order re-splits the survivors); with fewer it is lost and R-2112's relief takes over | a live run where the re-ordered squad fails again at once in a loop (then: a cooldown, or Bound instead of Rush) |
 | R-2113 | AU-6 (scenario rule, extends R-2101): the outpost ALSO withdraws on its FIRST CASUALTY (a `Strength` objective on the outpost, threshold 0.99) — Blue's IFVs on the start line kill it at ~22 s, before the attack (t = 30 s) and before Blue closes (~142 s), measured in runs #5/#6/#7, so the close rule never fired | a run where the first casualty comes before the outpost's SPOT (the withdrawal then precedes the report), or the OP play (CE-2435) is built |
