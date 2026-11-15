@@ -17,6 +17,7 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |
 |---|---|---|---|---|---|
+| AU-1..4 live #3 (`e9738509f`) | ⛔ not taken — Red's line nearly destroyed (Red platoons 1 / 0 / 2 men left, Blue 5 / 5 / 6) yet PL 1 failed at 420 s; 439 `TaskFailed` reports | ✅ Set 113.2 s (established) | ✅ 130.2 s — after the Set | — | ②③④⑤⑥⑦ ✓; ① ⛔ (outpost: no withdrawal seen); PL ⛔; ⑧ ⛔; moved > 50 m: 51 / 35 / 11 % · 99.6 contacts/min |
 | AU-1..3 live #2 | ⛔ — the check's wall limit at 612 s sim | the base of fire paused by its SOP's hold (probe: 31 → 47 s) | 593.7 s | — | not judged — the defect fixed in AU-4's commit |
 | AU-1 + AU-2 live #1 | ⛔ not taken (assault platoon 2 / 12 left) | support Set 116.6 s | 131.2 s | — | ②–⑦ ✓; ① ⛔ (the withdrawal not seen); PL ⛔; ⑧ ⛔ (Red 13 left) |
 
