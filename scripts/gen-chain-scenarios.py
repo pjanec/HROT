@@ -27,7 +27,8 @@ OBJ1 = (425.0, 425.0)          # the office cluster — Red's line, Blue's Objec
 OBJ2 = (645.0, 445.0)          # the shop column — Red's depth / fall-back, Blue's Objective 2
 BLUE_START = (240.0, 405.0)    # Blue's company assembles here (185 m short of Objective 1 — the design's start line ≈ 150 m; R-2097 rev. 2: at 275 m the bounding assault (≈ 0.8 m/s, measured) reached its assault position only after the deadline's bypass)
 START_LINE_X = 205.0           # the IFVs overwatch from the rear of the assembly (at 70 m they killed the outpost within 10 s, measured)
-OUTPOST = (380.0, 410.0)       # Red's outpost, 45 m forward of its line on the axis
+OUTPOST = (296.0, 388.0)       # ⭐ R-2103: Red's outpost INSIDE the one house on the axis (house-1f, demo-city) — in the open at (380, 410) Blue's
+                               #   assembly killed both men within 4 s, before any withdrawal could be ordered (live probe, a body-part hit, no burst)
 RED_RESERVE = (720.0, 620.0)   # Red's battalion reserve, north-east, out of the fight
 BLUE_HQ = (60.0, 400.0)
 RED_HQ = (760.0, 640.0)
@@ -180,7 +181,7 @@ def build(name, v):
     # ⭐ R-2101 (lane decision) — the outpost's withdrawal: Defend & Attack §4.2's OP play is designed, not built (CE-2435), so the scenario
     #   carries the rule — Blue closing within 100 m of the outpost (a condition, never a clock) orders it back behind the line
     close = s.add(objective("Blue closes on the outpost", H, "ReachArea", {"common": {"title": "Blue closes on the outpost", "subject": bco, "scored": False},
-                                                                         "area": circle(OUTPOST, 100), "minMen": 1}))
+                                                                         "area": circle(OUTPOST, 35), "minMen": 1}))   # R-2103: Blue passing the house
     s.add(trigger("The outpost withdraws", H, achieved(close),
                   [{"act": "Order", "args": {"target": outpost, "behavior": "Order.Move",   # back behind the line (a MOVE is accepted while it runs; a
                                              "params": {"Location": [OBJ1[0] + 60, OBJ1[1], 0], "Speed": 4}}}]))   #  one-shot BreakContact ended unseen)

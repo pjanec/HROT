@@ -39,6 +39,8 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 | 3 | the rule's BreakContact read *not accepted* (the Order verb counts only a RUNNING order) | the rule orders a Move |
 | 4 | Blue won the line's fight but never occupied the objective: the assault bounds ≈ 0.8 m/s to a point 210 m away and the 1.5 × deadline bypassed first | **R-2097 rev. 2** geometry and tempo |
 | 5 | PL 1 reached; the assault platoon is destroyed on the objective, so the company never reports it taken | ⏳ open — the next lever is the assault's strength at the point of attack (2 squads against a dug-in line; doctrine wants 3 : 1) |
+| 6 | base: the assault cleared every building in the default 80 m and the bypass came first · collapse 2: the block reads LOST and the reserve REINFORCES (CE-7004 by design) | **R-2097 rev. 3** `Radius` 35 · **R-2102** arrow ④ = the reserve commits, by reinforcement or counter-attack |
+| 7 | 🔴 **stall 2 ABORTED the cluster** (`IndexOutOfRange` in `ParallelEntities.Runner.RunBatch`, surfacing in `LinearKinematicsSystem`) · collapse 3: both blocks thin ⇒ half the blocks Black ⇒ the company FELL BACK at 33 s, before contact · base 7: the outpost reads Health 0 at 4 s — a body-part hit from Blue's assembly, the OP standing in the open 140 m away | ⭐ **`FdpWorkerPool` race fixed** (`63a7ac2a7`: a late worker took a batch of a FINISHED run, or one batch twice; the new generation's cursor now goes in closed first; rail `FdpWorkerPoolTests`, red before) · collapse thins BLOCK 1 only, as Battalion Test §4 says (`040c912e8`) · **R-2103** the OP inside the house on the axis |
 
 ### 0.3 Dynamism (CE-7033) — thresholds NOT locked
 
@@ -98,6 +100,8 @@ cc-battalion therefore not run either.
 | R-2101 | the outpost's withdrawal is a scenario rule (Blue within 100 m ⇒ `Order.Move` behind the line) until the OP play (CE-2435) | CE-2435 built |
 | R-2097 rev. 2 | Blue assembles 185 m out, IFVs at the rear, outpost 45 m before the line, `DeadlineSeconds` 300, PL 1 / 2 by 420 / 720 s — measured | the next runs |
 | R-2098 | a battery mission with no round fired 30 s after its impact time is refused, with a reason | a plan that learns the muscle's refusal reason |
+| R-2102 | arrow ④ = the company reserve COMMITS to a failing / lost block — by reinforcement (CE-7004 when the reserve is free) or counter-attack | a design that wants only the counter-attack |
+| R-2103 | the outpost sits INSIDE the one house on the axis (296, 388) and withdraws when Blue passes within 35 m — in the open it died to Blue's assembly in 4 s | the OP play (CE-2435) choosing its own hide |
 | R-2094 | CE-4589's showcase wiring (HQ-15) deferred to CE-2434 — the defender-company macro has no company commander; the reserve is proved on `cc-battalion` | the user wanting the showcase wired in this lane |
 
 ## 4. Defects fixed on the way
