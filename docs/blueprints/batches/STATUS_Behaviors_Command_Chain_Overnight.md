@@ -16,19 +16,20 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 
 ## 0. The morning report
 
-### 0.1 The chain per variant (the last run of each; ✓ seen in order and caused, · not seen)
+### 0.1 The chain per variant (the latest run of each; ✓ seen in order and caused, · not seen, — not judged on that variant)
 
-| arrow (§3.2) | base run 5 | stall run 1 | collapse run 1 |
+| arrow (§3.2) | base run 9 | stall run 3 | collapse run 4 |
 |---|---|---|---|
-| ① outpost SPOT → withdraws | · SPOT 3.9 s; the rule fired before it (radius now 100 m, not yet re-run) | (pending) | (pending) |
-| ② base of fire Set → the assault | ✓ Set 90.9 s → PlatoonAttack 102.4 s | (pending) | (pending) |
-| ③ REQUEST FireSupport → fire on the reported point | ✓ request 94.0 s at (425, 425) → HE 2 m from it | (pending) | (pending) |
-| ④ a Red block LOST → the counter-attack | · not seen (the line was destroyed, no LOST/TaskFailed report from a block) | (pending) | (pending) |
-| ⑤ Red company RED → REQUEST Reinforce | ✓ 111.4 s | (pending) | (pending) |
-| ⑥ the battalion reserve sent | ✓ 120.4 s (`PlatoonDefend` — by echelon) | (pending) | (pending) |
-| ⑦ the Blue reserve committed (tempo) | ✓ 344.6 s, after the fires (94 s) | (pending) | (pending) |
-| phase line by a report | · PL 1 REACHED (282 s, the objective), but the company's PhaseLine never sent: its assault platoon was shot down to 2 men on the objective and never Set | (pending) | (pending) |
-| ⑧ the end | · 15 min, Red 13 / 34 left | (pending) | (pending) |
+| ① outpost SPOT → withdraws | ✓ SPOT 3.9 s → `InfantrySquadMove` 173.5 s (R-2103) | — | — |
+| ② base of fire Set → the assault | ✓ Set 144.2 → PlatoonAttack 157.7 | ✓ 109.3 → 122.7 | ✓ 95.3 → 96.3 |
+| ③ REQUEST FireSupport → fire on the reported point | ✓ 147.4 s, burst 1 m from it | ✓ 112.5 s, 2 m | ✓ 98.5 s, 1 m |
+| ④ a block failing / LOST → the reserve commits | ✓ lost 49.2 → reinforce 60.7 | ✓ 170.2 → 173.7 | ✓ 19.1 → 32.6 |
+| ⑤ Red company RED → REQUEST Reinforce | ✓ 165.0 | ✓ 130.2 | ✓ 115.8 |
+| ⑥ the battalion reserve sent | ✓ 173.5 | ✓ 140.4 | ✓ 116.4 |
+| ⑦ the Blue reserve committed (tempo) | ✓ 336.7 | ✓ 341.5 | ✓ 338.7 |
+| phase line reached BY a report | · the run ended (Red < 30 %) before the assault reported — R-2104 now watches 180 s past the end | — | — |
+| ⑧ the end | ✓ Red below 30 % at 389.6 s | — | — |
+| **verdict** | FAIL on the phase line only | ✅ PASS | ✅ PASS |
 
 ### 0.2 What each run taught (root cause → fix)
 
@@ -102,6 +103,7 @@ cc-battalion therefore not run either.
 | R-2098 | a battery mission with no round fired 30 s after its impact time is refused, with a reason | a plan that learns the muscle's refusal reason |
 | R-2102 | arrow ④ = the company reserve COMMITS to a failing / lost block — by reinforcement (CE-7004 when the reserve is free) or counter-attack | a design that wants only the counter-attack |
 | R-2103 | the outpost sits INSIDE the one house on the axis (296, 388) and withdraws when Blue passes within 35 m — in the open it died to Blue's assembly in 4 s | the OP play (CE-2435) choosing its own hide |
+| R-2104 | the check watches up to 180 s PAST the end for the chain's PhaseLine, and a phase line FAILED by the exercise ending is not "missed" | an end that should freeze the chain |
 | R-2094 | CE-4589's showcase wiring (HQ-15) deferred to CE-2434 — the defender-company macro has no company commander; the reserve is proved on `cc-battalion` | the user wanting the showcase wired in this lane |
 
 ## 4. Defects fixed on the way
