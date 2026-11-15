@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: ⏳ REVIEWED (§8: 5 blockers) — awaiting rulings; decisions R-4260
+build-state: DESIGN — decisions R-4260, the review R-4262 approved; ⏳ the fold-in of §8 into §2–§5 then READY-TO-BUILD
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the checkpoint in time · §5 slices and acceptance · §8 the review
 stale-below: nothing
 known-rot: none
@@ -191,7 +191,7 @@ crosses between them on a path that already exists.*
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221).
 
-## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; KV-12: "detonates when shot" DROPPED; KV-2: lines in time)
 
 ⭐ 25 raw findings merged into 15. The design is NOT buildable as drawn until KV-1…KV-5 are ruled.
 

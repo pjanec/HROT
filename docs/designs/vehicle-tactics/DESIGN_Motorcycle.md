@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: ⏳ REVIEWED (§8: 5 blockers) — awaiting rulings; decisions R-4261
+build-state: DESIGN — decisions R-4261, the review R-4262 approved; ⏳ §8a (how a unit knows it must not halt) awaiting the user, then the fold-in of §8 into §2–§6 and READY-TO-BUILD
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review
 stale-below: nothing
 known-rot: none
@@ -208,7 +208,7 @@ seat rule in the boarding / fire path, the timer beside the charge's owner.*
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221); a new recorded component unmanaged and fixed before its first recording.
 
-## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; MV-1 the realistic FPV terminal guidance included)
 
 ⭐ 23 raw findings merged into 13. The design is NOT buildable as drawn until MV-1…MV-5 are ruled.
 
@@ -231,3 +231,24 @@ invariant number output (R-4221); a new recorded component unmanaged and fixed b
 ⭐ **Found sound:** a passenger's brain, perception and weapon brain keep running aboard; the weapon dispatcher's only gate is `CanShoot`, so the
 one `StrippedOn` rule reaches the executor; his own bike never blocks his fire; exposed riders are seen and targetable; the FPV numbers in §1 are
 right; the takeover from traffic works (a non-traffic move despawns the shadow); the speed values are sensible (open 0.6 ≈ 60 km/h).
+
+### 8a. How a unit knows it must not halt — CONDUCT CATEGORIES, never behaviour names *(coordinator, `2026-11-15`; ⏳ lean for the user)*
+
+🔒 User, `2026-11-15`: *"how would we detect that the motorcycle is on the dash to suppress the undesired behaviors like the crew stopping when under
+fire … We shouldn't compare exact behavior names. We need to somehow flag different behaviors by their category. What we can compare is the name of
+the order, but never a concrete behavior."*
+
+📐 **Measured:** every reaction reaches a unit through ONE gate — `BehaviorIngressSystem.Admit` (*"THE ONE GATE"*, R-188, origin/behaviors
+`BehaviorIngressSystem.cs:224-260`), which already refuses some reactions and journals why (`BrainRefusal`). The typed order exists
+(`CurrentOrders.Of`, its `OrderKind`, CE-4612); `HoldsFirm` (kind ∈ {Defend, Hold}) is today's one order-kind question. ⛔ No reaction declares
+what it DOES to the unit.
+
+| # | lean | why |
+|---|---|---|
+| CD-1 | ⭐ every REACTION behaviour declares its **conduct** as flags on its `[Behavior]` attribute (beside `Fulfils`): `Halts` · `Dismounts` · `LeavesRoute` · `SeeksCover` (e.g. `SquadDismount` = Dismounts \| Halts; `ShelterFromAir` = LeavesRoute \| SeeksCover; `VehicleFightFromCover` = Halts) | the CATEGORY of what a behaviour does, declared once by its author — never compared by name |
+| CD-2 | ⭐ every ORDER KIND declares the conduct it **forbids**, in ONE table beside `OrderKind`: a new kind **`Dash`** (cross an exposed zone at all costs) forbids Halts \| Dismounts \| LeavesRoute \| SeeksCover; Move / March forbid nothing; `HoldsFirm`'s Defend / Hold become the same table (forbids LeavesRoute) — one mechanism | the user's rule: the ORDER is compared, never a behaviour |
+| CD-3 | ⭐ the ONE gate refuses a reaction whose conduct the unit's current order forbids — a new refusal cause `ForbiddenByOrder`, journaled like the others; NO SOP row changes; ⚠ the refused row must FALL THROUGH to the next SOP row (so the dash's own break-turn row is reached), never spin re-trying — verify `SopActions.React`'s return on a refusal | zero edits across the SOPs; every unit type gets it by construction |
+| CD-4 | the dash's carriers get the SAME order kind: the dash play orders each bike with kind `Dash`, so the bike and the squad each read ONLY their own current order (no cross-entity read) | the parallel rule |
+| CD-5 | the forbidding YIELDS when the unit cannot comply — immobile (a mobility kill), or its carrier dead: then halting / dismounting is allowed | a disabled bike's men must get off |
+| CD-6 | firing is not a conduct — the pillion still fires, a self-defence shot is never refused | the dash fights on the move |
+
