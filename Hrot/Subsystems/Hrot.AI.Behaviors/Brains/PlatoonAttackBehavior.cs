@@ -64,6 +64,12 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 SupportAt;
         public Vector3 AssaultAt;
         public Vector3 ReserveAt;
+        /// <summary>⭐ <c>CE-2436</c> AU-1 (A-1, A-3) — the posts the base of fire keeps under fire: the current objective's reported posts, then
+        /// (SHIFTED at the assault) its depth and flanks; <see cref="Posts"/> of them.</summary>
+        public Vector3 Post0, Post1, Post2, Post3;
+        public int Posts;
+        /// <summary>⭐ AU-1 (DA-11) — 1 once the assault reported its FOOTHOLD: the base of fire lifts (defends, returns fire).</summary>
+        public byte Lifted;
 
         public Vector3 Objective(int i) => new(OX[i], OY[i], OZ[i]);
 
@@ -169,6 +175,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlankDegrees = 70f, SupportArcHalfDegrees = 25f, SupportRangeMetres = 220f;
         public const float SupportPostRadius = 25f, ConsolidateRadius = 60f;
         public const float ElementFreshSeconds = 120f;
+        /// <summary>⭐ <c>CE-2436</c> AU-1 — a reported element this close to the objective is one of its posts (m); the SHIFT puts fire this far
+        /// beyond it (the depth) and to its flanks (m).</summary>
+        public const float PostMatchMetres = 25f, ShiftDepthMetres = 30f, ShiftFlankMetres = 25f;
         public const int AreaSite = 0x22770001;
         public const float SurveyTimeoutSeconds = 5f;
         /// <summary>⭐ UM-12 — the reaction's search round the firing element (m), and how fresh that element must be (s).</summary>
@@ -383,6 +392,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (s >= 0) p.SupportAt = StaffComposerSystem.CentreOf(world, CommandPictureOps.Subordinate(world, self, s));
             }
             SetPhase(ref p, PlatoonAttackPlan.PhaseSupport);
+            ObjectivePosts(ref p, world, self);   // ⭐ CE-2436 AU-1 (A-1) — the base of fire's targets: the objective's reported posts
+            p.Lifted = 0;
             int support = p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity);
             Fire(world, self, support, RoeFire.FireAtWill);
             return NodeStatus.Success;
@@ -395,13 +406,72 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
-        /// <summary>AT-6 — the lift: the support only returns fire now; then the assault goes in.</summary>
+        /// <summary>⭐⭐ <c>CE-2436</c> AU-1 (A-3, replacing AT-6's lift) — the assault goes in and the base of fire SHIFTS to the objective's depth
+        /// and flanks (the order changes, its fire never stops); it LIFTS only at the assault's FOOTHOLD (DA-11, <see cref="KeepAttack"/>).
+        /// 📌 Measured: AT-6 set the support to ReturnFire here, so the base of fire went nearly quiet as the assault crossed the open.</summary>
         [SharedAiAction]
         public static unsafe NodeStatus EnterAssault(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, PlatoonAttackPlan.PhaseAssault);
-            Fire(world, self, p.SlotOf(PlatoonAttackPlan.Support, PlatoonAttackPlan.Capacity), RoeFire.ReturnFire);
+            ShiftPosts(ref p, world, self);
             return NodeStatus.Success;
+        }
+
+        /// <summary>⭐ AU-1 (A-1) — the current objective's reported posts (fresh picture elements within <see cref="PostMatchMetres"/>, nearest
+        /// first, ≤ 4); none reported ⇒ the objective itself.</summary>
+        private static void ObjectivePosts(ref PlatoonAttackPlan p, EntityRepository world, Entity self)
+        {
+            var o = p.Objective(Math.Min(p.Current, Math.Max(0, p.Objectives - 1)));
+            p.Posts = 0;
+            foreach (var e in Elements(world, self, CommandPictureOps.Now(world)))
+                if (Flat(e, o) <= PostMatchMetres) AddPost(ref p, e);
+            if (p.Posts == 0) AddPost(ref p, o);
+        }
+
+        /// <summary>⭐ AU-1 (A-3) — the SHIFT: reported elements beyond the objective (within the attack's area, farther than
+        /// <see cref="PostMatchMetres"/> from it), then its depth (<see cref="ShiftDepthMetres"/> beyond, away from the start) and its two flanks
+        /// (<see cref="ShiftFlankMetres"/> across) — ≤ 4.</summary>
+        private static void ShiftPosts(ref PlatoonAttackPlan p, EntityRepository world, Entity self)
+        {
+            var o = p.Objective(Math.Min(p.Current, Math.Max(0, p.Objectives - 1)));
+            var toStart = new Vector2(p.Start.X - o.X, p.Start.Y - o.Y);
+            var dir = toStart.LengthSquared() > 1e-4f ? Vector2.Normalize(toStart) : -Vector2.UnitY;
+            var across = new Vector2(-dir.Y, dir.X);
+            p.Posts = 0;
+            foreach (var e in Elements(world, self, CommandPictureOps.Now(world)))
+            {
+                float d = Flat(e, o);
+                if (d > PostMatchMetres && d <= p.SearchRadius + 40f && Vector2.Dot(new Vector2(e.X - o.X, e.Y - o.Y), dir) < 0f) AddPost(ref p, e);
+            }
+            AddPost(ref p, o - new Vector3(dir * ShiftDepthMetres, 0f));
+            AddPost(ref p, o + new Vector3(across * ShiftFlankMetres, 0f));
+            AddPost(ref p, o - new Vector3(across * ShiftFlankMetres, 0f));
+        }
+
+        private static void AddPost(ref PlatoonAttackPlan p, Vector3 at)
+        {
+            if (p.Posts >= 4) return;
+            switch (p.Posts) { case 0: p.Post0 = at; break; case 1: p.Post1 = at; break; case 2: p.Post2 = at; break; default: p.Post3 = at; break; }
+            p.Posts++;
+        }
+
+        private static float Flat(Vector3 a, Vector3 b) => Vector2.Distance(new Vector2(a.X, a.Y), new Vector2(b.X, b.Y));
+
+        /// <summary>⭐ <c>CE-2436</c> AU-1 (DA-11) — the LIFT: the assault reported its FOOTHOLD (or the building clear, or — an open position —
+        /// Set on it; its Set at the assault position is gone by then: the assault's new order restarts its picture row) ⇒
+        /// the base of fire stops its area fire and returns fire only, defending its point.</summary>
+        private static unsafe void Lift(ref PlatoonAttackPlan p, EntityRepository world, Entity self, int n)
+        {
+            if (p.Lifted != 0 || p.Phase != PlatoonAttackPlan.PhaseAssault) return;
+            int a = p.SlotOf(PlatoonAttackPlan.Assault, n);
+            if (a < 0) return;
+            var progress = CommandPictureOps.ProgressOf(world, self, a);
+            if (progress != ProgressKind.Foothold && progress != ProgressKind.BuildingClear && progress != ProgressKind.Set) return;
+            p.Lifted = 1;
+            int s = p.SlotOf(PlatoonAttackPlan.Support, n);
+            if (s < 0) return;
+            p.Dirty[s] = 1;
+            Fire(world, self, s, RoeFire.ReturnFire);
         }
 
         [SharedAiAction]
@@ -497,9 +567,10 @@ namespace Hrot.AI.Behaviors.Brains
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
                 if (CommandOrders.StillRunning(world, self, squad, behaviour, order)) continue;
                 CommandOrders.Assign(world, self, squad, behaviour, order, newOrder: true);
-                if (behaviour == BehaviorNames.SquadDefend) Sector(ref p, slot, world, squad);
+                if (behaviour == BehaviorNames.SquadDefend || behaviour == BehaviorNames.SupportByFire) Sector(ref p, slot, world, squad);   // AU-1: the base of fire keeps its sector (DA-27)
                 ws.Orders++;
             }
+            Lift(ref p, world, self, n);   // ⭐ AU-1 — after the orders: the assault's new order has restarted its progress row
             return NodeStatus.Running;
         }
 
@@ -519,7 +590,9 @@ namespace Hrot.AI.Behaviors.Brains
                     if (role == PlatoonAttackPlan.Reserve && p.Phase == PlatoonAttackPlan.PhaseAssault && p.Spent[slot] != 0)
                         return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order);
                     if (role == PlatoonAttackPlan.Support && p.Preset != (byte)PlatoonAttackPreset.ClearBuilding)
-                        return Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order);
+                        return p.Lifted != 0 || p.Posts == 0
+                            ? Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order)
+                            : SupportByFire(ref p, json, out behaviour, out order);   // ⭐ CE-2436 AU-1 (A-1, A-3)
                     if (role == PlatoonAttackPlan.Assault && p.Phase == PlatoonAttackPlan.PhaseAssault)
                     {
                         if (p.OBuilding[p.Current] != 0)
@@ -549,6 +622,19 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return false;
             }
+        }
+
+        /// <summary>⭐ AU-1 (A-1) — the base of fire's order: hold at the support point, the plan's posts under sustained fire.</summary>
+        private static bool SupportByFire(ref PlatoonAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order)
+        {
+            behaviour = BehaviorNames.SupportByFire;
+            order = JsonSerializer.Serialize(new SupportByFireParamsJsonDto
+            {
+                Position = p.SupportAt, Speed = p.Speed,
+                Post1 = p.Posts > 0 ? p.Post0 : default, Post2 = p.Posts > 1 ? p.Post1 : default,
+                Post3 = p.Posts > 2 ? p.Post2 : default, Post4 = p.Posts > 3 ? p.Post3 : default,
+            }, json);
+            return true;
         }
 
         private static bool Defend(Vector3 at, float radius, float speed, JsonSerializerOptions json, out string behaviour, out string order)

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1 BUILT (§9)
 updated: 2026-11-15 (first version — coordinator)
-current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked
+current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Defend_And_Attack_Position.md AT-6 (the lift = ReturnFire at the assault's start) — A-3 replaces it with a SHIFT; DA-11 (lift at Foothold) is kept
@@ -146,3 +146,43 @@ Clear §4 (Lift / ShiftFire states) — applies (A-3 builds its shift) · Squad 
 applies (A-4, A-5, A-9) · Command Chain Battalion Test §4a — applies (the evidence) · FPV Drone §5 — applies (A-6) · Indirect Fire FM-5 — applies
 (danger close, A-5) · Urban Armour Tactics (infantry cooperation "later") — does not settle it · AQ96 Movement Under Fire C3 — applies (cover from the
 base of fire is stamped only by fire and movement — A-7).
+
+## 9. As built *(behaviors, `2026-11-15`)*
+
+### 9.1 AU-1 — automatic weapons, `SupportByFire`, the shift *(R-2106, lane decision — for the user's review)*
+
+```mermaid
+sequenceDiagram
+  participant PA as PlatoonAttack (platoon)
+  participant SBF as SupportByFire (support squad)
+  participant M as each man (library Suppress)
+  participant AS as assault squad
+  PA->>SBF: SupportByFire(support point, the objective's reported posts)
+  SBF->>M: hold at the point (CombatPosture)
+  Note over SBF: centre within 12 m, or 60 s on the way
+  SBF->>M: Suppress post i mod n (no target: the point)
+  SBF-->>PA: PROGRESS Set
+  PA->>AS: bound to the assault point
+  AS-->>PA: Set
+  PA->>SBF: SupportByFire(depth 30 m beyond, flanks 25 m across) - the SHIFT, FireAtWill kept
+  PA->>AS: ClearBuilding / FireAndMovement
+  AS-->>PA: Foothold (or BuildingClear, or Set on an open objective)
+  PA->>SBF: SquadDefend + ReturnFire - the LIFT
+```
+*What it shows that the as-built AT-6 did not: the base of fire is ON the posts the whole approach and is still firing (shifted) while the
+assault crosses; it stops only once the assault holds a foothold.*
+
+| piece | as built | where |
+|---|---|---|
+| A-2 | the generator's `MachineGunner` role carries a real automatic weapon: Blue the M249 automatic rifleman (TKB 207), Red the PKM gunner (208) — one per squad | `scripts/gen-chain-scenarios.py` `squad()` |
+| A-1 | `SupportByFire` (new squad commander play, `Library/Combat`): hold at the point; then man `i` suppresses reported post `i mod n` through the library `Suppress` at the point (no target ⇒ `FireAtPoint`, seen or not); SET once firing; a member is re-ordered only when dirty or his order no longer stands (R-2084) | `SupportByFireBehavior.cs`, `SupportByFireParamsJsonDto` |
+| A-1 posts | `PlatoonAttack.ObjectivePosts`: fresh picture elements within 25 m of the current objective (≤ 4); none ⇒ the objective itself | `PlatoonAttackBehavior.cs` |
+| A-3 shift | at `EnterAssault` (replacing AT-6's ReturnFire): elements beyond the objective in the attack's area, then its depth (30 m beyond, away from the start) and two flanks (25 m across) | `ShiftPosts` |
+| DA-11 lift | after the orders each tick: the assault's FOOTHOLD / BuildingClear / Set ⇒ the support `SquadDefend` + ReturnFire | `Lift` |
+| sector | the base of fire keeps its sector on the objective (DA-27) under `SupportByFire` too | `KeepAttack` |
+
+**Rails:** `CE2436_SupportByFire_HoldsAtThePoint_ThenEveryManFiresOnAReportedPost_ReportsSet_AndShiftsOnOrder` (new) · `CE2277_AnOpenObjective_…`
+(the shift, FireAtWill kept) · `CE2277_AnAreaWithABuilding…` (the lift at the foothold) · `CE2277_WithItsSop…`, `CE2346_…`, `CE2284_…` (the
+support's order is now `SupportByFire`). **R-2106 numbers:** arrival 12 m / 60 s, post match 25 m, shift depth 30 m, flanks 25 m, ≤ 4 posts —
+would change with a live run showing the posts off the windows, or the arrival too strict for a covered position.
+

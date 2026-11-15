@@ -73,9 +73,13 @@ def ent(tkb, name, side, x, y, rot=EAST, commander=None, designation="Wingman", 
 def squad(s, name, side, x, y, commander, men=4, rot=EAST, soldier=2002):
     sq = s.add(ent(302, name, side, x, y, rot, commander))
     roles = ["SquadLeader", "MachineGunner", "Wingman", "Wingman", "Wingman"]
+    # ⭐ CE-2436 AU-1 (A-2) — the man the role calls a machine gunner CARRIES one: Blue's M249 automatic rifleman (207), Red's PKM gunner
+    #   (208) — measured: the role label sat on a rifleman type (one rifle + a pistol), so no squad had an automatic weapon
+    auto = 207 if soldier == 2002 else 208 if soldier == 2003 else soldier
     for i in range(men):
         label = "Leader" if i == 0 else f"Rifleman {i}"
-        s.add(ent(soldier, f"{name} {label}", side, x + (i - (men - 1) / 2) * 2.0, y - 2.0, rot, sq, roles[min(i, 4)], man=True))
+        tkb = auto if roles[min(i, 4)] == "MachineGunner" else soldier
+        s.add(ent(tkb, f"{name} {label}", side, x + (i - (men - 1) / 2) * 2.0, y - 2.0, rot, sq, roles[min(i, 4)], man=True))
     return sq
 
 
