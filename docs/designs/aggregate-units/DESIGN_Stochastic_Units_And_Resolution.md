@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — every decision RULED (R-4248…R-4250, R-4252, R-4255, R-4256); ⏳ §21 review: 7 blockers, 9 should, 1 nit — AWAITING RULINGS before READY-TO-BUILD · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
-updated: 2026-11-14 (split out of DESIGN_Aggregate_Squad.md — coordinator; section numbers kept, the ledger cites them)
-current-answer: the whole file — §10 scope and use cases · §12 vehicles (combined-arms units) · §13 de-aggregation (what binds now) · §14 movement · §15 sensors · §16 placing the men · §16a de-aggregation as a process · §16b who decides the resolution
-stale-below: §16 P-1 / P-2 (superseded by §16a, marked inline)
-known-rot: none
+build-state: READY-TO-BUILD (2026-11-15) — every decision RULED: S-1…S-9, X-1…X-5, SV-1…SV-15, M / N / P / D-P / R groups, C-1…C-8, B-1…B-9, the slices and the §21 review RV-1…RV-17 (R-4248…R-4250, R-4252, R-4255…R-4257); UML §22; build order §20 (ST-0 first); the FusionSquad is NOT a prerequisite (R-4253)
+updated: 2026-11-15 (the §21 review folded, READY-TO-BUILD — coordinator)
+current-answer: the whole file above HISTORY — §10 scope · §12 vehicles · §13 de-aggregation · §14 movement · §15 sensors · §16 placing the men · §16a the de-aggregation process · §16b who decides the resolution · §17 the first review · §18 combat · §19 orders · §20 slices · §21 the second review · §22 UML
+stale-below: § HISTORY at the bottom (§18–§20 as first approved); §16 P-1 / P-2 (superseded by §16a, marked inline)
+known-rot: §10's table row "`StochasticInfantrySquad<Order>`" and §13 X-1's string-keyed `<Resolution><Class><Order>` names are superseded by SV-2 (a (class, resolution, order) TABLE, no name concatenation); §10 S-5's "the FusionSquad calibrates" is superseded by C-8 (R-4253); §13 X-2's "keeps its order (name + params)" is DERIVED, not stored (§19)
 known-conflict: none
 related-designs:
   - DESIGN_Aggregate_Squad.md — OWNS the FusionSquad (one FusionSoldier carries the squad) — the resolution built first, and the unit state, order routing and child keys this design's "binds now" items put there
@@ -40,7 +40,7 @@ the navmesh by posture and terrain. No rounds, no bodies — thousands of units,
 | a StochasticSquad meets … | fits? | why (measured) |
 |---|---|---|
 | other stochastic units | ✅ | the classic case |
-| the commanders above (platoon → battalion) | ✅ unchanged | reports + `UnitStrength` (D-2); orders by class (D-1: `StochasticInfantrySquad<Order>`) |
+| the commanders above (platoon → battalion) | ✅ unchanged | reports + `UnitStrength` (D-2); orders by class (D-1: `StochasticInfantrySquad<Order>` — ⛔ superseded by SV-2's table) |
 | mortars, artillery, air strikes | ✅ easy | they fire at a POINT (HQ, battery, aircraft paths) ⇒ a burst = a casualty fraction: its radius ∩ the unit's frontage × cover |
 | objectives, census, reports, replay | ✅ | all through the unit's state |
 | tanks, IFVs, real soldiers, FusionSoldiers in DIRECT fire | ⚠ the hard boundary | they see bodies and fire rounds; it has neither — the standard answer is DISAGGREGATION (become a FusionSquad when a physical entity comes near) |
@@ -57,7 +57,7 @@ the navmesh by posture and terrain. No rounds, no bodies — thousands of units,
 | **S-2** | resolution SWITCHING (by distance / contact) kept possible, NOT built | with S-1 a switch is "instantiate from the unit's state"; its known traps (flip-flop ⇒ hysteresis, switch only out of contact; jumps in losses ⇒ one calibration, S-5) are designed when a use case asks |
 | **S-3** | stochastic dice are deterministic — seeded per unit per step, a fixed resolution step, each unit writes only itself | the parallel rule; equal at 1 / 4 / 8 threads |
 | **S-4** | the first StochasticSquad meets only stochastic units and point-fire assets; direct fire with physical entities waits for the disaggregation boundary | the multi-resolution problem is the expensive one |
-| **S-5** | ONE calibration: the FusionSquad's live exchanges and the measured drill times (§6 of the measurements) set the stochastic tables | the two resolutions agree, so a switch does not jump |
+| **S-5** | *(⛔ the FusionSquad half superseded by C-8, R-4253)* ONE calibration: the FusionSquad's live exchanges and the measured drill times (§6 of the measurements) set the stochastic tables | the two resolutions agree, so a switch does not jump |
 
 ## 12. Vehicles in the stochastic mode — combined-arms units, not single vehicles *(✅ S-6…S-9 APPROVED, user `2026-11-14`: "approved!" — R-4249; 🔒 user, `2026-11-14`: "in the stochastic mode, how would we handle the vehicles? no individual vehicles, but stochastic higher level constructs (an aggregated stochastic unit representing some stochastic squad AND vehicles?)")*
 
@@ -286,6 +286,256 @@ invisible to its tactics and its commanders.*
 | §16a D-P2…D-P7 | as written, with: the planned-posts component (SV-5), the Held participant (SV-6), the full live roster trimmed at the handover and removed on a withdrawn trigger (SV-7), plays restart from the current situation and a split is refused on an UNTYPED order (SV-10) — ⇒ **prerequisite: the platoons' squad orders routed (CE-4612 step ⑥)** — instructor orders at once (SV-14) |
 | §16b R-1…R-7 | one serial `ResolutionManager` (every 1–2 s); the policy an unmanaged World Environment component set by `SetResolutionPolicy`, detail areas = marked area entities (SV-15); focus = possessed units + physical forces of another side (+ optional camera); FIXED bands (SV-9); instructor > author > automatic (SV-14); automatic merge needs no focus within band + margin for the quiet time, out of contact, not in a detail area, not pinned, not mid-play, AND ⭐ UNOBSERVED by any physical sensor (kept for AUTOMATIC merges only — the user's override applies to instructor orders); the governor documented, not built (SV-8) |
 
+## 18. Combat between stochastic units — the attrition step *(✅ C-1…C-8 APPROVED 2026-11-15 — R-4256; ⭐ REVISED by the §21 review, ✅ approved 2026-11-15 — R-4257; the first-approved text is in HISTORY at the bottom)*
+
+**The proven solution:** a heterogeneous Lanchester exchange resolved per (firing system type × target class) pairing from a killer–victim table
+(the ATCAL / JTLS family) — ⭐ and, as in that practice, the table is GENERATED from the higher-resolution model, not hand-derived (RV-15).
+
+| measured — what the physical resolution really does | where |
+|---|---|
+| damage is an EXPECTED value, no dice: `DamagePerHit × PenetrationChance(pen, facing armour)` × the body-zone factor (head ×4, arm ×0.4, leg ×0.5) into `Health`; a frontal rifle hit on a man = 12.5 of 25 | `ArmorModel.cs:119-127`, `DamageCalculationSystem.cs:73-105`, `BodyZones.cs:292-295`, `NedTkbCatalog.cs:86-87` |
+| P(hit) from the spread: `DispersionMils` × moving × under fire (σ × 2 for 5 s) × the SHOOTER's stance × proficiency; a mount with no dispersion hits at any range (13 of 34) | `HitModel.cs:24-25, :46-62, :118-121` |
+| `RateOfFire` is the CYCLIC rate, used only as the gap between rounds inside a burst; the sustained rate comes from behaviour (bursts, aim, reload, peeking) | `AimAndFireExecutor.cs:336`, `FirePacing.cs:16-18` |
+| stress per man: `StressModel` — the hit man +0.25, friends within 15 m +0.2, a near miss (3 m) +0.08 (half in cover); calms 0.03 / s, ×2 in cover, ×2 leader near, ×2 after 30 s quiet; broken ⇒ not standing | `Stress.cs:25-53`, `StressSystem.cs:98-103`, `CombatConstants.cs:84` |
+| the person area per stance (a burst's casualties) | `AreaEffect.cs:24-26`, `AreaEffectSystem.cs:580` |
+| ⛔ physical combat has no dice and `SimRng` has no run seed ⇒ every run of a scenario is the same run | `HitModel.cs:13`, `SimRng.cs:66-74` |
+| ⛔ `AreaEffectSystem` skips every `IsHidden` entity, and every `UnitEntity` is hidden | `AreaEffectSystem.cs:175`, `PhysicalPresence.cs:26-29` |
+
+| # | ruling | why |
+|---|---|---|
+| **C-1** | ⭐ ONE **killer–victim table** per (weapon type × target class), the target class = TKB platform type × an aspect mix (front / side / rear shares). Each entry: P(hit) per range band · the expected damage per hit (`ArmorModel` × the mean zone factor; for vehicles K-kill and M-kill outcomes) · the **EFFECTIVE aimed rate** per weapon × posture (⛔ never `RateOfFire`) · a **suitability** score. ⭐ **GENERATED OFFLINE** by a harness that runs the physical engagement models (small arms in closed form from `HitModel` + `ArmorModel`; guided missiles, HE against men and no-dispersion mounts by running them; rates measured from physical rails), committed as a data asset, loaded once. Factors that are not derived (cover, the target's posture) are labelled CALIBRATED | RV-1, RV-15 — the same numbers by construction |
+| **C-2** | the step, every 1 s of sim time, as **TWO per-entity phases**, each writing only itself: **A (per firer)** split its live systems' effective fire over its contacts in range by suitability (B-4's base-of-fire share included), spend its own ammunition per slot, write its `FireAllocation`; **B (per victim)** read every enemy `FireAllocation` naming it (declared tick-start reads — last step's), × its cover (posture, P-5's prepared level) × the firer's suppression ⇒ the expected hits λ per slot class; draw (C-3) | RV-4 — no double count, ammunition spent, the parallel rule kept |
+| **C-3** | the DRAW: per exposed slot p = 1 − exp(−λ / n), seeded (S-3, run seed C-8); each hit lands on a slot chosen by a seeded draw weighted by EXPOSURE; it applies the expected damage to that slot's HEALTH; a slot below its incapacitation threshold is down. Wounds stay in the slot table and survive a split. A destroyed vehicle slot's crew: decided with C-1's vehicle outcomes (⛔ no physical counterpart measured) | RV-2, RV-16 |
+| **C-4** | SUPPRESSION: the unit's `SuppressedShare` = incoming rounds per exposed man over the last 5 s ⇒ that share of its slots is under fire (σ × 2, the effective rate cut) | RV-12 — the near-miss law, one model |
+| **C-5** | MORALE: stress PER SLOT with the `StressModel` constants (the hit slot +Hit, the rest +FriendDown, near-miss share +0.08 / half in cover; calming as `StressSystem`); a broken slot is not standing ⇒ the unit falls back and routs by the SAME `CombatEffective` rule as a physical squad (RV-5's branch), reported as TaskFailed (FallingBack is retired) | RV-12, RV-13 |
+| **C-6** | INDIRECT fire and drones: a **stochastic sink inside the serial `AreaEffectSystem`** — the burst's lethal area ∩ the unit's footprint (M-3) × the density of men × the person area per posture ⇒ hits to slots (C-3) + suppression; it runs after phase B | RV-8 |
+| **C-7** | ⛔ no direct fire between a stochastic unit and a PHYSICAL entity (S-4). The policy checks band ≥ the largest enemy weapon range + the lead time; a physical weapon with the unit in range FORCES D-P5's fallback handover at once; until ST-5, an order whose target is physical is refused (B-9) | RV-9 |
+| **C-8** | CALIBRATION: a recorded **run seed** mixed into `SimRng` (both resolutions vary by seed); a LADDER — 9 v 9 in the open at 100 / 200 / 300 m → + the MG → a defended building → + IFV / ATGM; metrics: the loss-exchange ratio and the time to 50 % losses; ≥ 30 seeds per rung per resolution; PASS = the stochastic mean inside the physical 95 % CI ± 15 %. ⚠ If the physical spread over seeds is ~0, the band is ± 15 % of the physical value | RV-3 |
+
+## 19. What a stochastic unit does with an order *(✅ B-1…B-7 APPROVED 2026-11-15 — R-4256; ⭐ REVISED by §21, approved — R-4257)*
+
+| # | ruling | why |
+|---|---|---|
+| **B-1** | ⭐ ONE generic play per order KIND for every echelon — `StochasticUnitMove`, `…Defend`, `…Attack`, `…BreakContact` — chosen through the (class, resolution, order) table (SV-2); ⭐ the same table also resolves the **SOP**: one `StochasticUnitSop` (under fire ⇒ BreakContact, suppressed ⇒ Hold), so the physical squad SOP's plays never run on a memberless unit | RV-7 |
+| **B-2** | **Move / March**: the route (M-1) — requested, waited for over several ticks, re-requested when dropped (the solver runs at 10 Hz, ≤ 256 per tick) —, the path follower (M-4), the formation (M-3); Set on arrival | RV-17 |
+| **B-3** | **Defend / Hold**: occupy the area, allocate the children's areas (P-3), the prepared level grows (P-5); ⭐ **PROGRESS Set once the area is occupied** (commanders wait for it); it never ends by itself | RV-13 |
+| **B-4** | **Attack** on `Objective1..N`: approach in line; the base-of-fire share fires (C-2 phase A) while the rest closes; within the assault distance the assault modifiers apply; ⭐ **PhaseLine per objective**; success when the defender is below its break threshold or falls back ⇒ ObjectiveSecure; failure when the attacker breaks ⇒ TaskFailed; suppression established before the close (CE-2436 A-8) is a factor | RV-13 |
+| **B-5** | **BreakContact**: move away to a safe area, suppression decaying; Set on arrival | — |
+| **B-6** | **ClearBuilding** = Attack on the building's area · **Embark / Dismount** = the mounted / dismounted POSTURE (S-9) when its holdings have the vehicles, else refused · **Recover** = refused | — |
+| **B-7** | REPORTS through the existing staff: SITREP from `UnitStrength` (RV-5's branch), SPOT / CONTACT from its contacts (N-2), PROGRESS Set / TaskFailed / PhaseLine / ObjectiveSecure from the play, REQUESTs from the staff off the shared contact pool; ⛔ FallingBack is retired | RV-5, RV-13 |
+| **B-8** | ⭐ the orders §19 had missed: **Bound, FireAndMovement** = the Attack play's approach phase · **SupportByFire** (behaviors, CE-2436) = Attack without closing (the base-of-fire share only) · **Strike, ObserveFire** = refused (batteries and observers stay physical). ⭐ **ANY refused order reports PROGRESS TaskFailed to the commander** — fixed GENERICALLY in `TacticalIntentResolutionSystem` (today a commander's minted request is refused to `Guid.Empty` and the commander waits to its deadline, `:143-147`) | RV-6 — benefits every unit, not only stochastic ones |
+| **B-9** | until ST-5, an order whose target or objective is a PHYSICAL entity (a physical objective's defenders, a physical vehicle to embark) is refused ⇒ TaskFailed | RV-9 |
+
+⭐ X-2's "the unit keeps its current order" is DERIVED, never stored: `CurrentOrder` comes from `BehaviorState` (`CurrentOrders.cs:41-53`) and the
+params from the recorded `BehaviorStartRecord.JsonParams` (`BehaviorStartRecord.cs:26-40`) — a split re-resolves from those (RV-17).
+
+## 20. Slices — the build order *(✅ APPROVED 2026-11-15 — R-4256; ⭐ REVISED by §21, approved — R-4257)*
+
+⭐ Every slice: its own rail red-proved by a compiling mutation; `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; every new type
+read across units declared (`BrainReads` / `IStableReads`); `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084); invariant output.
+
+| slice | builds | ⭐ done when | needs |
+|---|---|---|---|
+| **ST-0** | ① `UnitStrength.Of`, `CombatEffective.IsInTheFight` / `IsStanding`, the staff's `AmmoOf` and `ObjectiveCensus` answer an `AggregateUnit` from its slot table (RV-5); ② `AggregateUnit` + the slot table + `UnitHoldings` with **EVERY recorded field of §14–§19 declared now** (SV-12) — a fixed slot capacity per echelon, each recorded struct ≤ 1024 B (header + slot chunks, RV-11); ③ their replication descriptors + translators (RV-10); ④ the (class, resolution, order) table incl. the SOP (B-1); ⑤ the refused-order TaskFailed (B-8); ⑥ the run seed in `SimRng` (C-8); ⑦ CE-4612 step ⑥ — the commanders' orders ROUTED — ⭐ by the **behaviors** lane after CE-2436 merges: re-inventory the `Assign` sites, decide one neutral params DTO per kind FIRST | a stochastic platoon under a physical company reads Green in the SITREP and counts in an objective; a Defend order resolves to its play; a refused Strike reaches the commander as TaskFailed; the unit shows on a second node; a recording round-trips | CE-4612 ①–⑤ (built) |
+| **ST-1** | movement (M-1…M-4) + `StochasticUnitMove` (B-2) + the 2-D footprint drawing (⛔ no 3-D: a unit is hidden) | arrival time within ± 10 % of M-2's prediction; a dropped route re-requested | ST-0 |
+| **ST-2** | sensors (N-1…N-5) feeding the contact pool (N-2) + `StochasticUnitSop` | the detection probability against range matches N-1's curve; under fire the unit breaks contact | ST-1 |
+| **ST-3** | the table GENERATOR harness + combat C-1…C-7 (the two phases, the draw, suppression, morale, the `AreaEffectSystem` sink) + Defend / Attack / BreakContact plays + B-8 + reports | ⭐ the C-8 ladder passes | ST-2 |
+| **ST-4** | a stochastic battalion against a stochastic battalion | it runs to an end; the census and the SITREPs agree with the slot tables; deterministic at 1 / 4 / 8 threads | ST-3 |
+| **ST-5** | the resolution manager + policy (§16b) + de-aggregation (§16a) + re-aggregation, the Held participant, the planners' plan / assign split (D-P3), C-7's forced handover | a split then a merge keeps every identity; a physical weapon in range forces the handover | ST-4 |
+
+## 22. UML — the classes, one step, and who runs what *(⭐ R-4257; drawn after the §21 inventory: existing boxes carry their file)*
+
+```mermaid
+classDiagram
+  class AggregateUnit {
+    <<new, unmanaged, recorded>>
+    Resolution
+    Echelon
+    Formation Depth Heading
+    SuppressedShare
+    Splitting
+    Prepared
+  }
+  class UnitSlotTable {
+    <<new, unmanaged, recorded>>
+    slot health
+    slot ammo
+    slot stress
+  }
+  class UnitHoldings {
+    <<new, unmanaged, recorded>>
+    systems per type
+  }
+  class FireAllocation {
+    <<new, unmanaged>>
+    target and expected hits per class
+  }
+  class KillerVictimTable {
+    <<new, data asset, loaded once>>
+    PHit per band
+    damage per hit
+    effective rate
+    suitability
+  }
+  class StochasticFirePhase {
+    <<new, per-entity phase A>>
+  }
+  class StochasticLossPhase {
+    <<new, per-entity phase B>>
+  }
+  class StochasticUnitSop {
+    <<new>>
+  }
+  class UnitStrength {
+    <<existing, UnitStrength.cs>>
+    Of()
+  }
+  class CombatEffective {
+    <<existing, CombatEffective.cs>>
+    IsInTheFight()
+  }
+  class ObjectiveCensus {
+    <<existing, ObjectiveCensus.cs>>
+  }
+  class AreaEffectSystem {
+    <<existing, serial>>
+  }
+  class ArmorModel {
+    <<existing>>
+  }
+  class HitModel {
+    <<existing>>
+  }
+  class SimRng {
+    <<existing, gains a run seed>>
+  }
+  class TacticalIntentResolutionSystem {
+    <<existing, refusal reports TaskFailed>>
+  }
+  AggregateUnit "1" *-- "1" UnitSlotTable
+  AggregateUnit "1" *-- "1" UnitHoldings
+  StochasticFirePhase ..> KillerVictimTable : reads
+  StochasticFirePhase --> FireAllocation : writes own
+  StochasticLossPhase ..> FireAllocation : reads enemies, last step
+  StochasticLossPhase --> UnitSlotTable : writes own
+  StochasticLossPhase ..> SimRng
+  AreaEffectSystem --> UnitSlotTable : stochastic sink
+  KillerVictimTable ..> ArmorModel : generated from
+  KillerVictimTable ..> HitModel : generated from
+  UnitStrength ..> UnitSlotTable : new branch
+  CombatEffective ..> UnitSlotTable : new branch
+  ObjectiveCensus ..> UnitSlotTable : new branch
+```
+*What it shows that prose hid: the four existing readers that today walk member BODIES all gain one branch onto the slot table (RV-5); the
+table is GENERATED from the existing hit and armour models rather than re-derived (RV-1, RV-2, RV-15); and only the two phases and the area sink
+write the slot table — each writing its own unit.*
+
+```mermaid
+sequenceDiagram
+  participant A as StochasticFirePhase per firer
+  participant FA as FireAllocation
+  participant B as StochasticLossPhase per victim
+  participant T as UnitSlotTable
+  participant AE as AreaEffectSystem serial
+  participant ST as StaffComposerSystem
+  Note over A,B: every 1 s of sim time, Simulation phase
+  A->>A: split effective fire over contacts by suitability
+  A->>A: spend own ammunition
+  A->>FA: write own allocation
+  B->>FA: read enemy allocations naming it, last step
+  B->>B: lambda per slot class times cover times firer suppression
+  B->>T: seeded draw, damage to slot health, stress, suppression
+  AE->>T: burst on footprint gives hits and suppression
+  ST->>T: SITREP via UnitStrength, ammo, standing
+```
+*What it shows: the firer never writes the victim — the allocation is the hand-off, read a step later — which is why the step keeps the parallel
+rule (RV-4); the area sink runs serially after phase B.*
+
+```mermaid
+graph TD
+  CGF[CgfLogicPack sim list - registers StressSystem today, CgfLogicPack.cs 261] --> FP[StochasticFirePhase - ParallelEntities.Run]
+  CGF --> LP[StochasticLossPhase - ParallelEntities.Run]
+  CGF --> RM[ResolutionManager - serial, ST-5]
+  DAM[DamageAssessmentModule - registers AreaEffectSystem] --> AE[AreaEffectSystem - serial]
+  SCH[the kernel scheduler, Simulation phase, every frame] --> CGF
+  SCH --> DAM
+  AE -.today skips every UnitEntity.-> UNIT[a stochastic unit]
+  AE -->|ST-3 sink| UNIT
+  FP --> UNIT
+  LP --> UNIT
+  linkStyle 6 stroke:#c33,stroke-dasharray: 5 5
+```
+*What it shows: both phases ride the module that already runs the stress phase on every CGF node (so every host that simulates soldiers runs
+them by construction); the red edge is today's dead path — the area effect never reaches a unit until ST-3's sink.*
+
+## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
+
+⭐ 33 raw findings, merged into 17. ✔ = re-measured by the coordinator at the line cited.
+
+| # | sev | the defect | evidence | ⭐ lean |
+|---|---|---|---|---|
+| RV-1 | ⛔ BLOCKER | C-1's "rate from `RateOfFire`" is the CYCLIC rate (M4 700 rpm); physical fire uses it only as the gap inside a burst — 9 rifles would wipe a squad in one step | ✔ `AimAndFireExecutor.cs:336` (60 / RateOfFire) · `NedTkbCatalog.cs` | an EFFECTIVE aimed rate per weapon × posture, measured from physical rails (a TKB field later); never `RateOfFire` |
+| RV-2 | ⛔ BLOCKER | P(kill│hit) is not a TKB number: physical damage is an EXPECTED value by armour facing × body zone into `Health`; a frontal rifle hit does 12.5 of 25. Drawing whole kills also loses wounds the slot table holds | ✔ `ArmorModel.cs:119-127` · `DamageCalculationSystem.cs:73-105` | draw HITS, give them to slots, apply `ArmorModel.HitDamage` × the mean zone factor to the slot's health; down below the threshold — the same numbers by construction, wounds survive a split |
+| RV-3 | ⛔ BLOCKER | C-8 has no metric, band or run count; physical combat has "no dice" and `SimRng` has no run seed ⇒ every run is the same run (also kills §10's Monte-Carlo use); `cc-battalion` is not a platoon-vs-company fight | ✔ `HitModel.cs:13` · ✔ `SimRng.cs:66-74` | a recorded RUN SEED mixed into `SimRng`; a calibration LADDER (9 v 9 open at 100/200/300 m → + MG → a defended building → + IFV/ATGM); metrics loss-exchange ratio + time to 50 % losses; ≥ 30 seeds each; pass = stochastic mean inside the physical 95 % CI ± 15 % |
+| RV-4 | ⛔ BLOCKER | the victim-pulls step counts a firer at full volume against every victim and nobody spends the firer's ammunition; `WeaponChoice` scores one target ENTITY, it cannot split over classes | `WeaponChoice.cs:22-45` · physical path `HitResolutionSystem` → serial `DamageSystem` | TWO per-entity phases, each writing only itself: A — each firer splits its fire over its contacts (suitability column in the C-1 table), spends its ammo, writes `FireAllocation`; B — each victim reads the enemies' allocations (declared tick-start reads) and draws its own losses and suppression |
+| RV-5 | ⛔ BLOCKER | a memberless unit reads Unknown (no roster) or Black (empty roster): `UnitStrength.Of`, `CombatEffective.IsInTheFight` / `IsStanding`, the staff's `AmmoOf` and `ObjectiveCensus` all walk member bodies — §19 B-7 "unchanged" is false; the branch was designed in the deferred FusionSquad (R-D4) and never built | ✔ `UnitStrength.cs:44-58` · ✔ `ObjectiveCensus.cs:24-37` · `StaffSystems.cs:103-111` | ST-0: each of these answers an `AggregateUnit` from its slot table (Present, ammo, standing); the census counts Present men at the footprint |
+| RV-6 | ⛔ BLOCKER | §19 omits order kinds commanders really send: Bound and FireAndMovement (PlatoonAttack's squads), Strike, ObserveFire, and behaviors' new SupportByFire; an unresolvable order is refused and, for a commander's minted request, the refusal goes to `Guid.Empty` — the commander waits to its deadline | ✔ `OrderKind.cs` (13 kinds) · ✔ `TacticalIntentResolutionSystem.cs:143-147` | B-8: Bound / FireAndMovement = the Attack play's approach; SupportByFire = Attack without closing (the base-of-fire share); Strike / ObserveFire refused (batteries and observers stay physical); ⭐ ANY refused order makes the receiver report PROGRESS TaskFailed |
+| RV-7 | ⛔ BLOCKER | §19 forgets the SOP: a stochastic unit keeps `InfantrySquad` ⇒ `BasicSquadSop`, whose reactions (`ReactToContact`, `SquadShelterFromAir`) are physical plays that fail with no men — reachable from ST-2, when contacts arrive | ✔ `BasicSquadSop.cs:183-191` | the SV-2 table also resolves the SOP by (class, resolution): one `StochasticUnitSop` — under fire BreakContact, suppressed Hold; built in ST-2 |
+| RV-8 | SHOULD | C-6 "point fire through the existing paths" never reaches a unit: `AreaEffectSystem` skips `IsHidden`, and every `UnitEntity` is hidden | ✔ `AreaEffectSystem.cs:175` · ✔ `PhysicalPresence.cs:26-29` | a stochastic sink in the serial `AreaEffectSystem` (burst ∩ footprint → slot health + suppression), its order against the attrition phases stated; ST-3 |
+| RV-9 | SHOULD | physical ↔ stochastic window: before the handover a physical weapon (mount range to 4000 m, beyond the 400 m band) can neither see nor hit the unit, and in ST-1…ST-4 a stochastic Attack on a physical objective walks in untouched | `PhysicalPresence.cs:27` · SV-9 · C-7 | the policy checks band ≥ the largest enemy weapon range + lead time; a physical weapon with the unit in range forces D-P5's fallback handover at once; until ST-5 an order whose target is physical is refused (TaskFailed) |
+| RV-10 | SHOULD | nothing replicates the new state; a display node shows no footprint, strength or SITREP | `Replication/Map/*Translators.cs` (opt-in per component) | ST-0: descriptors + egress/ingress translators for `AggregateUnit` and the slot table |
+| RV-11 | SHOULD | the recorded layout is not complete before the first recording (SV-12): stress, last-fire time, `Prepared`, the `Splitting` stage, the per-pair detection levels arrive slice by slice; and `EntityCommandBuffer` refuses a component over 1024 B, which a company's slot table can pass | ✔ `EntityCommandBuffer.cs:39` · `SchemaValidator` | ST-0 declares every field from §14–§19; a fixed slot capacity per echelon, each recorded struct ≤ 1024 B (header + slot chunks) |
+| RV-12 | SHOULD | C-4/C-5 merge two mechanisms and use the wrong constants: near-miss `UnderFire` (σ ×2 for 5 s) and stress (calms 0.03/s, ×2 in cover / leader near / 30 s quiet); "+0.25 per man lost" is the HIT man's constant (survivors get 0.2 within 15 m); D-7's squad nerve is unbuilt | `HitModel.cs:24-49` · `StressSystem.cs:98-103` · `Stress.cs:25-53` | two unit states: a suppressed share (rounds per exposed man, last 5 s) and stress PER SLOT with the `StressModel` constants; a broken slot is not standing ⇒ the same rout rule as physical |
+| RV-13 | SHOULD | reports: B-3 Defend never sends Set (commanders wait for it); FallingBack is retired; PhaseLine per objective, REQUEST and LACE are missing | `SquadDefendBehavior.cs:880` · `CompanyBehaviors.cs:813` · `PlatoonAttackBehavior.cs:411` | B-3 reports Set when the area is occupied; B-4 takes Objective1..N and reports PhaseLine each; falling back ends as BreakContact Set or TaskFailed; REQUESTs from the staff off the contact pool (after RV-5) |
+| RV-14 | SHOULD | slices: no acceptance per slice; ST-4's manager requests splits nothing performs until ST-5; ST-0's step ⑥ (route the commanders' `Assign` sites) is cross-lane, its "18 sites" is stale, and routing a kind needs a neutral params DTO per kind | `CommandNodes.cs:89-98` · `OrderKind.cs:21-23` | one rail per slice + the parallel checks (ST-1 arrival vs M-2's prediction · ST-2 detection vs range · ST-3 the RV-3 ladder · ST-5 split → merge, identity kept); the manager moves into ST-5; step ⑥ is the behaviors lane's, re-inventoried after AU-7, the params DTOs decided first |
+| RV-15 | SHOULD | the closed form P(hit) × P(kill) cannot cover guided missiles (hit from the flight sim), the 13/34 mounts with no dispersion (HitChance = 1 at any range), or HE against men (an area effect); "light / heavy armour" drops facing, accumulated health and mobility kills | `HitModel.cs:118-121` · `MissileDto` · `WarheadDto` | generate the table OFFLINE by running the physical engagement models in a harness (the higher-resolution-model practice); closed form for small arms only; target class = platform type × aspect mix, K- and M-kill outcomes |
+| RV-16 | SHOULD | the draw is unspecified: a binomial with p = expected / n exceeds 1; the fixed loss order (MG crew and leader last) keeps firepower longer than physical targeting | C-3 · X-4 | p = 1 − exp(−λ / n); the falling slot drawn by seeded draw weighted by exposure |
+| RV-17 | NIT | hygiene: STATUS block stale (says §14–§16b "NOT accepted", rides the FusionSquad); §10 table and X-1 string-keyed names superseded by SV-2 but unmarked; SV-11 typo; X-2 should DERIVE the order (`BehaviorStartRecord`), not store it; routes arrive over ticks (10 Hz, 256 per tick); drawing is 2-D only; new cross-unit reads declared in `BrainReads`; cover / posture factors are "calibrated", not "derived"; B-4 needs a base-of-fire term in C-2; wrong `AreaEffectSystem` line cited | `CurrentOrders.cs:41-53` · `PathfindingBatchData.cs:52` | ✅ fixed in the ruling commit |
+
+⭐ **What the reviewers found sound:** simultaneous fire (each writes only itself from last step's state) fits the parallel rule · `HitModel.HitChance` and `ArmorModel` give P(hit) and penetration for small arms · N-3 is true by construction · the route planner takes a request from a bodyless unit · a unit's own `SimTransform` is not overwritten by `UnitCentroidSystem` · ST-0's "CE-4612 ①–⑤ built" is correct · no hot-path allocation is implied.
+
+## 17. ⛔ The critical review — `2026-11-14` *(the multi-resolution reviewer; ✔ re-read by the coordinator)* — ✅ ALL RULED by the user one by one (R-4252); §17.1 the rulings
+
+| # | finding | evidence | ⭐ lean |
+|---|---|---|---|
+| **SV-1** | **a dead man comes back** — the state keeps COUNTS (`Men`, holdings); X-4 rebuilds the men by a fixed rule ⇒ private slot 3, killed at 10:02, lives again after a merge and a new split (contradicts the recording and the AAR) | §13 X-4 | ⭐ **binds NOW**: a fixed PER-SLOT table on the unit (alive / dead, health, ammo); `Men` is derived from it (one owner); a FusionSquad decides deterministically WHICH slot each lost man was |
+| **SV-2** ✔ | **the routing name collides** — `BehaviourName = className + orderName` (`OrderResolver.cs:58`); `Fusion` + `InfantrySquad` = `FusionInfantrySquad…`, the same string as a class named `FusionInfantrySquad` (TKB 307) ⇒ the TYPE keeps deciding after a switch; the inverse `ClassOfBehaviour` (used by `BehaviorFit`, `TaskPicker`) cannot split a resolution prefix; all four `Resolve` callers pass only a DIS type | `OrderResolver.cs:56-66`, `TacticalIntentResolutionSystem.cs:142`, `CommandVerbs.cs:108`, `OrderMenu.cs:270` | ⭐ **adjusts X-1**: a resolution-NEUTRAL type and class for any unit that can switch; the resolution an explicit PARAMETER of `Resolve` / `BehaviorFit` (a table, not string concatenation); TKB 307 is NOT a class |
+| **SV-3** | the children come from the wrong composite — 307 lists one FusionSoldier | §13 X-3 | the unit's composite lists the PHYSICAL slots; the fusion soldier is a per-resolution stand-in, not a slot |
+| **SV-4** ✔ | **identity of created men** — the engine already derives a child's identity `child:{InstanceId}` from the parent (`CreateEntityRequestSystem.cs:540, :654-659`) ⇒ X-3's `<unit>/<slot>` is a duplicate mechanism; a TRANSIENT entity gets no identity; a non-transient one is saved into the scenario (a reload doubles the unit) | `MacroInsertion.cs:33-40` | ⭐ **adjusts X-3**: reuse the `child:` derivation + a "run-time child" flag (stable identity, never saved) |
+| **SV-5** | planning while stochastic has no home — one active behaviour per brain; the plan's state lives in the running play's params; it reads each man's proficiency and role | `SquadDefendBehavior.cs:491-578` | D-P3's PLAN takes roles / tier from the holdings and writes a unit COMPONENT (the P-3 allocation) the physical play reads as authored posts — bind that OUTPUT shape, not the planners |
+| **SV-6** | "Constructing" is the wrong holding tool — it activates on the module acks and a bounded timeout DESTROYS (a 30 s hold kills the men); construction reopens on a seek | `EntityLifecycleModule.cs:370-380, :472-482, :595-605` | a "Held" participant that acks at the handover (unbounded); creation latency measured into D-P1's budget |
+| **SV-7** | stale between materialising and the handover — losses shrink the count after the men exist; no exit when the trigger is withdrawn | §16a | create the FULL roster, kill / remove the surplus at the handover; a Materialising → Aggregate edge that removes the held men |
+| **SV-8** | the performance governor is WALL-clock ⇒ splits differ per machine, the stepped hash diverges | CLAUDE.md F-3 | a budget in sim terms (entities, steps) or a recorded operator decision |
+| **SV-9** | **trainees see men appear** — a tank's optics reach 2–3 km: an empty village, one fusion man at 1.4 km, nine men at 400 m; a drone 3 km away sees nothing | §16b bands | bands from the focus entity's SENSOR footprint (optics range, camera frustum); the split ("observable") and merge ("unobserved") tests from the same model |
+| **SV-10** | a switch restarts the play from Start (plan, survey, phase 1); only `Order.*` orders can be re-resolved | §13 X-2 | the play PHASE in the X-4 mapping; a unit under a concrete-name order cannot switch |
+| **SV-11** | two owners of the men count (`UnitHoldings` and `AggregateUnit.Men`); the component is named "Squad" though S-6 makes it any echelon | §12 | ⭐ **binds NOW**: one owner (SV-1's slot table); rename `AggregateSquad` → `AggregateUnit` before it is recorded |
+| **SV-12** | some "binds now" items may be premature (M-3, N-4 fields nothing writes yet; P-3's shape with the planners' inputs unmeasured); "a later field is a migration" was never measured | §14, §15, §16 | ⏳ MEASURE what the recorder does when an unmanaged struct grows; if it tolerates it, defer M-3 / N-4 / P-3 |
+| **SV-13** | network and display timing — the creating node owns the men; the `Resolution` field and the men's activation reach a display node at different times (both or neither shown for a few frames) | `DefaultEntityCreationRequestProcessor :358-360` | the display keys off the men being ACTIVE; name the creating node and the men's ownership groups |
+| **SV-14** | an instructor pin vs the policy (a forced split while engaged; a forced merge in front of a trainee) has no precedence rule | §16b | instructor > author > automatic, with a refusal reason through `InteractionOutcomes.Refused` (`TacticalIntentResolutionSystem.cs:150`) |
+| **SV-15** | the policy is list-shaped, not a small setting like `SetSkillAmplifier` (`SkillVerbs.cs:41-65`); recorded components are unmanaged | §16b | an unmanaged policy struct; detail areas as references to area entities, fixed capacity |
+
+### 17.1 The rulings *(user, `2026-11-14`, one by one — R-4252; they override the rows they name above)*
+
+| # | ruled |
+|---|---|
+| SV-1 ✅ | a fixed PER-SLOT table on the unit (alive / dead, health, ammo) — the single truth; Present derived; a FusionSquad decides deterministically WHICH slot each lost man was, names it in that loss's `ManDownedEvent`; the dead stay dead across splits |
+| SV-2 ✅ | a unit that can switch keeps ONE resolution-neutral type and class (`InfantrySquad`); the resolution is an explicit INPUT to the resolver and the fit check, looked up in a (class, resolution, order) → behaviour TABLE — never string concatenation; the FusionSquad TKB type is a PRESET, not a class (adjusts X-1, D-1) |
+| SV-3 ✅ | the unit's composite lists the PHYSICAL slots; the fusion soldier is a per-resolution stand-in chosen by the SV-2 table, never a slot |
+| SV-4 ✅ | soldiers created by a split: transient requests (⇒ the existing `ScenarioIgnoreTag`, never saved) carrying an EXPLICIT identity `EntityGuidDerivation.Derive(unit, "child:<slot>")` — kept by the creation system (`CreateEntityRequestSystem.cs:363-375`); no new flag (adjusts X-3) |
+| SV-5 ✅ | the planner's OUTPUT bound now: a unit component of planned posts per slot (position, window, watch, stance); the physical defence reads it as AUTHORED posts (D-2f); the planning step takes count / origin / area + roles and tier from the slot table, runs as its own step during Planning; the per-planner split is built with the stochastic slice |
+| SV-6 ✅ | a "Held" lifecycle participant acknowledges a created soldier only at the handover, registered unbounded; creation latency measured per echelon into the lead time |
+| SV-7 ✅ | the full roster of live slots is created and held; the latest slot table applies at the handover (slots that died meanwhile removed that tick); a Materialising → Aggregate edge removes the held soldiers when the trigger is withdrawn — logged, never seen |
+| SV-8 ✅ | the performance GOVERNOR stays DOCUMENTED, NOT implemented (🔒 user: *"keep it documented, as unimplemented addition, do not implement"*); if ever built: a deterministic cap (at most N physical soldiers), never frame time |
+| SV-9 ✅ | FIXED distance bands now (🔒 user: *"use B now, keep the A as future improvement (our terrains are small now, smaller than any sensor range - entities will be almost always physical)"*); bands from the focus's sensor footprint documented as the future improvement |
+| SV-10 ✅ | on a switch the re-resolved play restarts from the CURRENT situation (most plays plan from where the unit is; the defence takes SV-5's posts); phase mapping only where a play proves it needs it; a unit under an UNTYPED order cannot switch (refused with the reason) |
+| SV-11 ✅ | the component is **`AggregateUnit`** (not "Squad"); Present derived from the slot table, never stored twice |
+| SV-12 ✅ | ✔ measured: a recording refuses playback when a recorded component's layout changed (`FlightRecorder/SchemaValidator.cs`); only JSON documents migrate ⇒ the bound fields STAY, and a RULE: every field the stochastic slice may need exists in `AggregateUnit` before the FusionSquad ships recordings — a later addition is a deliberate, versioned break |
+| SV-13 ✅ | the AI node creates the soldiers; the normal per-type ownership split (no special case); displays follow ENTITY ACTIVITY, never the resolution field (🔒 user: *"nothing special needed"*) |
+| SV-14 ✅ | 🔒 user: *"ignore that trainee see the expansion. on instructor order winds always"* — an instructor's pin / split / merge is carried out AT ONCE (observed or in contact), logged; the author's policy ranks above the automatic manager |
+| SV-15 ✅ | the policy is an unmanaged fixed-size component on the World Environment (bands, lead time, merge margin, quiet time, the dormant cap) set by `SetResolutionPolicy`; detail areas are ordinary AREA entities marked "detail area" |
+
+## ⛔ HISTORY — §18–§20 as first approved (R-4256), before the §21 review revised them (R-4257) — ⛔ do not quote
+
 ## 18. Combat between stochastic units — the attrition step *(✅ C-1…C-8 APPROVED 2026-11-15 — R-4256)*
 
 **The proven solution:** a heterogeneous Lanchester exchange resolved per (firing system type × target class) pairing from a killer–victim table
@@ -312,7 +562,7 @@ modified by range, the target's posture and cover, the firer's suppression; fire
 | **C-7** | ⛔ no direct fire between a stochastic unit and a PHYSICAL entity (S-4) — it splits first (§16a) | the multi-resolution boundary |
 | **C-8** | the calibration TEST: the same engagement (a platoon defending a block against a company) resolved stochastically and physically (`cc-battalion`'s numbers) — the stochastic losses within an agreed band of the physical runs' mean | S-5 made checkable |
 
-## 19. What a stochastic unit does with an order *(✅ B-1…B-7 APPROVED 2026-11-15 — R-4256)*
+### 19. What a stochastic unit does with an order *(✅ B-1…B-7 APPROVED 2026-11-15 — R-4256)*
 
 | # | lean | why |
 |---|---|---|
@@ -324,7 +574,7 @@ modified by range, the target's posture and cover, the firer's suppression; fire
 | **B-6** | **ClearBuilding** = Attack on the building's area · **Embark / Dismount** = the mounted / dismounted POSTURE (S-9) when its holdings have the vehicles, else refused · **Recover** = refused (no individual wounded) | the order set stays complete without plays that have no aggregate meaning |
 | **B-7** | REPORTS through the existing staff: SITREP from `UnitStrength`, SPOT / CONTACT from its contacts (N-2), PROGRESS Set / TaskFailed / ObjectiveSecure / FallingBack from the play | the commanders above see a unit like any other |
 
-## 20. Slices — the build order *(✅ APPROVED 2026-11-15 — R-4256; user: "yes, approved, run the review")*
+### 20. Slices — the build order *(✅ APPROVED 2026-11-15 — R-4256; user: "yes, approved, run the review")*
 
 | slice | builds | needs |
 |---|---|---|
@@ -335,68 +585,3 @@ modified by range, the target's posture and cover, the firer's suppression; fire
 | **ST-4** | the resolution manager + policy (§16b), a stochastic battalion slice vs a stochastic battalion | ST-3 |
 | **ST-5** | de-aggregation (§16a) + re-aggregation, the Held participant, the planners' plan / assign split (D-P3) | ST-4 |
 
-## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ⏳ AWAITING RULINGS
-
-⭐ 33 raw findings, merged into 17. ✔ = re-measured by the coordinator at the line cited.
-
-| # | sev | the defect | evidence | ⭐ lean |
-|---|---|---|---|---|
-| RV-1 | ⛔ BLOCKER | C-1's "rate from `RateOfFire`" is the CYCLIC rate (M4 700 rpm); physical fire uses it only as the gap inside a burst — 9 rifles would wipe a squad in one step | ✔ `AimAndFireExecutor.cs:336` (60 / RateOfFire) · `NedTkbCatalog.cs` | an EFFECTIVE aimed rate per weapon × posture, measured from physical rails (a TKB field later); never `RateOfFire` |
-| RV-2 | ⛔ BLOCKER | P(kill│hit) is not a TKB number: physical damage is an EXPECTED value by armour facing × body zone into `Health`; a frontal rifle hit does 12.5 of 25. Drawing whole kills also loses wounds the slot table holds | ✔ `ArmorModel.cs:119-127` · `DamageCalculationSystem.cs:73-105` | draw HITS, give them to slots, apply `ArmorModel.HitDamage` × the mean zone factor to the slot's health; down below the threshold — the same numbers by construction, wounds survive a split |
-| RV-3 | ⛔ BLOCKER | C-8 has no metric, band or run count; physical combat has "no dice" and `SimRng` has no run seed ⇒ every run is the same run (also kills §10's Monte-Carlo use); `cc-battalion` is not a platoon-vs-company fight | ✔ `HitModel.cs:13` · ✔ `SimRng.cs:66-74` | a recorded RUN SEED mixed into `SimRng`; a calibration LADDER (9 v 9 open at 100/200/300 m → + MG → a defended building → + IFV/ATGM); metrics loss-exchange ratio + time to 50 % losses; ≥ 30 seeds each; pass = stochastic mean inside the physical 95 % CI ± 15 % |
-| RV-4 | ⛔ BLOCKER | the victim-pulls step counts a firer at full volume against every victim and nobody spends the firer's ammunition; `WeaponChoice` scores one target ENTITY, it cannot split over classes | `WeaponChoice.cs:22-45` · physical path `HitResolutionSystem` → serial `DamageSystem` | TWO per-entity phases, each writing only itself: A — each firer splits its fire over its contacts (suitability column in the C-1 table), spends its ammo, writes `FireAllocation`; B — each victim reads the enemies' allocations (declared tick-start reads) and draws its own losses and suppression |
-| RV-5 | ⛔ BLOCKER | a memberless unit reads Unknown (no roster) or Black (empty roster): `UnitStrength.Of`, `CombatEffective.IsInTheFight` / `IsStanding`, the staff's `AmmoOf` and `ObjectiveCensus` all walk member bodies — §19 B-7 "unchanged" is false; the branch was designed in the deferred FusionSquad (R-D4) and never built | ✔ `UnitStrength.cs:44-58` · ✔ `ObjectiveCensus.cs:24-37` · `StaffSystems.cs:103-111` | ST-0: each of these answers an `AggregateUnit` from its slot table (Present, ammo, standing); the census counts Present men at the footprint |
-| RV-6 | ⛔ BLOCKER | §19 omits order kinds commanders really send: Bound and FireAndMovement (PlatoonAttack's squads), Strike, ObserveFire, and behaviors' new SupportByFire; an unresolvable order is refused and, for a commander's minted request, the refusal goes to `Guid.Empty` — the commander waits to its deadline | ✔ `OrderKind.cs` (13 kinds) · ✔ `TacticalIntentResolutionSystem.cs:143-147` | B-8: Bound / FireAndMovement = the Attack play's approach; SupportByFire = Attack without closing (the base-of-fire share); Strike / ObserveFire refused (batteries and observers stay physical); ⭐ ANY refused order makes the receiver report PROGRESS TaskFailed |
-| RV-7 | ⛔ BLOCKER | §19 forgets the SOP: a stochastic unit keeps `InfantrySquad` ⇒ `BasicSquadSop`, whose reactions (`ReactToContact`, `SquadShelterFromAir`) are physical plays that fail with no men — reachable from ST-2, when contacts arrive | ✔ `BasicSquadSop.cs:183-191` | the SV-2 table also resolves the SOP by (class, resolution): one `StochasticUnitSop` — under fire BreakContact, suppressed Hold; built in ST-2 |
-| RV-8 | SHOULD | C-6 "point fire through the existing paths" never reaches a unit: `AreaEffectSystem` skips `IsHidden`, and every `UnitEntity` is hidden | ✔ `AreaEffectSystem.cs:175` · ✔ `PhysicalPresence.cs:26-29` | a stochastic sink in the serial `AreaEffectSystem` (burst ∩ footprint → slot health + suppression), its order against the attrition phases stated; ST-3 |
-| RV-9 | SHOULD | physical ↔ stochastic window: before the handover a physical weapon (mount range to 4000 m, beyond the 400 m band) can neither see nor hit the unit, and in ST-1…ST-4 a stochastic Attack on a physical objective walks in untouched | `PhysicalPresence.cs:27` · SV-9 · C-7 | the policy checks band ≥ the largest enemy weapon range + lead time; a physical weapon with the unit in range forces D-P5's fallback handover at once; until ST-5 an order whose target is physical is refused (TaskFailed) |
-| RV-10 | SHOULD | nothing replicates the new state; a display node shows no footprint, strength or SITREP | `Replication/Map/*Translators.cs` (opt-in per component) | ST-0: descriptors + egress/ingress translators for `AggregateUnit` and the slot table |
-| RV-11 | SHOULD | the recorded layout is not complete before the first recording (SV-12): stress, last-fire time, `Prepared`, the `Splitting` stage, the per-pair detection levels arrive slice by slice; and `EntityCommandBuffer` refuses a component over 1024 B, which a company's slot table can pass | ✔ `EntityCommandBuffer.cs:39` · `SchemaValidator` | ST-0 declares every field from §14–§19; a fixed slot capacity per echelon, each recorded struct ≤ 1024 B (header + slot chunks) |
-| RV-12 | SHOULD | C-4/C-5 merge two mechanisms and use the wrong constants: near-miss `UnderFire` (σ ×2 for 5 s) and stress (calms 0.03/s, ×2 in cover / leader near / 30 s quiet); "+0.25 per man lost" is the HIT man's constant (survivors get 0.2 within 15 m); D-7's squad nerve is unbuilt | `HitModel.cs:24-49` · `StressSystem.cs:98-103` · `Stress.cs:25-53` | two unit states: a suppressed share (rounds per exposed man, last 5 s) and stress PER SLOT with the `StressModel` constants; a broken slot is not standing ⇒ the same rout rule as physical |
-| RV-13 | SHOULD | reports: B-3 Defend never sends Set (commanders wait for it); FallingBack is retired; PhaseLine per objective, REQUEST and LACE are missing | `SquadDefendBehavior.cs:880` · `CompanyBehaviors.cs:813` · `PlatoonAttackBehavior.cs:411` | B-3 reports Set when the area is occupied; B-4 takes Objective1..N and reports PhaseLine each; falling back ends as BreakContact Set or TaskFailed; REQUESTs from the staff off the contact pool (after RV-5) |
-| RV-14 | SHOULD | slices: no acceptance per slice; ST-4's manager requests splits nothing performs until ST-5; ST-0's step ⑥ (route the commanders' `Assign` sites) is cross-lane, its "18 sites" is stale, and routing a kind needs a neutral params DTO per kind | `CommandNodes.cs:89-98` · `OrderKind.cs:21-23` | one rail per slice + the parallel checks (ST-1 arrival vs M-2's prediction · ST-2 detection vs range · ST-3 the RV-3 ladder · ST-5 split → merge, identity kept); the manager moves into ST-5; step ⑥ is the behaviors lane's, re-inventoried after AU-7, the params DTOs decided first |
-| RV-15 | SHOULD | the closed form P(hit) × P(kill) cannot cover guided missiles (hit from the flight sim), the 13/34 mounts with no dispersion (HitChance = 1 at any range), or HE against men (an area effect); "light / heavy armour" drops facing, accumulated health and mobility kills | `HitModel.cs:118-121` · `MissileDto` · `WarheadDto` | generate the table OFFLINE by running the physical engagement models in a harness (the higher-resolution-model practice); closed form for small arms only; target class = platform type × aspect mix, K- and M-kill outcomes |
-| RV-16 | SHOULD | the draw is unspecified: a binomial with p = expected / n exceeds 1; the fixed loss order (MG crew and leader last) keeps firepower longer than physical targeting | C-3 · X-4 | p = 1 − exp(−λ / n); the falling slot drawn by seeded draw weighted by exposure |
-| RV-17 | NIT | hygiene: STATUS block stale (says §14–§16b "NOT accepted", rides the FusionSquad); §10 table and X-1 string-keyed names superseded by SV-2 but unmarked; SV-11 typo; X-2 should DERIVE the order (`BehaviorStartRecord`), not store it; routes arrive over ticks (10 Hz, 256 per tick); drawing is 2-D only; new cross-unit reads declared in `BrainReads`; cover / posture factors are "calibrated", not "derived"; B-4 needs a base-of-fire term in C-2; wrong `AreaEffectSystem` line cited | `CurrentOrders.cs:41-53` · `PathfindingBatchData.cs:52` | fix all in the ruling commit |
-
-⭐ **What the reviewers found sound:** simultaneous fire (each writes only itself from last step's state) fits the parallel rule · `HitModel.HitChance` and `ArmorModel` give P(hit) and penetration for small arms · N-3 is true by construction · the route planner takes a request from a bodyless unit · a unit's own `SimTransform` is not overwritten by `UnitCentroidSystem` · ST-0's "CE-4612 ①–⑤ built" is correct · no hot-path allocation is implied.
-
-## 17. ⛔ The critical review — `2026-11-14` *(the multi-resolution reviewer; ✔ re-read by the coordinator)* — ✅ ALL RULED by the user one by one (R-4252); §17.1 the rulings
-
-| # | finding | evidence | ⭐ lean |
-|---|---|---|---|
-| **SV-1** | **a dead man comes back** — the state keeps COUNTS (`Men`, holdings); X-4 rebuilds the men by a fixed rule ⇒ private slot 3, killed at 10:02, lives again after a merge and a new split (contradicts the recording and the AAR) | §13 X-4 | ⭐ **binds NOW**: a fixed PER-SLOT table on the unit (alive / dead, health, ammo); `Men` is derived from it (one owner); a FusionSquad decides deterministically WHICH slot each lost man was |
-| **SV-2** ✔ | **the routing name collides** — `BehaviourName = className + orderName` (`OrderResolver.cs:58`); `Fusion` + `InfantrySquad` = `FusionInfantrySquad…`, the same string as a class named `FusionInfantrySquad` (TKB 307) ⇒ the TYPE keeps deciding after a switch; the inverse `ClassOfBehaviour` (used by `BehaviorFit`, `TaskPicker`) cannot split a resolution prefix; all four `Resolve` callers pass only a DIS type | `OrderResolver.cs:56-66`, `TacticalIntentResolutionSystem.cs:142`, `CommandVerbs.cs:108`, `OrderMenu.cs:270` | ⭐ **adjusts X-1**: a resolution-NEUTRAL type and class for any unit that can switch; the resolution an explicit PARAMETER of `Resolve` / `BehaviorFit` (a table, not string concatenation); TKB 307 is NOT a class |
-| **SV-3** | the children come from the wrong composite — 307 lists one FusionSoldier | §13 X-3 | the unit's composite lists the PHYSICAL slots; the fusion soldier is a per-resolution stand-in, not a slot |
-| **SV-4** ✔ | **identity of created men** — the engine already derives a child's identity `child:{InstanceId}` from the parent (`CreateEntityRequestSystem.cs:540, :654-659`) ⇒ X-3's `<unit>/<slot>` is a duplicate mechanism; a TRANSIENT entity gets no identity; a non-transient one is saved into the scenario (a reload doubles the unit) | `MacroInsertion.cs:33-40` | ⭐ **adjusts X-3**: reuse the `child:` derivation + a "run-time child" flag (stable identity, never saved) |
-| **SV-5** | planning while stochastic has no home — one active behaviour per brain; the plan's state lives in the running play's params; it reads each man's proficiency and role | `SquadDefendBehavior.cs:491-578` | D-P3's PLAN takes roles / tier from the holdings and writes a unit COMPONENT (the P-3 allocation) the physical play reads as authored posts — bind that OUTPUT shape, not the planners |
-| **SV-6** | "Constructing" is the wrong holding tool — it activates on the module acks and a bounded timeout DESTROYS (a 30 s hold kills the men); construction reopens on a seek | `EntityLifecycleModule.cs:370-380, :472-482, :595-605` | a "Held" participant that acks at the handover (unbounded); creation latency measured into D-P1's budget |
-| **SV-7** | stale between materialising and the handover — losses shrink the count after the men exist; no exit when the trigger is withdrawn | §16a | create the FULL roster, kill / remove the surplus at the handover; a Materialising → Aggregate edge that removes the held men |
-| **SV-8** | the performance governor is WALL-clock ⇒ splits differ per machine, the stepped hash diverges | CLAUDE.md F-3 | a budget in sim terms (entities, steps) or a recorded operator decision |
-| **SV-9** | **trainees see men appear** — a tank's optics reach 2–3 km: an empty village, one fusion man at 1.4 km, nine men at 400 m; a drone 3 km away sees nothing | §16b bands | bands from the focus entity's SENSOR footprint (optics range, camera frustum); the split ("observable") and merge ("unobserved") tests from the same model |
-| **SV-10** | a switch restarts the play from Start (plan, survey, phase 1); only `Order.*` orders can be re-resolved | §13 X-2 | the play PHASE in the X-4 mapping; a unit under a concrete-name order cannot switch |
-| **SV-11** | two owners of the men count (`UnitHoldings` and `AggregateUnit.Men`); the component is named "Squad" though S-6 makes it any echelon | §12 | ⭐ **binds NOW**: one owner (SV-1's slot table); rename `AggregateUnit` → `AggregateUnit` before it is recorded |
-| **SV-12** | some "binds now" items may be premature (M-3, N-4 fields nothing writes yet; P-3's shape with the planners' inputs unmeasured); "a later field is a migration" was never measured | §14, §15, §16 | ⏳ MEASURE what the recorder does when an unmanaged struct grows; if it tolerates it, defer M-3 / N-4 / P-3 |
-| **SV-13** | network and display timing — the creating node owns the men; the `Resolution` field and the men's activation reach a display node at different times (both or neither shown for a few frames) | `DefaultEntityCreationRequestProcessor :358-360` | the display keys off the men being ACTIVE; name the creating node and the men's ownership groups |
-| **SV-14** | an instructor pin vs the policy (a forced split while engaged; a forced merge in front of a trainee) has no precedence rule | §16b | instructor > author > automatic, with a refusal reason through `InteractionOutcomes.Refused` (`TacticalIntentResolutionSystem.cs:150`) |
-| **SV-15** | the policy is list-shaped, not a small setting like `SetSkillAmplifier` (`SkillVerbs.cs:41-65`); recorded components are unmanaged | §16b | an unmanaged policy struct; detail areas as references to area entities, fixed capacity |
-
-### 17.1 The rulings *(user, `2026-11-14`, one by one — R-4252; they override the rows they name above)*
-
-| # | ruled |
-|---|---|
-| SV-1 ✅ | a fixed PER-SLOT table on the unit (alive / dead, health, ammo) — the single truth; Present derived; a FusionSquad decides deterministically WHICH slot each lost man was, names it in that loss's `ManDownedEvent`; the dead stay dead across splits |
-| SV-2 ✅ | a unit that can switch keeps ONE resolution-neutral type and class (`InfantrySquad`); the resolution is an explicit INPUT to the resolver and the fit check, looked up in a (class, resolution, order) → behaviour TABLE — never string concatenation; the FusionSquad TKB type is a PRESET, not a class (adjusts X-1, D-1) |
-| SV-3 ✅ | the unit's composite lists the PHYSICAL slots; the fusion soldier is a per-resolution stand-in chosen by the SV-2 table, never a slot |
-| SV-4 ✅ | soldiers created by a split: transient requests (⇒ the existing `ScenarioIgnoreTag`, never saved) carrying an EXPLICIT identity `EntityGuidDerivation.Derive(unit, "child:<slot>")` — kept by the creation system (`CreateEntityRequestSystem.cs:363-375`); no new flag (adjusts X-3) |
-| SV-5 ✅ | the planner's OUTPUT bound now: a unit component of planned posts per slot (position, window, watch, stance); the physical defence reads it as AUTHORED posts (D-2f); the planning step takes count / origin / area + roles and tier from the slot table, runs as its own step during Planning; the per-planner split is built with the stochastic slice |
-| SV-6 ✅ | a "Held" lifecycle participant acknowledges a created soldier only at the handover, registered unbounded; creation latency measured per echelon into the lead time |
-| SV-7 ✅ | the full roster of live slots is created and held; the latest slot table applies at the handover (slots that died meanwhile removed that tick); a Materialising → Aggregate edge removes the held soldiers when the trigger is withdrawn — logged, never seen |
-| SV-8 ✅ | the performance GOVERNOR stays DOCUMENTED, NOT implemented (🔒 user: *"keep it documented, as unimplemented addition, do not implement"*); if ever built: a deterministic cap (at most N physical soldiers), never frame time |
-| SV-9 ✅ | FIXED distance bands now (🔒 user: *"use B now, keep the A as future improvement (our terrains are small now, smaller than any sensor range - entities will be almost always physical)"*); bands from the focus's sensor footprint documented as the future improvement |
-| SV-10 ✅ | on a switch the re-resolved play restarts from the CURRENT situation (most plays plan from where the unit is; the defence takes SV-5's posts); phase mapping only where a play proves it needs it; a unit under an UNTYPED order cannot switch (refused with the reason) |
-| SV-11 ✅ | the component is **`AggregateUnit`** (not "Squad"); Present derived from the slot table, never stored twice |
-| SV-12 ✅ | ✔ measured: a recording refuses playback when a recorded component's layout changed (`FlightRecorder/SchemaValidator.cs`); only JSON documents migrate ⇒ the bound fields STAY, and a RULE: every field the stochastic slice may need exists in `AggregateUnit` before the FusionSquad ships recordings — a later addition is a deliberate, versioned break |
-| SV-13 ✅ | the AI node creates the soldiers; the normal per-type ownership split (no special case); displays follow ENTITY ACTIVITY, never the resolution field (🔒 user: *"nothing special needed"*) |
-| SV-14 ✅ | 🔒 user: *"ignore that trainee see the expansion. on instructor order winds always"* — an instructor's pin / split / merge is carried out AT ONCE (observed or in contact), logged; the author's policy ranks above the automatic manager |
-| SV-15 ✅ | the policy is an unmanaged fixed-size component on the World Environment (bands, lead time, merge margin, quiet time, the dormant cap) set by `SetResolutionPolicy`; detail areas are ordinary AREA entities marked "detail area" |
