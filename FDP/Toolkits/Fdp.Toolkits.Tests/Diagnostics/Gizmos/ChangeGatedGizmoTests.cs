@@ -192,5 +192,36 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             for (int i = 0; i < 10; i++) rig.Frame();
             Assert.Equal(10 * 30, rig.PlainGizmo.Draws);
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ CE-4342 (ui, 2026-11-15) — the threaded editor's presentation world A after an in-place RESTORE of S (an Edit-mode Undo): A takes S's entity index
+        /// by a pull (<c>SyncPresentationFrom</c>) and the restore moves the world epoch, which the pull carries; the match pass must not be skipped on last
+        /// frame's lists. 📐 Measured live: after a threaded Undo a stale match drew an entity that had lost its component ⇒ the projector threw ⇒ the whole
+        /// gizmo group aborted every frame and the map went BLANK (78 primitives → 1). 🔴 Red-proof (compiles): no <c>WorldEpoch.Moved</c> in Execute ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4342_AfterARestorePulledIntoThePresentationWorld_TheMatchPassRuns_NoStaleEntityIsDrawn()
+        {
+            using var s = GizmoTestRepo.Create();
+            using var a = GizmoTestRepo.Create();
+            var es = new List<Entity>();
+            for (int i = 0; i < 6; i++) { var e = s.CreateEntity(); s.AddComponent(e, new GizmoTestCompA { Value = i }); es.Add(e); }
+            var mask = new BitMask512(); mask.SetBit(ComponentType<GizmoTestCompA>.ID);
+            var except = new BitMask512();
+            var gizmo = new PureGizmo(declare: false);
+            var reg = new StatelessGizmoRegistry(); reg.Register(gizmo, new[] { typeof(GizmoTestCompA) });
+            var buffer = new DebugPrimitiveBuffer(4096);
+            var system = new StatelessGizmoSystem(reg, buffer);
+            void Frame() { s.Tick(); a.SyncPresentationFrom(s, mask, except); a.Tick(); buffer.EndFrame(0f); system.Execute(a, 0f); }
+
+            Frame(); Frame();
+            Assert.Equal(6, buffer.GetFrame().Length);
+
+            // the restore: S loses the component on two units (the "before" did not have it) and its epoch moves (AfterRestore → WorldEpoch.Restored)
+            s.RemoveComponent<GizmoTestCompA>(es[1]); s.RemoveComponent<GizmoTestCompA>(es[4]);
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Restored(s);
+            Frame();
+            Assert.Equal(4, buffer.GetFrame().Length);
+        }
+}
 }

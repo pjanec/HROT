@@ -1,8 +1,13 @@
 <!--STATUS
 state: LIVE
-build-state: NOT-BUILT
-verified: 2026-08-28 (coordinator source scan)
-updated: 2026-09-20 — ⭐ THE PREREQUISITE LANDED. UXI-11 is ☑ COMPLETE (S-1..S-6), so §1.4's demand is
+build-state: BUILT (the map half: B-17 P5, 2026-11-08; made REAL in the product by CE-4342, 2026-11-15 — see current-answer)
+verified: 2026-11-15 (ui, CE-4342 — a real editor driven with X input: STATUS_Ui_Group_Drag.md)
+updated: 2026-11-15 — ⭐ CE-4342 (ui): the map half is BUILT and VERIFIED LIVE. P5 (DESIGN_Map_Interaction.md) built the rows (Shift-click add,
+  Ctrl-click toggle, Alt-click cycle, Shift-band add) and GroupTransform (a drag / rotate on a member moves the whole selection, ONE undo step) —
+  ⛔ but the terminal never put the held modifiers on the left press's Started, so in the product a Shift / Ctrl click REPLACED the selection
+  (measured live). Fixed in the terminal (GizmoMap DebugGizmoLayer.HeldModifiers → GizmoInteractionProxyTool startedActionId). The fan-out of
+  the entity menu over the selection is CE-4620 (READY, not this batch).
+  ⛔ HISTORY — 2026-09-20 — ⭐ THE PREREQUISITE LANDED. UXI-11 is ☑ COMPLETE (S-1..S-6), so §1.4's demand is
   MET: ISelectionState now carries Add / Remove / SetMultiple / Clear
   (FDP/Engine/Fdp.Presentation/Vis2D/Abstractions/ISelectionState.cs:54-69), implemented once by
   EcsSelectionState over the ECS SelectionState component. ⛔ §1.4's text below still reads as a
@@ -11,14 +16,15 @@ updated: 2026-09-20 — ⭐ THE PREREQUISITE LANDED. UXI-11 is ☑ COMPLETE (S-1
   design's own half. ⚠ Also note UXI-11 S-4b made the map's right-click BUTTON-SPECIFIC precisely so a
   left-click inside a multi-selection still narrows it to one — read UX_Feature_Selection.md §2.7.14
   before designing the modifier rules.
-current-answer: NOT-BUILT (design only; the map half). SelectionInteractionSystem map additive-click is still a TODO; no modifier plumbing. Only the pre-existing inspector-list ctrl/shift exists.
+current-answer: the map half is BUILT — DESIGN_Map_Interaction.md "AS-BUILT — P5" and its "CE-4342 reopened" section (the as-built rows, GroupTransform, the
+  terminal's modifiers, the live matrix). §1–§3 below are the original design (2026-08-13); ⛔ the "NOT-BUILT … still a TODO" status line under the title is HISTORY.
 related-designs:
   - DESIGN_Map_Interaction.md — E8 stage P5 builds this design's open half (map Shift / Ctrl, fan-out of move / rotate / delete / order over the selection)
 -->
 # Feature design — multi-select
 
 > **Design for [UXI-24](UX_Issues.md#uxi-24) · drafted 2026-08-13.** Delivers
-> [UXR-91](UX_Requirements.md#uxr-91). **Status: ❌ NOT-BUILT (design only; the map half) — `SelectionInteractionSystem` map additive-click is still a TODO, no modifier plumbing; only the pre-existing inspector-list ctrl/shift exists.**
+> [UXR-91](UX_Requirements.md#uxr-91). **Status: ✅ BUILT (the map half — B-17 P5, verified live by CE-4342 `2026-11-15`; the menu's fan-out is CE-4620).** ⛔ *SUPERSEDED status (2026-08-13): "NOT-BUILT (design only; the map half) — `SelectionInteractionSystem` map additive-click is still a TODO, no modifier plumbing".*
 > Depends on [UXI-11](UX_Feature_Selection.md) (one store) and [UXI-03](UX_Feature_Entity_Action_Vocabulary.md)
 > (the descriptor that carries fan-out).
 

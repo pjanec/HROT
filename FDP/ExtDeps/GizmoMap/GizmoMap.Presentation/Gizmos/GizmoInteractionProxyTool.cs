@@ -15,7 +15,8 @@ namespace GizmoMap.Presentation
     /// - Uses a callback delegate instead of FdpEventBus.
     /// - Uses an optional exit callback instead of MapCanvas.PopTool().
     /// - Callback carries actionId and stateFlags so the same delegate handles RawInput.
-    ///   For Started/DragUpdate/Commit/Cancel, actionId=0 and stateFlags=0.
+    ///   For DragUpdate/Commit/Cancel, actionId=0 and stateFlags=0; ⭐ CE-4342 — Started carries the press's button and held modifiers
+    ///   (<c>startedActionId</c>: <c>MapMouseButton.Left | ShiftMask …</c>), the contract <c>GizmoInteractionStartedEvent.Button</c> documents.
     /// </summary>
     public sealed class GizmoInteractionProxyTool
     {
@@ -32,7 +33,8 @@ namespace GizmoMap.Presentation
             Action? onExit = null,
             CoordinateSpace space = CoordinateSpace.World,
             float initialZ = 0f,
-            Func<float>? height = null)
+            Func<float>? height = null,
+            int startedActionId = 0)
         {
             _height = height;
             _token         = token;
@@ -42,7 +44,7 @@ namespace GizmoMap.Presentation
 
             // Fire Started event immediately on construction (mirrors OnEnter behaviour).
             _onInteraction?.Invoke(_token, GizmoInteractionEventKind.Started,
-                new Vector3(initialWorldPos.X, initialWorldPos.Y, initialZ), 0, 0);
+                new Vector3(initialWorldPos.X, initialWorldPos.Y, initialZ), startedActionId, 0);
         }
 
         // ⭐ CE-1033 S2 (M19) — the height of the point this tool reports (the 3-D map's terrain under the cursor; 2-D: 0).

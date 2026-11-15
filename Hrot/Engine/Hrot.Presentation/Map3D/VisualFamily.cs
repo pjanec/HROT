@@ -38,6 +38,10 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-6007 (showcase world, DESIGN_City_Battle_Showcase V-1b) — a bulldozer (class <c>Bulldozer</c>, a D9): two track units on a high-drive
     /// chassis, a hood, an open ROPS cab, a lifted blade on push arms with hydraulic rams, a rear ripper. ⛔ Not armoured-looking.</summary>
     Bulldozer,
+    /// <summary>⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §2a, §5 U-1) — the radar SAM truck (class <c>AirDefenceVehicle</c>, DIS <c>1.1.*.28.1</c>): an 8×8 wheeled
+    /// carrier, a cab, a launcher of four canisters on a turntable (turret 0 — it turns and elevates through <c>TurretPose</c>) and a search-radar mast whose
+    /// antenna spins while the radar radiates (<see cref="RadarActivity"/>).</summary>
+    AirDefenceVehicle,
 }
 
 /// <summary>
@@ -76,6 +80,7 @@ public static class VisualFamilies
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
+        ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
@@ -107,7 +112,7 @@ public static class VisualFamilies
         VisualFamily.Person => "_person",
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
-        VisualFamily.WheeledCar or VisualFamily.WheeledUtility => "_wheeled",
+        VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.AirDefenceVehicle => "_wheeled",   // ⭐ CE-4618 — a SAM truck is a wheeled body on the 2-D picker too
         _ => null,
     };
 

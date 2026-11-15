@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(77, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1)
-        Assert.Equal(77, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(78, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1)
+        Assert.Equal(78, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -607,6 +607,8 @@ public sealed class EntityTypeCatalogTests
         110 Technical (ZU-23-2) | dis 1.1.0.6.0.0.0 | family WheeledUtility | folder Platform/Land/Small Wheeled Utility Vehicle | icon _wheeled
         111 HMMWV (M2, no crew) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         112 Bulldozer (D9-class) | dis 1.1.225.9.1.0.0 | family Bulldozer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon -
+        113 HMMWV (drone jammer) | dis 1.1.225.6.9.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
+        114 Radar SAM vehicle | dis 1.1.222.28.1.0.0 | family AirDefenceVehicle | folder Platform/Land/Russia/Air Defence Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -619,11 +621,14 @@ public sealed class EntityTypeCatalogTests
         209 Sniper (M24) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         210 Marksman (M110) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         211 Marksman (SVD) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        212 Rifleman (anti-drone shotgun) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        213 Rifleman (anti-drone shotgun, red) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         304 Artillery Battery | dis 11.1.225.4.5.1.0 | family Unit | folder Units/Land/United States/Artillery | icon _unit
         305 Infantry Platoon | dis 11.1.225.1.4.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
+        306 Infantry Company | dis 11.1.225.1.5.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         400 UH-60A Black Hawk | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         401 F-16C Fighting Falcon | dis 1.2.225.1.0.0.0 | family Jet | folder Platform/Air/United States/Fighter/Air Defense | icon -
         402 C-130H Hercules | dis 1.2.225.4.0.0.0 | family CargoPlane | folder Platform/Air/United States/Cargo/Tanker | icon -
@@ -631,6 +636,8 @@ public sealed class EntityTypeCatalogTests
         404 UH-60A Black Hawk (doors off) | dis 1.2.225.21.0.0.0 | family Helicopter | folder Platform/Air/United States/Utility Helicopter | icon -
         405 A-10C Thunderbolt II | dis 1.2.225.2.0.0.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
         406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
+        407 Recon drone | dis 1.2.0.50.2.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
+        408 Bomber drone | dis 1.2.0.50.3.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
@@ -691,6 +698,7 @@ public sealed class EntityTypeCatalogTests
         8816 Point | dis - | family Unknown | folder Other | icon -
         8817 Terrain Block | dis - | family Unknown | folder Other | icon -
         8818 Terrain Feature | dis - | family Unknown | folder Other | icon -
+        8819 Wreck | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -
@@ -713,6 +721,7 @@ public sealed class EntityTypeCatalogTests
         1.1.*.8 Small Tracked Utility Vehicle
         1.1.*.9 Large Tracked Utility Vehicle
         1.1.*.10 Mortar
+        1.1.*.28 Air Defence Vehicle
         1.1.*.50 Weapon System (HROT)
         1.1.*.81 Car
         1.2 Air

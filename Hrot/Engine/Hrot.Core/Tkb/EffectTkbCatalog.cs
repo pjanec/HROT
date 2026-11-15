@@ -38,6 +38,10 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9) — a decoy flare burning as it falls, and a chaff cloud.</summary>
         public const long Flare = 7171, ChaffCloud = 7172;
 
+        /// <summary>⭐ CE-4618 (radar SAM U-2, docs/designs/air-attack/DESIGN_Radar_SAM.md §5) — a SAM's LAUNCH: the booster's flash at the canister's mouth (the round's
+        /// <c>Effect.Set.MuzzleFlash</c>, anchored to the muzzle like every flash) and the puff of smoke it leaves there (<c>FiringBlast.Launch</c>, ui).</summary>
+        public const long MissileLaunchFlash = 7173, MissileLaunchSmoke = 7174;
+
         /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit (or, ⭐ CE-1231, its explosive).</summary>
         public enum CalibreClass : byte { Small, Medium, Large, Huge }
 
@@ -136,6 +140,8 @@ namespace Hrot.Core.Tkb
                 [Backblast]         = ("Backblast",           V(EffectKind.Explosion, 0.8f, 2.6f, "#D8D0C0", 0.6f)),     // ⭐ CE-1090 — a dust cloud
                 [GunBlast]          = ("Gun blast",           V(EffectKind.Explosion, 1.1f, 6.0f, "#C8BA9C", 0.8f)),
                 [Flare]             = ("Decoy flare",         V(EffectKind.Flare, 5f, 2.2f, "#FFE9A8", 1.0f)),           // ⭐ CE-1115 — its life is the expendable's
+                [MissileLaunchFlash] = ("Missile launch flash", V(EffectKind.MuzzleFlash, 0.6f, 2.0f, "#FFC470", 0.3f)),   // ⭐ CE-4618 — the booster's flash, bigger than a tank gun's
+                [MissileLaunchSmoke] = ("Missile launch smoke", V(EffectKind.Smoke, 5f, 1.1f, "#D4D2CCB8", 2f)),          // ⭐ CE-4618 — the puff left at the mouth
                 [ChaffCloud]        = ("Chaff cloud",         V(EffectKind.Chaff, 8f, 15f, "#8A8A84C8", 3f)),
             };
 
@@ -170,6 +176,8 @@ namespace Hrot.Core.Tkb
             // ⭐ CE-1115 (§9 DV-1) — the expendables (backend's 6034 / 6035, BS-1 §5.4c): their release draws a moving decoy, no flash
             Set(tkb, MunitionTkbCatalog.TkbFlare, new MunitionEffectsDto { Release = Flare });
             Set(tkb, MunitionTkbCatalog.TkbChaff, new MunitionEffectsDto { Release = ChaffCloud });
+            // ⭐ CE-4618 (radar SAM U-2) — the SAM's launch: a booster flash at the mouth; it bursts in the air as a medium fragmentation burst (the proximity fuze)
+            Set(tkb, MunitionTkbCatalog.TkbRadarSamMissile, new MunitionEffectsDto { MuzzleFlash = MissileLaunchFlash, Explosion = ExplosionMedium, Decal = DecalMedium });
         }
 
         private static void Set(ITkbDatabase tkb, long ammoType, MunitionEffectsDto set)

@@ -247,6 +247,100 @@ public sealed class RtsCommandToolTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ CE-4342 (reopened 2026-11-15) — the user's path, END TO END from the TERMINAL: 📐 measured live (a real editor, real X input) — a Shift-click and a
+    /// Ctrl-click REPLACED the selection (the left press's Started carried no modifiers; only the raw route did), so "select three, drag one" moved only the
+    /// grabbed one. Here every press goes through the terminal's own pieces — <c>GizmoInteractionProxyTool</c> with the modifiers the terminal polled
+    /// (<c>HeldModifiers</c>) and the map's <c>DebugGizmoLayer.OnInteraction</c> onto the pack's interaction bus — and the drag gizmo is registered as the editor
+    /// registers it, with the REAL write router (<c>EntityWriteRouter.For</c>). Click A, Shift-click B, Ctrl-click C ⇒ three selected; drag B ⇒ all three move by
+    /// the drag's delta (offsets kept), D stays, ONE undo step restores all three.
+    /// 🔴 Red-proof (compiles): <c>GizmoInteractionProxyTool</c> passing 0 instead of <c>startedActionId</c> ⇒ the selection is C alone ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4342_ShiftAndCtrlClick_ThroughTheTerminal_BuildTheSelection_AndADragMovesAllThree_ThroughTheRealRouter()
+    {
+        _w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
+        var drag = new Hrot.ScenarioEditor.Gizmos.EntityDragGizmoDefinition(writerFactory: Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For);
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _w, BufferCapacity = 256, ContributeExtras = regs => regs.Gizmos.Register(drag) });
+        var terminal = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(16), mi.InteractionBus);
+        var a = Unit(10, ForceId.Friend, new Vector2(10, 10));
+        var b = Unit(11, ForceId.Friend, new Vector2(20, 10));
+        var c = Unit(12, ForceId.Friend, new Vector2(30, 15));
+        var d = Unit(13, ForceId.Friend, new Vector2(80, 80));
+        foreach (var e in new[] { a, b, c, d }) _w.AddComponent(e, new Hrot.Map.Common.Components.SelectionState());
+        foreach (var e in new[] { a, b, c, d }) _w.SetAuthority<SimTransform>(e, true);   // the editor's one node owns its units: the router applies here
+        foreach (var e in new[] { a, b, c, d }) _w.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = e });
+
+        void Frame()
+        {
+            mi.InteractionBus.SwapBuffers();
+            mi.SelectionInteraction.Tick(0.016f);
+            mi.DataDrivenSystem.Execute(_w, 0.016f);
+            mi.GlobalManager.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            mi.SelectionRequests.Execute(_w, 0.016f);
+            _w.Tick();
+        }
+        // ⭐ the terminal's press: the modifiers it polled ride on Started (what DebugGizmoLayer.HandleInput builds for a left press)
+        GizmoMap.Presentation.GizmoInteractionProxyTool Press(int id, Vector2 at, uint gizmoType, params Raylib_cs.KeyboardKey[] held)
+        {
+            int mods = GizmoMap.Presentation.DebugGizmoLayer.HeldModifiers(k => Array.IndexOf(held, k) >= 0);
+            var token = new Fdp.Toolkit.Diagnostics.Gizmos.GizmoPickToken { AnchorId = id, GizmoTypeId = gizmoType };
+            var tool = new GizmoMap.Presentation.GizmoInteractionProxyTool(token, at, terminal.OnInteraction, startedActionId: (int)MapMouseButton.Left | mods);
+            tool.HandlePress(at, Raylib_cs.MouseButton.Left);
+            return tool;
+        }
+        void Click(int id, Vector2 at, params Raylib_cs.KeyboardKey[] held)
+        {
+            var tool = Press(id, at, 0u, held);
+            tool.HandleClick(at, Raylib_cs.MouseButton.Left);
+            Frame(); Frame();
+        }
+
+        Assert.Equal((int)MapMouseButton.ShiftMask, GizmoMap.Presentation.DebugGizmoLayer.HeldModifiers(k => k == Raylib_cs.KeyboardKey.RightShift));
+        Assert.Equal((int)(MapMouseButton.CtrlMask | MapMouseButton.AltMask),
+            GizmoMap.Presentation.DebugGizmoLayer.HeldModifiers(k => k is Raylib_cs.KeyboardKey.LeftControl or Raylib_cs.KeyboardKey.LeftAlt));
+
+        Frame();
+        Click(10, new Vector2(10, 10));
+        Click(11, new Vector2(20, 10), Raylib_cs.KeyboardKey.LeftShift);
+        Click(12, new Vector2(30, 15), Raylib_cs.KeyboardKey.LeftControl);
+        Assert.Equal(new[] { a, b, c }.OrderBy(e => e.Index), mi.Selection.SelectedEntities.OrderBy(e => e.Index));
+
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        Fdp.Toolkit.Replication.Edits.EditSteps.Install(_w, new Hrot.Presentation.Edits.WorldUndoRecorder(history, new Fdp.Toolkit.Replay.WorldSnapshotRing(), () => true, () => 0.0));
+        var p0 = new[] { a, b, c, d }.Select(e => _w.GetComponent<SimTransform>(e).Position).ToArray();
+        var grab = Press(11, new Vector2(20, 10), drag.GizmoTypeId);
+        Frame();
+        grab.HandleDrag(new Vector2(25, 12), new Vector2(5, 2)); Frame();
+        grab.HandleDrag(new Vector2(30, 14), new Vector2(5, 2)); Frame();
+        grab.HandleClick(new Vector2(30, 14), Raylib_cs.MouseButton.Left);
+        Frame(); Frame();
+
+        var moved = new[] { a, b, c }.Select(e => _w.GetComponent<SimTransform>(e).Position).ToArray();
+        for (int i = 0; i < 3; i++)
+            Assert.True(Vector3.Distance(moved[i], p0[i] + new Vector3(10, 4, 0)) < 0.01f, $"unit {i}: {p0[i]} → {moved[i]}");
+        Assert.Equal(p0[3], _w.GetComponent<SimTransform>(d).Position);
+        Assert.Equal(3, mi.Selection.SelectedEntities.Count);
+        Assert.Equal(1, history.Count);
+        Assert.True(history.Undo());
+        for (int i = 0; i < 3; i++) Assert.Equal(p0[i], _w.GetComponent<SimTransform>(new[] { a, b, c }[i]).Position);
+
+        // ⭐⭐ CE-4342 — and the map still drags AFTER the Undo: 📐 measured live, the undo's in-place restore moved the world epoch, the gizmo system tore down
+        //   every drag gizmo and nothing re-created them (a restore publishes no ConstructionOrder) ⇒ the next drag moved NONE. 🔴 Red-proof (compiles):
+        //   DataDrivenGizmoSystem without AdoptLivingEntities ⇒ the second drag moves nothing ⇒ red.
+        Frame(); Frame();
+        Assert.True(mi.DataDrivenSystem.HasActiveGizmo(b), "the drag gizmo is back on the restored unit");
+        var again = Press(11, new Vector2(20, 10), drag.GizmoTypeId);
+        Frame();
+        again.HandleDrag(new Vector2(20, 30), new Vector2(0, 20)); Frame();
+        again.HandleClick(new Vector2(20, 30), Raylib_cs.MouseButton.Left);
+        Frame(); Frame();
+        for (int i = 0; i < 3; i++)
+            Assert.True(Vector3.Distance(_w.GetComponent<SimTransform>(new[] { a, b, c }[i]).Position, p0[i] + new Vector3(0, 20, 0)) < 0.01f, $"unit {i} after the undo");
+        Assert.True(history.CanUndo, "the second drag is a step too");
+    }
+
+    /// <summary>
     /// ⭐ CE-1133 — 🔒 user, 2026-10-16: <i>"The right-click-to-move also seems to affect also for no longer selected entities."</i>
     /// END TO END through the pack: select A and B, then click C alone (a Replace), let the selection system apply each request as
     /// the host does, then right-click the ground — exactly C is ordered. Pins that the order loop reads the selection the map

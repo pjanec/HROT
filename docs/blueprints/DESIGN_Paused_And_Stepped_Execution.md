@@ -20,6 +20,7 @@ related-designs:
   - docs/DESIGN_Deterministic_Network_Ids.md — §11b / §11g.5a own the world boundary and `WorldEpoch` (CE-2101), which §7f's reset pulls.
   - docs/DESIGN_Thermal_And_Acoustic_Sensing.md — owns the sound ring (§8.3); its read-as-of-the-reader's-time rule came from ④ (§7e).
   - docs/designs/mgmt-1/DESIGN.md — §9 owns checkpoints and dry runs (a checkpoint is a recorder keyframe; restoring one must continue the run) — the contract §7f.1's classes A/B/C serve.
+  - docs/UX/DESIGN_Map_Interaction.md — "CE-4342 reopened": the gizmo system re-adopts living entities after a restore (§7f's note)
   - docs/designs/replay-and-modules/DESIGN.md — owns what runs during replay and the rewind seam (§2.1l, PreviewStateBracket); §7f.1 is the same rewind reached by Stop.
 -->
 # ⭐⭐⭐ PAUSED AND STEPPED EXECUTION — **every system says when it runs; a step-only system reads every event since the last step**
@@ -432,6 +433,16 @@ loader into every system — and a background module needs the number in its sna
 > index) kept the old timeline's solve times, so every survey read *not due* after a reload. Fixed with the same `WorldEpoch.Moved` rule. ⭐ And
 > since B1 of the restore design, `Moved` also fires on an in-place RESTORE (a dry-run Stop, a checkpoint restore), while the new `Ended`
 > fires on a boundary only ([restore design §1c](../DESIGN_Checkpoint_And_Dry_Run_Restore.md)).
+
+> ⚠ **`2026-11-15` (CE-4342, ui) — a system that OWNS per-entity objects must re-adopt after a RESTORE.** `DataDrivenGizmoSystem` tore down every gizmo
+> instance on `Moved` and re-created one only on a `ConstructionOrder`; an in-place restore (an Edit-mode **Undo / Redo**, a dry-run exit, a checkpoint
+> restore) keeps its entities and publishes none ⇒ 📐 measured live: after one Undo no drag box was in the frame and nothing on the map could be dragged.
+> ⭐ Fixed in the system: on a restore (`WorldEpoch.RestoresOf` moved) it re-adopts the living entities its rules match; a boundary is unchanged.
+> ⭐ And `StatelessGizmoSystem`'s match lists (entity INDICES, skipped while CE-1480 G5's structural clock is still) are re-derived on `Moved`: on the
+> threaded editor's presentation world a pull carries the restore's epoch but not that clock ⇒ 📐 after a threaded Undo the stale lists drew a unit that
+> had lost a component, a projector threw and the map went blank. ⚠ The state rail (`WorldBoundaryProbe`) flags `Entity` fields only — an `int[]` of
+> indices escaped it, as CE-3301's network-id keys did.
+> 📄 [Map Interaction "CE-4342 reopened"](../UX/DESIGN_Map_Interaction.md).
 
 ### 7f.1 🔴 THE BOUNDARY THIS DOES NOT REACH — the editor's **Stop** (`CE-3298`, measured `2026-10-22`, ⏳ fix awaits the user)
 

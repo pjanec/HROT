@@ -19,6 +19,7 @@ related-designs:
   - blueprints/DESIGN_Time_Architecture.md — §17 stepped mode waits for background jobs (not the preview's mode); the worker must keep §17's determinism
   - blueprints/DESIGN_Paused_And_Stepped_Execution.md — tick modes, the event window; what runs on a paused frame
   - UX/DESIGN_Edit_Mode_Undo.md — edit steps and undo capture, which move to the command apply
+  - UX/DESIGN_Map_Interaction.md — "CE-4342 reopened": the map's group drag on A; its edit bracket forwarded to S (EditSteps), measured live threaded and serial
   - DESIGN_Scenario_Regression.md — the nightly scenario regression this design's verification runs in both schedulings
   - blueprints/batches/STATUS_Threaded_Kernel_Experiment.md — §12's measurements (X-1 publish, X-2 inventory, X-4 prototype, X-5 verdict)
 -->
@@ -47,6 +48,7 @@ diagram) is §14.8.*
 | every bus a sim / UI pair; values only the sim computes published as readouts | overnight D-9 | §14.8 | ✔ |
 | the whole gizmo block on the main thread over A; a drag is a ghost, the drop one job, refused ⇒ snap back | R-4211, U-3 | §14.6, §14.8 | ✔ |
 | undo: the recorder on S, the one history on the UI | U-1 | §14.8 (`ThreadedUndoSink`) | ✔ |
+| ⭐ an edit bracket opened on A (every map gizmo, every `EditSteps` caller) reaches S's recorder: `EditSteps.Begin/End/Cancel` on a world with no recorder but a `SimLink` POSTS the bracket to S's queue, in order with the writes — 📐 before it, a threaded drag recorded no step (CE-4342, measured live) | CE-4342 | `Fdp.Toolkits/Replication/Edits/EditOp.cs` `EditSteps`; [Map Interaction CE-4342](UX/DESIGN_Map_Interaction.md) | ✔ |
 | managed components immutable, replaced whole; a managed read never stamps | R-4210, N-9 | §14.8; Parallel Simulation §17 | ✔ |
 | the per-entity rule: own entity direct, others by command in the batch's buffer, cross reads from the tick-start view, follow-ups in batch order | R-4212, R-4214 | Parallel Simulation §18.5, §18.7 | ✔ brains, movement, threat, stress, callouts, ⭐ the weapon dispatcher (a unit claims the weapons it controls; a part of an owned entity is owned) |
 | squad work per squad | R-4212 ③ | Parallel Simulation §18.6 | ✔ |

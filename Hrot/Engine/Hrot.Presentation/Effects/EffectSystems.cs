@@ -188,6 +188,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                     case Hrot.UI.Common.Map3D.FiringBlast.Ground:
                         Spawn(cmd, tkb, EffectTkbCatalog.GunBlast, at + new Vector3(0f, 0f, 0.3f), null, now);
                         break;
+                    case Hrot.UI.Common.Map3D.FiringBlast.Launch:   // ⭐ CE-4618 — a SAM's smoke where the round left (the shot's origin = the canister's mouth), staying there
+                        Spawn(cmd, tkb, EffectTkbCatalog.MissileLaunchSmoke, fire.Origin != Vector3.Zero ? fire.Origin : at, null, now);
+                        break;
                 }
                 // ⛔ LR-4 (DESIGN_Visual_Effects.md §8.5 LR-E, R-271) — no decorative tracer any more: a tracer is a REAL round now (a
                 //   tracer munition, replicated by the muscle), drawn along its actual flight by ProjectileLayer. The effect type 7131

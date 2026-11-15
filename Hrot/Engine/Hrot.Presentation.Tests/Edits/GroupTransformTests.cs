@@ -270,6 +270,114 @@ public sealed class GroupTransformTests : IDisposable
         Assert.NotNull(Hrot.ScenarioEditor.Map.MapUiStates.SelectionOf(world));
     }
 
+    // ── ⭐ CE-4342 (reopened) — the editor's THREADED mode (mode 3): the gizmos run over the UI world A, the recorder and the writes are S's ──
+
+    /// <summary>Two worlds as the threaded editor composes them: A (the presentation, the gizmos' world, a <see cref="Fdp.Core.Threading.SimLink"/>
+    /// to S) and S (the simulation, where the recorder is installed — EditorSubsystem.WireWorldUndo N-7). The same units in both, by the same handles.</summary>
+    private static (EntityRepository A, EntityRepository S, Fdp.Core.Threading.SimJobQueue Jobs, EditHistory History, List<Entity> Units) StagedWorlds()
+    {
+        var a = new EntityRepository(); var s = new EntityRepository();
+        var units = new List<Entity>();
+        foreach (var w in new[] { a, s })
+        {
+            // ⚠ a one-node world (the editor's): with the shared registry's ownership tables registered and no owner on the units, the router asks an owner instead
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<NetworkIdentity>();
+            w.RegisterComponent<VehicleState>();
+            w.RegisterComponent<SelectionState>();
+            units.Clear();
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            w.SetSingletonManaged(map);
+            for (int i = 0; i < 4; i++)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new SimTransform { Position = new Vector3(10f * i, 5f * i, 2f) });
+                w.AddComponent(e, new NetworkIdentity { Value = 1000 + i });
+                w.AddComponent(e, new SelectionState());
+                map.Register(1000 + i, e);
+                w.SetAuthority<SimTransform>(e, true);   // this node owns its units (the router applies locally, as on the editor's one node)
+                units.Add(e);
+            }
+            w.Tick();
+        }
+        var jobs = new Fdp.Core.Threading.SimJobQueue();
+        a.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, s));
+        var history = new EditHistory();
+        EditSteps.Install(s, new WorldUndoRecorder(history, new WorldSnapshotRing(), () => true, () => 0.0));
+        return (a, s, jobs, history, units);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4342 — 📐 measured live (threaded editor, real X input): a band-selected group dragged on the 2-D and the 3-D map moved, but Undo said
+    /// <i>"nothing to undo"</i> — the gizmo brackets on A, the recorder is S's, so the step was never taken. Through the REAL router
+    /// (<c>EntityWriteRouter.For(A)</c> ⇒ the sim-thread writer): all three move on S by the same delta (the fourth stays), ONE step, and Undo puts all three back.
+    /// 🔴 Red-proof (compiles): <c>EditSteps.Begin/End</c> without the SimLink forward ⇒ <c>history.Count</c> 0 ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4342_Threaded_AGroupDragOnTheUiWorld_ThroughTheRealRouter_MovesAllOnTheSimWorld_AsOneUndoStep()
+    {
+        var (a, s, jobs, history, u) = StagedWorlds();
+        try
+        {
+            var selection = new EcsSelectionState(a);
+            Hrot.ScenarioEditor.Map.MapUiStates.Set(a, (Fdp.Toolkit.Vis2D.Abstractions.ISelectionState)selection);
+            selection.SetMultiple(new[] { u[0], u[1], u[2] });
+            var p0 = new Vector3[4]; for (int i = 0; i < 4; i++) p0[i] = s.GetComponent<SimTransform>(u[i]).Position;
+
+            var g = new EntityDragGizmo(a, u[1], Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(a));
+            g.OnInteractionStarted(default, p0[1]);
+            g.OnDragUpdate(p0[1] + new Vector3(20, 7, 0));
+            g.OnDragUpdate(p0[1] + new Vector3(40, 15, 0));
+            g.OnCommit(p0[1] + new Vector3(40, 15, 0));
+            jobs.Drain(s);   // the sim thread's turn
+            Assert.True(jobs.Faults == 0 && jobs.Executed == jobs.Posted, $"posted {jobs.Posted}, executed {jobs.Executed}, fault: {jobs.LastFault}");
+
+            for (int i = 0; i < 3; i++)
+            {
+                var p = s.GetComponent<SimTransform>(u[i]).Position;
+                Assert.True(MathF.Abs(p0[i].X + 40f - p.X) < 1e-3f, $"unit {i} on S: {p0[i]} -> {(Vector3)p}; on A {(Vector3)a.GetComponent<SimTransform>(u[i]).Position}; jobs {jobs.Posted}; steps {history.Count}");
+                Assert.Equal(p0[i].Y + 15f, p.Y, 3);
+                Assert.Equal(p0[i].Z, p.Z, 3);   // ⚠ the 2-D drag keeps the height
+            }
+            Assert.Equal(p0[3], (Vector3)s.GetComponent<SimTransform>(u[3]).Position);
+            Assert.Equal(1, history.Count);
+            Assert.True(history.Undo());
+            for (int i = 0; i < 4; i++) Assert.Equal(p0[i], (Vector3)s.GetComponent<SimTransform>(u[i]).Position);
+        }
+        finally { a.Dispose(); s.Dispose(); }
+    }
+
+    /// <summary>⭐ CE-4342 — the single-unit drag on a threaded editor is one step too (the same bracket path), and a cancelled group drag records nothing on S.</summary>
+    [Fact]
+    public void CE4342_Threaded_ASingleDragIsOneStep_ACancelledGroupDragRecordsNothing()
+    {
+        var (a, s, jobs, history, u) = StagedWorlds();
+        try
+        {
+            var selection = new EcsSelectionState(a);
+            Hrot.ScenarioEditor.Map.MapUiStates.Set(a, (Fdp.Toolkit.Vis2D.Abstractions.ISelectionState)selection);
+            Vector3 p0 = s.GetComponent<SimTransform>(u[3]).Position;
+            var single = new EntityDragGizmo(a, u[3], Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(a));
+            single.OnInteractionStarted(default, p0);
+            single.OnDragUpdate(p0 + new Vector3(9, 9, 0));
+            single.OnCommit(p0 + new Vector3(9, 9, 0));
+            jobs.Drain(s);
+            Assert.Equal(p0.X + 9f, s.GetComponent<SimTransform>(u[3]).Position.X, 3);
+            Assert.Equal(1, history.Count);
+
+            selection.SetMultiple(new[] { u[0], u[1] });
+            var g = new EntityDragGizmo(a, u[0], Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(a));
+            g.OnInteractionStarted(default, default);
+            g.OnDragUpdate(new Vector3(30, 30, 0));
+            g.OnCancel();
+            jobs.Drain(s);
+            Assert.Equal(1, history.Count);
+            Assert.True(history.Undo());
+            Assert.Equal(p0, (Vector3)s.GetComponent<SimTransform>(u[3]).Position);
+        }
+        finally { a.Dispose(); s.Dispose(); }
+    }
+
     // ── ⭐ B-17 P7 ⑤ — the look of the rotate ─────────────────────────────────────────────────────────────────────────────────────────────
 
     private static string TextOf(DebugPrimitiveBuffer b, DebugPrimitive p) => p.StringHash != 0 ? b.InternMap.TryResolve(p.StringHash)! : p.TextContent.ToString();
@@ -351,6 +459,47 @@ public sealed class GroupTransformTests : IDisposable
             Assert.True(delta == 0, $"a steady rotate frame (group={group}, aboutCentre={tab}) allocates {delta} B");
         }
         Assert.True(hints > 0);
+    }
+
+    /// <summary>⭐ CE-4342 (R-2084) — a steady GROUP-drag frame (the cursor moved: every unit's preview written, the gizmo drawn) allocates 0 B, on the one-world
+    /// editor and on the threaded one (A with a SimLink: the preview stays on A, nothing is posted until the release).</summary>
+    [Fact]
+    public void CE4342_ASteadyGroupDragFrame_Allocates0B_OneWorldAndThreaded()
+    {
+        Pick(0, 1, 2, 3, 4);
+        var g = new EntityDragGizmo(_world, _units[1], Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(_world));
+        AssertSteady(g, _world, "one world");
+        g.OnCancel();
+
+        var (a, s, jobs, _, u) = StagedWorlds();
+        try
+        {
+            var selection = new EcsSelectionState(a);
+            Hrot.ScenarioEditor.Map.MapUiStates.Set(a, (Fdp.Toolkit.Vis2D.Abstractions.ISelectionState)selection);
+            selection.SetMultiple(new[] { u[0], u[1], u[2] });
+            var t = new EntityDragGizmo(a, u[1], Fdp.Toolkit.Replication.Attributes.EntityWriteRouter.For(a));
+            long posted = -1;
+            AssertSteady(t, a, "threaded", () => posted = jobs.Posted);
+            Assert.Equal(posted, jobs.Posted);   // a steady drag frame posts nothing to the sim thread
+            t.OnCancel();
+        }
+        finally { a.Dispose(); s.Dispose(); }
+
+        static void AssertSteady(EntityDragGizmo gizmo, EntityRepository world, string what, Action? afterWarm = null)
+        {
+            var buffer = new DebugPrimitiveBuffer();
+            gizmo.OnInteractionStarted(default, new Vector3(100, 0, 0));
+            gizmo.OnDragUpdate(new Vector3(110, 5, 0));     // warm: the gesture opens (its one step, its member list)
+            gizmo.UpdateAndDraw(world, 0.016f, buffer); buffer.Clear();
+            gizmo.OnDragUpdate(new Vector3(115, 8, 0));
+            gizmo.UpdateAndDraw(world, 0.016f, buffer); buffer.Clear();
+            afterWarm?.Invoke();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            gizmo.OnDragUpdate(new Vector3(120, 12, 0));
+            gizmo.UpdateAndDraw(world, 0.016f, buffer);
+            long delta = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(delta == 0, $"a steady group-drag frame ({what}) allocates {delta} B");
+        }
     }
 
     // ── the picture ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
