@@ -457,7 +457,7 @@ and the car RAM attack. Please think about it and analyze what might be implemen
 | a car bomb | 🟨 `ua-car-bomb`: a boot charge, route + proximity trigger | §3a ASY-2 |
 | AI ramming a barrier | ⛔ by ruling: only a player's heavy vehicle (or the bulldozer on order) breaches | Breaching B-D1, B-D3 |
 
-### 12.3 The grey-zone motorcycle crossing (VEH-3) — leans
+### 12.3 The grey-zone motorcycle crossing (VEH-3) — leans *(⏳ not yet ruled — the user widened it to insurgents, §12.6)*
 
 ⭐ **The physics, stated honestly:** an FPV (30 m/s, our default; real ones 28–40 m/s) is FASTER than a bike off-road (14–17 m/s). Speed cannot outrun
 it — it SHORTENS THE EXPOSURE (fewer drones get a run) and makes the drone's lead harder; what saves a rider in its last seconds is a hard break
@@ -474,7 +474,7 @@ turn as it dives (our drone re-aims every 0.2 s at 120°/s with a 0.8 m contact 
 | MC-7 | the defender: the existing `DroneOperator` / `DroneTeam` FPV hunt, unchanged; optional decoy use later | no new defender code |
 | MC-8 | the test: 3 bikes × 2 men across ~1.5 km of open ground against two FPV operators; seeded runs measure crossings survived vs speed, spacing and the break turn | the user's scenario |
 
-### 12.4 The checkpoint (SQD-13) — leans
+### 12.4 The checkpoint (SQD-13) — ✅ CP-1…CP-5 APPROVED `2026-11-15` (R-4260)
 
 **The proven pattern** (vehicle checkpoint doctrine): warning signs far out → a serpentine of barriers that FORCES slow speed → a stop line → a search
 bay off the road → an overwatch weapon covering the approach → a reaction element; escalation of force by distance lines: signal → warning shot →
@@ -488,7 +488,7 @@ disabling shots (engine) → lethal at the driver; threat indicators: not slowin
 | CP-4 | **search**: an own-simulated car (with occupants) is stopped at the line, the occupants get out, `Custody` Search runs (finally raised); a SUMO car is waved through or held as traffic (a backend "hold this car" command on the traffic bridge) | SUMO cars carry no people |
 | CP-5 | the test: `ua-car-bomb` re-cast at a checkpoint — a routine car searched and released; a car that does not slow is laddered and stopped before the stand-off line, or reaches it and detonates | the existing car bomb becomes the acceptance |
 
-### 12.5 Ramming and the car bomb (VEH-4 / ASY-2) — leans
+### 12.5 Ramming and the car bomb (VEH-4 / ASY-2) — ✅ RM-1…RM-5 APPROVED `2026-11-15` (R-4260; RM-5 as leaned: an AI vehicle breaches a weak barrier ONLY on a `RamTarget` order, through `ContactBreach` — amends Breaching B-D1)
 
 | # | lean | why |
 |---|---|---|
@@ -500,4 +500,33 @@ disabling shots (engine) → lethal at the driver; threat indicators: not slowin
 
 ⭐ **Lean on the order:** design the checkpoint and ramming TOGETHER (they share the approach watch, the hostile act, the ladder and the car-bomb test)
 and the motorcycle separately; build MC-2 (off-road speed) first — it is engine-wide and every vehicle tactic depends on it.
+
+🔒 User, `2026-11-15`: *"Checkpoint and ramming is approved."* (R-4260)
+
+### 12.6 The motorcycle in insurgency and terrorism *(coordinator, `2026-11-15`; 🔒 user: "could we use something similar for Far East terrorist attacks, or in general for the movement of the terrorists or insurgents, and what kind of behavior might make sense using the motorcycle in such areas" — ANALYSIS, leans)*
+
+**What open sources show** *(⚠ a quick sweep — the Sahel and southern Thailand are sourced; the South-Asian pillion shooting is widely reported but was not verified in this sweep)*:
+
+| where | the use |
+|---|---|
+| the Sahel (JNIM, Mali / Burkina Faso, 2025–26) | MASSED motorcycles are the predominant tactic: rapid concentration, moving round fixed defences, instant dispersal after contact; often at night; one part of a combined assault (indirect fire, VBIEDs); cheap, and hard for air / drone strikes to find; dozens of motorcycle BANS since 2012 |
+| southern Thailand (Pattani, Yala) | the motorcycle BOMB: ridden into a market and parked among other bikes, then left (2019); beside a police station on a timer (2025); a sidecar bomb ridden to a CHECKPOINT, the riders escaping on a second, waiting bike (2026); two men on a bike throwing an IED at a government pickup |
+| South Asia (Pakistan, Afghanistan) | ⚠ unverified here: the two-up drive-by — the pillion shoots a target at a stop and the bike escapes into traffic; a charge stuck to a vehicle at a stop |
+
+⭐ **What makes the motorcycle the insurgent's tool, in one line:** it BLENDS (one of thousands in civilian traffic), it is FAST through narrow streets, it DISPERSES instantly, and it is cheap. ⇒ in our engine the behaviours are compositions of the SAME motorcycle (MC-1, MC-2) with what already exists — hidden weapons (Civilians §5h), charges, the hostile act, the checkpoint (R-4260).
+
+| # | behaviour (lean) | how it composes | ⛔ the gap it needs |
+|---|---|---|---|
+| IM-1 | ⭐ **`DriveBy`** — two up; ride to the target (a man, a vehicle at a stop, a post), slow alongside, the PILLION fires a burst or throws a grenade, escape at speed into traffic / a side street, split up | the hidden weapon revealed on the act (§5h), `HiddenTargetThrow`, the hostile act; escape = `BreakContact` on wheels | a passenger firing his OWN weapon from an exposed seat (exposed seats exist — `CarrierTkbTranslator.cs:110-120` — a seat that FIRES is unmeasured) |
+| IM-2 | ⭐ **parked motorcycle bomb** — ride in, park among other bikes / at a market / beside a post, walk away (or onto a waiting bike), detonate by timer or phone | the cargo charge (`Charges`, `TriggerIed` for the phone), `PlaceCharge`-style placement | a TIMER detonation; a charge carried by a two-wheeler |
+| IM-3 | **motorcycle VBIED at a checkpoint** — = R-4260's `RamTarget` with a two-wheeler; ⭐ the checkpoint must handle bikes (they slip through a serpentine meant for cars) | `RamTarget`, the checkpoint ladder | the checkpoint's lines sized for a bike too |
+| IM-4 | **sticky bomb** — at a stop (a traffic light, a checkpoint queue) the pillion attaches a charge to a vehicle and the bike rides off | a charge ATTACHED to another entity | ⛔ attaching a charge to a vehicle |
+| IM-5 | **swarm raid (Sahel)** — 20–100 bikes, two men each, converge on a post from several directions (often at night), fight, then DISPERSE in many directions at once | the motorcycle squad of §12.3 at scale; `PlatoonAttack` / `CompanyAttack` on bikes; dispersal = many `BreakContact`s on divergent routes | a dispersal play; night (existing weather / light) |
+| IM-6 | **scout / spotter / getaway** — a lone rider watches a patrol and reports to the cell (the "dicker"); a second bike waits to extract the bombers | `Sentry` + the report path; a waiting `MoveToLocation` | none — composition |
+| IM-7 | **blending in** — insurgent bikes ARE civilian traffic until they act: SUMO can drive motorcycles (a traffic type with SUMO's `motorcycle` class, as the cars are `TrafficVehicleDto`, `UrbanCombatTkbCatalog.cs:206, :439`) and an insurgent rides like one, neutral, his weapon hidden, until the act | traffic + identification (neutral → hostile on the act) | civilian motorcycles in the traffic catalogue |
+| IM-8 | **the counters, for the trainees** — a motorcycle ban as a scenario rule; "two men on one bike" as a suspicion indicator at a checkpoint; the checkpoint's bike lane | the checkpoint (R-4260), the suspicion indicators (CP-2) | the indicator |
+
+⭐ **Lean on the order:** ONE motorcycle (MC-1, MC-2) serves both the soldier and the insurgent — build it once; then **IM-1 drive-by** and **IM-2
+parked bomb** first (the commonest, cheapest, and they test the checkpoint and patrol scenarios trainees most need), IM-3 falls out of R-4260 for
+free, IM-5's swarm after the grey-zone dash (the same group play at scale); IM-4 last (a new attach mechanism).
 
