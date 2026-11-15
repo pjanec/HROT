@@ -536,7 +536,7 @@ them by construction); the red edge is today's dead path — the area effect nev
 
 ## ⛔ HISTORY — §18–§20 as first approved (R-4256), before the §21 review revised them (R-4257) — ⛔ do not quote
 
-## 18. Combat between stochastic units — the attrition step *(✅ C-1…C-8 APPROVED 2026-11-15 — R-4256)*
+### 18. Combat between stochastic units — the attrition step *(✅ C-1…C-8 APPROVED 2026-11-15 — R-4256)*
 
 **The proven solution:** a heterogeneous Lanchester exchange resolved per (firing system type × target class) pairing from a killer–victim table
 built from weapon data (the ATCAL / JTLS family): each step, each firer's expected kills = its live systems × rate × P(hit) × P(kill | hit),
