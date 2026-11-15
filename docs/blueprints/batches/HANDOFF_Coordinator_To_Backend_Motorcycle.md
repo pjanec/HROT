@@ -9,11 +9,23 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: the motorcycle, the engine half and the insurgent plays (CE-4621) — AUTONOMOUS
 
-**For:** the `backend` lane (its own id blocks). **From:** coordinator. **Dispatched at `8f6a635e6`**; ⛔ scope FROZEN there — later documents are
+**For:** the `backend` lane (its own id blocks). **From:** coordinator. **Dispatched at `d040c6f48`** *(re-stamped, rule 1a — unstarted; adds the fixed ids)*; ⛔ scope FROZEN there — later documents are
 FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-15`: *"I think the backend lane is already finished with the air defense job and might take this one. And the UI might take the
 visual part of it."* · decisions R-4261, R-4262, R-4263.
+
+## ⭐ The entity — fixed for BOTH lanes ([design §2a](../../designs/vehicle-tactics/DESIGN_Motorcycle.md))
+
+| what | the value |
+|---|---|
+| TKB type | `TkbEntityTypes.Motorcycle = 115` ("Motorcycle"; one type for soldiers, insurgents and civilian traffic) |
+| DIS | Kind 1 · Domain 1 · Category 80 (SISO *Motorcycle*) · Subcategory 1 |
+| entity class | `"Motorcycle"` = `1.1.*.80` in `EntityClassTable.cs` |
+| 3-D family | `VisualFamily.Motorcycle` keyed by `["Motorcycle"]` in `FamilyOfClass` + its `ShapeKit` |
+| seats | 0 = Driver (the rider) · 1 = the pillion, a FIRING seat (arc: both sides and the rear) |
+| SUMO | the type's own `TrafficVehicleDto { VClass = "motorcycle" }` |
+⭐ **YOU declare** the type, DIS, class, seats and the SUMO row; ⛔ NOT the family (ui does).
 
 ## 0. Start
 `git fetch origin coordinator backend ui behaviors`; on `backend`, merge `origin/coordinator` (and `origin/behaviors` — it carries the newest

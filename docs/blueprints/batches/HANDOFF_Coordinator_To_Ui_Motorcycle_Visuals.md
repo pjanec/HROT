@@ -9,10 +9,22 @@ related-designs:
 
 # HANDOFF — coordinator → `ui`: the motorcycle's look and the player on it (CE-4621 M-1v, M-2p) — AUTONOMOUS
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `8f6a635e6`**; ⛔ scope FROZEN there.
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `d040c6f48`** *(re-stamped, rule 1a — unstarted; adds the fixed ids)*; ⛔ scope FROZEN there.
 
 🔒 User, `2026-11-15`: *"the UI might take the visual part of it"* · *"the motorcycle also needs to be possessable and player can also embark it as a
 passenger (the one that can shoot while motorcycle drives)"* (R-4263).
+
+## ⭐ The entity — fixed for BOTH lanes ([design §2a](../../designs/vehicle-tactics/DESIGN_Motorcycle.md))
+
+| what | the value |
+|---|---|
+| TKB type | `TkbEntityTypes.Motorcycle = 115` ("Motorcycle"; one type for soldiers, insurgents and civilian traffic) |
+| DIS | Kind 1 · Domain 1 · Category 80 (SISO *Motorcycle*) · Subcategory 1 |
+| entity class | `"Motorcycle"` = `1.1.*.80` in `EntityClassTable.cs` |
+| 3-D family | `VisualFamily.Motorcycle` keyed by `["Motorcycle"]` in `FamilyOfClass` + its `ShapeKit` |
+| seats | 0 = Driver (the rider) · 1 = the pillion, a FIRING seat (arc: both sides and the rear) |
+| SUMO | the type's own `TrafficVehicleDto { VClass = "motorcycle" }` |
+⭐ **YOU declare** the family and its kit and map `["Motorcycle"]`; ⛔ NOT the type, DIS or class (backend does) — until they land, build against a test template with that DIS and class, then bind to `115`.
 
 ## 0. Start
 `git fetch origin coordinator ui backend`; on `ui`, merge `origin/coordinator`; push `chore: started motorcycle visuals at <sha>`. Status:
