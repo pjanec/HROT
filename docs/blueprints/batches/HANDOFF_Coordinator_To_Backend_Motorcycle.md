@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: LIVE — dispatched, not started — ⭐ OVERNIGHT, UNATTENDED
 updated: 2026-11-15
 current-answer: the whole file
 related-designs:
@@ -7,13 +7,30 @@ related-designs:
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — §12 the analysis and the open sources
 -->
 
-# HANDOFF — coordinator → `backend`: the motorcycle, the engine half and the insurgent plays (CE-4621) — AUTONOMOUS
+# HANDOFF — coordinator → `backend`: the motorcycle, the engine half and the insurgent plays (CE-4621) — OVERNIGHT, UNATTENDED
 
 **For:** the `backend` lane (its own id blocks). **From:** coordinator. **Dispatched at `d040c6f48`** *(re-stamped, rule 1a — unstarted; adds the fixed ids)*; ⛔ scope FROZEN there — later documents are
 FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-15`: *"I think the backend lane is already finished with the air defense job and might take this one. And the UI might take the
 visual part of it."* · decisions R-4261, R-4262, R-4263.
+
+
+## ⭐⭐⭐ OVERNIGHT, UNATTENDED — read this before anything else
+
+🔒 User, `2026-11-15`: *"make the handoffs the overnight, unattended ones, meaning that the AI agent takes decisions on its own based on his best
+judgment and doesn't stop until the feature is finished."*
+
+| the rule | |
+|---|---|
+| ⭐⭐⭐ **NOBODY IS THERE TO ANSWER** — never ask, never wait for approval, never end a turn on a question | every open choice: measure it, decide by the claim table (how the code IS + how the design MEANT it), build it, and record it as an `R-` lane decision *"for the user's review"* with what would change it |
+| ⭐⭐⭐ **DO NOT STOP UNTIL EVERY ITEM IS BUILT, GATED AND REPORTED** | a slice finishing is not the end — go straight to the next; the batch ends only when the last item's rails are green, its live check is done and the report is written |
+| ⭐⭐ **a failed premise stops ONE item, never the batch** (R-106) | write what failed and why in the status file, then do every item that does not depend on it; come back to it if a later item unblocks it |
+| ⭐⭐ **a defect you find is fixed where it lives**, with a rail in that feature's own suite (T-1), its design folded (obligation ⑤) — even if it is outside your slice, when small; a large one is filed as a row and worked around | |
+| ⭐⭐ **the other lane may not have landed** | build against a stand-in (a test template with the fixed ids below), keep going, re-bind when its work merges; `git fetch` the other lane at each slice's end and merge it when it has what you need |
+| ⭐ **commit and push at every slice's end**, and update the status file then — a container restart or a compaction resumes from it | |
+| ⭐ **when context runs low**: write the status file's *next step* precisely, then continue — never leave the batch half-reported | |
+| ⛔ **the only things you may NOT decide**: anything this handoff marks *NOT yours*, and reversing a user ruling — those are filed as findings in the report | |
 
 ## ⭐ The entity — fixed for BOTH lanes ([design §2a](../../designs/vehicle-tactics/DESIGN_Motorcycle.md))
 
@@ -57,6 +74,6 @@ T-1 first (each feature's own suites: the kinematics, embark / seats, weapon sys
 with `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; each new rail red-proved by a compiling mutation; `stepped-hash.py
 --threads 1,4,8`; 0 B per steady frame (R-2084); invariant output (R-4221). Build the TEST project in the fix loop; live runs in the background.
 
-## 4. The report — `STATUS_Backend_Motorcycle.md`
+## 4. The morning report — `STATUS_Backend_Motorcycle.md`
 per slice built / stopped and the design folded (obligation ⑤) · lane decisions with what would change each · the gate-report contract (rule 8)
 · ids allocated · ⭐ a note to `ui` naming the type id, the seat ids and the refusal reason the HUD shows.
