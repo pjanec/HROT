@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-14
+updated: 2026-11-15
 current-answer: §1 — the task in flight, the last green sha, what is next
 stale-below: §3 is the dated log (history)
 related-designs:
@@ -32,6 +32,7 @@ See [STATUS_Terrain.md](STATUS_Terrain.md) §1 — the list is kept there, once.
 
 ## 3. Log
 
+- `2026-11-15` — **close-out** ([STATUS_Terrain_Closeout.md](batches/STATUS_Terrain_Closeout.md)): CE-4403 / 4592 / 4593 / 4600 / 4604 closed, the plan BUILT; CE-4588's three rails and the geo rail (CE-5003) re-pointed — stale rails, no defect; CE-5004 (D-4, awaits AQ112) and CE-5005 (ui: the hint's glyphs) filed. Next: the optional CE-4594 design (handoff item 4), CE-5002 part 2.
 - `2026-11-15` — the batch gate: two of mine found and fixed (icons not in the font; CE-5000 part 3 reverted), every other red pre-existing (measured at `3c9c991d`). CE-5002 part 1 (the load warms the view tables).
 - `2026-11-14` (night) — the visual pass (`da1f877b`: crater soot drew as grass, the 2-D map drew no ditches / craters — both fixed), CE-5001 the contact cue across nodes (`437e529c`), V-29 handed to behaviors (R-5031), CE-5000 closed (`42aed17b`), V-15 bridges / tunnels (`a89b6220`), AQ112 for D-4, the barrage measured on city-battle + a bake latency defect fixed (`c086ce191`), CE-5002 filed.
 - `2026-11-14` — P-5 part 2b built (`4f1d7020`): draw panel rows, the Ground tab, the effect read-out, the tint, G-37; a drawn-shape birth defect fixed.

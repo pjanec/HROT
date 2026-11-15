@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DISPATCHED 2026-11-14 to the `terrain` lane (ids CE-5000…, R-5000…), autonomous — blueprints/batches/HANDOFF_Coordinator_To_Terrain.md; every task's design is ruled and has its UML and acceptance
-updated: 2026-11-14 (first version — coordinator)
+build-state: BUILT 2026-11-15 (the `terrain` lane; close-out blueprints/batches/STATUS_Terrain_Closeout.md) — every task row closed; named remainders: CE-5004 (D-4, awaits Architect Question 112), CE-4402 (the scale terrains re-imported), CE-5002 (the cold first bake), CE-5000 part 3 (debt), V-29 (behaviors, R-5031), the bulldozer's map gesture. Was: DISPATCHED 2026-11-14 to the `terrain` lane, autonomous
+updated: 2026-11-15 (BUILT — terrain lane close-out) · 2026-11-14 (first version — coordinator)
 current-answer: the whole file — §1 the order, §2 the tasks, §3 the gates every task carries, §4 what is NOT in the programme
 stale-below: nothing
 known-rot: none
