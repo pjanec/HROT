@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — the critical review §17 RULED (R-4252); open leans: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), §16b (as adjusted by §17.1) · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
+build-state: DESIGN — §10–§17 RULED (R-4248…R-4250, R-4252, R-4255); OPEN: §18 combat C-1…C-8, §19 behaviours B-1…B-7, §20 slices (leans 2026-11-15) · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
 updated: 2026-11-14 (split out of DESIGN_Aggregate_Squad.md — coordinator; section numbers kept, the ledger cites them)
 current-answer: the whole file — §10 scope and use cases · §12 vehicles (combined-arms units) · §13 de-aggregation (what binds now) · §14 movement · §15 sensors · §16 placing the men · §16a de-aggregation as a process · §16b who decides the resolution
 stale-below: §16 P-1 / P-2 (superseded by §16a, marked inline)
@@ -113,7 +113,7 @@ and its REAL vehicles, long before every man is created.*
 | **X-5** | switch one level at a time, before contact, with hysteresis; never while engaged | the standard answers to thrashing and discontinuity |
 | ⏳ not now | building the switch, the triggers, the cost per switch (a platoon is ~30 creations — measure when built) | — |
 
-## 14. Movement of a StochasticUnit — its shape and composition against the terrain *(leans; 🔒 user, `2026-11-14`: "what about movement of stochastical units? it will need likely a very specialized motion model counting with unit structure and size vs terrain.")*
+## 14. Movement of a StochasticUnit — its shape and composition against the terrain *(✅ M-1…M-4 APPROVED 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "what about movement of stochastical units? it will need likely a very specialized motion model counting with unit structure and size vs terrain.")*
 
 **The proven solution:** aggregate movement plans on the road / cross-country network, moves at the SLOWEST element's speed × a terrain factor ×
 posture, and carries a FORMATION: a road column (length = vehicles × spacing — its tail arrives later and is exposed along the road) or a
@@ -132,7 +132,7 @@ deployed line (frontage × depth). Trafficability comes from the composition (wh
 | ⭐ **M-3** | **binds NOW**: the unit's state gains `Formation` (column / line / assault), `Depth`, `Heading`; in a column the unit is a SEGMENT of its path (the head moves, the tail follows `Depth` behind) — its exposure (a burst on the road) and its arrival time come from it | adding recorded fields later is a migration; the segment is what makes a column real |
 | **M-4** | a dedicated, deterministic PATH FOLLOWER for the unit's point (no hull guard, no avoidance; congestion and bridges later from the road graph) — ⛔ not the body kinematics | the hull guard and the walker are wrong for a 300 m column |
 
-## 15. Sensors of a StochasticUnit — detection as a probability *(leans; 🔒 user, `2026-11-14`: "similarly the sensors for those unit would need to work differently")*
+## 15. Sensors of a StochasticUnit — detection as a probability *(✅ N-1…N-5 APPROVED 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "similarly the sensors for those unit would need to work differently")*
 
 **The proven solution:** detection per observer–target pair per step as a probability: line of sight (sampled across both footprints), range,
 the target's SIGNATURE (its size, vehicles, and activity: moving or firing raises it), the observer's sensors (optics, thermal), vegetation and
@@ -145,7 +145,9 @@ weather / night; glimpses ACCUMULATE into a contact.
 | **N-3** | a stochastic observer MAY detect physical entities (one way — it only reads them); physical sensors do not see a stochastic unit (S-4 until de-aggregation) | observing is cheap and safe; being seen needs a body |
 | ⭐ **N-4** | **binds NOW**: the unit's state gains `Activity` (moving / firing — the signature) and the holdings' slots carry SENSOR systems (optics, thermal, radar) beside weapons | the signature and the observer quality are inputs N-1 cannot invent later |
 
-## 16. Placing the men on de-aggregation — a squad holding a building, a battalion holding a village *(leans; 🔒 user, `2026-11-14`: "de-aggregation in case the stochatical to physicsl. imagine squad unit holds a building for example - it wuld need to place the soldies somehow reasonably. imagine a battalion holding a village etc")*
+| **N-5** ✅ | detection ACCUMULATES: a small fixed table of detection levels per observer–target pair; each step adds the step's chance; a contact is reported when the level crosses a threshold and fades when the target is out of sight long enough | single draws make detection jumpy; constructive models accumulate |
+
+## 16. Placing the men on de-aggregation — a squad holding a building, a battalion holding a village *(✅ P-3…P-5 APPROVED as revised 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "de-aggregation in case the stochatical to physicsl. imagine squad unit holds a building for example - it wuld need to place the soldies somehow reasonably. imagine a battalion holding a village etc")*
 
 | measured | where |
 |---|---|
@@ -180,7 +182,7 @@ men appear where the real squad would have put them, through the planner's EXIST
 | **P-4** | the allocation is made by the SAME planners the real units use (company blocks, platoon positions), run when the unit settles, not invented by the stochastic model | one model of where units stand (the shared-and-unified rule) |
 | **P-5** | time in position is state (`Prepared`: hasty → prepared → fortified) — it sets the men's cover and stance on the split | a squad that held the house for an hour is dug in; one that just arrived is not |
 
-## 16a. De-aggregation is a PROCESS — top-down planning, bottom-up materialisation, one handover *(leans; 🔒 user, `2026-11-14`: "when can stochastic unit get prepared positions? it can be deaggregated at any time, at any location, also moving into the house during the exercise and deaggregate only if enemy comes close … This is no different from getting the position on deaggregation time, i.e. nothing prepared. Deaggregation needs to be a process as it takes time (asking where to deply members, memberc need to de-aggregate as well, i.e. whole deaggregation cascade etc.)")*
+## 16a. De-aggregation is a PROCESS — top-down planning, bottom-up materialisation, one handover *(✅ D-P1…D-P7 APPROVED as adjusted 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "when can stochastic unit get prepared positions? it can be deaggregated at any time, at any location, also moving into the house during the exercise and deaggregate only if enemy comes close … This is no different from getting the position on deaggregation time, i.e. nothing prepared. Deaggregation needs to be a process as it takes time (asking where to deply members, memberc need to de-aggregate as well, i.e. whole deaggregation cascade etc.)")*
 
 **The proven solution:** disaggregation has a LEAD TIME — the trigger fires early enough (a predictive radius: the time the process needs × the
 closing speed) that the entities exist before contact; meanwhile the aggregate keeps being simulated, and the handover happens in one step.
@@ -214,7 +216,7 @@ splits; only the Handover is a single step, and a deadline bounds the whole proc
 | **D-P7** | a deep split (battalion straight to men in one house) runs the SAME cascade, level by level, quickly — no special path; re-aggregation is the reverse and simpler (sum, then remove) | one mechanism |
 | ⏳ to measure when built | the platoon / company planners' inputs (D-P3); the process time per echelon (D-P1); how created-but-held entities are kept out of the world until the handover (the entity lifecycle's Constructing state is the candidate) | — |
 
-## 16b. Who decides the resolution, when, to what level — and when it is worth it *(leans, NOT accepted; 🔒 user, `2026-11-14`: "how the de-aggregation would be realized (would it be an action called by SOP or something?) and how triggered (on user request, on contact, or other trigger - who defines and parametrizes). when to re-aggregate, under what condition, is that something automatable? to what aggregation level? in what situation it could make sense? let's think through those before any acceptance")*
+## 16b. Who decides the resolution, when, to what level — and when it is worth it *(✅ R-1…R-7 APPROVED as adjusted 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "how the de-aggregation would be realized (would it be an action called by SOP or something?) and how triggered (on user request, on contact, or other trigger - who defines and parametrizes). when to re-aggregate, under what condition, is that something automatable? to what aggregation level? in what situation it could make sense? let's think through those before any acceptance")*
 
 **The proven solution:** resolution is a FIDELITY decision of the simulation (level of detail), not a tactical decision of the unit: a
 manager compares each unit against a policy — where the FOCUS is (the trainees, the physical forces, the camera), which AREAS must be detailed,
@@ -272,6 +274,66 @@ invisible to its tactics and its commanders.*
 | a performance governor: merge the quietest units when the frame budget is exceeded | keeps the run real-time |
 | ⛔ a small close-combat exercise (a platoon in a village) | everything physical — the policy simply never aggregates |
 | ⛔ replay | it shows what was RECORDED; resolution is not changed in replay |
+
+### 16c. The rulings of `2026-11-15` — the leans above as ADJUSTED by §17.1 *(user, one group at a time — R-4255)*
+
+| group | as approved |
+|---|---|
+| §16 P-3 | every stochastic unit above the leaf keeps an ALLOCATION per child slot: its area (block / building group), its holdings share, its per-slot rows — made when the unit's ORDER is resolved, not at the split |
+| §16 P-4 | the areas come from the geometric part of the real planners (company blocks, platoon positions) at order time; the POSTS at the split (SV-5); if a real planner's area step needs live men, the stochastic version computes areas from frontage / depth — measured first |
+| §16 P-5 | time in position (hasty → prepared → fortified) is state; it sets the cover factor in stochastic combat (§18) and the men's cover and stance at a split |
+| §16a D-P1 | the trigger band is widened by a lead = the process's measured budget per echelon (incl. creation latency, SV-6) × the fastest approaching enemy's speed (fixed bands, SV-9) |
+| §16a D-P2…D-P7 | as written, with: the planned-posts component (SV-5), the Held participant (SV-6), the full live roster trimmed at the handover and removed on a withdrawn trigger (SV-7), plays restart from the current situation and a split is refused on an UNTYPED order (SV-10) — ⇒ **prerequisite: the platoons' squad orders routed (CE-4612 step ⑥)** — instructor orders at once (SV-14) |
+| §16b R-1…R-7 | one serial `ResolutionManager` (every 1–2 s); the policy an unmanaged World Environment component set by `SetResolutionPolicy`, detail areas = marked area entities (SV-15); focus = possessed units + physical forces of another side (+ optional camera); FIXED bands (SV-9); instructor > author > automatic (SV-14); automatic merge needs no focus within band + margin for the quiet time, out of contact, not in a detail area, not pinned, not mid-play, AND ⭐ UNOBSERVED by any physical sensor (kept for AUTOMATIC merges only — the user's override applies to instructor orders); the governor documented, not built (SV-8) |
+
+## 18. Combat between stochastic units — the attrition step *(leans, 2026-11-15)*
+
+**The proven solution:** a heterogeneous Lanchester exchange resolved per (firing system type × target class) pairing from a killer–victim table
+built from weapon data (the ATCAL / JTLS family): each step, each firer's expected kills = its live systems × rate × P(hit) × P(kill | hit),
+modified by range, the target's posture and cover, the firer's suppression; fire volume also SUPPRESSES; losses and suppression drive morale.
+
+| measured — the numbers the table comes from | where |
+|---|---|
+| a rifle round does 25 = one man's health | `NedTkbCatalog.cs:87`, `NedTkbBuilder.cs:279` |
+| P(hit) from the hit model's spread: `DispersionMils` × moving × under fire (σ × 2 for 5 s) × stance × proficiency | `HitModel.cs:24-25, :46-62` |
+| P(kill / damage) vs armour: `ArmorModel.HitDamage(pen, dmg, armour)` | `ArmorModel.cs` |
+| rate: 60 / `RateOfFire` (+ `FirePacing`) | `AimAndFireExecutor.cs:315, :335` |
+| a near miss within 3 m suppresses; stress +0.08 per near miss (half in cover), +0.25 per hit; 30 s quiet, then −0.03 / s | `CombatConstants.cs:84`, `StressSystem.cs:26, :35, :39, :45` |
+| a burst's casualties by the person area per stance | `AreaEffectSystem.cs:530-547` |
+
+| # | lean | why |
+|---|---|---|
+| **C-1** | ⭐ ONE **killer–victim table**, computed ONCE at load from the TKB (every weapon type × target class: men by posture, light armour, heavy armour): P(hit) per range band from the hit model's spread and the target's presented size; P(kill \| hit) from `ArmorModel` and the damage per man; the rate from `RateOfFire` | one calibration with the physical resolution (S-5, S-8) — the SAME numbers, integrated instead of simulated round by round |
+| **C-2** | the step: every 1 s of sim time, per unit, its OWN losses = Σ over the enemy units that have it as a contact (N-5) and are in range: their live systems × rate × P(hit) × P(kill) × the target's cover (posture, P-5's prepared level) × the firer's suppression factor; the firers split their fire over the target's classes by suitability (the `WeaponChoice` scores) | the parallel rule: each unit writes only itself, from last step's enemy states (declared reads) |
+| **C-3** | losses DRAWN, not fractional: a seeded binomial per slot class (S-3), applied to the per-slot table in its deterministic loss order (SV-1); a dead vehicle slot drops its crew's men too | the dead stay dead and identity holds across a later split |
+| **C-4** | SUPPRESSION from fire volume: incoming rounds per exposed man per step raise the unit's suppression (the near-miss law: +0.08, half in cover); it cuts the unit's own rate and P(hit) (σ × 2 while suppressed); decays after 30 s quiet at 0.03 / s | the same law the soldiers live by (one model) |
+| **C-5** | MORALE: the unit's stress from losses (+0.25 per man lost, scaled by the unit's size) and suppression; at the squad nerve thresholds (D-7, CE-7015) it falls back, at break it routs — reported through the same SITREP / FallingBack | the commanders above react as to real units |
+| **C-6** | INDIRECT fire and drones on a stochastic unit: a burst's casualties = its lethal area ∩ the unit's footprint (M-3) × the density of men there × the person area per posture; plus suppression; mortars, artillery, air and drone strikes all land through the existing point-fire paths | they already fire at a POINT (S-4's compatible half) |
+| **C-7** | ⛔ no direct fire between a stochastic unit and a PHYSICAL entity (S-4) — it splits first (§16a) | the multi-resolution boundary |
+| **C-8** | the calibration TEST: the same engagement (a platoon defending a block against a company) resolved stochastically and physically (`cc-battalion`'s numbers) — the stochastic losses within an agreed band of the physical runs' mean | S-5 made checkable |
+
+## 19. What a stochastic unit does with an order *(leans, 2026-11-15)*
+
+| # | lean | why |
+|---|---|---|
+| **B-1** | ⭐ ONE generic play per order KIND for every echelon — `StochasticUnitMove`, `…Defend`, `…Attack`, `…BreakContact` — chosen through the (class, resolution, order) table (SV-2); its behaviour is parameterised by the unit's holdings and echelon, not written per echelon | a stochastic company and a stochastic platoon attack the same way at their own size |
+| **B-2** | **Move / March**: the route (M-1), the path follower (M-4), the formation (column on roads, line off road, M-3); Set on arrival | — |
+| **B-3** | **Defend / Hold**: occupy the area, allocate the children's areas (P-3), the prepared level grows (P-5); it never ends by itself (like `SquadDefend`) | — |
+| **B-4** | **Attack**: approach in line; the share of the holdings that is the base of fire fires on the objective's unit (C-2) while the rest closes; within the assault distance the exchange gets the assault modifiers (the attacker exposed, the defender's prepared level); success when the defender's strength is below its break threshold or it falls back ⇒ the attacker occupies and reports ObjectiveSecure; failure when the attacker breaks (C-5) ⇒ TaskFailed. The modern assault's rules apply as factors: suppression established before the close (CE-2436's A-8) | the assault-under-fire design, integrated |
+| **B-5** | **BreakContact**: move away from the threat to a safe area, the suppression decaying; Set on arrival | — |
+| **B-6** | **ClearBuilding** = Attack on the building's area · **Embark / Dismount** = the mounted / dismounted POSTURE (S-9) when its holdings have the vehicles, else refused · **Recover** = refused (no individual wounded) | the order set stays complete without plays that have no aggregate meaning |
+| **B-7** | REPORTS through the existing staff: SITREP from `UnitStrength`, SPOT / CONTACT from its contacts (N-2), PROGRESS Set / TaskFailed / ObjectiveSecure / FallingBack from the play | the commanders above see a unit like any other |
+
+## 20. Slices — the build order *(lean, 2026-11-15)*
+
+| slice | builds | needs |
+|---|---|---|
+| **ST-0** | the prerequisites: the platoons' orders ROUTED (CE-4612 step ⑥), the (class, resolution, order) table (SV-2), `AggregateUnit` + the per-slot table + the holdings (SV-1, SV-11, S-7) | CE-4612 ①–⑤ (built) |
+| **ST-1** | movement (M-1…M-4) + `StochasticUnitMove` (B-2) + the 2-D drawing of a unit's footprint | ST-0 |
+| **ST-2** | sensors (N-1…N-5) feeding the contact pool (N-2) | ST-1 |
+| **ST-3** | combat (C-1…C-6) + Defend / Attack / BreakContact plays (B-3…B-6) + reports (B-7) + the calibration test (C-8) | ST-2 |
+| **ST-4** | the resolution manager + policy (§16b), a stochastic battalion slice vs a stochastic battalion | ST-3 |
+| **ST-5** | de-aggregation (§16a) + re-aggregation, the Held participant, the planners' plan / assign split (D-P3) | ST-4 |
 
 ## 17. ⛔ The critical review — `2026-11-14` *(the multi-resolution reviewer; ✔ re-read by the coordinator)* — ✅ ALL RULED by the user one by one (R-4252); §17.1 the rulings
 
