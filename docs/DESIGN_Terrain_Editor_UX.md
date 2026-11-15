@@ -1,17 +1,18 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans TE-1…TE-12 await the user (§5); nothing built
+build-state: DESIGN — ⚠ §8 the critical review (2026-11-15) overrides the §5 rows it names; revised leans await the user; nothing built
 updated: 2026-11-15 (first version — terrain lane, close-out item 4)
-current-answer: §5 the decisions with leans · §3 the diagrams · §2 the friction measured · §6 slices
+current-answer: ⭐ §8 the critical review FIRST (it overrides §5 / §7 rows it names) · §5 the decisions with leans · §3 the diagrams · §2 the friction measured · §6 slices
 stale-below: nothing
-known-rot: none
+known-rot: §5 TE-1 (rejects the shell toolbar — Editing UX §3 puts the palette there), TE-4 (new meanings on Scatter), TE-5 / §7 item 3 (a clutter row does NOT block a road), TE-6 ("extends" an unbuilt snap row), TE-7 (split), TE-9 (multi-select IS built), TE-11 (Alt is taken), TE-12 (not "no new code path"); §1 INVENTORY missed FeatureElements Group / Enclosure / Orchard; the mockup's toolbar chrome and obstacle list are wrong (§8) — fix with the revision, not before the user rules
 known-conflict: TE-6 sets road-edge and line-end snapping ON for terrain lines, where Map Interaction §2.5 says snap is "off by default" (written for units) — said in TE-6, not reconciled until the user rules
 related-designs:
   - DESIGN_Ground_Patches_And_Road_Blockage.md — §4d BINDS this design (G-30 one feature family, G-31 one patch type, G-32 the stack, G-33 expand on the patched ground); OWNS the Earthworks tools (P-5, P-6) this design only re-homes on the toolbar
   - DESIGN_Terrain_Authoring.md — OWNS the feature machinery this design gives a UX to: the picks and the draw panel (§15a U-1, U-2, U-7, §15a-2 C), the live bake (§18e), the scatter (§18g T-2), blocks (§11, §18h)
   - UX/DESIGN_Map_Interaction.md — OWNS drawing / shape editing (§2.5 D11: finish / cancel, insert, centre-drag, delete), snapping (the row TE-6 extends), always-multi placement (D5) and multi-select
   - UX/UX_Feature_Tool_Model.md — OWNS the tool arbiter (ToolController) and "the toolbar marks the armed tool" (step 5) the Terrain row rides on
-  - UX/UX_Feature_Multi_Select.md — OWNS the box / Shift selection TE-9's bulk edit needs (NOT-BUILT there)
+  - UX/UX_Feature_Multi_Select.md — OWNS selection; ⚠ its NOT-BUILT status is stale: Map Interaction P5 built Shift / Ctrl / band / Alt-click (2026-11-08)
+  - UX/DESIGN_Editing_UX.md — §3 OWNS where the tool palette lives (the shell toolbar region) and the snap toggles; ⚠ missed by the first version (§8 R-1)
   - DESIGN_Vehicle_Breaching.md — B-6 OWNS what a lone tree does (felled, blocks); B-2 / B-3 what a wall does — the Contents lines of TE-8 quote them
   - DESIGN_Add_Entity_Picker.md — OWNS the picker the terrain groups live in; stays the search / gallery door
 -->
@@ -210,3 +211,34 @@ B-6 — settle what a wall and a lone tree do (the Contents lines). · Add Entit
 6. Selecting a placed wall shows the Terrain tab; Kind → Hedge changes it after one bake.
 7. While drawing, the ghost shows what the bake will make, and the frames match [the mockup](UX/terrain-editor.svg).
 8. Steady drawing frames allocate 0 B (snap, ghost — R-2084); every rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` where it touches the sim.
+
+## 8. ⛔ Critical review `2026-11-15` — three independent reviewers *(engine / data · the author's workflow · claims vs code; every headline finding re-measured)*
+
+⭐ **Verdict: the direction holds (one family, no new storage, a toolbar door, sticky tools, rows, Details, a ghost); seven rows of §5 were built
+on a wrong or missing measurement.** Rows marked ✔ were re-measured by the lane after the review.
+
+| # | finding | evidence | ⭐ revised lean |
+|---|---|---|---|
+| **R-1** ✔ | TE-1 rejects the shell's toolbar, but the APPROVED Editing UX §3 puts *"the tool palette (select, place, route, area, draw, rotate)"* in the toolbar region | `UX/DESIGN_Editing_UX.md:274` (D2–D9 approved 2026-11-06) | the Terrain row follows Editing UX §3: it joins the tool palette wherever that palette lands (today the editor's *Editor Toolbar* window); ⚠ **the user rules** whether the palette moves to the shell toolbar first |
+| **R-2** ✔ | BLOCKER — a clutter row does NOT close a road: P-2 reads only `StaticObstacle` entities; a clutter / scatter feature is an overlay prism, not crushable, not clearable | `RoadBlockage.cs:18-31`, `FeatureKinds.cs:138-147` | ⚠ **the user rules:** (a) an obstacle that must block traffic is placed as a `StaticObstacle` entity (the roadblock path; one entity per item) · (b) P-2 also reads overlay prisms carrying a `clutter` type (and decides destructibility). Lean **(b)** — one item stays one feature; §7 item 3 is false until then |
+| **R-3** ✔ | the line / grid placement ALREADY EXISTS: recipe `group` (items along a line, `count`, `facing: along \| across`, or `area{count}`), `orchard` (trees on a grid), `enclosure` (a closed wall with a gate gap), `fields` (a hedge split round a gap) — missed by §1 | `FeatureElements.cs:242-335` | Row / Group / obstacle rows CALL these element routines (ruling 9); §1's query gains `Group\|Enclosure\|Orchard\|Element` |
+| **R-4** | TE-4's data is ambiguous: a polyline has no open / closed flag, so a 3-point Scatter cannot say Row or Group; `Pad` would carry three meanings; an older build reads `item:tree` as a recipe id and THROWS | `EditablePolyline` (Points, Version only), `TerrainRecipe.Find`, `FeatureKinds.cs:66` | ⭐ two NEW kinds, **Row = 14, Group = 15** (Template = the item, Pad = spacing / count) — older builds skip an unknown kind (`IsKnown`) instead of throwing; Scatter keeps "area + recipe" |
+| **R-5** | TE-7 split is wrong: splitting a ring gives ONE open line, not two; the second half's new guid changes its wall key and segment ranks (B-2), orphaning a breach made in Live (Edit Shape is enabled in Live) | `FeatureKinds.cs:74-83`, `MapMenuActions.cs:119`, Breaching §7.9 | ⭐ the `enclosure` precedent: a closed wall repeats its first point; a gate ROTATES the polyline's start into the gap — one entity, one label; ranks re-mapped (said) for an edit in Live; one undo bracket (the Unpack precedent) |
+| **R-6** ✔ | Alt is taken: Alt-click = *select the next overlapped unit* (P5, built); TE-6 (Alt = no snap) and TE-11 (Alt-click = copy) collide with it and each other | `MapGestures.cs:27, :83` | TE-6: hold **Ctrl** for no snap (a keymap row, never a literal); TE-11 dropped — Copy / Paste / Duplicate (Ctrl+C / V / D) already exist (`MapMenuActions.cs:115-117`); a §5 table of every modifier, checked against Map Interaction §2.5 |
+| **R-7** ✔ | the toolbar cannot light the right terrain button: every terrain line / area tool arms ONE id (`PlaceArea`), points arm *Place Entity*; the real arming path is `PlacementToolRegistry.ArmTerrain` → `ScenarioSpawnAdapter.ArmAreaAuthoring`, not `ToolController.Activate(terrain.hedge)` (§3 is wrong there) | `ScenarioSpawnAdapter.cs:125-129, :394-435`, `PlacementToolRegistry.cs:124-137` | the row reads the ARMED PICK (the adapter's current spec) to light its button; §3's diagrams redrawn on `ArmTerrain` + the adapter |
+| **R-8** ✔ | TE-2: one Esc on a half-drawn wall drops the wall AND the tool; and `TerrainDrawOptions.From` rolls its seed ONCE, so every repeated group / row gets the same pattern | `ShapeEditSession.cs:337`, `TerrainDrawPanel.cs:28`, `EntityPlacementGizmo.cs:392` (`Renew`) | two-stage Esc (the shape, then the tool) through the central Esc; a new seed per repeat (the placement gizmo's `Renew` precedent) |
+| **R-9** | TE-10's ghost cannot be 0 B through `FeatureExpander` (JsonObject trees, LINQ, the recipe re-read from disk, throws under 2–3 points) | `FeatureKinds.cs:76, :121, :194`, `TerrainRecipe.Find` | the ghost has its own allocation-free geometry (reused buffers, the item resolved at arm), recomputed only when a COMMITTED point changes; the cursor segment drawn plain |
+| **R-10** ✔ | TE-6 does not EXTEND a snap: Map Interaction's snap row is unbuilt (no snap type exists); but the queries exist — `TerrainRoads.Corridors` (half-width), `TryNearestNode`, `TryAlign`, `BuildingPanelGrid.Near`, all cached in `TerrainGhostContext`; bridge ends already snap to road nodes within 25 m | `DESIGN_Map_Interaction.md:47`, `TerrainGhost.cs:7-21`, `GroundPatches.cs:153`, Terrain Authoring §18k | TE-6 BUILDS the first snap, on `TerrainGhostContext` + an index of feature line ends; road edges + line ends ON only for LINE tools (not areas); the active snap target on the hint line |
+| **R-11** | TE-12 is not "no new code path": a ground LINE is honoured only for ditch presets; a berm needs a mode, the parser, a TERRAIN-class line and a stack slot | `GroundPatches.cs:420-425`, `TerrainWorldParser.cs:294` | kept, re-costed: a small backend item, not a preset |
+| **R-12** ✔ | TE-9: multi-select IS built (P5, 2026-11-08); what blocks bulk edit is only that features are not pickable. The gizmo's gate should be `LiveTerrainBakeInfo` (the `TerrainBlockGizmo` precedent), not "Edit mode" | `DESIGN_Map_Interaction.md:315`, `TerrainBlockGizmo.cs:40` | TE-9 on the `TerrainBlockGizmo` template; bulk delete / kind change in the same slice |
+| **R-13** ✔ | the mockup breaks R-4151: the existing toolbar drawn with icons, an amber armed style and the title "Tools" (real: text buttons, teal `ArmedColour`, *Editor Toolbar*, a *Reload BTrees* button); the obstacle list invents types (real: Car, Sandbag wall, Concrete block, Crate, Barrel, Jersey barrier, Guard booth); the draw panel drawn 420 px (real 260 px); Species / Size / "2 m off the road" have nowhere to live in data | `EditorToolbarPanel.cs:36-66`, `EditorWindows.cs:42`, `ClutterTypes.cs:20-27`, `TerrainDrawPanel.cs:205` | redraw the context from the real frame; cut Species / Size until a field is designed (or encode them in R-4's Template); the real clutter list |
+| **R-14** | the pending bake (≈ 5 s warm) has no state, worst with sticky tools; no error states (MaxScatterItems = 2000 cap, a missing recipe, a greyed reason) | Terrain Authoring §18e-1, `FeatureKinds.cs:18` | the ghost stays until its bake lands; the count line says when a row is capped |
+| **R-15** | missing jobs: erase in an area, a clearing in a wood, delete part of a line, 3-D / roof drawing, keyboard; the mockup's `W` for Wall is *move forward* in 3-D | `EmbodiedKeys.cs:134` | each gets a decision or an explicit out-of-scope row in the revision; no single-letter shortcuts without the keymap check |
+| R-16 | TE-8: changing Kind across shapes (a Tree point ↔ a Row line) must add / remove the polyline | `NeedsShape` | the Kind list offers only kinds of the same shape |
+| R-17 | a generic Components view exists (*Properties…*) and U-7 says `TerrainFeature.Pad` is editable there — TE-8 is a friendlier tab, not the first editor | `ScenarioComponentsView.cs:128`, Terrain Authoring §15a U-7 | §2's row corrected to "only the raw component" |
+
+⭐ **Sound as written (all three agree or none objected):** TE-3 (trunks, not a wood), the one-family / no-new-storage frame, TE-8's single tab,
+the G-33 / G-34 ordering (rows expand on the patched ground; felling keys on position, so label shifts do not break B-6), the rejected sculpt and
+paint brushes, shipping the two scatter recipes.
+
+⇒ **Next:** after the user rules R-1 and R-2, §5, §3 and the mockup are revised to this table (the prior §5 moves to HISTORY).
