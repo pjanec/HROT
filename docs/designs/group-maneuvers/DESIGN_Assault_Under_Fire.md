@@ -277,3 +277,13 @@ ordinary rounds, and the shot and the AI's estimate read ONE function family (`H
 | A-8 the drone half | ⛔ NOT a gate: a drone may be shot down or late, and a cause that never comes would stall the assault (R-2111); the Set stays "suppression established" (AU-2) | — |
 
 **Rails:** `CE2436_AU5_CompanyAttack_TheDroneTeamWatchesTheObjective_AndStrikesThePosts` · `CE2436_AU5_TheDroneTeam_SendsTheReconDroneToWatch_AndTheOperatorToStrike`.
+
+### 9.7 AU-6 — what the base runs taught *(R-2112, lane decision — for the user's review)*
+
+| finding (live) | fix | where |
+|---|---|---|
+| run #5: the assault squad reached 45 m, went Black at the building while the reserve was out on a casevac, and AT-10 aborted the platoon beside an intact base of fire (Red's line down to 1–2 men a platoon) | the base of fire relieves a lost assault when no reserve is free (Defend & Attack AT-10, as built) | `PlatoonAttackBehavior.FreeRelief` |
+| runs #4, #5: Red's outpost reacted `SquadShelterFromAir` at t = 0 to Blue's drones PARKED on the ground (they read `Airborne` 1, the translator's default, until a flying order runs their model) — so it never withdrew (arrow ①) | an aircraft on the ground (put down, or within 1 m of the ground and still) is no air contact | `FlightGround.OnTheGround`, `AirContacts.IsAir` |
+
+**Rails:** `CE2436_ABlackAssaultWithNoReserve_TheBaseOfFireTakesItOver` (and CE2277 / CE7015's aborts now need the base of fire Black too) ·
+`FlightGroundTests.CE2436_AParkedDrone_IsNoAirContact_OneInTheAirIs`.

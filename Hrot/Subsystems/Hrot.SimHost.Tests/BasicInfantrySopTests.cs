@@ -258,6 +258,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorOrigin.Superior, crew.Task.Origin);
         }
 
+        /// <summary>⭐⭐ <c>CE-2436</c> AU-6 (R-2115) — his commander is a UNIT below its fighting line (here: nobody of it left in the fight), yet
+        /// it still commands while he runs ITS order: a hit orders nothing. With no order of its (the SOP idles him), the hit is his own.
+        /// 📌 Live cc-battalion run #10: assault squads went ReactToContact mid-ClearBuilding for minutes. 🔴 Red-proof: <c>RunsHisOrder</c>
+        /// false ⇒ the hit sends him to cover while he runs the order ⇒ red.</summary>
+        [Fact]
+        public void CE2436_AUnitBelowItsLine_StillCommands_WhileHeRunsItsOrder()
+        {
+            Entity Shattered(World w)
+            {
+                var unit = w.Repo.CreateEntity();
+                w.Repo.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity());
+                w.Repo.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());   // an emptied roster: out of the fight
+                w.Repo.AddComponent(w.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = unit });
+                return unit;
+            }
+
+            var ordered = new World();
+            Shattered(ordered);
+            ordered.Order("Idle");
+            ordered.StartSop();
+            ordered.Run(0.3);
+            ordered.Remember(true);
+            ordered.Sense(SensorChange.Hit);
+            ordered.Run(0.1);
+            Assert.Equal("Idle", ordered.TaskName);
+            Assert.Equal(BehaviorOrigin.Superior, ordered.Task.Origin);
+
+            var free = new World();
+            Shattered(free);
+            free.StartSop();
+            free.Run(0.3);
+            free.Remember(true);
+            free.Sense(SensorChange.Hit);
+            free.Run(0.1);
+            Assert.Equal("FightFromCover", free.TaskName);
+        }
+
         /// <summary>⭐ <c>CE-4035</c> G-11 — a man in a WEAPON SYSTEM's seat (a manned M2) is not "aboard": the weapon has no brain (W-D), so
         /// his own rows stay his — idle with an enemy in sight, he engages. 📐 Live `ua-m2-engage`: the gunner watched the intruder for 50 s.
         /// ✅ Red-proof: <c>Aboard</c> true for any carrier ⇒ he stays Idle ⇒ red.</summary>

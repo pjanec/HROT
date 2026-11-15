@@ -899,6 +899,10 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2109** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-4): the company's vehicles support by fire 35 m beside the base of fire and scoot after each exposure; the SOPs spare a base of fire; drones unjammable by one switch. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 | ⭐ **R-2110** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-7): fire at the air is spread in height and widens with the target's speed; the anti-drone shotgun (12 pellets, 60 m), one a squad; who may fire at a drone, and the drone gunners stand and engage. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 | ⭐ **R-2111** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-5): the company's drone team watches the objective and strikes the base of fire's posts; the strike is not a gate on the assault. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2112** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a lost assault with no free reserve is relieved by the platoon's base of fire when it is fit; the platoon breaks off only when no squad is. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2113** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): the cc-battalion outpost also withdraws on its first casualty (a `Strength` objective on it), since it dies before Blue can close. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2114** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): an assault whose approach failed while it still stands is ordered forward again. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2115** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a squad under a unit commander still counts as under command while it runs that commander's order, even below the unit's fighting line. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1250,6 +1254,10 @@ R-2108 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | a sust
 R-2109 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | a company's vehicles take the `Vehicle` role (never assault)
 R-2110 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the anti-drone shotgun is 12 pellets over 15 mils, spent past 60 m
 R-2111 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the drone strike is NOT a gate on the assault
+R-2112 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | AT-10 breaks off only when no squad is fit
+R-2113 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the outpost ALSO withdraws on its FIRST CASUALTY
+R-2114 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | while ≥ 2 of its men stand is ordered forward again
+R-2115 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | still counts as under command while it runs that commander's order
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians

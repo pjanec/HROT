@@ -16,7 +16,11 @@ namespace Fdp.Toolkit.Perception
             if (TargetMemory.IsAnonymous(in mem, slot)) return mem.SourceClass[slot] == (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Rotor;
             var e = new Entity((ulong)mem.EntityIds[slot]);
             // ⭐ airborne insertion B-6 (D-4) — an AIRCRAFT: nobody shelters from a paratrooper, and no SAM is cued at one
-            return view is EntityRepository repo && repo.IsAlive(e) && Fdp.Toolkit.Motion.Locomotions.IsAircraft(repo, e);
+            // ⭐ CE-2436 AU-5 (behaviors lane, FDP file — said) — an aircraft ON THE GROUND (a drone parked beside its operator, a helicopter
+            //   on its pad) is no air threat: live (cc-battalion runs #4, #5) Red's outpost sheltered at t = 0 from Blue's parked drones —
+            //   which still read Airborne 1 (the translator's default; only a flying order lands them), hence FlightGround's second test.
+            return view is EntityRepository repo && repo.IsAlive(e) && Fdp.Toolkit.Motion.Locomotions.IsAircraft(repo, e)
+                   && !Fdp.Toolkit.Motion.FlightGround.OnTheGround(repo, e);
         }
 
         /// <summary>How many air contacts <paramref name="mem"/> holds.</summary>

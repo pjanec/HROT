@@ -3788,6 +3788,27 @@
   },
   "cc461500-0000-4000-8000-000000000121": {
    "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "The outpost takes a casualty",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Strength",
+    "Params": {
+     "common": {
+      "title": "The outpost takes a casualty",
+      "subject": "cc461500-0000-4000-8000-000000000078",
+      "scored": false
+     },
+     "threshold": 0.99
+    },
+    "Origin": "Superior"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000122": {
+   "TkbIdentity": {
     "TkbType": 8861
    },
    "EntityInfo": {
@@ -3801,19 +3822,40 @@
       "title": "The outpost withdraws"
      },
      "when": {
-      "$type": "OnEntity",
-      "ref": "cc461500-0000-4000-8000-000000000120",
-      "predicate": {
-       "$type": "PropertyMatch",
-       "componentType": "ObjectiveStatus",
-       "propertyPath": "State",
-       "operator": "Equals",
-       "predicate": {
-        "$type": "Numeric",
-        "minValue": 2,
-        "maxValue": 2
+      "$type": "Compound",
+      "operator": "Or",
+      "conditions": [
+       {
+        "$type": "OnEntity",
+        "ref": "cc461500-0000-4000-8000-000000000120",
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "ObjectiveStatus",
+         "propertyPath": "State",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 2,
+          "maxValue": 2
+         }
+        }
+       },
+       {
+        "$type": "OnEntity",
+        "ref": "cc461500-0000-4000-8000-000000000121",
+        "predicate": {
+         "$type": "PropertyMatch",
+         "componentType": "ObjectiveStatus",
+         "propertyPath": "State",
+         "operator": "Equals",
+         "predicate": {
+          "$type": "Numeric",
+          "minValue": 2,
+          "maxValue": 2
+         }
+        }
        }
-      }
+      ]
      },
      "do": [
       {
@@ -3836,7 +3878,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000122": {
+  "cc461500-0000-4000-8000-000000000123": {
    "TkbIdentity": {
     "TkbType": 8861
    },
@@ -3889,7 +3931,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000123": {
+  "cc461500-0000-4000-8000-000000000124": {
    "TkbIdentity": {
     "TkbType": 8861
    },
