@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Numerics;
 using Hrot.Map.Definitions.Behavior;
 using Xunit;
@@ -31,6 +32,25 @@ namespace Hrot.SimHost.Tests
             f.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(f.Members[0]).Ammo -= 1;   // one round left a tube
             f.Pause(40.0); f.Tick(); f.Tick();
             Assert.False(f.Finished(out _));                     // firing: it runs on to its rounds or the overrun
+        }
+
+        /// <summary>⭐ <c>CE-4615</c> (R-2099) — the HQ answering a subordinate's FireSupport REQUEST with its battery declares the Strike DANGER CLOSE:
+        /// measured live on cc-battalion, every company call was refused "danger close (friends within 600 m)" and no round flew. ✅ Red-proof:
+        /// the flag dropped ⇒ red.</summary>
+        [Fact]
+        public void CE4615_TheHqsAnswerToAFireSupportRequest_IsDeclaredDangerClose()
+        {
+            var p = Headquarters();
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, new Vector3(0f, 1200f, 0f));   // the helicopter takes the first
+            p.Ticks(4);
+            Running(p, p.S.Members[1], BehaviorNames.AirArmedSearch);
+            p.S.Pause(3.0);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport, new Vector3(300f, 1200f, 0f));   // the battery the second
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.S.Members[2], StrikeIntent));
+            var order = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(
+                p.S.Orders.Last(o => o.Entity.Equals(p.S.Members[2]) && o.IntentId == StrikeIntent).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.True(order.DangerClose);
         }
     }
 }

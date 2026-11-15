@@ -107,7 +107,11 @@ namespace Hrot.AI.Behaviors.Brains
                             JsonSerializer.Serialize(new AirArmedSearchOrder { Location = point }, json), newOrder: true);
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
-                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke }, json),
+                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke,
+                                                                     // ⭐ CE-4615 (R-2099) — a REQUESTED mission is declared danger close: the requester called
+                                                                     //   for fire on its own fight (81 mm's 600 m always holds a company's own men), as a
+                                                                     //   doctrinal call does; an undeclared strike (an operator's) keeps the battery's refusal
+                                                                     DangerClose = true }, json),
                             newOrder: true);
                     if (!heli.IsNull || !battery.IsNull)
                     {

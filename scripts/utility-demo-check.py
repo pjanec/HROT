@@ -5760,6 +5760,7 @@ def run_cc_battalion(c, timeout):
     window = float(os.environ.get("CC_SECONDS", "900"))
     shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
     bursts = {}
+    seen_reports = {}
     ended = None
     end_wall = time.time() + window * 4 + 600
     last_dyn = -1e9
@@ -5775,6 +5776,8 @@ def run_cc_battalion(c, timeout):
         for d in _detonations():
             if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
                 bursts[d.get("seq")] = (t, d.get("burst"))
+        for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
+            seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}
         for o in objs.get("objectives") or []:
             if o.get("title") in ("Blue holds Objective 2", "Red below 30 %") and o.get("state") == "Achieved" and not ended:
@@ -5783,8 +5786,16 @@ def run_cc_battalion(c, timeout):
             break
         time.sleep(5.0)
     t_end = sim_time() or 0.0
-    log = squad_reports(last=4000)
+    for r in squad_reports(last=256):
+        seen_reports.setdefault(r.get("serial"), r)
+    log = sorted(seen_reports.values(), key=lambda r: (r.get("seenAt") or 0, r.get("serial") or 0))
     objectives = data(call("GET", "/objectives")) or {}
+    names = {v: k for k, v in ids.items()}
+    req_by = {}
+    for r in log:
+        if r.get("kind") == "Request":
+            req_by.setdefault((names.get(r.get("from"), r.get("from")), r.get("subtype")), []).append(round(r.get("seenAt") or 0, 1))
+    print(f"   requests by sender: {req_by}")
     print(f"   ran {t_end - t_play:.0f} s of sim · ended by {ended or 'time'} · reports {len(log)} · mortar bursts {len(bursts)}")
     kinds = {}
     for r in log:
