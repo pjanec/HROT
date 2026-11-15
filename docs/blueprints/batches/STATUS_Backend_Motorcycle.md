@@ -52,6 +52,23 @@ Started at `94c637bee` (merged `coordinator@f5e0a1df8`, `behaviors@9099edff5`); 
 | squad / dismount / shelter / convoy | `dotnet test Hrot.SimHost.Tests --filter SquadManeuverTests\|SquadDismount\|ShelterFromAir\|Convoy` | 278 / 278; ⭐ again with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`: 286 / 286 (the conduct check's member / carrier reads raised no undeclared read) |
 | red-proofs (compiling mutations, each restored) | `scratchpad/redproof.py` | StrippedOn firing branch · InTraverse as min–max · FiresStoppedOnly false · the gate's conduct check · CannotComply false · SeatHold null · the factor block · the provider's factor filter ⇒ each ITS rail red (table below) |
 
+## Gates (rule 8) — M-5 / M-6
+
+| gate | command | result |
+|---|---|---|
+| charges | `dotnet test Fdp.Toolkits.Tests --filter ChargesTests` | 26 / 26 (the timer rail red-proved: `TickTimers` dropped ⇒ red) |
+| the plays + hosting + squad | `dotnet test Hrot.SimHost.Tests --filter SwarmRaid\|DriveBy\|ParkedBomb\|CE1431\|CE4621\|SquadManeuverTests` | all green; each play red-proved (ParkedBomb arming before arrival · DriveBy passing at ride-up speed · SwarmRaid one shared bearing ⇒ each red) |
+| hosting snapshot | `HROT_RECORD_HOSTING=1 … --filter CE1431` | ⭐ regenerated, PURELY ADDITIVE: 3 lines (`DriveBy` 44 B, `ParkedBomb` 28 B, `SwarmRaid` 56 B), 0 removed |
+| S0 type rails | `--filter S0` (toolkits) | the same 6 pre-existing reds (other lanes' members); none of the new DTOs / components named |
+| whole SimHost suite, flags on | `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1 dotnet test Hrot.SimHost.Tests --no-build` | 2802 / 2837, 29 red; ⭐ base `94c637bee` (clean worktree, same flags, same classes): **25 of them red there too**; without flags 8 red on BOTH sides. Mine: the hosting snapshot (regenerated, above). `LoadPhaseChainTests.CE3345` red once in the full run, green twice alone (timing) |
+| stepped-hash | `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8` (Release, at `7effc694c`) | **STATE EQUAL** at 1 / 4 / 8 threads (scale-rig-demo-city-1000-2s, 10 056 entities) |
+
+⚠ **Finding (not mine, reported): the `StationWeaponBehaviorTests.World` harness serves STALE cross-entity reads under `HROT_PARALLEL_SIM=1`.** The brain
+phase reads other entities from a tick-start view; this harness ticks `BehaviorIngressSystem` + `BrainTickSystem` by hand, so the view keeps the first
+values (measured: a member moved to its point by the test still read `(-1000, 0, 0)` five ticks later). That is why the 25 base reds above go red only
+with the flag, and why the `SwarmRaid` rail (a commander reading its bikes) passes plainly and fails with it. ⇒ the harness needs the kernel's
+tick-start refresh; filed for the lane that owns the harness, the plays' rails run without the flag until then.
+
 ## Ids allocated
 `TkbEntityTypes.Motorcycle = 115` (fixed by the handoff) · `OrderKind.Dash = 14` · `BrainRefusal.ForbiddenByOrder` (next member) · no CE / R ids beyond CE-4621 (the handoff's) and the lane decisions L-1…L-12 here (to be ledgered on review).
 
