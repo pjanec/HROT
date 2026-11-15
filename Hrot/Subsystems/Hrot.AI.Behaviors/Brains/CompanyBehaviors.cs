@@ -192,12 +192,17 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus EnterAssault(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, CompanyAttackPlan.PhaseAssault);
+            // ⭐ CE-4615 (R-2100) — the base of fire is up and the assault goes in: PREPARATORY FIRE (HE) on the objective. 📐 Live on cc-battalion
+            //   the only call was the tempo's SMOKE (CE-7025), so the assault met an untouched line and never took it. The half-deadline smoke stays.
+            AskFires(world, self, p.Objective(Math.Min(p.Current, p.Objectives - 1)), FireSupportRound.HighExplosive);
             return NodeStatus.Success;
         }
 
         [SharedAiAction]
         public static NodeStatus NextObjective(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
+            // ⭐ CE-4610 — objective k taken is phase line k (1-based) reached: reported up, so the battalion sees the company's progress
+            CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective(p.Current), p.Current + 1);
             p.Current++;
             return NodeStatus.Success;
         }
@@ -207,6 +212,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             p.Current = Math.Max(0, p.Objectives - 1);
             SetPhase(ref p, CompanyAttackPlan.PhaseConsolidate);
+            // ⭐ CE-4610 (Platoon Attack §4 Consolidate) — the last objective is taken: ObjectiveSecure up (reached only through CNext, never a bypass)
+            if (p.Objectives > 0) CommandNodes.ReportProgress(world, self, ProgressKind.ObjectiveSecure, p.Objective(p.Current));
             return NodeStatus.Success;
         }
 
@@ -262,6 +269,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
                 if (CommandOrders.StillRunning(world, self, platoon, behaviour, order)) continue;
                 CommandOrders.Assign(world, self, platoon, behaviour, order, newOrder: true);
+                CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — the colour the relief / LOST guards read
                 ws.Orders++;
             }
             return NodeStatus.Running;
@@ -710,12 +718,14 @@ namespace Hrot.AI.Behaviors.Brains
                     var attack = JsonSerializer.Serialize(new PlatoonAttackParamsJsonDto { Position = at, Speed = p.Speed }, json);
                     if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonAttack, attack)) continue;
                     CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonAttack, attack, newOrder: true);
+                    CommandOrders.AskSitrep(world, platoon);
                     ws.Orders++;
                     continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
                 if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonDefend, order)) continue;
                 CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonDefend, order, newOrder: true);
+                CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — a block's colour: Black ⇒ LOST ⇒ the counter-attack (CE-7004)
                 ws.Orders++;
             }
             return NodeStatus.Running;
@@ -801,7 +811,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!CompanyAttackBehavior.Alive(world, self, slot)) return true;
             var progress = CommandPictureOps.ProgressOf(world, self, slot);
-            if (progress == ProgressKind.TaskFailed || progress == ProgressKind.FallingBack) return true;
+            if (progress == ProgressKind.TaskFailed) return true;   // ⭐ CE-4610 — FallingBack retired: a fall-back's end is Set (DA E-3a), a failure TaskFailed
             var colour = new SubordinateColourParams { Slot = slot, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
         }

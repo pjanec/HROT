@@ -24,6 +24,8 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public float AirDefenceMetres;
         public SimDuration AirDefenceFreshSeconds;
+        /// <summary>⭐ <c>CE-4589</c> (HQ-11) — the roster slots held as the RESERVE (bit k = slot k): set ⇒ a Reinforce is answered only from them; 0 ⇒ any free ground unit.</summary>
+        public int Reserve;
     }
 
     /// <summary>⭐ <c>CE-2312</c> — what the HQ keeps: the answers it gave, the air-defence strikes it ordered (a test / diagnostics probe).</summary>
@@ -62,6 +64,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 AirDefenceMetres = authored.AirDefenceMetres > 0f ? authored.AirDefenceMetres : DefaultAirDefenceMetres,
                 AirDefenceFreshSeconds = authored.AirDefenceFreshSeconds > 0f ? authored.AirDefenceFreshSeconds : DefaultAirDefenceFreshSeconds,
+                Reserve = authored.Reserve,
             };
             block.State = default;
         }
@@ -104,7 +107,11 @@ namespace Hrot.AI.Behaviors.Brains
                             JsonSerializer.Serialize(new AirArmedSearchOrder { Location = point }, json), newOrder: true);
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
-                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke }, json),
+                            JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke,
+                                                                     // ⭐ CE-4615 (R-2099) — a REQUESTED mission is declared danger close: the requester called
+                                                                     //   for fire on its own fight (81 mm's 600 m always holds a company's own men), as a
+                                                                     //   doctrinal call does; an undeclared strike (an operator's) keeps the battery's refusal
+                                                                     DangerClose = true }, json),
                             newOrder: true);
                     if (!heli.IsNull || !battery.IsNull)
                     {
@@ -120,14 +127,10 @@ namespace Hrot.AI.Behaviors.Brains
                 var request = world.GetComponentRO<CommandPicture>(self).Requests.Items[help];
                 var from = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, request.FromNetId);
                 if (from.IsNull) from = SubordinateByNetId(world, self, request.FromNetId);
-                var unit = Free(world, self, SupportAsset.GroundUnit, from);
+                var unit = Free(world, self, SupportAsset.GroundUnit, from, p.Reserve);   // ⭐ CE-4589 HQ-11 — only the reserve when one is designated
                 if (!unit.IsNull)
                 {
-                    bool platoon = IsUnitOfUnits(world, unit);
-                    string behaviour = platoon ? BehaviorNames.PlatoonDefend : BehaviorNames.SquadDefend;
-                    string order = platoon
-                        ? JsonSerializer.Serialize(new PlatoonDefendParamsJsonDto { Position = request.At, SearchRadius = PlatoonDefendMetres }, json)
-                        : JsonSerializer.Serialize(new SquadDefendParamsJsonDto { Position = request.At, SearchRadius = SquadDefendMetres }, json);
+                    var (behaviour, order) = ReinforceOrder(world, self, unit, request.At, now);   // ⭐ CE-4589 HQ-12 — the play matches the echelon
                     CommandOrders.Assign(world, self, unit, behaviour, order, newOrder: true);
                     CommandPictureOps.Answered(world, self, help);
                     ws.Answered++;
@@ -161,13 +164,15 @@ namespace Hrot.AI.Behaviors.Brains
             return best < float.MaxValue;
         }
 
-        /// <summary>The first live, free asset of <paramref name="kind"/> in the HQ's roster (never <paramref name="not"/>), or Null.</summary>
-        public static Entity Free(EntityRepository world, Entity self, SupportAsset kind, Entity not)
+        /// <summary>The first live, free asset of <paramref name="kind"/> in the HQ's roster (never <paramref name="not"/>), or Null. ⭐ CE-4589 —
+        /// <paramref name="slots"/> ≠ 0 ⇒ only roster slots whose bit is set (the designated reserve, HQ-11).</summary>
+        public static Entity Free(EntityRepository world, Entity self, SupportAsset kind, Entity not, int slots = 0)
         {
             if (!world.HasComponent<UnitRoster>(self)) return Entity.Null;
             ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
             for (int i = 0; i < roster.Count; i++)
             {
+                if (slots != 0 && (i >= 32 || (slots & (1 << i)) == 0)) continue;
                 var a = roster.SubordinateEntities[i];
                 if (a.IsNull || a.Equals(not) || !world.IsAlive(a) || !CombatLife.IsAlive(world, a)) continue;
                 if (KindOf(world, a) != kind || CommandOrders.Busy(world, self, a) || JustOrdered(world, self, a)) continue;
@@ -201,13 +206,41 @@ namespace Hrot.AI.Behaviors.Brains
                  : loco == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing ? SupportAsset.StrikePlane : SupportAsset.None;
         }
 
-        private static bool IsUnitOfUnits(EntityRepository world, Entity unit)
+        /// <summary>A fresh enemy element counts as the threat for a company's line this long after it was seen (s).</summary>
+        public const float ThreatFreshSeconds = 120f;
+
+        /// <summary>⭐ <c>CE-4589</c> (HQ-12) — the reinforcement's play by its ECHELON (<see cref="Fdp.Toolkit.Squad.Echelon"/>): a company holds a line
+        /// at the point facing the HQ picture's nearest fresh element (none ⇒ north), a platoon <c>PlatoonDefend</c> 60 m, a squad <c>SquadDefend</c> 40 m.</summary>
+        public static (string Behaviour, string Json) ReinforceOrder(EntityRepository world, Entity self, Entity unit, Vector3 at, SimInstant now)
         {
-            if (!world.HasComponent<UnitRoster>(unit)) return false;
-            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(unit);
-            for (int i = 0; i < roster.Count; i++)
-                if (SquadManeuverRunner.IsUnit(world, roster.SubordinateEntities[i])) return true;
-            return false;
+            var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            int depth = Fdp.Toolkit.Squad.Echelon.DepthOf(world, unit);
+            if (depth >= Fdp.Toolkit.Squad.Echelon.Company)
+            {
+                var dto = new CompanyDefendParamsJsonDto { Position = at };
+                if (NearestThreat(world, self, at, now, out var t)) dto.Threat = t;   // none ⇒ zero = north of the line
+                return (BehaviorNames.CompanyDefend, JsonSerializer.Serialize(dto, json));
+            }
+            return depth == Fdp.Toolkit.Squad.Echelon.Platoon
+                ? (BehaviorNames.PlatoonDefend, JsonSerializer.Serialize(new PlatoonDefendParamsJsonDto { Position = at, SearchRadius = PlatoonDefendMetres }, json))
+                : (BehaviorNames.SquadDefend, JsonSerializer.Serialize(new SquadDefendParamsJsonDto { Position = at, SearchRadius = SquadDefendMetres }, json));
+        }
+
+        /// <summary>The HQ picture's nearest fresh (≤ <see cref="ThreatFreshSeconds"/>) enemy element to <paramref name="point"/>.</summary>
+        private static bool NearestThreat(EntityRepository world, Entity self, Vector3 point, SimInstant now, out Vector3 at)
+        {
+            at = default;
+            if (!world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            float best = float.MaxValue;
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Count == 0 || now - e.ObservedAt > ThreatFreshSeconds) continue;
+                float d = Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(point.X, point.Y));
+                if (d < best) { best = d; at = e.At; }
+            }
+            return best < float.MaxValue;
         }
 
         /// <summary>A roster member whose picture id is <paramref name="netId"/> (a world with no network: its handle).</summary>
@@ -238,5 +271,10 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>A reported air defence is a threat this long after it was observed (s); 0 = 120.</summary>
         [System.Text.Json.Serialization.JsonPropertyName("AirDefenceFreshSeconds")]
         public float AirDefenceFreshSeconds;
+
+        /// <summary>⭐ <c>CE-4589</c> (HQ-11) — the roster slots held as the battalion's RESERVE (bit k = slot k); a Reinforce is answered only from
+        /// them. 0 = any free ground unit (as before).</summary>
+        [System.Text.Json.Serialization.JsonPropertyName("Reserve")]
+        public int Reserve;
     }
 }

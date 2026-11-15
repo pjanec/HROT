@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — the user approved the shape (2026-11-14: a small REAL-squad scenario proves the command chain; the FusionSquad later); the builder measures and decides the remaining coordinates and tunables (autonomous), recording each as a lane ruling
+build-state: BUILDING (behaviors, 2026-11-14 — §4a as built) — the user approved the shape (2026-11-14: a small REAL-squad scenario proves the command chain; the FusionSquad later); the builder measures and decides the remaining coordinates and tunables (autonomous), recording each as a lane ruling
 updated: 2026-11-14 (first version — coordinator)
 current-answer: the whole file
 stale-below: nothing
@@ -129,6 +129,36 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 | **cc-battalion** (base) | as above | the whole chain end to end |
 | **cc-battalion-stall** | block 2 + one squad | Blue's TEMPO: fires at ½ deadline, the reserve at 1×, the bypass at 1.5× — each after the Set / failure that precedes it |
 | **cc-battalion-collapse** | block 1 thin, the company reserve weak | Red: block 1 LOST ⇒ counterattack; the company Red ⇒ Reinforce ⇒ the battalion reserve arrives |
+
+## 4a. As built *(behaviors, `2026-11-14`)*
+
+| | built |
+|---|---|
+| generator | `scripts/gen-chain-scenarios.py` → `scenarios/demos/platoons-and-vehicles/cc-battalion{,-stall,-collapse}` (62 men each; 2 IFVs, 2 × 81 mm with gunner + loader) |
+| coordinates | Objective 1 = the office cluster **(425, 425)** · Objective 2 = the shop column **(645, 445)** (220 m apart) · Blue assembles at (150, 405), the IFVs on the start line x ≈ 265 · the outpost at (335, 400) · the Red battalion reserve at (720, 620) |
+| tunables (R-2097, lane decision) | `CompanyAttack.DeadlineSeconds` = 180 (the lean) · `CompanyDefend` Frontage 160, Depth 220 · the end trigger: `HoldArea` 120 s / `Strength` < 0.3 / 900 s · phase lines `ReachArea` PL 1 by 330 s, PL 2 by 630 s |
+| the check | `scripts/utility-demo-check.py` `run_cc_battalion` (the chain §3.2 judged in order and caused) + `Dynamism` (CE-7033) |
+
+⭐ **R-2096** *(lane decision — for the user's review)*: **`CompanyDefend` builds a LINE** — its blocks stand ACROSS the threat with the reserve and the fall-back behind (`CompanyBehaviors.cs` ~:613-625) — not two blocks in depth as §3.1 drew them. ⇒ Red's company is a line facing west AT Objective 1 (two blocks across the street, its reserve 110 m behind), its fall-back ON Objective 2; "block 1" in §3.2 is a block of that line, "block 2" its depth. Every CompanyDefend feature the chain needs is kept (a LOST block counter-attacked once, Red ⇒ Reinforce, the fall-back). The IFVs overwatch from the start line on their own SOP, outside the company (a vehicle in a platoon's roster is untested there). Would change: a `CompanyDefend` that can hold blocks in depth.
+
+⭐ **What the live runs fixed** *(behaviors, `2026-11-15`)*:
+
+| run | measured | fixed where |
+|---|---|---|
+| 1 | the report log is a 256-entry ring: SITREPs and SPOTs pushed the early reports out ⇒ the check saw no Set | the check keeps every report it has seen (by serial) |
+| 1 | every company fire call refused *"danger close (friends within 600 m)"*, no round flew | **R-2099** — the HQ's answer to a REQUEST is declared danger close (`SupportCommandBehavior`, Command Chain §8e) |
+| 2 | the only call was the tempo's SMOKE (CE-7025): the assault met an untouched line, PL 1 missed | **R-2100** — `CompanyAttack.EnterAssault` asks PREPARATORY HE on the objective as the assault goes in |
+| 2 | the outpost SPOTs (4 s) and never withdraws: the OP play is unbuilt | **R-2101** — a scenario rule (Blue within 150 m ⇒ `Order.Move` back behind the line); the play is **CE-2435** |
+| 3 | the rule's `BreakContact` order read *"not accepted"*: the Order verb counts acceptance only while the target RUNS that order's id, and a one-shot BreakContact (or the men's own fight) ends it unseen | R-2101 revised: the rule orders a MOVE (it runs ~40 s); arrow ① accepts it |
+| 3 | ②③⑤⑥⑦ pass; the HE lands 2 m from the reported point; Blue still misses PL 1 | — |
+| 5 | base: ②③⑤⑥⑦ ✓, PL 1 REACHED (282 s) — the assault platoon destroyed on the objective, so the company never reports it taken · stall run 1: its own arrows ②③⑦ ✓ | the dynamism measure judges phase lines on the base only (a stall misses them by design) |
+| 5 | collapse run 1: ⑤⑥ ✓ but ④ never — a block WIPED OUT never read Black: the company plays never asked their platoons for a SITREP (only `PlatoonDefend` asked its squads, DA-63) | ⭐ `CommandOrders.AskSitrep` — ONE helper (lifted from `PlatoonDefend`), called by every company order site; rail `CE4615_ACompany_AsksEveryPlatoonItOrders_ForASitrep`, red-proved |
+| 6 | base: Blue's assault platoon kept 7 men and reached PL 1 but never Set — `PlatoonAttack` clears EVERY building in the default 80 m (≈ 8), and the 1.5 × bypass came first · collapse 2: the block now reads LOST (64 s) and the reserve REINFORCES it — CE-7004 by design (a failing block is reinforced; a counter-attack only when one is lost with the reserve free) | **R-2097 rev. 3** `Radius` 35 m (the block's 3–4 buildings) · **R-2102** arrow ④ = the company reserve commits, by reinforcement or counter-attack (its order point moving, or its PlatoonAttack) |
+| 7 | stall 2: the cluster ABORTED (a worker-pool race, `IndexOutOfRange`) · collapse 3: BOTH blocks thin ⇒ half the blocks Black ⇒ `CompanyDefend` fell back at 33 s, before contact · base 7: the outpost in the open read Health 0 at 4 s (a hit from Blue's assembly 140 m away) | `FdpWorkerPool` generation fix (Parallel Simulation, the pool row) · collapse thins BLOCK 1 only, as the variant table says · **R-2103** the outpost INSIDE the house on the axis (296, 388), withdrawn when Blue passes within 35 m |
+| 8–9 | base 8: a Blue man STARTED inside the withdrawal circle ⇒ no edge (CE-4166 by design), the rule never fired; the assault platoon's PhaseLine was in the log but the check read the company's only · base 9: ①–⑧ ✓, ended by Red < 30 % at 390 s before the assault reported its objective · stall 3 and collapse 4: ✅ PASS | the withdrawal area just east of the house, off Blue's start · the check reads the chain's PhaseLine (company or platoon, R-2095) and any `<Class>Move` · **R-2104** watch 180 s past the end for the PhaseLine; a line failed BY the end is not missed |
+| 10–11 | base 10: two-squad platoons — the assault squad Black in the office ⇒ `AssaultLost` broke the platoon off (probe) · base 11: three squads, worn down crossing 113 m in ≈ 170 s under the line's fire (SITREP Red from 153 s, every man alive but hit) — Objective 1 never taken · collapse 6, stall 5: ✅ PASS | **R-2105** three-squad Blue platoons · ⏳ **CE-2436** the approach (suppression / smoke on the bound, the base of fire's stand-off) — a tactics decision, open |
+| 4 | Blue WINS the fight on the line (Red 1st Platoon 0 / 8 left, 2nd 2 / 8) but never occupies Objective 1; the outpost dies within ~10 s (the IFVs 70 m off) | probes: every man of Blue's assault platoon alive; the support Sets in 80 s, then the assault squad BOUNDS ≈ 0.8 m/s (≈ 20 m a bound) to an assault position 210 m away — the deadline's bypass (1.5 × 180 s) moved the company on first. ⇒ **R-2097 rev. 2** (tunables, no behaviour defect): Blue assembles 185 m out (the design's ≈ 150 m start line), the IFVs at the rear, the outpost 45 m before the line (withdrawal at 140 m), `DeadlineSeconds` 300, PL 1 / PL 2 by 420 / 720 s |
+| 2 | a smoke mission makes a cloud, not a detonation | the check's arrow ③ counts smoke clouds too |
 
 ## 5. Acceptance
 

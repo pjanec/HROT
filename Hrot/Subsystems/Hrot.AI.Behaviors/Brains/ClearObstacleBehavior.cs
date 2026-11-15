@@ -22,7 +22,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Drive speed to the blocker (m/s).</summary>
         public float Speed;
         /// <summary>Seconds of blade contact that empty ANY obstacle (the push is <c>Health.Max / PushSeconds</c> per second).</summary>
-        public float PushSeconds;
+        public Fdp.Core.SimDuration PushSeconds;
         /// <summary>1 while a MoveTo to the blocker runs.</summary>
         public byte Moving;
         /// <summary>Total hit points pushed off (a test / diagnostics probe).</summary>
@@ -165,7 +165,7 @@ namespace Hrot.AI.Behaviors.Brains
                 StopMove(ref p, self, world);
                 ref readonly var hp = ref world.GetComponentRO<Health>(o);
                 float dt = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().DeltaTime : 0f;
-                float push = hp.Max / MathF.Max(p.PushSeconds, 0.1f) * dt;
+                float push = hp.Max / MathF.Max((float)p.PushSeconds, 0.1f) * dt;
                 if (ObstacleDamage.Damage(world, o, push, self)) p.Pushed += push;
                 return NodeStatus.Running;
             }

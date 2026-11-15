@@ -378,7 +378,7 @@ namespace Fdp.Toolkit.Squad.Command
             ushort phase = repo.HasComponent<SquadCognitiveState>(unit) ? repo.GetComponentRO<SquadCognitiveState>(unit).PhaseId : (ushort)0;
             ReportQueue.Enqueue(repo, unit, new CommandReport
             {
-                Kind = ReportKind.Sitrep, At = PositionOf(repo, unit), Strength = StrengthOf(repo, unit), Phase = phase, ObservedAt = now,
+                Kind = ReportKind.Sitrep, At = PositionOf(repo, unit), Strength = StrengthOf(repo, unit), Ammo = AmmoOf(repo, unit), Phase = phase, ObservedAt = now,
             }, now + ReportDelaySeconds);
         }
 
@@ -419,6 +419,43 @@ namespace Fdp.Toolkit.Squad.Command
         {
             if (!view.HasComponent<UnitRoster>(unit)) return StatusColour.ColourUnknown;
             return UnitStrength.ColourOf(view, unit);
+        }
+
+        /// <summary>⭐ <c>CE-4610</c> — the ammunition share at or above which a unit's SITREP ammo is GREEN / AMBER; below AMBER with rounds left RED,
+        /// none BLACK (R-2095, lane decision: a unit fights on at half its basic load; a quarter is a resupply call).</summary>
+        public const float AmmoGreenFraction = 0.5f, AmmoAmberFraction = 0.25f;
+
+        /// <summary>⭐ <c>CE-4610</c> — a unit's ammunition as a colour (the SITREP's <see cref="CommandReport.Ammo"/>): the rounds its men carry
+        /// (<see cref="Fdp.Toolkit.Combat.Components.WeaponAmmo"/>, every mount with a capacity) over their capacity, down the roster;
+        /// unknown when no man carries a counted weapon. Allocation-free.</summary>
+        public static StatusColour AmmoOf(ISimulationView view, Entity unit)
+        {
+            long have = 0, max = 0;
+            Rounds(view, unit, 0, ref have, ref max);
+            if (max <= 0) return StatusColour.ColourUnknown;
+            float f = (float)have / max;
+            return have <= 0 ? StatusColour.Black : f >= AmmoGreenFraction ? StatusColour.Green : f >= AmmoAmberFraction ? StatusColour.Amber : StatusColour.Red;
+        }
+
+        private static void Rounds(ISimulationView view, Entity e, int depth, ref long have, ref long max)
+        {
+            if (e.IsNull || !view.IsAlive(e) || depth > CombatEffective.MaxDepth) return;
+            if (view.HasComponent<UnitRoster>(e))
+            {
+                ref readonly var roster = ref view.GetComponentRO<UnitRoster>(e);
+                for (int i = 0; i < roster.Count; i++) Rounds(view, roster.SubordinateEntities[i], depth + 1, ref have, ref max);
+                return;
+            }
+            if (!view.HasComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>(e) || !CombatEffective.IsInTheFight(view, e)) return;
+            ref readonly var a = ref view.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(e);
+            Add(a.Count > 0, a.Ammo0, a.Max0, ref have, ref max); Add(a.Count > 1, a.Ammo1, a.Max1, ref have, ref max);
+            Add(a.Count > 2, a.Ammo2, a.Max2, ref have, ref max); Add(a.Count > 3, a.Ammo3, a.Max3, ref have, ref max);
+        }
+
+        private static void Add(bool mounted, int ammo, int capacity, ref long have, ref long max)
+        {
+            if (!mounted || capacity <= 0) return;
+            have += Math.Clamp(ammo, 0, capacity); max += capacity;
         }
 
         /// <returns>How many reports went (CE-4518: summed by the caller — the phase writes no shared counter).</returns>

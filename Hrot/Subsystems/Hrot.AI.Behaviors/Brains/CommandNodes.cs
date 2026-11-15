@@ -21,6 +21,15 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class CommandOrders
     {
+        /// <summary>⭐ <c>CE-4615</c> — the ONE "send me a SITREP every <paramref name="seconds"/>" a commander asks with its order (DA-63's
+        /// <c>PlatoonDefend.AskSitrep</c>, lifted): the subordinate's strength colour is what a Reinforce / relief / LOST guard reads. 📐 Live on
+        /// cc-battalion the COMPANY plays never asked, so a wiped-out block never read Black and the counter-attack (CE-7004) never came.</summary>
+        public static void AskSitrep(EntityRepository world, Entity unit, float seconds = 15f)
+        {
+            if (unit.IsNull || !world.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) return;
+            world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = unit, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = seconds });
+        }
+
         /// <summary>An ABSTRACT order to <paramref name="member"/>. Its release is an unnamed clear (the commander cannot know what it
         /// resolved to). <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
         /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
@@ -207,6 +216,18 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>How long a play's own report waits before it goes (R-2031: a leader's report goes ~3 s after the fact).</summary>
         public const float ReportDelaySeconds = 3f;
+
+        /// <summary>⭐ <c>CE-4610</c> — a commander's own PROGRESS report (a phase line, an objective secured), sent after the report delay; the
+        /// one shape every commander play uses (<c>RoomDrill.Report</c> is the squad's, from its play context). <paramref name="count"/> rides in
+        /// <see cref="CommandReport.Count"/> (PhaseLine: the line's index).</summary>
+        public static void ReportProgress(EntityRepository world, Entity self, ProgressKind kind, Vector3 at, int count = 0)
+        {
+            SimInstant now = (SimInstant)CommandPictureOps.Now(world);
+            ReportQueue.Enqueue(world, self, new CommandReport
+            {
+                Kind = ReportKind.Progress, Subtype = (byte)kind, At = at, Count = (byte)System.Math.Clamp(count, 0, 255), ObservedAt = now,
+            }, now + ReportDelaySeconds);
+        }
 
         /// <summary>Order the subordinate in <see cref="OrderSubordinateParams.Slot"/> to Move or Hold — ABSTRACT (CC-9): its class decides
         /// how. A fresh order: the picture forgets its progress on the last one.</summary>

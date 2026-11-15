@@ -299,6 +299,10 @@ namespace Hrot.Map.Definitions.Behavior
         public const string HoldArea = "HoldArea";
         /// <summary>no enemy inside for a time. ⚠ Named <c>ClearAreaObjective</c>: <c>ClearArea</c> is the building-clearing task.</summary>
         public const string ClearAreaObjective = "ClearAreaObjective";
+        /// <summary>⭐ CE-4614 — the subject unit's strength in men crosses a threshold (below by default).</summary>
+        public const string StrengthObjective = "Strength";
+        /// <summary>⭐ CE-4614 — no shot, burst or hit inside an area for a time.</summary>
+        public const string QuietAreaObjective = "QuietArea";
         /// <summary>destroy the named targets.</summary>
         public const string DestroyTargets = "DestroyTargets";
         /// <summary>keep the named targets alive (judged at the end).</summary>

@@ -1602,7 +1602,11 @@ the deadline and the activation are FIELDS, not kinds, so every objective can ha
 | `DestroyTargets` | targets (`RefKey` / query), count | count of them destroyed · the deadline passes |
 | `Protect` | targets (`RefKey` / query), minSurvivors | the deadline passes with ≥ minSurvivors · fewer survive |
 | `NoHarm` (a constraint) | protected AFFILIATION (`ForceId`: Neutral / Friend / Hostile), by side, maxCount = 0 | the run ends within limits · more harmed than maxCount (fratricide and civilian harm are two uses) |
+| `Strength` *(CE-4614, built `2026-11-14`)* | threshold = 0.3, `above` = false, `standing` = false — the SUBJECT is a unit (a side = its top HQ) | its strength in men (`UnitStrength`, CE-4613) below threshold (or ≥ with `above`) · the deadline passes |
+| `QuietArea` *(CE-4614, built `2026-11-14`)* | area, forSeconds = 60 | no shot fired from inside, no burst landing inside (`RecentDetonations`, by serial), no hit on anyone inside, for forSeconds · the deadline passes |
 | `Composite` | mode all / any / weighted | its required children achieved · a required child failed |
+
+⭐ **R-2093** *(lane decision — for the user's review, `2026-11-14`, CE-4614)*: ① `Strength` takes a UNIT, not a `ForceId` — *"one side below 30 %"* is the side's top HQ as subject (a census by side would count men no commander owns, and every other objective names its subject the same way); ② `QuietArea` counts a SHOT by where the SHOOTER stands, a HIT by where the VICTIM stands and a BURST by where it lands — fire INTO a sector from outside is caught by its bursts and hits, and fire OUT of a quiet sector is not quiet. Would change: a scenario that needs a side with no single HQ (then a `side` field beside `subject`), or one that wants fire passing over a sector to count. Rails `ScenarioRulesTests.CE4614_*` (`ScenarioRulesTests.StrengthQuiet.cs`).
 
 ### 10.3 Measures v1 — evaluation that SCORES rather than ends (a measure is an objective with a value and a target)
 

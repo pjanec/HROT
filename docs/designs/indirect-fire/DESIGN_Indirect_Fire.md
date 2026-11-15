@@ -537,3 +537,8 @@ mortar is crouching next to it usually (for smaller mortars)."* · on doing both
 | 🔴 found on the way | every crewed tube's FIRST bomb killed its own gunner (he stands at the tube's origin in the sim) — fixed in the round's hit test (Weapon Systems §9 "riders and the ROUND") |
 | ⏳ not done | the MortarTeam 2005 stays (IF-G kept it; Urban Battle names it) — retiring it is this design's owner's call |
 
+
+
+## As built — a mission that never fires is refused *(CE-7038, behaviors, `2026-11-14`)*
+
+📐 A battery strike on a point beside / inside a house ran 60 s+ firing nothing, without a word: the brain plans TERRAIN-FREE (Q94 A-5 / A-7, R-3018) and the muscle refuses every round (masked, or inside the minimum range); the man's `FireAtPoint` fails and the play re-issues it until its 120 s overrun. ⭐ **R-2098** *(lane decision — for the user's review)*: `BatteryFireMissionPlay.Outcome` FAILS the mission `FirstRoundSeconds` (30 s) after its impact time (or start) when NO able gun has fired a round, with a WARN naming both causes; a mission that fired one round runs on as before. ⛔ The brain still never judges the terrain (the A-5 split stands). Would change: a plan that learns the muscle's refusal reason (then the warning names the exact cause). Rail `SquadManeuverTests.CE7038_ABatteryThatFiresNoRound_…`. ⚠ `utility-demo-check.py geo_of()` returns local metres now (a Strike's `Location` is local since CE-2433).

@@ -55,6 +55,7 @@ namespace Fdp.Core.Jobs
         private readonly ManualResetEventSlim _frameDone = new(false);
         private IBatchWork? _frameWork;
         private long _frameCursor;          // (generation << 32) | next batch
+        private const long ClosedCursor = 0x7FFFFFFF;   // a batch index no run reaches: the generation is published, its batches not yet
         private int _frameBatches, _frameFinished, _frameGeneration, _frameRunning;
         private Exception? _frameFault;
         private object? _frameFlow;          // ⭐ N-2 — the caller's tracer reader / context, restored on a worker for each of its batches
@@ -105,7 +106,12 @@ namespace Fdp.Core.Jobs
             try
             {
                 int gen = _frameGeneration + 1;
-                _frameWork = work; _frameBatches = batches; _frameFinished = 0; _frameFault = null;
+                // ⭐⭐ the new generation's cursor goes in CLOSED before any other field changes: a late worker still holding the previous
+                //   generation then fails its CAS (or sees the new generation) instead of taking a batch against this run's count — 📌 it ran a
+                //   batch of the FINISHED run (its emptied entity array ⇒ IndexOutOfRange, live, cc-battalion-stall 2026-11-15) or ran one of
+                //   this run's batches twice (rail FdpWorkerPoolTests)
+                Volatile.Write(ref _frameCursor, ((long)gen << 32) | ClosedCursor);
+                Volatile.Write(ref _frameWork, work); _frameBatches = batches; _frameFinished = 0; _frameFault = null;
                 _frameFlow = AccessTrace.CaptureFlow();
                 _frameDone.Reset();
                 Volatile.Write(ref _frameCursor, (long)gen << 32);

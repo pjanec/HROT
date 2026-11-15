@@ -58,6 +58,31 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("forSeconds")] public float ForSeconds;
     }
 
+    /// <summary>⭐ CE-4614 — <c>Strength</c>: the subject unit's strength in men (<c>UnitStrength</c>) below <see cref="Threshold"/> (or at least it, with <see cref="Above"/>).</summary>
+    [ParamsDto]
+    public struct StrengthObjectiveParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.StrengthObjective;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        /// <summary>A fraction of the unit's men, 0..1; 0 = 0.3.</summary>
+        [JsonPropertyName("threshold")] public float Threshold;
+        /// <summary>false (default) = achieved BELOW the threshold (a side collapsing); true = achieved AT OR ABOVE it (a unit kept in being).</summary>
+        [JsonPropertyName("above")] public bool Above;
+        /// <summary>Count only men still standing (not broken) — CE-7015.</summary>
+        [JsonPropertyName("standing")] public bool Standing;
+    }
+
+    /// <summary>⭐ CE-4614 — <c>QuietArea</c>: no shot, burst or hit inside <see cref="Area"/> for <see cref="ForSeconds"/>.</summary>
+    [ParamsDto]
+    public struct QuietAreaObjectiveParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.QuietAreaObjective;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("area")] public AreaLink Area;
+        /// <summary>0 = 60.</summary>
+        [JsonPropertyName("forSeconds")] public float ForSeconds;
+    }
+
     /// <summary><c>DestroyTargets</c>: <see cref="Count"/> of <see cref="Targets"/> (at most 8) destroyed.</summary>
     [ParamsDto]
     public struct DestroyTargetsParamsJsonDto

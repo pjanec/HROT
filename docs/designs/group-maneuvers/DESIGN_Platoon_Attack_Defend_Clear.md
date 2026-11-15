@@ -389,6 +389,23 @@ Every order carries its requirements by `SetSubordinateReporting` (CC-2: their o
 | SITREP colours / age | the squad staff | Relieve, Reinforce, FallBack, Abort; Silent = unknown | control guard |
 | REQUEST Casevac / FireSupport / Permission | the squad play or SOP | an order that cites its id | control-region Answer |
 
+### 7a. Which reports have a sender — as built *(`CE-4610`, behaviors, `2026-11-14`)*
+
+📐 Measured `2026-11-14`: the table above names senders the build never made. Each report decided — **produce it where a design names the
+sender, else drop the reader** (⭐ **R-2095**, lane decision — for the user's review):
+
+| report | as built | why |
+|---|---|---|
+| PROGRESS **PhaseLine** k | ✅ SENT by the commander play: `PlatoonAttack` / `CompanyAttack` on taking objective k (`NextObjective`, `Count` = k, `At` = the objective) — `CommandNodes.ReportProgress` | the squad play has no phase lines (as built, the assault bounds to its assault position — AT-*); objective k IS the platoon's / company's line k. ⭐ It is what the battalion check reads (Battalion Test §5: *"a phase line reached BY a report"*) |
+| PROGRESS **ObjectiveSecure** | ✅ SENT by `PlatoonAttack` / `CompanyAttack` entering Consolidate (the last objective taken — reached only through Next, never by a bypass) | §4 Consolidate: *"the platoon's staff sends PROGRESS ObjectiveSecure up"* |
+| PROGRESS **FallingBack** | ⛔ READER DROPPED (`CompanyBehaviors.Failing`) | superseded: a fall-back's end is Set (Defend & Attack E-3a) and a failure TaskFailed; nothing ever sent it |
+| PROGRESS **FireLifted** | ⛔ neither sent nor read — kept as vocabulary | the as-built attack has no Lift handshake (AT-6: the support goes to ReturnFire as the assault goes in); revisit with PC-4's Lift if built |
+| **SITREP ammo** colour | ✅ SENT: `StaffComposerSystem.AmmoOf` — the men's rounds (`WeaponAmmo`) over their capacity, down the roster; ≥ 50 % GREEN, ≥ 25 % AMBER, some RED, none BLACK, no counted weapon ⇒ unknown | the support's FFIR *"ammo ≤ AMBER"* above needs it; the picture already folded `Ammo` from the SITREP |
+| **LACE** | ⛔ not sent — the SITREP now carries the ammo colour the LACE reader wanted (`sub.Ammo`), so the reader stays harmless | one report path for ammo (ruling 9) rather than a second report kind |
+
+Rails: `SquadManeuverTests.CE4610_*` (`SquadManeuverTests.Reports.cs`). Would change R-2095: a squad play that gains real phase lines (then the
+assault squad sends PhaseLine as §4's table says), or a Lift phase (then FireLifted is produced).
+
 ## 8. Acting alone inside these plays *(CC-10, CC-11)*
 
 | SOP row | class | on the assault squad (`WithinIntent`) | on a militia group (`Full`) |

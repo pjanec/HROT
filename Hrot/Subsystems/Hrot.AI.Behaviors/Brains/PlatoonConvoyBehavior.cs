@@ -349,6 +349,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return true;
                 case ConvoyPlan.PhaseRemount:   // DA-102 — its wounded first, kept carried, then aboard its vehicle
                     if (p.OnFoot[slot] != 0 || v.IsNull || SquadEmbarkBehavior.AboardIt(world, squad, v)) return false;
+                    if (!AnyInTheFight(world, squad)) return false;   // ⭐ CE-4607 — nobody left to carry him: no recover, no embark
                     var vat = world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : Fdp.Core.WorldPoint.Zero;
                     var casualty = p.Recovers[slot] < MaxRecovers ? Casualty(world, squad, 0) : Entity.Null;
                     if (!casualty.IsNull)
@@ -403,7 +404,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < n; s++)
             {
                 var squad = CommandPictureOps.Subordinate(world, self, s);
-                if (p.OnFoot[s] != 0 && LiveSquad(world, squad)
+                if (p.OnFoot[s] != 0 && AnyInTheFight(world, squad)   // ⭐ CE-4607 — a squad whose men are all down never reports Set
                     && CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set
                     && Flat(StaffComposerSystem.CentreOf(world, squad), p.RouteEnd) > FootArrivalMetres) return false;
                 var v = p.VehicleOf(s);   // ⭐ CE-2354 — every vehicle that can move, whoever rides it
@@ -433,7 +434,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < n; s++)
             {
                 var squad = CommandPictureOps.Subordinate(world, self, s);
-                if (!LiveSquad(world, squad) || !Dismounted(world, squad)) continue;
+                if (!AnyInTheFight(world, squad) || !Dismounted(world, squad)) continue;   // ⭐ CE-4607
                 if (CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set) return false;
             }
             return true;
@@ -447,7 +448,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < n; s++)
             {
                 var squad = CommandPictureOps.Subordinate(world, self, s);
-                if (!LiveSquad(world, squad) || p.OnFoot[s] != 0) continue;
+                if (!AnyInTheFight(world, squad) || p.OnFoot[s] != 0) continue;   // ⭐ CE-4607 — nobody to climb in: not waited for
                 if (!SquadEmbarkBehavior.AboardIt(world, squad, p.VehicleOf(s))) return false;
             }
             return true;
@@ -534,6 +535,20 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static bool LiveSquad(EntityRepository world, Entity squad) => LiveMen(world, squad, 0) > 0;
+
+        /// <summary>⭐ <c>CE-4607</c> — <paramref name="squad"/> has a man IN THE FIGHT (a unit: a member of it is). A squad whose only men are down
+        /// has nobody to carry them or to report Set, so the phase guards (<see cref="Secured"/>, <see cref="Mounted"/>, <see cref="Arrived"/>)
+        /// do not wait on it and no recover is ordered to it. No allocation.</summary>
+        public static bool AnyInTheFight(EntityRepository world, Entity squad, int depth = 0)
+        {
+            if (squad.IsNull || !world.IsAlive(squad)) return false;
+            if (!world.HasComponent<UnitRoster>(squad)) return Injury.IsInTheFight(world, squad);
+            if (depth >= 4) return false;
+            var roster = world.GetComponentRO<UnitRoster>(squad);
+            for (int i = 0; i < roster.Count; i++)
+                if (AnyInTheFight(world, roster.SubordinateEntities[i], depth + 1)) return true;
+            return false;
+        }
 
         /// <summary>The empty passenger seats of <paramref name="vehicle"/> (a seat whose man is dead counts as empty).</summary>
         public static unsafe int FreePassengerSeats(EntityRepository world, Entity vehicle)

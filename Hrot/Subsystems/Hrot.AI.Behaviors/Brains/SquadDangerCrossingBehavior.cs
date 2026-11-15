@@ -84,7 +84,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Near = area.NearSideHandle; p.Far = area.FarSideHandle; p.Feature = area.FeatureId;
             p.LaneRotation = default; p.Across = 0; p.Pair = 0; p.PairLane = 0;
             p.SeenPhase = ushort.MaxValue;
-            DangerAreaCrossingManeuver.ComputePartitionInputs(ctx.Roster.Count, partition);   // front half crosses, back half secures
+            SquadManeuverRunner.SplitLiveByRank(in ctx, partition);   // front half crosses, back half secures
             return PlayStart.Go;
         }
 

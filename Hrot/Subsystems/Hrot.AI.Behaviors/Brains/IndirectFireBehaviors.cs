@@ -232,6 +232,10 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>A mission still running this long after its last planned impact has failed (s).</summary>
         public const double OverrunSeconds = 120.0;
+        /// <summary>⭐ <c>CE-7038</c> (R-2098) — a mission whose guns have fired NO round this long after its impact time (or its start) is refused:
+        /// the muscle refuses every round (the point masked by a building or the ground on the arc, or inside the minimum range — Q94 A-5: the
+        /// brain plans terrain-free, the muscle judges each round), so waiting out <see cref="OverrunSeconds"/> would only run silently (s).</summary>
+        public const double FirstRoundSeconds = 30.0;
 
         public SquadHsmShell Shell => s_shell;
         public ushort ManeuverKind => BatteryFireMissionManeuver.ManeuverKind;
@@ -333,6 +337,14 @@ namespace Hrot.AI.Behaviors.Brains
             return now < 0 ? p.Rounds : Math.Max(p.StartAmmo[i] - now, 0);
         }
 
+        /// <summary>⭐ <c>CE-7038</c> — whether any able, live gun has fired a round of this mission.</summary>
+        private static bool AnyFired(ref BatteryFireParams p, in SquadPlayContext ctx)
+        {
+            for (int i = 0; i < Math.Min(ctx.Roster.Count, 16); i++)
+                if (p.Able[i] != 0 && ctx.Live(i, out var gun) && Fired(ref p, ctx.World, gun, i) > 0) return true;
+            return false;
+        }
+
         /// <summary>Gun <paramref name="i"/> has nothing left to fire: its rounds are gone, or its ammunition.</summary>
         public static bool Done(ref BatteryFireParams p, EntityRepository world, Entity gun, int i)
             => p.Able[i] == 0 || Fired(ref p, world, gun, i) >= p.Rounds
@@ -351,6 +363,11 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!Done(ref p, ctx.World, gun, i)) all = false;
             }
             if (!any) return NodeStatus.Failure;
+            if (!all && ctx.Now > Math.Max(p.ImpactAt, ws.StartedAt) + FirstRoundSeconds && !AnyFired(ref p, in ctx))
+            {
+                BehaviorLog.Warn(ctx.Commander, ctx.World, $"fire mission refused: no round left the tubes in {FirstRoundSeconds:0} s — the point is masked (a building or the ground on the arc) or inside the minimum range");
+                return NodeStatus.Failure;
+            }
             if (all)
             {
                 BehaviorLog.Trace(ctx.Commander, ctx.World, "fire mission: rounds complete");

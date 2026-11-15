@@ -43,6 +43,12 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponState>();          // SquadGates.Track — a member firing
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();      // RoomDrill.FindThrower — a member's grenade mount
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>();              // SquadDefendPlay.LiftOwnHold — a member's weapon
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();            // CE-7035 — a civilian reads how a forces man holds his weapon (covered / aimed at: CE-2239, CE-2241)
+            ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.AmmoLoadout>();              // CE-7035 — what a forces man's weapon is loaded with (a baton round is no cover, CE-2239)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.BallisticProjectile>();      // CE-7035 — a lying round / stone a rioter may pick up (a live grenade is not a stone, CE-2238)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.EffectState>();                         // CE-7035 — an effect on a man (a rioter's target choice, CE-2238)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponAmmo>();               // CE-4610 — the SITREP ammo colour (StaffComposerSystem.AmmoOf): a man's rounds, a tick old
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();      // a member aboard
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();    // SquadEmbarkPlay.Outcome — the carrier's seats
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.EngagementArea>();     // EngagementAreas.HasSuperiorSet — the superior's sector
