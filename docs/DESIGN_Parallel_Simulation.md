@@ -421,7 +421,7 @@ data dependencies: best case −9 to −14 ms of a 158 ms frame). §13's table o
 | mechanism (§13) | on `exp/parallel-sim-4` |
 |---|---|
 | `Fdp.ModuleHost.Threading.WorkerPool` | ⛔ deleted — its windows run on `FdpWorkerPool`'s BACKGROUND lane |
-| `FdpWorkerPool` | ⭐ THE pool: FRAME lane (`Run`) + BACKGROUND lane (`TryRun`), one budget (cores − 2) |
+| `FdpWorkerPool` | ⭐ THE pool: FRAME lane (`Run`) + BACKGROUND lane (`TryRun`), one budget (cores − 2). ⭐ **The frame lane's generation invariant** *(`2026-11-15`, behaviors)*: a run publishes its generation's cursor **CLOSED** (batch index `0x7FFFFFFF`) BEFORE it changes the work / batch count, then opens it — 📌 publishing the work first let a late worker still holding the previous generation pass the batch check against the NEW count and win its CAS on the old cursor: it ran a batch of a FINISHED run (`IndexOutOfRange`, aborting a live cluster in `cc-battalion-stall`) or one batch twice. Rail `FdpWorkerPoolTests` |
 | `Parallel.ForEach` / `Parallel.For` | ⭐ gone from `EntityQuery.ForEachParallel` and `RaycastSolverSystem` — both on the frame lane, 0 B when warm |
 | `Task.Run` (background modules, recorder) | ⚠ unchanged — cross-frame work; needs a third job kind (a capped long-job queue), not built |
 
