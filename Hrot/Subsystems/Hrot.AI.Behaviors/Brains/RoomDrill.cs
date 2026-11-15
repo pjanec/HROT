@@ -95,6 +95,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlowSeconds = 0.6f;
         /// <summary>CB-55 — at his point: this close (m); the room clear after this long with every man there and no hostile in it (s).</summary>
         public const float AtPointMetres = PostureNodes.OccupiedMetres, ClearSeconds = 3f;
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2117) — once every entry man is released, an entry man still short of his point after this long (s)
+        /// covers from where he stands: a point on another storey or behind furniture held the squad in Entering for good (as stacking has
+        /// <see cref="StackTimeoutSeconds"/> and breaching <see cref="BreachTimeoutSeconds"/>).</summary>
+        public const float EnterTimeoutSeconds = 20f;
         /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m) · the door front reached
         /// within this (m).</summary>
         public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f, DoorFrontMetres = 0.6f;
@@ -180,7 +184,9 @@ namespace Hrot.AI.Behaviors.Brains
                     evt = PhaseEventKind.Abort;
                     return true;
                 case StackAndRoomEntryManeuver.PhaseEntering:
-                    if (!AllAt(ref d, in ctx, stack: false, AtPointMetres) || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
+                    bool placed = AllAt(ref d, in ctx, stack: false, AtPointMetres)
+                                  || (d.Released >= d.Plan.Entry && ctx.Now - d.EnterSince >= EnterTimeoutSeconds);   // R-2117
+                    if (!placed || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
                     if (d.ClearSince == 0) { d.ClearSince = (SimInstant)ctx.Now; return false; }
                     if (ctx.Now - d.ClearSince < ClearSeconds) return false;
                     evt = PhaseEventKind.FarSideReached;

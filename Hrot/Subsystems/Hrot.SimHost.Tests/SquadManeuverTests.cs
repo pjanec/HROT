@@ -5464,6 +5464,22 @@ namespace Hrot.SimHost.Tests
             Near(plan.Point(1), PostureOf(s, s.Members[2]).Post.Point, "#2 in");
             for (int m = 3; m < 6; m++) Near(plan.Stack(m - 1), PostureOf(s, s.Members[m]).Post.Point, $"man {m} stays on the stack");
             Near(plan.Stack(5), PostureOf(s, s.Members[0]).Post.Point, "the leader stays out");
+
+            // ⭐⭐ CE-2436 AU-6 (R-2117) — #2 cannot reach his point (another storey, furniture): within the 3 s he holds the room uncleared, but
+            //   once the entry has run EnterTimeoutSeconds he covers from where he stands and the room clears. 📌 pc-assault (editor): a leader
+            //   5.6 m from a point upstairs held the squad in Entering for good. 🔴 Red-proof: the timeout dropped ⇒ never clear.
+            s.Teleport(s.Members[1], plan.Point(0));
+            s.Teleport(s.Members[2], plan.Point(1) + new Vector3(3f, 0f, 0f));   // 3 m short, and he stays there
+            TickFor(s, RoomDrill.ClearSeconds + 0.5);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            Assert.False(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear), "a man short of his point holds it — for now");
+            for (int i = 0; i < 50 && s.Phase == StackAndRoomEntryManeuver.PhaseEntering; i++)
+            {
+                s.Teleport(s.Members[2], plan.Point(1) + new Vector3(3f, 0f, 0f));   // still short: his move cannot get him there
+                TickFor(s, 0.5);
+            }
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
         }
 
         /// <summary>
