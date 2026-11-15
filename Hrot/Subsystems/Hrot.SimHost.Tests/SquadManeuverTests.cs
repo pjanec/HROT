@@ -3761,7 +3761,9 @@ namespace Hrot.SimHost.Tests
 
             p.ReportSet(p.Bravo);
             p.Ticks(4);
-            Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Alpha, BehaviorNames.BoundingOverwatch).Objective, assault) < 0.5f);
+            // ⭐ CE-2436 AU-2 (A-7) — in contact (o is a REPORTED post) the assault closes by fire and movement, not by bounding
+            Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));
+            Assert.True(Vector3.Distance(OrderTo<FireAndMovementParamsJsonDto>(p, p.Alpha, BehaviorNames.FireAndMovement).Objective, assault) < 0.5f);
             Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Charlie, BehaviorNames.BoundingOverwatch).Objective, reserve) < 0.5f);
 
             int supportOrders = p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire);
@@ -3809,7 +3811,7 @@ namespace Hrot.SimHost.Tests
 
             p.ReportSet(p.Bravo);
             p.Ticks(4);
-            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch) > 0, "the approach began");
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) > 0, "the approach began");   // AU-2 (A-7): in contact
             Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
 
             ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
@@ -3861,11 +3863,11 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             var second = PointsFor(p, post);
             Assert.True(Vector3.Distance(SupportOrderTo(p, p.Bravo).Position, second.Support) < 0.5f, "then the base of fire on the open post");
-            int bounds = p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
+            int bounds = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement);   // ⭐ AU-2 (A-7) — in contact the approach is fire and movement
             p.Ticks(4);
-            Assert.Equal(bounds, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));   // the house's Set is not this base of fire's
+            Assert.Equal(bounds, p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement));   // the house's Set is not this base of fire's
             p.ReportSet(p.Bravo); p.Ticks(4);
-            Assert.Equal(bounds + 1, p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch));
+            Assert.Equal(bounds + 1, p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement));
         }
 
         /// <summary>⭐ <c>CE-2277</c> (AT-9) — the assault reports BLACK during the approach: the reserve (Charlie) takes over as the assault
@@ -3880,11 +3882,11 @@ namespace Hrot.SimHost.Tests
             Attack(p, o);
             p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
             p.ReportSet(p.Bravo); p.Ticks(4);
-            int charlie = p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch);
+            int charlie = p.OrdersTo(p.Charlie, BehaviorNames.FireAndMovement);   // ⭐ CE-2436 AU-2 (A-7) — the new assault closes by fire and movement
             Sitrep(p, p.Alpha, Fdp.Toolkit.Squad.Command.StatusColour.Black);
             p.Ticks(6);
-            Assert.Equal(charlie + 1, p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch));
-            Assert.True(Vector3.Distance(OrderTo<BoundingOverwatchParamsJsonDto>(p, p.Charlie, BehaviorNames.BoundingOverwatch).Objective, PointsFor(p, o).Assault) < 0.5f);
+            Assert.Equal(charlie + 1, p.OrdersTo(p.Charlie, BehaviorNames.FireAndMovement));
+            Assert.True(Vector3.Distance(OrderTo<FireAndMovementParamsJsonDto>(p, p.Charlie, BehaviorNames.FireAndMovement).Objective, PointsFor(p, o).Assault) < 0.5f);
         }
 
         /// <summary>⭐ <c>CE-2277</c> (AT-10) — two squads and the assault BLACK: no reserve to relieve it, so the platoon BREAKS OFF — both squads
@@ -7722,7 +7724,7 @@ namespace Hrot.SimHost.Tests
                 p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
             Assert.Equal(BehaviorNames.SupportByFire, p.S.Orders.Last(o => o.Entity.Equals(p.Bravo)).IntentId);
             Assert.InRange(Vector3.Distance(support.Position, new Vector3(0f, 10f, 0f)), 0f, 0.5f);                 // where it stands
-            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);   // to the flank
+            Assert.Equal(BehaviorNames.FireAndMovement, p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).IntentId);   // to the flank — AU-2 (A-7): fired on, so in contact
 
             p.ReportSet(p.Alpha);
             p.Ticks(5);

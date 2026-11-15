@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1 BUILT (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2 BUILT (§9)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -185,4 +185,19 @@ assault crosses; it stops only once the assault holds a foothold.*
 (the shift, FireAtWill kept) · `CE2277_AnAreaWithABuilding…` (the lift at the foothold) · `CE2277_WithItsSop…`, `CE2346_…`, `CE2284_…` (the
 support's order is now `SupportByFire`). **R-2106 numbers:** arrival 12 m / 60 s, post match 25 m, shift depth 30 m, flanks 25 m, ≤ 4 posts —
 would change with a live run showing the posts off the windows, or the arrival too strict for a covered position.
+
+### 9.2 AU-2 — the approach in contact, the crossing smoke, suppression established *(R-2107, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-7 approach | `PlatoonAttack` sets `Contact` when the objective's posts come from REPORTED elements; then the assault closes to its assault point by `FireAndMovement` (rushes between cover, its other half covering); with nothing reported it still bounds (pre-contact). The reserve keeps bounding behind | `PlatoonAttackBehavior.OrderFor`, `Rush` |
+| A-7 crossing smoke | `FireAndMovement`: before the first rush ONE covering man who carries smoke and is Regular+ throws a smoke grenade 15 m (at most half-way) toward the threat — the objective when no contact is pooled; once a run; back to covering after `SmokeSeconds` — `BreakContactPlay`'s rule and helpers (`Smoker`, `SmokePoint`), ⛔ no second smoke model | `FireAndMovementBehavior.OrderFor` / `Update` |
+| A-8 established | `SupportByFire` reports SET only when suppression is ESTABLISHED: firing ≥ 15 s AND the squad's carried rounds fell by ≥ 3 a man in the fight since firing began (`StaffComposerSystem.RoundsOf`; a squad with no counted weapon: the time alone). The platoon's `SupportSet` reads it, so the assault moves only under established fire. ⚠ "the drone strike in" (A-8's second half) waits for AU-5 | `SupportByFireBehavior.Established` |
+
+**Rails:** `CE2436_SupportByFire_SuppressionIsEstablished_OnlyWhenRoundsWereSpent_NotByTheClockAlone` ·
+`CE2436_FireAndMovement_OneCoveringManThrowsCrossingSmokeTowardTheThreat_OnceBeforeTheFirstRush` ·
+`CE2436_PlatoonAttack_BeforeContactTheAssaultBounds_InContactItClosesByFireAndMovement` · the AU-1 rail's SET now after establishment ·
+`CE2277` ×3, `CE2346`, `CE2284` updated (the approach in contact is `FireAndMovement`). **R-2107 numbers:** 15 s / 3 rounds a man; the
+smoke once per fire-and-movement run — would change with a live run where the support's Set comes too late for the deadline, or where one
+grenade does not cover the crossing.
 

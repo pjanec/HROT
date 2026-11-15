@@ -58,7 +58,7 @@ EvadeAndSignal | hostedInput=Hrot.Map.Definitions.Behavior.EvadeAndSignalParamsJ
 EvadeGrenade | hostedInput=Hrot.Map.Definitions.Behavior.EvadeGrenadeParamsJsonDto | inputBytes=96
 FallBack | hostedInput=- | inputBytes=84
 FightFromCover | hostedInput=Hrot.Map.Definitions.Behavior.FightFromCoverParamsJsonDto | inputBytes=840
-FireAndMovement | hostedInput=Hrot.Map.Definitions.Behavior.FireAndMovementParamsJsonDto | inputBytes=1424
+FireAndMovement | hostedInput=Hrot.Map.Definitions.Behavior.FireAndMovementParamsJsonDto | inputBytes=1440
 FireAtPoint | hostedInput=Hrot.Map.Definitions.Behavior.FireAtPointParamsJsonDto | inputBytes=48
 FireAtTarget | hostedInput=Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto | inputBytes=24
 FiringPosition | hostedInput=- | inputBytes=0
@@ -111,7 +111,7 @@ Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
 QuietArea | hostedInput=- | inputBytes=240
 ReachArea | hostedInput=- | inputBytes=216
-ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1624
+ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ReportLatency | hostedInput=- | inputBytes=168
 Sample | hostedInput=- | inputBytes=264
@@ -137,7 +137,7 @@ SquadShelterFromAir | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | input
 StationWeapon | hostedInput=Hrot.Map.Definitions.Behavior.StationWeaponParamsJsonDto | inputBytes=24
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
-SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=104
+SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=120
 SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=20
 Suppress | hostedInput=Hrot.Map.Definitions.Behavior.SuppressParamsJsonDto | inputBytes=56
 SuppressAndManeuver | hostedInput=Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto | inputBytes=1216

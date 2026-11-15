@@ -23,6 +23,7 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 
 | id | decision | would change it |
 |---|---|---|
+| R-2107 | AU-2: suppression ESTABLISHED = firing ≥ 15 s AND ≥ 3 rounds a man spent since firing began (no counted weapon: the time alone); "in contact" = the objective's posts are reported elements; the crossing smoke is one grenade per fire-and-movement run, 15 m toward the threat | a live run where the Set comes too late for the deadline, or one grenade does not cover the crossing |
 | R-2106 | AU-1's numbers: `SupportByFire` arrives within 12 m (or fires after 60 s on the way); a reported element within 25 m of the objective is one of its posts (≤ 4; none ⇒ the objective); the SHIFT goes 30 m beyond and 25 m to each flank; man i fires on post i mod n | a live run showing the posts off the windows, or a covered support position the 12 m arrival rejects |
 
 ## 2. The slices
@@ -31,7 +32,7 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 |---|---|---|---|
 | hygiene | ✅ R-2093…R-2105 in `RULINGS.md` with probes (674 / 674 verify) | — | — |
 | AU-1 | ✅ `883f9d6df` — A-2 the M249 / PKM in every squad; A-1 `SupportByFire`; A-3 the SHIFT at the assault, the LIFT at the foothold (AT-6 superseded) | `CE2436_SupportByFire_…` (new), `CE2277_AnOpenObjective_…` (shift), `CE2277_AnAreaWithABuilding…` (lift), 3 updated; six mutants red | Assault Under Fire §9.1 · Defend & Attack AT-6 marked superseded |
-| AU-2 | | | |
+| AU-2 | ✅ A-7 fire and movement in contact (bounding before), the crossing smoke (BreakContact's rule); A-8 SET = suppression established (time + rounds spent) — ⚠ the drone half of A-8 waits for AU-5 | `CE2436_SupportByFire_SuppressionIsEstablished_…`, `CE2436_FireAndMovement_OneCoveringManThrowsCrossingSmoke…`, `CE2436_PlatoonAttack_BeforeContact…`; CE2277 ×3, CE2346, CE2284 updated; five mutants red | Assault Under Fire §9.2 |
 | AU-3 | | | |
 | AU-4 | | | |
 | AU-5 | | | |
@@ -44,6 +45,9 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 |---|---|---|
 | AU-1: `dotnet test Hrot.SimHost.Tests --filter SquadManeuverTests\|SuppressNodesTests\|ScenarioRulesTests` plain · `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | ✓ | 406 / 406 · 406 / 406 |
 | AU-1: `--filter SopParamsRoundTrip\|ShippedTreesAreCSharp\|BehaviourHostingSnapshot` | ✓ | 35 / 36 → 36 / 36 after re-recording the hosting golden (`HROT_RECORD_HOSTING=1`): ⚠ it had drifted since `06ee9318b` (2026-11-08, other behaviours' sizes) — this slice's lines are `PlatoonAttack` 208 → 272 and `SupportByFire` 104 |
+| AU-2: the same suites plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 409 / 409 · 409 / 409 |
+| AU-2: registry suites | ✓ | 35 / 36 → 36 / 36 re-recorded; moved lines exactly `FireAndMovement` 1424 → 1440, `ReactToContact` 1624 → 1640 (embeds it), `SupportByFire` 104 → 120 |
+| AU-2 red-proofs | — | rounds check dropped · time check dropped · contact forced · rush dropped · crossing smoke dropped ⇒ each RED; restored 29 / 29 |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids

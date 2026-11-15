@@ -36,6 +36,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Issued;
         public byte SetSent;
         public SimInstant Since;
+        /// <summary>⭐ AU-2 (A-8) — when the firing began, and the rounds the squad carried then (−1 = not yet read).</summary>
+        public SimInstant FiringSince;
+        public long RoundsAtFiring;
         public int Orders;
         public fixed byte Dirty[CommandPicture.MaxSubordinates];
     }
@@ -57,6 +60,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float ArriveMetres = 12f;
         /// <summary>Firing starts after this long on the way even short of the point (s): a base of fire that cannot reach its point still fires.</summary>
         public const double ArriveTimeoutSeconds = 60.0;
+        /// <summary>⭐ <c>CE-2436</c> AU-2 (A-8) — suppression is ESTABLISHED after this long firing (s) …</summary>
+        public const double EstablishSeconds = 15.0;
+        /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
+        public const int EstablishRoundsPerMan = 3;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SupportByFireBlackboard
@@ -112,6 +119,8 @@ namespace Hrot.AI.Behaviors.Brains
                 if (dx * dx + dy * dy <= ArriveMetres * ArriveMetres || now - ws.Since >= ArriveTimeoutSeconds)
                 {
                     ws.Phase = 1;
+                    ws.FiringSince = (SimInstant)now;
+                    ws.RoundsAtFiring = StaffComposerSystem.RoundsOf(world, self, out _);
                     for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
                 }
             }
@@ -126,12 +135,25 @@ namespace Hrot.AI.Behaviors.Brains
                 else SquadManeuverRunner.Suppress(world, self, member, Entity.Null, p.Post(i % Math.Max(1, p.Posts)), at, p.Speed);
                 ws.Orders++;
             }
-            if (ws.Phase == 1 && ws.SetSent == 0)
+            // ⭐⭐ AU-2 (A-8) — SET means SUPPRESSION ESTABLISHED, a cause not a clock: firing for EstablishSeconds AND rounds really spent on the
+            //   posts (EstablishRoundsPerMan a man in the fight). The platoon's SupportSet reads it, so the assault moves only under it.
+            if (ws.Phase == 1 && ws.SetSent == 0 && Established(ref ws, self, world, now))
             {
                 ws.SetSent = 1;
-                CommandNodes.ReportProgress(world, self, ProgressKind.Set, p.Position);   // the platoon's SupportSet reads it
+                CommandNodes.ReportProgress(world, self, ProgressKind.Set, p.Position);
             }
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ AU-2 (A-8) — firing long enough, and the rounds gone: the squad's carried rounds fell by
+        /// <see cref="EstablishRoundsPerMan"/> per man in the fight since firing began (no counted weapon ⇒ the time alone).</summary>
+        private static bool Established(ref SupportByFireState ws, Entity self, EntityRepository world, double now)
+        {
+            if (now - ws.FiringSince < EstablishSeconds) return false;
+            long have = StaffComposerSystem.RoundsOf(world, self, out long max);
+            if (max <= 0) return true;
+            int men = Fdp.Toolkit.Squad.CombatEffective.FightingMembers(world, self);
+            return ws.RoundsAtFiring - have >= (long)EstablishRoundsPerMan * System.Math.Max(1, men);
         }
     }
 }

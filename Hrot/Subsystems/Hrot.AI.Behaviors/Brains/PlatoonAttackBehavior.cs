@@ -70,6 +70,8 @@ namespace Hrot.AI.Behaviors.Brains
         public int Posts;
         /// <summary>⭐ AU-1 (DA-11) — 1 once the assault reported its FOOTHOLD: the base of fire lifts (defends, returns fire).</summary>
         public byte Lifted;
+        /// <summary>⭐ <c>CE-2436</c> AU-2 (A-7) — 1 = the objective's posts are REPORTED (in contact): the approach is fire and movement, not bounding.</summary>
+        public byte Contact;
 
         public Vector3 Objective(int i) => new(OX[i], OY[i], OZ[i]);
 
@@ -425,6 +427,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Posts = 0;
             foreach (var e in Elements(world, self, CommandPictureOps.Now(world)))
                 if (Flat(e, o) <= PostMatchMetres) AddPost(ref p, e);
+            p.Contact = p.Posts > 0 ? (byte)1 : (byte)0;   // AU-2 (A-7)
             if (p.Posts == 0) AddPost(ref p, o);
         }
 
@@ -608,8 +611,10 @@ namespace Hrot.AI.Behaviors.Brains
                         return true;
                     }
                     if (p.Phase == PlatoonAttackPlan.PhaseSupport) return false;   // the assault and the reserve wait for the base of fire
+                    // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
+                    //   the crossing smoke) — bounding only before contact. 📌 measured: bounding under the line's fire ≈ 0.66 m/s over 113 m
                     if (role == PlatoonAttackPlan.Assault)
-                        return Bound(p.AssaultAt, p.Speed, json, out behaviour, out order);
+                        return p.Contact != 0 ? Rush(p.AssaultAt, p.Speed, json, out behaviour, out order) : Bound(p.AssaultAt, p.Speed, json, out behaviour, out order);
                     if (role == PlatoonAttackPlan.Reserve && p.Phase == PlatoonAttackPlan.PhaseApproach)
                         return Bound(p.ReserveAt, p.Speed, json, out behaviour, out order);
                     return false;
@@ -622,6 +627,14 @@ namespace Hrot.AI.Behaviors.Brains
                 default:
                     return false;
             }
+        }
+
+        /// <summary>⭐ AU-2 (A-7) — fire and movement to <paramref name="at"/>.</summary>
+        private static bool Rush(Vector3 at, float speed, JsonSerializerOptions json, out string behaviour, out string order)
+        {
+            behaviour = BehaviorNames.FireAndMovement;
+            order = JsonSerializer.Serialize(new FireAndMovementParamsJsonDto { Objective = at, Speed = speed }, json);
+            return true;
         }
 
         /// <summary>⭐ AU-1 (A-1) — the base of fire's order: hold at the support point, the plan's posts under sustained fire.</summary>
