@@ -5,6 +5,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis3D;
@@ -283,6 +284,54 @@ public sealed class MotorcycleModelRail
         Assert.True(driver.Y > pillion.Y + 0.4f, $"facing +y: the driver is ahead of the pillion ({driver} / {pillion})");
         Assert.InRange(driver.X, 99.9f, 100.1f);
         Assert.InRange(driver.Z, 3f + 0.9f + 0.5f, 3f + 0.9f + 0.8f);   // the seat's z + his eyes above his hips
+    }
+
+    /// <summary>⭐ The fire arc on the maps (mockup panels C, D): the selected bike's pillion seat draws an amber wedge, its edges and arc, from the seat's place; the driver's seat (no arc) and a station draw nothing.</summary>
+    [Fact]
+    public void TheSeatArcGizmo_DrawsTheWedgeOfAFiringSeat_FromHisPlace_NotTheDriversSeat_AndFollowsTheHeading()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(WithStandIn());
+        var bike = world.CreateEntity();
+        world.AddComponent(bike, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(bike, new TkbIdentity { TkbType = (TkbTypeId)StandIn });
+        var draw = new ArcDraw();
+        new Hrot.ScenarioEditor.Gizmos.SeatArcGizmo().Draw(world, bike, draw);
+        // 70 … 290 = 220° of arc: two edges + 22 segments, all from / around the pillion's place (x −0.52 behind the reference point)
+        Assert.Equal(2 + 22, draw.Lines.Count);
+        var edges = draw.Lines.Take(2).ToArray();
+        Assert.All(edges, l => Assert.Equal(new Vector3(100f - 0.52f, 50f, 0f), l.From));
+        // the first edge is the arc's start (70°, ahead-left), the second its end (290°, ahead-right): neither is dead ahead, both point forward-ish of the sides
+        Assert.True(edges[0].To.X > 100f - 0.52f && edges[0].To.Y > 50f, "70° is left and a little ahead");
+        Assert.True(edges[1].To.X > 100f - 0.52f && edges[1].To.Y < 50f, "290° is right and a little ahead");
+        Assert.All(draw.Lines.Skip(2), l => Assert.InRange(Vector3.Distance(l.From, new Vector3(100f - 0.52f, 50f, 0f)), SeatArcGizmoRange - 0.1f, SeatArcGizmoRange + 0.1f));
+        // the bike turned 180°: the wedge turns with it (the rear is now toward +x)
+        world.SetComponent(bike, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) });
+        var turned = new ArcDraw();
+        new Hrot.ScenarioEditor.Gizmos.SeatArcGizmo().Draw(world, bike, turned);
+        Assert.True(turned.Lines.Skip(2).Average(l => l.To.X) > 100f + 10f, "the arc of the rear now lies to +x");
+        Assert.Equal(0, new ArcDraw().Lines.Count);
+    }
+
+    private const float SeatArcGizmoRange = Hrot.ScenarioEditor.Gizmos.SeatArcGizmo.Range;
+
+    /// <summary>Records the lines a gizmo draws; the layer is always on.</summary>
+    private sealed class ArcDraw : Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder
+    {
+        public readonly List<(Vector3 From, Vector3 To)> Lines = new();
+        public bool IsLayerActive(byte layer) => true;
+        public void EmitRaw(in DebugPrimitive prim) { }
+        public void DrawContextMenuBinding(int networkId, string menuJson) { }
+        public void DrawLine(Vector3 s, Vector3 e, Rgba32 c, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) => Lines.Add((s, e));
+        public void DrawLineGradient(Vector3 s, Vector3 e, Rgba32 sc, Rgba32 ec, float t = 1f, SizeMode m = SizeMode.ScreenPixels, PipelineTarget tg = PipelineTarget.All, byte l = 0, LineStyle style = LineStyle.Solid) { }
+        public void DrawSphere(Vector3 c, float r, Rgba32 col, float thickness = 0f, SizeMode sm2 = SizeMode.WorldMeters, PipelineTarget tg = PipelineTarget.All, byte l = 0, Rgba32 fillColor = default, LineStyle style = LineStyle.Solid) { }
+        public void DrawArrow(Vector3 f, Vector3 t, Rgba32 c, float h = 1f, byte l = 0) { }
+        public void DrawText(float x, float y, Fdp.Core.FixedString32 t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
+        public void DrawTextLong(float x, float y, string t, Rgba32 c, CoordinateSpace sp = CoordinateSpace.World, byte l = 0, float fontSizePx = 0f, float lineOffsetPx = 0f, GizmoTextStyle style = GizmoTextStyle.Plain) { }
+        public void DrawEntityBadge(Entity e, Fdp.Core.FixedString32 rt, PipelineTarget tg = PipelineTarget.All) { }
+        public void DrawEntityLocal(int a, Vector3 ls, Vector3 le, Rgba32 c, float t = 1f, byte l = 0) { }
+        public void DrawEntityLocalInteractive(int a, Vector3 ls, Vector3 le, Rgba32 c, ushort sid, float t = 1f, byte l = 0) { }
     }
 
     // ── the real 3-D frame ────────────────────────────────────────────────────────────────────────────────────────────────────
