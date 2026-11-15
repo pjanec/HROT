@@ -9,9 +9,22 @@ related-designs:
 
 # HANDOFF — coordinator → `ui`: the radar SAM's visuals (CE-4618)
 
-**For:** the `ui` lane. **From:** coordinator. **Dispatched at `d287b3380`** *(re-stamped; supersedes `87fc746f3` — the review changed the visuals seam, RS-9)*; ⛔ scope FROZEN there.
+**For:** the `ui` lane. **From:** coordinator. **Dispatched at `9b6ed8318`** *(re-stamped again, rule 1a — unstarted; supersedes `d287b3380` and `87fc746f3`: adds the fixed ids)*; ⛔ scope FROZEN there.
 
 🔒 User, `2026-11-15`: *"The UI lane can provide the visuals for the carrier and launcher and the missile and the effect of launch."*
+
+## ⭐ The entity to bind — [design §2a](../../designs/air-attack/DESIGN_Radar_SAM.md)
+
+| what | the value |
+|---|---|
+| vehicle type | `TkbEntityTypes.AirDefence_RadarSam = 114` ("Radar SAM vehicle") — declared by backend |
+| DIS / class | DIS `1.1.*.28.1` · entity class `"AirDefenceVehicle"` = `1.1.*.28` — declared by backend in `EntityClassTable.cs` |
+| ⭐ YOUR key | add `VisualFamily.AirDefenceVehicle` and map `["AirDefenceVehicle"]` to it in `FamilyOfClass` (`VisualFamily.cs`, beside `["Bulldozer"]`), plus its `ShapeKit` |
+| missile | `MunitionTkbCatalog.TkbRadarSamMissile = 6047` — backend adds a placeholder look row; you tune it |
+| launcher | the vehicle's own turret 0 — no separate weapon-system entity |
+
+⚠ If backend's type is not merged when you start, declare nothing of theirs: build the family and kit against a test template carrying that DIS
+type and class, and bind once `114` lands. If backend reports different values (its batch was running before these were fixed), follow its as-built.
 
 | # | builds | done when |
 |---|---|---|
