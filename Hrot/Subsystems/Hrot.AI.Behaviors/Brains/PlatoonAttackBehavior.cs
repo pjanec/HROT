@@ -813,13 +813,21 @@ namespace Hrot.AI.Behaviors.Brains
         private static unsafe bool AssaultBlack(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             int a = p.SlotOf(PlatoonAttackPlan.Assault, Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity));
-            if (a < 0) return false;
-            if (!Alive(world, self, a)) return true;
-            // ⭐⭐ CE-7015 (AQ101 §R E — the rout) — the assault is lost when it reports Black OR too few of its men still STAND (casualties and
-            //   the broken alike). One predicate for both guards: AT-9 relieves a broken assault with a free reserve, AT-10 aborts when none is left.
-            var unit = CommandPictureOps.Subordinate(world, self, a);
+            return a >= 0 && SlotLost(self, world, a);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-7015 (AQ101 §R E — the rout) — a squad is LOST when it is gone, reports Black, OR too few of its men still STAND (casualties and
+        /// the broken alike). ⭐ <c>CE-2436</c> R-2112 — ONE predicate for the assault (AT-9 / AT-10) AND for whoever would relieve it: a broken
+        /// reserve or base of fire is no relief (⛔ <see cref="FreeReserve"/> read the colour alone, so a broken old assault, never Black, came back
+        /// as the "free reserve" and the roles swapped instead of AT-10 breaking off — rail-found).
+        /// </summary>
+        private static unsafe bool SlotLost(Entity self, EntityRepository world, int slot)
+        {
+            if (!Alive(world, self, slot)) return true;
+            var unit = CommandPictureOps.Subordinate(world, self, slot);
             if (!unit.IsNull && !Fdp.Toolkit.Squad.CombatEffective.IsStanding(world, unit)) return true;
-            var colour = new SubordinateColourParams { Slot = a, AtLeast = StatusColour.Black };
+            var colour = new SubordinateColourParams { Slot = slot, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
         }
 
@@ -837,9 +845,8 @@ namespace Hrot.AI.Behaviors.Brains
             int n = Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity);
             for (int s = 0; s < n; s++)
             {
-                if (p.Role[s] != PlatoonAttackPlan.Support || p.Casevac[s] != 0 || !Alive(world, self, s)) continue;
-                var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Black };
-                if (!PictureConditions.SubordinateColour(ref colour, self, world)) return s;
+                if (p.Role[s] != PlatoonAttackPlan.Support || p.Casevac[s] != 0 || SlotLost(self, world, s)) continue;
+                return s;
             }
             return -1;
         }
@@ -849,9 +856,8 @@ namespace Hrot.AI.Behaviors.Brains
             int n = Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity);
             for (int s = 0; s < n; s++)
             {
-                if (p.Role[s] != PlatoonAttackPlan.Reserve || p.Casevac[s] != 0 || !Alive(world, self, s)) continue;
-                var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Black };
-                if (!PictureConditions.SubordinateColour(ref colour, self, world)) return s;
+                if (p.Role[s] != PlatoonAttackPlan.Reserve || p.Casevac[s] != 0 || SlotLost(self, world, s)) continue;
+                return s;
             }
             return -1;
         }

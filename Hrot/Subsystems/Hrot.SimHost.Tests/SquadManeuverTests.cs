@@ -3951,8 +3951,8 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
             p.ReportSet(p.Bravo); p.Ticks(6);
             Assert.Equal((0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));   // all standing: attack on
-            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Black);   // ⭐ CE-2436 R-2112 — no base of fire fit to take over either
             Break(p, alpha, 3);
+            Sitrep(p, p.Bravo, Fdp.Toolkit.Squad.Command.StatusColour.Black);   // ⭐ CE-2436 R-2112 — no base of fire fit to take over either
             p.Ticks(6);
             Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.BreakContact), p.OrdersTo(p.Bravo, BehaviorNames.BreakContact)));
         }
