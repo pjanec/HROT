@@ -56,6 +56,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// each engagement; it never leads across the open (DESIGN_Assault_Under_Fire §9.4).</summary>
         public const string VehicleSupportByFire = "VehicleSupportByFire";
 
+        /// <summary>⭐ CE-2436 AU-5 (A-6) — a company's DRONE TEAM in the attack: its recon drone circles the objective (its sightings are the target
+        /// list), its operator flies the armed drones at the reported posts (DESIGN_Assault_Under_Fire §9.6).</summary>
+        public const string DroneTeam = "DroneTeam";
+
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
 

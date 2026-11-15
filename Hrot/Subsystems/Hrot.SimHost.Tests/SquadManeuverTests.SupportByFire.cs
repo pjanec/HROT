@@ -323,5 +323,114 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < SopReactionFrames; i++) s.Tick();
             Assert.Equal(BehaviorNames.SupportByFire, s.TaskName);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10c, R-2110) — the squad under a DRONE: its drone gunners — the anti-drone man (his shotgun) and the automatic
+        /// rifleman (his M249) — are sent <c>EngageAircraft</c> (they stand and fire), every other man <c>ShelterFromAir</c> (cover; he fires only once
+        /// it is close). ✅ Red-proof: the drone-gunner choice dropped ⇒ every man shelters ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AU7_UnderADrone_TheShotgunManAndTheMgEngage_TheRestTakeCover()
+        {
+            var s = new Squad(members: 4);
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            s.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+            long[] types = { Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, Hrot.Map.Common.TkbEntityTypes.Infantry_AntiDrone,
+                             Hrot.Map.Common.TkbEntityTypes.Infantry_AutomaticRifleman, Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman };
+            for (int i = 0; i < 4; i++) s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(types[i]) });
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 20; i++) s.Tick();
+
+            s.Orders.Clear();
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.AirThreat);
+            for (int i = 0; i < SopReactionFrames + 2; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadShelterFromAir, s.TaskName);
+            string Sent(int i) => s.Orders.Last(o => o.Entity == s.Members[i]).IntentId;
+            Assert.Equal(BehaviorNames.ShelterFromAir, Sent(0));
+            Assert.Equal(BehaviorNames.EngageAircraft, Sent(1));
+            Assert.Equal(BehaviorNames.EngageAircraft, Sent(2));
+            Assert.Equal(BehaviorNames.ShelterFromAir, Sent(3));
+        }
+
+        private static void Aircraft(Squad s, Fdp.Core.Entity e)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) s.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            s.Repo.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-5 (A-6, R-2111) — the company's DRONE TEAM (a subordinate whose roster holds a drone) takes no platoon role: it is
+        /// ordered <c>DroneTeam</c> — watch the objective, strike the posts (the objective while none is reported) — never the base of fire or the
+        /// assault; the assault still goes on the base of fire's Set (the team reports no Set); at the consolidation it only watches (no strike on
+        /// our own objective). ✅ Red-proofs: the team not recognised ⇒ it takes the assault role ⇒ red; the strike kept at the consolidation ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AU5_CompanyAttack_TheDroneTeamWatchesTheObjective_AndStrikesThePosts()
+        {
+            var c = new Company(platoons: 4);
+            var team = c.S.Members[0];
+            var drone = c.S.Repo.CreateEntity();
+            Aircraft(c.S, drone);
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, drone);
+            c.S.Repo.AddComponent(team, roster);
+            Fdp.Core.Entity assault = c.S.Members[1], support = c.S.Members[2], reserve = c.S.Members[3];
+            var o = new Vector3(0f, 600f, 0f);
+            CompanyAttack(c, 0f, o);
+            c.Ticks(6);
+            var t = c.Last<DroneTeamParamsJsonDto>(team, BehaviorNames.DroneTeam);
+            Assert.Equal(o, t.Watch);
+            Assert.Equal(o, t.Strike);
+            Assert.Equal(1, c.OrdersTo(support, BehaviorNames.PlatoonSupportByFire));
+            Assert.Equal(0, c.OrdersTo(team, BehaviorNames.PlatoonSupportByFire));
+
+            c.Set(support); c.Ticks(5);
+            Assert.Equal(1, c.OrdersTo(assault, BehaviorNames.PlatoonAttack));
+            Assert.Equal(0, c.OrdersTo(team, BehaviorNames.PlatoonAttack));
+            c.Set(assault); c.Ticks(5);   // taken: consolidate
+            Assert.Equal(Vector3.Zero, c.Last<DroneTeamParamsJsonDto>(team, BehaviorNames.DroneTeam).Strike);
+            c.Set(assault); c.Set(support); c.Set(reserve);
+            Assert.Equal(Fbt.NodeStatus.Success, c.RunToEnd());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-5 (A-6) — the team's play: its UNARMED drone (the recon quadcopter) is ordered <c>DroneRecon</c> over the watch
+        /// point, its operator <c>DroneOperator</c> with the ARMED drone (the bomber) on the strike point; with no strike point the operator is left
+        /// alone. ✅ Red-proofs: the recon drone sent to strike ⇒ red; the operator not ordered ⇒ red; ordered with no strike ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AU5_TheDroneTeam_SendsTheReconDroneToWatch_AndTheOperatorToStrike()
+        {
+            DroneTeamParamsJsonDto Team(Vector3 strike) => new() { Watch = new Vector3(0f, 300f, 0f), Strike = strike };
+            Squad Built(Vector3 strike)
+            {
+                var s = new Squad(members: 3);
+                if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+                s.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+                for (int i = 1; i < 3; i++)
+                {
+                    Aircraft(s, s.Members[i]);
+                    s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.TkbIdentity
+                        { TkbType = (Fdp.Core.TkbTypeId)(i == 1 ? Hrot.Map.Common.TkbEntityTypes.Drone_Recon : Hrot.Map.Common.TkbEntityTypes.Drone_Bomber) });
+                    s.Repo.AddComponent(s.Members[i], new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1000 + i });
+                }
+                s.Order(System.Text.Json.JsonSerializer.Serialize(Team(strike), Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.DroneTeam);
+                for (int i = 0; i < 4; i++) s.Tick();
+                return s;
+            }
+            var post = new Vector3(10f, 320f, 0f);
+            var s = Built(post);
+            Assert.Equal(BehaviorNames.DroneRecon, s.Orders.Last(o => o.Entity == s.Members[1]).IntentId);
+            Assert.DoesNotContain(s.Orders, o => o.Entity == s.Members[2]);   // the operator flies it
+            var op = s.Orders.Last(o => o.Entity == s.Members[0]);
+            Assert.Equal(BehaviorNames.DroneOperator, op.IntentId);
+            var order = System.Text.Json.JsonSerializer.Deserialize<DroneOperatorOrder>(op.JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(1002, order.Drone1.Ref.NetworkId);
+            Assert.Equal(post, (Vector3)order.Location);
+
+            var watchOnly = Built(Vector3.Zero);
+            Assert.DoesNotContain(watchOnly.Orders, o => o.Entity == watchOnly.Members[0]);
+        }
     }
 }

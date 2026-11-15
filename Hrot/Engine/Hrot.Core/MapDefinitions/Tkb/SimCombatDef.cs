@@ -81,6 +81,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// <inheritdoc cref="ScopeMagnification"/>
         public float ScopeFovDegrees { get; set; }
 
+        /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10a) — a SHOTGUN: pellets per shot (0 / 1 = one round) and the pattern's half-width, mils.
+        /// <c>WeaponMountDto.Pellets</c> / <c>PelletSpreadMils</c>.</summary>
+        public int Pellets { get; set; }
+
+        /// <inheritdoc cref="Pellets"/>
+        public float PelletSpreadMils { get; set; }
+
         /// <summary>⭐ Indirect fire IF-1 (I2) — the arcs an indirect round may fly; Default = today's rule. <c>WeaponMountDto.Arc</c>.</summary>
         public Fdp.Toolkit.Tkb.Domain.IndirectArc Arc { get; set; }
 

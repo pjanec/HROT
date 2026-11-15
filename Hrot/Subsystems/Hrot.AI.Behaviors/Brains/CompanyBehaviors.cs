@@ -30,6 +30,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const byte NoRole = 0, Assault = 1, Support = 2, Reserve = 3;
         /// <summary>⭐ <c>CE-2436</c> AU-4 (A-4) — a VEHICLE subordinate: supports by fire from the base of fire's line, never assaults.</summary>
         public const byte Vehicle = 4;
+        /// <summary>⭐ <c>CE-2436</c> AU-5 (A-6) — the DRONE TEAM: its recon drone watches the objective, its armed drones strike the posts.</summary>
+        public const byte Drones = 5;
         public const byte PhasePlan = 0, PhaseSupport = 1, PhaseAssault = 2, PhaseConsolidate = 3, PhaseAbort = 4;
 
         public float Radius;
@@ -184,6 +186,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var sub = CommandPictureOps.Subordinate(world, self, s);
                 if (!sub.IsNull && Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, sub)) { p.Role[s] = CompanyAttackPlan.Vehicle; continue; }
+                if (DroneTeamBehavior.IsDroneTeam(world, sub)) { p.Role[s] = CompanyAttackPlan.Drones; continue; }   // ⭐ AU-5 — never a platoon role
                 p.Role[s] = k == 0 ? CompanyAttackPlan.Assault : k == 1 ? CompanyAttackPlan.Support : k == 2 ? CompanyAttackPlan.Reserve : CompanyAttackPlan.NoRole;
                 k++;
             }
@@ -312,6 +315,25 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ AU-5 (A-6) — the drone team's task: watch <paramref name="watch"/>, strike <paramref name="strike"/> ((0, 0, 0) = none).</summary>
+        private static bool DroneTask(Vector3 watch, Vector3 strike, JsonSerializerOptions json, out string behaviour, out string order)
+        {
+            behaviour = BehaviorNames.DroneTeam;
+            order = JsonSerializer.Serialize(new DroneTeamParamsJsonDto { Watch = watch, Strike = strike }, json);
+            return true;
+        }
+
+        /// <summary>The centre of the reported posts the base of fire holds (the objective when none is reported).</summary>
+        private static Vector3 PostsOf(ref CompanyAttackPlan p, Vector3 objective)
+        {
+            if (p.Posts <= 0) return objective;
+            var sum = p.Post0;
+            if (p.Posts > 1) sum += p.Post1;
+            if (p.Posts > 2) sum += p.Post2;
+            if (p.Posts > 3) sum += p.Post3;
+            return sum / System.Math.Min(p.Posts, 4);
+        }
+
         private static bool SupportByFire(ref CompanyAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order)
         {
             behaviour = BehaviorNames.PlatoonSupportByFire;
@@ -435,6 +457,8 @@ namespace Hrot.AI.Behaviors.Brains
                 case CompanyAttackPlan.PhaseAssault:
                     // ⭐⭐ CE-2436 AU-4 (A-4) — a vehicle supports by fire from the base of fire's line, ±VehicleSpreadMetres to its sides, never forward
                     if (role == CompanyAttackPlan.Vehicle) return VehicleSupport(ref p, slot, json, out behaviour, out order);
+                    // ⭐⭐ CE-2436 AU-5 (A-6) — the drone team: the recon drone over the objective, the armed drones on the reported posts
+                    if (role == CompanyAttackPlan.Drones) return DroneTask(o, PostsOf(ref p, o), json, out behaviour, out order);
                     // ⭐⭐ CE-2436 AU-3 (A-1) — the company's base of fire FIRES on the reported posts (every squad SupportByFire), seen or not
                     if (role == CompanyAttackPlan.Support) return SupportByFire(ref p, json, out behaviour, out order);
                     if (role == CompanyAttackPlan.Reserve) return Defend(p.ReserveAt, o, 0f, 0f, p.Speed, json, out behaviour, out order);
@@ -448,6 +472,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case CompanyAttackPlan.PhaseConsolidate:
                 case CompanyAttackPlan.PhaseAbort:
                     if (role == CompanyAttackPlan.Vehicle) return VehicleSupport(ref p, slot, json, out behaviour, out order);   // AU-4 — stays back, covering
+                    if (role == CompanyAttackPlan.Drones) return DroneTask(o, Vector3.Zero, json, out behaviour, out order);   // AU-5 — watches, no strike on our own
                     return p.Phase == CompanyAttackPlan.PhaseConsolidate
                         ? Defend(o, o, 0f, 0f, p.Speed, json, out behaviour, out order)
                         : Defend(p.Start, p.Start, 0f, 0f, p.Speed, json, out behaviour, out order);
@@ -516,7 +541,8 @@ namespace Hrot.AI.Behaviors.Brains
             int n = Math.Min(RosterCount(world, self), CompanyAttackPlan.Capacity), live = 0;
             for (int s = 0; s < n; s++)
             {
-                if (p.Role[s] == CompanyAttackPlan.NoRole || p.Role[s] == CompanyAttackPlan.Vehicle || !Alive(world, self, s)) continue;   // AU-4: a vehicle reports no Set
+                if (p.Role[s] == CompanyAttackPlan.NoRole || p.Role[s] == CompanyAttackPlan.Vehicle || p.Role[s] == CompanyAttackPlan.Drones
+                    || !Alive(world, self, s)) continue;   // AU-4 / AU-5: a vehicle or the drone team reports no Set   // AU-4: a vehicle reports no Set
                 if (CommandPictureOps.ProgressOf(world, self, s) != ProgressKind.Set) return false;
                 live++;
             }

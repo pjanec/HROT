@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4 BUILT, AU-3 BUILT but A-9, AU-5 the unjammable rule only (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT but A-9 (§9)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -229,3 +229,51 @@ grenade does not cover the crossing.
 `CE7014_…` (three cases). **R-2109:** the vehicles 35 m beside the base of fire, scoot after every exposure; a base of fire spared by the SOPs as
 a defence is — would change with a live run where 35 m puts the IFVs in the open, or where a base of fire should break off on a contact.
 
+
+### 9.5 AU-7 — the infantry against drones: the shotgun, "can engage a drone", the drone gunners *(R-2110, lane decision — for the user's review)*
+
+```mermaid
+classDiagram
+  class WeaponMountDto { <<existing, EXTENDED>> +int Pellets +float PelletSpreadMils }
+  class FireProcessingSystem { <<existing, EXTENDED>> one shot = Pellets rounds on the pattern; air target 2-D aim error }
+  class BallisticProjectile { <<existing, EXTENDED>> +float RangeLimitM }
+  class BallisticsSystem { <<existing, EXTENDED>> a round past RangeLimitM is spent }
+  class HitModel { <<existing, EXTENDED>> +AirFactor() +Pitch() +PelletOffset() +ShotHitChance() }
+  class StandardInputs { <<existing, EXTENDED>> WeaponEffectivenessVsTarget reads ShotHitChance }
+  class AirDefenceWeapons { <<existing, EXTENDED>> +CanEngageDrone(range) +IsDroneGunner() }
+  class AirSense { <<existing, EXTENDED>> +MayFireAtDrone() }
+  class ShelterFromAirNodes { <<existing, CHANGED>> fires only when MayFireAtDrone }
+  class SquadShelterFromAirBehavior { <<existing, CHANGED>> drone gunners EngageAircraft, the rest ShelterFromAir }
+  FireProcessingSystem ..> HitModel
+  StandardInputs ..> HitModel
+  ShelterFromAirNodes ..> AirSense
+  AirSense ..> AirDefenceWeapons
+  SquadShelterFromAirBehavior ..> AirDefenceWeapons
+```
+*What the picture shows that the prose hid: no new hit path and no new reaction — the shotgun is data on the ordinary mount, its pellets are
+ordinary rounds, and the shot and the AI's estimate read ONE function family (`HitModel`), as AQ85 F already required.*
+
+| piece | as built | where |
+|---|---|---|
+| ✔ measured first | the hit model spread rounds ACROSS only (`HitModel.Rotate`, about the vertical) and the lead at an aircraft is exact (`TargetLead`) — so a rifle at a hovering drone 30 m off hit ~97 % a round: there was no "hard to hit" for a shotgun to solve, and the claim "infantry never shoots at drones" was only the SOP row's gate (`CanEngageAir`): `ShelterFromAir` already fired whatever the weapon brain picked | `HitModel.cs`, `ShelterFromAirNodes.cs` |
+| A-10 aim at the air (R-2110) | a round at a target in the AIR gets an elevation error too (the second stream, `RangeSequence`) and σ × `1 + speed / 10 m/s` (a hovering drone ×1, a 30 m/s one ×4) — the shot (`FireProcessingSystem`) and the estimate (`WeaponEffectivenessVsTarget`) alike; a ground target is unchanged | `HitModel.AirFactor`, `.Pitch` |
+| A-10a the shotgun | `WeaponMountDto.Pellets` / `PelletSpreadMils` (appended): one shot = N rounds, pellet i at `PelletOffset(k, N, i)` × the pattern around the man's aim, each SPENT past the mount's range (`BallisticProjectile.RangeLimitM`, `BallisticsSystem`). The anti-drone SHOTGUN: 12 pellets, 15 mils, 60 m, 12 a pellet (a drone's 10 hp; a man's armour stops it), on the anti-drone rifleman (NEW types 212 Blue / 213 Red, M4 + shotgun) — one a squad in the chain scenarios. ⚠ its munition is the 5.56 ball's stand-in (look and report a rifle's) | `NedTkbCatalog.AntiDroneShotgun`, `gen-chain-scenarios.py` |
+| A-10a the numbers | one shot at a drone crossing at 30 m/s: shotgun **> 0.4** at 30 m, nothing past 60 m; a rifle round **< 0.1** (the estimate's `HitModel.ShotHitChance`) | rail |
+| A-10b can engage a drone | `AirDefenceWeapons.CanEngageDrone(range)`: a shotgun within its range, an MG / autocannon (within its range), anything `CanEngageAir` counts, any small arm inside **20 m**; `ShelterFromAir` fires only when it may (`AirSense.MayFireAtDrone`; a unit with no weapon data is left to the weapon brain, as before) | `AirDefenceWeapons.cs` |
+| A-10c the squad | `SquadShelterFromAir` sends its DRONE GUNNERS (`IsDroneGunner`: a shotgun or an MG on the man) `EngageAircraft` — they stand and fire — and every other man `ShelterFromAir` (cover; he fires once it is inside 20 m) | `SquadShelterFromAirBehavior.cs` |
+
+**Rails:** `AirDefenceNodesTests.CE2436_AU7_*` (three) · `ShelterFromAirNodesTests.CE2436_ARifleman_HoldsFireAtADistantDrone_FiresOnceItIsClose` ·
+`FireProcessingSystemTests.CE2436_AShotgun_FiresTwelvePelletsOverItsPattern_ADroneAt30mIsMet_At80mNot` ·
+`BallisticsSystemTests.CE2436_APellet_IsSpentPastItsRange_ARoundWithNoLimitFliesOn` · `SquadManeuverTests.CE2436_AU7_UnderADrone_…`.
+**R-2110** would change with a live run where a drone is never downed (the speed factor too wide) or always (too narrow).
+
+### 9.6 AU-5 — the company's drone team *(R-2111, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-6 the team | a company subordinate whose roster holds a DRONE (`Locomotions.IsAircraft`) takes the role `Drones` (never a platoon role) and is ordered the NEW squad play `DroneTeam { Watch, Strike }`: in the support and assault phases watch the objective, strike the posts the base of fire was ordered on (`PostsOf`; the objective while none is reported); at the consolidation / abort watch only (no strike on our own ground); `AllSet` skips it | `CompanyBehaviors` (`PlanAttack`, `DroneTask`) |
+| A-6 the play | `DroneTeam` orders each UNARMED drone `DroneRecon` over the watch point (its sightings merge into the team's pool → the staff SPOT → the company's picture: the recon drone's reports ARE the target list) and the operator `DroneOperator` with the ARMED drones on the strike point (CE-7026's one-in-the-air rule, unchanged). ⚠ the recon drone is flown on the TEAM's order, not through the operator (one operator, one task — lane decision) | `DroneTeamBehavior.cs` |
+| A-6 data | `cc-battalion`: a Blue drone team under the company — an operator, a recon quadcopter (407), two bomber quadcopters (408), landed behind the assembly | `gen-chain-scenarios.py` |
+| A-8 the drone half | ⛔ NOT a gate: a drone may be shot down or late, and a cause that never comes would stall the assault (R-2111); the Set stays "suppression established" (AU-2) | — |
+
+**Rails:** `CE2436_AU5_CompanyAttack_TheDroneTeamWatchesTheObjective_AndStrikesThePosts` · `CE2436_AU5_TheDroneTeam_SendsTheReconDroneToWatch_AndTheOperatorToStrike`.

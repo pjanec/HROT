@@ -180,5 +180,73 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(frame * Dt, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds + 1f);
             Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
         }
+
+        // ── ⭐⭐ CE-2436 AU-7 (A-10; DESIGN_Assault_Under_Fire §9.5) — the infantry against drones ─────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10b) — "can engage a DRONE" beside "can engage aircraft": the anti-drone man (his shotgun, 60 m) may at 50 m
+        /// and not at 70 m; the automatic rifleman (his M249, 800 m) at 200 m; a rifleman only inside 20 m; the Stinger gunner (an aircraft
+        /// weapon) at any range. The drone gunners (A-10c) are the shotgun man and the MG, not the rifleman.
+        /// ✅ Red-proofs (mutants): the rifle's 20 m dropped ⇒ the rifleman engages at 30 m ⇒ red; the shotgun's range ignored ⇒ 70 m true ⇒ red;
+        /// the MG not counted ⇒ the M249 at 200 m false ⇒ red; the pellets not counted as a drone gunner ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AU7_CanEngageADrone_TheShotgunInItsRange_TheMg_ARifleOnlyClose()
+        {
+            var shotgun = Place(TkbEntityTypes.Infantry_AntiDrone, new Vector3(0, 0, 0));
+            var mg = Place(TkbEntityTypes.Infantry_AutomaticRifleman, new Vector3(10, 0, 0));
+            var rifle = Place(TkbEntityTypes.Infantry_Rifleman, new Vector3(20, 0, 0));
+            var stinger = Place(TkbEntityTypes.Infantry_StingerGunner, new Vector3(30, 0, 0));
+            Assert.True(AirDefenceWeapons.CanEngageDrone(_w, shotgun, 50f));
+            Assert.False(AirDefenceWeapons.CanEngageDrone(_w, shotgun, 70f));
+            Assert.True(AirDefenceWeapons.CanEngageDrone(_w, mg, 200f));
+            Assert.True(AirDefenceWeapons.CanEngageDrone(_w, rifle, 15f));
+            Assert.False(AirDefenceWeapons.CanEngageDrone(_w, rifle, 30f));
+            Assert.True(AirDefenceWeapons.CanEngageDrone(_w, stinger, 300f));
+            Assert.True(AirDefenceWeapons.IsDroneGunner(_w, shotgun));
+            Assert.True(AirDefenceWeapons.IsDroneGunner(_w, mg));
+            Assert.False(AirDefenceWeapons.IsDroneGunner(_w, rifle));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10a, R-2110) — the SAME hit model the shot uses: at a drone crossing at 30 m/s, 30 m away, one shotgun shot
+        /// (12 pellets over 15 mils) has a real chance (&gt; 0.4) where one rifle round has almost none (&lt; 0.1, the aim error ×4 by its speed and
+        /// 2-D in the air); past the shotgun's 60 m it has none; a hovering drone is easier for both; a round at a man on the ground is the old
+        /// <see cref="HitModel.HitChance"/> exactly. ✅ Red-proofs: the air's 2-D dropped ⇒ the rifle's 0.24 ⇒ red; the range not applied ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AU7_TheShotgunHitsAFastDroneClose_TheRifleRarely_NothingPastItsRange()
+        {
+            var gun = _tkb.GetByType(TkbEntityTypes.Infantry_AntiDrone).GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts[1];
+            var m4 = _tkb.GetByType(TkbEntityTypes.Infantry_Rifleman).GetDescriptor<Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto>()!.Mounts[0];
+            Assert.Equal(12, gun.Pellets);
+            const float Radius = 0.175f;
+            float fast = 1f + 30f / HitModel.AirSpeedPerFactor;   // 4
+            float Shot(Fdp.Toolkit.Tkb.Domain.WeaponMountDto m, float factor, float range)
+                => HitModel.ShotHitChance(m.DispersionMils / 1000f * factor, range, Radius, air: true, m.Pellets, m.PelletSpreadMils, m.Range);
+            Assert.True(Shot(gun, fast, 30f) > 0.4f, $"shotgun {Shot(gun, fast, 30f):0.00}");
+            Assert.True(Shot(m4, fast, 30f) < 0.1f, $"rifle {Shot(m4, fast, 30f):0.00}");
+            Assert.Equal(0f, Shot(gun, fast, 70f));
+            Assert.True(Shot(gun, 1f, 30f) > Shot(gun, fast, 30f));
+            Assert.Equal(HitModel.HitChance(0.006f, 100f, 0.3f), HitModel.ShotHitChance(0.006f, 100f, 0.3f, air: false, 0, 0f, 0f));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10b) — the shelter's fire at a drone follows the rule (<see cref="AirSense.MayFireAtDrone"/>): a rifleman
+        /// holds his fire at a drone 40 m off and fires at one 15 m off; the anti-drone man fires at 40 m; a unit with no weapon data is left to the
+        /// weapon brain. ✅ Red-proof: the gate dropped from <c>ShelterFromAir</c> is the node rail's (<c>ShelterFromAirNodesTests</c>).
+        /// </summary>
+        [Fact]
+        public void CE2436_AU7_ARiflemanHoldsFireAtADistantDrone_TheShotgunManFires()
+        {
+            var rifle = Place(TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+            var shotgun = Place(TkbEntityTypes.Infantry_AntiDrone, Vector3.Zero);
+            var bare = _w.CreateEntity();
+            _w.AddComponent(bare, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            Assert.False(AirSense.MayFireAtDrone(_w, rifle, new Vector3(0, 40, 10)));
+            Assert.True(AirSense.MayFireAtDrone(_w, rifle, new Vector3(0, 12, 8)));
+            Assert.True(AirSense.MayFireAtDrone(_w, shotgun, new Vector3(0, 40, 10)));
+            Assert.True(AirSense.MayFireAtDrone(_w, bare, new Vector3(0, 400, 10)));
+        }
     }
 }

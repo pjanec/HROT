@@ -884,6 +884,12 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2103** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-4615 battalion test): the outpost sits inside the house on the axis and withdraws when Blue passes it. 📄 `STATUS_Behaviors_Command_Chain_Overnight.md` §3 |
 | ⭐ **R-2104** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-4615 battalion test): the check watches 180 s past the end for the chain's PhaseLine; a line failed by the end is not missed. 📄 `STATUS_Behaviors_Command_Chain_Overnight.md` §3 |
 | ⭐ **R-2105** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-4615 battalion test): Blue's platoons are three squads, so a failing assault can be relieved. 📄 `STATUS_Behaviors_Command_Chain_Overnight.md` §3 |
+| ⭐ **R-2106** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-1): a base of fire sets within 12 m of its point and fires on the reported posts, man i on post i; the SHIFT goes 30 m beyond and 25 m to the flanks. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2107** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-2): suppression is established after 15 s of fire and 3 rounds a man; one crossing smoke a fire-and-movement run. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2108** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-3): a sustained mission is 8 rounds a gun on the posts' centre; the screen 50 m short of the objective; the shift beyond on the next objective. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2109** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-4): the company's vehicles support by fire 35 m beside the base of fire and scoot after each exposure; the SOPs spare a base of fire; drones unjammable by one switch. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2110** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-7): fire at the air is spread in height and widens with the target's speed; the anti-drone shotgun (12 pellets, 60 m), one a squad; who may fire at a drone, and the drone gunners stand and engage. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2111** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-5): the company's drone team watches the objective and strikes the base of fire's posts; the strike is not a gate on the assault. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1229,6 +1235,12 @@ R-2102 | docs/blueprints/batches/STATUS_Behaviors_Command_Chain_Overnight.md | a
 R-2103 | docs/blueprints/batches/STATUS_Behaviors_Command_Chain_Overnight.md | the outpost sits INSIDE the one house on the axis
 R-2104 | docs/blueprints/batches/STATUS_Behaviors_Command_Chain_Overnight.md | the check watches up to 180 s PAST the end for the chain's PhaseLine
 R-2105 | docs/blueprints/batches/STATUS_Behaviors_Command_Chain_Overnight.md | Blue's platoons are THREE squads (base of fire, assault, reserve)
+R-2106 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | arrives within 12 m (or fires after 60 s on the way)
+R-2107 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | suppression ESTABLISHED = firing ≥ 15 s AND ≥ 3 rounds a man spent since firing began
+R-2108 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | a sustained mission is 8 rounds a gun on the centre of the reported posts
+R-2109 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | a company's vehicles take the `Vehicle` role (never assault)
+R-2110 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the anti-drone shotgun is 12 pellets over 15 mils, spent past 60 m
+R-2111 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the drone strike is NOT a gate on the assault
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians

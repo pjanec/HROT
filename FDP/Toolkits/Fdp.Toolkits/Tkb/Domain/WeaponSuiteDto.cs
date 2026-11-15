@@ -167,6 +167,18 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// (12 s automatic, 60 s single-shot). Appended.</summary>
         [EditUnit("s")]
         public float BarrelCoolSeconds { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (A-10a; docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md §9.5) — a SHOTGUN: one shot is this many
+        /// PELLETS, each an ordinary round through the existing ballistics, spread over a 2-D pattern of half-width <see cref="PelletSpreadMils"/>
+        /// around the man's aim, and SPENT past <see cref="Range"/> (no reach beyond it). <b>0 or 1 = one round</b>, as every mount before.
+        /// <see cref="DamagePerHit"/> is one pellet's. Appended.
+        /// </summary>
+        public int Pellets { get; init; }
+
+        /// <summary>⭐ <c>CE-2436</c> AU-7 — the pellet pattern's half-width, mils (uniform in both axes around the aim). Appended.</summary>
+        [EditUnit("mils")]
+        public float PelletSpreadMils { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>
