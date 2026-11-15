@@ -162,6 +162,135 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True((Caps(soldier) & ActorCapabilities.CanShoot) != 0);
         }
 
+        /// <summary>The motorcycle's seats (DESIGN_Motorcycle §2a): 0 the rider — a firing seat, front and sides, stopped only (PF-4); 1 the
+        /// pillion — a firing seat, 30°…330° (both sides and the rear, PF-1).</summary>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto MotorcycleSeats() => new()
+        {
+            Exposure = PassengerExposure.Open,
+            Seats =
+            {
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Driver, Exposed = true, X = 0.1f, Z = 0.75f,
+                                                     TraverseMinDeg = -120f, TraverseMaxDeg = 120f, FiresStoppedOnly = true },
+                new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Passenger, Exposed = true, X = -0.45f, Z = 0.85f,
+                                                     TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
+            },
+        };
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> PF-1 (M-2 acceptance; DESIGN_Motorcycle §2) — the PILLION boards a FIRING seat and KEEPS CanShoot (only CanMove goes);
+        /// he fires inside his arc and not ahead across the rider: the arc 30°…330° WRAPS through the rear (±180°) — left, right and behind are in,
+        /// straight ahead and 20° off the nose are out. A plain passenger seat still strips both (unchanged).
+        /// 🔴 Mutation: <c>StrippedOn</c> without the firing-seat branch ⇒ the pillion loses CanShoot ⇒ red; <c>InTraverse</c> as the old
+        /// <c>min ≤ az ≤ max</c> ⇒ the rear (180°) is out ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4621_APillion_KeepsCanShoot_AndFiresOnlyInsideHisArc_WhichWrapsThroughTheRear()
+        {
+            var bike = OfType(MotorcycleSeats());
+            var pillion = Soldier(Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, pillion, bike, 1));
+            Assert.True(Embarkation.IsFiringSeat(_world, bike, 1));
+            Assert.Equal(ActorCapabilities.CanShoot, Caps(pillion) & (ActorCapabilities.CanMove | ActorCapabilities.CanShoot));
+
+            Vector3 Toward(float deg) => new(100f * MathF.Cos(deg * MathF.PI / 180f), 100f * MathF.Sin(deg * MathF.PI / 180f), 1f);
+            Assert.False(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, pillion, Toward(0f)), "straight ahead, across the rider");
+            Assert.False(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, pillion, Toward(20f)), "20° off the nose");
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, pillion, Toward(90f)), "left");
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, pillion, Toward(180f)), "behind — through ±180°");
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, pillion, Toward(-90f)), "right");
+
+            var bus = OfType(Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(2));   // a plain passenger seat: both stripped, as before
+            var rider = Soldier(Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, rider, bus));
+            Assert.Equal(ActorCapabilities.None, Caps(rider) & Embarkation.StrippedAboard);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> PF-4 / PF-1 — the RIDER keeps CanShoot but his seat fires only STOPPED (the weapon brain's HoldMoving gate asks it);
+        /// the pillion fires on the move; a PICKUP-BED rifleman (any passenger seat stating an arc — here all round) fires too; and a hit's
+        /// recovery aboard gives back what the SEAT allows (CombatLife asks StrippedOn — was "nothing aboard").
+        /// 🔴 Mutation: <c>FiresStoppedOnly</c> answering false ⇒ the rider row reds.
+        /// </summary>
+        [Fact]
+        public void CE4621_TheRiderFiresOnlyStopped_ThePillionAndABedRiflemanFireMoving_AndAHitsRecoveryAboardFollowsTheSeat()
+        {
+            var bike = OfType(MotorcycleSeats());
+            var rider = Soldier(Vector3.Zero);
+            var pillion = Soldier(Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, rider, bike, 0));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, pillion, bike, 1));
+            Assert.True((Caps(rider) & ActorCapabilities.CanShoot) != 0);
+            Assert.True(Embarkation.FiresStoppedOnly(_world, rider));
+            Assert.False(Embarkation.FiresStoppedOnly(_world, pillion));
+
+            var pickup = OfType(new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+            {
+                Exposure = PassengerExposure.Open,
+                Seats = { new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Driver },
+                          new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = SeatRole.Passenger, X = -2f, Z = 1f, TraverseMinDeg = -180f, TraverseMaxDeg = 180f } },
+            });
+            var bed = Soldier(Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, bed, pickup, 1));
+            Assert.True((Caps(bed) & ActorCapabilities.CanShoot) != 0, "a pickup-bed rifleman keeps his fire");
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.InStationArc(_world, bed, new Vector3(100f, 0f, 1f)), "all round");
+
+            // a hit took his fire; when he recovers aboard the seat gives it back (CanMove stays off: he is still aboard)
+            _world.GetComponentRW<ActorCapabilityState>(pillion).Capabilities &= ~ActorCapabilities.CanShoot;
+            _world.AddComponent(pillion, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            Fdp.Toolkit.Combat.CombatLife.RestoreHitCapabilities(_world, pillion, _world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(pillion));
+            Assert.Equal(ActorCapabilities.CanShoot, Caps(pillion) & (ActorCapabilities.CanMove | ActorCapabilities.CanShoot));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> M-2p (PL-2) — <c>AimAndFireExecutor.SeatHold</c>, the ONE seat rule both fire paths ask (the AI's <c>HoldOf</c> and the
+        /// possessed man's <c>OperatorFire</c>): a pillion's own shot ahead is held <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc"/> (the reason
+        /// the HUD reads through <c>WeaponPostureOf</c>), to the side it goes; the rider fires stopped and is held
+        /// <see cref="Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldMoving"/> once the bike moves; a man on foot is never held by a seat.
+        /// 🔴 Mutation: <c>SeatHold</c> answering null ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4621_SeatHold_HoldsAPillionsShotOutsideHisArc_AndTheRidersWhileMoving_TheRuleBothFirePathsAsk()
+        {
+            var bike = OfType(MotorcycleSeats());
+            var rider = Soldier(Vector3.Zero);
+            var pillion = Soldier(Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, rider, bike, 0));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbarkAt(_world, pillion, bike, 1));
+            var ahead = new Vector3(100f, 0f, 1f);
+            var left = new Vector3(0f, 100f, 1f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, pillion, ahead));
+            Assert.Null(Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, pillion, left));
+            Assert.Null(Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, rider, ahead));
+
+            if (!_world.IsComponentTypeRegistered<SimVelocity>()) _world.RegisterComponent<SimVelocity>();
+            foreach (var man in new[] { rider, pillion })
+            {
+                if (_world.HasComponent<SimVelocity>(man)) _world.GetComponentRW<SimVelocity>(man).Linear = new Vector3(15f, 0f, 0f);
+                else _world.AddComponent(man, new SimVelocity { Linear = new Vector3(15f, 0f, 0f) });
+            }
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldMoving, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, rider, ahead));
+            Assert.Null(Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, pillion, left));   // the pillion fires on the move
+
+            var walker = Soldier(Vector3.Zero);
+            Assert.Null(Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.SeatHold(_world, walker, ahead));
+        }
+
+        /// <summary>⭐ <c>CE-4621</c> MV-6 — the arc rule's wrap: an arc inside ±180° tests exactly as before; one through the rear wraps; 360° is all round.</summary>
+        [Theory]
+        [InlineData(-150f, 150f, 0f, true)]
+        [InlineData(-150f, 150f, 179f, false)]
+        [InlineData(-150f, 150f, -160f, false)]
+        [InlineData(30f, 330f, 180f, true)]
+        [InlineData(30f, 330f, -179f, true)]
+        [InlineData(30f, 330f, 10f, false)]
+        [InlineData(30f, 330f, -10f, false)]
+        [InlineData(-180f, 180f, 90f, true)]
+        public void CE4621_TheTraverseArc_WrapsThroughTheRear(float minDeg, float maxDeg, float azDeg, bool inside)
+        {
+            const float d = MathF.PI / 180f;
+            Assert.Equal(inside, Fdp.Toolkit.Combat.WeaponSystems.InTraverse(azDeg * d, minDeg * d, maxDeg * d));
+        }
+
         /// <summary>Boarding writes all three facts — the vehicle's list, the passenger's tag naming its vehicle, CanMove/CanShoot
         /// gone — and boarding twice is not two seats.</summary>
         [Fact]

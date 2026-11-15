@@ -190,7 +190,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SquadFastRope, Params = typeof(SquadFastRopeParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.SquadFastRope, Conduct = Fdp.Toolkit.Behavior.Conduct.Dismounts,   /* CE-4621 M-3 (CD-1) */ Params = typeof(SquadFastRopeParamsJsonDto), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.SquadFastRope, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadFastRopeBlackboard))]
         public static BTreeBuilder<SquadFastRopeBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadFastRopeBlackboard, BTreeContext>()
@@ -381,7 +381,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SquadAirborneExit, Params = typeof(SquadAirborneExitParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.SquadAirborneExit, Conduct = Fdp.Toolkit.Behavior.Conduct.Dismounts,   /* CE-4621 M-3 (CD-1) */ Params = typeof(SquadAirborneExitParamsJsonDto), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.SquadAirborneExit, Curated = true, Group = "Library/Weapons and vehicles", ParamsType = typeof(SquadAirborneExitBlackboard))]
         public static BTreeBuilder<SquadAirborneExitBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadAirborneExitBlackboard, BTreeContext>()

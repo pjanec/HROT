@@ -587,6 +587,84 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> MC-2 (DESIGN_Motorcycle §2, M-1 acceptance) — a TYPE with authored off-road factors (the motorcycle: open 0.6 ·
+        /// scrub 0.45 · forest 0.3) drives each ground class at that factor of its top speed (10 m/s here, the path's speed): 6 on open
+        /// ground, 4.5 in scrub, 3 in a wood; the same type with NO factors (every type before CE-4621) is unchanged at 10.
+        /// 🔴 Mutation: the factor block in <c>UpdateVehicle</c> removed ⇒ every factored row drives 10 ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData("open",   true,  5.6f, 6.1f)]
+        [InlineData("scrub",  true,  4.1f, 4.6f)]
+        [InlineData("forest", true,  2.7f, 3.1f)]
+        [InlineData("open",   false, 9.4f, 10.2f)]
+        [InlineData("forest", false, 9.4f, 10.2f)]
+        public void CE4621_AFactoredType_DrivesEachGroundClassAtItsFactor_AnUnfactoredOneIsUnchanged(string ground, bool factored, float min, float max)
+        {
+            var (repo, e, pool) = TrajectoryWorld(0f, startSpeed: 0f, vehicle: new VehicleParams
+            {
+                Class = VehicleClass.PersonalCar, WheelBase = 1.4f, MaxSpeedFwd = 10f, MaxAccel = 4.5f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
+                MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 1f,
+                OffRoadOpen = factored ? 0.6f : 0f, OffRoadScrub = factored ? 0.45f : 0f, OffRoadForest = factored ? 0.3f : 0f,
+            });
+            string surface = ground == "open" ? "water" : ground;   // open ground: no surface under the path (a far water pond makes the grid)
+            string coords = ground == "open" ? "[[280,80],[290,80],[290,90],[280,90],[280,80]]" : "[[-50,-50],[200,-50],[200,50],[-50,50],[-50,-50]]";
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-100,-100,300,100],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"SURF"},"geometry":{"type":"Polygon","coordinates":[COORDS]}},{"type":"Feature","properties":{"kind":"surface","surface":"scrub"},"geometry":{"type":"Polygon","coordinates":[[[260,60],[270,60],[270,70],[260,70],[260,60]]]}}]}"""
+                .Replace("SURF", surface).Replace("COORDS", coords), "w"));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float top = 0f;
+            for (int i = 0; i < 6 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                top = MathF.Max(top, repo.GetComponent<VehicleState>(e).Speed);
+            }
+            Assert.InRange(top, min, max);
+            Assert.Equal(factored, kin.SurfaceGrid != null);   // the grid is built only when a factored type moves
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> MC-2 (R-2084) — reading the surface grid costs nothing per frame: a factored body's steady move allocates 0 B.
+        /// </summary>
+        [Fact]
+        public void CE4621_TheOffRoadFactor_AllocatesNothingPerSteadyFrame()
+        {
+            var (repo, e, pool) = TrajectoryWorld(0f, startSpeed: 0f, vehicle: new VehicleParams
+            {
+                Class = VehicleClass.PersonalCar, WheelBase = 1.4f, MaxSpeedFwd = 10f, MaxAccel = 4.5f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
+                MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 1f,
+                OffRoadOpen = 0.6f, OffRoadScrub = 0.45f, OffRoadForest = 0.3f,
+            });
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-100,-100,300,100],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[-50,-50],[200,-50],[200,50],[-50,50],[-50,-50]]]}}]}""", "w"));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool) { ForceSerial = true };
+            for (int i = 0; i < 120; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++) kin.Execute(repo, 1f / 60f);
+            long perFrame = (GC.GetAllocatedBytesForCurrentThread() - before) / 60;
+            Assert.NotNull(kin.SurfaceGrid);
+            // the integrator's own baseline (the query build) is measured by its existing rails; the factor adds nothing on top of it
+            var plain = TrajectoryWorld(0f, startSpeed: 0f, vehicle: new VehicleParams
+            {
+                Class = VehicleClass.PersonalCar, WheelBase = 1.4f, MaxSpeedFwd = 10f, MaxAccel = 4.5f, MaxDecel = 6f, MaxSteerAngle = (Fdp.Core.Angle)(0.6f),
+                MaxLatAccel = 6f, LookaheadTimeMin = 0.8f, LookaheadTimeMax = 2.5f, AccelGain = 1.8f, AvoidanceRadius = 1f,
+            });
+            var kin2 = new CarKinematicsSystem(plain.Item3) { ForceSerial = true };
+            for (int i = 0; i < 120; i++) { spatial.Execute(plain.Item1, 1f / 60f); kin2.Execute(plain.Item1, 1f / 60f); }
+            long b2 = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++) kin2.Execute(plain.Item1, 1f / 60f);
+            long plainPerFrame = (GC.GetAllocatedBytesForCurrentThread() - b2) / 60;
+            Assert.True(perFrame <= plainPerFrame, $"the off-road factor adds allocation per frame: {perFrame} B vs {plainPerFrame} B without it");
+            plain.Item3.Dispose(); plain.Item1.Dispose();
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>AQ88</c> A/B (R-265) — a PERSON can run, and his stance caps how fast: asked 5 m/s on a path, the pedestrian preset
         /// (a 6 m/s sprint) runs ≈ 5 upright, 3 crouched (× 0.5) and 1.2 prone (× 0.2) — Nav §11's ratios on the LOGICAL stance.
         /// 🔴 Red before: the preset capped every person at 2.0 m/s, and the stance changed nothing.

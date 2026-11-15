@@ -90,7 +90,14 @@ namespace Fdp.Toolkit.Combat
         {
             if (!repo.IsComponentTypeRegistered<ActorCapabilityState>() || !repo.HasComponent<ActorCapabilityState>(entity)) return;
             if (health.Current <= 0f || Injury.StateOf(repo, entity, in health) == InjuryState.Incapacitated) return;
-            if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(entity)) return;
+            // ⭐ CE-4621 PF-1 (MV-6) — aboard, what his SEAT still allows (Embarkation.StrippedOn — a firing seat keeps CanShoot); was "nothing aboard"
+            var seatAllows = ActorCapabilities.CanMove | ActorCapabilities.CanShoot;
+            if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(entity))
+            {
+                ref readonly var aboard = ref repo.GetComponentRO<IsEmbarkedTag>(entity);
+                seatAllows &= ~Fdp.Toolkit.Behavior.Embarkation.StrippedOn(repo, aboard.VehicleEntity, aboard.Seat);
+                if (seatAllows == ActorCapabilities.None) return;
+            }
             if (repo.IsComponentTypeRegistered<IsAssistingTag>() && repo.HasComponent<IsAssistingTag>(entity)) return;
 
             var give = ActorCapabilities.None;
@@ -98,6 +105,7 @@ namespace Fdp.Toolkit.Combat
             if (!HitStopsMove(repo, entity, in health)) give |= ActorCapabilities.CanMove & granted;
             if (!Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Firepower) && !Fdp.Toolkit.Behavior.Embarkation.HandsFull(repo, entity))
                 give |= ActorCapabilities.CanShoot & granted;
+            give &= seatAllows;
             if (give != ActorCapabilities.None) repo.GetComponentRW<ActorCapabilityState>(entity).Capabilities |= give;
         }
 

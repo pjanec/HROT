@@ -127,6 +127,10 @@ namespace CarKinem.Tkb
                 p.MaxSteerRate = dto.TurnRate * (MathF.PI / 180f);
             if (dto.AvoidanceRadius > 0f)
                 p.AvoidanceRadius = dto.AvoidanceRadius;   // ⭐ CE-2336 (R-2065) — a soldier's close order; a civilian keeps the preset's
+            // ⭐ CE-4621 MC-2 — the type's off-road factors, copied as authored (0 = not authored ⇒ 1.0 where they are read)
+            p.OffRoadOpen   = dto.OffRoadOpen;
+            p.OffRoadScrub  = dto.OffRoadScrub;
+            p.OffRoadForest = dto.OffRoadForest;
 
             return p;
         }

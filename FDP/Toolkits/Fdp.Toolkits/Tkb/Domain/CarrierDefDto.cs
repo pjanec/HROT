@@ -145,6 +145,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2/ST-6) — a station nobody sees into (under a coat, a suicide vest): what it holds arms
         /// nobody (R-2025), and a carrier's free-station search never fills it unasked (ST-3). Appended.</summary>
         public bool Concealed { get; init; }
+
+        /// <summary>⭐ <c>CE-4621</c> PF-4 (DESIGN_Motorcycle §2) — a FIRING seat (a person's seat with a traverse arc, PF-1) whose man fires only
+        /// while the vehicle is stopped — the rider, who drives. Grows the weapon brain's existing <c>HoldMoving</c> gate. Appended.</summary>
+        public bool FiresStoppedOnly { get; init; }
     }
 
     /// <summary>⭐ CE-1083 — how a rider sits in a seat (the 3-D map's figure).</summary>

@@ -230,6 +230,20 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Is station <paramref name="seat"/> concealed (unseen)?</summary>
         public readonly bool IsConcealed(int seat) => IsStation(seat) && (ConcealedMask & (1 << seat)) != 0;
+
+        /// <summary>⭐⭐ <c>CE-4621</c> PF-1 (DESIGN_Motorcycle §2) — bit i = seat i is a FIRING seat: a person's seat (not a station) that states a
+        /// traverse arc. Its man keeps <c>CanShoot</c> and fires HIS OWN weapon inside the arc (<see cref="Seats"/>[i] holds the arc and the place —
+        /// the station data, reused). Appended.</summary>
+        public ushort FiringMask;
+
+        /// <summary>⭐ <c>CE-4621</c> PF-4 — bit i = the firing seat i fires only while its vehicle is STOPPED (the rider: he drives). Appended.</summary>
+        public ushort StoppedOnlyMask;
+
+        /// <summary>Is seat <paramref name="seat"/> a firing seat (PF-1)?</summary>
+        public readonly bool IsFiringSeat(int seat) => seat >= 0 && seat < PassengerBuffer.Capacity && (FiringMask & (1 << seat)) != 0;
+
+        /// <summary>Does firing seat <paramref name="seat"/> fire only while stopped (PF-4)?</summary>
+        public readonly bool FiresStoppedOnly(int seat) => IsFiringSeat(seat) && (StoppedOnlyMask & (1 << seat)) != 0;
     }
 
     /// <summary>

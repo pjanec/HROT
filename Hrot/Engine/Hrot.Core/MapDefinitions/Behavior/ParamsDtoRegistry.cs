@@ -18,6 +18,8 @@ namespace Hrot.Map.Definitions.Behavior
         public string? Description { get; init; }
         /// <summary>⭐ <c>CE-4612</c> (R-2089) — the order kind this behaviour fulfils when it is not an order DTO's (<see cref="BehaviorAttribute.Fulfils"/>).</summary>
         public string? Fulfils { get; init; }
+        /// <summary>⭐ <c>CE-4621</c> M-3 (CD-1) — what the behaviour does as a reaction (<see cref="BehaviorAttribute.Conduct"/>).</summary>
+        public Fdp.Toolkit.Behavior.Conduct Conduct { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3185</c> (F9) — what an authored data struct is FOR; one DTO may serve several.</summary>
@@ -228,6 +230,7 @@ namespace Hrot.Map.Definitions.Behavior
                     Requires = a.Requires ?? Array.Empty<Type>(),
                     Description = a.Description,
                     Fulfils = a.Fulfils,
+                    Conduct = a.Conduct,
                 };
             }
 

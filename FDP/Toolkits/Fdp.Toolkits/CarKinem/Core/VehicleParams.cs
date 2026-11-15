@@ -53,5 +53,11 @@ namespace CarKinem.Core
         public float AccelGain;        // Speed controller proportional gain
 
         public float WalkSpeed;        // ⭐ CE-1208 — a person's walk (m/s, the operator's walking gait); 0 = HumanGait.WalkSpeed
+
+        // ⭐ CE-4621 MC-2 — this TYPE's off-road top-speed factors (open · scrub · forest; a road is 1.0); 0 = not authored ⇒ 1.0
+        //   (VehicleParametersDto). The one ground integrator reads them with the surface-class grid (OffRoad.Factor).
+        public float OffRoadOpen;
+        public float OffRoadScrub;
+        public float OffRoadForest;
     }
 }

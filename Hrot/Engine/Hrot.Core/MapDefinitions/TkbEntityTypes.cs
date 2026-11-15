@@ -33,6 +33,10 @@ namespace Hrot.Map.Common
         /// the search-and-track radar on a mast AND four ready missiles on its turret-0 launcher. One type — the side comes from the scenario's
         /// faction. DIS 1.1.*.28.1, class <c>"AirDefenceVehicle"</c>. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long AirDefence_RadarSam = 114;
+        /// <summary>⭐ <c>CE-4621</c> (MC-1; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a) — the MOTORCYCLE: one type for soldiers, insurgents and
+        /// civilian traffic (the side from the scenario's faction): seat 0 the rider (Driver), seat 1 the pillion — a FIRING seat (PF-1). DIS 1.1.*.80.1,
+        /// class <c>"Motorcycle"</c>, SUMO class <c>motorcycle</c>. ⛔ A permanent wire value: never reuse or renumber it.</summary>
+        public const long Motorcycle = 115;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

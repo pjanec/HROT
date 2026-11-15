@@ -218,7 +218,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan.SearchRadius = ReactSearchRadius;
         }
 
-        [Behavior(BehaviorNames.ReactToFireFromBuilding, Params = typeof(NoParams), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.ReactToFireFromBuilding, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(NoParams), Categories = BehaviorCategory.Commander)]
         [HsmDefinition(BehaviorNames.ReactToFireFromBuilding, Curated = true, Group = "Library/Reactions", ParamsType = typeof(PlatoonAttackBlackboard))]
         public static StateMachineGraph BuildReactToFireFromBuilding() => Build("ReactToFireFromBuilding_HSM");
 

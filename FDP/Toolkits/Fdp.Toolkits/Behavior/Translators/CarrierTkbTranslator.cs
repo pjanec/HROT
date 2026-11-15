@@ -84,7 +84,23 @@ namespace Fdp.Toolkit.Behavior.Translators
             for (int i = 0; i < Math.Min(dto.Seats.Count, PassengerBuffer.Capacity); i++)
             {
                 var seat = dto.Seats[i];
-                if (seat.Role != SeatRole.Station) continue;
+                // ⭐⭐ CE-4621 PF-1 — a PERSON's seat with an arc is a FIRING seat: the same arc + place data as a station (one rule, one test —
+                //   WeaponSystems.InStationArc), flagged apart so nothing takes it for a weapon station
+                if (seat.Role != SeatRole.Station)
+                {
+                    bool firing = seat.TraverseMinDeg.HasValue || seat.TraverseMaxDeg.HasValue;
+                    if (!firing || seat.Role == SeatRole.Gunner) continue;   // a gunner seat operates a station; its arc is the station's
+                    stations.FiringMask |= (ushort)(1 << i);
+                    if (seat.FiresStoppedOnly) stations.StoppedOnlyMask |= (ushort)(1 << i);
+                    stations.Seats[i] = new StationSeat
+                    {
+                        OperatedBy = -1, HasArc = 1,
+                        TraverseMin = (Fdp.Core.Angle)((seat.TraverseMinDeg ?? -180f) * deg), TraverseMax = (Fdp.Core.Angle)((seat.TraverseMaxDeg ?? 180f) * deg),
+                        ElevationMin = (Fdp.Core.Angle)((seat.ElevationMinDeg ?? -90f) * deg), ElevationMax = (Fdp.Core.Angle)((seat.ElevationMaxDeg ?? 90f) * deg),
+                        X = seat.X, Y = seat.Y, Z = seat.Z, Facing = seat.FacingDegrees * deg,
+                    };
+                    continue;
+                }
                 stations.StationMask |= (ushort)(1 << i);
                 if (seat.Stowed) stations.StowedMask |= (ushort)(1 << i);         // ⭐ CE-3233 (B-11, ST-2)
                 if (seat.Concealed) stations.ConcealedMask |= (ushort)(1 << i);
@@ -100,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Translators
                     X = seat.X, Y = seat.Y, Z = seat.Z, Facing = seat.FacingDegrees * deg,
                 };
             }
-            return stations.StationMask == 0 ? null : stations;
+            return stations.StationMask == 0 && stations.FiringMask == 0 ? null : stations;
         }
 
         /// <summary>The component a descriptor projects to.</summary>

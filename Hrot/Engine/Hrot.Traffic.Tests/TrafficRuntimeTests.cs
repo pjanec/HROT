@@ -67,7 +67,10 @@ public sealed class TrafficRuntimeTests
     {
         int next = 5000;
         var types = TrafficVehicleCatalog.From(HrotEnvironment.CreateTkb());
-        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053, 1054, 1055, 1056 }, types.Select(t => (long)t.TkbType));
+        // ⭐ CE-4621 MV-10 — the spawned mix (a positive weight) is unchanged; the motorcycle (115, weight 0) is registered too — never spawned
+        //   by SUMO, but OUR bike handed to traffic drives as a motorcycle
+        Assert.Equal(new long[] { 1002, 1050, 1051, 1052, 1053, 1054, 1055, 1056 }, types.Where(t => t.Weight > 0f).Select(t => (long)t.TkbType));
+        Assert.Contains(types, t => (long)t.TkbType == 115L && t.VClass == "motorcycle" && t.Weight == 0f);
         using var session = new TrafficSession(Key(), Options(() => Interlocked.Increment(ref next)), types, startTime: 0.0);
 
         session.StepTo(30.0);

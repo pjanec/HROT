@@ -387,6 +387,13 @@ namespace Fdp.Toolkit.Combat.Executors
                 ? AimPoint.Operator(world, p.Target, p.Point) : p.Point;
             if (weapon.Ammo == 0) { SayAt(world, entity, ActionReason.OutOfAmmo, point); return; }
             if (switching) { SayAt(world, entity, ActionReason.Reloading, point); return; }
+            // ⭐⭐ CE-4621 PL-2 / PF-1 — a man firing his OWN weapon from a FIRING seat (a possessed pillion): nothing leaves outside his seat's arc, and
+            //   the HUD reads why (OutOfArc, through WeaponPostureOf); a stopped-only seat (the rider) holds while the vehicle moves (PF-4)
+            if (platform == entity && p.Trigger != 0 && SeatHold(world, entity, point) is { } seatHold)
+            {
+                SayAt(world, entity, seatHold, point);
+                return;
+            }
             // ⭐ CE-1078 — in operator mode Rounds is a CAP on the action's rounds (one locked shot = fired + 1), never an end
             bool capped = p.Rounds > 0 && RoundsFired(ref channel) >= p.Rounds;
             if (p.Trigger == 0 || capped)
@@ -666,8 +673,27 @@ namespace Fdp.Toolkit.Combat.Executors
             return MinRangeOf(world, CombatTkb.MountOf(world, platform, platform != unit ? 0 : index), AmmoChoice.LoadedAmmo(world, mountEntity));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> PF-1 / PF-4 — the SEAT's hold on a man firing his own weapon aboard: <see cref="ActionReason.OutOfArc"/> when
+        /// <paramref name="point"/> is outside his firing seat's arc (the motorcycle's pillion never fires ahead across the rider),
+        /// <see cref="ActionReason.HoldMoving"/> when his seat fires only stopped and the vehicle moves. Null = his seat allows it (or he is not aboard
+        /// a firing seat). The ONE rule both paths ask — the AI's <see cref="HoldOf"/> and the operator's.
+        /// </summary>
+        public static ActionReason? SeatHold(EntityRepository world, Entity unit, Vector3 point)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+                || !world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(unit)) return null;
+            if (!WeaponSystems.InStationArc(world, unit, point)) return ActionReason.OutOfArc;
+            if (Fdp.Toolkit.Behavior.Embarkation.FiresStoppedOnly(world, unit) && HitModel.IsMoving(world, unit)) return ActionReason.HoldMoving;
+            return null;
+        }
+
         public static ActionReason? HoldOf(EntityRepository world, Entity unit, Entity target, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo)
         {
+            // ⭐ CE-4621 PF-1 — a man aboard a FIRING seat fires only inside its arc (the pillion's weapon brain decides; the seat bounds it)
+            if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+                && SeatHold(world, unit, world.GetComponentRO<SimTransform>(target).Position) == ActionReason.OutOfArc)
+                return ActionReason.OutOfArc;
             long ammo = loadedAmmo != 0 ? loadedAmmo : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED shooter of any class fires nothing until the stun ends (before, only
             //   the civilian code read Effects.IsStunned). First: whatever the target, a dazed man does not shoot.
@@ -700,7 +726,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 && world.HasComponent<SimTransform>(unit) && world.HasComponent<SimTransform>(target)
                 && Vector3.Distance(world.GetComponentRO<SimTransform>(unit).Position, world.GetComponentRO<SimTransform>(target).Position) < minRange)
                 return ActionReason.TooClose;
-            if (!CombatTkb.FiresOnTheMove(mount) && HitModel.IsMoving(world, unit)) return ActionReason.HoldMoving;
+            // ⭐ CE-4621 PF-4 — and a man in a firing seat that fires only stopped (the motorcycle's rider: he drives) holds while it moves
+            if ((!CombatTkb.FiresOnTheMove(mount) || Fdp.Toolkit.Behavior.Embarkation.FiresStoppedOnly(world, unit)) && HitModel.IsMoving(world, unit))
+                return ActionReason.HoldMoving;
             // ⭐⭐ Air Ops slice 4 (DESIGN_Air_Operations §8, A6) — the RELEASE profile: a bomb leaves only when the cue says now (where a
             //   bomb dropped now lands has reached the target, within 10 m across the track). The behaviour flies the run-in; the
             //   weapon brain releases — the same gate for a player who holds the trigger (R-261).

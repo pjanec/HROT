@@ -93,6 +93,30 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         public DoorAwareQueryFilter FilterFor(DoorStates? doors, bool tracked)
             => !tracked ? FilterFor(doors) : doors == null ? TrackedFilter : _workingTracked.Value!.JudgeBy(doors);
 
+        // ⭐ CE-4621 MC-2a — one filter per quantised forest factor (NavLayerSelection's bits 9…12), made on the first ask, and its per-thread working copy
+        private readonly DoorAwareQueryFilter?[] _byWoodsFactor = new DoorAwareQueryFilter?[16];
+        private readonly ThreadLocal<DoorAwareQueryFilter>?[] _workingByWoodsFactor = new ThreadLocal<DoorAwareQueryFilter>?[16];
+
+        /// <summary>⭐ CE-4621 MC-2a — the filter for a request's mask: a mover TYPE's authored forest factor (its bits) prices the woods at 1 / factor;
+        /// else the tracked rule; else the shared filter. Allocation-free after each factor's first ask.</summary>
+        public DoorAwareQueryFilter FilterFor(DoorStates? doors, uint layerMask)
+        {
+            uint q = (layerMask & NavLayerSelection.WoodsFactorMask) >> NavLayerSelection.WoodsFactorShift;
+            if (q == 0) return FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);
+            var shared = Volatile.Read(ref _byWoodsFactor[q]) ?? MakeWoodsFactorFilter(q, layerMask);
+            return doors == null ? shared : _workingByWoodsFactor[q]!.Value!.JudgeBy(doors);
+        }
+
+        // ⚠ its own method: a lambda capturing a local of FilterFor would allocate its closure on EVERY call (C# hoists it to the method scope) —
+        //   measured, 24 B per warm path-cost query (CE-3427's 0 B rail)
+        private DoorAwareQueryFilter MakeWoodsFactorFilter(uint q, uint layerMask)
+        {
+            var made = Filter.WithWoodsCost(NavLayerSelection.WoodsCostOf(layerMask));
+            var shared = Interlocked.CompareExchange(ref _byWoodsFactor[q], made, null) ?? made;
+            Interlocked.CompareExchange(ref _workingByWoodsFactor[q], new ThreadLocal<DoorAwareQueryFilter>(() => shared.WorkingCopy()), null);
+            return shared;
+        }
+
         // ⭐ CE-3133 — the polygons for the map's Navmesh layer, built on the first ask: a snapshot never changes, so neither does this.
         private NavmeshDebugMesh? _debug;
         public NavmeshDebugMesh DebugMesh(NavLayerMask layer, uint version)
@@ -481,7 +505,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         {
             if (((uint)snap.Masks[li] & layerMask) == 0) continue;
             var ls = snap.States[li];
-            var filter = ls.FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);   // ⭐ R-219 — the caller's doors; CE-4369 the mover's woods
+            var filter = ls.FilterFor(doors, (uint)layerMask);   // ⭐ R-219 — the caller's doors; CE-4369 the mover's woods
             var query = ls.Query;
             var startStatus = FindNearestPoly(query, start, filter, out long startRef, out _);
             if (startStatus.Failed() || startRef == 0) continue;
@@ -601,7 +625,7 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         {
             if (((uint)snap.Masks[li] & layerMask) == 0) continue;
             var ls = snap.States[li];
-            var filter = ls.FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);   // ⭐ R-219 — judged by the caller's doors (R-220: this thread's working copy, no allocation); CE-4369 the mover's woods
+            var filter = ls.FilterFor(doors, (uint)layerMask);   // ⭐ R-219 — judged by the caller's doors (R-220: this thread's working copy, no allocation); CE-4369 the mover's woods
 
             var startPos = ToRcVec(from);
             var endPos   = ToRcVec(to);

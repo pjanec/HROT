@@ -196,6 +196,36 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(nav.PathExists(west, east, infantry), "infantry walks through it");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> MC-2a (DESIGN_Motorcycle §2, MV-5) — the SAME per-type table that slows a type in a wood prices its route: a WHEELED type
+        /// with an authored forest factor (the motorcycle's 0.3) may route through the wood, at a cost of 1 / factor; a wheeled type with none is
+        /// still kept out (unchanged). The mask carries the factor (NavLayerSelection's bits), the provider prices it.
+        /// 🔴 Mutation: the provider's factor branch removed ⇒ the bike falls back to the wheeled rule ⇒ no path ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4621_AWheeledTypeWithAForestFactor_RoutesThroughAWood_OneWithoutStaysOut()
+        {
+            var nav = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { TileCache = null }
+                .Build(TerrainWorldParser.Parse(WoodBarrier, "barrier"))!;
+            Vector3 west = new(40, 40, 0), east = new(260, 40, 0);
+            uint wheeled = (uint)Fdp.Toolkit.Navigation.NavLayerMask.Vehicle;
+            uint bike = wheeled | Fdp.Toolkit.Navigation.NavLayerSelection.WoodsFactorBits(0.3f);
+            Assert.InRange(Fdp.Toolkit.Navigation.NavLayerSelection.WoodsCostOf(bike), 2.9f, 3.4f);   // 1 / factor, in fifteenths (0.3 ⇒ 5/15 ⇒ 3)
+            Assert.False(nav.PathExists(west, east, wheeled), "a wheeled vehicle with no forest factor may not enter a wood");
+            Assert.True(nav.PathExists(west, east, bike), "a wheeled type with a forest factor drives through it");
+            Assert.Equal(0u, Fdp.Toolkit.Navigation.NavLayerSelection.WoodsFactorBits(0f));
+
+            // ⭐ the price decides the ROUTE (PathCost is the route's LENGTH): beside a wood with a gap, a slow forest factor (0.3 ⇒ ×3)
+            //   goes round through the gap like a tracked vehicle; a near-1 factor (0.9) cuts straight through
+            var gap = new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { TileCache = null }
+                .Build(TerrainWorldParser.Parse(WoodWithGap, "gap"))!;
+            Vector3 w = new(40, 60, 0), e = new(260, 60, 0);
+            float slow = gap.PathCost(w, e, wheeled | Fdp.Toolkit.Navigation.NavLayerSelection.WoodsFactorBits(0.3f));
+            float quick = gap.PathCost(w, e, wheeled | Fdp.Toolkit.Navigation.NavLayerSelection.WoodsFactorBits(0.9f));
+            Assert.True(slow > 300f, $"a forest factor of 0.3 goes round the wood ({slow:F0} m)");
+            Assert.True(quick < 240f, $"a forest factor of 0.9 cuts through ({quick:F0} m)");
+        }
+
         // A wood with a 30 m gap of open ground at its north end: a tracked vehicle drives round it rather than through (×4).
         private const string WoodWithGap = """
             {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,300,200],"groundZ":0},"features":[

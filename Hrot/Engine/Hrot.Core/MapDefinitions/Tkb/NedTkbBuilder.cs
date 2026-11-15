@@ -168,6 +168,7 @@ namespace Hrot.Map.Definitions.Tkb
                 WalkSpeed   = physicsDef.WalkSpeed,   // ⭐ CE-1208
                 TurnRate    = physicsDef.TurnRate,
                 AvoidanceRadius = physicsDef.AvoidanceRadius,   // ⭐ CE-2336 (R-2065)
+                OffRoadOpen = physicsDef.OffRoadOpen, OffRoadScrub = physicsDef.OffRoadScrub, OffRoadForest = physicsDef.OffRoadForest,   // ⭐ CE-4621 MC-2
                 VehicleClass = physicsDef.Preset ?? MapMobility(physicsDef.Mobility),   // ⭐ M9 — a stated preset wins
             });
             // ⭐ B8 (M6, DESIGN_Armour_Hit_Model §2) — the hull's SIZE, engine-neutral (Body.Geometry, ground-centred): it gives the
@@ -396,6 +397,15 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>
         /// Add force affiliation for perception/combat systems.
         /// </summary>
+        /// <summary>⭐ CE-4621 MC-1 / MV-10 — SUMO drives this type (<see cref="Fdp.Toolkit.Traffic.TrafficVehicleDto"/>): its vehicle class, and its share of
+        /// the civilian traffic (0 = never spawned by SUMO, but our own entity of this type handed to traffic drives as it).</summary>
+        public NedTkbBuilder WithTraffic(long tkbId, Fdp.Toolkit.Traffic.TrafficVehicleDto traffic)
+        {
+            var template = _db.GetByType(tkbId) ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(traffic ?? throw new ArgumentNullException(nameof(traffic)));
+            return this;
+        }
+
         /// <summary>⭐ CE-1041 — the body's geometry relative to its reference point (size, box offset, ground contacts).
         /// 📄 docs/DESIGN_Body_Geometry_And_Ground_Contact.md.</summary>
         public NedTkbBuilder WithBodyGeometry(long tkbId, BodyGeometryDto geometry)
