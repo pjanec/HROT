@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2 BUILT, AU-3 BUILT but A-9 (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4 BUILT, AU-3 BUILT but A-9, AU-5 the unjammable rule only (§9)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -214,4 +214,18 @@ grenade does not cover the crossing.
 
 **Rails:** `CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond` · `CE2436_ASustainedRequest_IsFiredAsASustainedMission`
 · `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red.
+
+### 9.4 AU-4 — the vehicles support by fire; the SOPs spare a base of fire; A-6's unjammable rule *(R-2109, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-4 the play | `VehicleSupportByFire` (MilitaryApc) = a sequence: drive to the stand-off point (`MoveToLocation`, 8 m), then the exposure cycle `VehicleFightFromCover` with **Scoot, one exposure a position** — hide, out front-first, fire, RELOCATE to a new hide after every engagement. ⚠ the cycle fights what the vehicle's own sensors find from its firing points; blind cannon fire on REPORTED points is not built | `VehicleFightFromCoverBehavior.cs` (`VehicleSupportByFireBehavior`) |
+| A-4 the company | a subordinate that is a VEHICLE (`Locomotions.IsVehicle`, the one rule) gets the role `Vehicle`, never assault / support / reserve (the platoons take those in order); it is ordered `VehicleSupportByFire` **35 m to the side of the base of fire's point**, on its line, never toward the objective — and stays back at the consolidation and the abort; `AllSet` does not wait for a vehicle's Set | `CompanyBehaviors` (`PlanAttack`, `VehicleSupport`, `AllSet`) |
+| A-4 data | `cc-battalion`'s IFVs are the company's (they had no commander — R-2096 — and did nothing for the attack) | `scripts/gen-chain-scenarios.py` |
+| 🔴 defect found live | the SOPs spared a DEFENCE but not a BASE OF FIRE: the platoon SOP's `PlatoonHold` paused the company's `PlatoonSupportByFire` 16 s after it began, ordered its squads to hold, and it never fired again (probe). ⭐ `PlatoonDefendBehavior.NotDefending` / `SquadDefendBehavior.NotDefending` now also answer false while the unit's current order (running or paused) is `SupportByFire` / `PlatoonSupportByFire` (`SupportByFireBehavior.Supporting`) — its fire IS the answer to the contact | `SupportByFireBehavior.Supporting` |
+| A-6 unjammable | `DroneJamming.DronesUnjammable = true` (FDP lane, said): `Jammed` answers false — no jammer downs a drone (the user's ruling); the jammer bubbles stay built and read (⛔ no removal); `CE7014` keeps proving the jammer with the switch off and adds the unjammable case | `Motion/DroneJamming.cs` |
+
+**Rails:** `CE2436_CompanyAttack_AVehicleSupportsByFireFromTheBaseOfFiresLine_NeverAssaults` · `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` ·
+`CE7014_…` (three cases). **R-2109:** the vehicles 35 m beside the base of fire, scoot after every exposure; a base of fire spared by the SOPs as
+a defence is — would change with a live run where 35 m puts the IFVs in the open, or where a base of fire should break off on a contact.
 

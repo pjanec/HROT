@@ -268,7 +268,7 @@ namespace Hrot.SimHost.Tests
             var ifv = c.S.Members[0];
             if (!c.S.Repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) c.S.Repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
             c.S.Repo.AddComponent(ifv, new global::CarKinem.Core.VehicleState());
-            Entity assault = c.S.Members[1], support = c.S.Members[2], reserve = c.S.Members[3];
+            Fdp.Core.Entity assault = c.S.Members[1], support = c.S.Members[2], reserve = c.S.Members[3];
             var o = new Vector3(0f, 600f, 0f);
             CompanyAttack(c, 0f, o);
             c.Ticks(6);
@@ -285,6 +285,43 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.VehicleSupportByFire, c.S.Orders.Last(x => x.Entity.Equals(ifv)).IntentId);
             c.Set(assault); c.Set(support); c.Set(reserve);
             Assert.Equal(Fbt.NodeStatus.Success, c.RunToEnd());
+        }
+    
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> — the SOPs spare a BASE OF FIRE as they spare a defence: a platoon running <c>PlatoonSupportByFire</c> is not paused by
+        /// its SOP's <c>PlatoonHold</c> on a reported enemy (its squads are not ordered to hold), and a squad running <c>SupportByFire</c> is not
+        /// paused by its SOP's <c>ReactToContact</c>. 📌 Live (cc-battalion probe): the hold paused the company's base of fire 16 s after it began
+        /// and it never fired again. ✅ Red-proofs: <c>Supporting</c> dropped from <c>PlatoonDefendBehavior.NotDefending</c> ⇒ the platoon holds ·
+        /// from <c>SquadDefendBehavior.NotDefending</c> ⇒ the squad reacts.
+        /// </summary>
+        [Fact]
+        public void CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact()
+        {
+            var p = new Platoon(squads: 3);
+            p.S.StartSop("BasicPlatoonSop");
+            var o = new Vector3(0f, 200f, 0f);
+            p.S.Order(System.Text.Json.JsonSerializer.Serialize(new PlatoonSupportByFireParamsJsonDto { Position = new Vector3(0f, 60f, 0f), Post1 = o },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.PlatoonSupportByFire);
+            p.Ticks(4);
+            Assert.Equal(BehaviorNames.PlatoonSupportByFire, p.S.TaskName);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(8);
+            Assert.Equal(BehaviorNames.PlatoonSupportByFire, p.S.TaskName);
+            Assert.False(p.S.Repo.HasComponent<Fdp.Toolkit.Behavior.Components.PausedTask>(p.S.Commander));
+            Assert.Equal(0, p.OrdersTo(p.Alpha, "Order.Hold"));
+
+            var s = new Squad(4);
+            s.Order(SupportByFireJson(new Vector3(6f, 0f, 0f), new Vector3(0f, 150f, 0f)), BehaviorNames.SupportByFire);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 6; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SupportByFire, s.TaskName);
+            var enemy = Enemy(s, new Vector3(0f, 60f, 0f));
+            s.Pool(enemy, new Vector3(0f, 60f, 0f), reporters: 0b0011);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SupportByFire, s.TaskName);
         }
     }
 }

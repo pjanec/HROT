@@ -65,6 +65,21 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
         public const int EstablishRoundsPerMan = 3;
 
+        private static readonly int s_squadHash = BehaviorHash.FromName(BehaviorNames.SupportByFire);
+        private static readonly int s_platoonHash = BehaviorHash.FromName(BehaviorNames.PlatoonSupportByFire);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> — <paramref name="unit"/>'s current order (running or paused) is a base of fire (<c>SupportByFire</c> /
+        /// <c>PlatoonSupportByFire</c>). The SOPs spare it as they spare a defence (<c>PlatoonDefendBehavior.NotDefending</c>,
+        /// <c>SquadDefendBehavior.NotDefending</c>): its fire IS the answer to the contact. 📌 Live (cc-battalion, probe): the platoon SOP's
+        /// <c>PlatoonHold</c> paused the company's base of fire 16 s after it began, held its squads, and it never fired again.
+        /// </summary>
+        public static bool Supporting(EntityRepository world, Entity unit)
+        {
+            var o = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, unit);
+            return o.Exists && (o.BehaviorHash == s_squadHash || o.BehaviorHash == s_platoonHash);
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         public struct SupportByFireBlackboard
         {
