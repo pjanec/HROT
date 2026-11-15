@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started
+state: ⛔ ON HOLD — the review (design §6) must be ruled first; this file will be re-stamped (rule 1a) — do NOT start
 updated: 2026-11-15
 current-answer: the whole file
 related-designs:
