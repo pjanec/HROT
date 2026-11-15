@@ -37,6 +37,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Buddy;
         /// <summary>Runtime: each mover's cover point for the coming rush (<see cref="SquadCover"/>).</summary>
         public SquadCoverPicks Cover;
+        /// <summary>⭐ <c>CE-2436</c> AU-2 (A-7, DA-12's open half) — runtime: 0 = no crossing smoke yet, 1 = thrown at <see cref="SmokedAt"/>, 2 = done.</summary>
+        public byte Smoked;
+        public SimInstant SmokedAt;
     }
 
     /// <summary>
@@ -79,6 +82,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
             }
             SquadGates.Track(ref ws.Gate, in ctx);
+            if (p.Smoked == 1 && ctx.Now - p.SmokedAt >= BreakContactPlay.SmokeSeconds) { p.Smoked = 2; ws.Reissue = 1; }   // AU-2 — the thrower back to covering
             ushort phase = ctx.Squad.PhaseId;
             byte e = FireAndMovementManeuver.MovingElement(phase);
             if (!FireAndMovementManeuver.IsRush(phase) && !SquadCover.IsReady(in p.Cover, e))
@@ -150,6 +154,20 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     Kind = MemberOrderKind.AdvanceTo, Point = cover ? pick : OneRush(ref p, at), Speed = p.Speed,
                     ArrivalRadius = 1f, Cover = cover ? (byte)1 : (byte)0, RoleId = FireAndMovementManeuver.RoleMoving,
+                };
+            }
+            // ⭐⭐ CE-2436 AU-2 (A-7; DA-12's open half — "the attack uses it at open crossings") — the CROSSING SMOKE: before the first rush,
+            //   ONE covering man who carries smoke and is at least Regular throws it between the squad and the threat (the objective when no
+            //   contact is pooled) — once a run (BreakContact's rule and helpers, ⛔ no second smoke model)
+            if (p.Smoked == 0 && phase == FireAndMovementManeuver.PhaseCover0 && BreakContactPlay.Smoker(in ctx, member, out _))
+            {
+                p.Smoked = 1;
+                p.SmokedAt = (SimInstant)ctx.Now;
+                return new MemberOrder
+                {
+                    Kind = MemberOrderKind.FireAtPoint, Point = BreakContactPlay.SmokePoint(at, ws.ThreatId != 0 ? ws.ThreatPoint : p.Objective),
+                    Rounds = 1, Round = Fdp.Toolkit.Combat.Executors.FireAtPointParams.RoundSmoke, Speed = p.Speed,
+                    RoleId = FireAndMovementManeuver.RoleCovering,
                 };
             }
             return Covering(in p, in ws);

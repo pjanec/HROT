@@ -202,6 +202,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-5001 (B-3b, V-17; docs/DESIGN_Vehicle_Breaching.md §7.16) — a vehicle's contact with a barrier, the deciding node → every node (the driver's HUD cue, the dust,
         //   the crash). A one-shot world event, not a descriptor. 187 measured free on every lane 2026-11-14.
         dtContactBreach               = 187,
+        // ⭐ CE-4617 (B-1, RS-10; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a radar's emission, the owner (brain) → every node.
+        //   Measured free on ui, behaviors, backend, coordinator 2026-11-15 (the highest in use was 187).
+        dtRadarEmission               = 188,
         // etc., all known descriptor types here
     }
 

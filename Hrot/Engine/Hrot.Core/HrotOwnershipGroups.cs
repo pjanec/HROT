@@ -78,6 +78,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.EffectState);
         // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms, chosen by his behaviour (dtGesture).
         brain.SetBit(GlobalComponentIds.Gesture);
+        // ⭐ CE-4617 (RS-10) — a radar's emission, switched by the carrier's behaviour (dtRadarEmission).
+        brain.SetBit(GlobalComponentIds.RadarEmission);
         // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, committed by his behaviour (dtHostileAct).
         brain.SetBit(GlobalComponentIds.HostileAct);
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)

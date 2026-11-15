@@ -1630,5 +1630,156 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(0, _world.GetComponentRO<SensorTag>(heat).Implicit);
             }
         }
+    
+        // ── ⭐ CE-4617 (B-1) — the RADAR sensor (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2, RS-2a, RS-10) ─────────────────────────────
+
+        /// <summary>A 10 km flat terrain at 0 m with ONE ridge wall 600 m high across x ∈ [5000, 5400] (20 m cells).</summary>
+        private static Fdp.Toolkit.Terrain.TerrainWorld RidgeTerrain()
+        {
+            const int n = 501;
+            var z = new float[n * n];
+            for (int r = 0; r < n; r++)
+                for (int c = 0; c < n; c++)
+                    z[r * n + c] = c * 20f >= 5000f && c * 20f <= 5400f ? 600f : 0f;
+            return new Fdp.Toolkit.Terrain.TerrainWorld { Name = "ridge", Height = new Fdp.Toolkit.Terrain.TerrainHeightGrid(Vector2.Zero, 20f, n, n, z) };
+        }
+
+        private void EnsureRadarTypes()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarEmission>()) _world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarSignature>()) _world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarSignature>();
+            if (!_world.IsComponentTypeRegistered<SensorMount>()) _world.RegisterComponent<SensorMount>();
+        }
+
+        /// <summary>A radar carrier at <paramref name="at"/>: an 8 km radar on an 8 m mast (its sight height, RV-17), Blue.</summary>
+        private (Entity Unit, Entity Sensor) RadarSite(Vector3 at, int netId = 4617)
+        {
+            EnsureRadarTypes();
+            var unit = _world.CreateEntity();
+            _world.AddComponent(unit, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
+            _world.AddComponent(unit, new NetworkIdentity { Value = netId });
+            _world.AddComponent(unit, new SensorMount { Standing = 8f, Crouched = 8f, Prone = 8f });
+            var template = new TkbTemplate("RadarSite", 81);
+            template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { RadarPerception.Entry(8000f) } });
+            new PerceptionTkbTranslator().Inject(_world, unit, template);
+            var sensor = UnitSensors.Of(_world, unit, SensorModality.Radar);
+            Assert.False(sensor.IsNull);
+            return (unit, sensor);
+        }
+
+        private Entity Aircraft(Vector3 at, float rcsM2, ForceId force = ForceId.Hostile)
+        {
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new EntityInfo { ForceId = force });
+            _world.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Rotorcraft });
+            _world.AddComponent(e, new Fdp.Toolkit.Perception.Radar.RadarSignature { RcsM2 = rcsM2 });
+            return e;
+        }
+
+        private EqsSolverSystem RadarSolver(Fdp.Toolkit.Terrain.TerrainWorld terrain)
+        {
+            var registry = (EqsTemplateRegistry)EqsTemplateRegistry.InstallDefault(_world);
+            RadarPerception.Register(registry, view => Fdp.Toolkit.Terrain.TerrainWorldQuery.ForView(view, terrain),
+                new Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy(() => terrain));
+            return new EqsSolverSystem { BudgetUnits = int.MaxValue };
+        }
+
+        private void SolveRadar(EqsSolverSystem solver, int ticks = 20)   // 2 s: the track hysteresis, never an eye's dwell
+        {
+            var view = (ISimulationView)_world;
+            for (int i = 0; i < ticks; i++)
+            {
+                solver.Execute(view, 0.1f);
+                ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                _world.Tick();
+            }
+        }
+
+        /// <summary>The radar holds <paramref name="target"/> as an ACQUIRED contact (not merely a pending sighting).</summary>
+        private unsafe bool RadarSees(Entity sensor, Entity target)
+        {
+            if (!_world.HasComponent<SensorContactList>(sensor)) return false;
+            var list = _world.GetComponentRO<SensorContactList>(sensor);
+            for (int i = 0; i < list.Count; i++)
+                if (list.EntityIds[i] == (long)target.PackedValue && list.State[i] == (byte)SensorContactState.Acquired) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4617 (B-1, RS-2 / RS-2a / RS-10) — the radar sees a UH-60 (4 m²) 6 km out in the open AND one beyond the terrain's edge; NOT one
+        /// behind a ridge, NOT one 10 m above the ground (the clutter floor), an FPV (0.01 m²) only close in, and nothing at all while its carrier's
+        /// <c>RadarEmission</c> is off. 🔴 Red-proofs: the filter dropped (the low and the far FPV seen), the emission gate dropped (seen while off).
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadar_SeesAircraftFarOut_AndBeyondTheTerrain_NotBehindARidge_NotLow_AnFpvOnlyClose_NothingWhileOff()
+        {
+            var terrain = RidgeTerrain();
+            var solver = RadarSolver(terrain);
+            var (site, sensor) = RadarSite(new Vector3(2000f, 2000f, 0f));
+            var open    = Aircraft(new Vector3(2000f, 8000f, 150f), 4f);    // 6 km north, in the open
+            var beyond  = Aircraft(new Vector3(2000f, -2500f, 150f), 4f);   // 4.5 km south — BEYOND the terrain's edge (RS-2a)
+            var ridge   = Aircraft(new Vector3(7000f, 2000f, 100f), 4f);    // 5 km east, behind the 600 m ridge
+            var low     = Aircraft(new Vector3(2000f, 4000f, 10f), 4f);     // 2 km, 10 m above the ground (below the clutter floor)
+            var fpvNear = Aircraft(new Vector3(1000f, 2000f, 50f), 0.01f);  // 1 km — an FPV's ~1.4 km
+            var fpvFar  = Aircraft(new Vector3(2000f, 5000f, 50f), 0.01f);  // 3 km
+
+            SolveRadar(solver);
+            Assert.False(RadarSees(sensor, open) || RadarSees(sensor, beyond) || RadarSees(sensor, fpvNear), "nothing while the radar is off");
+
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(_world, site, Fdp.Toolkit.Perception.Radar.RadarMode.Search, Entity.Null,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, 0d);
+            SolveRadar(solver);
+            Assert.True(RadarSees(sensor, open), "a UH-60 6 km out in the open");
+            Assert.True(RadarSees(sensor, beyond), "a UH-60 beyond the terrain's edge (RS-2a)");
+            Assert.False(RadarSees(sensor, ridge), "not behind a ridge");
+            Assert.False(RadarSees(sensor, low), "not 10 m above the ground");
+            Assert.True(RadarSees(sensor, fpvNear), "an FPV close in");
+            Assert.False(RadarSees(sensor, fpvFar), "not an FPV 3 km out");
+        }
+
+        /// <summary>
+        /// ⭐ CE-4617 (B-1, RV-3) — 100 enemy GROUND units crowded round the radar do not crowd out a helicopter 5 km away (the radar walks the
+        /// aircraft only), and its candidate step allocates nothing in the steady state (R-2084). 🔴 Red-proof: the aircraft rule dropped from the
+        /// generator ⇒ the ground units fill its 32 candidates.
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadar_TracksAFarHelicopter_With100GroundUnitsNear_AndAllocatesNothing()
+        {
+            var terrain = RidgeTerrain();
+            var solver = RadarSolver(terrain);
+            var (site, sensor) = RadarSite(new Vector3(2000f, 2000f, 0f));
+            for (int i = 0; i < 100; i++)
+            {
+                var g = _world.CreateEntity();
+                _world.AddComponent(g, new SimTransform { Position = new Vector3(2000f + 50f + (i % 10) * 20f, 2000f + (i / 10) * 20f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(g, new EntityInfo { ForceId = ForceId.Hostile });
+            }
+            var heli = Aircraft(new Vector3(2000f, 7000f, 200f), 4f);
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(_world, site, Fdp.Toolkit.Perception.Radar.RadarMode.Search, Entity.Null,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, 0d);
+            SolveRadar(solver);
+            Assert.True(RadarSees(sensor, heli), "the helicopter is tracked through the crowd");
+
+            var gen = new RadarSensorGenerator();
+            var filter = new RadarSignatureFilter(view => Fdp.Toolkit.Terrain.TerrainWorldQuery.ForView(view, terrain));
+            var view = (ISimulationView)_world;
+            ref var es = ref _world.GetComponentRW<EqsSensor>(sensor);
+            Span<EqsResult> buf = stackalloc EqsResult[32];
+            int n0 = gen.Generate(sensor, ref es, view, buf);
+            Assert.Equal(1, n0);                                               // the aircraft only
+            filter.ExecuteBatch(sensor, ref es, view, buf.Slice(0, n0));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                int n = gen.Generate(sensor, ref es, view, buf);
+                filter.ExecuteBatch(sensor, ref es, view, buf.Slice(0, n));
+            }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0L, allocated);
+        }
     }
 }

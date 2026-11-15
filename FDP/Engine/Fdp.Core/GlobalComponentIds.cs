@@ -1310,6 +1310,16 @@ namespace Fdp.Core
         /// singleton, never saved, recorded or sent. ⚠ 496 measured free in backend, ui, behaviors and coordinator 2026-11-11 (the highest in use was 495).</summary>
         public const int LiveTerrainBakeInfo = 496;
 
+        /// <summary><c>RadarEmission</c> — ⭐ CE-4617 (B-1; docs/designs/air-attack/DESIGN_Radar_SAM.md RS-10, R-4259): is a vehicle's radar RADIATING (on,
+        /// search / track, the tracked target, its class and range). Written ONLY by the owner (the brain), replicated as <c>dtRadarEmission</c> (188);
+        /// every node derives from it — the radar sensor, the warning receiver, the direction finding, the spinning mast. Recorded.
+        /// ⚠ 497 measured free in backend, ui, behaviors and coordinator 2026-11-15 (the highest in use was 496).</summary>
+        public const int RadarEmission = 497;
+
+        /// <summary><c>RadarSignature</c> — ⭐ CE-4617 (B-1, RS-2): an entity's radar cross-section (m²), stamped from its TKB on every node that
+        /// registers it (never on the wire — every node holds the TKB). ⚠ 498 measured free 2026-11-15.</summary>
+        public const int RadarSignature = 498;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>

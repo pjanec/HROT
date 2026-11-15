@@ -1402,12 +1402,24 @@ namespace Hrot.SimHost.Tests
         /// <c>JammerDto</c>) and loses its link — it comes down WHERE IT IS (<c>BatteryOut</c> = jammed), never reaching the tank; outside the bubble it
         /// pursued as before; a jammer of its OWN side spares it. The bubbles are the serial pre-pass's index (<c>DroneJamming.PrepareFrame</c>, called
         /// here as <c>BrainPhase</c> does). ✅ Red-proof: the jammed check dropped ⇒ it pursues on ⇒ red.
+        /// ⭐ <c>CE-2436</c> AU-5 (A-6, the user's ruling) — drones are UNJAMMABLE by default (<c>DroneJamming.DronesUnjammable</c>): the third case,
+        /// the enemy jammer with the default, the drone reaches the tank. The first two keep proving the jammer itself with the switch off.
         /// </summary>
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide)
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide, bool unjammable)
         {
+            bool was = Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable;
+            Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable = unjammable;
+            try { JammerCase(ownSide || unjammable); }
+            finally { Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable = was; }
+        }
+
+        private void JammerCase(bool spared)
+        {
+            bool ownSide = spared;
             const long JammerType = 9413;
             var drone = SpawnDrone(new Vector3(-600f, 0f, 60f));
             var tank = SpawnGround(Vector3.Zero, 2500f, vehicle: true, ForceId.Friend);
@@ -1419,7 +1431,7 @@ namespace Hrot.SimHost.Tests
             var jammer = _w.CreateEntity();
             _w.AddComponent(jammer, new SimTransform { Position = new Vector3(-250f, 0f, 0f), Rotation = Quaternion.Identity });
             _w.AddComponent(jammer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)JammerType });
-            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide ? ForceId.Hostile : ForceId.Friend });
+            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide && !Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable ? ForceId.Hostile : ForceId.Friend });
 
             var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
             var ws = default(AirAttackState);
@@ -1433,7 +1445,7 @@ namespace Hrot.SimHost.Tests
             }
             if (ownSide)
             {
-                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer spares it: it reached the tank
+                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer (or the unjammable rule) spares it: it reached the tank
                 Assert.True(closest < 20f, $"it pursued to the tank: closest {closest:F0} m");
                 return;
             }

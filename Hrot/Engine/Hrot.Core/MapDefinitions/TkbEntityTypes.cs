@@ -87,6 +87,11 @@ namespace Hrot.Map.Common
         public const long Infantry_Marksman = 210;
         /// <summary>⭐ <c>CE-3254</c> (BR-9) — the other side's marksman: an SVD-class DMR (≈ 1 mil), ×4, faction 2. ⛔ PERMANENT WIRE VALUE.</summary>
         public const long Infantry_MarksmanSvd = 211;
+        /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10a) — the ANTI-DRONE man: a rifleman with a 12-gauge shotgun as his second weapon (12 pellets, 60 m).
+        /// ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_AntiDrone = 212;
+        /// <summary>⭐ <c>CE-2436</c> AU-7 — the other side's anti-drone man (faction 2). ⛔ PERMANENT WIRE VALUE.</summary>
+        public const long Infantry_AntiDroneRed = 213;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

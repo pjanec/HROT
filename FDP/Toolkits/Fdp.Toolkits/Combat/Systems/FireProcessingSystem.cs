@@ -192,9 +192,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   The muzzle offset below stays on the aim line; only the flight direction turns.
                 var firedMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
                 float sigma = HitModel.Sigma(repo, shooter, firedMount, HitModel.Now(repo));
-                uint ordinal = sigma > 0f ? HitModel.NextOrdinal(repo, shooter) : 0u;
+                // ⭐⭐ CE-2436 AU-7 (A-10, R-2110) — at a target in the AIR the aim error is 2-D (the elevation too, on the second stream) and
+                //   widens with the target's speed (HitModel.AirFactor): a small fast drone is hard to track. A ground target is unchanged.
+                bool atAir = !evt.AtPoint && Fdp.Toolkit.Motion.Locomotions.InAir(repo, target);
+                if (atAir) sigma *= HitModel.AirFactor(repo, target);
+                int pellets = firedMount != null && firedMount.Pellets > 1 ? firedMount.Pellets : 1;
+                uint ordinal = sigma > 0f || pellets > 1 ? HitModel.NextOrdinal(repo, shooter) : 0u;
                 float theta = sigma > 0f ? HitModel.Deflection(sigma, ordinal) : 0f;
                 var flight = sigma > 0f ? HitModel.Rotate(direction, theta) : direction;
+                if (atAir && sigma > 0f) flight = HitModel.Pitch(flight, sigma * HitModel.RangeSequence(ordinal));
                 var velocity  = flight * muzzle;
 
                 // ⭐⭐ Stage 6 (CE-1032, W-1/W-4/W-8) — the round's warhead, read ONCE here: an area effect makes a terrain stop a
@@ -309,6 +315,12 @@ namespace Fdp.Toolkit.Combat.Systems
                               : shooterPos + direction * MathF.Min(CombatConstants.MuzzleOffsetMeters, delta.Length() * 0.5f);
                 if ((warheadBits & WarheadRound.Arc) != 0) muzzlePos = origin;   // an arc leaves from the hand / tube
 
+                // ⭐⭐ CE-2436 AU-7 (A-10a) — a SHOTGUN: the shot is `pellets` rounds, each on its own place of the pattern (half-width
+                //   PelletSpreadMils, both axes) around the aim just made; this bullet is pellet 0, the others are spawned below.
+                float pattern = pellets > 1 ? firedMount!.PelletSpreadMils / 1000f : 0f;
+                var aimedVelocity = velocity;
+                if (pellets > 1) velocity = PelletVelocity(aimedVelocity, pattern, ordinal, pellets, 0);
+
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();
 
@@ -341,7 +353,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     penetrationSource = $"loaded round {ammo} (M8 loadout)";
                 }
                 float damage = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.DamageOrFallback(roundDamage);
-                repo.AddComponent(bullet, new BallisticProjectile
+                var projectile = new BallisticProjectile
                 {
                     Shooter          = shooter,
                     PreviousPosition = muzzlePos,
@@ -358,7 +370,9 @@ namespace Fdp.Toolkit.Combat.Systems
                     ArcLifetimeTicks = arcLifetime,   // ⭐ IF-1 (I5) — 0 = the flat arc lifetime
                     BurnSeconds      = burn,          // ⭐ CE-3236 (B-14) — 0 = not a canister
                     OriginalShooter  = evt.OriginalShooter,   // ⭐ CE-4155 (SR-82) — a thrown-back round keeps its first thrower
-                });
+                    RangeLimitM      = pellets > 1 && firedMount != null ? firedMount.Range : 0f,   // ⭐ CE-2436 AU-7 — a pellet is spent past its range
+                };
+                repo.AddComponent(bullet, projectile);
 
                 // ⭐⭐ LR-2 (§8.5, R-271) — a VISIBLE round (its munition has a look: a shell, a bomb, a grenade, a rocket, a missile, a
                 //   tracer) becomes a LIGHTWEIGHT REPLICATED entity: its munition type as TkbIdentity + the LightweightRound tag. The
@@ -426,6 +440,16 @@ namespace Fdp.Toolkit.Combat.Systems
                     Radius         = CombatConstants.BulletColliderRadius,
                     CollisionLayer = CombatConstants.BulletCollisionLayer,
                 });
+
+                // ⭐ CE-2436 AU-7 — the shotgun's other pellets: the same round from the same muzzle, each on its own place of the pattern
+                for (int pellet = 1; pellet < pellets; pellet++)
+                {
+                    var pelletRound = repo.CreateEntity();
+                    repo.AddComponent(pelletRound, new SimTransform { Position = muzzlePos, Rotation = Quaternion.Identity });
+                    repo.AddComponent(pelletRound, new SimVelocity { Linear = PelletVelocity(aimedVelocity, pattern, ordinal, pellets, pellet), Angular = Vector3.Zero });
+                    repo.AddComponent(pelletRound, projectile);
+                    repo.AddComponent(pelletRound, new PhysicsCollider { Radius = CombatConstants.BulletColliderRadius, CollisionLayer = CombatConstants.BulletCollisionLayer });
+                }
 
                 // 6. Notify egress translator (muzzle flash for IG).
                 //    Entity handles are passed; WeaponFireNotificationEgressTranslator resolves
@@ -518,6 +542,14 @@ namespace Fdp.Toolkit.Combat.Systems
             var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, body) && repo.HasComponent<SimVelocity>(body)
                 ? repo.GetComponentRO<SimVelocity>(body).Linear : Vector3.Zero;
             return TargetLead.Point(origin, shooterVelocity, speed, aim, targetVelocity);
+        }
+
+        /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10a) — pellet <paramref name="i"/>'s velocity: the aimed one turned across and pitched by its place
+        /// in the pattern (<see cref="HitModel.PelletOffset"/> × <paramref name="patternRad"/>), same speed.</summary>
+        public static Vector3 PelletVelocity(Vector3 aimed, float patternRad, uint ordinal, int pellets, int i)
+        {
+            var (az, el) = HitModel.PelletOffset(ordinal, pellets, i);
+            return HitModel.Pitch(HitModel.Rotate(aimed, patternRad * az), patternRad * el);
         }
 
         public static uint ArcLifetimeTicks(Vector3 from, Vector3 to, Vector3 velocity)

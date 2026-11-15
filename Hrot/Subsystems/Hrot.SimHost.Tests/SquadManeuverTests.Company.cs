@@ -69,9 +69,10 @@ namespace Hrot.SimHost.Tests
             c.Ticks(6);
             var start = StaffComposerSystem.CentreOf(c.S.Repo, c.S.Commander);
             var dir = Vector2.Normalize(new Vector2(start.X - o1.X, start.Y - o1.Y));
-            var support = c.Last<PlatoonDefendParamsJsonDto>(c.Second, BehaviorNames.PlatoonDefend);
-            Assert.True(Near(support.Position, o1 + new Vector3(dir * CompanyAttackBehavior.SupportStandOffMetres, 0f)), $"base of fire at {(Vector3)support.Position}");
-            Assert.True(support.MaxRange > 0f, "the base of fire has an arc on the objective");
+            // ⭐ CE-2436 AU-3 (A-1) — the company's base of fire FIRES on the posts (PlatoonSupportByFire); none reported ⇒ the objective
+            var support = c.Last<PlatoonSupportByFireParamsJsonDto>(c.Second, BehaviorNames.PlatoonSupportByFire);
+            Assert.True(Near(support.Position, o1 + new Vector3(dir * CompanyAttackBehavior.SupportStandOffMetres, 0f)), $"base of fire at {support.Position}");
+            Assert.True(Near(support.Post1, o1), $"its post {support.Post1}");
             Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Third, BehaviorNames.PlatoonDefend).Position,
                              o1 + new Vector3(dir * CompanyAttackBehavior.ReserveStandOffMetres, 0f)), "the reserve behind");
             Assert.Equal(0, c.OrdersTo(c.First, BehaviorNames.PlatoonAttack));   // waits for the base of fire
@@ -84,7 +85,7 @@ namespace Hrot.SimHost.Tests
 
             c.Set(c.First);
             c.Ticks(5);
-            Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Second, BehaviorNames.PlatoonDefend).Position,
+            Assert.True(Near(c.Last<PlatoonSupportByFireParamsJsonDto>(c.Second, BehaviorNames.PlatoonSupportByFire).Position,
                              o2 + new Vector3(0f, -CompanyAttackBehavior.SupportStandOffMetres, 0f)), "the base of fire moved up, short of objective 2");
             c.Set(c.Second);
             c.Ticks(5);
@@ -114,7 +115,7 @@ namespace Hrot.SimHost.Tests
             c.Failed(c.First);
             c.Ticks(6);
             Assert.True(Near(c.Last<PlatoonAttackParamsJsonDto>(c.Third, BehaviorNames.PlatoonAttack).Position, o), "the reserve attacks");
-            Assert.True(c.OrdersTo(c.First, BehaviorNames.PlatoonDefend) > 0, "the spent assault defends (supports)");
+            Assert.True(c.OrdersTo(c.First, BehaviorNames.PlatoonSupportByFire) > 0, "the spent assault supports by fire (CE-2436 AU-3)");
         }
 
         /// <summary>⭐ <c>CE-7023</c> (C-1b) — two platoons, the assault BLACK and no reserve: the company breaks off — every platoon defends the start
@@ -161,7 +162,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(Near(c.Last<PlatoonAttackParamsJsonDto>(c.Third, BehaviorNames.PlatoonAttack).Position, o1), "the reserve committed at the deadline");
 
             c.Over(55);
-            Assert.True(Near(c.Last<PlatoonDefendParamsJsonDto>(c.Second, BehaviorNames.PlatoonDefend).Position,
+            Assert.True(Near(c.Last<PlatoonSupportByFireParamsJsonDto>(c.Second, BehaviorNames.PlatoonSupportByFire).Position,
                              o2 + new Vector3(0f, -CompanyAttackBehavior.SupportStandOffMetres, 0f)), "objective 1 bypassed: the base of fire moves on to objective 2");
         }
 

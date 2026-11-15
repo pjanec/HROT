@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT but A-9 (§9)
 updated: 2026-11-15 (first version — coordinator)
-current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked
+current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Defend_And_Attack_Position.md AT-6 (the lift = ReturnFire at the assault's start) — A-3 replaces it with a SHIFT; DA-11 (lift at Foothold) is kept
@@ -146,3 +146,134 @@ Clear §4 (Lift / ShiftFire states) — applies (A-3 builds its shift) · Squad 
 applies (A-4, A-5, A-9) · Command Chain Battalion Test §4a — applies (the evidence) · FPV Drone §5 — applies (A-6) · Indirect Fire FM-5 — applies
 (danger close, A-5) · Urban Armour Tactics (infantry cooperation "later") — does not settle it · AQ96 Movement Under Fire C3 — applies (cover from the
 base of fire is stamped only by fire and movement — A-7).
+
+## 9. As built *(behaviors, `2026-11-15`)*
+
+### 9.1 AU-1 — automatic weapons, `SupportByFire`, the shift *(R-2106, lane decision — for the user's review)*
+
+```mermaid
+sequenceDiagram
+  participant PA as PlatoonAttack (platoon)
+  participant SBF as SupportByFire (support squad)
+  participant M as each man (library Suppress)
+  participant AS as assault squad
+  PA->>SBF: SupportByFire(support point, the objective's reported posts)
+  SBF->>M: hold at the point (CombatPosture)
+  Note over SBF: centre within 12 m, or 60 s on the way
+  SBF->>M: Suppress post i mod n (no target: the point)
+  SBF-->>PA: PROGRESS Set
+  PA->>AS: bound to the assault point
+  AS-->>PA: Set
+  PA->>SBF: SupportByFire(depth 30 m beyond, flanks 25 m across) - the SHIFT, FireAtWill kept
+  PA->>AS: ClearBuilding / FireAndMovement
+  AS-->>PA: Foothold (or BuildingClear, or Set on an open objective)
+  PA->>SBF: SquadDefend + ReturnFire - the LIFT
+```
+*What it shows that the as-built AT-6 did not: the base of fire is ON the posts the whole approach and is still firing (shifted) while the
+assault crosses; it stops only once the assault holds a foothold.*
+
+| piece | as built | where |
+|---|---|---|
+| A-2 | the generator's `MachineGunner` role carries a real automatic weapon: Blue the M249 automatic rifleman (TKB 207), Red the PKM gunner (208) — one per squad | `scripts/gen-chain-scenarios.py` `squad()` |
+| A-1 | `SupportByFire` (new squad commander play, `Library/Combat`): hold at the point; then man `i` suppresses reported post `i mod n` through the library `Suppress` at the point (no target ⇒ `FireAtPoint`, seen or not); SET once firing; a member is re-ordered only when dirty or his order no longer stands (R-2084) | `SupportByFireBehavior.cs`, `SupportByFireParamsJsonDto` |
+| A-1 posts | `PlatoonAttack.ObjectivePosts`: fresh picture elements within 25 m of the current objective (≤ 4); none ⇒ the objective itself | `PlatoonAttackBehavior.cs` |
+| A-3 shift | at `EnterAssault` (replacing AT-6's ReturnFire): elements beyond the objective in the attack's area, then its depth (30 m beyond, away from the start) and two flanks (25 m across) | `ShiftPosts` |
+| DA-11 lift | after the orders each tick: the assault's FOOTHOLD / BuildingClear / Set ⇒ the support `SquadDefend` + ReturnFire | `Lift` |
+| sector | the base of fire keeps its sector on the objective (DA-27) under `SupportByFire` too | `KeepAttack` |
+
+**Rails:** `CE2436_SupportByFire_HoldsAtThePoint_ThenEveryManFiresOnAReportedPost_ReportsSet_AndShiftsOnOrder` (new) · `CE2277_AnOpenObjective_…`
+(the shift, FireAtWill kept) · `CE2277_AnAreaWithABuilding…` (the lift at the foothold) · `CE2277_WithItsSop…`, `CE2346_…`, `CE2284_…` (the
+support's order is now `SupportByFire`). **R-2106 numbers:** arrival 12 m / 60 s, post match 25 m, shift depth 30 m, flanks 25 m, ≤ 4 posts —
+would change with a live run showing the posts off the windows, or the arrival too strict for a covered position.
+
+### 9.2 AU-2 — the approach in contact, the crossing smoke, suppression established *(R-2107, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-7 approach | `PlatoonAttack` sets `Contact` when the objective's posts come from REPORTED elements; then the assault closes to its assault point by `FireAndMovement` (rushes between cover, its other half covering); with nothing reported it still bounds (pre-contact). The reserve keeps bounding behind | `PlatoonAttackBehavior.OrderFor`, `Rush` |
+| A-7 crossing smoke | `FireAndMovement`: before the first rush ONE covering man who carries smoke and is Regular+ throws a smoke grenade 15 m (at most half-way) toward the threat — the objective when no contact is pooled; once a run; back to covering after `SmokeSeconds` — `BreakContactPlay`'s rule and helpers (`Smoker`, `SmokePoint`), ⛔ no second smoke model | `FireAndMovementBehavior.OrderFor` / `Update` |
+| A-8 established | `SupportByFire` reports SET only when suppression is ESTABLISHED: firing ≥ 15 s AND the squad's carried rounds fell by ≥ 3 a man in the fight since firing began (`StaffComposerSystem.RoundsOf`; a squad with no counted weapon: the time alone). The platoon's `SupportSet` reads it, so the assault moves only under established fire. ⚠ "the drone strike in" (A-8's second half) waits for AU-5 | `SupportByFireBehavior.Established` |
+
+**Rails:** `CE2436_SupportByFire_SuppressionIsEstablished_OnlyWhenRoundsWereSpent_NotByTheClockAlone` ·
+`CE2436_FireAndMovement_OneCoveringManThrowsCrossingSmokeTowardTheThreat_OnceBeforeTheFirstRush` ·
+`CE2436_PlatoonAttack_BeforeContactTheAssaultBounds_InContactItClosesByFireAndMovement` · the AU-1 rail's SET now after establishment ·
+`CE2277` ×3, `CE2346`, `CE2284` updated (the approach in contact is `FireAndMovement`). **R-2107 numbers:** 15 s / 3 rounds a man; the
+smoke once per fire-and-movement run — would change with a live run where the support's Set comes too late for the deadline, or where one
+grenade does not cover the crossing.
+
+### 9.3 AU-3 — the sustained mission, the screen, the shift beyond, the company's base of fire *(R-2108, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-5 sustained | a FireSupport REQUEST's `Count` is its rounds per gun (a byte the wire already carries) → the picture's `PendingRequest.Rounds` → `SupportCommand`'s battery strike `StrikeOrder.Rounds` (above 1 a sustained mission; else the battery's default 3) | `StaffSystems` (fold), `CommandComponents`, `SupportCommandBehavior` |
+| A-5 on the posts | `CompanyAttack.EnterAssault` asks **8** rounds a gun of HE on the CENTRE of the reported posts (fresh elements within 40 m of the objective; none ⇒ the objective) — replacing R-2100's 3-round burst on the objective | `CompanyBehaviors.PostsCentre` |
+| A-5 the screen | the half-deadline smoke (CE-7025) lands **50 m from the objective toward where the company came from** — on the crossing, ⛔ never on the objective (📌 it blinded the own base of fire) | `ScreenPoint` |
+| A-5 shift beyond | objective k taken (`NextObjective`) ⇒ a sustained HE request on objective k + 1; the last one taken asks nothing | `NextObjective` |
+| A-1 company | the company's base of fire is `PlatoonSupportByFire`: every squad `SupportByFire` on the company's posts (≤ 4 fresh elements near the objective), spread 20 m across the line of fire; the platoon reports SET once every live squad has (= each squad's suppression established) | `PlatoonSupportByFireBehavior`, `CompanyAttack.SupportByFire` |
+| ⛔ A-9 covered position | **NOT BUILT** — the base of fire still stands at the fixed 250 m; a cover query for the company (a world survey round the support point, the near face of a building on the line of fire) is the next step | — |
+
+**Rails:** `CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond` · `CE2436_ASustainedRequest_IsFiredAsASustainedMission`
+· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red.
+
+### 9.4 AU-4 — the vehicles support by fire; the SOPs spare a base of fire; A-6's unjammable rule *(R-2109, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-4 the play | `VehicleSupportByFire` (MilitaryApc) = a sequence: drive to the stand-off point (`MoveToLocation`, 8 m), then the exposure cycle `VehicleFightFromCover` with **Scoot, one exposure a position** — hide, out front-first, fire, RELOCATE to a new hide after every engagement. ⚠ the cycle fights what the vehicle's own sensors find from its firing points; blind cannon fire on REPORTED points is not built | `VehicleFightFromCoverBehavior.cs` (`VehicleSupportByFireBehavior`) |
+| A-4 the company | a subordinate that is a VEHICLE (`Locomotions.IsVehicle`, the one rule) gets the role `Vehicle`, never assault / support / reserve (the platoons take those in order); it is ordered `VehicleSupportByFire` **35 m to the side of the base of fire's point**, on its line, never toward the objective — and stays back at the consolidation and the abort; `AllSet` does not wait for a vehicle's Set | `CompanyBehaviors` (`PlanAttack`, `VehicleSupport`, `AllSet`) |
+| A-4 data | `cc-battalion`'s IFVs are the company's (they had no commander — R-2096 — and did nothing for the attack) | `scripts/gen-chain-scenarios.py` |
+| 🔴 defect found live | the SOPs spared a DEFENCE but not a BASE OF FIRE: the platoon SOP's `PlatoonHold` paused the company's `PlatoonSupportByFire` 16 s after it began, ordered its squads to hold, and it never fired again (probe). ⭐ `PlatoonDefendBehavior.NotDefending` / `SquadDefendBehavior.NotDefending` now also answer false while the unit's current order (running or paused) is `SupportByFire` / `PlatoonSupportByFire` (`SupportByFireBehavior.Supporting`) — its fire IS the answer to the contact | `SupportByFireBehavior.Supporting` |
+| A-6 unjammable | `DroneJamming.DronesUnjammable = true` (FDP lane, said): `Jammed` answers false — no jammer downs a drone (the user's ruling); the jammer bubbles stay built and read (⛔ no removal); `CE7014` keeps proving the jammer with the switch off and adds the unjammable case | `Motion/DroneJamming.cs` |
+
+**Rails:** `CE2436_CompanyAttack_AVehicleSupportsByFireFromTheBaseOfFiresLine_NeverAssaults` · `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` ·
+`CE7014_…` (three cases). **R-2109:** the vehicles 35 m beside the base of fire, scoot after every exposure; a base of fire spared by the SOPs as
+a defence is — would change with a live run where 35 m puts the IFVs in the open, or where a base of fire should break off on a contact.
+
+
+### 9.5 AU-7 — the infantry against drones: the shotgun, "can engage a drone", the drone gunners *(R-2110, lane decision — for the user's review)*
+
+```mermaid
+classDiagram
+  class WeaponMountDto { <<existing, EXTENDED>> +int Pellets +float PelletSpreadMils }
+  class FireProcessingSystem { <<existing, EXTENDED>> one shot = Pellets rounds on the pattern; air target 2-D aim error }
+  class BallisticProjectile { <<existing, EXTENDED>> +float RangeLimitM }
+  class BallisticsSystem { <<existing, EXTENDED>> a round past RangeLimitM is spent }
+  class HitModel { <<existing, EXTENDED>> +AirFactor() +Pitch() +PelletOffset() +ShotHitChance() }
+  class StandardInputs { <<existing, EXTENDED>> WeaponEffectivenessVsTarget reads ShotHitChance }
+  class AirDefenceWeapons { <<existing, EXTENDED>> +CanEngageDrone(range) +IsDroneGunner() }
+  class AirSense { <<existing, EXTENDED>> +MayFireAtDrone() }
+  class ShelterFromAirNodes { <<existing, CHANGED>> fires only when MayFireAtDrone }
+  class SquadShelterFromAirBehavior { <<existing, CHANGED>> drone gunners EngageAircraft, the rest ShelterFromAir }
+  FireProcessingSystem ..> HitModel
+  StandardInputs ..> HitModel
+  ShelterFromAirNodes ..> AirSense
+  AirSense ..> AirDefenceWeapons
+  SquadShelterFromAirBehavior ..> AirDefenceWeapons
+```
+*What the picture shows that the prose hid: no new hit path and no new reaction — the shotgun is data on the ordinary mount, its pellets are
+ordinary rounds, and the shot and the AI's estimate read ONE function family (`HitModel`), as AQ85 F already required.*
+
+| piece | as built | where |
+|---|---|---|
+| ✔ measured first | the hit model spread rounds ACROSS only (`HitModel.Rotate`, about the vertical) and the lead at an aircraft is exact (`TargetLead`) — so a rifle at a hovering drone 30 m off hit ~97 % a round: there was no "hard to hit" for a shotgun to solve, and the claim "infantry never shoots at drones" was only the SOP row's gate (`CanEngageAir`): `ShelterFromAir` already fired whatever the weapon brain picked | `HitModel.cs`, `ShelterFromAirNodes.cs` |
+| A-10 aim at the air (R-2110) | a round at a target in the AIR gets an elevation error too (the second stream, `RangeSequence`) and σ × `1 + speed / 10 m/s` (a hovering drone ×1, a 30 m/s one ×4) — the shot (`FireProcessingSystem`) and the estimate (`WeaponEffectivenessVsTarget`) alike; a ground target is unchanged | `HitModel.AirFactor`, `.Pitch` |
+| A-10a the shotgun | `WeaponMountDto.Pellets` / `PelletSpreadMils` (appended): one shot = N rounds, pellet i at `PelletOffset(k, N, i)` × the pattern around the man's aim, each SPENT past the mount's range (`BallisticProjectile.RangeLimitM`, `BallisticsSystem`). The anti-drone SHOTGUN: 12 pellets, 15 mils, 60 m, 12 a pellet (a drone's 10 hp; a man's armour stops it), on the anti-drone rifleman (NEW types 212 Blue / 213 Red, M4 + shotgun) — one a squad in the chain scenarios. ⚠ its munition is the 5.56 ball's stand-in (look and report a rifle's) | `NedTkbCatalog.AntiDroneShotgun`, `gen-chain-scenarios.py` |
+| A-10a the numbers | one shot at a drone crossing at 30 m/s: shotgun **> 0.4** at 30 m, nothing past 60 m; a rifle round **< 0.1** (the estimate's `HitModel.ShotHitChance`) | rail |
+| A-10b can engage a drone | `AirDefenceWeapons.CanEngageDrone(range)`: a shotgun within its range, an MG / autocannon (within its range), anything `CanEngageAir` counts, any small arm inside **20 m**; `ShelterFromAir` fires only when it may (`AirSense.MayFireAtDrone`; a unit with no weapon data is left to the weapon brain, as before) | `AirDefenceWeapons.cs` |
+| A-10c the squad | `SquadShelterFromAir` sends its DRONE GUNNERS (`IsDroneGunner`: a shotgun or an MG on the man) `EngageAircraft` — they stand and fire — and every other man `ShelterFromAir` (cover; he fires once it is inside 20 m) | `SquadShelterFromAirBehavior.cs` |
+
+**Rails:** `AirDefenceNodesTests.CE2436_AU7_*` (three) · `ShelterFromAirNodesTests.CE2436_ARifleman_HoldsFireAtADistantDrone_FiresOnceItIsClose` ·
+`FireProcessingSystemTests.CE2436_AShotgun_FiresTwelvePelletsOverItsPattern_ADroneAt30mIsMet_At80mNot` ·
+`BallisticsSystemTests.CE2436_APellet_IsSpentPastItsRange_ARoundWithNoLimitFliesOn` · `SquadManeuverTests.CE2436_AU7_UnderADrone_…`.
+**R-2110** would change with a live run where a drone is never downed (the speed factor too wide) or always (too narrow).
+
+### 9.6 AU-5 — the company's drone team *(R-2111, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-6 the team | a company subordinate whose roster holds a DRONE (`Locomotions.IsAircraft`) takes the role `Drones` (never a platoon role) and is ordered the NEW squad play `DroneTeam { Watch, Strike }`: in the support and assault phases watch the objective, strike the posts the base of fire was ordered on (`PostsOf`; the objective while none is reported); at the consolidation / abort watch only (no strike on our own ground); `AllSet` skips it | `CompanyBehaviors` (`PlanAttack`, `DroneTask`) |
+| A-6 the play | `DroneTeam` orders each UNARMED drone `DroneRecon` over the watch point (its sightings merge into the team's pool → the staff SPOT → the company's picture: the recon drone's reports ARE the target list) and the operator `DroneOperator` with the ARMED drones on the strike point (CE-7026's one-in-the-air rule, unchanged). ⚠ the recon drone is flown on the TEAM's order, not through the operator (one operator, one task — lane decision) | `DroneTeamBehavior.cs` |
+| A-6 data | `cc-battalion`: a Blue drone team under the company — an operator, a recon quadcopter (407), two bomber quadcopters (408), landed behind the assembly | `gen-chain-scenarios.py` |
+| A-8 the drone half | ⛔ NOT a gate: a drone may be shot down or late, and a cause that never comes would stall the assault (R-2111); the Set stays "suppression established" (AU-2) | — |
+
+**Rails:** `CE2436_AU5_CompanyAttack_TheDroneTeamWatchesTheObjective_AndStrikesThePosts` · `CE2436_AU5_TheDroneTeam_SendsTheReconDroneToWatch_AndTheOperatorToStrike`.

@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             yield return typeof(ThermalState);
             yield return typeof(AcousticEmitter);
+            yield return typeof(Fdp.Toolkit.Perception.Radar.RadarSignature);   // ⭐ CE-4617
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -47,6 +48,10 @@ namespace Fdp.Toolkit.Perception.Signatures
                     DetonationClass        = (byte)(ac.DetonationClass == SoundSourceClass.Unknown ? SoundSourceClass.Explosion : ac.DetonationClass),
                     Family                 = (byte)ac.Family,   // ⭐ CE-3283
                 });
+            // ⭐ CE-4617 (RS-2, RV-12) — the radar cross-section, on every node that registers it (the solver's snapshot reads it, no TKB there)
+            if (dto?.Radar is { } rd && repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarSignature>()
+                && !repo.HasComponent<Fdp.Toolkit.Perception.Radar.RadarSignature>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Perception.Radar.RadarSignature { RcsM2 = rd.RcsM2 });
         }
     }
 }

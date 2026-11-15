@@ -55,7 +55,8 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>⭐⭐ Airborne insertion D-4 (B-6) — an AIRCRAFT: air domain and not a man coming down a rope or under a canopy. A
         /// missile's seeker and the "aircraft overhead" rules read THIS, so a Stinger never locks a parachutist (a rifle still shoots him).</summary>
-        public static bool IsAircraft(EntityRepository view, Entity e)
+        /// <summary>⭐ <c>CE-4617</c> — on any view (the radar's candidates are read on the solver's view; a repository is one).</summary>
+        public static bool IsAircraft(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
             var c = Of(view, e);
             return DomainOf(c) == MotionDomain.Air && c is not (LocomotionClass.Rope or LocomotionClass.Parachute);

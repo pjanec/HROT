@@ -91,6 +91,9 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>⭐ <c>CE-7025</c> (IF-5) — a FireSupport request's round (<see cref="FireSupportRound"/>): the report's
         /// <see cref="ElementEquipment.Smoke"/> flag (a byte the wire already carries — no new field).</summary>
         public FireSupportRound Round;
+        /// <summary>⭐ <c>CE-2436</c> AU-3 (A-5) — a FireSupport request's rounds per gun (the report's <see cref="CommandReport.Count"/>, a byte
+        /// the wire already carries): above 1 a SUSTAINED mission; 0 / 1 the battery's default.</summary>
+        public byte Rounds;
     }
 
     /// <summary>⭐ <c>CE-7025</c> (IF-5) — the round a FireSupport REQUEST asks for (the report's <see cref="ElementEquipment.Smoke"/> flag).</summary>

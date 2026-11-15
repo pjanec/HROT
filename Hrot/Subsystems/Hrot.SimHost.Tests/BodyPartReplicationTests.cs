@@ -24,6 +24,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            w.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();   // ⭐ CE-4617
             w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
             w.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();   // ⭐ CE-3252
@@ -109,6 +110,42 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { Cowering = 0 }));
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> (B-1, RS-10) — a radar's emission reaches the other node with its tracked target as THAT node's entity (by network
+        /// id), its on-since clock and its range; switching off is a change. 🔴 Red-proof: the ingress dropping the tracked target.</summary>
+        [Fact]
+        public void CE4617_RadarEmission_ReachesTheOtherNode_WithTheTrackedTargetAsThatNodesEntity()
+        {
+            using var sender = new EntityRepository();
+            sender.RegisterComponent<NetworkIdentity>();
+            var heliHere = sender.CreateEntity();
+            sender.AddComponent(heliHere, new NetworkIdentity { Value = 77 });
+            var tracking = new Fdp.Toolkit.Perception.Radar.RadarEmission
+            {
+                Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Track, TrackedTarget = heliHere,
+                EmitterClass = Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, RangeM = 8000f, OnSince = 12.5,
+            };
+            var sample = Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, tracking);
+            Assert.Equal(77, sample.TrackedTarget);
+
+            var (node, unit, map) = Node(46);
+            using (node)
+            {
+                var heliThere = node.CreateEntity();
+                map.Register(77, heliThere);
+                var ingress = new Hrot.Map.Common.Replication.Ingress.EntityRadarEmissionIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                var got = node.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarEmission>(unit);
+                Assert.True(Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn(node, unit));
+                Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Track, got.Mode);
+                Assert.Equal(heliThere, got.TrackedTarget);
+                Assert.Equal(8000f, got.RangeM);
+                Assert.Equal(12.5, got.OnSince);
+            }
+            Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, default));
         }
 
         /// <summary>⭐ <c>CE-3224</c> (civilians B-6, §7.7) — a person's gesture reaches the other node, and going back to None is

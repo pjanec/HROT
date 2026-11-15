@@ -73,9 +73,15 @@ def ent(tkb, name, side, x, y, rot=EAST, commander=None, designation="Wingman", 
 def squad(s, name, side, x, y, commander, men=4, rot=EAST, soldier=2002):
     sq = s.add(ent(302, name, side, x, y, rot, commander))
     roles = ["SquadLeader", "MachineGunner", "Wingman", "Wingman", "Wingman"]
+    # ⭐ CE-2436 AU-1 (A-2) — the man the role calls a machine gunner CARRIES one: Blue's M249 automatic rifleman (207), Red's PKM gunner
+    #   (208) — measured: the role label sat on a rifleman type (one rifle + a pistol), so no squad had an automatic weapon
+    auto = 207 if soldier == 2002 else 208 if soldier == 2003 else soldier
+    # ⭐ CE-2436 AU-7 (A-10a) — the ANTI-DRONE man: the squad's third man carries a shotgun beside his rifle (Blue 212, Red 213)
+    anti_drone = 212 if soldier == 2002 else 213 if soldier == 2003 else soldier
     for i in range(men):
         label = "Leader" if i == 0 else f"Rifleman {i}"
-        s.add(ent(soldier, f"{name} {label}", side, x + (i - (men - 1) / 2) * 2.0, y - 2.0, rot, sq, roles[min(i, 4)], man=True))
+        tkb = auto if roles[min(i, 4)] == "MachineGunner" else anti_drone if i == 2 else soldier
+        s.add(ent(tkb, f"{name} {label}", side, x + (i - (men - 1) / 2) * 2.0, y - 2.0, rot, sq, roles[min(i, 4)], man=True))
     return sq
 
 
@@ -152,9 +158,18 @@ def build(name, v):
         s.add(ent(2002, f"Blue Mortar {i + 1} Gunner", F, tx - 2, BLUE_HQ[1] - 30, commander=battery,
                   designation="SquadLeader" if i == 0 else "Wingman", behavior=("ManWeapon", {"weapon": tube}), man=True))
         s.add(ent(2002, f"Blue Mortar {i + 1} Loader", F, tx - 2, BLUE_HQ[1] - 33, commander=battery, man=True))
-    for i, dy in enumerate((-12, 12)):   # the IFVs overwatch from the start line (their own SOP; no commander — R-2096)
-        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X, BLUE_START[1] + dy, man=False,
+    # ⭐ CE-2436 AU-4 (A-4) — the IFVs are the COMPANY's (slots after the platoons): CompanyAttack hands them VehicleSupportByFire on the base of
+    #   fire's line; their SOP stays for what they meet on their own (⛔ was: no commander — R-2096 — so they did nothing for the attack)
+    for i, dy in enumerate((-12, 12)):
+        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X, BLUE_START[1] + dy, commander=bco, man=False,
                   extra={"TargetMemory": {"Entries": []}, "Sop": {"Name": "BasicVehicleSop", "Params": {}, "Origin": "Superior"}}))
+    # ⭐ CE-2436 AU-5 (A-6, R-2111) — the company's DRONE TEAM (a slot after the IFVs): an operator, a recon quadcopter (407) and two bomber
+    #   quadcopters (408), landed behind the assembly. CompanyAttack hands it DroneTeam: the recon drone circles the objective (its sightings
+    #   are the target list), the operator flies the bombers at the reported posts
+    team = s.add(ent(302, "Blue Drone Team", F, BLUE_START[0] - 40, BLUE_START[1], commander=bco))
+    s.add(ent(2002, "Blue Drone Operator", F, BLUE_START[0] - 40, BLUE_START[1] - 2, commander=team, designation="SquadLeader", man=True))
+    for i, (tkb, label) in enumerate(((407, "Recon Drone"), (408, "Bomber Drone 1"), (408, "Bomber Drone 2"))):
+        s.add(ent(tkb, f"Blue {label}", F, BLUE_START[0] - 44 + 3 * i, BLUE_START[1] + 3, commander=team, man=True))
     # ── Red ──
     rhq = s.add(ent(306, "Red Battalion HQ", H, *RED_HQ, rot=WEST, behavior=("SupportCommand", {"Reserve": 2})))   # slot 1 = its reserve
     rco = s.add(ent(306, "Red Company", H, OBJ1[0] + 110, OBJ1[1], rot=WEST, commander=rhq,

@@ -336,6 +336,8 @@ namespace Hrot.Map.Definitions.Tkb
                         FixedConeDeg      = wm.FixedConeDeg,   // ⭐ Air Ops 6a (AW-1) — a fixed gun / pod fires inside its nose cone
                         ScopeMagnification = wm.ScopeMagnification,   // ⭐ CE-3254 (BR-9) — the scope on the mount
                         ScopeFovDegrees   = wm.ScopeFovDegrees,
+                        Pellets           = wm.Pellets,            // ⭐ CE-2436 AU-7 (A-10a) — a shotgun's pellets and pattern
+                        PelletSpreadMils  = wm.PelletSpreadMils,
                         Arc               = wm.Arc,            // ⭐ IF-1 (I2) — the indirect arcs and the elevation limits
                         MinElevationDeg   = wm.MinElevationDeg,
                         MaxElevationDeg   = wm.MaxElevationDeg,
@@ -357,22 +359,27 @@ namespace Hrot.Map.Definitions.Tkb
                     EyeHeightStanding  = combatDef.EyeHeight,   // ⭐ M5 — a vehicle sees from its sight (0 ⇒ a standing man's)
                 };
                 // ⭐ CE-2349 — a thermal sight: the list names the eyes and ears too (a listed TKB gets no implicit sensors)
-                if (combatDef.ThermalRange > 0f)
-                    sensing = sensing with
+                // ⭐ CE-4617 (RV-13) — ONE list for every extra sensor: eyes, ears, thermal if any, radar if any (a second branch would REPLACE
+                //   the list and drop the others)
+                if (combatDef.ThermalRange > 0f || combatDef.RadarRange > 0f)
+                {
+                    var listed = new List<SensorEntryDto>
                     {
-                        Sensors = new List<SensorEntryDto>
-                        {
-                            Fdp.Toolkit.Perception.Sensors.VisualPerception.ImplicitEntry(sensing),
-                            Fdp.Toolkit.Perception.Sensors.AcousticPerception.ImplicitEntry(sensing),
-                            new SensorEntryDto
-                            {
-                                Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
-                                Template = Fdp.Toolkit.Perception.Sensors.ThermalPerception.AssetGuid,
-                                SearchRadius = combatDef.ThermalRange,
-                                Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f },
-                            },
-                        },
+                        Fdp.Toolkit.Perception.Sensors.VisualPerception.ImplicitEntry(sensing),
+                        Fdp.Toolkit.Perception.Sensors.AcousticPerception.ImplicitEntry(sensing),
                     };
+                    if (combatDef.ThermalRange > 0f)
+                        listed.Add(new SensorEntryDto
+                        {
+                            Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
+                            Template = Fdp.Toolkit.Perception.Sensors.ThermalPerception.AssetGuid,
+                            SearchRadius = combatDef.ThermalRange,
+                            Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f },
+                        });
+                    if (combatDef.RadarRange > 0f)
+                        listed.Add(Fdp.Toolkit.Perception.Sensors.RadarPerception.Entry(combatDef.RadarRange));
+                    sensing = sensing with { Sensors = listed };
+                }
                 template.AddDescriptor(sensing);
             }
 
@@ -439,6 +446,17 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(signatures ?? throw new ArgumentNullException(nameof(signatures)));
+            return this;
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> (RS-2) — the type's radar cross-section (m²), MERGED into the signatures it already has (its sound stays).</summary>
+        public NedTkbBuilder WithRadarCrossSection(long tkbId, float rcsM2)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            var had = template.GetDescriptor<SignaturesDto>() ?? new SignaturesDto();
+            template.AddDescriptor(had with { Radar = new RadarSignatureDto { RcsM2 = rcsM2 } });
             return this;
         }
 
