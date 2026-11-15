@@ -82,7 +82,7 @@ public enum PartRole : byte
 /// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
                                          float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f)
+                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -639,6 +639,51 @@ public static class ShapeKits
     public static readonly ShapeKit AirDefenceVehicle = new(AirDefenceVehicleParts(),
         new KitPivots(new Vector2(SamAxisX / SaL, 0f), new Vector2(SamTrunnionX / SaL, SamTrunnionZ / SaH)));
 
+    // ── ⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the MOTORCYCLE: two wheels, a tank, a long seat, a rack; the riders are men drawn at the seats ─────
+    private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.15f;   // a 250-500 cc bike: 2.1 m long, 0.8 m across the bars, 1.15 m to the bars (the riders sit above)
+    /// <summary>The motorcycle's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>), a 0.62 m tyre.</summary>
+    public const float MotoWheelRadius = 0.31f;
+
+    /// <summary>A motorcycle box from METRES (x forward, y left, z up from the ground).</summary>
+    private static KitPart Mo(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f)
+        => Box(cx / MoL, cy / MoW, cz / MoH, lx / MoL, ly / MoW, lz / MoH, c, pitch: pitch);
+
+    private static KitPart[] MotorcycleParts()
+    {
+        var p = new List<KitPart>(40);
+        foreach (var (x, width) in new[] { (0.70f, 0.12f), (-0.70f, 0.17f) })   // the front tyre is narrower than the rear
+        {
+            p.Add(Cyl(PartAxis.Y, x / MoL, 0f, MotoWheelRadius / MoH, 0f, width / MoW, 2f * MotoWheelRadius / MoH, ColourRole.Dark));
+            p.Add(new KitPart(PartShape.Box, new Vector3(x / MoL, 0f, MotoWheelRadius / MoH),
+                              new Vector3(2f * MotoWheelRadius * 0.92f / MoL, (width + 0.02f) / MoW, 0.05f / MoH), ColourRole.Metal, Role: PartRole.WheelSpoke));
+        }
+        p.Add(Mo(0.17f, 0f, 0.45f, 0.34f, 0.30f, 0.30f, ColourRole.Metal));                  // the engine block
+        p.Add(Mo(-0.05f, 0f, 0.70f, 0.95f, 0.12f, 0.07f, ColourRole.Dark));                   // the frame's top rail
+        p.Add(Mo(0.52f, 0f, 0.74f, 0.07f, 0.12f, 0.50f, ColourRole.Dark, pitch: -25f));       // the neck down tube
+        foreach (float s in new[] { 1f, -1f })
+        {
+            p.Add(Mo(-0.52f, s * 0.10f, 0.39f, 0.48f, 0.04f, 0.05f, ColourRole.Dark, pitch: -22f));   // the swing arm, from the pivot to the rear axle
+            p.Add(Mo(0.65f, s * 0.07f, 0.66f, 0.04f, 0.03f, 0.80f, ColourRole.Metal, pitch: -8f));    // a fork leg, raked back
+            p.Add(Mo(0.18f, s * 0.22f, 0.40f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                 // the rider's foot peg
+            p.Add(Mo(-0.34f, s * 0.22f, 0.40f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                // the pillion's foot peg
+            p.Add(Mo(0.55f, s * 0.38f, 1.08f, 0.07f, 0.10f, 0.05f, ColourRole.Dark));                  // a grip
+        }
+        p.Add(Mo(0.70f, 0f, 0.65f, 0.55f, 0.12f, 0.04f, ColourRole.Body));                    // the front mudguard
+        p.Add(Mo(0.66f, 0f, 0.93f, 0.10f, 0.20f, 0.20f, ColourRole.Metal));                   // the headlight's housing
+        p.Add(Mo(0.725f, 0f, 0.93f, 0.02f, 0.16f, 0.16f, ColourRole.Glass));                  // its lens
+        p.Add(Mo(0.55f, 0f, 1.08f, 0.05f, 0.74f, 0.04f, ColourRole.Dark));                    // the handlebar
+        p.Add(Mo(0.28f, 0f, 0.90f, 0.50f, 0.30f, 0.20f, ColourRole.Body));                    // the fuel tank
+        p.Add(Mo(-0.28f, 0f, 0.80f, 1.05f, 0.28f, 0.09f, ColourRole.Dark));                   // the long seat for two
+        p.Add(Mo(-0.80f, 0f, 0.82f, 0.30f, 0.22f, 0.12f, ColourRole.Body));                   // the tail
+        p.Add(Mo(-0.92f, 0f, 0.90f, 0.22f, 0.30f, 0.03f, ColourRole.Metal));                  // the rear rack
+        p.Add(Mo(-0.72f, 0f, 0.60f, 0.40f, 0.18f, 0.04f, ColourRole.Body));                   // the rear mudguard
+        p.Add(Mo(-0.35f, -0.19f, 0.32f, 0.65f, 0.08f, 0.08f, ColourRole.Metal));              // the exhaust, on the right
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-4621 — the motorcycle (x forward): see <see cref="MotorcycleParts"/>. No turret; the wheels roll; a turn banks the whole body (<see cref="MotionPose.Bank"/>).</summary>
+    public static readonly ShapeKit Motorcycle = new(MotorcycleParts(), default);
+
     public static readonly ShapeKit Unknown = new(new[] { Box(0f, 0f, 0.5f, 1f, 1f, 1f, ColourRole.Body) }, default);
     public static readonly ShapeKit None = new(System.Array.Empty<KitPart>(), default);
 
@@ -658,6 +703,7 @@ public static class ShapeKits
         VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
+        VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -679,6 +725,7 @@ public static class ShapeKits
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
+        VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }

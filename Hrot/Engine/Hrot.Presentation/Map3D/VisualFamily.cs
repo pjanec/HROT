@@ -42,6 +42,9 @@ public enum VisualFamily : byte
     /// carrier, a cab, a launcher of four canisters on a turntable (turret 0 — it turns and elevates through <c>TurretPose</c>) and a search-radar mast whose
     /// antenna spins while the radar radiates (<see cref="RadarActivity"/>).</summary>
     AirDefenceVehicle,
+    /// <summary>⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the motorcycle (class <c>Motorcycle</c>, DIS <c>1.1.*.80.1</c>, type 115): TWO wheels (they roll), a
+    /// tank, a seat for two (the riders are men drawn seated at the seats' places, <see cref="Fdp.Toolkit.Tkb.Domain.SeatPose.Ride"/>); it BANKS into a turn (a drawing only).</summary>
+    Motorcycle,
 }
 
 /// <summary>
@@ -112,6 +115,7 @@ public static class VisualFamilies
         VisualFamily.Person => "_person",
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
+        VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
         VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.AirDefenceVehicle => "_wheeled",   // ⭐ CE-4618 — a SAM truck is a wheeled body on the 2-D picker too
         _ => null,
     };

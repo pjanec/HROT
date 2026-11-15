@@ -159,5 +159,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Stand = 2,
         /// <summary>⭐ CE-1088 — KNEELING at a weapon, hands on its grips; the seat's place is where he kneels.</summary>
         Kneel = 3,
+        /// <summary>⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — ASTRIDE a two-wheeler: legs apart, feet on the pegs, leaning to the bars (the Driver)
+        /// or sitting upright behind him (a pillion); the seat's place is his hips. Appended (a wire value).</summary>
+        Ride = 4,
     }
 }
