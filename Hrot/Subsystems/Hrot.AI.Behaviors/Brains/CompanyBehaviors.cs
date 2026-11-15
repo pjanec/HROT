@@ -269,6 +269,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
                 if (CommandOrders.StillRunning(world, self, platoon, behaviour, order)) continue;
                 CommandOrders.Assign(world, self, platoon, behaviour, order, newOrder: true);
+                CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — the colour the relief / LOST guards read
                 ws.Orders++;
             }
             return NodeStatus.Running;
@@ -717,12 +718,14 @@ namespace Hrot.AI.Behaviors.Brains
                     var attack = JsonSerializer.Serialize(new PlatoonAttackParamsJsonDto { Position = at, Speed = p.Speed }, json);
                     if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonAttack, attack)) continue;
                     CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonAttack, attack, newOrder: true);
+                    CommandOrders.AskSitrep(world, platoon);
                     ws.Orders++;
                     continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
                 if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonDefend, order)) continue;
                 CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonDefend, order, newOrder: true);
+                CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — a block's colour: Black ⇒ LOST ⇒ the counter-attack (CE-7004)
                 ws.Orders++;
             }
             return NodeStatus.Running;

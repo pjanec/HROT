@@ -434,11 +434,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ E-2 (DA-63) — the SITREP every few seconds the Reinforce guard reads (its strength colour), asked with each order.</summary>
-        private static void AskSitrep(EntityRepository world, Entity squad)
-        {
-            if (!world.Bus.IsRegistered<SetReportingEvent>()) return;
-            world.Bus.Publish(new SetReportingEvent { Entity = squad, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = SitrepSeconds });
-        }
+        private static void AskSitrep(EntityRepository world, Entity squad) => CommandOrders.AskSitrep(world, squad, SitrepSeconds);
 
         private static unsafe void Sector(ref PlatoonDefencePlan p, int slot, EntityRepository world, Entity squad)
         {

@@ -69,5 +69,22 @@ namespace Hrot.SimHost.Tests
             c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
             Assert.Equal(StatusColour.Amber, c.Picture.Subordinates.Items[0].Ammo);
         }
+
+        /// <summary>⭐ <c>CE-4615</c> — a COMPANY asks every platoon it orders for a SITREP every 15 s (the one <c>CommandOrders.AskSitrep</c>), so its
+        /// LOST / relief guards can read a block's colour. 📐 Live on cc-battalion-collapse: a block wiped out never read Black ⇒ no counter-attack.
+        /// ✅ Red-proof: the company's AskSitrep calls removed ⇒ no requirement on the platoons ⇒ red.</summary>
+        [Fact]
+        public void CE4615_ACompany_AsksEveryPlatoonItOrders_ForASitrep()
+        {
+            var c = new Company();
+            c.S.Order("{\"Position\":" + Pt(new Vector3(0f, 0f, 0f)) + ",\"Threat\":" + Pt(new Vector3(0f, 500f, 0f)) + "}", BehaviorNames.CompanyDefend);
+            var reporting = new ReportingRequirementsSystem();
+            for (int i = 0; i < 6; i++) { c.Ticks(1); reporting.Execute(c.S.Repo, 0.016f); }
+            foreach (var platoon in new[] { c.First, c.Second, c.Third })
+            {
+                Assert.True(c.S.Repo.HasComponent<ReportingRequirements>(platoon), "the platoon was asked to report");
+                Assert.Equal(15f, (float)c.S.Repo.GetComponentRO<ReportingRequirements>(platoon).SitrepEverySeconds);
+            }
+        }
     }
 }

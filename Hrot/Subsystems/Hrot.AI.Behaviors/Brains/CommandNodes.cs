@@ -21,6 +21,15 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class CommandOrders
     {
+        /// <summary>⭐ <c>CE-4615</c> — the ONE "send me a SITREP every <paramref name="seconds"/>" a commander asks with its order (DA-63's
+        /// <c>PlatoonDefend.AskSitrep</c>, lifted): the subordinate's strength colour is what a Reinforce / relief / LOST guard reads. 📐 Live on
+        /// cc-battalion the COMPANY plays never asked, so a wiped-out block never read Black and the counter-attack (CE-7004) never came.</summary>
+        public static void AskSitrep(EntityRepository world, Entity unit, float seconds = 15f)
+        {
+            if (unit.IsNull || !world.Bus.IsRegistered<Fdp.Toolkit.Squad.Command.SetReportingEvent>()) return;
+            world.Bus.Publish(new Fdp.Toolkit.Squad.Command.SetReportingEvent { Entity = unit, Origin = BehaviorOrigin.Superior, SitrepEverySeconds = seconds });
+        }
+
         /// <summary>An ABSTRACT order to <paramref name="member"/>. Its release is an unnamed clear (the commander cannot know what it
         /// resolved to). <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
         /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
