@@ -908,7 +908,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// trigger.</summary>
         [SharedAiCondition]
         public static bool NotDefending(Entity self, EntityRepository world)
-            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend;   // ⭐ CE-4612 — the order's kind
+            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend   // ⭐ CE-4612 — the order's kind
+               && !SupportByFireBehavior.Supporting(world, self);   // ⭐ CE-2436 — a base of fire holds its fight as a defender does (live: the hold paused it)
 
         private static int RosterCount(EntityRepository world, Entity self)
             => world.HasComponent<UnitRoster>(self) ? world.GetComponentRO<UnitRoster>(self).Count : 0;

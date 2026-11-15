@@ -104,6 +104,51 @@ def _log_size():
         return 0
 
 
+# ⭐ --host editor (user, 2026-11-15: "the editor is way lighter than the networked cluster; it has 'run to'"): one process, the preview
+#   entered PAUSED (zero steps, CE-4570) and advanced by run-to's FIXED steps — deterministic, so a failure replays exactly. 📐 measured on
+#   cc-battalion, 4 cores: step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× (the cluster ≈ 0.37×).
+EDITOR_HOST = False
+RUNTO_CHUNK = 5.0
+RUNTO_STEP = 1.0 / 6.0
+
+
+def load_edit_paused(name):
+    """The editor host: load for EDIT, wait for OperatingEdit, enter the preview PAUSED (the clock must still read 0)."""
+    for _ in range(60):
+        r = call("POST", "/scenario/load/edit", {"name": name, "waitForReady": False})
+        if r.get("ok") or "not operable" not in str(r):
+            break
+        time.sleep(3)
+    end = time.time() + 300
+    while time.time() < end:
+        st = data(call("GET", "/status")) or {}
+        if st.get("clusterState") == "OperatingEdit" and (st.get("entityCount") or 0) > 0:
+            break
+        time.sleep(2)
+    call("POST", "/preview/enter", {"startPaused": True})
+    time.sleep(1.5)
+    t = (data(call("GET", "/status")) or {}).get("simTime")
+    if t not in (0, 0.0, None):
+        sys.exit(f"the paused preview entry took steps: simTime {t} (CE-4570)")
+
+
+def advance_to(seconds):
+    """Run-to a sim time by fixed steps (RUNTO_STEP) and wait until it stops there."""
+    call("POST", "/sim/run-to", {"seconds": seconds, "step": RUNTO_STEP})
+    last, since = None, time.time()
+    while True:
+        st = data(call("GET", "/sim/state")) or {}
+        if not (st.get("runTo") or {}).get("running"):
+            return
+        t = st.get("totalTime")
+        if t != last:
+            last, since = t, time.time()
+        elif time.time() - since > 30.0:   # ⚠ the scenario's end stops the clock: run-to would wait for ever
+            call("POST", "/sim/run-to", {"cancel": True})
+            return
+        time.sleep(0.2)
+
+
 def load(name):
     log_at = _log_size()
     # ⚠ a fresh node refuses a load (409 notOperable) until a cluster state reaches it — 📐 measured 2026-11-03 after the coordinator merge
@@ -5765,7 +5810,9 @@ def run_cc_battalion(c, timeout):
     u = {n: ids[n] for n in need}
     men = [nid for n, nid in ids.items() if n and (" Leader" in n or " Rifleman" in n or "Gunner" in n or "Loader" in n)]
     dyn = Dynamism(men)
-    call("POST", "/sim/play", {})
+    runto = EDITOR_HOST   # ⭐ the editor host: deterministic fixed steps (run-to), sampled at exact sim times; the cluster: live play
+    if not runto:
+        call("POST", "/sim/play", {})
     t_play = sim_time() or 0.0
     first = {}          # (unit name, task) → first sim time seen
     blue_ids = {ids[n] for n in ("Blue Company", "Blue 1st Platoon", "Blue 2nd Platoon", "Blue 3rd Platoon")}
@@ -5779,13 +5826,16 @@ def run_cc_battalion(c, timeout):
     ended = None
     end_wall = time.time() + window * 4 + 600
     last_dyn = -1e9
+    last_t, stalled_since = None, time.time()
     while time.time() < end_wall:
         t = sim_time() or 0.0
         for n, nid in u.items():
             k = task_name(nid)
             if k and (n, k) not in first:
-                first[(n, k)] = t
-                print(f"   t={t:6.1f}  {n}: {k}", flush=True)
+                # ⚠ stamp it when NOTICED, not at the loop's start: the loop reads every unit's task after `t`, so an order given in that
+                #   window was stamped BEFORE the request it answered (base run #11: reserve 134.0 s vs the company's request 134.8 s ⇒ ⑥ failed)
+                first[(n, k)] = sim_time() or t
+                print(f"   t={first[(n, k)]:6.1f}  {n}: {k}", flush=True)
         if t - last_dyn >= 15.0:
             dyn.sample(t); last_dyn = t
             op_alive = sum(1 for n, nid in ids.items() if n and n.startswith("Red Outpost ") and _live(nid))
@@ -5811,9 +5861,16 @@ def run_cc_battalion(c, timeout):
         # ⭐ R-2104 — the end (Red below 30 %, Objective 2 held) can come BEFORE the assault reports its objective taken: keep watching up to
         #   180 s more for the chain's last report (PhaseLine) rather than judging an arrow the run stopped too early to see (base run 9)
         pl_seen = any(r.get("kind") == "Progress" and r.get("subtype") == "PhaseLine" and r.get("from") in blue_ids for r in seen_reports.values())
-        if (ended and (pl_seen or variant != "base" or t >= ended[1] + 180.0)) or t - t_play >= window:
+        # ⚠ "The end" trigger STOPS the clock: once the run has ended and sim time stands still for 30 s of wall time, no later report can
+        #   come — stop waiting (base run #9 sat 30 min at 889.65 s until the wall limit)
+        if t != last_t:
+            last_t, stalled_since = t, time.time()
+        if (ended and (pl_seen or variant != "base" or t >= ended[1] + 180.0 or time.time() - stalled_since >= 30.0)) or t - t_play >= window:
             break
-        time.sleep(5.0)
+        if runto:
+            advance_to(t + RUNTO_CHUNK)
+        else:
+            time.sleep(5.0)
     t_end = sim_time() or 0.0
     for r in squad_reports(last=256):
         seen_reports.setdefault(r.get("serial"), r)
@@ -6023,14 +6080,19 @@ def main():
     ap.add_argument("--timeout", type=float, default=60, help="seconds to wait for each expected change")
     ap.add_argument("--launch", action="store_true",
                     help="start a fresh ClusterRunner --mode all for this run and stop it after")
+    ap.add_argument("--host", choices=("cluster", "editor"), default="cluster",
+                    help="editor: --launch starts --mode editor; the run is a PAUSED preview advanced by run-to (deterministic)")
+    ap.add_argument("--step", type=float, default=1.0 / 6.0, help="the editor host's run-to step, seconds (≤ 1/6)")
     a = ap.parse_args()
     BASE = f"http://localhost:{a.port}"
+    global EDITOR_HOST, RUNTO_STEP
+    EDITOR_HOST, RUNTO_STEP = a.host == "editor", a.step
 
     proc = None
     if a.launch:
         if data(call("GET", "/status")):
             sys.exit(f"something already answers on {BASE} — stop it, or run without --launch")
-        proc = launch(a.port)
+        proc = launch(a.port, mode="editor" if EDITOR_HOST else "all")
     elif not data(call("GET", "/status")):
         sys.exit(f"no debug API at {BASE} — launch ClusterRunner --mode all with HROT_DEBUG_API_PORT={a.port}, or pass --launch")
     try:
@@ -6042,11 +6104,16 @@ def main():
             if desc: print(f"   {desc}")
         except (OSError, ValueError):
             pass
-        load(a.scenario)
+        load_edit_paused(a.scenario) if EDITOR_HOST else load(a.scenario)
         c = Check()
         t0 = sim_time()
         SCENARIOS[a.scenario](c, a.timeout)
         print(f"== simTime {t0} → {sim_time()}")
+        if EDITOR_HOST:   # ⭐ the determinism probe: two runs with the same steps must end on the same hash (EntityGuid is random by design)
+            h = data(call("GET", "/world/hash?byType=1")) or {}
+            types = {k: v for k, v in (h.get("types") or {}).items() if k != "EntityGuid"} if isinstance(h.get("types"), dict) else h.get("types")
+            print(f"== world hash {h.get('hash')} at tick {h.get('tick')} · simTime {h.get('simTime')} · {h.get('entities')} entities")
+            print(f"== world hash by type {json.dumps(types, sort_keys=True)}")
     finally:
         if proc:
             stop(proc)

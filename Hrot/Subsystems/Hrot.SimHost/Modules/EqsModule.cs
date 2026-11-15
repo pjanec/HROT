@@ -87,6 +87,10 @@ namespace Hrot.SimHost.Modules
                 Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world));
             // ⭐ CE-3062 — hearing: anonymous estimates of the sounds in range (§5.1).
             Fdp.Toolkit.Perception.Sensors.AcousticPerception.Register(registry, module.PerceptionGrid);
+            // ⭐ CE-4617 (B-1, RS-2) — radar: an aircraft-only generator, the signature filter and the same sight, only while the carrier radiates.
+            Fdp.Toolkit.Perception.Sensors.RadarPerception.Register(registry,
+                Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.LiveWorldQuery(world),
+                Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.ForLiveWorld(world));
             return module;
         }
 

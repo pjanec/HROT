@@ -15,6 +15,18 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>Noise: how far moving, firing and detonations carry (🔒 user, 2026-10-05: "Hearability params to be added to to the tkb").</summary>
         public AcousticSignatureDto? Acoustic { get; init; }
+
+        /// <summary>⭐ <c>CE-4617</c> (RS-2) — how big it looks to a radar.</summary>
+        public RadarSignatureDto? Radar { get; init; }
+    }
+
+    /// <summary>⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — a radar cross-section. A radar's range is stated against a
+    /// 10 m² reference and scales as RCS^¼ (a 0.01 m² FPV is seen at ~18 % of it).</summary>
+    public record RadarSignatureDto
+    {
+        /// <summary>Radar cross-section, m².</summary>
+        [EditUnit("m²")]
+        public float RcsM2 { get; init; } = 10f;
     }
 
     /// <summary>

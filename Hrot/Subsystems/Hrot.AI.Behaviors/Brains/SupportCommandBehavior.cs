@@ -34,6 +34,9 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public int Answered;
         public int AirDefenceStrikes;
+        /// <summary>⭐ <c>CE-4617</c> — when the last SEAD strike was ordered (one per <c>SeadIntervalSeconds</c>: an order reaches the asset's
+        /// brain a frame or more later, and a unit is not "busy" until then).</summary>
+        public SimInstant LastSeadAt;
     }
 
     /// <summary>
@@ -82,11 +85,14 @@ namespace Hrot.AI.Behaviors.Brains
             var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
             SimInstant now = CommandPictureOps.Now(world);
 
+            Sead(in p, ref ws, self, world, now);
+
             int fire = CommandPictureOps.FirstRequest(world, self, RequestKind.FireSupport);
             if (fire >= 0)
             {
                 var point = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].At;
                 bool smoke = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].Round == FireSupportRound.Smoke;   // ⭐ CE-7025
+                int rounds = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].Rounds;   // ⭐ CE-2436 AU-3 (A-5) — sustained: rounds per gun
                 if (AirDefenceNear(world, self, point, p.AirDefenceMetres, p.AirDefenceFreshSeconds, now, out var aa))
                 {
                     // HQ-7 — the air defence first; the request waits while it stays reported
@@ -108,6 +114,7 @@ namespace Hrot.AI.Behaviors.Brains
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
                             JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke,
+                                                                     Rounds = rounds > 1 ? rounds : 0,
                                                                      // ⭐ CE-4615 (R-2099) — a REQUESTED mission is declared danger close: the requester called
                                                                      //   for fire on its own fight (81 mm's 600 m always holds a company's own men), as a
                                                                      //   doctrinal call does; an undeclared strike (an operator's) keeps the battery's refusal
@@ -137,6 +144,71 @@ namespace Hrot.AI.Behaviors.Brains
                 }
             }
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-5, RS-7; DESIGN_Radar_SAM.md) — SEAD FIRST: a FRESH air-defence element in the picture (a SPOT — the side's direction
+        /// finding locates a radiating radar, CE-4617's <c>EmitterLocatingSystem</c>) is struck by the first free of a strike plane, a battery
+        /// (fire for effect), an armed drone — whether or not a fire support asked for it (before, an air defence was struck only while
+        /// answering a request near it, HQ-7 below). One strike per tick; an asset still on its strike is busy, so a still-fresh element is
+        /// struck again once one is free.
+        /// </summary>
+        private static void Sead(in SupportCommandParams p, ref SupportCommandState ws, Entity self, EntityRepository world, SimInstant now)
+        {
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            int pick = -1;
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Count == 0 || (e.Equipment & ElementEquipment.AirDefence) == 0 || now - e.ObservedAt > p.AirDefenceFreshSeconds) continue;
+                if (pick < 0 || e.ObservedAt > picture.Elements.Items[pick].ObservedAt) pick = i;
+            }
+            if (pick < 0 || (ws.LastSeadAt > 0d && now - ws.LastSeadAt < SeadIntervalSeconds)) return;
+            var at = picture.Elements.Items[pick].At;
+            var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            var plane = Free(world, self, SupportAsset.StrikePlane, Entity.Null);
+            if (!plane.IsNull)
+            {
+                CommandOrders.Order(world, self, plane, nameof(OrderKind.Strike), JsonSerializer.Serialize(new StrikeOrder { Location = at }, json), newOrder: true);
+                ws.AirDefenceStrikes++;
+                ws.LastSeadAt = now;
+                return;
+            }
+            var battery = Free(world, self, SupportAsset.Battery, Entity.Null);
+            if (!battery.IsNull)
+            {
+                CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
+                    JsonSerializer.Serialize(new StrikeOrder { Location = at, Method = FireMissionMethod.FireForEffect }, json), newOrder: true);
+                ws.AirDefenceStrikes++;
+                ws.LastSeadAt = now;
+                return;
+            }
+            var drone = FreeDrone(world, self);
+            if (!drone.IsNull)
+            {
+                CommandOrders.Order(world, self, drone, nameof(OrderKind.Strike), JsonSerializer.Serialize(new StrikeOrder { Location = at }, json), newOrder: true);
+                ws.AirDefenceStrikes++;
+                ws.LastSeadAt = now;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> — at most one SEAD order this often (s).</summary>
+        public const float SeadIntervalSeconds = 5f;
+
+        /// <summary>⭐ <c>CE-4617</c> — the first live, free ARMED DRONE (an unmanned aircraft, SISO air category 50) in the roster.</summary>
+        private static Entity FreeDrone(EntityRepository world, Entity self)
+        {
+            if (!world.HasComponent<UnitRoster>(self)) return Entity.Null;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(self);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var a = roster.SubordinateEntities[i];
+                if (a.IsNull || !world.IsAlive(a) || !CombatLife.IsAlive(world, a)) continue;
+                if (KindOf(world, a) != SupportAsset.AttackHelicopter || !RadarSamNodes.Unmanned(world, a)) continue;
+                if (CommandOrders.Busy(world, self, a) || JustOrdered(world, self, a)) continue;
+                return a;
+            }
+            return Entity.Null;
         }
 
         private static readonly int SupportCommandHash = BehaviorHash.FromName(BehaviorNames.SupportCommand);

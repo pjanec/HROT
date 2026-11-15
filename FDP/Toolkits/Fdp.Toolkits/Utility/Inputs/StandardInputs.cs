@@ -446,12 +446,18 @@ namespace Fdp.Toolkit.Utility
             //   copy of the shooter carries the Muscle's stamp and the estimate includes suppression, one wire hop late.
             var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(repo, ctx.Self);
             float sigma = Fdp.Toolkit.Combat.HitModel.Sigma(repo, owner, mount, Fdp.Toolkit.Combat.HitModel.Now(repo));
-            if (sigma > 0f && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
+            // ⭐ CE-2436 AU-7 (A-10, R-2110) — the SAME shot the muscle fires: at a target in the air the aim error is 2-D and widens with its
+            //   speed; a shotgun's pellets cover its pattern and are spent past its range (HitModel.ShotHitChance)
+            bool air = Fdp.Toolkit.Motion.Locomotions.InAir(repo, ctx.Context);
+            if (air) sigma *= Fdp.Toolkit.Combat.HitModel.AirFactor(repo, ctx.Context);
+            int pellets = mount?.Pellets ?? 0;
+            if ((sigma > 0f || pellets > 1) && TryGetWorldPosition(repo, owner, out var from) && TryGetWorldPosition(repo, ctx.Context, out var to))
             {
                 float radius = repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context)
                     ? repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(ctx.Context).Radius
                     : Fdp.Toolkit.Combat.HitModel.DefaultTargetRadius;
-                damage *= Fdp.Toolkit.Combat.HitModel.HitChance(sigma, Vector3.Distance(from, to), radius);
+                damage *= Fdp.Toolkit.Combat.HitModel.ShotHitChance(sigma, Vector3.Distance(from, to), radius, air, pellets,
+                                                                      mount?.PelletSpreadMils ?? 0f, mount?.Range ?? 0f);
             }
 
             float result = maxHealth > 0f ? Math.Clamp(damage / maxHealth, 0f, 1f) : (damage > 0f ? 1f : 0f);

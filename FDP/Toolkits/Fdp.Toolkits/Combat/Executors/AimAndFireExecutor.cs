@@ -178,7 +178,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ Air Ops slice 4 — a BOMB is released on its cue alone (HoldOf held it until now): the run-in was flown at the target's
             //   known position, and a release has no aim clock, no body twist and no line of fire to a friend.
             bool bomb = mountDto?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb;
-            bool seen = bomb || Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            bool seen = bomb || FireControlSight.Sees(world, entity, p.Target, mountDto, loadedAmmo);   // ⭐ CE-4617 (RV-1) — the one fire-control rule
             // ⭐⭐ WL-4 W-12e (Weapon_Layers §5f L-2) — not seen: the weapon brain may THROW at where the target was last seen (a
             //   grenade over the cover it hides behind). It counts as a round of this action; nothing else changes.
             if (!seen && HiddenTargetThrow.TryThrow(world, entity, p.Target))
@@ -525,6 +525,10 @@ namespace Fdp.Toolkit.Combat.Executors
             //   free on this path (the muscle aims), so it carries the hold.
             ref var aimState = ref AimTimer(ref channel);
             ref var hold = ref aimState.Elapsed;
+            // ⭐ CE-4617 (B-2, RV-2; DESIGN_Radar_SAM.md) — a guided mount may declare a SALVO: up to `salvo` rounds in the air, each
+            //   `SalvoIntervalS` after the last (0 = together); the next salvo waits for the last round's flight. 0 = the profile's own.
+            int salvo = roundsInFlight > 0 && mountDto is { RoundsInFlight: > 0 } sm ? sm.RoundsInFlight : roundsInFlight;
+            float salvoInterval = salvo > 1 ? mountDto!.SalvoIntervalS : 0f;
             var current = world.HasComponent<WeaponTask>(part) ? world.GetComponent<WeaponTask>(part) : default;
             // ⭐ CE-3172 S4d — operator fire aims at a POINT that moves every frame; only a new mount (or an idle task) is a new
             //   order, so the rounds in flight keep counting while the operator sweeps.
@@ -555,7 +559,10 @@ namespace Fdp.Toolkit.Combat.Executors
                     Magazine.Spend(ref weapon);
                     if (!mountEntity.IsNull) AmmoChoice.SpendLoaded(world, mountEntity);   // ⭐ M8
                     RoundsFired(ref channel)++;
-                    if (roundsInFlight > 0) hold = GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity, loadedAmmo);
+                    if (roundsInFlight > 0)
+                        hold = salvo > 1 && RoundsFired(ref channel) % salvo != 0
+                            ? salvoInterval   // ⭐ CE-4617 — the salvo's next round
+                            : GuidedFlightSeconds(world, entity, p.Target, mountDto, weapon.MuzzleVelocity, loadedAmmo);
                 }
                 if (status.RoundsFired > accounted) accounted = status.RoundsFired;
                 if (status.State == WeaponTaskState.Failed)
@@ -576,7 +583,7 @@ namespace Fdp.Toolkit.Combat.Executors
             }
 
             // ⭐ CE-3172 S4d (C-2) — the operator is the eyes and overrides the ROE: the trigger is the only gate
-            bool seen = op ? p.Trigger != 0 : Fdp.Toolkit.Perception.SightNow.Sees(world, entity, p.Target);
+            bool seen = op ? p.Trigger != 0 : FireControlSight.Sees(world, entity, p.Target, mountDto, loadedAmmo);   // ⭐ CE-4617 (RV-1)
             bool roe = op || RoePermitsFire(world, entity);
             Magazine.StartIfEmpty(ref weapon);
             bool loaded = Magazine.Ready(weapon) && held != ActionReason.Reloading;   // ⭐ M8 — a round switch holds the grants like a reload
@@ -594,7 +601,9 @@ namespace Fdp.Toolkit.Combat.Executors
                 int inHand = weapon.MagazineSize > 0 ? weapon.MagazineRounds : weapon.Ammo;
                 if (p.Rounds > 0) inHand = System.Math.Min(inHand, p.Rounds - RoundsFired(ref channel));
                 // ⭐ W-12c — a guided weapon is granted its next round only once the last one's flight is over.
-                if (roundsInFlight > 0) inHand = hold > 0f ? 0 : System.Math.Min(inHand, roundsInFlight);
+                //   ⭐ CE-4617 — a salvo with an interval is granted one round at a time (the hold spaces them); with none, the rest of it at once.
+                if (roundsInFlight > 0)
+                    inHand = hold > 0f ? 0 : System.Math.Min(inHand, salvoInterval > 0f ? 1 : salvo - RoundsFired(ref channel) % salvo);
                 inHand = System.Math.Min(inHand, BarrelHeat.RoundsLeft(weapon));   // ⭐ CE-1358 (§5k) — the burst stops at the round that makes it too hot
                 grant += System.Math.Max(0, inHand);
             }

@@ -140,6 +140,15 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("rpm")]
         public float RateOfFire { get; init; }
 
+        /// <summary>⭐ <c>CE-4617</c> (B-2, RV-2; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a GUIDED mount that fires a SALVO: up to this
+        /// many rounds in the air at once, each <see cref="SalvoIntervalS"/> after the last; the next salvo waits for the last round's flight.
+        /// 0 = the category's profile (an ATGM / MANPADS: one). Appended.</summary>
+        public int RoundsInFlight { get; init; }
+
+        /// <summary>⭐ <c>CE-4617</c> (RV-2) — seconds between the rounds of one salvo (<see cref="RoundsInFlight"/> &gt; 1). Appended.</summary>
+        [EditUnit("s")]
+        public float SalvoIntervalS { get; init; }
+
         /// <summary>⭐ <c>CE-3229</c> (B-7, AW-15 / AW-24; docs/DESIGN_Civilians_And_Crowd_Control.md §7.8 A-3) — what this weapon LOOKS like
         /// to an observer judging a civilian. <b>null = by <see cref="Category"/></b> (<c>ItemAppearances.Of</c>): only an odd item sets it — a toy
         /// gun (looks like a rifle, fires nothing), a disguised weapon. Appended.</summary>
@@ -167,6 +176,18 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// (12 s automatic, 60 s single-shot). Appended.</summary>
         [EditUnit("s")]
         public float BarrelCoolSeconds { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (A-10a; docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md §9.5) — a SHOTGUN: one shot is this many
+        /// PELLETS, each an ordinary round through the existing ballistics, spread over a 2-D pattern of half-width <see cref="PelletSpreadMils"/>
+        /// around the man's aim, and SPENT past <see cref="Range"/> (no reach beyond it). <b>0 or 1 = one round</b>, as every mount before.
+        /// <see cref="DamagePerHit"/> is one pellet's. Appended.
+        /// </summary>
+        public int Pellets { get; init; }
+
+        /// <summary>⭐ <c>CE-2436</c> AU-7 — the pellet pattern's half-width, mils (uniform in both axes around the aim). Appended.</summary>
+        [EditUnit("mils")]
+        public float PelletSpreadMils { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3229</c> (AW-15) — the shape an observer may see in a man's hands.</summary>

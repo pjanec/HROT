@@ -437,6 +437,15 @@ namespace Fdp.Toolkit.Squad.Command
             return have <= 0 ? StatusColour.Black : f >= AmmoGreenFraction ? StatusColour.Green : f >= AmmoAmberFraction ? StatusColour.Amber : StatusColour.Red;
         }
 
+        /// <summary>⭐ <c>CE-2436</c> AU-2 (A-8) — the rounds a unit's fighting men carry (<paramref name="max"/>: their capacity; 0 = no counted
+        /// weapon). The base of fire reads it to know it has really FIRED. Allocation-free.</summary>
+        public static long RoundsOf(ISimulationView view, Entity unit, out long max)
+        {
+            long have = 0; max = 0;
+            Rounds(view, unit, 0, ref have, ref max);
+            return have;
+        }
+
         private static void Rounds(ISimulationView view, Entity e, int depth, ref long have, ref long max)
         {
             if (e.IsNull || !view.IsAlive(e) || depth > CombatEffective.MaxDepth) return;
@@ -589,6 +598,7 @@ namespace Fdp.Toolkit.Squad.Command
                         SubjectNetId = subject.IsNull ? 0 : CommandPictureOps.NetIdOf(repo, subject),
                         Round = (RequestKind)r.Subtype == RequestKind.FireSupport && (r.Equipment & ElementEquipment.Smoke) != 0
                             ? FireSupportRound.Smoke : FireSupportRound.HighExplosive,   // ⭐ CE-7025
+                        Rounds = (RequestKind)r.Subtype == RequestKind.FireSupport ? r.Count : (byte)0,   // ⭐ CE-2436 AU-3 (A-5) — a sustained mission
                     };
                     break;
             }

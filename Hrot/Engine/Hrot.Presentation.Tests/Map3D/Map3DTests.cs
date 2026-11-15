@@ -40,7 +40,7 @@ public sealed class Map3DTests
         var d = t.DisType;
         if (d.Kind == 3) return "_person";
         if (d.Kind == 1 && d.Domain == 1)
-            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 81 => "_wheeled", _ => null };   // ⭐ IF-1: 4 (SP artillery) moved on purpose
+            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 28 or 81 => "_wheeled", _ => null };   // ⭐ CE-4618: 28 (the radar SAM truck) is a wheeled body on the picker too   // ⭐ IF-1: 4 (SP artillery) moved on purpose
         return null;
     }
 
@@ -526,6 +526,7 @@ public sealed class Map3DTests
                 1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
                 3 or 6 or 7 => VisualFamily.WheeledUtility,
                 4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
+                28 => VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck's class (1.1.*.28), deliberately new
                 _ => VisualFamily.Unknown,
             };
         if (d.Kind == 1 && d.Domain == 2)

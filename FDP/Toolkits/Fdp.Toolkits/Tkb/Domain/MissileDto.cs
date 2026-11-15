@@ -109,5 +109,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2188</c> — the chance a radar seeker ignores a chaff salvo in its cone (0 = always seduced).</summary>
         [Description("Chance the radar seeker ignores a chaff salvo in its cone (0..1).")]
         public float ChaffRejection { get; init; }
+
+        /// <summary>⭐ <c>CE-4617</c> (B-3, RS-4 / RS-8; docs/designs/air-attack/DESIGN_Radar_SAM.md) — the smallest radar cross-section (m²)
+        /// its seeker locks on (0 = any): a target that reflects less is never chosen for this round (<c>AmmoChoice.InDomain</c>) — the
+        /// radar SAM refuses an FPV (0.01 m²) and still takes a recon drone (0.05). Appended.</summary>
+        [EditUnit("m²")]
+        [Description("Smallest radar cross-section the seeker locks on, m² (0 = any).")]
+        public float MinTargetRcsM2 { get; init; }
     }
 }

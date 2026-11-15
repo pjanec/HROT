@@ -25,7 +25,8 @@ namespace Hrot.AI.Behaviors.Brains
     /// <c>AirThreat</c> on the commander, as a hit becomes <c>SquadUnderFire</c>). Every live man is sent the library <c>ShelterFromAir</c> (overhead
     /// cover when there is some, else keep moving; fire at the drone while it is seen; he ends himself once his sky is clear); the reaction runs
     /// while the squad still senses the drone and ends <see cref="ClearSeconds"/> after the last sensing — then the task resumes and re-sends its
-    /// orders. ⭐ A man under command never shelters on his own (R-2062): this is his unit's answer.
+    /// orders. ⭐ A man under command never shelters on his own (R-2062): this is his unit's answer. ⭐ <c>CE-2436</c> AU-7 (A-10c): the squad's
+    /// drone gunners (<see cref="Fdp.Toolkit.Combat.AirDefenceWeapons.IsDroneGunner"/>) are sent <c>EngageAircraft</c> instead — they stand and fire.
     /// <para>⭐ Parallel (R-4212): the commander changes only its own state; each man's behaviour is an ORDER (<see cref="CommandOrders.Assign"/>,
     /// a command), and the roster / the man's fight state are declared reads.</para>
     /// </summary>
@@ -64,7 +65,10 @@ namespace Hrot.AI.Behaviors.Brains
                     var man = roster.SubordinateEntities[i];
                     if (man.IsNull || !world.IsAlive(man) || SquadManeuverRunner.IsUnit(world, man)
                         || !Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, man)) continue;
-                    CommandOrders.Assign(world, self, man, BehaviorNames.ShelterFromAir, "{}");
+                    // ⭐ CE-2436 AU-7 (A-10c, R-2110) — the squad's DRONE GUNNERS (the anti-drone man's shotgun, the MG) stand and ENGAGE it
+                    //   (EngageAircraft); the rest take cover and fire only once it is close (ShelterFromAir's gate, A-10b)
+                    CommandOrders.Assign(world, self, man,
+                        Fdp.Toolkit.Combat.AirDefenceWeapons.IsDroneGunner(world, man) ? BehaviorNames.EngageAircraft : BehaviorNames.ShelterFromAir, "{}");
                 }
                 s.Sent = 1;
             }

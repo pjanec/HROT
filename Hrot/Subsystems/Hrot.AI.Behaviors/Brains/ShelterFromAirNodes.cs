@@ -197,9 +197,14 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Phase = ShelterPhase.Evading;
         }
 
-        /// <summary>Aimed fire at the drone while it is SEEN (<see cref="AirSense.FireAt"/>).</summary>
+        /// <summary>Aimed fire at the drone while it is SEEN (<see cref="AirSense.FireAt"/>) — ⭐ <c>CE-2436</c> AU-7 (A-10b) only when this
+        /// unit's weapons may engage a drone that far (<see cref="AirSense.MayFireAtDrone"/>: a rifle inside 20 m, a shotgun in its range, an MG):
+        /// a man with only a rifle takes cover and holds his fire until the drone is close.</summary>
         private static void FireAtDrone(ref ShelterFromAirState ws, Entity self, EntityRepository world, Entity drone, double now)
-            => AirSense.FireAt(world, self, ref ws.Fire, ref ws.RetryFireAt, drone, now);
+        {
+            if (!AirSense.MayFireAtDrone(world, self, ws.DroneAt)) { PostureNodes.StopFiring(world, self, ref ws.Fire); return; }
+            AirSense.FireAt(world, self, ref ws.Fire, ref ws.RetryFireAt, drone, now);
+        }
 
         private static void Release(ref ShelterFromAirState ws, Entity self, EntityRepository world)
         {

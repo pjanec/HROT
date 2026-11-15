@@ -149,6 +149,10 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-7025</c> (City Battle §5, Indirect Fire IF-5) — the mortars' SMOKE bombs (60 / 81 / 120 mm): no blast, a screen where
         /// they land (an <c>AreaEffectCloud</c>, as the smoke grenade's, larger and longer), the HE bomb's charges. ⛔ Permanent wire values.</summary>
         public const int Tkb60mmMortarSmoke = 6047, Tkb81mmMortarSmoke = 6048, Tkb120mmMortarSmoke = 6049;
+        /// <summary>⭐ <c>CE-4617</c> (B-2, RS-3; docs/designs/air-attack/DESIGN_Radar_SAM.md) — the RADAR SAM vehicle's missile: a radar seeker
+        /// (wide cone, chaff only in its end-game), air targets only, a proximity-fused fragmentation warhead (the library's
+        /// <c>"Radar SAM warhead"</c>). ⚠ The ids note named 6047 — taken by the mortar smoke on every lane (CE-7025) — so 6050. ⛔ Permanent wire value.</summary>
+        public const int TkbRadarSamMissile = 6050;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
@@ -187,11 +191,11 @@ namespace Hrot.Core.Tkb
                             Ball762Name = "7.62x51 ball", Tracer762Name = "7.62x51 tracer", Mk82Name = "Mk-82 bomb",
                             Gau8HeiName = "GAU-8 30mm HEI", Gau8ApiName = "GAU-8 30mm API", Hydra70Name = "Hydra-70 HE rocket",
                             StingerName = "Stinger missile", IglaName = "Igla missile", Zu23HeiName = "ZU-23 23mm HE-I", Zu23ApiName = "ZU-23 23mm API",
-                            FlareName = "IR decoy flare", ChaffName = "chaff bundle";
+                            FlareName = "IR decoy flare", ChaffName = "chaff bundle", RadarSamName = "radar SAM missile";
 
         /// <summary>⭐ <c>CE-2187</c> / <c>CE-2190</c> — the library entries the air-defence rounds take their numbers from.</summary>
         public const string StingerLibraryName = "Stinger warhead", IglaLibraryName = "Igla warhead",
-                            Zu23HeiLibraryName = "23mm HEI", Zu23ApiLibraryName = "23mm API";
+                            Zu23HeiLibraryName = "23mm HEI", Zu23ApiLibraryName = "23mm API", RadarSamLibraryName = "Radar SAM warhead";
 
         /// <summary>⭐ <c>CE-2187</c> (§3c, AD2) — the SAMs' proximity fuze reach (m).</summary>
         public const float SamProximityFuzeM = 4f;
@@ -284,6 +288,14 @@ namespace Hrot.Core.Tkb
             Register(tkb, IglaName, TkbIglaMissile, Dis(1, Russia, 1, 30), ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),   // "SA-18 Grouse (9M39)"
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f });
+            // ⭐⭐ CE-4617 (B-2, RS-3, RV-6 / RV-7) — the radar SAM's missile: a short-range radar-guided round (an SA-8 / Tor class, rounded:
+            //   ~800 m/s, 0.5–8 km, 15 kg-class fragmentation warhead). The seeker cone is WIDE (60°) so a crossing jet's lead (~21° at
+            //   250 / 700 m/s) stays inside it; it flies 18 s (8 km at 800 m/s with margin); chaff is rejected 9 in 10, and only in the
+            //   end-game (CountermeasureSystem.InChaffEndGame). Starter values — lane decisions L-7…L-9.
+            Register(tkb, RadarSamName, TkbRadarSamMissile, Dis(1, Russia, 1, 0), ProximityFused(RadarSamLibraryName), 0f, LibraryDamage(RadarSamLibraryName),
+                     new MissileDto { Guidance = GuidanceKind.Radar, SpeedMps = 800f, MaxFlightSeconds = 18f, MinRangeM = 500f,
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 60f, ChaffRejection = 0.9f,
+                                      MinTargetRcsM2 = 0.03f });   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
             // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
             Register(tkb, Zu23HeiName, Tkb23mmHei, Dis(1, Russia, 2, 3, 5),   // "23 mm / 23 mm ZSU AAA HEI OFZ" (the ZU-23's 23×152 round)
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
@@ -419,6 +431,7 @@ namespace Hrot.Core.Tkb
                 [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
+                [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
@@ -478,6 +491,9 @@ namespace Hrot.Core.Tkb
                 // ⭐ CE-2187 / CE-2190 — the MANPADS missiles trail smoke; the 23 mm traces
                 [TkbStingerMissile] = new() { Shape = MunitionShape.Missile, Length = 1.52f, Diameter = 0.07f, ColorHex = "#6B6E4A", SmokeTrail = true },
                 [TkbIglaMissile] = new() { Shape = MunitionShape.Missile, Length = 1.57f, Diameter = 0.072f, ColorHex = "#5A5E3A", SmokeTrail = true },
+                // ⭐ CE-4617 (B-2, RV-15) → CE-4618 (ui U-2) — the radar SAM's missile: a slim 3 m body (a Tor-class 9M330: ~2.9 m × 0.23 m, drawn 0.17 for a slimmer read),
+                //   nose, mid wings and tail fins (the Missile shape), light grey-green so it shows against sky and ground, smoke trail on
+                [TkbRadarSamMissile] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.17f, ColorHex = "#C4C8B8", SmokeTrail = true },
                 [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
                 // ⭐ CE-3235 (B-13, §7.10 PU-3) — the hand items are SEEN (so a lying one replicates and a brain can pick it up): the grenade

@@ -142,6 +142,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
         map.RegisterMapping((long)EDescriptorType.dtOperatorUseStatus, GlobalComponentIds.OperatorUseStatus);   // ⭐ CE-1153 — the use verdict
         map.RegisterMapping((long)EDescriptorType.dtGesture, GlobalComponentIds.Gesture);                       // ⭐ CE-3224 — a person's gesture
+        map.RegisterMapping((long)EDescriptorType.dtRadarEmission, GlobalComponentIds.RadarEmission);           // ⭐ CE-4617 — a radar's emission
         map.RegisterMapping((long)EDescriptorType.dtHostileAct, GlobalComponentIds.HostileAct);                 // ⭐ CE-3238 — a man's hostile act
         map.RegisterMapping((long)EDescriptorType.dtCustody, GlobalComponentIds.Custody);                       // ⭐ CE-3256 — a man in custody
         map.RegisterMapping((long)EDescriptorType.dtLean, GlobalComponentIds.Lean);                             // ⭐ CE-3257 — a man leaning

@@ -44,6 +44,22 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ CE-2123 — a squad commander's suppress-and-manoeuvre: base of fire + flank + assault through (DESIGN_Squad_Tactics §3).</summary>
         public const string SuppressAndManeuver = "SuppressAndManeuver";
 
+        /// <summary>⭐ CE-2436 AU-1 (A-1) — a squad commander's base of fire: hold at the support point and keep SUSTAINED fire on the REPORTED
+        /// posts, seen or not (DESIGN_Assault_Under_Fire §5).</summary>
+        public const string SupportByFire = "SupportByFire";
+
+        /// <summary>⭐ CE-2436 AU-3 (A-1 at the company) — a platoon's base of fire: each squad <c>SupportByFire</c> on the same posts, spread across the
+        /// line of fire; SET once every squad is (DESIGN_Assault_Under_Fire §9.3).</summary>
+        public const string PlatoonSupportByFire = "PlatoonSupportByFire";
+
+        /// <summary>⭐ CE-2436 AU-4 (A-4) — a vehicle's support by fire: to a stand-off point, then the exposure cycle from cover, relocating after
+        /// each engagement; it never leads across the open (DESIGN_Assault_Under_Fire §9.4).</summary>
+        public const string VehicleSupportByFire = "VehicleSupportByFire";
+
+        /// <summary>⭐ CE-2436 AU-5 (A-6) — a company's DRONE TEAM in the attack: its recon drone circles the objective (its sightings are the target
+        /// list), its operator flies the armed drones at the reported posts (DESIGN_Assault_Under_Fire §9.6).</summary>
+        public const string DroneTeam = "DroneTeam";
+
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
 
@@ -112,6 +128,9 @@ namespace Hrot.Map.Definitions.Behavior
 
         /// <summary>⭐ <c>CE-2191</c> (Air Ops §7f) — a unit with an air-defence weapon stands and fires at the aircraft it sees.</summary>
         public const string EngageAircraft = "EngageAircraft";
+
+        /// <summary>⭐ <c>CE-4617</c> (DESIGN_Radar_SAM RS-5) — a radar SAM: radar on, a salvo at the aircraft it tracks, then radar off and relocate.</summary>
+        public const string RadarSamEngage = "RadarSamEngage";
 
         /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Embark = "Embark";

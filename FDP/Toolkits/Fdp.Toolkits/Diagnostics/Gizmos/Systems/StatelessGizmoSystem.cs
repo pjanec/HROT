@@ -121,6 +121,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly ChangeGate _matchGatePos = new();   // + SimTransform: the in-view test reads positions
         private long _matchSig, _lastViewVersion;
         private bool _matchValid;
+        private int _epoch;   // ⭐ CE-4342 — the WorldEpoch generation the match lists belong to (DESIGN_Paused_And_Stepped_Execution §7f)
         private int _lastMaxIndex, _lastOutOfView;
         private GizmoInputs?[] _ruleInputs = System.Array.Empty<GizmoInputs?>();
         private int _ruleInputsFor;
@@ -269,6 +270,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     $"and cannot run on a read-only view ({view.GetType().Name}).");
 
             EnsureCaches();
+            // ⭐⭐ CE-4342 (reopened 2026-11-15) — a world boundary or an in-place RESTORE (an Edit-mode Undo, a dry-run exit) replaces the entity set; the
+            //   match lists name entity INDICES, so they are re-derived (§7f's rule). 🔴 On the threaded editor's presentation world the pull that carries a
+            //   restore did not move the structural clock the match-pass skip reads (CE-1480 G5) ⇒ the stale lists drew an entity that had lost its
+            //   component, the projector threw, and the whole gizmo group aborted every frame: the map went BLANK after a threaded Undo (measured live).
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch)) _matchValid = false;
 
             var rules = _registry.Rules;
             int ruleCount = rules.Count;

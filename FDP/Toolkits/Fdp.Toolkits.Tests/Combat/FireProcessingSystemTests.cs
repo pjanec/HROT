@@ -673,6 +673,92 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(closest <= 1.5f, $"the round passes {closest:0.0} m from the helicopter");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10a, R-2110) — a SHOTGUN at a hovering drone: one shot is TWELVE rounds through the ordinary ballistics, each on
+        /// its own place of the 15-mil pattern around the aim (in BOTH axes — the drone is in the air), each spent at the mount's 60 m; over three
+        /// shots at 30 m some pellet's path meets the drone's 0.175 m body within those 60 m — at 80 m none can. A rifle round at the same drone is
+        /// deflected UP or down too (the air's 2-D aim error), a round at a man on the ground only across (unchanged).
+        /// ✅ Red-proofs: the pellets not spawned ⇒ 1 round ⇒ red; the pattern dropped ⇒ every pellet on one line ⇒ red; the range limit not set ⇒ red;
+        /// the air's elevation spread dropped ⇒ the rifle round flies level ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_AShotgun_FiresTwelvePelletsOverItsPattern_ADroneAt30mIsMet_At80mNot()
+        {
+            _world.RegisterComponent<TkbIdentity>();
+            _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.RegisterComponent<ShotOrdinal>();   // the shots count 1, 2, 3 … (each its own aim and pattern)
+            const long Gun = 9700, Rifle = 9701;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var gun = new Fdp.Interfaces.TkbTemplate("shotgun man", Gun);
+            gun.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, InitialAmmunition = 40, DamagePerHit = 12, Penetration = 1, MuzzleVelocity = 400f,
+                  Range = 60f, DispersionMils = 6f, Pellets = 12, PelletSpreadMils = 15f } } });
+            db.Register(gun);
+            var rifle = new Fdp.Interfaces.TkbTemplate("rifleman", Rifle);
+            rifle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, InitialAmmunition = 40, DamagePerHit = 25, Penetration = 5, MuzzleVelocity = 900f,
+                  Range = 300f, DispersionMils = 6f } } });
+            db.Register(rifle);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            Entity Drone(Vector3 at)
+            {
+                var d = SpawnTarget(at);
+                _world.AddComponent(d, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
+                return d;
+            }
+            int Met(Entity shooter, Entity drone, int shots)
+            {
+                int met = 0;
+                for (int shot = 0; shot < shots; shot++)
+                {
+                    PublishIntent(shooter, drone);
+                    _sys.Execute(_world, 0.016f);
+                    var rounds = Rounds();
+                    Assert.Equal(12, rounds.Count);
+                    var aimAt = AimPoint.Middle(_world, drone, out _, out _);
+                    var seen = new System.Collections.Generic.HashSet<Vector3>();
+                    foreach (var r in rounds)
+                    {
+                        var proj = _world.GetComponent<BallisticProjectile>(r);
+                        Assert.Equal(60f, proj.RangeLimitM);
+                        var p0 = (Vector3)_world.GetComponent<SimTransform>(r).Position;
+                        var v = _world.GetComponent<SimVelocity>(r).Linear;
+                        seen.Add(Vector3.Normalize(v));
+                        float best = float.MaxValue;
+                        for (float t = 0f; Vector3.Distance(p0 + v * t, proj.Muzzle) <= proj.RangeLimitM; t += 0.0005f)
+                            best = MathF.Min(best, Vector3.Distance(p0 + v * t, aimAt));
+                        if (best <= 0.175f) met++;
+                        _world.DestroyEntity(r);
+                    }
+                    Assert.Equal(12, seen.Count);   // twelve directions: the pattern
+                }
+                return met;
+            }
+
+            var man = SpawnShooter(Vector3.Zero, muzzleVelocity: 400f);
+            _world.AddComponent(man, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Gun) });
+            Assert.True(Met(man, Drone(new Vector3(30f, 0f, 10f)), 3) >= 1, "a pellet meets the drone at 30 m");
+            Assert.Equal(0, Met(man, Drone(new Vector3(80f, 0f, 10f)), 3));
+
+            // the air's 2-D aim error: a rifle round at a drone leaves off the aim line's height, at a man on the ground it does not
+            var rifleman = SpawnShooter(Vector3.Zero, muzzleVelocity: 900f);
+            _world.AddComponent(rifleman, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Rifle) });
+            float Pitch(Entity target)
+            {
+                PublishIntent(rifleman, target);
+                _sys.Execute(_world, 0.016f);
+                var r = Assert.Single(Rounds());
+                var p0 = (Vector3)_world.GetComponent<SimTransform>(r).Position;
+                var v = Vector3.Normalize(_world.GetComponent<SimVelocity>(r).Linear);
+                var aim = Vector3.Normalize(AimPoint.Middle(_world, target, out _, out _) - p0);
+                _world.DestroyEntity(r);
+                return MathF.Abs(v.Z - aim.Z);
+            }
+            Assert.True(Pitch(Drone(new Vector3(100f, 0f, 20f))) > 1e-4f, "a round at a drone is spread in height too");
+            Assert.True(Pitch(SpawnTarget(new Vector3(100f, 0f, 0f))) < 1e-5f, "a round at a ground target only across");
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();

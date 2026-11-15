@@ -211,6 +211,7 @@ public static class WeaponKits
         return family switch
         {
             VisualFamily.SpArtillery => FiringBlast.Ground,
+            VisualFamily.AirDefenceVehicle => FiringBlast.Launch,   // ⭐ CE-4618 — a SAM's booster smoke at the canister's mouth
             VisualFamily.WeaponSystem when kind == WeaponKind.TowedGun => FiringBlast.Ground,
             VisualFamily.WeaponSystem when IsShoulderFired(kind) => FiringBlast.Backblast,
             VisualFamily.Person when IsLauncher(tkb, mount) => FiringBlast.Backblast,
@@ -535,4 +536,6 @@ public enum FiringBlast : byte
     Backblast,
     /// <summary>A ground blast round a howitzer.</summary>
     Ground,
+    /// <summary>⭐ CE-4618 — the puff of smoke a missile leaves at its canister's mouth (the radar SAM truck).</summary>
+    Launch,
 }

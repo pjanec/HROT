@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level, ✅ APPROVED Q1–Q8 by the user 2026-11-06 (R-4134); the building lane (ui, backend for the gizmo side) details it (R-4123)
-updated: 2026-11-08 (P6 as-built — behaviors) · 2026-11-08 (P2 as-built — behaviors) · 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
+updated: 2026-11-15 (CE-4342 reopened — P5 made real in the product: the terminal's modifiers, threaded undo, gizmos after a restore — ui) · 2026-11-08 (P6 as-built — behaviors) · 2026-11-08 (P2 as-built — behaviors) · 2026-11-07 (P1 as-built — behaviors) · 2026-11-06 (✅ Q1–Q8 approved — R-4134) · 2026-11-06 (first version — coordinator; editing-UX design queue item 6: E8, D11 / D12 / D16)
 current-answer: §2 the model · §3 stages · §4 questions with leans
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
@@ -16,6 +16,8 @@ related-designs:
   - DESIGN_Action_Catalogue.md — OWNS every menu; the drawing menu (Finish · Remove last point · Cancel) is three catalogue actions whose target is the armed tool
   - DESIGN_Edit_Framework.md — every finished map edit is ONE Edits.Submit (Create / Write); placement becomes a Create op
   - DESIGN_Edit_Mode_Undo.md — one finished map edit = one undo step (R-4133); GizmoUndoStack stays unused
+  - ../DESIGN_Threaded_Simulation_Presentation.md — OWNS mode 3 (A / S, SimLink, the sim-thread writer N-6, the recorder on S N-7); CE-4342 forwards an A-side edit bracket to S (EditSteps)
+  - ../blueprints/DESIGN_Paused_And_Stepped_Execution.md — §7f OWNS the WorldEpoch reset (CE-3294); CE-4342 makes the gizmo system re-adopt living entities after a RESTORE
   - DESIGN_Seats_And_Hats.md — the map tools belong to the Edit hat (and the Instructor's Live placement); a hat that cannot use a tool greys it
   - UX_Feature_Selection.md · UX_Feature_Multi_Select.md — OWN selection; the multi-select design's open half (map Shift / Ctrl, fan-out) is built by stage P5 here
   - ../designs/routes-1/ROUTES1-DESIGN.md — §11.1 the route edit spec (segment insert, Delete)
@@ -543,10 +545,65 @@ classDiagram
 | Move writes `Position.X/Y` per unit; Rotate Each writes `Heading` only (compass degrees, as the rotator always did); Rotate AboutCentre writes `Position.X/Y` + `Heading`. Angles are math yaw radians (CCW); the angle of a rotate gesture is `yaw(cursor from the pivot) − the grabbed unit's yaw` | each unit's heading +θ; the group swings rigidly round the **centroid of the units** |
 | the mode toggle is **Tab**, named in the hint (*"drag: rotate · Tab: each / group centre (now: each) · right-click or Esc: cancel"*, stated each frame through `ToolController.SetHint`); a ring round the group (radius = farthest unit + 3 m) is drawn in group mode, the arrow runs from the pivot, the label says *group / each ±N deg* | ⚠ deviation from the brief's "R": **R is the Rotate tool's own shortcut** — pressing it would re-arm (reset) this gizmo. `Tab` already exists in `MapKeyboardKey` |
 | the selection reaches the gizmos through **`MapUiStates.SelectionOf(world)`**, registered by `MapInteractionPack` | `OnlyTheSharedPackConstructsTheSelection` forbids a second `EcsSelectionState`; no host wiring, so no host can forget it (none registered ⇒ the single-unit gesture, as before) |
-| ⭐ **CE-4342 (ui, `2026-11-09`) — the user's *"dragging one of several selected moves only that one"*: measured, the shared path WORKS end to end** — rail `RtsCommandToolTests.CE4342_DraggingOneOfThreeSelected_MovesAllThree_ThroughTheMapsBus` builds the pack with the drag gizmo registered as every host does, lets the lifecycle's `ConstructionOrder` create the gizmo instances, selects three, sends the terminal's press · started · drags · commit on the interaction bus: all three move by the delta, the fourth stays, the selection stays whole, ONE undo step that restores all three. 📐 The report (`1b7c20f9b`, 19:50) was recorded on a tree that did NOT contain P5 (`f13a5469d`, 18:47, not an ancestor) ⇒ most likely an older build. ⚠ Not reproduced with the editor's `EntityWriteRouter` (the rail passes no writer; `GroupTransform.Commit` writes per unit through it and puts a refused unit back) | a rail that drives the pack, not the class — `DataDrivenGizmoSystem.HasActiveGizmo(e)` (a probe) shows the instance exists |
+| ⛔ **SUPERSEDED `2026-11-15` by *"CE-4342 reopened — AS-BUILT"* below** (the claim held for the pack alone; the product failed three ways). ~~**CE-4342 (ui, `2026-11-09`) — the user's *"dragging one of several selected moves only that one"*: measured, the shared path WORKS end to end**~~ — rail `RtsCommandToolTests.CE4342_DraggingOneOfThreeSelected_MovesAllThree_ThroughTheMapsBus` builds the pack with the drag gizmo registered as every host does, lets the lifecycle's `ConstructionOrder` create the gizmo instances, selects three, sends the terminal's press · started · drags · commit on the interaction bus: all three move by the delta, the fourth stays, the selection stays whole, ONE undo step that restores all three. 📐 The report (`1b7c20f9b`, 19:50) was recorded on a tree that did NOT contain P5 (`f13a5469d`, 18:47, not an ancestor) ⇒ most likely an older build. ⚠ Not reproduced with the editor's `EntityWriteRouter` (the rail passes no writer; `GroupTransform.Commit` writes per unit through it and puts a refused unit back) | a rail that drives the pack, not the class — `DataDrivenGizmoSystem.HasActiveGizmo(e)` (a probe) shows the instance exists |
 | ⚠ not done / not verified live: the rotator toggles on `Tab` as the layer's typed-key stream delivers it (verified on the gizmo level, not with a live key); no live preview of the rotate (the arrow and ring only, as the single rotate); the 3-D map has no group ring (the rotate gizmo draws on the 2-D map) | |
 
 Rails: `GroupTransformTests` (Presentation.Tests/Edits) — drag moves 3 of the selected by the same delta and only them · cancel puts all back · writer gets one write per unit · rotate 5 **each** (headings +θ, positions unchanged) and **about the group centre** (rigid swing about the centroid, headings +θ), each **one undo step** that restores all 5 · single unit = the ordinary rotate · the hint names Tab · the pack registers the one selection · frame `P5_AGroupRotate_OnARealFrame_ShowsTheRingRoundTheGroup` (`group-rotate.png` under `HROT_RAIL_SHOTS`, never committed; the ring present in group mode, absent in each mode); `SelectionInteractionSystemTests` `B17P5_*` (Shift adds · Ctrl toggles · Shift-band adds, plain band replaces · an empty Shift-drag clears nothing · Alt-click cycles 3 overlapped and wraps · narrow-at-release / drag keeps the selection).
+
+### ⭐ AS-BUILT — CE-4342 reopened *(ui, `2026-11-15`)* — the group drag made real in the PRODUCT
+
+INVENTORY: `scripts/cbm.sh search_graph` `name_pattern=".*(GroupTransform|EntityDragGizmo|EditSteps|DataDrivenGizmoSystem|StatelessGizmoSystem|GizmoInteractionProxyTool|SelectionInteractionSystem|DebugGizmoLayer).*"`
+`label:Class` ⇒ **21** (10 production: `DataDrivenGizmoSystem`, `StatelessGizmoSystem`, `EditSteps`, `EntityDragGizmo(+Definition)`, `GizmoInteractionProxyTool`, `SelectionInteractionSystem(+Adapter`, which only schedules it), the TWO
+`DebugGizmoLayer`s — GizmoMap's terminal and the map's wrapper; ⚠ `GroupTransform` is NOT in the graph — found by grep) · `".*Selection.*"` `label:Interface` ⇒ **4** (the map's one: `ISelectionState`) + grep `GizmoInteractionStartedEvent`, `EditSteps\.(Begin|End|Cancel)`, `WorldEpoch.Restored` ⇒ ONE terminal (`GizmoMap.Presentation.DebugGizmoLayer`, wrapped by the
+map's `Fdp…Vis2D.Layers.DebugGizmoLayer`), ONE proxy tool, ONE bracket API (`EditSteps`, called from 14 files — every map gizmo, `Edits.Submit`, the block / ground ops, the clipboard, the
+raw inspector), ONE gizmo instance owner (`DataDrivenGizmoSystem`), ONE stateless pass (`StatelessGizmoSystem`). Graph coverage could not be checked (no `check_index_coverage` over the CLI).
+📐 **Measured on a real `--mode editor` under Xvfb, driven with real X input (xdotool), `tests/hill-attack-close`, threaded (mode 3, the default) and serial** — the matrix, the
+frames and the method: `docs/blueprints/batches/STATUS_Ui_Group_Drag.md`.
+
+```mermaid
+sequenceDiagram
+  participant T as terminal (GizmoMap DebugGizmoLayer)
+  participant P as GizmoInteractionProxyTool
+  participant B as interaction bus (A)
+  participant S1 as SelectionInteractionSystem
+  participant D as EntityDragGizmo / GroupTransform (A)
+  participant E as EditSteps
+  participant Q as SimJobQueue (SimLink on A)
+  participant R as S: recorder + EntityWriteRouter
+  T->>T: HeldModifiers(Raylib.IsKeyDown) ★ once per frame
+  T->>P: left press · startedActionId = Left | Shift/Ctrl/Alt ★
+  P->>B: Started{Button = Left | mods}
+  B->>S1: map.select.add / toggle / cycle / band.add rows fire ★
+  B->>D: Started → ForGrab(selection of A)
+  D->>E: Begin("Move") on A
+  E->>Q: A has no recorder, has a SimLink ⇒ post Begin(S) ★
+  D->>Q: Commit: one write per unit (SimThreadWriter, N-6)
+  D->>E: End on A ⇒ post End(S) ★
+  Q->>R: drained in order: Begin · writes · End ⇒ ONE step
+  Note over R: an Undo restores S in place ⇒ WorldEpoch.Restored
+  R-->>D: DataDrivenGizmoSystem: epoch moved ⇒ teardown, then AdoptLivingEntities ★
+  R-->>D: StatelessGizmoSystem: epoch moved ⇒ the match lists re-derived ★ (A: the pull carries the epoch)
+```
+*What the picture shows that prose hid: the losses are on different hops — the press (modifiers), the bracket (wrong world), the restore (gizmos gone) — and each fix is on
+the ONE shared hop every host and view passes through, so no host or view needs its own (★ = new).*
+
+| root cause (measured) | where | the fix, and why there |
+|---|---|---|
+| ① **Shift- / Ctrl- / Alt-click and Shift-band never reached the selection**: the left press's `Started` carried no modifiers (only the raw route polled them) ⇒ every modified click REPLACED the selection ⇒ "select three, drag one" moved only the grabbed one (threaded) or none (serial: the grabbed unit was not selected) — **every view, every mode, both threading modes** | `GizmoMap.Presentation/Layers/DebugGizmoLayer.cs` (left press) · `Gizmos/GizmoInteractionProxyTool.cs:44` (`…, 0, 0`) | the terminal polls `HeldModifiers` once per frame and passes `Left \| mods` as the proxy tool's `startedActionId` — the contract `GizmoInteractionStartedEvent.Button` already documented ("it also carries ShiftMask / CtrlMask / AltMask"). One terminal ⇒ every host, both views. The right-click `Started` is unchanged (a Shift right-click would resolve a different, unbound row) |
+| ② **threaded editor (mode 3): a drag — group or single — recorded NO undo step** (Undo: *"nothing to undo"*): the gizmo brackets on A, the recorder is installed on S (`EditorSubsystem.WireWorldUndo`, N-7), the writes go to S as sim jobs | `Fdp.Toolkits/Replication/Edits/EditOp.cs` `EditSteps.Begin/End/Cancel` | a world with no recorder but a `SimLink` posts the bracket to S's queue, in order with the writes ⇒ ONE step, by construction, for every bracket caller (rotate, vertex / route edits, block ops… had the same hole). ⛔ Not in `GroupTransform`: a per-caller forward would be 14 copies |
+| ③ **after any Undo / Redo (an in-place restore), NOTHING could be dragged** — 📐 serial 3-D after a 2-D undo: no drag box in the frame, a drag on one or a group moved none: `WorldEpoch.Moved` is true for a restore too (D4), the gizmo system tore down every instance and only a `ConstructionOrder` re-creates one — a restore publishes none | `Fdp.Toolkits/Diagnostics/Gizmos/Systems/DataDrivenGizmoSystem.cs` (the CE-3294 epoch block) | on a RESTORE (`WorldEpoch.RestoresOf` moved) the system re-adopts the living entities the rules match (`AdoptLivingEntities`); a construction never adds a second instance (`HasRuleInstance`). A world boundary is unchanged (its entities arrive with `ConstructionOrder`s) |
+| ④ **threaded: after an Undo the map went BLANK** (the gizmo frame 78 → 1 primitive; selection and drag dead) — exposed by ②, since a threaded drag now takes a step; 📐 the same with a threaded Undo of an HTTP delete (a sim-side bracket, recorded before this batch). A's pull carries S's restore (the epoch moves) but not the structural clock the match-pass skip reads (CE-1480 G5) ⇒ stale match lists drew a unit that had lost a component, `HillAttackGizmo.Draw` threw, and the whole gizmo group aborted every frame | `Fdp.Toolkits/Diagnostics/Gizmos/Systems/StatelessGizmoSystem.cs` (`Execute`) | the match lists are re-derived when `WorldEpoch.Moved` — §7f's rule for a system holding entity indices (DESIGN_Paused_And_Stepped_Execution). ⚠ One throwing projector still aborts its whole group (`TogglablePostSimulationGroup`) — not changed here |
+
+| decision | why / what would change it |
+|---|---|
+| a unit the router does not own (another station's; on a cluster the owner node) **keeps the edit path's rule**: `GroupTransform.Commit` asks its owner through `IEntityComponentWriter`; a **Refused** write puts that unit back where it began, the rest move — never silently skipped. In a LIVE run on the author's station the editor owns its units and the group moves (measured: live paused and live playing) | the owner's own rule (AX-007). Would change if the user wants a refused member to abort the whole group |
+| the drag on a selected unit in Live is allowed (the station's edit gate passes an Author in Live; `HrotEditGate`) | a seat below Author is refused by the gate as for any edit |
+
+Rails (all red-proved by a compiling mutation, `STATUS_Ui_Group_Drag.md` §gates): `RtsCommandToolTests.CE4342_ShiftAndCtrlClick_ThroughTheTerminal_BuildTheSelection_AndADragMovesAllThree_ThroughTheRealRouter`
+(the terminal's own proxy tool + `HeldModifiers` + the map's `DebugGizmoLayer.OnInteraction` → the pack → the drag gizmo registered as the editor registers it with `EntityWriteRouter.For`: click · Shift-click ·
+Ctrl-click ⇒ three selected, a drag moves all three, ONE step, Undo restores, **and the map still drags after the Undo**) · `GroupTransformTests.CE4342_Threaded_*` (A + S + SimLink, the real router:
+the group lands on S, ONE step, Undo restores; a single drag is one step; a cancelled group records nothing) · `GroupTransformTests.CE4342_ASteadyGroupDragFrame_Allocates0B_OneWorldAndThreaded` (R-2084) · `ChangeGatedGizmoTests.CE4342_AfterARestorePulledIntoThePresentationWorld_TheMatchPassRuns_NoStaleEntityIsDrawn` (④).
+
 
 ### ⭐ AS-BUILT — P6 *(behaviors, `2026-11-08`, B-17 — ui's files: the two editors, `SelectionInteractionSystem`, `MapInteractionPack`, `DrawingMenu`, `ScenarioToolRegistrations`)* — the editing handles
 

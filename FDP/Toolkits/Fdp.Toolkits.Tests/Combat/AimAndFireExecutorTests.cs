@@ -1689,7 +1689,7 @@ namespace Fdp.Toolkit.Combat.Tests
         /// node: the executor is the weapon brain, <see cref="Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem"/> the muscle).</summary>
         private (Entity Shooter, Entity Turret, WeaponChannel Channel, Entity Target) TurretedTank(int rounds, float cooldown, int ammo = 5,
             Fdp.Toolkit.Tkb.Domain.WeaponCategory category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, float muzzleVelocity = 0f,
-            float aimSeconds = 0f, float rateOfFire = 0f)
+            float aimSeconds = 0f, float rateOfFire = 0f, int roundsInFlight = 0, float salvoIntervalS = 0f)
         {
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
@@ -1702,7 +1702,8 @@ namespace Fdp.Toolkit.Combat.Tests
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.TurretSuiteDto { Turrets = { new Fdp.Toolkit.Tkb.Domain.TurretDto { PivotZ = 2f } } });
             type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
                 { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = category, TurretIndex = 0, MuzzleVelocity = muzzleVelocity,
-                                                              AimSeconds = aimSeconds, RateOfFire = rateOfFire } } });
+                                                              AimSeconds = aimSeconds, RateOfFire = rateOfFire,
+                                                              RoundsInFlight = roundsInFlight, SalvoIntervalS = salvoIntervalS } } });
             db.Register(type);
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
 
@@ -2058,6 +2059,50 @@ namespace Fdp.Toolkit.Combat.Tests
             float flight = AimAndFireExecutor.GuidedFlightSeconds(_world, shooter, target, CombatTkb.MountOf(_world, shooter, 0), 0f);
             Assert.Equal(1f, flight, 2);
             Assert.True(minGap >= 59, $"rounds {minGap} frames apart: one flight is 60 frames, the cooldown only 30");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RV-2; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a SAM mount that declares a SALVO of two, 2 s apart,
+        /// fires four rounds as two salvos: the two of a salvo 2 s apart (not the 0.5 s cooldown, not the flight), and the next salvo only
+        /// after the last round's estimated flight (100 m at 25 m/s + 0.5 s = 4.5 s). The same mount with no salvo declared keeps the
+        /// guided profile's one round per flight. 🔴 Red before: one round per flight — 4.5 s between every launch.
+        /// </summary>
+        [Fact]
+        public void CE4617_ASamMountWithASalvo_FiresTwo2sApart_ThenWaitsForTheFlight()
+        {
+            static int[] Launches(int salvo)
+            {
+                using var t = new AimAndFireExecutorTests();
+                return t.SalvoLaunches(salvo);
+            }
+            var s = Launches(2);
+            Assert.Equal(4, s.Length);
+            Assert.InRange(s[1] - s[0], 118, 124);   // the salvo's interval, 2 s
+            Assert.InRange(s[2] - s[1], 268, 276);   // the last round's flight, 4.5 s
+            Assert.InRange(s[3] - s[2], 118, 124);
+            var one = Launches(0);
+            Assert.InRange(one[1] - one[0], 268, 276);   // no salvo declared: one round per flight, as an ATGM
+        }
+
+        private int[] SalvoLaunches(int salvo)
+        {
+            {
+                var (shooter, _, channel, _) = TurretedTank(rounds: 4, cooldown: 0.5f, category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam,
+                                                            muzzleVelocity: 25f, roundsInFlight: salvo, salvoIntervalS: 2f);
+                var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+                _executor.OnEnter(shooter, ref channel, _world);
+                const float dt = 1f / 60f;
+                var at = new System.Collections.Generic.List<int>();
+                for (int f = 0; f < 60 * 30 && channel.Status == NodeStatus.Running; f++)
+                {
+                    Tick(shooter, ref channel, dt);
+                    muscle.Execute(_world, dt);
+                    _world.Bus.SwapBuffers();
+                    foreach (ref readonly var shot in _world.Bus.Read<WeaponFireIntent>()) at.Add(f);
+                }
+                Assert.Equal(NodeStatus.Success, channel.Status);
+                return at.ToArray();
+            }
         }
 
         /// <summary>

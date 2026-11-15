@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — a catalogue and gap analysis, not a buildable design; each programme it names gets its own design (with UML) before it is built
-updated: 2026-10-11 (§11 behaviors lane)
-current-answer: §11 the behaviors-lane review of the taxonomy and the squad-tactics start (leans, awaiting the user) · §10.1 the user's answers (D1–D8 all decided) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
+updated: 2026-11-15 (§3a status — coordinator)
+current-answer: §3a the STATUS (what is built, 2026-11-15) · §12 the next three (motorcycle grey-zone crossing, checkpoint, ramming / car bomb) · §11 the behaviors-lane review · §10.1 the user's answers · §2 the scenarios decomposed · §3 the taxonomy
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -27,6 +27,8 @@ related-designs:
   - DESIGN_Sensors_And_Doctrine.md — OWNS sensor kinds, sensor children, memory, doctrine (Goal mode G2)
   - DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing (shots, near misses) — the base for drone and explosion hearing
   - designs/eqs-2/EQS_Design_v1.3_final.md — OWNS EQS generators, tests, templates
+  - designs/vehicle-tactics/DESIGN_Motorcycle.md — OWNS §12.3 / §12.6 / §12.6a as built design (R-4261)
+  - designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — OWNS §12.4 / §12.5 as built design (R-4260)
   - DESIGN_Peek_And_Fire.md — OWNS the fight-from-cover node and CoverClaim (the claim pattern §8 generalises)
   - blueprints/Architect_Question_88_Soldier_Speed_And_Retreat_Under_Fire.md — the open speed / retreat decisions several behaviours here depend on
   - docs/blueprints/Architect_Question_93_Sumo_Traffic_Node.md — §8: SUMO pedestrians that panic become our civilian entities for good (CGF creates them, P4) and need CIV-2/CIV-7 as a production HSM (P5).
@@ -181,6 +183,61 @@ graph TD
 *What the picture shows that prose hid: most "scenarios" are compositions — house search IS room clearing repeated, attacking a
 building IS fire-and-movement plus room clearing, a convoy ambush IS the vehicle reaction plus a dismount plus fight-from-cover. The
 library needs ~40 blocks, not one behaviour per scenario. ✅ = built, 🟨 = built but not driven.*
+
+### 3a. Status — what is built *(measured `2026-11-15`, coordinator; 🔒 user: "let's check what we have implemented and what is still missing" · "Yes, please update the catalog")*
+
+⚠ The ✅ / 🟨 marks in the diagram above are the `2026-10-11` state — ⛔ do not read them as current; THIS table is. 📐 Basis: the 141 behaviour
+names registered on `behaviors` (`Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorNames.cs`), targeted greps and the classes' summaries —
+NOT run; a row's evidence is the class that implements it.
+
+| row | state | implemented by |
+|---|---|---|
+| IND-1 tactical movement | ✅ | `UnderFireMove` (crawl to cover, rise elsewhere), `FireAndMovement` rushes |
+| IND-2 fight from cover | ✅ | `FightFromCover`, `PeekAndFire`, `WindowDuel` |
+| IND-3 react to explosion / drone | ✅ | `EvadeGrenade` (`GrenadeReflex.cs`), `TakeCover`, `ShelterFromAir` / `SquadShelterFromAir`, the anti-drone rule (CE-2436 AU-7) |
+| IND-4 throw grenade | ✅ | `HiddenTargetThrow` (at a hidden enemy, into a room) |
+| IND-5 self & buddy aid | 🟨 | buddy aid by `CasualtyCare`; ⛔ self-aid not built |
+| IND-6 observe a sector | ✅ | `Sentry`, `PersonObserveFire` |
+| SQD-1 march / formations | ✅ | `SquadMarch`, `JoinFormation`, the formations |
+| SQD-2 react to contact · break contact | ✅ | `ReactToContact`, `BreakContact` |
+| SQD-3 fire & movement · bounding | ✅ | `FireAndMovement`, `BoundingOverwatch`, `SupportByFire` (CE-2436) |
+| SQD-4 dismount under fire | ✅ | `SquadDismount`, `PlatoonConvoy`'s contact phase |
+| SQD-5 room clearing | ✅ | `ClearRoom`, `BreachDoor` |
+| SQD-6 house-by-house search | ✅ | `ClearArea` (its buildings in turn), `ClearBuilding` |
+| SQD-7 trench clearing | ⛔ | nothing — ditches now exist (CE-4593), the play does not |
+| SQD-8 defend building | ✅ | `SquadDefend`, `PlatoonDefend` |
+| SQD-9 attack building | ✅ | `PlatoonAttack`, `CompanyAttack`, `ClearBuilding` |
+| SQD-10 ambush | ✅ | `Ambush` |
+| SQD-11 defend area | ✅ | `DefendArea`, `HoldArea` |
+| SQD-12 urban patrol | 🟨 | movement through a city (`UrbanMovement`); ⛔ no patrol loop |
+| SQD-13 checkpoint / crowd control | 🟨 | crowd control ✅ (`HoldTheLine`, `BatonCharge`, `PushThrough`, the escalation of force); ⛔ the checkpoint itself — §12 |
+| SQD-14 cross danger area | ✅ | `SquadDangerCrossing`, `DangerCrossing` |
+| VEH-1 convoy march | ✅ | `PlatoonConvoy` (CE-2347) |
+| VEH-2 convoy react to ambush / IED | ✅ | `PlatoonConvoy`'s contact phase: the squads' own SOP dismounts and fights, secure, remount |
+| VEH-3 motorcycle dash | ⛔ | no two-wheeler, no play — §12 (now: crossing a drone-saturated grey zone) |
+| VEH-4 vehicle as a weapon | ⛔ | no ramming, no car bomb — §12 |
+| AIR-1 precision strike / fire mission | ✅ | `AirPlatformStrike`, `ArtilleryUnitStrike`, the battery fire mission, `SpotForFire` |
+| AIR-2 FPV drone | ✅ | `DroneOperator`, the AirAttack Dive profile |
+| AIR-3 loiter / overwatch drone | ✅ | `DroneRecon`, `AirArmedSearch`, the drone team (CE-2436 AU-5) |
+| AIR-4 counter-drone | ✅ | `EngageAircraft`, `ShelterFromAir`, the shotgun + drone rule (CE-2436 AU-7); the radar SAM building (CE-4617) |
+| ASY-1 suicide bomber on foot | ✅ | `DetonateCharge` (a worn charge, CE-2238) |
+| ASY-2 VBIED driver | 🟨 | ⭐ `ua-car-bomb` (a boot charge, `FollowRoute` + `TriggerIed` at 15 m; checked by `utility-demo-check.py` `run_car_bomb`) — route-driven only, no driving AT a target, no ramming — §12 |
+| ASY-3 hit-and-run ambush | 🟨 | composable from `Ambush` + `BreakContact`; no dedicated play |
+| ASY-4 IED | ✅ | `TriggerIed` |
+| ASY-5 riot instigator | ✅ | the instigator in `CrowdSystem` (CE-2238) |
+| CIV-1 daily routine | ✅ | `CivilianHsm` (Routine) |
+| CIV-2 panic flight | ✅ | `CivilianReact` / the HSM's Alarmed state |
+| CIV-3 gather / onlookers | ✅ | the crowd (CE-2237) |
+| CIV-4 riot | ✅ | the protest (CE-2240) |
+| CIV-5 mob attack on a victim | ⛔ | nothing found |
+| CIV-6 casualty | ✅ | the injury states (CE-2155) |
+| CIV-7 shelter indoors | ✅ | the HSM's shelter (Civilians §5e) |
+| MED-1 casualty states | ✅ | injury states + bleed-out (CE-2155) |
+| MED-2 medic | ✅ | `CasualtyCare`, `CarryCasualty` |
+| MED-3 CASEVAC | ✅ | `LoadCasualty`, `SquadRecover` |
+
+⭐ **31 built · 6 partial · 4 missing** (the missing: SQD-7, VEH-3, VEH-4, CIV-5). ⭐ Next (🔒 user, `2026-11-15`): VEH-3 as the grey-zone
+motorcycle crossing, SQD-13's checkpoint, VEH-4 / ASY-2 the ramming and the car bomb — analysed in §12.
 
 ## 4. Capability nodes needed *(① layer — shared C#, one per concept)*
 
@@ -367,3 +424,127 @@ the five primitives with a table, and members only ever run individual behaviour
 Rejected: **one node per manoeuvre** — six copies of the same 200-line shape, against "differ only in configuration"; **starting
 with the convoy ambush** — it needs S1 + S2 + the dismount first; **the autonomous scorer (`ManeuverSelect`) first** — D3 waits for
 a real danger-area provider, and a mission or the SOP can pick the drill until then.
+
+## 12. The next three — the grey-zone motorcycle, the checkpoint, ramming and the car bomb *(coordinator, `2026-11-15`; ANALYSIS — ⭐ now DESIGNED and READY-TO-BUILD: [DESIGN_Motorcycle.md](designs/vehicle-tactics/DESIGN_Motorcycle.md) (CE-4621) and [DESIGN_Checkpoint_And_Ramming.md](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md) (CE-4622); where they differ from this section, THEY are current)*
+
+🔒 User, `2026-11-15`: *"Some motorcyclist trying to get over the no man's zone, which is full of suicide drones … to cross the land as quickly as
+possible and to avoid the drones by speed driving … used for transporting the troops over the exposed areas"* · *"the second one is the checkpoint
+and the car RAM attack. Please think about it and analyze what might be implemented and how it could work."*
+
+### 12.1 What the 2025 front shows *(open sources, Apr–Dec 2025; mostly Ukrainian officials and ISW; ⚠ no source describes the riding drill itself)*
+
+| | |
+|---|---|
+| the zone | FPV saturation widened the grey zone from ~0.5–2 km to 5–7 km (some say 10–15 km); search drones see riders ~4 km out |
+| the use | groups of 2–3 motorcycles / ATVs, 1–2 men each, carry assault troops across at 50–60 km/h (up to 100) off-road; the bikes are DROPPED at the enemy's edge and the men fight on foot; sometimes a decoy drawing drones off the IFVs |
+| the defence | speed (less time exposed), dispersion, manoeuvre; ⚠ engine noise drowns the drone's sound — riders do not hear it coming |
+| the results | heavy losses (a 90-bike assault near Pokrovsk failed; a 50-bike one near Siversk left one survivor) — fast is survivable, not safe |
+| Ukraine | the 425th's motorcycle assault company, riders trained to shoot on the move; and ground robots replacing exposed men |
+
+### 12.2 What the engine has *(measured `2026-11-15`)*
+
+| need | state | where |
+|---|---|---|
+| a two-wheeler | ⛔ none — wheeled vehicles are pickups / HMMWV (25 m/s), seats with `PassengerExposure.Open` | `NedTkbCatalog.cs:142, :157-170, :581` |
+| off-road speed | ⛔ **no off-road factor at all** — every wheeled vehicle drives a ploughed field at its road speed; only a tracked hull in a wood is capped | `CarKinematicsSystem.cs:216-223` |
+| the FPV chase | ✅ search → pursue (re-steered 0.5 s) → dive (0.2 s) with LEAD on the target's velocity; 30 m/s, 120°/s, hit at 0.8 m; speed is NOT in its target choice | `AirAttackBehaviors.cs:548-635`, `FlightParamsDto.cs:15-27`, `DroneImpactSystem.cs` |
+| a vehicle evading drones | ✅ `ShelterFromAir`: overhead cover within 60 m, else 40 m legs away with ±35° swerves | `ShelterFromAirNodes.cs:184-198` |
+| an exposure-minimising dash route | ⛔ (`FindDashRoute` was listed 🟥 in §7) | — |
+| checkpoint scenery | ✅ the `checkpoint` terrain recipe (jersey barriers, booth, sandbags, a car); obstacles SUMO cars respect, a fully blocked road closed (CE-4590) | `assets/terrain-recipes/checkpoint.recipe.json`, `TrafficBodies.cs:110` |
+| escalation of force | ✅ ROE `ForceLevel` Warn → NonLethal → Lethal, a 2 s warning gesture; ⛔ no warning shot, no disabling shot, no vehicle ladder | `Roe.cs:24-36`, `EscalationLadder.cs`, Civilians §5k |
+| searching a person | 🟨 the primitive `Custody` Search (3 s, reveals hidden weapons) — ⛔ nothing raises it | `Custody.cs:140-160` |
+| stopping one SUMO car | ⛔ only by an obstacle; SUMO cars carry no people | `TrafficBodies.cs` |
+| a vehicle hitting a person | ⛔ no damage — vehicles avoid people | `CarKinematicsSystem.cs:476-490`; Breaching `:34` |
+| an AI vehicle driving AT an entity | ⛔ only fixed points / routes | — |
+| a car bomb | 🟨 `ua-car-bomb`: a boot charge, route + proximity trigger | §3a ASY-2 |
+| AI ramming a barrier | ⛔ by ruling: only a player's heavy vehicle (or the bulldozer on order) breaches | Breaching B-D1, B-D3 |
+
+### 12.3 The grey-zone motorcycle crossing (VEH-3) — leans *(⏳ not yet ruled — the user widened it to insurgents, §12.6)*
+
+⭐ **The physics, stated honestly:** an FPV (30 m/s, our default; real ones 28–40 m/s) is FASTER than a bike off-road (14–17 m/s). Speed cannot outrun
+it — it SHORTENS THE EXPOSURE (fewer drones get a run) and makes the drone's lead harder; what saves a rider in its last seconds is a hard break
+turn as it dives (our drone re-aims every 0.2 s at 120°/s with a 0.8 m contact radius — a late swerve can make it miss by construction).
+
+| # | lean | why |
+|---|---|---|
+| MC-1 | a **motorcycle** type: rider + one passenger, both exposed; ~28 m/s on a road, its off-road speed from MC-2; a small target signature | the transport the reports describe |
+| MC-2 | ⭐ an **off-road speed factor per mobility class and ground** (road / track / field / rough / wood), engine-wide, defaulting to 1.0 for existing types so nothing changes until each is calibrated | ⛔ today a pickup crosses a field at road speed — the dash means nothing without it |
+| MC-3 | the play **`GreyZoneDash`** (a squad on 2–3 bikes): a route minimising exposure (woods, hedges, dead ground — the EQS exposure test along the route), **spacing ≥ 80 m** (one drone, one bike), full speed, never stop | the doctrine reported |
+| MC-4 | **the last-second break**: the passenger is the lookout (EYES — ⭐ riding masks the riders' hearing, the reported weakness); a diving drone inside ~40 m ⇒ a hard swerve across its line; a drone tailing ⇒ jink | the one thing a rider can do; measurable |
+| MC-5 | bike disabled or a rider down ⇒ the others DO NOT stop (doctrine); the survivors go to cover on foot (`UnderFireMove`, `TakeCover`) | the existing reflexes |
+| MC-6 | at the dismount point (the enemy's tree line) ⇒ dismount, leave the bikes, take the squad's order on foot (`SquadDismount`, then Attack / Hold) | the bike is a transport |
+| MC-7 | the defender: the existing `DroneOperator` / `DroneTeam` FPV hunt, unchanged; optional decoy use later | no new defender code |
+| MC-8 | the test: 3 bikes × 2 men across ~1.5 km of open ground against two FPV operators; seeded runs measure crossings survived vs speed, spacing and the break turn | the user's scenario |
+
+### 12.4 The checkpoint (SQD-13) — ✅ CP-1…CP-5 APPROVED `2026-11-15` (R-4260)
+
+**The proven pattern** (vehicle checkpoint doctrine): warning signs far out → a serpentine of barriers that FORCES slow speed → a stop line → a search
+bay off the road → an overwatch weapon covering the approach → a reaction element; escalation of force by distance lines: signal → warning shot →
+disabling shots (engine) → lethal at the driver; threat indicators: not slowing by the line, ignoring signals.
+
+| # | lean | why |
+|---|---|---|
+| CP-1 | a **`Checkpoint`** squad play on an authored site (the terrain recipe gains named lines: the warning line, the stop line, the search bay) with roles: stopper, searchers, overwatch, reaction | the doctrine's roles; the scenery exists |
+| CP-2 | a **vehicle-approach watch**: each approaching vehicle's speed at each line — slowing ⇒ routine; not slowing past the warning line ⇒ a THREAT (a hostile act, Civilians AW-19 already rules a vehicle driven at people hostile) | the threat indicator, measured not scripted |
+| CP-3 | the **vehicle ladder** in `EscalationLadder`: signal (gesture, a light) → **warning shot** (into the ground ahead) → **disabling shots** (the engine — a mobility kill on the vehicle's damage parts) → lethal, each tied to a distance line and the ROE force level | ⛔ today there is no warning or disabling shot |
+| CP-4 | **search**: an own-simulated car (with occupants) is stopped at the line, the occupants get out, `Custody` Search runs (finally raised); a SUMO car is waved through or held as traffic (a backend "hold this car" command on the traffic bridge) | SUMO cars carry no people |
+| CP-5 | the test: `ua-car-bomb` re-cast at a checkpoint — a routine car searched and released; a car that does not slow is laddered and stopped before the stand-off line, or reaches it and detonates | the existing car bomb becomes the acceptance |
+
+### 12.5 Ramming and the car bomb (VEH-4 / ASY-2) — ✅ RM-1…RM-5 APPROVED `2026-11-15` (R-4260; RM-5 as leaned: an AI vehicle breaches a weak barrier ONLY on a `RamTarget` order, through `ContactBreach` — amends Breaching B-D1)
+
+| # | lean | why |
+|---|---|---|
+| RM-1 | ⭐ **a vehicle that hits a person hurts him by its speed** — an injury by the impact speed into the existing injury states (thresholds: knocked down / serious / killed), one rule in the vehicle integrator | ⛔ today vehicles cannot hurt anyone; needed for ramming AND for realism (a player's car) |
+| RM-2 | **`RamTarget`**: an AI vehicle drives AT an entity or a crowd with the drone's lead pursuit, avoidance switched off for its target only | ⛔ no ground pursuit exists; the lead predictor is shared |
+| RM-3 | a **hostile act `VehicleAtPeople`** in `HostileActs` — the checkpoint's ladder and every soldier's ROE fire on it | AW-19 rules it hostile; nothing raises it |
+| RM-4 | the **VBIED driver** = `RamTarget` at the checkpoint / crowd + detonate on contact or when stopped (his boot charge, `Charges.Ask` with the carried rule) | composes what exists |
+| RM-5 | ⚠ **a ramming AI vehicle through a weak barrier** — today ruled OUT (Breaching B-D1: only a player's heavy vehicle, and the bulldozer on order). Lean: allow it ONLY on a `RamTarget` order, through the same `ContactBreach` rules — ⚠ **this reverses part of a user ruling, so it is the user's call** | a truck through the barrier is the classic ram attack |
+
+⭐ **Lean on the order:** design the checkpoint and ramming TOGETHER (they share the approach watch, the hostile act, the ladder and the car-bomb test)
+and the motorcycle separately; build MC-2 (off-road speed) first — it is engine-wide and every vehicle tactic depends on it.
+
+🔒 User, `2026-11-15`: *"Checkpoint and ramming is approved."* (R-4260)
+
+### 12.6 The motorcycle in insurgency and terrorism *(coordinator, `2026-11-15`; 🔒 user: "could we use something similar for Far East terrorist attacks, or in general for the movement of the terrorists or insurgents, and what kind of behavior might make sense using the motorcycle in such areas" — ANALYSIS, leans)*
+
+**What open sources show** *(⚠ a quick sweep — the Sahel and southern Thailand are sourced; the South-Asian pillion shooting is widely reported but was not verified in this sweep)*:
+
+| where | the use |
+|---|---|
+| the Sahel (JNIM, Mali / Burkina Faso, 2025–26) | MASSED motorcycles are the predominant tactic: rapid concentration, moving round fixed defences, instant dispersal after contact; often at night; one part of a combined assault (indirect fire, VBIEDs); cheap, and hard for air / drone strikes to find; dozens of motorcycle BANS since 2012 |
+| southern Thailand (Pattani, Yala) | the motorcycle BOMB: ridden into a market and parked among other bikes, then left (2019); beside a police station on a timer (2025); a sidecar bomb ridden to a CHECKPOINT, the riders escaping on a second, waiting bike (2026); two men on a bike throwing an IED at a government pickup |
+| South Asia (Pakistan, Afghanistan) | ⚠ unverified here: the two-up drive-by — the pillion shoots a target at a stop and the bike escapes into traffic; a charge stuck to a vehicle at a stop |
+
+⭐ **What makes the motorcycle the insurgent's tool, in one line:** it BLENDS (one of thousands in civilian traffic), it is FAST through narrow streets, it DISPERSES instantly, and it is cheap. ⇒ in our engine the behaviours are compositions of the SAME motorcycle (MC-1, MC-2) with what already exists — hidden weapons (Civilians §5h), charges, the hostile act, the checkpoint (R-4260).
+
+| # | behaviour (lean) | how it composes | ⛔ the gap it needs |
+|---|---|---|---|
+| IM-1 | ⭐ **`DriveBy`** — two up; ride to the target (a man, a vehicle at a stop, a post), slow alongside, the PILLION fires a burst or throws a grenade, escape at speed into traffic / a side street, split up | the hidden weapon revealed on the act (§5h), `HiddenTargetThrow`, the hostile act; escape = `BreakContact` on wheels | a passenger firing his OWN weapon from an exposed seat (exposed seats exist — `CarrierTkbTranslator.cs:110-120` — a seat that FIRES is unmeasured) |
+| IM-2 | ⭐ **parked motorcycle bomb** — ride in, park among other bikes / at a market / beside a post, walk away (or onto a waiting bike), detonate by timer or phone | the cargo charge (`Charges`, `TriggerIed` for the phone), `PlaceCharge`-style placement | a TIMER detonation; a charge carried by a two-wheeler |
+| IM-3 | **motorcycle VBIED at a checkpoint** — = R-4260's `RamTarget` with a two-wheeler; ⭐ the checkpoint must handle bikes (they slip through a serpentine meant for cars) | `RamTarget`, the checkpoint ladder | the checkpoint's lines sized for a bike too |
+| IM-4 | ⛔ **DROPPED** (🔒 user, `2026-11-15`: *"Ignore the sticky car bomb."*) — **sticky bomb** — at a stop (a traffic light, a checkpoint queue) the pillion attaches a charge to a vehicle and the bike rides off | a charge ATTACHED to another entity | ⛔ attaching a charge to a vehicle |
+| IM-5 | **swarm raid (Sahel)** — 20–100 bikes, two men each, converge on a post from several directions (often at night), fight, then DISPERSE in many directions at once | the motorcycle squad of §12.3 at scale; `PlatoonAttack` / `CompanyAttack` on bikes; dispersal = many `BreakContact`s on divergent routes | a dispersal play; night (existing weather / light) |
+| IM-6 | **scout / spotter / getaway** — a lone rider watches a patrol and reports to the cell (the "dicker"); a second bike waits to extract the bombers | `Sentry` + the report path; a waiting `MoveToLocation` | none — composition |
+| IM-7 | **blending in** — insurgent bikes ARE civilian traffic until they act: SUMO can drive motorcycles (a traffic type with SUMO's `motorcycle` class, as the cars are `TrafficVehicleDto`, `UrbanCombatTkbCatalog.cs:206, :439`) and an insurgent rides like one, neutral, his weapon hidden, until the act | traffic + identification (neutral → hostile on the act) | civilian motorcycles in the traffic catalogue |
+| IM-8 | **the counters, for the trainees** — a motorcycle ban as a scenario rule; "two men on one bike" as a suspicion indicator at a checkpoint; the checkpoint's bike lane | the checkpoint (R-4260), the suspicion indicators (CP-2) | the indicator |
+
+⭐ **Lean on the order:** ONE motorcycle (MC-1, MC-2) serves both the soldier and the insurgent — build it once; then **IM-1 drive-by** and **IM-2
+parked bomb** first (the commonest, cheapest, and they test the checkpoint and patrol scenarios trainees most need), IM-3 falls out of R-4260 for
+free, IM-5's swarm after the grey-zone dash (the same group play at scale); IM-4 last (a new attach mechanism).
+
+#### 12.6a The pillion who fires — like a technical's gunner *(🔒 user, `2026-11-15`: "Can we have the second passenger on the motorcycle firing from his hand weapon while riding, behaving like the gunner in a technical? … the driver cannot reasonably shoot and drive at the same time." — leans)*
+
+📐 **Measured — why he cannot today:** boarding STRIPS `CanMove | CanShoot` from every passenger (`Embarkation.StrippedAboard`,
+`Embarkation.cs:50`); the one exception is a WEAPON SYSTEM's own Gunner seat (`StrippedOn`, `:517-525`). ⭐ And a technical's gunner does NOT fire
+his own weapon: on a vehicle crew seat *"the HOST fires and the man fires nothing"* (W-I) — the mounted gun is the vehicle's mount, its man only
+mans it. ⇒ the pillion is a NEW case: a passenger who keeps his OWN weapon. The moving-shooter penalty already exists (σ × 2 above 0.5 m/s,
+`HitModel.cs:20-34`).
+
+| # | lean | why |
+|---|---|---|
+| PF-1 | ⭐ a seat that **fires its man's own weapon**: `SeatDto` gains a fire arc (e.g. the pillion: both sides and the rear, never forward across the rider); a man in such a seat KEEPS `CanShoot` (not `CanMove`) and fires through his own `WeaponChannel` — ONE rule in `StrippedOn` | ⭐ generic, not a motorcycle hack: the same seat is a pickup bed's riflemen, an open truck's, a Bradley's firing ports |
+| PF-2 | his spread = the moving-shooter law with HIS VEHICLE's speed (the existing `MovingFactor`), plus a rough-ride factor off-road (MC-2's ground classes) | one accuracy law; a drive-by is inaccurate unless the rider slows |
+| PF-3 | WHO decides to fire: the passenger's own weapon brain — his threat evaluation, the ROE, inside the seat's arc — as a gunner chooses; the RIDER only drives | 🔒 the user's point: the driver cannot shoot and drive |
+| PF-4 | the rider fires only when STOPPED (his own weapon, no arc limit while stopped) — never moving | the same reasoning |
+| PF-5 | the plays use it: the drive-by (IM-1) slows and holds a steady line past the target while the pillion fires a burst, then speeds away; the swarm raid (IM-5) and the night raid on a post fire from the pillions on the approach, then dismount | the doctrine the sources show |
+

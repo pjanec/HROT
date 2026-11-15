@@ -107,9 +107,21 @@ namespace Fdp.Toolkit.Behavior
             if (!world.IsComponentTypeRegistered<UnitSubordinate>() || !world.HasComponent<UnitSubordinate>(self)) return false;
             var commander = world.GetComponentRO<UnitSubordinate>(self).Commander;
             if (commander.IsNull || !world.IsAlive(commander)) return false;
-            return Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, commander)
-                ? Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, commander)
-                : Fdp.Toolkit.Combat.Injury.IsInTheFight(world, commander);
+            if (!Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, commander)) return Fdp.Toolkit.Combat.Injury.IsInTheFight(world, commander);
+            // ⭐⭐ CE-2436 AU-6 (R-2115, lane decision) — a unit commander still COMMANDS while this subordinate runs its order (AQ97 A: "a live
+            //   commander above him"; he is his own master once his unit is wiped out): a platoon down to one effective squad is below
+            //   IsInTheFight's line yet its play still runs and orders, so the squad's own reactions must not replace that order.
+            //   📌 Live cc-battalion run #10: two assault squads ClearBuilding inside Objective 1 went ReactToContact for 5-6 min (the platoon
+            //   below its line) and the building was never cleared. Reads only this entity's own task (per-entity rule).
+            return Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(world, commander) || RunsHisOrder(self, world);
+        }
+
+        /// <summary>⭐ <c>CE-2436</c> (R-2115) — <paramref name="self"/> runs a task its superior gave (not a reaction, not empty).</summary>
+        private static bool RunsHisOrder(Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(self)) return false;
+            ref readonly var bs = ref world.GetComponentRO<BehaviorState>(self);
+            return bs.Origin == BehaviorOrigin.Superior && bs.ActiveBehaviorHash != BehaviorIds.None;
         }
 
         /// <summary>⭐ <c>CE-2322</c> (AQ97, as built) — he sits aboard a vehicle (a crewman spawned in his seat, a passenger): the vehicle's

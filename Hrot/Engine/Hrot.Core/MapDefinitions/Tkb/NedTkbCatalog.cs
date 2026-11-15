@@ -45,6 +45,28 @@ namespace Hrot.Map.Definitions.Tkb
             AmmoTkb = (Fdp.Core.TkbTypeId)(ammo), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(tracer), TracerEvery = 5, Category = WeaponCategory.MachineGun,
         };
 
+        /// <summary>The rifleman's M4-class carbine (mount 0): 5.56, 300 m, 1 in 5 traces, the rifle's spread.</summary>
+        private static WeaponMount M4Carbine() => new()
+        {
+            WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
+            DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
+            Category = WeaponCategory.SmallArms,
+        };
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-7 (A-10a, R-2110; docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md §9.5) — the anti-drone SHOTGUN, a
+        /// semi-automatic 12-gauge carried as the anti-drone man's second weapon (mount 1): 12 pellets a shot over a 15-mil pattern (≈ 0.9 m wide
+        /// at 30 m), spent past 60 m; one pellet downs a drone (12 against its 10 hp), a man's body armour stops it. Ammunition: the 5.56 ball's
+        /// munition stands in for the shell (its look and its report are a rifle's — lane default).
+        /// </summary>
+        private static WeaponMount AntiDroneShotgun() => new()
+        {
+            WeaponType = "M1014_Shotgun", Ammunition = 40, Range = 60, MuzzleVelocity = 400f, RateOfFire = 120, Penetration = 1, DamagePerHit = 12,
+            DispersionMils = RifleDispersionMils, Pellets = 12, PelletSpreadMils = 15f, MagazineSize = 7, ReloadSeconds = 6f,
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), Category = WeaponCategory.SmallArms,
+        };
+
         /// <summary>⭐ <c>CE-3254</c> (BR-9, DA-13) — a SCOPED rifle (mount 0): small arms, a slow precise shot, ×4 through a narrow scope while
         /// aimed (<c>HeldItems.ScopeUp</c>). <paramref name="dispersionMils"/> is the rifle's spread — the design's ≈ 0.3 mil sniper / ≈ 1 mil DMR.</summary>
         private static WeaponMount ScopedRifle(string weaponType, int ammunition, int magazine, float range, float rateOfFire, float dispersionMils,
@@ -84,10 +106,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithCombat(type, c =>
                 {
                     c.ArmorFront = 5; // Body armor
-                    c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700, Penetration = 5, DamagePerHit = 25,
-                        DispersionMils = RifleDispersionMils,   // ⭐ AQ85 C — the first opt-in (~50 % at 100 m standing still)
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb556Tracer), TracerEvery = 5,   // ⭐ LR-1 — 1 in 5 traces
-                        Category = WeaponCategory.SmallArms });
+                    c.Weapons.Add(M4Carbine());
                     c.SensorRange = 500;
                 })
                 .WithFaction(type, 1)
@@ -102,7 +121,8 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ <c>CE-3253</c> (BR-8) — an infantry MACHINE GUNNER: the rifleman's body, sensor, injury, carrier and brain with an LMG
         /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type. ⭐ <c>CE-3254</c>:
         /// the sniper and the marksmen are the same man with a scoped rifle.</summary>
-        private static void MachineGunner(NedTkbBuilder builder, long type, string name, WeaponMount lmg, ushort country, byte faction)
+        private static void MachineGunner(NedTkbBuilder builder, long type, string name, WeaponMount lmg, ushort country, byte faction,
+                                          WeaponMount? second = null)
         {
             builder
                 .DefineVehicle(type, name)
@@ -112,7 +132,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
                     p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
-                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); c.SensorRange = 500; })
+                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500; })
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
@@ -560,6 +580,69 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         /// <summary>⭐ The HMMWV (M1025-class, an M2 in its roof ring), ONE definition for both variants (2026-10-31, user: "HMMWV (M2, crewed)" /
         /// "HMMWV (M2, no crew)"): <paramref name="crewed"/> = its gunner seat starts with a rifleman at the M2, else it starts empty.</summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RS-1 / RV-2 / RV-6 / RV-15 / RV-17; docs/designs/air-attack/DESIGN_Radar_SAM.md) — the RADAR SAM vehicle: a
+        /// 6×6 truck (an SA-8 class, rounded) carrying a search-and-track radar on its mast and four ready missiles on its turret-0 launcher
+        /// (the canisters elevate with it, 0–85°; no reload). The radar's eye IS the vehicle's sight height (the mast — L-4): its eyes, its
+        /// radar and its launcher share it. The launcher fires a salvo of two, 2 s apart (<c>RoundsInFlight</c> / <c>SalvoIntervalS</c>);
+        /// the lock is the aim time. Unarmoured-ish (splinter protection). Starter values — lane decisions L-7…L-10.
+        /// </summary>
+        private static void RadarSam(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.AirDefence_RadarSam;
+            builder
+                .DefineVehicle(type, "Radar SAM vehicle")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SHGPUCDM-------";   // 2525B ground unit · combat · air defence · missile
+                    v.ColorHex = "#5A5E3A";
+                    v.Scale = 1.0f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 17_500;
+                    p.Length = 9.1f;
+                    p.Width = 2.8f;
+                    p.Height = 4.2f;
+                    p.MaxSpeed = 16.0f;
+                    p.Acceleration = 1.5f;
+                    p.TurnRate = 15.0f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 20; c.ArmorSide = 10; c.ArmorRear = 10; c.ArmorTop = 5;
+                    c.MaxHealth = 400;
+                    c.BlastSusceptibility = 0.3f;
+                    c.EyeHeight = RadarSamMastM;   // ⭐ RV-17 / L-4 — the radar's eye on the mast
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "RadarSam_Launcher", Ammunition = 4, Range = 8000, RateOfFire = 30,
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.RadarSamLibraryName),
+                        AimSeconds = 2f,   // the lock (M4: "the lock IS the aim time")
+                        FireOnMove = false,
+                        MuzzleVelocity = 800f,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile),
+                        Category = WeaponCategory.Sam, TurretIndex = 0,
+                        RoundsInFlight = 2, SalvoIntervalS = 2f,   // ⭐ RV-2 — a salvo of two, 2 s apart
+                        // ⭐ CE-4618 (ui, cross-lane): the canister's MOUTH — hinge (−1.1) + 2.8 m, so the missile and its flash leave where the launcher ends (was 1.0 m: mid-launcher)
+                        MuzzleOffset = new System.Numerics.Vector3(2.8f, 0f, 0.3f),
+                    });
+                    c.SensorRange = 3000;
+                    c.RadarRange = 8000;   // ⭐ RS-2 — against the 10 m² reference (RadarPerception)
+                })
+                .WithTurrets(type, new TurretDto { PivotX = -1.5f, PivotZ = 2.6f, TrunnionX = 0.4f,
+                    ElevationMinDeg = 0f, ElevationMaxDeg = 85f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 40f })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine, LauncherReport))
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 28, Subcategory = 1 });
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> (RV-17) — the radar SAM's mast: its radar's (and so its sight's) height above the ground, m.</summary>
+        public const float RadarSamMastM = 6f;
+
         private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed)
         {
             builder
@@ -838,6 +921,7 @@ namespace Hrot.Map.Definitions.Tkb
             builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
             if (tkbDb.TryGetByType(TkbEntityTypes.Ew_DroneJammer, out var jammer) && jammer != null)
                 jammer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 400f });
+            RadarSam(builder);
             
             // T-72 (OPFOR)
             builder
@@ -949,6 +1033,9 @@ namespace Hrot.Map.Definitions.Tkb
             MachineGunner(builder, TkbEntityTypes.Infantry_Sniper, "Sniper (M24)", ScopedRifle("M24_Sniper", 40, 5, 800, 40, 0.3f, 4f), UnitedStates, faction: 1);
             MachineGunner(builder, TkbEntityTypes.Infantry_Marksman, "Marksman (M110)", ScopedRifle("M110_DMR", 100, 20, 600, 60, 1f, 6f), UnitedStates, faction: 1);
             MachineGunner(builder, TkbEntityTypes.Infantry_MarksmanSvd, "Marksman (SVD)", ScopedRifle("SVD_DMR", 100, 10, 600, 60, 1f, 6f), Russia, faction: 2);
+            // ⭐ CE-2436 AU-7 (A-10a) — the anti-drone men: the rifleman with a shotgun as his second weapon, one a squad (Blue and the other side)
+            MachineGunner(builder, TkbEntityTypes.Infantry_AntiDrone, "Rifleman (anti-drone shotgun)", M4Carbine(), UnitedStates, faction: 1, second: AntiDroneShotgun());
+            MachineGunner(builder, TkbEntityTypes.Infantry_AntiDroneRed, "Rifleman (anti-drone shotgun, red)", M4Carbine(), Russia, faction: 2, second: AntiDroneShotgun());
             
             // Tank Platoon (Composite)
             builder
@@ -1135,6 +1222,17 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
+            // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
+            //   10 m² and scales as RCS^¼): open-source orders of magnitude, frontal. ⇒ an 8 km radar sees a UH-60 at ~6.4 km, an FPV at ~1.4 km.
+            builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
+                   .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Recon, 0.05f)
+                   .WithRadarCrossSection(TkbEntityTypes.Drone_Bomber, 0.3f);
             // ⭐⭐ CE-2188 / CE-1111 (BS-1-DESIGN §5.4c) — the crewed aircraft with a brain carry a flare / chaff DISPENSER as their last
             //   weapon mount (Dispenser, below): the UH-60s, the AH-64, the A-10. ⚠ The F-16 and the C-130 have no combat block and no
             //   brain (nothing could release their flares), so they carry none yet.

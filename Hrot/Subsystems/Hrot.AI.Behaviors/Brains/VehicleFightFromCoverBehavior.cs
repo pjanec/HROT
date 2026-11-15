@@ -59,4 +59,42 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDefinition(BehaviorNames.LandPlatformAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(VehicleFightFromCoverBlackboard))]
         public static BTreeBuilder<VehicleFightFromCoverBlackboard, BTreeContext> BuildLandPlatformAttack() => BuildTree();
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2436</c> AU-4 (A-4; 📄 DESIGN_Assault_Under_Fire §5, §9.4) — <c>VehicleSupportByFire</c>: the vehicle drives to its STAND-OFF point
+    /// (the base of fire's line, never the objective — ⛔ vehicles never lead across the open: modern anti-tank missiles and drones), then runs the
+    /// exposure cycle from there (<see cref="VehicleFightFromCoverNodes.VehicleFightFromCover"/>: hide behind a building, gun on the threat,
+    /// out front-first to a firing point, fire, and — Scoot, one exposure a position — RELOCATE to a new hide after EVERY engagement).
+    /// 📌 measured: the IFVs had no commander and no order — they did nothing for the attack. ⚠ The cycle fights what the vehicle's own sensors
+    /// find from its firing points; blind cannon fire on REPORTED points is not built (§9.4).
+    /// </summary>
+    public static class VehicleSupportByFireBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct VehicleSupportByFireBlackboard
+        {
+            public CgfNodes.MoveToLocationParams Move;
+            public VehicleFightFromCoverParams Fight;
+            public VehicleFightFromCoverState FightState;
+        }
+
+        [BehaviorResolver(BehaviorNames.VehicleSupportByFire)]
+        public static void Resolve(in VehicleSupportByFireParamsJsonDto authored, ref VehicleSupportByFireBlackboard block, EntityRepository world, Entity self)
+        {
+            block = default;
+            block.Move = new CgfNodes.MoveToLocationParams { X = authored.Position.X, Y = authored.Position.Y, Speed = authored.Speed, ArrivalRadius = 8f };
+            block.Fight.WithdrawMode = WithdrawMode.Scoot;      // relocate after each engagement
+            block.Fight.ExposuresPerPosition = 1;
+            block.Fight.SearchRadius = authored.SearchRadius;
+        }
+
+        [Behavior(BehaviorNames.VehicleSupportByFire, Params = typeof(VehicleSupportByFireParamsJsonDto), Categories = BehaviorCategory.MilitaryApc,
+                  Description = "Supports an attack by fire from a stand-off point: fights from cover and relocates after each engagement.")]
+        [BTreeDefinition(BehaviorNames.VehicleSupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(VehicleSupportByFireBlackboard))]
+        public static BTreeBuilder<VehicleSupportByFireBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<VehicleSupportByFireBlackboard, BTreeContext>()
+                .Sequence(both => both
+                    .Action(bb => bb.Move, CgfNodes.Action_WriteMoveToChannel)
+                    .StatefulAction(bb => bb.Fight, bb => bb.FightState, VehicleFightFromCoverNodes.VehicleFightFromCover));
+    }
 }

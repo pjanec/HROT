@@ -1,0 +1,84 @@
+{
+  "$doc": "docs/designs/air-attack/DESIGN_Radar_SAM.md \u00a75 B-6 (CE-4617) \u2014 the named checks: cue, searched, tracked, warning before the first launch, the salvo, radar off while relocating, the SPOT at the top commander and its strike. Fixed seeds; a hit or a miss may vary (not checked).",
+  "runFor": 180,
+  "golden": false,
+  "anchors": {
+    "launch": {
+      "on": "shot",
+      "by": "Radar SAM",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "cued, the SAM's radar comes on",
+      "on": "field",
+      "who": "Radar SAM",
+      "path": "RadarEmission.Mode",
+      "op": "in",
+      "value": [
+        "Search",
+        "Track",
+        1,
+        2
+      ]
+    },
+    {
+      "name": "an aircraft is warned SEARCHED",
+      "on": "field",
+      "who": "*",
+      "path": "RadarWarning.Level",
+      "op": "in",
+      "value": [
+        "Searched",
+        1
+      ]
+    },
+    {
+      "name": "an aircraft is warned TRACKED before the first launch",
+      "on": "field",
+      "who": "*",
+      "path": "RadarWarning.Level",
+      "op": "in",
+      "value": [
+        "Tracked",
+        2
+      ],
+      "before": "launch"
+    },
+    {
+      "name": "the SAM fires a salvo (2+ missiles)",
+      "on": "shot",
+      "by": "Radar SAM",
+      "n": 2
+    },
+    {
+      "name": "the radar goes OFF after the launch (relocating, or destroyed)",
+      "on": "field",
+      "who": "Radar SAM",
+      "path": "RadarEmission.Mode",
+      "op": "in",
+      "value": [
+        "Off",
+        0
+      ],
+      "after": "launch"
+    },
+    {
+      "name": "the FPV is never fired at (below the seeker's lock floor)",
+      "never": {
+        "on": "shot",
+        "by": "Radar SAM",
+        "at": "FPV Drone"
+      }
+    },
+    {
+      "name": "Blue HQ's picture holds the located air defence (the SPOT)",
+      "on": "field",
+      "who": "Blue HQ",
+      "path": "CommandPicture.Elements.0.Equipment",
+      "op": "contains",
+      "value": "AirDefence"
+    }
+  ]
+}

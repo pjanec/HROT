@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: READY-TO-BUILD (2026-11-15) — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
-current-answer: §1 inventory · §2 decisions (as amended) · §3 UML · §4 the engagement in time · §5 slices and acceptance · §6 the review
+build-state: BUILT (2026-11-15; B-1…B-6 — §7 as-built; sam-site 3/3, deterministic at 1/4/8 threads) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
+current-answer: §1 inventory · §2 decisions (as amended) · §3 UML · §4 the engagement in time · §5 slices and acceptance · §6 the review · ⭐ §7 AS-BUILT (where the build deviated, §7 wins)
 stale-below: § HISTORY at the bottom (§2–§5 as first approved)
-known-rot: none
+known-rot: §2a's missile id 6047 — taken (the 60 mm mortar smoke, CE-7025); as built 6050 (§7)
 known-conflict: none
 related-designs:
   - DESIGN_Air_Operations.md — OWNS the air defence frame (§7d AD1–AD6: this is AD6), the aircraft's missile warning and evasion (§7e), ground air defence `AirDefenceNodes` (§7f) this extends
@@ -65,7 +65,7 @@ published/replicated so other entities and on machines can detect that."*
 
 ### 2a. The fixed ids — ONE entity type for both lanes *(coordinator, `2026-11-15`; 🔒 user: "Does the ui handoff specify what entity type to assign the visuals to?" — it did not)*
 
-📐 Measured free on every lane (`coordinator`, `behaviors`, `backend`, `ui`, `terrain`): vehicle id 114, munition id 6047, DIS land category 28,
+📐 Measured free on every lane (`coordinator`, `behaviors`, `backend`, `ui`, `terrain`): vehicle id 114, munition id ~~6047~~ ⇒ 6050 (6047 is the 60 mm smoke, CE-7025 — §7), DIS land category 28,
 the class and family names. ⛔ Permanent wire values once built — never reuse or renumber.
 
 | what | the value | where it is declared | owner |
@@ -74,7 +74,7 @@ the class and family names. ⛔ Permanent wire values once built — never reuse
 | its DIS type | **Kind 1 · Domain 1 (land) · Category 28** (SISO: *Air Defense / Missile Defense Unit Equipment*) · Subcategory 1 | `NedTkbCatalog.cs` (`WithDisType`, as `Ew_DroneJammer` at `:838`) | backend B-2 |
 | its entity class | **`"AirDefenceVehicle"`** = `1.1.*.28` | `Hrot/Engine/Hrot.Core/Tkb/EntityClassTable.cs` (beside `"Bulldozer"` at `:170`) | backend B-2 |
 | its 3-D family | **`VisualFamily.AirDefenceVehicle`**, keyed by the class name in `FamilyOfClass` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` (beside `["Bulldozer"]` at `:78`) + its `ShapeKit` | **ui** U-1 |
-| the missile | **`MunitionTkbCatalog.TkbRadarSamMissile = 6047`** (next to `TkbThrowingStar = 6046`) | `MunitionTkbCatalog.cs` | backend B-2 (placeholder look row) · ui U-2 tunes the look |
+| the missile | ⛔ ~~6047~~ (taken: `Tkb60mmMortarSmoke`, CE-7025) ⇒ ⭐ **`MunitionTkbCatalog.TkbRadarSamMissile = 6050`** (§7) | `MunitionTkbCatalog.cs` | backend B-2 (placeholder look row) · ui U-2 tunes the look |
 | the launcher | ⭐ the vehicle's OWN turret-0 mount — **no separate weapon-system entity** (unlike the ZU-23 technical's 615) | the type's combat mounts | backend B-2 |
 
 *Why one class and one family:* `VisualFamily.Of` picks the 3-D body from the DIS class chain (`VisualFamily.cs:93-99`), so the class name is the
@@ -232,7 +232,9 @@ rides a module that already runs on the nodes where its inputs live.*
 | **B-5** | backend | `EmitterLocatingSystem` + the SPOT to the top commander + `SupportCommand`'s SEAD rule | after 30 s On the top commander's picture holds an AirDefence element within 200 m and a strike is ordered on it; none while Off |
 | **B-6** | backend | `sam-site`: one SAM vehicle on a terrain with relief, an AH-64 attack run (starting inside coverage), a bomber drone, a jet approaching from beyond the terrain | three runs: the named checks — cue, searched, tracked, warning before the first launch, salvo per target type, Off while relocating, the SPOT at the top commander; fixed seeds, the hit / miss may vary; deterministic at 1 / 4 / 8 threads |
 | **U-1** | ui | the vehicle's visual family / shape kit, the launcher on turret 0, the mast spinning while the replicated `RadarEmission.On` | 2-D symbol and 3-D, on a separate display node too; a frame rail under `xvfb-run -a` |
+|  | | ⭐ **AS-BUILT `2026-11-15` (ui, CE-4618) — U-1 DONE** — family `VisualFamily.AirDefenceVehicle` bound to backend's class (`FamilyOfClass["AirDefenceVehicle"]`, type 114) + `ShapeKits.AirDefenceVehicle` (8 × 8 truck, cab, 4 canisters on the turret-0 turntable, a hull mast with a spinning antenna = `PartRole.RadarAntenna` + `MotionPose.Antenna`), the spin driven by ONE read, `RadarActivity.IsOn` → `RadarEmissions.IsOn`. ⭐ **The kit was fitted to backend's `TurretDto`** (axis −1.5, trunnion −1.1, z 2.6 on the TKB's 9.1 × 2.8 × 4.2 box) — ⛔ SUPERSEDED: the first build asked backend for pivot −2.4 / trunnion −3.0 / z 3.0 on 9.8 × 3.0 × 4.4. Also the rounds left: the four canisters carry front covers that go in the fire order top-left, top-right, bottom-left, bottom-right as the replicated `WeaponAmmo` (mount 0) counts down (`LauncherLoad`). 2-D: the TKB's `SHGPUCDM` + the class chain. Thumbnail in the atlas. Display node: by construction, no cluster rail. Rail `AirDefenceVehicleModelRail`; details [DESIGN_Map_3D_Mode.md §6al.1](../../DESIGN_Map_3D_Mode.md) |
 | **U-2** | ui | the missile look (`MunitionVisualDto`, smoke trail) + the launch effect set (flash) | the launch shows on the frame of the shot |
+|  | | ⭐ **AS-BUILT `2026-11-15` (ui, CE-4618) — U-2 DONE** — missile **6050** (⛔ not 6047): slim 3.0 × 0.17 m `Missile` shape, light grey-green, smoke trail (cross-lane `MunitionTkbCatalog.cs`); launch = `Effect.Set` on 6050 (new flash type 7173 at the muzzle) + `FiringBlast.Launch` spawning smoke 7174 at the shot's origin; ⭐ backend's `MuzzleOffset` moved from (1.0, 0, 0.4) to **(2.8, 0, 0.3)** so the round and its flash leave the canister's MOUTH (cross-lane `NedTkbCatalog.RadarSam`). The frame rail fires mount 0 and asserts flash + smoke + missile in that frame |
 | **U-3** | ui | ⏸ optional: the radar's coverage on the map when selected, On / Off colour | — |
 
 ⭐ Every backend slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8` on `sam-site`;
@@ -263,6 +265,91 @@ rides a module that already runs on the nodes where its inputs live.*
 | RV-17 | NIT | line of sight from the hull's sight height, not the mast; add `RadarEmitter` with its final value (D-31) | `NedTkbBuilder.cs:356` | a mast sight height on the type; add-with-value |
 
 ⭐ **Found sound:** aircraft are in the perception grid with 3-D line of sight; the radar kind is registered and its contacts reach memory tagged Radar; `AirThreat` is raised by any sense; the turn rate (~37 g) and the proximity fuze are right for helicopters; the missile warning already fires for radar rounds; IFF by side is inherited; visual-only readers correctly ignore radar contacts; subordinates already relay air-defence elements upward.
+
+## 7. ⭐ AS-BUILT *(backend, CE-4617 — B-1…B-3 `2026-11-15`; the status report: `docs/blueprints/batches/STATUS_Backend_Radar_SAM.md`)*
+
+```mermaid
+classDiagram
+  class FireControlSight {
+    <<new, Fdp.Toolkits Combat>>
+    Sees(unit, target, mount, loadedAmmo)
+    SeesForAnyMount(unit, target)
+    RadarGuided(mount, loadedAmmo)
+  }
+  class SightNow {
+    <<existing>>
+    Sees() eyes only, unchanged
+    Holds(kind) new
+  }
+  class AimAndFireExecutor {
+    <<existing>>
+    TurretPath salvo RoundsInFlight SalvoIntervalS
+  }
+  class WeaponMountDto {
+    <<existing, two appended fields>>
+    RoundsInFlight
+    SalvoIntervalS
+  }
+  class MissileDto {
+    <<existing, one appended field>>
+    MinTargetRcsM2
+  }
+  class AmmoChoice {
+    <<existing>>
+    InDomain() the one round gate, now with the lock floor
+  }
+  class CountermeasureSystem {
+    <<existing>>
+    InChaffEndGame(pos, vel, cloud)
+  }
+  class AirAttackNodes {
+    <<existing, behaviors>>
+    ChaffTooEarly() holds chaff for the end-game
+  }
+  class RadarSamNodes {
+    <<new, behaviors>>
+    CanEngageByRadar
+    RadarSamEngage
+    SalvoFor 2 1 0
+  }
+  class AirDefenceWeapons {
+    <<existing>>
+    CanEngageAir reads HasRounds
+  }
+  class RadarEmissions {
+    <<B-1>>
+    Set() the one writer
+    RangeOf() CrossSectionOf()
+  }
+  AimAndFireExecutor ..> FireControlSight : both sites
+  FireControlSight ..> SightNow
+  AimAndFireExecutor ..> WeaponMountDto : the salvo
+  RadarSamNodes ..> FireControlSight
+  RadarSamNodes ..> RadarEmissions : own vehicle only
+  RadarSamNodes ..> AmmoChoice : salvo 0 when refused
+  AmmoChoice ..> MissileDto : lock floor
+  AmmoChoice ..> RadarEmissions : cross-section
+  AirAttackNodes ..> CountermeasureSystem : the same end-game
+```
+*What it shows that §3 did not: the FPV refusal is no type list — it is the missile's seeker LOCK FLOOR read by the ONE round gate every weapon
+choice passes (`AmmoChoice.InDomain`); and chaff's end-game is ONE rule read twice — by the round (`InChaffEndGame`) and by the aircraft that
+waits for it (`ChaffTooEarly`).*
+
+| where the build deviated from §2–§5 | as built | why |
+|---|---|---|
+| §2a the missile id 6047 | ⭐ **6050** | 6047–6049 are the mortar smoke bombs on every lane (CE-7025); the ids note said *"keep yours and say so"* |
+| RS-5 *"the SAM mount refuses an FPV in the weapon choice"* | the missile's **`MinTargetRcsM2` 0.03 m²** in `AmmoChoice.InDomain` (FPV 0.01 refused, recon 0.05 taken) | a property of the seeker, in the one gate — no list of drone types to keep |
+| RS-4 salvo 2 / 1 / 0 by target type | drone = SISO DIS air category **50** (unmanned) ⇒ 1, else 2; 0 = refused by the gate | the standard's own field |
+| RS-5 *"200–500 m to cover"* | **350 m straight away from the last aircraft** at 8 m/s, given up after 90 s; ⏸ no cover search | the EQS cover query is a separate cost; filed with the B-6 report |
+| RS-3 chaff only in the end-game | the round's gate **and** the aircraft holding its chaff for it (`ChaffTooEarly`, from the warning's time to go) | a cloud dropped at the launch (where the aircraft dropped it) would always be wasted — the defeat rate would be ~0, not 20–40 % |
+| RS-4 `AirSense.FireAt` | `FireControlSight.SeesForAnyMount` (eyes, or the radar when ANY own mount fires a radar-guided round); the executor still asks per mount | the node runs before the weapon brain picks the mount |
+| RS-6 / RV-8 the warning | `RadarWarningReceiverSystem` writes the aircraft's own `RadarWarning` (499, derived, not replicated) on its brain node from the replicated emissions — searched AND tracked (RV-8's event form REJECTED by R-4259's RS-10, as §2 says) | — |
+| RS-6 the escape | `AirAttackNodes`: tracked ⇒ off the bearing (half beam, half away), 10 m AGL for every attack profile, clears 8 s after the track, the pass not counted — the missile break's come-round shared (`ComeRound(countPass)`) | one come-round for both escapes |
+| RS-7 the emitter located | `EmitterLocatingSystem` in `Fdp.Toolkit.Squad.Command` (the CGF pack, before the staff), raised on the top commander's brain node; the SPOT is synthetic, sent "from" the commander's first subordinate (the inbox folds only a report with a sender) | no fake sender row in the picture |
+| RS-7 SEAD | `SupportCommand.Sead` at the head of the tick: plane → battery → armed drone, no request needed, one order per 5 s | an order reaches a unit's brain a frame later — "busy" alone ordered twice |
+| B-6 `sam-site` | on **city-battle** (its hill — the showcase's "hill AA"); the jet is the A-10 (no F-16 scenario exists); an FPV loiters near to keep the radar on past 30 s (shoot-and-scoot otherwise beats the direction finding — measured: 23 s on, then off) | the design named no terrain; RV-5's "relief" |
+| RS-10 "radiating" | `RadarEmissions.Radiates` = on AND the vehicle in the fight — the one rule the sensor, the warning receiver and the direction finding read | `sam-site`: a SAM destroyed while tracking kept its last "Track" |
+| RS-5 *"cued by a NON-radar contact"* | the row's fresh air sense (any sense); the radar's own contacts exist only while it radiates and it is off between engagements | no per-sense air sense exists; relocation outlasts the 3 s freshness |
 
 ## ⛔ HISTORY — §2–§5 as first approved (R-4258), before the §6 review amended them (R-4259) — ⛔ do not quote
 

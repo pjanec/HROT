@@ -320,6 +320,65 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(miss <= 4.5f, $"it burst {miss:0.0} m from the helicopter — the fuze reaches 4 m");
         }
 
+        // ── ⭐⭐ CE-4617 (B-2, RS-3 / RV-6; docs/designs/air-attack/DESIGN_Radar_SAM.md) — the radar SAM's missile ─────────────────────
+
+        /// <summary>The radar SAM's missile as <c>FireProcessingSystem</c> builds it from its <c>MissileDto</c>: radar, 800 m/s, a 60° seeker
+        /// cone (or <paramref name="coneDeg"/>), 18 s of flight, the 4 m proximity fuze, the engine's turn rate.</summary>
+        private Entity RadarSamRound(Vector3 velocity, Entity target, Vector3 lastSeen, float coneDeg = 60f)
+            => Round(Vector3.Zero, velocity, new GuidedRound
+            {
+                Guidance = GuidanceKind.Radar, Phase = GuidedPhase.Cruise, Target = target, LastSeen = lastSeen,
+                SeekerCos = MathF.Cos(0.5f * coneDeg * MathF.PI / 180f), ProximityM = 4f, LifetimeTicks = 18 * 60, Rejection = 0.9f,
+            });
+
+        /// <summary>Flies the round at <paramref name="target"/> (moving at <paramref name="v"/>) until it bursts or <paramref name="seconds"/>
+        /// pass; returns the burst's distance from the target (∞ when it never burst).</summary>
+        private float FlyAt(Entity round, Entity target, Vector3 v, float seconds)
+        {
+            for (int f = 0; f < seconds * 60 && _w.IsAlive(round); f++)
+            {
+                _w.GetComponentRW<SimTransform>(target).Position += v * Dt;
+                StepAlive(round);
+            }
+            if (_w.IsAlive(round)) return float.PositiveInfinity;
+            _w.Bus.SwapBuffers();
+            var d = Assert.Single(_w.Bus.Read<Fdp.Toolkit.Combat.Contracts.DetonationNotification>().ToArray());
+            return Vector3.Distance(new Vector3(d.HitX, d.HitY, d.HitZ), AimPoint.Middle(_w, target, out _, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (RV-6) — the radar SAM's missile, launched straight at where an F-16 IS (no lead at the launch), hits it crossing
+        /// at 250 m/s 3 km out and 800 m up: the 60° cone keeps the crossing jet inside it while the seeker leads. 🔴 Red-proof: with the
+        /// MANPADS' 20° cone the same shot loses the jet (the lead ≈ 21° leaves the cone) and never bursts — why RV-6 asked for ≥ 60°.
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadarSamMissile_HitsAJetCrossingAt250_ThreeKilometresOut_WhereATwentyDegreeConeLosesIt()
+        {
+            var start = new Vector3(3000, -1000, 800);
+            var v = new Vector3(0, 250, 0);
+            var jet = Unit(start);
+            _w.AddComponent(jet, new SimVelocity { Linear = v });
+            float miss = FlyAt(RadarSamRound(Vector3.Normalize(start) * 800f, jet, start), jet, v, 18f);
+            Assert.True(miss <= 4.5f, $"it burst {miss:0.0} m from the jet — the fuze reaches 4 m");
+
+            var jet2 = Unit(start);
+            _w.AddComponent(jet2, new SimVelocity { Linear = v });
+            float narrow = FlyAt(RadarSamRound(Vector3.Normalize(start) * 800f, jet2, start, coneDeg: 20f), jet2, v, 18f);
+            Assert.True(narrow > 4.5f, $"a 20° cone should lose the crossing jet (burst {narrow:0.0} m off)");
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> — the same missile downs a UH-60-class helicopter 4 km out, 150 m up, crossing at 60 m/s.</summary>
+        [Fact]
+        public void CE4617_TheRadarSamMissile_HitsAHelicopterFourKilometresOut()
+        {
+            var start = new Vector3(4000, 0, 150);
+            var v = new Vector3(0, 60, 0);
+            var heli = Unit(start);
+            _w.AddComponent(heli, new SimVelocity { Linear = v });
+            float miss = FlyAt(RadarSamRound(Vector3.Normalize(start) * 800f, heli, start), heli, v, 18f);
+            Assert.True(miss <= 4.5f, $"it burst {miss:0.0} m from the helicopter");
+        }
+
         /// <summary>
         /// ⭐ <c>CE-2187</c> — an IR seeker sees only inside its cone: a target 90° off its flight is never seen, so the round flies to where
         /// it last saw it (the launch point it was given) and does not turn toward the target. 🔴 Red-proof: with no cone (all round) it
