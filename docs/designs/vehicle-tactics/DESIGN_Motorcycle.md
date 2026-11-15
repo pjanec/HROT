@@ -83,6 +83,22 @@ exposure, the last-second break turn buys a miss.
 | **PL-3** | the AI rider of a player's pillion obeys the player's squad order (or a *Drive to* order from the player) — the player does not steer | — |
 | ⛔ IM-4 | the sticky bomb — DROPPED | 🔒 user |
 
+### 2a. The fixed ids — ONE entity type for both lanes *(coordinator, `2026-11-15`; 🔒 user: "You need to specify the TKB type or DIS, entity type for both lanes, so they agree on what type of entity to create and what type of entity to map into visuals.")*
+
+📐 Measured free on EVERY lane (`coordinator`, `backend`, `ui`, `behaviors`, `terrain`): vehicle id 115 (114 is the radar SAM), DIS land category
+80, the class and family name `Motorcycle` (the word appears only in SUMO's own vehicle-class tables). ⛔ Permanent wire values once built — never
+reuse or renumber. ⚠ The radar SAM's missile id collided last time (6047 was the mortar smoke) — every id below was grepped on all five lanes.
+
+| what | the value | declared in | owner |
+|---|---|---|---|
+| the TKB entity type | **`TkbEntityTypes.Motorcycle = 115`** — "Motorcycle" (ONE type: soldiers, insurgents and civilian traffic; the side from the faction) | `Hrot/Engine/Hrot.Core/MapDefinitions/TkbEntityTypes.cs` (after `AirDefence_RadarSam = 114`) | backend M-1 |
+| its DIS type | **Kind 1 · Domain 1 (land) · Category 80** (SISO: *Motorcycle*) · Subcategory 1 — Country by the catalogue's convention | `NedTkbCatalog.cs` (`WithDisType`) | backend M-1 |
+| its entity class | **`"Motorcycle"`** = `1.1.*.80` | `Hrot/Engine/Hrot.Core/Tkb/EntityClassTable.cs` (beside `"Car"` = `1.1.*.81`, `:172`) | backend M-1 |
+| its 3-D family | **`VisualFamily.Motorcycle`**, keyed by the class name `["Motorcycle"]` in `FamilyOfClass` + its `ShapeKit` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` | ui M-1v |
+| its seats | seat **0 = Driver** (the rider; `CanShoot` kept, no fire on the move — PF-4) · seat **1 = the pillion**, a FIRING seat with its traverse arc (PF-1: both sides and the rear) — both exposed | the type's `CarrierDefDto` | backend M-1 / M-2 |
+| SUMO | the type's own `TrafficVehicleDto { VClass = "motorcycle" }` — civilian traffic bikes AND our handed-over insurgent bike drive as a motorcycle | `UrbanCombatTkbCatalog` pattern (`:206`, `:439`) | backend M-1 |
+| new weapons / munitions | **none** — the riders carry their own weapons | — | — |
+
 ## 3. UML *(as folded)*
 
 ```mermaid
