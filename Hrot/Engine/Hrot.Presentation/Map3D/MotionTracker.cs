@@ -33,6 +33,10 @@ public sealed class MotionTracker
     /// <summary>⭐ CE-1086 — a drone's drawn prop speed (not the real ~150 rev/s, which would alias into a standstill at frame rate).</summary>
     public const float DroneRotorRevsPerSecond = 7.3f;
 
+    /// <summary>⭐ CE-4618 — a search radar's antenna: turns per second while the radar radiates (a ~1.7 s sweep, a short-range SAM's), spooling up and down over
+    /// <see cref="RotorSpoolSeconds"/> like a rotor.</summary>
+    public const float AntennaRevsPerSecond = 0.6f;
+
     /// <summary>A position jump bigger than this between two frames is a teleport, not motion.</summary>
     public const float TeleportMetres = 40f;
 
@@ -118,7 +122,7 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f;
         switch (family)
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
@@ -146,6 +150,17 @@ public sealed class MotionTracker
                 st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
                 break;
             }
+            case VisualFamily.AirDefenceVehicle:
+            {
+                // ⭐ CE-4618 — the wheels roll on the truck's own radius; the antenna spools up while the radar radiates (rotorTurning = RadarActivity.IsOn) and down
+                //   when it stops, turning by the frame clock × the sim's pace like a rotor (CE-1353) — so it is the same on every host and a paused sim stops it
+                st.Roll = Wrap(st.Roll + along / ShapeKits.SamWheelRadius);
+                float step = (float)dt / RotorSpoolSeconds;
+                st.RotorRate = rotorTurning ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
+                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * AntennaRevsPerSecond * MathF.PI * 2f * spinDt);
+                antenna = st.RotorAngle;
+                break;
+            }
             case VisualFamily.Helicopter:
             case VisualFamily.AttackHelicopter:   // ⭐ CE-1103 — its rotors spool as a helicopter's
             {
@@ -167,7 +182,7 @@ public sealed class MotionTracker
 
         st.Last = position;
         st.SimTime = simTime;
-        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>

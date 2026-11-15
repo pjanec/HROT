@@ -359,7 +359,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
-                                           || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry));
+                                           || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
+                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock);   // ⭐ CE-1353
 
             KitPart[] parts;
@@ -1957,6 +1958,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return placed;
     }
 
+    /// <summary>⭐ CE-4618 — pins the look of <paramref name="tkbType"/> (a rail's seam: a type whose class the table does not have yet cannot resolve a family).</summary>
+    internal void PinLook(long tkbType, TypeLook look) => _looks[tkbType] = look;
+
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
     {
         if (_looks.TryGetValue(tkbType, out var look)) return look;
@@ -2123,6 +2127,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
+        VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         _ => new Color(180, 120, 200, 255),
     };
 

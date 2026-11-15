@@ -60,6 +60,9 @@ public enum PartRole : byte
     /// <summary>⭐ CE-1093 (docs/DESIGN_Map_3D_Mode.md §6n N-9) — a tail-rotor blade: spins about its centre's SIDEWAYS axis, faster than the
     /// main rotor (<see cref="ShapeKits.TailRotorRatio"/>).</summary>
     TailRotor,
+    /// <summary>⭐ CE-4618 (DESIGN_Radar_SAM §5 U-1) — a search radar's antenna: spins about the vertical axis through its <see cref="KitPart.SwingPivot"/> (the
+    /// mast; else its own centre) by <see cref="MotionPose.Antenna"/> while the radar radiates, still when it is off.</summary>
+    RadarAntenna,
 }
 
 /// <summary>
@@ -79,7 +82,7 @@ public enum PartRole : byte
 /// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
                                          float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f)
+                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -161,6 +164,13 @@ public readonly record struct KitPart(
             case PartRole.TailRotor when motion.Rotor != 0f:
                 m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.Rotor * ShapeKits.TailRotorRatio) * Matrix4x4.CreateTranslation(centre);
                 break;
+            case PartRole.RadarAntenna when motion.Antenna != 0f:
+            {
+                // ⭐ CE-4618 — about the mast's vertical axis (SwingPivot, a fraction like every pivot), so a panel off the axis ORBITS it
+                var axis = SwingPivot is { } mast ? new Vector3(mast.X * size.X, mast.Y * size.Y, 0f) : new Vector3(centre.X, centre.Y, 0f);
+                m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Antenna) * Matrix4x4.CreateTranslation(axis);
+                break;
+            }
             case PartRole.WheelSpoke when motion.WheelRoll != 0f:
                 // rolling forward turns the wheel's top forward: about +y, the top (+z) toward +x
                 m *= Matrix4x4.CreateTranslation(-centre) * Matrix4x4.CreateRotationY(motion.WheelRoll) * Matrix4x4.CreateTranslation(centre);
@@ -552,6 +562,73 @@ public static class ShapeKits
     /// ripper are drawn lowered; a lift pose would be a part role of its own (not needed by the showcase).</summary>
     public static readonly ShapeKit Bulldozer = new(BulldozerParts(), default);
 
+    // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
+    private const float SaL = 9.8f, SaW = 3.0f, SaH = 4.4f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): 9.8 m, 3 m wide, 4.4 m to the antenna's top
+    /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
+    public const float SamWheelRadius = 0.6f;
+    private const float SamAxisX = -2.4f, SamTrunnionX = -3.0f, SamTrunnionZ = 3.0f, SamMastX = 2.0f;   // the turntable's axis, the cradle's hinge, the radar mast
+
+    /// <summary>A SAM-truck box from METRES (x forward, y left, z up from the ground).</summary>
+    private static KitPart Sa(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, PartRole role = PartRole.Hull)
+        => Box(cx / SaL, cy / SaW, cz / SaH, lx / SaL, ly / SaW, lz / SaH, c, role: role);
+
+    private static KitPart SaTyre(float x, float y)   // a wheel: a cylinder across the truck, 1.2 m across, 0.5 m wide
+        => Cyl(PartAxis.Y, x / SaL, y / SaW, SamWheelRadius / SaH, 0f, 0.5f / SaW, 2f * SamWheelRadius / SaH, ColourRole.Dark);
+
+    private static KitPart SaSpoke(float x, float y)   // the bar across the wheel, so the roll shows
+        => new(PartShape.Box, new Vector3(x / SaL, y / SaW, SamWheelRadius / SaH), new Vector3(1.25f / SaL, 0.56f / SaW, 0.12f / SaH), ColourRole.Metal, Role: PartRole.WheelSpoke);
+
+    /// <summary>A search-antenna part: spins about the mast (<see cref="SamMastX"/>, centre line).</summary>
+    private static KitPart SaAntenna(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c)
+        => new(PartShape.Box, new Vector3(cx / SaL, cy / SaW, cz / SaH), new Vector3(lx / SaL, ly / SaW, lz / SaH), c, Role: PartRole.RadarAntenna,
+               SwingPivot: new Vector3(SamMastX / SaL, 0f, 0f));
+
+    private static KitPart[] AirDefenceVehicleParts()
+    {
+        var p = new List<KitPart>(48);
+        foreach (float x in new[] { 3.5f, 2.1f, -1.9f, -3.3f })   // four axles
+            foreach (float s in new[] { 1f, -1f })
+            {
+                p.Add(SaTyre(x, s * 1.2f));
+                p.Add(SaSpoke(x, s * 1.2f));
+            }
+        p.Add(Sa(0f, 0f, 1.05f, 9.4f, 2.3f, 0.5f, ColourRole.Dark));                       // the chassis frame
+        p.Add(Sa(-1.0f, 0f, 1.5f, 7.6f, 2.8f, 0.4f, ColourRole.Body));                     // the rear deck (the equipment bed)
+        p.Add(Sa(-4.75f, 0f, 1.2f, 0.12f, 2.4f, 0.4f, ColourRole.Dark));                   // the rear bumper
+        // the cab: forward, over the front axles
+        p.Add(Sa(3.85f, 0f, 2.1f, 1.9f, 2.7f, 1.6f, ColourRole.Body));                     // the cab
+        p.Add(Sa(4.82f, 0f, 2.5f, 0.04f, 2.3f, 0.7f, ColourRole.Glass));                   // the windscreen
+        p.Add(Sa(3.95f, 1.36f, 2.5f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));                // side glass, left
+        p.Add(Sa(3.95f, -1.36f, 2.5f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));               // side glass, right
+        p.Add(Sa(4.85f, 0f, 1.45f, 0.12f, 2.7f, 0.3f, ColourRole.Dark));                   // the front bumper
+        p.Add(Sa(3.7f, 0f, 3.05f, 0.5f, 0.5f, 0.3f, ColourRole.Dark));                     // the optical sensor on the cab roof
+        // the launcher: a turntable and its pedestal (TURRET parts, on the axis — KitFromTkb centres every turret part on the TKB's pivot), the cradle of four
+        // canisters (GUN parts, boxes — a Gun cylinder along x is the TKB's BARREL and would be re-sized to its muzzle) hinged at the REAR, so it elevates
+        p.Add(Sa(SamAxisX, 0f, 1.9f, 2.6f, 2.4f, 0.4f, ColourRole.Metal, PartRole.Turret));     // the turntable
+        p.Add(Sa(SamAxisX, 0f, 2.325f, 1.2f, 1.4f, 0.45f, ColourRole.Body, PartRole.Turret));   // the pedestal
+        foreach (float cy in new[] { 0.33f, -0.33f })
+            foreach (float cz in new[] { 0.31f, -0.31f })
+            {
+                p.Add(Sa(-1.0f, cy, SamTrunnionZ + cz, 4.2f, 0.55f, 0.55f, ColourRole.Body, PartRole.Gun));     // a canister
+                p.Add(Sa(1.13f, cy, SamTrunnionZ + cz, 0.05f, 0.5f, 0.5f, ColourRole.Dark, PartRole.Gun));      // its front cap
+            }
+        p.Add(Sa(-3.05f, 0f, SamTrunnionZ, 0.15f, 1.4f, 1.4f, ColourRole.Dark, PartRole.Gun));                  // the rear frame
+        p.Add(Sa(-1.8f, 0f, SamTrunnionZ, 0.2f, 1.34f, 1.34f, ColourRole.Dark, PartRole.Gun));                  // two straps round the bundle
+        p.Add(Sa(0.2f, 0f, SamTrunnionZ, 0.2f, 1.34f, 1.34f, ColourRole.Dark, PartRole.Gun));
+        // the radar mast: on the hull between the cab and the launcher, so it does not turn with the launcher; the antenna spins on top
+        p.Add(Cyl(PartAxis.Z, SamMastX / SaL, 0f, 2.625f / SaH, 0.35f / SaL, 0f, 1.85f / SaH, ColourRole.Metal));    // the mast, 1.7 → 3.55 m
+        p.Add(Sa(SamMastX, 0f, 3.6f, 0.5f, 0.5f, 0.12f, ColourRole.Dark));                                           // the rotary joint
+        p.Add(SaAntenna(SamMastX, 0f, 3.95f, 0.14f, 2.2f, 0.8f, ColourRole.Body));                                   // the flat search antenna, 2.2 × 0.8 m
+        p.Add(SaAntenna(SamMastX - 0.12f, 0f, 3.95f, 0.1f, 2.0f, 0.65f, ColourRole.Dark));                           // its backing
+        p.Add(SaAntenna(SamMastX + 0.1f, 0.9f, 4.0f, 0.16f, 0.3f, 0.2f, ColourRole.Metal));                          // the IFF feed at one end — tells the spin apart
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-4618 — the radar SAM truck (x forward): see <see cref="AirDefenceVehicleParts"/>. The launcher turns and elevates through the turret pose; the
+    /// antenna spins on <see cref="MotionPose.Antenna"/>; the wheels roll.</summary>
+    public static readonly ShapeKit AirDefenceVehicle = new(AirDefenceVehicleParts(),
+        new KitPivots(new Vector2(SamAxisX / SaL, 0f), new Vector2(SamTrunnionX / SaL, SamTrunnionZ / SaH)));
+
     public static readonly ShapeKit Unknown = new(new[] { Box(0f, 0f, 0.5f, 1f, 1f, 1f, ColourRole.Body) }, default);
     public static readonly ShapeKit None = new(System.Array.Empty<KitPart>(), default);
 
@@ -570,6 +647,7 @@ public static class ShapeKits
         VisualFamily.AttackJet => AttackJet,
         VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
+        VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -590,6 +668,7 @@ public static class ShapeKits
         VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
+        VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.8 × 3 × 4.4 m (to the antenna's top; the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }

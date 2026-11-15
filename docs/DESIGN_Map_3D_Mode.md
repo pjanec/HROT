@@ -4023,6 +4023,50 @@ the real frame under `xvfb-run -a` draws side, front and rear three-quarter and 
 (`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
 and the atlas count).
 
+### 6al.1 CE-4618 U-1 — the radar SAM truck *(ui, `2026-11-15`; build-state: BUILT in the family, kit, motion and seam — ⏸ the class → family row and the type's thumbnail wait for backend's `AirDefenceVehicle` class / type 114)*
+
+Owner of the TYPE and the behaviour: [DESIGN_Radar_SAM.md](designs/air-attack/DESIGN_Radar_SAM.md) §2 RS-1 / §2a (the fixed ids) / §5 U-1; the precedent mirrored end to end is §6al (the bulldozer).
+
+**INVENTORY** *(`search_graph` `.*(Radar|AirDefence|Sam).*` Class / Interface: none in the 3-D map before this; `scripts/find.sh RadarEmission` / `AirDefence_RadarSam`: none on `ui` or `origin/backend` at the start)*: a new family —
+no existing kit has a wheeled body **and** a turntable launcher **and** a second, time-driven part.
+
+| what | as built |
+|---|---|
+| family / kit | `VisualFamily.AirDefenceVehicle` · `ShapeKits.AirDefenceVehicle` (43 parts from METRES, `Sa` / `SaTyre` / `SaSpoke` / `SaAntenna`): an 8 × 8 carrier (tyres + a spoke each, so the roll shows), a cab, a rear deck, a launcher, a mast |
+| size / colour | `DefaultSize` 9.8 × 3.0 × 4.4 m (to the antenna's top; the TKB's own wins) · army olive |
+| launcher = turret 0 | a turntable + pedestal (`PartRole.Turret`, on the axis) and a cradle of four 2 × 2 canisters with caps, a rear frame and two straps (`PartRole.Gun`, **boxes**) hinged at the REAR (`KitPivots`: axis x −2.4 m, trunnion x −3.0 m, z 3.0 m) ⇒ it turns with `TurretAzimuth` and elevates 0…85° with `GunElevation` from the replicated `TurretPose` (`TurretPoseSource`). ⛔ A `Gun` **cylinder along x** would be re-sized to the TKB's muzzle by `KitFromTkb` (it is "the barrel") and every `Turret` part is re-centred on the TKB's pivot — so the canisters are boxes and the turret parts sit on the axis (a rail pins both) |
+| the spinning mast | a hull mast (it does not turn with the launcher) between the cab and the launcher, a flat 2.2 × 0.8 m search antenna, its backing and an IFF feed: **`PartRole.RadarAntenna`** — spins about the vertical axis through its `SwingPivot` (the mast) by the new **`MotionPose.Antenna`**, so an off-axis part ORBITS the mast |
+| the motion | `MotionTracker` `case AirDefenceVehicle`: the wheels roll on `ShapeKits.SamWheelRadius` (0.6 m — the car kits' radius is a fraction of THEIR height); the antenna spools up / down over `RotorSpoolSeconds` (3 s) and turns at `AntennaRevsPerSecond` = 0.6 (a ~1.7 s sweep) by the frame clock × the sim's pace (CE-1353, the rotor's rule) — the same on every host, still when the sim is paused; 0 B per frame (rail) |
+| the one input | **`RadarActivity.IsOn(world, entity)`** (`Hrot.Presentation/Map3D/RadarActivity.cs`) — the single place the 3-D map asks "is the radar radiating"; it answers **false** until backend's replicated `RadarEmission` (B-1) exists, then reads `RadarEmission.On` there and nowhere else (TODO in the file, CE-4618). `RadarActivity.Source` is the plug a rail / host sets — no second code path |
+
+```mermaid
+classDiagram
+    class VisualFamily { <<enum>> AirDefenceVehicle }
+    class ShapeKits { +AirDefenceVehicle ShapeKit +SamWheelRadius float }
+    class PartRole { <<enum>> RadarAntenna }
+    class MotionPose { +Antenna float }
+    class MotionTracker { +AntennaRevsPerSecond +Advance() MotionPose }
+    class RadarActivity { <<static>> +Source Func +IsOn(world, e) bool }
+    class EntityBodyLayer3D { +PinLook() }
+    ShapeKits --> VisualFamily : For(family)
+    ShapeKits ..> PartRole : parts carry a role
+    EntityBodyLayer3D --> RadarActivity : rotorTurning = IsOn
+    EntityBodyLayer3D --> MotionTracker : Advance(..., rotorTurning)
+    MotionTracker --> MotionPose : Antenna
+    ShapeKits ..> MotionPose : BodyTransform spins RadarAntenna
+```
+
+*The picture shows what the prose hid: the radar flag enters in ONE place and reaches the part only through `MotionTracker` → `MotionPose`; the kit never reads the world.*
+
+| not done / pending backend | |
+|---|---|
+| `["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle` in `FamilyOfClass` | ⏸ `CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable` fails on a class the table lacks. `TheFamilyRow_WaitsForTheClass_AndTurnsRedTheMomentItLands` goes red the moment backend declares the class — add the row then |
+| 2-D | the 2-D symbol is class-keyed (`EntityClassShapeLibrary.ProfileOfClass`: `LandPlatform` ⇒ ground vehicle) and the TKB's SymbolCode — both arrive with backend's class; ui adds only the picker glyph (`IconName` `_wheeled`) |
+| a separate display node | the kit is chosen from the replicated DIS type, the pose from the replicated `TurretPose`, the flag from `RadarEmission` ⇒ identical by construction; no real entity can be spawned until type 114 lands, so there is no cluster rail yet |
+| the gallery thumbnail | only once the type exists (`scripts/thumbnails.py --add-image`) |
+
+Rails: `AirDefenceVehicleModelRail` (9 tests, 8 pure + 1 frame under `xvfb-run -a`) — family / kit / size / roles; the neutral kit inside its box; the launcher's elevation about the REAR hinge (to 85°) and traverse; the antenna spinning about the mast with nothing else moving; the tracker's spool, rate, wind-down and wheel roll; **0 B**; the `RadarActivity` seam; the real frame (side, three-quarter, elevated 45° and 85°, the mast Off vs On — the changed pixels lie in the top third of the truck only). Shots go to `HROT_RAIL_SHOTS`, never git.
+
 ### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: BUILT step 1 `2026-11-14` — ⭐ read **6am.AB** first: D-1's mechanism, D-7's rows and D-9's mask are SUPERSEDED there; step 2 WON'T DO — the user accepts trees hiding cards, CE-4587)*
 
 🔒 User, `2026-11-14`: *"option A with drawing trees after the cards. Selected unit card always visible is ok. toggle is ok if it could be added to
