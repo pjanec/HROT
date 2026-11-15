@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Assault_Under_Fire.md — the design of the base variant's failure (CE-2436); this scenario is its test (AU-6)
   - DESIGN_City_Battle_Showcase.md — §12 the test ladder: this is rung ③/④ (a real company vs a defended position, with the battalion above) — it replaces the 250-man CE-7034 as the chain's proof; §3 / §3a the phases and momentum it scales down; §6a the company as built
   - DESIGN_Command_Chain_Example.md — OWNS orders down / reports up and §8e the battalion's reserve (CE-4589) this scenario exercises; `cc-platoon-bound` is the same idea one level down
   - DESIGN_Platoon_Attack_Defend_Clear.md — OWNS the platoon plays and the reports (PhaseLine, ObjectiveSecure, FireLifted) CE-4610 decides
