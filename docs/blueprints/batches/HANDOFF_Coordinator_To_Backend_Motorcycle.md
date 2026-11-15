@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: the motorcycle, the engine half and the insurgent plays (CE-4621) — OVERNIGHT, UNATTENDED
 
-**For:** the `backend` lane (its own id blocks). **From:** coordinator. **Dispatched at `91ab130e1`** *(re-stamped, rule 1a — unstarted; the fixed ids, overnight unattended)*; ⛔ scope FROZEN there — later documents are
+**For:** the `backend` lane (its own id blocks). **From:** coordinator. **Dispatched at `464ca44f9`** *(re-stamped, rule 1a — unstarted; the fixed ids, overnight unattended)*; ⛔ scope FROZEN there — later documents are
 FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-15`: *"I think the backend lane is already finished with the air defense job and might take this one. And the UI might take the
