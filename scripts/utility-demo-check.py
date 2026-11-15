@@ -14,7 +14,7 @@ previous one); the script verifies the loaded cast.
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
 """
-import argparse, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, collections, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy (RUNBOOK §2)
 BASE = "http://localhost:8111"                                            # the HOSTNAME — 127.0.0.1 404s (RUNBOOK §2)
@@ -108,6 +108,7 @@ def _log_size():
 #   entered PAUSED (zero steps, CE-4570) and advanced by run-to's FIXED steps — deterministic, so a failure replays exactly. 📐 measured on
 #   cc-battalion, 4 cores: step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× (the cluster ≈ 0.37×).
 EDITOR_HOST = False
+SCENARIO_OF = {"pc-assault": "pc-defend-house"}   # a check that runs another scenario's file
 RUNTO_CHUNK = 5.0
 RUNTO_STEP = 1.0 / 6.0
 
@@ -4599,6 +4600,62 @@ def run_pc_defend_house(c, timeout):
 
 
 
+
+def run_pc_assault(c, timeout):
+    """⭐ CE-2436 AU-6 — the FOCUSED assault (user, 2026-11-15: "iterations taking more than 1 hour seem too long"): pc-defend-house's cast
+    (Blue Platoon 3 x 4 attacking Red Platoon's 12 in OBJ, H1, H4) run to its OUTCOME, not to the first assault. ⭐ Best on the editor host
+    (`--host editor`: deterministic, a failure replays exactly). Judged: ① the base of fire is Set before the assault moves · ② the assault
+    closes and clears (a Blue BuildingClear or ObjectiveSecure report) · ③ the platoon consolidates (its squads SquadDefend after the clear)
+    or ④ breaks off — the log names which, with every Blue squad's task change, its reports and the platoon's journal."""
+    ids = ids_by_name()
+    bpl, rpl = ids.get("Blue Platoon"), ids.get("Red Platoon")
+    blue = {f"B{i}": ids.get(f"Blue Squad {i}") for i in (1, 2, 3)}
+    red = {n: ids.get(n) for n in ("Red Squad 1", "Red Squad 2", "Red Reserve")}
+    if not c.ok(bpl and rpl and None not in list(blue.values()) + list(red.values()), "both platoons and their squads are loaded"):
+        return
+    seconds = float(os.environ.get("PC_SECONDS", "600"))
+    if not EDITOR_HOST:
+        call("POST", "/sim/play", {})
+    men = {k: v for k, v in ids.items() if k and (" Leader" in k or " Rifleman" in k)}
+    reports, last, log = {}, {}, []
+    t = sim_time() or 0.0
+    while t < seconds:
+        if EDITOR_HOST:
+            advance_to(t + RUNTO_CHUNK)
+        else:
+            time.sleep(2.0)
+        t = sim_time() or 0.0
+        for name, nid in list(blue.items()) + list(red.items()) + [("Blue Platoon", bpl), ("Red Platoon", rpl)]:
+            k = task_name(nid)
+            if last.get(name, "?") != k:
+                last[name] = k
+                log.append((t, name, k))
+                print(f"   t={t:6.1f}  {name:12s} {k}", flush=True)
+        for r in squad_reports(last=256):
+            if r.get("serial") not in reports:
+                reports[r.get("serial")] = r
+                if r.get("kind") in ("Progress", "Request") and r.get("from") in set(blue.values()) | {bpl}:
+                    print(f"   t={t:6.1f}  REPORT {r.get('kind')}/{r.get('subtype')} from {r.get('fromName') or r.get('from')}", flush=True)
+        if last.get("Blue Platoon") not in ("PlatoonAttack",) and t > 60:
+            break
+    alive = {}
+    for n, nid in men.items():
+        unit = " ".join(n.split()[:3])
+        alive[unit] = alive.get(unit, 0) + (1 if _live(nid) else 0)
+    kinds = collections.Counter((r.get("kind"), r.get("subtype")) for r in reports.values() if r.get("from") in set(blue.values()) | {bpl})
+    print(f"   ran to {t:.1f} s · Blue Platoon ends on {last.get('Blue Platoon')} · alive {alive}")
+    print(f"   Blue's reports: {sorted(kinds.items(), key=str)}")
+    j = data(call("GET", f"/entities/{bpl}/journal")) or {}
+    for e in (j.get("entries") or [])[-12:]:
+        print(f"   J Blue Platoon {e.get('at')}: {e.get('text')}")
+    set_t = min([lt for lt, n, k in log if n in blue and k == "SupportByFire"], default=None)
+    moved = min([lt for lt, n, k in log if n in blue and k in ("FireAndMovement", "BoundingOverwatch")], default=None)
+    cleared = kinds.get(("Progress", "BuildingClear"), 0) + kinds.get(("Progress", "ObjectiveSecure"), 0)
+    c.ok(set_t is not None and moved is not None and set_t <= moved, f"① the base of fire is up ({set_t}) before the assault moves ({moved})")
+    c.ok(cleared > 0, f"② the assault clears the objective (BuildingClear / ObjectiveSecure reports: {cleared})")
+    broke = any(k == "BreakContact" for _, n, k in log if n in blue)
+    c.ok(cleared > 0 or broke, f"③/④ the attack ends in consolidation or a break-off (cleared {cleared}, broke {broke})")
+
 # ── Urban Battle §6 L2 — uc-convoy-hit (demo-city): the trigger man, the IED, the carrier's reaction (CE-2306, CE-2307) ──────────
 def _detonations():
     call("POST", "/perspective", {"name": "SimHost"})
@@ -6069,7 +6126,7 @@ SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fi
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage, "cc-battalion": run_cc_battalion, "cc-battalion-stall": run_cc_battalion, "cc-battalion-collapse": run_cc_battalion}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "pc-assault": run_pc_assault, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage, "cc-battalion": run_cc_battalion, "cc-battalion-stall": run_cc_battalion, "cc-battalion-collapse": run_cc_battalion}
 
 
 def main():
@@ -6099,12 +6156,13 @@ def main():
         print(f"== {a.scenario}")
         # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
         try:
-            with open(scenario_path(a.scenario)) as fh:
+            with open(scenario_path(SCENARIO_OF.get(a.scenario, a.scenario))) as fh:
                 desc = (json.load(fh).get("header") or {}).get("description")
             if desc: print(f"   {desc}")
         except (OSError, ValueError):
             pass
-        load_edit_paused(a.scenario) if EDITOR_HOST else load(a.scenario)
+        scen = SCENARIO_OF.get(a.scenario, a.scenario)
+        load_edit_paused(scen) if EDITOR_HOST else load(scen)
         c = Check()
         t0 = sim_time()
         SCENARIOS[a.scenario](c, a.timeout)
