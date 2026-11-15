@@ -124,6 +124,15 @@ public sealed class TheImportedSlopeLooksTests : IDisposable
             Assert.InRange(b - a, -0.03, 0.03);
         }
 
+        // two cross-sections (north–south, across the road): x = −27 (the uphill house), x = 15 (the downhill house) — raw vs imported, for the eye
+        Directory.CreateDirectory(Shots());
+        using (var csv = new StreamWriter(Path.Combine(Shots(), "slope-profiles.csv")))
+        {
+            csv.WriteLine("y,raw_x-27,imported_x-27,raw_x15,imported_x15");
+            for (double y = -45; y <= 45; y += 0.25)
+                csv.WriteLine(FormattableString.Invariant($"{y},{Raw(-27, y)},{L(-27, y)},{Raw(15, y)},{L(15, y)}"));
+        }
+
         var raw = g.Patched(0, 0, g.Cols - 1, g.Rows - 1, (c, r, _) => Raw(mini.MinX + c, mini.MinY + r));
         using var beforeRepo = new EntityRepository();
         beforeRepo.SetSingletonManaged(WithHeight(after, raw));
