@@ -84,6 +84,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly List<Entity> _entityList = new();
         private int _timeSliceOffset = 0;
         private int _epoch;   // ⭐ CE-3294 — the world the gizmo instances belong to
+        private int _restoresSeen;   // ⭐ CE-4342 — how many in-place restores of that world the instances have seen (WorldEpoch.RestoresOf)
 
         // ⭐⭐⭐ Exclusive-focus tracking. R-144 / §6.2b: the slot is a SHARED GizmoFocusRegistry, so
         // "at most one exclusive focus per subsystem" holds across BOTH arbiters by construction rather
@@ -258,6 +259,42 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         public GizmoFocusRegistry Focus => _focus;
 
+        /// <summary>⭐ CE-4342 — whether <paramref name="entity"/> already has an instance from rule <paramref name="ruleIndex"/> (a loop: no LINQ, R-2084).</summary>
+        private bool HasRuleInstance(Entity entity, int ruleIndex)
+        {
+            if (!_activeGizmos.TryGetValue(entity, out var list)) return false;
+            for (int i = 0; i < list.Count; i++) if (list[i].RuleIndex == ruleIndex) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4342 — after an in-place restore: every living entity gets the instances its components satisfy, as its construction gave it. Runs once per
+        /// restore (an operator action), never per frame.
+        /// </summary>
+        private void AdoptLivingEntities(EntityRepository repo, ISimulationView view)
+        {
+            var rules = _registry.Rules;
+            for (int index = 0; index <= repo.MaxEntityIndex; index++)
+            {
+                var entity = repo.GetEntityByIndex(index);
+                if (entity.IsNull || !view.IsAlive(entity)) continue;
+                ref var mask = ref repo.GetComponentMask(entity.Index);
+                for (int r = 0; r < rules.Count; r++)
+                {
+                    var rule = rules[r];
+                    if (!BitMask512.HasAll(mask, rule.RequiredMask) || HasRuleInstance(entity, rule.RuleIndex)) continue;
+                    var instance = rule.Definition.CreateInstance(view, entity);
+                    if (!_activeGizmos.TryGetValue(entity, out var list))
+                    {
+                        list = new List<CompiledGizmoInstance>();
+                        _activeGizmos[entity] = list;
+                        _entityList.Add(entity);
+                    }
+                    list.Add(new CompiledGizmoInstance { Instance = instance, Definition = rule.Definition, RuleIndex = rule.RuleIndex });
+                }
+            }
+        }
+
         // ---- IEcsModuleSystem -----------------------------------------------------
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -274,7 +311,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 foreach (var e in new List<Entity>(_injectedGizmos.Keys)) TeardownEntity(e);
                 foreach (var e in new List<Entity>(_activeGizmos.Keys)) TeardownEntity(e);
                 _entityList.Clear(); _timeSliceOffset = 0;
+                // ⭐⭐ CE-4342 (reopened 2026-11-15) — AN IN-PLACE RESTORE KEEPS ITS ENTITIES, SO THEIR GIZMOS COME BACK. 🔴 Moved() is true for a world
+                //   boundary AND for a restore (WorldEpoch D4: an Edit-mode Undo / Redo, a dry-run exit, a checkpoint restore). A boundary's entities
+                //   arrive with ConstructionOrders (step 2); a restore puts the world back WITHOUT any ⇒ after one Undo every entity had lost its
+                //   gizmos for the rest of the session: 📐 measured live — no drag box in the frame, a drag on one unit or a group moved NONE.
+                //   ⭐ So a restore re-adopts the living entities the rules match, exactly as their construction would have.
+                int restores = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(view);
+                if (restores != _restoresSeen) AdoptLivingEntities(repo, view);
             }
+            _restoresSeen = Fdp.Toolkit.Replication.Services.WorldEpoch.RestoresOf(view);
 
             ISimulationView activeView = _breakpointManager?.ActiveView ?? view;
 
@@ -324,6 +369,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     var rule = rules[r];
                     if (!BitMask512.HasAll(compDD2, rule.RequiredMask))
                         continue;
+
+                    if (HasRuleInstance(evt.Entity, rule.RuleIndex)) continue;   // ⭐ CE-4342 — already adopted (a restore re-adopts; never two)
 
                     // View and entity are passed at construction — no OnInitialize call needed.
                     var instance = rule.Definition.CreateInstance(view, evt.Entity);

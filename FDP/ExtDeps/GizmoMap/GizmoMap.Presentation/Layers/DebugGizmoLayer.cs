@@ -161,6 +161,13 @@ namespace GizmoMap.Presentation
             //     allocated from a DISJOINT high range (GlobalGizmoManager.ToolAnchorIdBase, §6.1).
             //   ⇒ one id space, one comparison. Re-adding a generation term would reintroduce the
             //     two-domain thinking this step deleted.
+            // ⭐⭐ CE-4342 (reopened 2026-11-15) — the held modifiers, polled ONCE per frame and packed into BOTH the raw route below and the
+            //   left-press Started (GizmoInteractionStartedEvent.Button's documented contract: "It also carries ShiftMask / CtrlMask / AltMask").
+            //   🔴 Only the raw route carried them: every left press reached SelectionInteractionSystem as a plain Left, so the map's Shift-click
+            //   (add), Ctrl-click (toggle), Alt-click (cycle) and Shift-band rows (B-17 P5) never fired in the product — a Shift-click REPLACED the
+            //   selection, and "select three, drag one" moved only the grabbed one. 📐 Measured live on a real editor with X input (STATUS_Ui_Group_Drag.md).
+            int modifiers = HeldModifiers(static k => Raylib.IsKeyDown(k));
+
             long? exclusiveAnchorId = null;
             bool routeRawInput = false;
             var captureToken = default(GizmoPickToken);
@@ -213,7 +220,8 @@ namespace GizmoMap.Presentation
                     var token = MakePickToken(in hit);
                     _activeTool = new GizmoInteractionProxyTool(
                         token, worldPos, onInteraction, onExit: () => _activeTool = null, hit.Space,
-                        initialZ: worldPos3.Z, height: () => _dragZ);
+                        initialZ: worldPos3.Z, height: () => _dragZ,
+                        startedActionId: (int)MapMouseButton.Left | modifiers);   // ⭐ CE-4342 — the press's modifiers ride with it
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
                 else if (!exclusiveAnchorId.HasValue)
@@ -222,7 +230,8 @@ namespace GizmoMap.Presentation
                     _activeTool = new GizmoInteractionProxyTool(
                         default, worldPos,
                         onInteraction, onExit: () => _activeTool = null,
-                        initialZ: worldPos3.Z, height: () => _dragZ);
+                        initialZ: worldPos3.Z, height: () => _dragZ,
+                        startedActionId: (int)MapMouseButton.Left | modifiers);   // ⭐ CE-4342 — a Shift-band ADDS (map.band.add)
                     _activeTool.HandlePress(worldPos, MouseButton.Left);
                 }
             }
@@ -330,13 +339,7 @@ namespace GizmoMap.Presentation
                 // We explicitly poll modifiers every frame and pack them as bitmasks directly
                 // into the event payload. This allows the backend tools to evaluate interaction rules
                 // statelessly without maintaining an asynchronous key-state dictionary.
-                int modifiers = 0;
-                if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift))
-                    modifiers |= (int)MapKeyboardKey.ShiftMask;
-                if (Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl))
-                    modifiers |= (int)MapKeyboardKey.CtrlMask;
-                if (Raylib.IsKeyDown(KeyboardKey.LeftAlt) || Raylib.IsKeyDown(KeyboardKey.RightAlt))
-                    modifiers |= (int)MapKeyboardKey.AltMask;
+                // ⭐ CE-4342 — polled once at the top of HandleInput (HeldModifiers); the masks are the same bits for keys and buttons.
 
                 // Only send raw PRESSED events if ImGui doesn't want the mouse...
                 if (Raylib.IsMouseButtonPressed(MouseButton.Left))
@@ -438,6 +441,19 @@ namespace GizmoMap.Presentation
         /// ⭐ <c>CE-3175</c> — drains <paramref name="nextKey"/> (always — a key read is a key consumed) and, unless the keyboard is
         /// captured by a text field, emits each press with this frame's modifier bits. Apart from Raylib so a headless rail can drive it.
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-4342 — the held modifiers as the mask bits both <see cref="MapMouseButton"/> and <see cref="MapKeyboardKey"/> carry (28 Shift · 29 Ctrl ·
+        /// 30 Alt; either side's key). ONE composition for the left-press <c>Started</c> and the raw route. Public so a rail can assert it without a window.
+        /// </summary>
+        public static int HeldModifiers(Func<KeyboardKey, bool> isKeyDown)
+        {
+            int m = 0;
+            if (isKeyDown(KeyboardKey.LeftShift) || isKeyDown(KeyboardKey.RightShift)) m |= (int)MapMouseButton.ShiftMask;
+            if (isKeyDown(KeyboardKey.LeftControl) || isKeyDown(KeyboardKey.RightControl)) m |= (int)MapMouseButton.CtrlMask;
+            if (isKeyDown(KeyboardKey.LeftAlt) || isKeyDown(KeyboardKey.RightAlt)) m |= (int)MapMouseButton.AltMask;
+            return m;
+        }
+
         public static int StreamTypedKeys(Func<int> nextKey, bool isKeyboardCaptured, int modifiers, Action<int> emit)
         {
             int key, sent = 0;

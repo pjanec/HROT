@@ -153,13 +153,35 @@ namespace Fdp.Toolkit.Replication.Edits
         /// <summary>The recorder of <paramref name="repo"/>, or null.</summary>
         public static IEditStepRecorder? Of(EntityRepository repo) => PerWorld.TryGetValue(repo, out var r) ? r : null;
 
-        /// <summary><see cref="IEditStepRecorder.Begin"/> on <paramref name="repo"/>'s recorder, if any.</summary>
-        public static void Begin(EntityRepository? repo, string label) { if (repo != null && Of(repo) is { } r) r.Begin(repo, label); }
+        // ⭐⭐ CE-4342 (reopened 2026-11-15) — A THREADED NODE'S PRESENTATION WORLD BRACKETS ON THE SIMULATION WORLD. In mode 3 the recorder is
+        //   installed on S (the sim world, where every write lands — EditorSubsystem.WireWorldUndo, N-7) while the map gizmos run on the UI thread
+        //   over A and bracket THERE; A's writes reach S as sim jobs (EntityWriteRouter's SimThreadWriter, N-6). 🔴 So every A-side bracket was a
+        //   no-op: a drag (one unit or a group), a rotate, a route / vertex edit recorded NO step and Undo said "nothing to undo" (measured live).
+        //   ⭐ The same retargeting the writer does: a world with no recorder but a SimLink posts the bracket to S's queue, so it lands in order
+        //   with the writes posted between Begin and End — ONE step, by construction, for every caller. No link (one world): unchanged.
 
-        /// <summary><see cref="IEditStepRecorder.End"/> on <paramref name="repo"/>'s recorder, if any.</summary>
-        public static void End(EntityRepository? repo) { if (repo != null && Of(repo) is { } r) r.End(repo); }
+        /// <summary><see cref="IEditStepRecorder.Begin"/> on <paramref name="repo"/>'s recorder, if any — ⭐ CE-4342: on a threaded presentation world, on the simulation world's, in order with the writes.</summary>
+        public static void Begin(EntityRepository? repo, string label)
+        {
+            if (repo == null) return;
+            if (Of(repo) is { } r) r.Begin(repo, label);
+            else if (Fdp.Core.Threading.SimJobs.LinkOf(repo) is { } link) link.Jobs.Post(sim => Begin(sim, label), "edit step: begin");
+        }
 
-        /// <summary><see cref="IEditStepRecorder.Cancel"/> on <paramref name="repo"/>'s recorder, if any.</summary>
-        public static void Cancel(EntityRepository? repo) { if (repo != null && Of(repo) is { } r) r.Cancel(repo); }
+        /// <summary><see cref="IEditStepRecorder.End"/> on <paramref name="repo"/>'s recorder, if any (⭐ CE-4342: forwarded as <see cref="Begin"/>).</summary>
+        public static void End(EntityRepository? repo)
+        {
+            if (repo == null) return;
+            if (Of(repo) is { } r) r.End(repo);
+            else if (Fdp.Core.Threading.SimJobs.LinkOf(repo) is { } link) link.Jobs.Post(sim => End(sim), "edit step: end");
+        }
+
+        /// <summary><see cref="IEditStepRecorder.Cancel"/> on <paramref name="repo"/>'s recorder, if any (⭐ CE-4342: forwarded as <see cref="Begin"/>).</summary>
+        public static void Cancel(EntityRepository? repo)
+        {
+            if (repo == null) return;
+            if (Of(repo) is { } r) r.Cancel(repo);
+            else if (Fdp.Core.Threading.SimJobs.LinkOf(repo) is { } link) link.Jobs.Post(sim => Cancel(sim), "edit step: cancel");
+        }
     }
 }
