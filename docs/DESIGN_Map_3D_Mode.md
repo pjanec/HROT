@@ -4023,7 +4023,7 @@ the real frame under `xvfb-run -a` draws side, front and rear three-quarter and 
 (`HROT_RAIL_SHOTS`, never git). The thumbnail is `scripts/thumbnails.py --add-image … --name "Bulldozer (D9-class)"` (atlas page 1, slot 4/1; `EntityTypeCatalogTests` pin the picker line
 and the atlas count).
 
-### 6al.1 CE-4618 U-1 — the radar SAM truck *(ui, `2026-11-15`; build-state: BUILT in the family, kit, motion and seam — ⏸ the class → family row and the type's thumbnail wait for backend's `AirDefenceVehicle` class / type 114)*
+### 6al.1 CE-4618 U-1 + U-2 — the radar SAM truck, its rounds and its launch *(ui, `2026-11-15`; build-state: BUILT — family bound to backend's class (type 114), kit fitted to backend's turret, rounds-left covers, the missile look, the launch flash + smoke, the gallery thumbnail; U-3 (coverage on the map) not started)*
 
 Owner of the TYPE and the behaviour: [DESIGN_Radar_SAM.md](designs/air-attack/DESIGN_Radar_SAM.md) §2 RS-1 / §2a (the fixed ids) / §5 U-1; the precedent mirrored end to end is §6al (the bulldozer).
 
@@ -4033,11 +4033,17 @@ no existing kit has a wheeled body **and** a turntable launcher **and** a second
 | what | as built |
 |---|---|
 | family / kit | `VisualFamily.AirDefenceVehicle` · `ShapeKits.AirDefenceVehicle` (43 parts from METRES, `Sa` / `SaTyre` / `SaSpoke` / `SaAntenna`): an 8 × 8 carrier (tyres + a spoke each, so the roll shows), a cab, a rear deck, a launcher, a mast |
-| size / colour | `DefaultSize` 9.8 × 3.0 × 4.4 m (to the antenna's top; the TKB's own wins) · army olive |
-| launcher = turret 0 | a turntable + pedestal (`PartRole.Turret`, on the axis) and a cradle of four 2 × 2 canisters with caps, a rear frame and two straps (`PartRole.Gun`, **boxes**) hinged at the REAR (`KitPivots`: axis x −2.4 m, trunnion x −3.0 m, z 3.0 m) ⇒ it turns with `TurretAzimuth` and elevates 0…85° with `GunElevation` from the replicated `TurretPose` (`TurretPoseSource`). ⛔ A `Gun` **cylinder along x** would be re-sized to the TKB's muzzle by `KitFromTkb` (it is "the barrel") and every `Turret` part is re-centred on the TKB's pivot — so the canisters are boxes and the turret parts sit on the axis (a rail pins both) |
-| the spinning mast | a hull mast (it does not turn with the launcher) between the cab and the launcher, a flat 2.2 × 0.8 m search antenna, its backing and an IFF feed: **`PartRole.RadarAntenna`** — spins about the vertical axis through its `SwingPivot` (the mast) by the new **`MotionPose.Antenna`**, so an off-axis part ORBITS the mast |
+| size / colour | `DefaultSize` 9.1 × 2.8 × 4.2 m = the TKB's box (type 114: `Length 9.1, Width 2.8, Height 4.2`; ⭐ the kit's METRES are the TKB's metres, `SaL/SaW/SaH` — first built at 9.8 × 3.0 × 4.4 and scaled 0.93, which moved every pivot) · army olive |
+| launcher = turret 0 | a turntable + pedestal (`PartRole.Turret`, on the axis) and a cradle of four 2 × 2 canisters with caps, a rear frame and two straps (`PartRole.Gun`, **boxes**) hinged 0.7 m ahead of the canisters' rear end (`KitPivots` = backend's `TurretDto`: axis x −1.5 m, trunnion x −1.1 m, z 2.6 m; ⛔ SUPERSEDED: the first kit assumed axis −2.4 / trunnion −3.0 / z 3.0 — backend's numbers differ, so the KIT was refitted, not their catalogue) ⇒ it turns with `TurretAzimuth` and elevates 0…85° with `GunElevation` from the replicated `TurretPose` (`TurretPoseSource`). ⛔ A `Gun` **cylinder along x** would be re-sized to the TKB's muzzle by `KitFromTkb` (it is "the barrel") and every `Turret` part is re-centred on the TKB's pivot — so the canisters are boxes and the turret parts sit on the axis (a rail pins both) |
+| the spinning mast | a hull mast at x +2.5 m (it does not turn with the launcher; clear of the canisters' mouths at every elevation — measured at 0 / 45 / 85°) between the cab and the launcher, a flat 2.0 × 0.8 m search antenna, its backing and an IFF feed: **`PartRole.RadarAntenna`** — spins about the vertical axis through its `SwingPivot` (the mast) by the new **`MotionPose.Antenna`**, so an off-axis part ORBITS the mast |
 | the motion | `MotionTracker` `case AirDefenceVehicle`: the wheels roll on `ShapeKits.SamWheelRadius` (0.6 m — the car kits' radius is a fraction of THEIR height); the antenna spools up / down over `RotorSpoolSeconds` (3 s) and turns at `AntennaRevsPerSecond` = 0.6 (a ~1.7 s sweep) by the frame clock × the sim's pace (CE-1353, the rotor's rule) — the same on every host, still when the sim is paused; 0 B per frame (rail) |
 | the one input | **`RadarActivity.IsOn(world, entity)`** (`Hrot.Presentation/Map3D/RadarActivity.cs`) — the single place the 3-D map asks "is the radar radiating". ⭐ **AS-BUILT `2026-11-15` (backend's B-1 merged, `ecb5d3447`)**: it calls backend's ONE reader `RadarEmissions.IsOn` of the replicated `RadarEmission` (`Fdp.Toolkits/Perception/Radar/RadarComponents.cs`), so the antenna spins on every node the component reaches. ⛔ SUPERSEDED: the first build answered false behind a `Source` plug (no component existed) — the plug is gone; rails set a real `RadarEmission` |
+| ⭐ the rounds left (U-2, **the first ammunition-driven 3-D visual**) | each of the four canisters has a FRONT COVER (`KitPart.Round` = its place in the fire order) and a dark open mouth right behind it; a cover is drawn only while **rounds left > its `Round`** (one int test in `DrawParts`, 0 B). The rounds come from ONE reader, **`LauncherLoad.RoundsLeft(world, e, mount)`** (`Map3D/LauncherLoad.cs`) over the replicated `WeaponAmmo` (`Ammo0`; written on the brain by `WeaponAmmoMirrorSystem`, replicated as `dtWeaponAmmo` ⇒ a display node has it); no component / no such mount ⇒ `Full` (every cover on). **Fire order: top-left, top-right, bottom-left, bottom-right** (`Round` 3, 2, 1, 0 — the round fired first uncovers the highest index). Reusable: a rocket pod or an ATGM tube ties its parts to `Round` the same way (the AttackJet's bombs still use the older array-slice) |
+| the missile (U-2) | `MunitionTkbCatalog.TkbRadarSamMissile` = **6050** (⛔ not 6047, the 60 mm smoke): `Missile` shape (body, nose, mid wings, tail fins), 3.0 m × 0.17 m, light grey-green `#C4C8B8`, smoke trail on — cross-lane into `MunitionTkbCatalog.cs` |
+| the launch (U-2) | through the existing machinery, no new system: `Effect.Set` on 6050 (`EffectTkbCatalog`: `MuzzleFlash` = the new **7173** booster flash, 2 m, additive, anchored to the muzzle like every flash; `Explosion`/`Decal` medium) + `FiringBlast.Launch` (a third blast kind beside `Backblast` / `Ground`, `WeaponKits.BlastOf`) spawning **7174** launch smoke at the shot's origin. ⭐ The muzzle IS the canister's mouth: backend's `MuzzleOffset (1.0, 0, 0.4)` put it mid-launcher, so it is now **(2.8, 0, 0.3)** (hinge −1.1 + 2.8) — cross-lane into `NedTkbCatalog.RadarSam`, said in the commit; a rail pins that the TKB muzzle and the drawn top-left cover are the same point |
+| the class binding | `["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle` in `FamilyOfClass` (rail `TheClass_MapsToTheFamily_…`); the frame rail draws the REAL type 114 (the `PinLook` stand-in is gone) |
+| 2-D | the symbol is the TKB's `SHGPUCDM-------` and the class chain gives the ground-vehicle outline (`EntityClassShapeLibrary`, rail pinned); the picker glyph is `_wheeled` |
+| thumbnail | atlas page 1 slot 5/1 (`scripts/thumbnails.py --add-image … --name "Radar SAM vehicle"`), the three picker goldens (+ the two pre-existing stale lines) and the atlas count 78 |
 
 ```mermaid
 classDiagram
@@ -4049,7 +4055,13 @@ classDiagram
     class RadarActivity { <<static>> +IsOn(world, e) bool }
     class RadarEmissions { <<existing, backend B-1>> +IsOn(view, e) bool }
     RadarActivity --> RadarEmissions : the one reader
-    class EntityBodyLayer3D { +PinLook() }
+    class EntityBodyLayer3D { +DrawParts(rounds) }
+    class LauncherLoad { <<static>> +RoundsLeft(world, e, mount) int }
+    class WeaponAmmo { <<existing, replicated>> +Ammo0 }
+    class KitPart { +Round int }
+    LauncherLoad --> WeaponAmmo : the one reader
+    EntityBodyLayer3D --> LauncherLoad : rounds of mount 0
+    EntityBodyLayer3D ..> KitPart : draws a part only while rounds > Round
     ShapeKits --> VisualFamily : For(family)
     ShapeKits ..> PartRole : parts carry a role
     EntityBodyLayer3D --> RadarActivity : rotorTurning = IsOn
@@ -4058,16 +4070,14 @@ classDiagram
     ShapeKits ..> MotionPose : BodyTransform spins RadarAntenna
 ```
 
-*The picture shows what the prose hid: the radar flag enters in ONE place and reaches the part only through `MotionTracker` → `MotionPose`; the kit never reads the world.*
+*The picture shows what the prose hid: the radar flag enters in ONE place and reaches the part only through `MotionTracker` → `MotionPose`; the rounds enter in ONE place (`LauncherLoad`) and reach a part only through `KitPart.Round`; the kit never reads the world.*
 
-| not done / pending backend | |
+| ⏸ not done | |
 |---|---|
-| `["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle` in `FamilyOfClass` | ⏸ `CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable` fails on a class the table lacks. `TheFamilyRow_WaitsForTheClass_AndTurnsRedTheMomentItLands` goes red the moment backend declares the class — add the row then |
-| 2-D | the 2-D symbol is class-keyed (`EntityClassShapeLibrary.ProfileOfClass`: `LandPlatform` ⇒ ground vehicle) and the TKB's SymbolCode — both arrive with backend's class; ui adds only the picker glyph (`IconName` `_wheeled`) |
-| a separate display node | the kit is chosen from the replicated DIS type, the pose from the replicated `TurretPose`, the flag from `RadarEmission` ⇒ identical by construction; no real entity can be spawned until type 114 lands, so there is no cluster rail yet |
-| the gallery thumbnail | only once the type exists (`scripts/thumbnails.py --add-image`) |
+| U-3 | the radar's coverage on the map when selected (optional) |
+| a separate display node | by construction (the kit from the replicated DIS type, the pose from `TurretPose`, the radar flag from `RadarEmission`, the rounds from `WeaponAmmo` — all replicated); no existing rail renders an entity on a separate display node for another family, so none was added — a cluster rail would be a new harness (not built) |
 
-Rails: `AirDefenceVehicleModelRail` (9 tests, 8 pure + 1 frame under `xvfb-run -a`) — family / kit / size / roles; the neutral kit inside its box; the launcher's elevation about the REAR hinge (to 85°) and traverse; the antenna spinning about the mast with nothing else moving; the tracker's spool, rate, wind-down and wheel roll; **0 B**; the `RadarActivity` seam; the real frame (side, three-quarter, elevated 45° and 85°, the mast Off vs On — the changed pixels lie in the top third of the truck only). Shots go to `HROT_RAIL_SHOTS`, never git.
+Rails: `AirDefenceVehicleModelRail` (see the STATUS for the count; pure + frame under `xvfb-run -a`) — the REAL type 114, the class binding, the kit fitted to the TKB turret, the fire order and covers per round count, `LauncherLoad` (0 B), the rounds frame (4 / 2 / 0 ⇒ 2 covers fewer each), the launch frame (flash, smoke and missile in the frame of the shot, at the mouth); — family / kit / size / roles; the neutral kit inside its box; the launcher's elevation about the REAR hinge (to 85°) and traverse; the antenna spinning about the mast with nothing else moving; the tracker's spool, rate, wind-down and wheel roll; **0 B**; the `RadarActivity` seam; the real frame (side, three-quarter, elevated 45° and 85°, the mast Off vs On — the changed pixels lie in the top third of the truck only). Shots go to `HROT_RAIL_SHOTS`, never git.
 
 ### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: BUILT step 1 `2026-11-14` — ⭐ read **6am.AB** first: D-1's mechanism, D-7's rows and D-9's mask are SUPERSEDED there; step 2 WON'T DO — the user accepts trees hiding cards, CE-4587)*
 

@@ -114,7 +114,7 @@ public sealed partial class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(21, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
+        Assert.Equal(23, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4618's missile launch flash and smoke (7173 / 7174) + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -1063,6 +1063,7 @@ public sealed partial class EffectTests
                                             MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
                                             MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade,     // ⭐ CE-3223
                                             MunitionTkbCatalog.TkbTearGasGrenade,
+                                            MunitionTkbCatalog.TkbRadarSamMissile,   // ⭐ CE-4617 — the radar SAM's proximity-fused library warhead (a new type on a new mount; backend's B-2 left this list one short)
                                             MunitionTkbCatalog.TkbExplosiveCharge };   // ⭐ CE-3233 B-11b — the charge 618's 8 kg round (a new type on a new mount)   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;
         foreach (var t in tkb.GetAll())

@@ -626,7 +626,8 @@ namespace Hrot.Map.Definitions.Tkb
                         AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile),
                         Category = WeaponCategory.Sam, TurretIndex = 0,
                         RoundsInFlight = 2, SalvoIntervalS = 2f,   // ⭐ RV-2 — a salvo of two, 2 s apart
-                        MuzzleOffset = new System.Numerics.Vector3(1.0f, 0f, 0.4f),
+                        // ⭐ CE-4618 (ui, cross-lane): the canister's MOUTH — hinge (−1.1) + 2.8 m, so the missile and its flash leave where the launcher ends (was 1.0 m: mid-launcher)
+                        MuzzleOffset = new System.Numerics.Vector3(2.8f, 0f, 0.3f),
                     });
                     c.SensorRange = 3000;
                     c.RadarRange = 8000;   // ⭐ RS-2 — against the 10 m² reference (RadarPerception)

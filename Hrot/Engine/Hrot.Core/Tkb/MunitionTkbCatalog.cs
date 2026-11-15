@@ -491,8 +491,9 @@ namespace Hrot.Core.Tkb
                 // ⭐ CE-2187 / CE-2190 — the MANPADS missiles trail smoke; the 23 mm traces
                 [TkbStingerMissile] = new() { Shape = MunitionShape.Missile, Length = 1.52f, Diameter = 0.07f, ColorHex = "#6B6E4A", SmokeTrail = true },
                 [TkbIglaMissile] = new() { Shape = MunitionShape.Missile, Length = 1.57f, Diameter = 0.072f, ColorHex = "#5A5E3A", SmokeTrail = true },
-                // ⭐ CE-4617 (B-2, RV-15) — PLACEHOLDER look for the radar SAM's missile (ui U-2 tunes it)
-                [TkbRadarSamMissile] = new() { Shape = MunitionShape.Missile, Length = 3.2f, Diameter = 0.21f, ColorHex = "#D8D8D0", SmokeTrail = true },
+                // ⭐ CE-4617 (B-2, RV-15) → CE-4618 (ui U-2) — the radar SAM's missile: a slim 3 m body (a Tor-class 9M330: ~2.9 m × 0.23 m, drawn 0.17 for a slimmer read),
+                //   nose, mid wings and tail fins (the Missile shape), light grey-green so it shows against sky and ground, smoke trail on
+                [TkbRadarSamMissile] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.17f, ColorHex = "#C4C8B8", SmokeTrail = true },
                 [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
                 // ⭐ CE-3235 (B-13, §7.10 PU-3) — the hand items are SEEN (so a lying one replicates and a brain can pick it up): the grenade

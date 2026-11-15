@@ -80,8 +80,7 @@ public static class VisualFamilies
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
-        // ⏸ CE-4618 — ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle is added the commit AFTER backend declares the class (EntityClassTable, DIS 1.1.*.28):
-        //   the rail CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable would fail on a class the table does not have yet. The kit and family exist already.
+        ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>

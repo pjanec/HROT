@@ -55,6 +55,7 @@
     "Pickup__Toyota_": [0, 4, 7],
     "Pilot": [0, 5, 7],
     "Pistol__pick-up_": [0, 0, 8],
+    "Radar_SAM_vehicle": [1, 5, 1],
     "Rifle__pick-up_": [0, 1, 8],
     "Rifleman": [0, 2, 8],
     "Rifleman__Igla_": [0, 3, 8],

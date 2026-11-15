@@ -367,6 +367,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             KitPivots pivots = default;
             var pose = ArticulationPose.Neutral;
             bool canopy = false;
+            int rounds = LauncherLoad.Full;   // ⭐ CE-4618 — the rounds left of mount 0, for the parts tied to a round (KitPart.Round); Full = every part drawn
             bool leans = false;   // ⭐ CE-1193 — only a man in his own pose (not held, not on a rope, not jumping) is drawn leaning
             // ⭐ CE-1236 (People Display U7a) — what his weapon looks like, in his hands and slung; Rifle = the figure as it was
             HeldLook inHands = HeldLook.Rifle, slung = HeldLook.Rifle;
@@ -451,6 +452,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 var kit = KitOf(look);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
+                if (look.Family == VisualFamily.AirDefenceVehicle) rounds = LauncherLoad.RoundsLeft(world, e, 0);   // ⭐ CE-4618 — the covers of the rounds still in the canisters
                 if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
                 if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
                     parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
@@ -492,7 +494,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             }
             int details = outfit != null ? _details.Count : 0;
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
-                      geometry, carriage, shader);
+                      geometry, carriage, shader, rounds);
             _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
@@ -625,11 +627,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// its stains (<paramref name="stains"/>/<paramref name="details"/> of the shared lists).</summary>
     private void DrawParts(Entity? e, KitPart[] parts, in TypeLook look, Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion,
                            Matrix4x4 kitToBody, Matrix4x4 body, Outfit? outfit, FaceOn headFace, float camoSeed, Color colour, bool wreck,
-                           int stains, int details, BodyGeometryDto? geometry, in FigureCarriage carriage, LitShader shader)
+                           int stains, int details, BodyGeometryDto? geometry, in FigureCarriage carriage, LitShader shader, int rounds = LauncherLoad.Full)
     {
         for (int pi = 0; pi < parts.Length; pi++)
         {
             var part = parts[pi];
+            if (part.Round >= 0 && part.Round >= rounds) continue;   // ⭐ CE-4618 — a canister's cover: gone once its round is fired
             if (look.Child && pi == BlockFigure.HeadIndex)   // ⭐ CE-1099 (O-3) — a child's head is larger, sitting on his shoulders
                 part = part with
                 {
@@ -1957,9 +1960,6 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _placedKits[(type, size)] = placed;
         return placed;
     }
-
-    /// <summary>⭐ CE-4618 — pins the look of <paramref name="tkbType"/> (a rail's seam: a type whose class the table does not have yet cannot resolve a family).</summary>
-    internal void PinLook(long tkbType, TypeLook look) => _looks[tkbType] = look;
 
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
     {
