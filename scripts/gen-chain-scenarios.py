@@ -201,7 +201,11 @@ def build(name, v):
     close = s.add(objective("Blue closes on the outpost", H, "ReachArea", {"common": {"title": "Blue closes on the outpost", "subject": bco, "scored": False},
                                                                          "area": circle((OUTPOST[0] + 24, OUTPOST[1] + 10), 25), "minMen": 1}))   # R-2103: Blue passing the house — ⛔ an area a
                                                                          #   Blue man STARTS in is no edge (CE-4166), and the rule never fired (run 8)
-    s.add(trigger("The outpost withdraws", H, achieved(close),
+    # ⭐ R-2113 (lane decision, CE-2436 AU-6) — …or on its FIRST CASUALTY: the IFVs on the start line (91 m) kill it at ~22 s, before the attack
+    #   starts (t = 30 s) and long before Blue closes (~142 s), measured in runs 5/6/7 ⇒ the close rule never fired. An OP that takes fire pulls back.
+    hit = s.add(objective("The outpost takes a casualty", H, "Strength", {"common": {"title": "The outpost takes a casualty", "subject": outpost,
+                                                                                     "scored": False}, "threshold": 0.99}))
+    s.add(trigger("The outpost withdraws", H, {"$type": "Compound", "operator": "Or", "conditions": [achieved(close), achieved(hit)]},
                   [{"act": "Order", "args": {"target": outpost, "behavior": "Order.Move",   # back behind the line (a MOVE is accepted while it runs; a
                                              "params": {"Location": [OBJ1[0] + 60, OBJ1[1], 0], "Speed": 4}}}]))   #  one-shot BreakContact ended unseen)
     s.add(trigger("Blue Company attacks", F, at_time(30),
