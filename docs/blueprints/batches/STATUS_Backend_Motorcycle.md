@@ -69,6 +69,12 @@ values (measured: a member moved to its point by the test still read `(-1000, 0,
 with the flag, and why the `SwarmRaid` rail (a commander reading its bikes) passes plainly and fails with it. ⇒ the harness needs the kernel's
 tick-start refresh; filed for the lane that owns the harness, the plays' rails run without the flag until then.
 
+## The ui merge — `2026-11-15`
+Merged `origin/ui@9b101379f` (ui's M-1v / M-2p: the model, seated riders `SeatPose.Ride`, the fire-arc gizmo, the out-of-arc cue). ui's edits in
+my `NedTkbCatalog.Motorcycle` kept (both seats `Pose = Ride`, `IconName = "_motorcycle"`). ⭐ ui's LD-3 asked that the HUD's arc test and the
+sim's agree: they did (both ccw min → max, a full circle all round) — and now they are ONE: `PossessionStation.InArc` calls
+`WeaponSystems.InTraverse` (ruling 9). ui's rails `Motorcycle|PossessionStation|SeatPose` 88 / 88 under `xvfb-run -a`.
+
 ## Ids allocated
 `TkbEntityTypes.Motorcycle = 115` (fixed by the handoff) · `OrderKind.Dash = 14` · `BrainRefusal.ForbiddenByOrder` (next member) · no CE / R ids beyond CE-4621 (the handoff's) and the lane decisions L-1…L-12 here (to be ledgered on review).
 

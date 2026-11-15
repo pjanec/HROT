@@ -940,10 +940,10 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-4621 — <paramref name="azimuthDeg"/> (counter-clockwise from the host's forward) lies on the arc running counter-clockwise from <paramref name="minDeg"/> to <paramref name="maxDeg"/> (wrapping through ±180° when Max is below Min).</summary>
         public static bool InArc(float azimuthDeg, float minDeg, float maxDeg)
         {
-            static float Wrap360(float a) { a %= 360f; return a < 0f ? a + 360f : a; }
-            float span = Wrap360(maxDeg - minDeg);
-            if (span == 0f && maxDeg != minDeg) span = 360f;   // a full circle written 0 … 360
-            return Wrap360(azimuthDeg - minDeg) <= span + 1e-3f;
+            // ⭐ CE-4621 (backend, at the ui merge) — ONE arc rule: the sim's (WeaponSystems.InTraverse, ccw min → max, a full circle all round),
+            //   so the HUD's out-of-arc cue and the seat's hold (AimAndFireExecutor.SeatHold) cannot disagree (ruling 9). Was a degrees copy here.
+            const float D = MathF.PI / 180f;
+            return Fdp.Toolkit.Combat.WeaponSystems.InTraverse(azimuthDeg * D, minDeg * D, maxDeg * D);
         }
 
         public static Vector3? BarrelPoint(EntityRepository w, Entity unit, int mount, Vector3 aimAt)
