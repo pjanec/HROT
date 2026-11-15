@@ -11,6 +11,13 @@ internal static class HeightStage
 {
     public static void Run(InputSetReader set, string storePath, ImportReport rep, CancellationToken ct, IProgress<ImportProgress>? progress)
     {
+        var (z, cols, rows) = Resample(set, rep, ct, progress);
+        Write(z, cols, rows, storePath, rep);
+    }
+
+    /// <summary>⭐ CE-4403 (P-1, G-4) — the resampled 1 m posts (row 0 = south), NOT yet written: the importer applies the house pads to them first.</summary>
+    public static (float[] Z, int Cols, int Rows) Resample(InputSetReader set, ImportReport rep, CancellationToken ct, IProgress<ImportProgress>? progress)
+    {
         var m = set.Manifest;
         var info = set.Heights;
         int srcCols = info.Cols, srcRows = info.Rows;
@@ -27,9 +34,16 @@ internal static class HeightStage
                                            m.MinX, m.MinY, cols, rows, 1.0, out long filled);
         src = null!;
         ct.ThrowIfCancellationRequested();
+        rep.HeightPostsFilled = filled;
+        progress?.Report(new ImportProgress("heights", 0.9));
+        return (z, cols, rows);
+    }
+
+    /// <summary>Writes the posts as the terrain's height store.</summary>
+    public static void Write(float[] z, int cols, int rows, string storePath, ImportReport rep)
+    {
         var grid = new TerrainHeightGrid(System.Numerics.Vector2.Zero, 1f, cols, rows, z);
         using (var o = File.Create(storePath)) grid.WriteStore(o);
-        rep.HeightCols = cols; rep.HeightRows = rows; rep.HeightPostsFilled = filled;
-        progress?.Report(new ImportProgress("heights", 1));
+        rep.HeightCols = cols; rep.HeightRows = rows;
     }
 }

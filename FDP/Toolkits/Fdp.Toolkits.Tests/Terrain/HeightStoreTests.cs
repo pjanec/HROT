@@ -119,5 +119,106 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.DoesNotContain(z, v => v == noData || v == 0f);       // no cliff: every filled post took a real height
             Assert.InRange(z[5 * 11 + 10], 100f, 140f);
         }
+
+
+        // ── CE-4596 (P-0; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-5) — a patch copies only the tiles it touches ─────────
+
+        private static TerrainHeightGrid Grid(int cols, int rows)
+        {
+            var z = new float[cols * rows];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) z[r * cols + c] = F(c, r);
+            return new TerrainHeightGrid(new Vector2(-10f, 5f), 1f, cols, rows, z);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4596</c> (V-5) — a crater-sized patch (30 × 30 posts) inside ONE tile copies that tile only: every other tile is the very same
+        /// array as before; the patched posts answer the patch, the rest the old heights; the old grid is unchanged. 🔴 Red-proof: clone every tile in
+        /// <c>TerrainHeightTiles.Patched</c> ⇒ the "shares" assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4596_APatch_CopiesOnlyTheTilesItTouches_AndLeavesTheOldGridAlone()
+        {
+            var g = Grid(700, 600);   // 3 × 3 tiles, partial east and north
+            var p = g.Patched(300, 300, 329, 329, (c, r, z) => z - 5f);   // inside tile (1, 1)
+            for (int ty = 0; ty < g.Tiles.TilesY; ty++)
+                for (int tx = 0; tx < g.Tiles.TilesX; tx++)
+                    Assert.Equal(tx != 1 || ty != 1, p.Tiles.SharesTile(g.Tiles, tx, ty));
+            Assert.Equal(F(310, 310) - 5f, p[310, 310]);
+            Assert.Equal(F(310, 310), g[310, 310]);       // the old grid is untouched (immutable)
+            Assert.Equal(F(299, 310), p[299, 310]);       // just outside the patch
+            Assert.Equal(F(330, 329), p[330, 329]);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4596</c> (V-5) — after patches across tile and block edges, at the grid's north-east corner, and one that LOWERS the highest
+        /// post, every block maximum (the sight skip) and the MinZ / MaxZ equal a fresh grid built from the same posts; a patch on the last column
+        /// also rewrites the padding that repeats it. 🔴 Red-proof: skip the block recompute in the patched constructor ⇒ the block assertion fails;
+        /// keep the old MaxZ ⇒ the lowered-peak assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4596_APatchedGrid_HasTheBlocksAndRangeOfAFreshOne()
+        {
+            var g = Grid(700, 600);
+            int peakC = 0, peakR = 0; float peak = float.MinValue;
+            for (int r = 0; r < 600; r++) for (int c = 0; c < 700; c++) if (g[c, r] > peak) { peak = g[c, r]; peakC = c; peakR = r; }
+            var p = g.Patched(250, 240, 270, 275, (c, r, z) => z + 40f)              // across a tile edge (256) and block edges
+                     .Patched(690, 590, 699, 599, (c, r, z) => z - 30f)              // the north-east corner
+                     .Patched(peakC - 2, peakR - 2, peakC + 2, peakR + 2, (c, r, z) => -100f)   // lower the highest post (and below the lowest)
+                     .Patched(512, 0, 512, 0, (c, r, z) => z);                        // a single post on a tile edge, unchanged
+            var z2 = new float[700 * 600];
+            for (int r = 0; r < 600; r++) for (int c = 0; c < 700; c++) z2[r * 700 + c] = p[c, r];
+            var fresh = new TerrainHeightGrid(g.Origin, g.CellSize, 700, 600, z2);
+            Assert.Equal(fresh.MinZ, p.MinZ);
+            Assert.Equal(fresh.MaxZ, p.MaxZ);
+            Assert.True(p.MaxZ < peak, "the lowered peak no longer counts");
+            var (bx, by) = p.BlockCount;
+            for (int y = 0; y < by; y++) for (int x = 0; x < bx; x++) Assert.Equal(fresh.BlockMaximum(x, y), p.BlockMaximum(x, y));
+            Assert.Equal(p[699, 599], p.Tiles[767, 767]);   // the padding past the north-east edge repeats the patched edge post
+            Assert.Equal(p.Sample(-10f + 695.5f, 5f + 595.5f), fresh.Sample(-10f + 695.5f, 5f + 595.5f));
+        }
+
+        /// <summary>⭐ <c>CE-4596</c> (R-2084) — reading a patched grid allocates nothing (the per-frame ground height of every mover).</summary>
+        [Fact]
+        public void CE4596_ReadingAPatchedGrid_AllocatesNothing()
+        {
+            var p = Grid(700, 600).Patched(100, 100, 400, 400, (c, r, z) => z + 1f);
+            float sink = 0f;
+            void Run() { for (int i = 0; i < 2000; i++) sink += p.Sample(-10f + (i * 7) % 690, 5f + (i * 13) % 590) + p[(i * 3) % 700, (i * 5) % 600]; }
+            Run();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int k = 0; k < 20; k++) Run();
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.NotEqual(0f, sink);
+        }
+
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4403</c> (G-1, G-6) — THE ground-patch rule has two entry points and one answer: two overlapping pads on a slope applied in place to the posts
+        /// (the importer) and through the copy-on-write grid (runtime) give the same heights, in either order (each only lowers: the minimum), never above the
+        /// natural ground. 🔴 Red-proof: let <c>GroundPatches.Target</c> fill (drop the <c>z &lt;= patch.Z</c> guard) ⇒ the "never above" assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4403_TheGroundPatchRule_OneAnswer_InPlace_OrCopyOnWrite_InAnyOrder()
+        {
+            const int cols = 300, rows = 280;
+            var z = new float[cols * rows];
+            for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) z[r * cols + c] = 20f + 0.15f * c - 0.05f * r;
+            var g = new TerrainHeightGrid(Vector2.Zero, 1f, cols, rows, z);
+            var a = GroundPatches.PadOf(new[] { new Vector2(100, 100), new Vector2(120, 100), new Vector2(120, 112), new Vector2(100, 112) }, 30f, (x, y) => g.Sample(x, y));
+            var b = GroundPatches.PadOf(new[] { new Vector2(118, 104), new Vector2(130, 104), new Vector2(130, 116), new Vector2(118, 116) }, 32f, (x, y) => g.Sample(x, y));
+            var inPlace = (float[])z.Clone();
+            Assert.True(GroundPatches.ApplyTo(inPlace, cols, rows, Vector2.Zero, 1f, new[] { a, b }) > 0);
+            var ab = GroundPatches.Apply(g, new[] { a, b });
+            var ba = GroundPatches.Apply(g, new[] { b, a });
+            for (int r = 80; r < 140; r++)
+                for (int c = 80; c < 160; c++)
+                {
+                    Assert.Equal(inPlace[r * cols + c], ab[c, r]);
+                    Assert.Equal(ab[c, r], ba[c, r]);
+                    Assert.True(ab[c, r] <= z[r * cols + c] + 1e-6f);
+                }
+            Assert.Equal(30f, ab[110, 106], 3);
+            Assert.True(ab.Tiles.SharesTile(g.Tiles, 0, 1) || g.Tiles.TilesY < 2);   // a far tile is shared
+        }
     }
 }

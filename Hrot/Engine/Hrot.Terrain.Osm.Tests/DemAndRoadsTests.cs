@@ -147,6 +147,9 @@ public sealed class DemAndRoadsTests : IDisposable
         Assert.Equal("-701200", args[args.ToList().IndexOf("--offset.x") + 1]);
         Assert.Equal("-7459300", args[args.ToList().IndexOf("--offset.y") + 1]);
         Assert.Contains("--offset.disable-normalization", args);
+        // ⭐ CE-4403 (V-15) — the bridge / tunnel / layer tags kept as edge params, and ONLY those (option names verified against SUMO's netconvert reference)
+        Assert.Equal("true", args[args.ToList().IndexOf("--osm.all-attributes") + 1]);
+        Assert.Equal("bridge,tunnel,layer", args[args.ToList().IndexOf("--osm.extra-attributes") + 1]);
     }
 
     /// <summary>⭐ <c>CE-4409</c> — netconvert is started with <c>SUMO_HOME</c> set to the LOCATED install's home (🔒 user, 2026-11-10, Windows: <i>"environment variable SUMO_HOME is not set properly"</i>, exit 1):

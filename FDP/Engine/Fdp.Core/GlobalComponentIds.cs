@@ -1285,6 +1285,20 @@ namespace Fdp.Core
         /// ⚠ 485 measured free in backend, ui, behaviors and coordinator 2026-11-10 (the highest in use was 484).</summary>
         public const int BuildingDamage = 485;
 
+        /// <summary><c>GroundDamage</c> — ⭐ CE-4591 (P-4, docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, V-7): the craters ONE deciding node made in ONE ground cell, on a
+        /// runtime entity that node owns; recorded, replicated (<c>dtGroundDamage</c>, 184). NoScenario (a save section carries the craters). ⚠ 490: the `terrain` lane's ids come from the free part of the
+        /// coordinator / new-lane block (486–491; 492 and 493 are held by TEST-local structs — VariantFormsTests, WorldKeyframesTests — and a process-wide registry refuses two
+        /// types on one id: measured, the full toolkit suite failed "KeyframeTestPos and GroundDamage both declare 493"). 486–491 are used only by Fdp.Core.Tests' private types.</summary>
+        public const int GroundDamage = 490;
+
+        /// <summary><c>TreeDamage</c> — ⭐ CE-4603 (B-6, docs/DESIGN_Vehicle_Breaching.md §7.7): the lone trunks ONE deciding node felled in ONE ground cell (centimetre positions), on a runtime
+        /// entity that node owns; recorded, replicated (<c>dtTreeDamage</c>, 185). NoScenario (the <c>TerrainObjects["#trees"]</c> entry carries them). ⚠ 489 (see GroundDamage's note: 492 / 493 are test-held).</summary>
+        public const int TreeDamage = 489;
+
+        /// <summary><c>BladeCut</c> — ⭐ CE-4601 (B-4, docs/DESIGN_Vehicle_Breaching.md §7.6): a bulldozer's "my blade is cutting HERE" marker — set by its brain's
+        /// <c>ClearObstacle</c> point order, read by the Muscle's <c>DozerCutSystem</c>. Brain group, replicated (<c>dtBladeCut</c>, 186). ⚠ 491 (terrain lane, top-down).</summary>
+        public const int BladeCut = 491;
+
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
         public const int TerrainBlock = 494;

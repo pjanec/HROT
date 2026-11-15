@@ -93,7 +93,10 @@ namespace Hrot.SimHost.Tests
             var (@base, version, folder) = _residency.ExpansionBase();
             var result = live.Expand(live.Snapshot(_world), @base, version, folder)!;
 
-            var fromCompiler = file.Select(f => (Label: OverlayExpansion.Label(f), Box: OverlayExpansion.BoundsOf(f))).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
+            // ⭐ CE-4592 (G-24) — a `corridor` part is DERIVED (a base road a padded house reaches), not an authored part: both sides carry the same ones
+            bool IsCorridor(JsonObject f) => (string?)((JsonObject)f["properties"]!)["kind"] == "corridor";
+            Assert.Equal(file.Count(IsCorridor), result.World.RoadCorridors.Count);
+            var fromCompiler = file.Where(f => !IsCorridor(f)).Select(f => (Label: OverlayExpansion.Label(f), Box: OverlayExpansion.BoundsOf(f))).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
             var fromLive = result.Parts.OrderBy(p => p.Key, StringComparer.Ordinal).ToList();
             Assert.Equal(fromCompiler.Select(t => t.Label), fromLive.Select(p => p.Key));
             for (int i = 0; i < fromLive.Count; i++)

@@ -94,6 +94,7 @@ namespace Hrot.UI.Common.Audio
             {
                 foreach (var s in events.Shots) Shot(world, tkb, own, ear, now, s);
                 foreach (var b in events.Bursts) Burst(tkb, ear, now, b);
+                foreach (var c in events.Crashes) Crash(tkb, ear, now, c);   // ⭐ CE-4600 (B-3b)
                 events.Clear();
             }
             Movers(world, tkb, own, ear, dt, output);
@@ -172,6 +173,19 @@ namespace Hrot.UI.Common.Audio
                 _mixer.Request(far, s.At, true, g, Jitter(f), f.Priority, now, delay);
             }
         }
+
+        /// <summary>⭐ CE-4600 (B-3b, V-17) — a barrier broken by a vehicle: the crash, by distance (a bump open a little quieter).</summary>
+        private void Crash(ITkbDatabase? tkb, in Ear ear, double now, in SoundEvents.Crash c)
+        {
+            if (SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.Crash) is not { } s) return;
+            float d = Vector3.Distance(c.At, ear.Position);
+            if (s.RangeM > 0f && d >= s.RangeM) return;
+            CrashesHeard++;
+            _mixer.Request(SoundTkbCatalog.Crash, c.At, true, Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s) * (c.Heavy ? 1f : 0.6f), Jitter(s), s.Priority, now, Spatializer.Delay(d));
+        }
+
+        /// <summary>⭐ CE-4600 — crashes played (a rail).</summary>
+        public int CrashesHeard { get; private set; }
 
         private void Burst(ITkbDatabase? tkb, in Ear ear, double now, in SoundEvents.Burst b)
         {

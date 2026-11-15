@@ -452,3 +452,519 @@ correctness (determinism, replication, replay, threads) · the terrain pipeline 
 | **P-5** ground shapes | CE-4592 | G-14…G-19 + V-27 (a sibling unmanaged `GroundFeature` component) · V-28 (draw order — newest wins; the live preview shows house / road islands; Level / Lower re-level corridors like Raise) |
 | **P-6** ditches + foxholes | CE-4593 | G-26…G-29, G-36…G-38 + V-29 (all-round foxhole points; a cover stage in the all-round defence; re-plan when the cover set changes) · V-30 (cover points on the ditch FLOOR, a pair facing each bank) |
 
+
+### 9.6 As built — P-0 *(`terrain` lane, `2026-11-14`, CE-4596)*
+
+```mermaid
+classDiagram
+  direction LR
+  class TerrainHeightTiles {
+    <<existing, CHANGED>>
+    float[][] tiles - one array per 256 x 256 tile
+    this[c, r] 0 B
+    + Patched(c0, r0, c1, r1, patch) copies touched tiles, shares the rest
+    + SharesTile(other, tx, ty)
+  }
+  class TerrainHeightGrid {
+    <<existing, EXTENDED>>
+    tile min / max per tile - MinZ, MaxZ fold over them
+    block maxima - the sight skip
+    + Patched(c0, r0, c1, r1, patch) recomputes touched tiles and blocks only
+    + BlockMaximum(bx, by) · BlockCount
+  }
+  class StaticObstacleBakeSystem {
+    <<existing, EXTENDED>>
+    + MaxLatencySeconds = 2 - a change never waits longer
+    + publishes LiveTerrainBakeInfo on EVERY host
+  }
+  class LiveTerrainBakeInfo {
+    <<existing>>
+    Bakes · Dirty rectangles · Blocks (editor only)
+  }
+  class LiveTerrainChanges {
+    <<existing, ui>>
+    the 3-D map's ChangedAreas - one map pack for every host
+  }
+  TerrainHeightGrid *-- TerrainHeightTiles
+  StaticObstacleBakeSystem --> LiveTerrainBakeInfo : after each commit
+  LiveTerrainChanges ..> LiveTerrainBakeInfo : reads
+```
+*What it shows that prose hid: the dirty rectangles were already computed on every host (`TerrainResidency.DirtyRegions`), and the 3-D map that
+reads them is the ONE map pack every host builds (`MapInteractionPack`) — only the publication was editor-gated. So V-3 is one gate removed, not a
+new path. The height store's patch is the primitive P-1, P-3, P-4 and P-5 call; nothing patches heights at runtime yet.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a patch copies only the touched tiles | `TerrainHeightTiles.Patched` clones the tile index and the touched tiles; `SharesTile` proves the rest are the same arrays | V-5 |
+| the sight skip and MinZ / MaxZ follow a patch | `TerrainHeightGrid.Patched` — per-tile min / max recomputed for touched tiles, folded; block maxima for touched blocks (a boundary post belongs to the block before it too) | V-5 |
+| a steady read allocates nothing | `this[c, r]` = `_tiles[t][i]`; rail `HeightStoreTests.CE4596_ReadingAPatchedGrid_AllocatesNothing` | R-2084 |
+| dirty rectangles on every host | `StaticObstacleBakeSystem.Finish` publishes `LiveTerrainBakeInfo` with no `LiveOverlay` gate; the map pack wires `LiveTerrainChanges` on every host | V-3 |
+| a barrage cannot starve the bake | `MaxLatencySeconds` (2 s) from the frame a change is first seen | V-1 |
+| a crater's own dirty rectangle and heights | ⛔ not here — P-4 (`GroundDamage` in `DirtyRegions`, V-4) and P-1 / P-3 (pads) call `Patched` | §9.5 |
+
+⭐ **Lane decision (for the user's review):** [R-5003](blueprints/RULINGS.md) the latency cap is 2 s (four quiet periods; a scale-1 bake is ~4–5 s,
+so under a barrage a node bakes about back-to-back — the design's "bake after ≤ N s however busy" with N chosen here).
+
+Rails: `HeightStoreTests.CE4596_*` (a patch shares every untouched tile; a patched grid has a fresh grid's blocks and range, the lowered peak
+included; 0 B reads), `StaticObstacleBakeTests.CE4596_*` (a barrage still bakes within the cap; a host with no live overlay publishes the dirty
+rectangles). ⚠ The rails stand for the cluster and display hosts by construction (one system, no host gate left); there is no per-host rail.
+
+### 9.7 As built — P-1, part 1: house pads at import *(`terrain` lane, `2026-11-14`, CE-4403)*
+
+```mermaid
+sequenceDiagram
+  participant I as TerrainImporter
+  participant H as HeightStage
+  participant B as BuildingTemplateGenerator
+  participant P as Pads (importer)
+  participant G as GroundPatches (toolkit, the ONE rule)
+  I->>H: Resample - the 1 m posts, NOT written yet
+  I->>B: Generate - the buildings, each ring and its base
+  I->>P: Apply(posts, buildings)
+  P->>G: PadOf(ring, base, ground) per house
+  P->>G: ApplyTo(posts, pads) - in place, each pad against the NATURAL ground, min over pads
+  I->>H: Write - the store, pads in it
+```
+*What it shows that prose hid: the store is written AFTER the buildings now — the only reordering — and the importer holds no levelling code of its
+own: it calls the toolkit rule P-3 and P-4 will call through the copy-on-write grid (`GroundPatches.Apply` → `TerrainHeightGrid.Patched`).*
+
+| claim | code — as built | design |
+|---|---|---|
+| one rule for every moment | `GroundPatches.Target` (per post), `ApplyTo` (in place, import), `Apply` (copy-on-write, runtime) | G-1 |
+| a pad = the house's own base; cut, never fill; cut ≤ 3 m | `PadOf`, `Target` | G-2, G-3, R-4228 |
+| the bank a cut adds is ≤ 45° | skirt = max(4 m, 1.5 × the cut) | V-16 |
+| patches combine order-free | each measured against the NATURAL ground, minimum over them (📌 a rail caught the sequential form differing by 0.11 m with the order) | G-3 "canonical order" |
+| the importer writes the store after the buildings | `HeightStage.Resample` / `Write`, `Pads.Apply`; report `pads: N house pads, posts cut, skirts widened` | G-4 |
+| road corridors, net re-elevation, bridges / tunnels, D-3, D-4 | ⛔ not yet — part 2 | G-21…G-25, V-15, V-18, V-21, V-22 |
+
+⭐ **Lane decision (for the user's review):** [R-5009](blueprints/RULINGS.md) overlapping skirts combine by the MINIMUM over the pads, each against the natural
+ground (G-3 said "blend by weight into one terrace") — order-free and the same on every node; a deeper neighbour's cut wins where they overlap.
+⚠ **CE-4402 (the low door on scale-1)** needs the scale terrains RE-IMPORTED (D-4: a new terrain version); not done here — the committed terrains are
+unchanged until then.
+
+Rails: `ImporterTests.CE4403_*` (a house on a 0.2 slope stands on its pad, ground ≤ 0.3 m at its uphill door, the slope past the skirt, untouched far
+away, the house keeps its base; a 0.5 slope gets a wider skirt and a 3 m cap) — red-proved; `HeightStoreTests.CE4403_TheGroundPatchRule_*` (in place ≡
+copy-on-write, either order, never above the ground).
+
+### 9.8 As built — P-1, part 2: road corridors at import *(`terrain` lane, `2026-11-14`, CE-4403)*
+
+```mermaid
+sequenceDiagram
+  participant I as TerrainImporter
+  participant C as Corridors (importer)
+  participant R as RoadCorridors (toolkit)
+  participant P as Pads
+  participant E as NetElevation (shared)
+  I->>C: Apply(posts, net, buildings)
+  C->>C: Read - normal edges (lanes, widths), junction outlines and centres
+  C->>R: Level(posts, corridors, junctions, house footprints)
+  R-->>C: the LOCK mask - the posts a road levelled
+  I->>P: Apply(posts, buildings, lock) - pads never touch a locked post
+  I->>I: Write the store
+  I->>E: Apply(copied net, the levelled store, force)
+```
+*What it shows that prose hid: the roads go FIRST and hand a lock to the pads (G-24), and the net is re-elevated from the very store that ships — so
+SUMO, the drawn road and the ground agree by construction (G-25). `NetElevation` gained one switch (`force`); every other caller keeps its behaviour.*
+
+| claim | code — as built | design |
+|---|---|---|
+| per edge: smoothed profile, level across width + shoulder, 3 m skirt | `RoadCorridors.Level`: profile = a 30 m moving average of the ground along the reference line (the mean of the outer lanes), half-width = lanes / 2 + 1 m, skirt max(3 m, 1.5 × depth) | G-21, V-16 |
+| ends pinned to the junctions | the profile's ends pulled to each junction's ground over 15 m | V-22 |
+| junctions flat | each outline at its centre's ground | G-21 |
+| cut / fill capped at 6 m | a post deeper than 6 m keeps the natural ground (counted) | G-23 |
+| overlapping corridors | the NEAREST road decides a post; a junction over every corridor | — |
+| houses tolerated | a post inside a house footprint is never levelled — the road keeps its cross-slope there, a report line (information) | D-3, R-4234 |
+| corridors locked | `GroundPatches.ApplyTo(…, locked)` | G-24 |
+| the net re-elevated from the store | `NetElevation.Apply(…, force: true)`, net − anchor = local | G-25, V-21 |
+| bridges / tunnels skipped | ⭐ built (V-15): netconvert keeps the OSM `bridge` / `tunnel` / `layer` tags as edge params (`--osm.all-attributes true --osm.extra-attributes bridge,tunnel,layer` — names checked against SUMO's netconvert reference); `Corridors.Read` marks such an edge (and any `layer` ≠ 0) off the ground and `Apply` gives it no corridor, reported as information; the 6 m cap stays the guard for a net without the tags (with no bridge / tunnel data the 6 m cap is the bridge guard). Rail `ImporterTests.CE4403_ABridgeOverAValley_LevelsNothingUnderIt` | G-22, V-15 |
+| D-3's straight ramp to a façade | ⚠ approximated: the road's skirt and the pad's skirt meet; no explicit ramp | D-3 |
+| road graph edge ids, both directions | ⛔ not here — P-2's (V-18) | V-18 |
+| a re-import is a new terrain version | ⚠ D-4's HOW is a question: nothing resolves a terrain by hash today — [Architect Question 112](blueprints/Architect_Question_112_Terrain_Versions_On_Reimport.md) recommends `versions/<hash>/` inside the terrain + `ResolveDefinition(name, expectedHash)`, awaiting the user | D-4 |
+
+⭐ **Lane decisions (for the user's review):** [R-5010](blueprints/RULINGS.md) with no bridge / tunnel data the 6 m cap is the bridge guard (amended: the tags are now kept, V-15); [R-5011](blueprints/RULINGS.md) where corridors overlap the nearest road decides, a junction over all;
+[R-5012](blueprints/RULINGS.md) D-3's ramp is the two skirts meeting (no ramp primitive); D-4 (versioned re-import) and V-18 (edge ids) are left to their
+own steps.
+
+Rails: `ImporterTests.CE4403_ARoadAcrossASlope_IsLevelAcrossItsWidth_AndTheNetSitsOnTheStore` (level across, the slope past the skirt, every net point on
+the store — §6 item 1's last clause), `CE4403_HousesByTheRoad_AreTolerated_AndThePadsNeverAlterTheRoad` (D-3 reported, never an error; the lock) —
+both red-proved (no corridors ⇒ both red).
+
+### 9.9 As built — P-2: road blockage *(`terrain` lane, `2026-11-14`, CE-4590)*
+
+```mermaid
+graph TD
+  OBS[StaticObstacle - roadblock, wreck] --> BCS[BridgeClosureSystem - THE road-blockage step, every node]
+  BRG[a fallen bridge - collapse table + overlay row] --> BCS
+  CRT[a crater - P-4]:::later -.-> BCS
+  BCS -->|Without base, blocked now| HOLD[RoadNetworkHolder + ZoneEnvironmentData]
+  BCS -->|RequestReplan| VEH[vehicles whose way crosses a new cut]
+  BCS -->|closed edges, in SUMO's own lanes| RT[TrafficRuntime - CloseEdge / OpenEdge]
+  OBS --> FEED[TrafficBodyFeedSystem - bodies at rest]
+  FEED -->|lane obstacles| RT
+  classDef later stroke:#888,color:#888,stroke-dasharray: 5 5
+```
+*What it shows that prose hid: ONE step owns every closure and it is a FUNCTION of the blocker set (the published net is always the base without what is
+blocked now), so re-opening and seeking need no code of their own; partial coverage needs no step at all — SUMO's existing lane-obstacle feed takes the
+obstacle as a body.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one step for every blocker | `BridgeClosureSystem` (name kept: the bridge was its first blocker — a Roslyn rename later is cosmetic) takes fallen bridges AND every active `StaticObstacle` | G-10 |
+| rebuilt from the base; re-opens | the system keeps its own copy of the base (the holder frees retired graphs); `RoadNetworkHolder.Version` tells its own publish from a new base; publishes `Without(base, blocked)` only when the set changes | V-19 |
+| a road is cut only when fully covered | `RoadBlockage.ClosedSegments`: a station where every point across the lanes' width lies in a blocker | G-10, V-20 |
+| SUMO closed in its own lanes | `RoadBlockage.ClosedEdges` over `TrafficNetCache.Model` — every lane covered at the SAME fraction; no road-graph ↔ SUMO id map needed | V-18 (need removed) |
+| partial cover ⇒ lane obstacle | `TrafficBodyFeedSystem.AddObstacles`: each obstacle a chain of squares at rest (any heading), NEGATIVE synthetic ids | G-10, V-24 |
+| a replay | the net follows the replayed blockers; no vehicle is re-planned | — |
+| per mover class (a closing blocker for one class only) | ⛔ not here — our road graph has one class; craters (P-4) bring the class question | V-20 |
+| a crater as a blocker; `RoadHeights` over lowered ground | ⛔ P-4 | V-20 |
+
+⭐ **Lane decisions (for the user's review):** [R-5013](blueprints/RULINGS.md) each net is judged in its own geometry (V-18's edge ids are not written);
+[R-5014](blueprints/RULINGS.md) obstacles go to SUMO as chains of squares at rest with negative ids; a road is cut only where a blocker spans its full width.
+
+Rails: `BridgeClosureTests.CE4590_*` (a barrier cuts a road and its removal re-opens it, red-proved; a half-road car leaves it open; SUMO edges close only
+with every lane covered at one station; obstacles fed as bodies at rest) + the four T-7b rails unchanged, the 0 B steady frame included.
+
+### 9.10 As built — P-3: scenario house pads, *Save terrain as* *(`terrain` lane, `2026-11-14`, CE-4597)*
+
+```mermaid
+graph TD
+  FE[FeatureExpander - a placed house, a block's houses with Level pads] -->|"pad" = its baseZ| OV[the compiled overlay]
+  OV --> PARSE[TerrainWorldParser - TerrainBuilding.Pad]
+  PARSE --> MERGE[TerrainWorldMerge.PadHeights - GroundPatches.Apply over the base grid]
+  MERGE --> NODE[every node's merged world - the same ground]
+  MERGE --> LIVE[the editor's live bake - the same merge]
+  MERGE --> SAVE[TerrainBake.SaveAs - writes the padded store + re-elevates the net via the caller's hook]
+```
+*What it shows that prose hid: the pad is not a new overlay part — it is a FLAG on the house the overlay already carries, and the merge every host already
+runs applies it; so every node, the live editor and *Save terrain as* get the same ground by construction.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a placed house always stands on a pad; ONE pad rule | `FeatureExpander.House` writes `"pad"` = its `baseZ` always; a block's houses when *Level houses on pads* is on (was the ground at the house's CENTRE) | G-5 |
+| the pad is applied where the overlay merges, every node the same | `TerrainBuilding.Pad` (parser) → `TerrainWorldMerge.PadHeights` → `GroundPatches.Apply` (copy-on-write) | G-5, G-6 |
+| a bridge, an imported house | carry no `"pad"` — untouched (an imported house's pad is in the store, P-1) | — |
+| *Save terrain as* keeps every pad | ④c: the merged (padded) grid is WRITTEN over the copied store (`.heights` or `.asc`); the net re-elevated through `reElevateNet` (the editor / random generator pass `NetElevation.Apply(…, force)`) — on the bridge net when there is one (it was copied just before) | G-20, V-23 |
+| live editing and SUMO | the live bake merges the same way (pads appear while editing); SUMO's net follows only after save + reload | V-25 (said) |
+| a road corridor next to a placed house | ⚠ the runtime pad does not know the import's corridor lock (G-24): a pad's skirt may lower a road's edge; a road under a placed house is the author's | G-24 |
+
+⭐ **Lane decision (for the user's review):** [R-5018](blueprints/RULINGS.md) the pad is a FLAG on the house (its feature's `"pad"`), applied at merge — not a separate
+pad part in the overlay (G-5 said "a pad part"); the FDP save takes the net re-elevation as a caller's hook (FDP cannot see `Hrot.Terrain.InputSet`).
+
+Rails: `TerrainWorldMergeTests.CE4597_*` (a pad house cut into the base, a no-pad house untouched, the base unchanged), `TerrainBakeTests.CE4597_*` (the saved
+store keeps the pad, the net hook called on the saved net) — red-proved (no ④c ⇒ red).
+
+### 9.11 As built — P-4, parts 1 + 2: the crater record, the cratered ground, the bake, the navmesh and the roads *(`terrain` lane, `2026-11-14`, CE-4591)*
+
+```mermaid
+classDiagram
+  direction LR
+  class AreaEffectSystem {
+    <<existing, Muscle, EXTENDED>>
+    + MakeCrater beside BreachWalls
+  }
+  class CraterRule {
+    <<NEW static>>
+    TryDecide(table, world, burst, kg, now) Crater
+  }
+  class CraterRuleTable {
+    <<NEW, craters.json>>
+    minKg · radius / depth / rim per cbrt kg
+    maxBurstHeightPerRadius · largeRadiusM
+    coverAfterSeconds small / large
+  }
+  class CraterEvent {
+    <<NEW local event 5103>>
+  }
+  class GroundDamageSystem {
+    <<NEW, the BuildingDamageSystem shape>>
+    one entity per cell x deciding node
+    pending list · capacity 16 · owner only · no replay
+  }
+  class GroundDamage {
+    <<NEW unmanaged component 490, recorded>>
+    CellX, CellY, Count
+    X Y Radius Depth Rim BornAt Kind [16]
+  }
+  class Crater {
+    <<NEW record struct>>
+    TryOffset(x, y) - bowl, rim, + - x / sqrt only
+  }
+  class CraterTable {
+    <<NEW, the view's table>>
+    Of(view) - content-sorted, cached per thread
+    Offset(x, y) - min over the craters
+    GroundCrosses(world, a, b) - the cratered ground trace
+  }
+  class DoorStates {
+    <<existing, EXTENDED>>
+    + Craters
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + GroundCrosses(a, b, doors)
+    + GroundHeightAt(x, y, doors)
+    HasLiveState = true
+  }
+  class TerrainWorldQuery {
+    <<existing, EXTENDED>>
+    GroundHeightAt / SurfaceZ / HullSurfaceZ / ResolveLevel cratered
+  }
+  AreaEffectSystem ..> CraterRule
+  CraterRule ..> CraterRuleTable
+  AreaEffectSystem --> CraterEvent : publishes
+  GroundDamageSystem ..> CraterEvent : reads
+  GroundDamageSystem --> GroundDamage : writes (owner)
+  CraterTable ..> GroundDamage : unions every entity
+  DoorStates --> CraterTable
+  TerrainWorld ..> DoorStates : sight, fire, ground
+  TerrainWorldQuery --> DoorStates
+  GroundDamage --> Crater
+```
+*What it shows that prose hid: the design's "`CraterIndex` world singleton" is a TABLE ON THE VIEW (`DoorStates.Craters`), beside the breaches — the seam every
+sight / fire / ground caller already passes; nothing new is threaded through the ~30 callers, and a background snapshot sees ITS tick's craters.*
+
+```mermaid
+sequenceDiagram
+  participant AE as AreaEffectSystem (deciding node)
+  participant GS as GroundDamageSystem
+  participant GD as GroundDamage entity
+  participant DS as DoorStates.Of(view)
+  participant Q as sight / fire / mover
+  AE->>AE: CraterRule.TryDecide - kg, burst height, floor, water
+  AE->>GS: CraterEvent (next frame)
+  GS->>GD: write into this node's entity for the cell, else a creation request born holding it
+  Q->>DS: the view's table (rebuilt only when a GroundDamage changed)
+  DS-->>Q: Craters - GroundHeightAt / SurfaceZ / GroundCrosses answer from it, the same tick
+```
+*What it shows: no bake sits between the record and the simulation's answer (D-1) — the bake (part 2) only caches it for the navmesh and the 3-D mesh.*
+
+```mermaid
+graph TD
+  REC[GroundDamage records - replicated] --> DS[DoorStates.Of - the view's CraterTable]
+  DS --> Q[sight / fire / ground answers - the same tick - every node]
+  TICK[every node's tick - serial] --> BK[StaticObstacleBakeSystem - CraterTable.Hash in the signature]
+  BK --> TASK[background bake - TerrainObstacles.With - CraterTable.Bake into Height]
+  TASK --> NAV[RecastNavmeshFactory - NavDoorways.Craters - CraterArea 4]
+  TASK --> MESH[3-D chunks under CraterDirt's rectangles]
+  NAV --> FIL[DoorAwareQueryFilter - no vehicle in a crater]
+  TICK2[node tick - serial] --> RB[BridgeClosureSystem - RoadBlockage.AddCraters]
+  RB --> NET[our road graph without the segment + SUMO CloseEdge]
+  DISP[display node - no navmesh factory] -.heights only.-> TASK
+```
+*What it shows that prose hid: the craters reach the simulation by ONE edge (the view's table) and everything else — navmesh, mesh, roads — by derivations
+that may lag; a display node runs the bake for the HEIGHTS (V-6) and nothing reads a navmesh there.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a crater is decided once, by the deciding node, from the warhead's charge | `AreaEffectSystem.MakeCrater` → `CraterRule.TryDecide` (`craters.json`: cube-root sizes, none below 0.5 kg, none for an air burst higher than half the radius, none on a building's floor or on water); the record is what crosses the wire (V-10: only the decider takes a cube root) | G-7 |
+| one entity per (cell, deciding node), content-sorted union | `GroundDamageSystem` (the `BuildingDamageSystem` shape: pending list, capacity 16 ⇒ a second entity, owner-only, never in a replay); `CraterTable.Of` sorts by content and drops exact duplicates | V-7 |
+| the combine is commutative | the ground offset at a point is the MINIMUM of the offsets of the craters whose disc holds it — two records in either order give the same bits | V-7 |
+| the truth is analytic, the same tick, on every node | `TerrainWorldQuery.GroundHeightAt / SurfaceZ / HullSurfaceZ / ResolveLevel` and the terrain's ground trace (`TerrainWorld.GroundCrosses` — sight, `QuerySight`, `QueryFire`) read `DoorStates.Craters`; with no crater near the line the grid's own walk answers, unchanged | D-1 |
+| the profile is the same on every node | `Crater.TryOffset`: a parabolic bowl from −depth to +rim at the radius, a linear rim to 0 at 1.4 × the radius; + − × ÷ √ only | V-10 |
+| 0 B a steady frame | `CraterTable.Of` hands back the same table while no `GroundDamage` was written or added (the `BuildingDamageTable` stamp) | R-2084, R-220 |
+| ⭐ part 2 — the bake CACHES the craters, on every node | `StaticObstacleBakeSystem` adds the view's `CraterTable.Hash` to its input signature on EVERY node (a display node too — V-6); `TerrainResidency.BakeObstacles(…, craters)` → `TerrainObstacles.With(…, craters)`: the derived world's `Height` = `CraterTable.Bake(bare)` (copy-on-write tiles, every post = bare post + offset — order-free), `BareHeight` = the ground without them, `HeightCraters` = which | D-1, V-6, G-6 |
+| ⭐ never counted twice | the simulation's answers read `BareHeight` (`SimHeight`, `BareGroundHeightAt`) + the VIEW's craters; a reader with no view (the mesh, the navmesh, `CachedGroundHeight`, the woods) reads the cached `Height` — so the truth is immediate and a crater the view no longer holds (a seek back) is gone the same tick, while the cache lags one bake | D-1, G-8 |
+| ⭐ the dirty rectangle is the crater's disc | `TerrainResidency.CraterDirt`: every crater added since the last committed bake, and every one gone, adds its changed disc's box — only those navmesh tiles and 3-D chunks rebuild | V-4 |
+| ⭐ every vehicle keeps out, infantry crosses | `NavDoorways.Craters` — a 12-gon volume round each baked crater's changed disc, area `CraterArea` (4), marked after the woods; `DoorAwareQueryFilter.PassFilter` refuses it to a mover that cannot open doors (every vehicle layer); infantry's cost is plain. The volumes are part of each tile's cache key (as the woods') | D-2 R-4233, G-9 |
+| ⭐ a crater across a road cuts it | `BridgeClosureSystem` re-judges when the view's crater table changes; `RoadBlockage.AddCraters` adds each BOWL (radius, a 16-gon) to the blockers — a bowl spanning every lane closes the segment in our graph and the SUMO edge; a record gone re-opens it | G-10 |
+| ⭐ the record crosses the wire | `dtGroundDamage` (184, no group — the decider keeps it): `EntityGroundDamageEgressTranslator` / `…IngressTranslator` (the breach pair's shape; a crater's centre is terrain-local, nothing to resolve), `EntityGroundDamage { EntityId, CellX, CellY, List<DdsCrater> }` — Reliable, TransientLocal, KeepLast(1): a late joiner gets every crater; the replica's view answers the cratered ground at once | G-7, D-1 |
+| ⭐ part 3 — saved with the scenario | `TerrainObjects["#ground"] = { "craters": [[x, y, radius, depth, rim, bornAt, kind], …] }` — the craters of the entities this host OWNS (each slice once), content-sorted; `ScenarioMergeCore` unions two slices' entries (`MergeCraters`); `ScenarioLoadStep` reads them at prepare (a malformed row refuses the load) and `TerrainObjectRequests.ForCraters` makes one entity per cell at commit, owned by the loader (the breaches' R-4196 rule), none on a re-commit | G-7, V-7 |
+| ⭐ part 3 — the rim is cover after the gases clear | `CraterCover.Points`: points round the inside of the bowl (0.85 × the radius, every 2.5 m), facing out, stance by the rim's height above them (the wall rule), from `BornAt + coverAfterSeconds`; the EQS `CoverPointsGenerator` reads them LIVE from the view's craters with the sim clock, beside the standing vehicles' sides — ⛔ not baked into the provider, so V-13 needs no interface change and the provider stays immutable | G-35, V-13 |
+| ⭐ re-grounding | `CraterRegroundSystem` (in `DamageAssessmentModule`, after `GroundDamageSystem`): when the view's crater table gains a crater, every entity this node OWNS that stood on the ground (≤ 0.5 m) inside its disc takes the cratered ground; ⛔ never a replica, a static obstacle, a damage record, an entity off the ground, or in a replay. A crater set the view only LOST (a seek) moves nobody | G-11, V-8 |
+| ⭐ a road over a crater | `RoadHeights.At`: where the view's craters lower the ground, the road point is the cratered ground (not the node line carried over it, which is for a bridge) | V-20 |
+| ⭐ the crater's mark (V-11) | `TerrainWorldMesh.AddCraterScorch`: a dark disc over the bowl + a ragged lighter ring of streaks past the rim, draped 2 cm over the cratered grid, in the chunk of its centre — drawn on every node from the baked world's `HeightCraters`, kept while the record exists, gone with it (a seek back); the fixed 300 s effect decal is unchanged beside it | V-11 |
+| ⭐ V-12 built | R-5029: a vehicle in the new bowl is stranded — `CraterRegroundSystem.Strand` strips the owned vehicle's `CanMove` (the mobility-kill bit, CE-2197: it fights where it stands); a vehicle on the rim and a man keep moving. Rail `CraterTests.ACraterUnderAnOwnedVehicle_StrandsIt_NotOneOnTheRim_NorAMan` | V-12 |
+| ⚠ said, not built | a crater over PART of a road is no SUMO lane obstacle (V-24 wants a synthetic body id); SUMO cars keep the lane, our vehicles keep out by the navmesh | V-24 |
+
+⭐ **Lane decisions (for the user's review):** [R-5019](blueprints/RULINGS.md) the `craters.json` starting values; [R-5020](blueprints/RULINGS.md) the "index" is
+the VIEW's table on `DoorStates` (R-219: a world singleton is shared by every background snapshot), and `HasLiveState` is now true for every world (a
+crater can land anywhere); [R-5021](blueprints/RULINGS.md) a crater on a crater does not deepen it (the minimum — the commutative combine V-7 asks for).
+
+Rails: `CraterTests` — the rule, the profile and the commutative table, the same-tick ground height, a man in the crater hidden by its rim (sight and fire),
+0 B steady, the burst → record chain and the capacity rule; `CraterBakeTests` — the bake caches the crater (read once, not twice), a vehicle routes round it
+and infantry crosses, a display node bakes it, its disc is the dirty rectangle, a seek back restores the ground; `BridgeClosureTests.CE4591_*` — a crater across a
+road cuts it, a small one beside it does not, a seek back re-opens it; `EntityGroundDamageTranslatorTests` — the ordinal pinned, the sample round-trips byte for
+byte and the replica's view is cratered. Not yet (part 3): the save section, cover after
+`coverAfterSeconds` (G-35 / V-13), the decal (V-11), re-grounding (V-8 / V-12), `RoadHeights` (V-20), the stepped hash.
+
+### 9.12 As built — P-5, part 1: ground shapes (the data path) *(`terrain` lane, `2026-11-14`, CE-4592)*
+
+```mermaid
+graph TD
+  ENT[a scenario TerrainFeature, Kind Ground 13 - Template mode, Pad value, Seed draw order - its EditablePolyline] --> EXP[FeatureExpander.OfKind - ONE expansion, save and live]
+  EXP --> PART[overlay part kind ground - mode, value, order]
+  PART --> PARSE[TerrainWorldParser - TerrainWorld.GroundShapes]
+  PARSE --> MERGE[TerrainWorldMerge - GroundShapes.Apply over the base grid, then the pads G-18]
+  MERGE --> NODE[every node's merged world, the editor's live bake, Save terrain as]
+```
+*What it shows that prose hid: a ground shape is one more feature KIND on the path every terrain feature already takes — no new entity, no new storage —
+and the merge orders it before the pads, so a house placed on a shaped hill gets its pad on the shaped ground.*
+
+| claim | code — as built | design |
+|---|---|---|
+| a Ground feature, fields by kind | `TerrainFeature.Ground` (13): `Template` = `level` / `raise` / `lower`, `Pad` = Z / dZ, `Seed` = the DRAW ORDER; the skirt is derived (≥ 4 m, 1.5 × the largest change — G-3's walkable rule) | G-14 (R-5026: the sibling `GroundFeature` of V-27 waits for P-6's widths / depths) |
+| one rule, newest wins | `GroundShapes.Apply`: shapes in draw order, each blends its target over its skirt (smoothstep); the newest overrides where it reaches fully | V-28 |
+| houses are islands | every building footprint of base and overlay + 1 m keeps the natural ground (a shape never pushes the ground into a house) | G-18, V-28 |
+| the order of patches | `Merge`: shapes → pads on the shaped ground; craters at runtime over the result | G-18, G-32 |
+| never a blocker | a shape feeds neither the road blockage nor a navmesh area — the navmesh follows the heights by its slope limit | G-15 |
+| ⭐ SUMO follows (G-16, built) | `OverlayCompiler.Compile(…, reElevateNet)`: when a part changes the ground (a `ground` part, or a house with a `pad`), the base net (or the bridge net already in the slot, V-23) is copied into the overlay and handed to the caller's re-elevator with the MERGED ground (`TerrainWorldMerge` of base + this overlay, sampled in the net's anchor frame); the header names it (`sumoNet`), so the SUMO node loads it instead of the base's. The editor passes the ONE `NetElevation.Apply(force: true)` (`StorageProcessManager`), *Save terrain as* passes its own through (`TerrainBake.SaveAs`). ⭐ The toolkit takes the elevator as a delegate — it cannot reference `Hrot.Terrain` (one implementation, held by the host). Rail `OverlayCompilerTests.CE4592_AShapeOnATerrainWithANet_PutsAReElevatedNetInTheOverlay` (the hook sees the slope + 5 m; a wall-only scenario writes no copy) | G-16, V-23 |
+| ⭐ G-24 built | §9.15 — the touched road corridors re-levelled at the merge | G-24 |
+| ⚠ not yet | the UI (Details, the height tint — mockup) | part 2b |
+
+⭐ **Lane decision (for the user's review):** [R-5026](blueprints/RULINGS.md). Rails: `TerrainWorldMergeTests.CE4592_*` (raise / level / blend, the newest wins, a house is an island, an unknown mode fails) —
+red-proved (no `GroundShapes.Apply` in the merge ⇒ both red).
+
+### 9.13 As built — P-5, part 2a: the Earthworks picks *(`terrain` lane, `2026-11-14`, CE-4592; cross-lane into the ui lane's picker — said)*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| the 7th group | `TerrainPickCatalog.Earthworks` last in `Groups`; Level / Raise / Lower are AREA tools (the existing drawing tool) placing a `TerrainFeature` of kind Ground; the mountain glyph (`terrain/source`) | mockup panel A |
+| the rest listed, greyed with the item that brings them | Crater (V-14, a saved crater record), Ditch, Anti-tank ditch, Foxhole (P-6) | mockup panel A |
+| born | `TerrainBirth.GroundShape`: a raise 2 m, a lower 1 m, a level at the clicked ground (the placed transform's Z); the draw order = the authoring moment in seconds since 2026 (the newest wins) | G-14, V-28 |
+| ⭐ the grade read-out (the function) | `GroundShapes.SteepestRoadGrade(world, roads, shape)`: the steepest rise ÷ run along every road segment within the shape's reach, on the merged ground; `GradeWarning` = 15 % — rail `TerrainWorldMergeTests.CE4592_TheGradeReadOut…` | G-19 |
+| ⚠ not yet (part 2b) | the Details *Effect* panel that SHOWS it (grade, area, kept out, the SUMO line), the 2-D tint of the height change while drawing, and the frame-vs-mockup fidelity rails | mockup panels B, C, F |
+
+### 9.14 As built — P-6, part 1: ditches and foxholes *(`terrain` lane, `2026-11-14`, CE-4593)*
+
+| claim | code — as built | design |
+|---|---|---|
+| one path with the shapes | a ditch / anti-tank ditch / foxhole is a `TerrainFeature.Ground` with mode `ditch` / `at-ditch` / `foxhole` (the template), its depth in `Pad` (0 = the preset's); compiled as a `ground` LINE part with its width; the parser widens the line into one quad per segment (`DitchPresets.Strip`) | G-26, G-36 |
+| presets | ditch 2 m × 1 m · anti-tank ditch 4 m × 2 m · foxhole 2 m long × 1.5 m wide × 1 m deep along its heading (a click — the point tool) | G-26, G-36 (R-5027) |
+| steep banks | `GroundShapeMode.Ditch`: the natural ground − depth with a skirt of 0.6 × depth + 0.3 m (≈ infantry's 60°) — vs a Lower's gentle 1.5 × | G-38 |
+| an obstacle, priced per mover | a ditch (not a foxhole) is `Obstacle`; `NavDoorways.Ditches` marks its quad (+ banks) `CraterArea` — every vehicle keeps out, infantry crosses (D-2: one vehicle layer) | G-28, D-2 |
+| the merged and baked worlds keep the shapes | `TerrainWorldMerge` concatenates base + overlay shapes; `TerrainObstacles.With` carries them | — |
+| the picks | Earthworks: Ditch, Anti-tank ditch (line tools), Foxhole (a point tool with a heading) — live | mockup panel A |
+| ⭐ part 2 — cover | `TerrainCoverProvider.AddGroundCover`: along BOTH banks of a ditch a point every 2.5 m, 0.4 m in from the bank, facing it (a pair, V-30); a foxhole's four ALL-ROUND points at its centre (V-29); the stance by depth (the wall rule) — built with the bake like every terrain cover point | G-27, G-36, V-29, V-30 |
+| ⚠ V-29's behaviour half — handed over | R-5031: the squad's re-plan into ground cover is handed to the behaviors lane — it is their D-2m L2 slice; the frame: `batches/HANDOFF_Terrain_To_Behaviors_V29_Cover_Replan.md`. (G-29 §9.15, G-37 and Details §9.16 are built.) | V-29 |
+
+⭐ **Lane decision (for the user's review):** [R-5027](blueprints/RULINGS.md). Rail: `TerrainWorldMergeTests.CE4593_*` (the floor, the steep bank, the anti-tank depth, the foxhole along its heading, the two
+obstacle areas) and `…CE4593_ADitchGivesCover…` (both banks facing out, the foxhole all-round) — red-proved (a Lower's skirt ⇒ red; no `AddGroundCover` ⇒ red).
+
+### 9.15 As built — G-24 / G-29: a ground change re-levels the road it touches; a ditch stops at a road *(`terrain` lane, `2026-11-14`, CE-4592 / CE-4593)*
+
+```mermaid
+sequenceDiagram
+  participant C as OverlayCompiler (save) / LiveOverlay (editor)
+  participant W as OverlayExpansion.WorldDocument
+  participant R as TerrainRoads (the road graph)
+  participant P as TerrainWorldParser
+  participant M as TerrainWorldMerge
+  C->>W: features + the terrain's roads
+  W->>R: Corridors - each segment's line, lanes/2 + shoulder, bridges skipped
+  W-->>C: the document + a corridor part per road a ground change reaches (12 m)
+  C->>P: parse - TerrainWorld.RoadCorridors
+  C->>M: Merge(base, overlay)
+  M->>M: GroundShapes.OffCorridors - ditch strips cut to 1 m slices, the ones on a road dropped
+  M->>M: GroundShapes.Apply, then the pads
+  M->>M: RoadCorridors.Relevel - the import's profile on the changed ground, level across, skirt back
+```
+*What it shows that prose hid: the corridors ride in the overlay's own document, written by the ONE function both the save and the live overlay call — so the
+saved and the edited ground agree by construction; and the re-level runs LAST, so no later patch (a shape, a pad) can tilt a road (G-24's lock).*
+
+| claim | code — as built | design |
+|---|---|---|
+| the corridors | `TerrainRoads.Corridors`: every road-graph segment's sampled line, half-width = lanes × width / 2 + `RoadCorridors.Shoulder`; a segment with a node above the ground is skipped | G-21, G-22 |
+| only the touched roads | `WorldDocument(…, roads)` adds a `corridor` part for a road whose box (+ half-width + skirt) meets a ground / ditch / padded-house part grown by `CorridorReach` 12 m | G-24 |
+| the re-level | `RoadCorridors.Relevel`: per corridor, the ends at the ground there now (two edges at a junction agree), the import's `Profile` on the changed ground, level across, `Skirt` blend; islands and > `MaxDepth` kept | G-21, G-23, G-24 |
+| a ditch stops at a road | `GroundShapes.OffCorridors`: a ditch / foxhole strip reaching a corridor (half-width + its banks + its half width) is cut into 1 m slices and the reaching slices dropped — its height and its vehicle area both stop | G-29 |
+| one place | the merge on every node; the compile writes, the live overlay writes the same | ruling 9 |
+
+Rails `TerrainWorldMergeTests.CE4592_AHillOverARoad_ReLevelsTheRoadAcrossItsWidth`, `CE4593_ADitchAcrossARoad_StopsAtTheRoad`. ⭐ Lane decision [R-5028](blueprints/RULINGS.md) (R-5028: the road under a ground change is re-levelled from the road graph).
+
+
+### 9.16 As built — P-5 part 2b / P-6 Details: the draw panel's rows, the Ground tab, the ONE effect read-out *(`terrain` lane, `2026-11-14`, CE-4592 / CE-4593; cross-lane into the ui lane's panels — said)*
+
+```mermaid
+classDiagram
+  class GroundEffect {
+    +Of(base, roads, assets, mode, value, points)$ GroundEffect
+    +KeyOf(mode, value, points)$ ulong
+    +RoadGrade float
+    +Area float
+    +Change float
+    +HousesKept int
+    +RoadsKept int
+    +CellMin Vector2[]
+    +CellDelta float[]
+  }
+  class TerrainDrawOptions {
+    +IsGround bool
+    +IsDitch bool
+    +GroundValue float?
+    +SetMode(mode)
+    +EffectOf(points, ctx) GroundEffect
+    +Born(comps)
+  }
+  class TerrainDrawPanel {
+    +Draw()
+    +Hints(fx)$ (Line1, Warn, Line2)
+  }
+  class ITerrainDrawSource {
+    <<interface>>
+    +Context TerrainGhostContext
+  }
+  class GroundFeatureDetailsView {
+    +Draw(ctx, idScope)
+    +Effect rows
+  }
+  class GroundFeatureOps {
+    +SetMode(world, e, mode, value)$
+    +SetValue(world, e, value)$
+  }
+  class TerrainGhostContextCache {
+    +Get() TerrainGhostContext
+  }
+  class TerrainWorldMerge
+  class OverlayExpansion
+  TerrainDrawPanel --> ITerrainDrawSource : reads
+  ITerrainDrawSource --> TerrainDrawOptions
+  TerrainDrawOptions --> GroundEffect : cached by KeyOf
+  GroundFeatureDetailsView --> GroundEffect : cached by KeyOf
+  GroundFeatureDetailsView --> GroundFeatureOps : one edit step each
+  GroundEffect ..> OverlayExpansion : WorldDocument with roads
+  GroundEffect ..> TerrainWorldMerge : the merge every node runs
+  ITerrainDrawSource ..> TerrainGhostContextCache : the editor's ONE cache
+  GroundFeatureDetailsView ..> TerrainGhostContextCache
+```
+*What it shows that prose hid: the draw panel's hint and the Details Effect section are two READERS of one measurement, and that measurement is the save's own
+merge (the ONE `WorldDocument` + `TerrainWorldMerge`) — so a read-out cannot say something the ground will not do. The editor holds ONE terrain context for the ghost,
+the panel and the tab (it was a cache per caller).*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| ⛔ a defect fixed | `TerrainDrawOptions.Born` gave every drawn feature the line height and a random seed — a drawn Raise rose by 0 m with a random draw order (part 2a railed only `BornWith`). Now a ground shape keeps its value and the birth's draw order | G-14, V-28 |
+| the draw panel | Ground: *Ground — click to add a point*, Mode Level · Raise · Lower, *Raise by* (typed or the default), the skirt, *1.2 ha · Enter ends*, then the two hint lines; Ditch: Preset Ditch · Anti-tank ditch, *Depth*, *64 m · Enter ends* | mockup B (draw panel), D |
+| the hints | grade amber over 15 % (G-19 — shown, never refused), what is kept out; a ditch *stops at the road — G-29* | mockup B / D hint lines |
+| the Ground tab | Mode Level to Z · Raise by dZ · Lower by dZ · Crater (greyed, V-14); the value; Skirt; Effect: grade · area + change · kept out · draw order (*drawn over Raise 1 — the newest wins*) · the SUMO line | mockup C |
+| the ditch | Preset Ditch · Anti-tank ditch · Foxhole (a line cannot become a click); Depth; Width, Bank slope; Effect: cover by stance, vehicles closed, infantry passes, the road stop, length | mockup D |
+| no per-frame allocation | the effect, the read-outs, the texts and the points are rebuilt on a key (mode, value, points, polyline version) — a user action | R-2084 |
+| the 2-D tint | `GroundTintDraw`: each effect cell two filled triangles under the shape while it is drawn — amber up, blue down, more opaque with the change; islands untinted by construction (they change nothing); the area gizmo's new `Underlay` hook (`PointSequenceGizmo`, `AreaAuthoringRequest.Underlay`) — every other tool passes none. 0 B per steady frame | mockup B ("the tint: the change") |
+| ⚠ deviations from the mockup, said — and folded into it (`scripts/gen-ground-shaping-mockup.py`) | the Skirt / Width / Bank slope are READ-OUTS (derived, R-5026 — no fields until the sibling component V-27); no Seed row (a shape's seed is its draw order); the hint lines stand in the draw panel under its rows, not on the map; the dashed skirt and the white island outlines are not drawn (the tint shows both: no change ⇒ no tint); a ditch's tab is titled *Ground* (a Details descriptor's title is fixed) | mockup B, C, D |
+| ⭐ the coarse-grid warning | `GroundEffect.WillNotForm` / `CoarseGridWarning`: a ditch or foxhole on a grid coarser than 1.5 m — the draw panel's first hint line (amber) and the first Effect row in Details: *the grid is 2 m: it will not form here (G-37)*; said, never refused | G-37, mockup E |
+
+Rails `GroundEffectTests` (the birth — red-proved on the old `Born`; the effect), `TerrainDrawPanelFrameRail.DrawingAGroundArea_…` and `GroundFeatureDetailsViewTests` (real frames, Xvfb).
+
+
+### 9.17 As built — the VISUAL pass: every change seen in a real frame, two defects found *(`terrain` lane, `2026-11-14`, CE-4604; 🔒 user: "Check the ui result visually (terrain flattening, wall breaches, craters, ditches, foxholes…)")*
+
+⭐ One scene with every change — a raised mound, a levelled pad on a slope, a ditch and an anti-tank ditch, a foxhole, two craters, a breached wall — built the way the save and every
+node build it (a base grid MERGED with compiled feature parts; craters baked as every node bakes them; the breach a received record), rendered through the REAL 3-D terrain layer
+and the production 2-D map. Each view must change ≥ 1 % of the frame against the untouched base, and the crater must show soot.
+
+| found by LOOKING (no rail had rendered it) | fix |
+|---|---|
+| ⛔ **a crater's soot drew as GRASS** — V-11's scorch is tagged kind Ground, and the 3-D layer's colour and pattern for Ground looked only at `forest` / `apron` (V-11's rail checked the tags, never a frame) | `TerrainLayer3D.ColourOf` / `CodeFor`: Ground `scorch` / `scorch-light` take their own colours and the earth pattern (cross-lane, FDP presentation) |
+| ⚠ the ground's 1 m facets showed through the rim ring | the soot lifted 6 cm (was 2 cm) and the light ring laid in three steps outward, so it follows the rim's crest (a straight chord from inside the crest passed under it); ⚠ a few flecks of grass remain at the far crest — cosmetic, accepted |
+| ⛔ **the 2-D map drew neither ditches nor craters** — mockups D and F draw both | `TerrainPlan2D`: a ditch / foxhole strip as a dug band (banks, a dark floor) in the static plan; `EmitCraters` + `TerrainLayer2D.ApplyCraters`: each crater a disc of thrown earth, the bowl, a dark centre — rebuilt when the crater table changes, never per frame, the plan not rebuilt |
+
+| what the frames show (eye check, `HROT_RAIL_SHOTS`) | |
+|---|---|
+| mound | a plateau with blended slopes |
+| level pad | a flat cut into the slope, banked |
+| ditches | two trenches; the anti-tank ditch's 53° end bank draws as exposed earth/rock (the shader's slope rule) |
+| foxhole | a coarse square dip (G-37's honest limit at 1 m posts) |
+| craters | a dark scorched bowl with thrown-earth streaks |
+| breach | the wall opened, charred edges, the room behind |
+
+Rails `TheDynamicTerrainLooksTests.EveryDynamicTerrainChange_ReachesTheFrame` (3-D), `TheBuildingDamagePlanTests.TheProductionMap_DrawsADitchAsADugBand_AndACraterAsAnEarthDisc` (2-D) — both real frames under Xvfb.
+

@@ -37,6 +37,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         ExplosionHuge,
         /// <summary>⭐ CE-2372 (AQ105 F) — a SHOUTED PHRASE, generated from its words and the speaker's voice (<c>VoiceTkbCatalog</c>). Appended.</summary>
         Voice,
+        /// <summary>⭐ CE-4600 (B-3b, V-17) — a barrier BROKEN by a vehicle: an impact, then falling rubble. Appended.</summary>
+        Crash,
     }
 
     /// <summary>

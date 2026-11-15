@@ -40,6 +40,7 @@ namespace Hrot.UI.Common.Audio
                 SoundSynth.BulletPass => Finish(BulletPass(ref r)),
                 SoundSynth.ImpactSoft => Finish(ImpactSoft(ref r)),
                 SoundSynth.ImpactHard => Finish(Ricochet(ref r)),
+                SoundSynth.Crash => Finish(Explosion(ref r, 1.8f, 0.04f, 0.3f, 48f, 0.35f, debris: 28)),   // ⭐ CE-4600 (B-3b) — a dull blow (no blast's crack), then rubble falling
                 SoundSynth.Footsteps => Loop(Footsteps(ref r, 1f + LoopFade)),
                 SoundSynth.WheeledEngine => Loop(Engine(ref r, 2f + LoopFade, 60f, clankHz: 0f)),
                 SoundSynth.TrackedEngine => Loop(Engine(ref r, 2f + LoopFade, 45f, clankHz: 9f)),

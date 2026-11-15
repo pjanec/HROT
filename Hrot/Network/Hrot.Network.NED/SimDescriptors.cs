@@ -138,6 +138,68 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsWallBreach> Breaches;
     }
 
+    /// <summary>⭐ CE-4591 (P-4) — one crater of <see cref="EntityGroundDamage"/>: its centre (terrain-local — the same terrain on every node, no index to resolve), its bowl, rim and birth.</summary>
+    [DdsStruct]
+    public partial struct DdsCrater
+    {
+        public float X;
+        public float Y;
+        public float Radius;
+        public float Depth;
+        public float Rim;
+        /// <summary>Seconds of sim time it was made (<c>Crater.BornAt</c>).</summary>
+        public double BornAt;
+        /// <summary><c>CraterKind</c>: 1 Small · 2 Large.</summary>
+        public byte Kind;
+    }
+
+    // ⭐ CE-4591 (P-4; docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, V-7) — one ground cell's craters, published by the node that decided them (it owns the
+    //   entity; no group) and applied on every other node, whose DoorStates.Craters unions every such entity. Reliable + TransientLocal + KeepLast(1) keyed by entity:
+    //   a late joiner gets every crater.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityGroundDamage
+    {
+        [DdsKey]
+        public int EntityId;
+        public int CellX;
+        public int CellY;
+        [DdsManaged] public List<DdsCrater> Craters;
+    }
+
+    // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityTreeDamage
+    {
+        [DdsKey]
+        public int EntityId;
+        public int CellX;
+        public int CellY;
+        /// <summary>X0, Y0, X1, Y1, … — each felled trunk's centre in centimetres.</summary>
+        [DdsManaged] public List<int> Trunks;
+    }
+
+    // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (BladeCut), published by the owner of dtBladeCut (the Brain group) on change, applied on every other node.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityBladeCut
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Target;
+        public float AtX;
+        public float AtY;
+        public float AtZ;
+        public float PushSeconds;
+    }
+
     // ⭐ Weapon systems WS-1 (W-C, R-136; docs/designs/weapons/DESIGN_Weapon_Systems.md §2) — a weapon system's deploy state (Stowed ·
     //   Deploying · Deployed · Packing), published by the node owning dtWeaponSystemState (its brain group) on change and applied on every
     //   other node (the drawing and the fire gate read it). Reliable + TransientLocal + KeepLast(1) keyed by entity, like the door: a late

@@ -46,14 +46,169 @@ namespace Fdp.Toolkit.Terrain
                     doors[key] = state;
                 }
             var damage = WriteBuildingDamage(repo, terrain);
-            if (doors.Count == 0 && damage.Count == 0) return null;
+            var craters = WriteCraters(repo);
+            var trees = WriteTrees(repo);
+            if (doors.Count == 0 && damage.Count == 0 && craters.Count == 0 && trees.Count == 0) return null;
 
             var section = new JsonObject();
             foreach (var (key, state) in doors)
                 section[key] = new JsonObject { [DoorProperty] = JsonValue.Create(state.ToString()) };
             foreach (var (key, d) in damage)
                 section[key] = BuildingDamageJson.Write(d);
+            if (craters.Count > 0) section[GroundKey] = CratersJson(craters);
+            if (trees.Count > 0) section[TreesKey] = TreesJson(trees);
             return section;
+        }
+
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — the entry that holds the felled lone trunks: <c>"#trees": { "felled": [[xCm, yCm], …] }</c>.</summary>
+        public const string TreesKey = "#trees";
+        private const string FelledProperty = "felled";
+
+        private static List<(int X, int Y)> WriteTrees(EntityRepository repo)
+        {
+            var list = new List<(int X, int Y)>();
+            if (!repo.IsComponentTypeRegistered<TreeDamage>()) return list;
+            foreach (var e in repo.Query().With<TreeDamage>().Build())
+            {
+                if (!TreeDamageSystem.OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<TreeDamage>(e);
+                for (int i = 0; i < d.Count && i < TreeDamage.Capacity; i++) list.Add(d.Get(i));
+            }
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        private static JsonObject TreesJson(List<(int X, int Y)> trees)
+        {
+            var arr = new JsonArray();
+            foreach (var (x, y) in trees) arr.Add(new JsonArray(x, y));
+            return new JsonObject { [FelledProperty] = arr };
+        }
+
+        /// <summary>True when <paramref name="entry"/> is the felled-trees entry.</summary>
+        public static bool IsTreesEntry(JsonNode? entry) => entry is JsonObject o && o[FelledProperty] is JsonArray;
+
+        /// <summary>⭐ <c>CE-4603</c> — the felled trunks saved in <paramref name="dom"/> (sorted). ⛔ A malformed row fails loudly.</summary>
+        public static IReadOnlyList<(int X, int Y)> ReadTrees(JsonObject dom)
+        {
+            var list = new List<(int X, int Y)>();
+            if (Of(dom) is not { } section || section[TreesKey] is not JsonObject entry || entry[FelledProperty] is not JsonArray rows) return list;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] is not JsonArray r || r.Count != 2)
+                    throw new InvalidOperationException($"[Scenario] {Name}['{TreesKey}'].felled[{i}] is not [xCm, yCm].");
+                try { list.Add((r[0]!.GetValue<int>(), r[1]!.GetValue<int>())); }
+                catch (Exception e) when (e is FormatException or InvalidOperationException or NullReferenceException)
+                { throw new InvalidOperationException($"[Scenario] {Name}['{TreesKey}'].felled[{i}] is malformed: {e.Message}", e); }
+            }
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        public static IReadOnlyList<(int X, int Y)> ReadTrees(string json)
+            => JsonNode.Parse(json) is JsonObject dom ? ReadTrees(dom) : Array.Empty<(int, int)>();
+
+        /// <summary>⭐ CE-4603 — two slices' felled-trees entries: the union.</summary>
+        public static JsonObject MergeTrees(JsonObject a, JsonObject b)
+        {
+            var list = new List<(int X, int Y)>();
+            list.AddRange(ReadTrees(new JsonObject { [Name] = new JsonObject { [TreesKey] = a.DeepClone() } }));
+            list.AddRange(ReadTrees(new JsonObject { [Name] = new JsonObject { [TreesKey] = b.DeepClone() } }));
+            list.Sort();
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return TreesJson(list);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> (P-4 part 3, G-7) — the entry that holds the scenario's CRATERS: <c>"#ground": { "craters": [[x, y, radius, depth, rim, bornAt, kind], …] }</c>
+        /// (a '#' no terrain-object key starts with). One entry for the whole terrain: a crater is terrain-local, not an object.
+        /// </summary>
+        public const string GroundKey = "#ground";
+
+        private const string CratersProperty = "craters";
+
+        /// <summary>⭐ CE-4591 — every crater of every <see cref="GroundDamage"/> entity this host OWNS (the breaches' gate: a distributed save writes each once), content-sorted, distinct.</summary>
+        private static List<Crater> WriteCraters(EntityRepository repo)
+        {
+            var list = new List<Crater>();
+            if (!repo.IsComponentTypeRegistered<GroundDamage>()) return list;
+            foreach (var e in repo.Query().With<GroundDamage>().Build())
+            {
+                if (!GroundDamageSystem.OwnsDamage(repo, e)) continue;
+                var d = repo.GetComponentRO<GroundDamage>(e);
+                for (int i = 0; i < d.Count && i < GroundDamage.Capacity; i++) list.Add(d.Get(i));
+            }
+            return SortDistinct(list);
+        }
+
+        private static List<Crater> SortDistinct(List<Crater> list)
+        {
+            list.Sort(static (p, q) =>
+            {
+                int c = p.Centre.X.CompareTo(q.Centre.X); if (c != 0) return c;
+                c = p.Centre.Y.CompareTo(q.Centre.Y); if (c != 0) return c;
+                c = p.Radius.CompareTo(q.Radius); if (c != 0) return c;
+                c = p.Depth.CompareTo(q.Depth); if (c != 0) return c;
+                c = p.Rim.CompareTo(q.Rim); if (c != 0) return c;
+                c = p.BornAt.CompareTo(q.BornAt); if (c != 0) return c;
+                return p.Kind.CompareTo(q.Kind);
+            });
+            for (int i = list.Count - 1; i > 0; i--) if (list[i] == list[i - 1]) list.RemoveAt(i);
+            return list;
+        }
+
+        private static JsonObject CratersJson(List<Crater> craters)
+        {
+            var arr = new JsonArray();
+            foreach (var c in craters)
+                arr.Add(new JsonArray(c.Centre.X, c.Centre.Y, c.Radius, c.Depth, c.Rim, (double)c.BornAt, (int)c.Kind));
+            return new JsonObject { [CratersProperty] = arr };
+        }
+
+        /// <summary>True when <paramref name="entry"/> is the craters entry.</summary>
+        public static bool IsCraterEntry(JsonNode? entry) => entry is JsonObject o && o[CratersProperty] is JsonArray;
+
+        /// <summary>
+        /// ⭐ <c>CE-4591</c> — the craters saved in <paramref name="dom"/> (content-sorted). ⛔ A malformed row fails LOUDLY: a scenario that silently loses its craters
+        /// reloads with the ground the shelling had already changed.
+        /// </summary>
+        public static IReadOnlyList<Crater> ReadCraters(JsonObject dom)
+        {
+            var list = new List<Crater>();
+            if (Of(dom) is not { } section || section[GroundKey] is not JsonObject entry || entry[CratersProperty] is not JsonArray rows) return list;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] is not JsonArray r || r.Count != 7)
+                    throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}] is not [x, y, radius, depth, rim, bornAt, kind].");
+                try
+                {
+                    var c = new Crater(new System.Numerics.Vector2(r[0]!.GetValue<float>(), r[1]!.GetValue<float>()), r[2]!.GetValue<float>(), r[3]!.GetValue<float>(),
+                        r[4]!.GetValue<float>(), (SimInstant)r[5]!.GetValue<double>(), (CraterKind)r[6]!.GetValue<int>());
+                    if (!(c.Radius > 0f) || c.Kind is not (CraterKind.Small or CraterKind.Large))
+                        throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}]: radius must be > 0 and kind 1 or 2.");
+                    list.Add(c);
+                }
+                catch (Exception e) when (e is FormatException or InvalidCastException or NullReferenceException)
+                {
+                    throw new InvalidOperationException($"[Scenario] {Name}['{GroundKey}'].craters[{i}] is malformed: {e.Message}", e);
+                }
+            }
+            return SortDistinct(list);
+        }
+
+        /// <summary><see cref="ReadCraters(JsonObject)"/> from scenario JSON text.</summary>
+        public static IReadOnlyList<Crater> ReadCraters(string json)
+            => JsonNode.Parse(json) is JsonObject dom ? ReadCraters(dom) : Array.Empty<Crater>();
+
+        /// <summary>⭐ CE-4591 — the merge of two slices' craters entries (two deciding nodes each saved their own): the union, sorted, distinct.</summary>
+        public static JsonObject MergeCraters(JsonObject a, JsonObject b)
+        {
+            var list = new List<Crater>();
+            list.AddRange(ReadCraters(new JsonObject { [Name] = new JsonObject { [GroundKey] = a.DeepClone() } }));
+            list.AddRange(ReadCraters(new JsonObject { [Name] = new JsonObject { [GroundKey] = b.DeepClone() } }));
+            return CratersJson(SortDistinct(list));
         }
 
         /// <summary>
@@ -69,14 +224,14 @@ namespace Fdp.Toolkit.Terrain
             {
                 if (!BuildingDamageSystem.OwnsDamage(repo, e)) continue;
                 var d = repo.GetComponentRO<BuildingDamage>(e);
-                if ((uint)d.Building >= (uint)terrain.Buildings.Count) continue;
+                if ((uint)d.Building >= (uint)WallGroups.Count(terrain)) continue;   // ⭐ CE-4599 — free-wall lines are saved too
                 string key = BuildingDamages.KeyOf(terrain, d.Building);
                 if (!result.TryGetValue(key, out var saved)) result[key] = saved = new SavedBuildingDamage();
                 for (int i = 0; i < d.Count; i++)
                 {
                     var b = d.Get(i);
                     int local = BuildingPanelIndex.ToLocal(terrain, b.Panel);
-                    if (local < 0 || terrain.Panels[b.Panel].Building != d.Building) continue;
+                    if (local < 0 || WallGroups.Of(terrain, b.Panel) != d.Building) continue;
                     saved.AddDistinct(b with { Panel = local });
                 }
                 if (d.Collapsed != 0) saved.Collapsed = true;

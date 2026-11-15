@@ -111,12 +111,25 @@ namespace Fdp.Toolkit.Terrain
         /// held by an entity, a door key or a breach stays valid. After the bake <c>SurfaceZ</c>, <c>SurfacesAt</c> and <c>InsideFootprint</c> answer for the damaged world: the pieces are not there.
         /// </summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage)
+            => With(terrain, obstacles, damage, null);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4 part 2) — and the view's craters laid into the height grid (<see cref="CraterTable.Bake"/>): the derived world's <see cref="TerrainWorld.Height"/> holds them
+        /// (the navmesh, the 3-D mesh and every reader without a view see them), its <see cref="TerrainWorld.BareHeight"/> the ground without them (the simulation's truth adds the
+        /// view's own craters to it — D-1), its <see cref="TerrainWorld.HeightCraters"/> which they are (the navmesh's crater areas).
+        /// </summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters)
+            => With(terrain, obstacles, damage, craters, null);
+
+        /// <summary>⭐ <c>CE-4603</c> (B-6) — and the view's FELLED lone trunks left out of the pieces (the navmesh and the drawing follow; sight / fire / the hull skip them at query time already).</summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees)
         {
             bool overlay = damage != null && damage.NavHash != 0;
-            if (obstacles.Count == 0 && !overlay) return terrain;
+            if (obstacles.Count == 0 && !overlay && craters == null && trees == null) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
+            var bakedPassages = new List<(Vector2 Min, Vector2 Max)>();   // ⭐ CE-4599 (V-10)
             if (!overlay) prisms.AddRange(terrain.Prisms);
             else
             {
@@ -135,7 +148,19 @@ namespace Fdp.Toolkit.Terrain
                     prisms.Add(p);
                 }
                 foreach (var (pi, passages) in byPanel)
+                {
                     TerrainBuildingExpander.ExpandPanelPieces(terrain.Panels[pi], pi, WithGaps(terrain.Panels[pi], passages), prisms, "damage overlay");
+                    var panel = terrain.Panels[pi];
+                    float len = panel.Length;
+                    if (len <= 1e-6f) continue;
+                    var dir = (panel.B - panel.A) / len;
+                    var pad = new Vector2(panel.Thickness * 0.5f + 1f);
+                    foreach (var b in passages)
+                    {
+                        var a = panel.A + dir * b.From; var e = panel.A + dir * b.To;
+                        bakedPassages.Add((Vector2.Min(a, e) - pad, Vector2.Max(a, e) + pad));
+                    }
+                }
                 foreach (int c in collapsed)
                 {
                     foreach (var r in BuildingDamageTable.PiecesOf(terrain, c))   // ⭐ CE-3438 — the mound clipped to land
@@ -153,6 +178,7 @@ namespace Fdp.Toolkit.Terrain
                     bakedCollapse = collapsed;
                 }
             }
+            if (trees != null) prisms.RemoveAll(p => trees.Felled(p));   // ⭐ CE-4603 — a bake, never a frame: allocation is fine here
             prisms.AddRange(obstacles);
             var min = terrain.BoundsMin; var max = terrain.BoundsMax;
             foreach (var o in obstacles) { min = Vector2.Min(min, o.Min); max = Vector2.Max(max, o.Max); }
@@ -164,11 +190,15 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = min,
                 BoundsMax = max,
                 GroundZ   = terrain.GroundZ,
-                Height    = terrain.Height,   // ⭐ CE-1034 H1
+                Height    = craters != null && terrain.SimHeight is { } bare ? craters.Bake(bare) : terrain.Height,   // ⭐ CE-1034 H1; ⭐ CE-4591 — the craters baked in (a cache)
+                BareHeight = craters != null ? terrain.SimHeight : terrain.BareHeight,
+                HeightCraters = craters,
                 Prisms    = prisms,
                 Walkables = walkables,
                 BakedCollapsed = bakedCollapse,
+                BakedPassages = bakedPassages,
                 Surfaces  = terrain.Surfaces,
+                GroundShapes = terrain.GroundShapes,   // ⭐ CE-4593
                 Panels    = terrain.Panels,
                 Buildings = terrain.Buildings,
                 Doors     = terrain.Doors,

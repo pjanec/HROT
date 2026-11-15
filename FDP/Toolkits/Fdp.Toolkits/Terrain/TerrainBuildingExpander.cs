@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Terrain
 
         internal readonly record struct Placement(
             Vector2 Position, float RotationDegrees, float? BaseZ, string Label, string? TemplateName,
-            IReadOnlyDictionary<string, TerrainDoorState> DoorOverrides, string? Name = null);
+            IReadOnlyDictionary<string, TerrainDoorState> DoorOverrides, string? Name = null, bool Pad = false);
 
         /// <summary>Default sill/head (m above the storey floor) per opening kind; a gap is full height.</summary>
         public const float DoorHead = 2.1f, WindowSill = 0.9f, WindowHead = 2.1f;
@@ -195,7 +195,7 @@ namespace Fdp.Toolkit.Terrain
             sink.Buildings.Add(new TerrainBuilding
             {
                 Label = at.Label, Name = at.Name, Template = at.TemplateName, Position = at.Position, RotationDegrees = at.RotationDegrees,
-                BaseZ = baseZ, StoreyZ = storeyZ, Footprint = footprint, Solid = false,
+                BaseZ = baseZ, StoreyZ = storeyZ, Footprint = footprint, Solid = false, Pad = at.Pad,
             });
         }
 

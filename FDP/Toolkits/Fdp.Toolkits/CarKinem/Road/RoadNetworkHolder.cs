@@ -78,6 +78,11 @@ namespace CarKinem.Road
         /// </summary>
         public RoadNetworkBlob Current => Volatile.Read(ref _current).Blob;
 
+        /// <summary>⭐ CE-4590 (P-2) — bumped by every <see cref="Publish"/>: a writer that derives from the graph (the road-blockage step) tells its own publish
+        /// from a NEW base (a terrain load) by it.</summary>
+        public int Version => Volatile.Read(ref _version);
+        private int _version;
+
         /// <summary>How many generations are still alive (current + retired-but-leased). For rails.</summary>
         public int LiveGenerations
         {
@@ -114,6 +119,7 @@ namespace CarKinem.Road
 
                 var old = _current;
                 Volatile.Write(ref _current, new Generation { Blob = next, Owned = takeOwnership });
+                _version++;
 
                 old.Retired = true;
                 if (old.Readers == 0) FreeLocked(old);

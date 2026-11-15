@@ -166,12 +166,10 @@
 <text x='40' y='880' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Raise by</text>
 <rect x='92' y='866' width='62' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='97' y='880' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.5 m</text>
-<text x='166' y='880' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skirt</text>
-<rect x='198' y='866' width='52' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='203' y='880' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>8 m</text>
+<text x='166' y='880' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>skirt 4 m</text>
 <text x='40' y='900' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 ha · Enter ends</text>
 <text x='20' y='934' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The polygon is the existing area tool (U-7). NEW: the tint of the CHANGE (the 2-D map draws no heights today — P-3),</text>
-<text x='20' y='948' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the dashed skirt, the two ISLANDS outlined white, the Mode row in the draw panel, and the hint lines on the shared ghost</text>
+<text x='20' y='948' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the dashed skirt, the two ISLANDS outlined white, the Mode row in the draw panel, and the hint lines (AS BUILT: in the draw panel, under its rows)</text>
 <text x='20' y='962' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>backdrop: amber over ~15 % (G-19 — shown, never refused), else green ( steepest road grade 6 % — roads follow; … ).</text>
 <text x='20' y='976' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Newest wins where shapes overlap (V-28). Our road graph and navmesh follow at once; SUMO's cars and the drawn road</text>
 <text x='20' y='990' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ribbon keep the old z until save + reload (V-25).</text>
@@ -197,14 +195,9 @@
 <rect x='884' y='570' width='90' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='889' y='584' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.5 m</text>
 <text x='984' y='584' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>dZ — Level reads  Level to  [212.0 m]</text>
-<text x='812' y='612' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skirt</text>
-<rect x='884' y='598' width='90' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='889' y='612' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>8 m</text>
-<text x='984' y='612' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the blend to natural ground</text>
-<text x='812' y='640' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Seed</text>
-<rect x='884' y='626' width='90' height='19' fill='#1D2F48' rx='0' opacity='0.55'/>
-<text x='889' y='640' fill='#808080' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
-<text x='984' y='640' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>none: a shape is exact</text>
+<text x='812' y='612' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Skirt</text>
+<text x='884' y='612' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>7.5 m</text>
+<text x='928' y='612' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the blend to natural ground</text>
 <text x='812' y='670' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Effect</text>
 <line x1='863.1' y1='666' x2='1208' y2='666' stroke='#4A4A55' stroke-width='1'/>
 <path d='M256 416Q279 415 291 396L507 28Q517 8 507 -12Q495 -31 472 -32H40Q17 -31 5 -12Q-5 8 5 28L222 396Q234 415 256 416ZM256 288Q234 286 232 264V152Q234 130 256 128Q278 130 280 152V264Q278 286 256 288ZM288 64Q288 78 279 87Q270 96 256 96Q242 96 233 87Q224 78 224 64Q224 50 233 41Q242 32 256 32Q270 32 279 41Q288 50 288 64Z' fill='#F2C033' fill-opacity='1' transform='translate(814,697.7578125) scale(0.0234375,-0.0234375)'/>
@@ -315,16 +308,15 @@
 <text x='666.9634615384616' y='1097' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Anti-tank ditch</text>
 <rect x='722.4692307692308' y='1082' width='61.66538461538462' height='21' fill='#23415F' rx='3' opacity='1'/>
 <text x='753.3019230769231' y='1097' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>Foxhole</text>
-<text x='482' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Width</text>
+<text x='482' y='1156' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Width</text>
+<text x='562' y='1156' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.0 m</text>
+<text x='606' y='1156' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the preset's</text>
+<text x='482' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Depth</text>
 <rect x='562' y='1114' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='567' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2.0 m</text>
-<text x='482' y='1156' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Depth</text>
-<rect x='562' y='1142' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='567' y='1156' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 m</text>
-<text x='482' y='1184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bank slope</text>
-<rect x='562' y='1170' width='80' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='567' y='1184' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>45°</text>
-<text x='652' y='1184' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>walls ≤ 60°: infantry climb</text>
+<text x='567' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>1.2 m</text>
+<text x='482' y='1184' fill='#FFFFFF' font-size='12.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bank slope</text>
+<text x='562' y='1184' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>48°</text>
+<text x='596' y='1184' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>walls ≤ 60°: infantry climb</text>
 <text x='482' y='1214' fill='#9FB7D8' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Effect</text>
 <line x1='533.1' y1='1210' x2='818' y2='1210' stroke='#4A4A55' stroke-width='1'/>
 <path d='M256 448Q263 448 269 445L458 365Q475 358 485 343Q496 328 496 308Q497 257 479 188Q461 119 414 54Q368 -12 282 -55Q256 -67 230 -55Q144 -12 98 54Q51 119 33 188Q15 257 16 308Q16 328 27 343Q37 358 54 365L243 445Q249 448 256 448ZM256 381V3V381V3Q324 38 363 92Q401 146 417 203Q432 261 432 307L256 381Z' fill='#00C850' fill-opacity='1' transform='translate(484,1239.7578125) scale(0.0234375,-0.0234375)'/>

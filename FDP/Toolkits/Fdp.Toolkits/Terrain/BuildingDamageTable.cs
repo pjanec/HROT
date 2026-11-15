@@ -120,7 +120,7 @@ namespace Fdp.Toolkit.Terrain
             {
                 int local = BuildingPanelIndex.ToLocal(from, b.Panel);
                 if (local < 0) continue;
-                int nb = BuildingDamages.IndexOfKey(to, BuildingDamages.KeyOf(from, from.Panels[b.Panel].Building));
+                int nb = BuildingDamages.IndexOfKey(to, BuildingDamages.KeyOf(from, WallGroups.Of(from, b.Panel)));   // ⭐ CE-4599 — its wall group
                 int panel = nb >= 0 ? BuildingPanelIndex.ToGlobal(to, nb, local) : -1;
                 if (panel >= 0) breaches.Add(b with { Panel = panel });
             }

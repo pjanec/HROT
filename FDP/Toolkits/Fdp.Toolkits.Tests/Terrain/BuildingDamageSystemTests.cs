@@ -149,6 +149,46 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Empty(rec.DoorsBreached);
         }
 
+        /// <summary>A terrain with NO building: one 1 m brick garden wall "Garden" along y = 20 from x = 10 to 40 (two segments).</summary>
+        private static TerrainWorld GardenOnly() => TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "wall", "label": "Garden", "height": 1.0, "thickness": 0.3, "material": "brick" },
+                "geometry": { "type": "LineString", "coordinates": [[10,20],[25,20],[40,20]] } } ] }
+            """, "range", new TerrainAssets { Breaches = BreachTable.Shared.WithOverrides("{ \"collapseMinKg\": 1000000 }", "test") });
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4599</c> (B-2, B-D7, V-2, V-6; acceptance §6 item 5) — a demolition charge beside a GARDEN WALL on a terrain with no building at all breaches it:
+        /// one event for its wall group (the line, group 0 here), a creation request keyed <c>range/wall:Garden</c>, a PASSAGE (cut from its base to its 1 m top — it
+        /// could never be 1.8 m high), and sight passes the gap the moment the entity is made. 🔴 Red-proof: restore the <c>Building &lt; 0</c> skip in
+        /// <c>BuildingPanelGrid.Build</c> ⇒ no breach; restore the old <c>Classify</c> ⇒ a Hole.
+        /// </summary>
+        [Fact]
+        public void CE4599_ACharge_BreachesAGardenWall_OnATerrainWithNoBuilding()
+        {
+            var garden = GardenOnly();
+            _w.SetSingletonManaged(garden);
+            int panel = Array.FindIndex(garden.Panels.ToArray(), p => p.A.X < 20f);
+            Assert.Equal(1, WallGroups.Count(garden));
+            var from = new Vector3(15f, 15f, 0.5f); var to = new Vector3(15f, 25f, 0.5f);
+            Assert.True(garden.SegmentBlocked(from, to, DoorStates.Of(_w, garden)));
+
+            var rec = Burst(Charge, new Vector3(15f, 19.75f, 0.5f));
+            var record = Assert.Single(rec.BuildingBreaches);
+            Assert.Contains("range/wall:Garden", record);
+            var ev = Assert.Single(_w.Bus.Read<BuildingDamageEvent>().ToArray());
+            Assert.Equal(panel, ev.Panel); Assert.Equal(0, ev.Building);
+
+            var request = Assert.Single(Tick());
+            Assert.Equal("range/wall:Garden", request.InitialComponents!.OfType<TerrainObjectKey>().Single().Key);
+            var asked = request.InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(BreachKind.Passage, asked.Get(0).Kind);
+            var at = request.InitialComponents!.OfType<SimTransform>().Single().Position;   // the line's first post
+            Assert.Equal(10f, (float)at.X, 3); Assert.Equal(20f, (float)at.Y, 3);
+            Materialise(request);
+            Assert.False(garden.SegmentBlocked(from, to, DoorStates.Of(_w, garden)), "sight passes the garden wall's gap at once");
+            Assert.True(garden.SegmentBlocked(new Vector3(30f, 15f, 0.5f), new Vector3(30f, 25f, 0.5f), DoorStates.Of(_w, garden)), "the other segment stands");
+        }
+
         /// <summary>
         /// ⭐ The REAL path (review of S-1): an IMPACT round bursts 0.1 m off the wall (<c>AreaEffect.BurstStandOffMetres</c>), so Z ≈ 0. A tank HE (3.4 kg, impact fuze)
         /// makes a HOLE of the shell row's size (brick: ×√1.5), centred on the burst — not the placed-charge doorway; a 155 mm-class impact (6.6 kg) a bigger hole, not a walkable

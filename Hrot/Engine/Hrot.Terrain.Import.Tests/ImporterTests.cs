@@ -126,12 +126,149 @@ public class ImporterTests : IDisposable
         var world = Env.Load(folder, "synth");
         var input = InputSetReader.Open(set);
         var (info, z) = HeightsGrid.ReadAll(set);
+        int compared = 0;
         foreach (var (c, r) in new[] { (3, 3), (60, 70), (100, 20), (info.Cols - 2, info.Rows - 2), (40, 40) })
         {
             double x = info.OriginX + c * info.CellSize - input.Manifest.MinX, y = info.OriginY + r * info.CellSize - input.Manifest.MinY;
+            // ⭐ CE-4403 (P-1) — a house's PAD cuts the ground under it and its skirt (≤ 3 m deep, ≤ 4.5 m wide): those posts are the pad rails' to check
+            if (world.Buildings.Any(b => b.Footprint.Length > 2 && BreachRule.DistanceToFootprint(b.Footprint, new Vector2((float)x, (float)y)) < 5f)) continue;
             Assert.Equal(z[r * info.Cols + c], world.Height!.Sample((float)x, (float)y), 2);
+            compared++;
         }
+        Assert.True(compared >= 3, $"only {compared} sample posts lie clear of every pad");
         Assert.Equal(1f, world.Height!.CellSize);
+    }
+
+    // ---- CE-4403 (P-1; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-2…G-4, §9.2 V-16) — house pads at import
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> (G-2, G-3, R-4228; CE-4402's case) — a house on a SLOPE (the ground rises 0.2 m per metre to the east) at its base (the lowest ground,
+    /// the west edge) stands on a PAD: the ground under the whole footprint is at its base (the uphill wall is no longer buried), just outside its uphill door
+    /// the ground is within 0.3 m of the base, the skirt blends back to the natural slope by its edge, and the house keeps its height. Far from it the ground
+    /// is untouched. 🔴 Red-proof: skip <c>Pads.Apply</c> in the importer ⇒ the uphill corner is 1.6 m above the base.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_AHouseOnASlope_StandsOnAPad_ItsUphillWallNoLongerBuried()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.2 * x) };
+        mini.Buildings.Add(MiniSet.Rect("h1", 0, 0, 8, 6, baseZ: 10));   // base 10 = the ground at x 0 (the low side)
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.Pads);
+        Assert.True(rep.PadPostsCut > 0);
+        Assert.InRange(L(8, 6), 9.99, 10.01);                // the uphill corner: on the pad (was 11.6)
+        Assert.InRange(L(4, 3), 9.99, 10.01);                // the middle
+        Assert.InRange(L(8.5, 3), 10.0, 10.3);               // just outside the uphill wall (a door there opens onto the ground)
+        double skirt = Math.Max(GroundPatches.MinSkirt, GroundPatches.SkirtPerMetreOfCut * 1.6);
+        Assert.InRange(L(8 + skirt + 1, 3), 10 + 0.2 * (8 + skirt + 1) - 0.01, 10 + 0.2 * (8 + skirt + 1) + 0.01);   // past the skirt: the slope
+        Assert.InRange(L(-40, 50), 10 + 0.2 * -40 - 0.01, 10 + 0.2 * -40 + 0.01);                                     // far away: untouched
+        var b = world.Buildings.Single();
+        Assert.Equal(10f, b.BaseZ, 2);                        // the house keeps its height (G-3)
+        Assert.True(Math.Abs(g.LowestUnder(b.Footprint) - 10) < 0.02);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4403</c> (V-16) — the BANK a cut adds is never steeper than 45°: on a steep slope (0.5 / m) the 3 m capped cut gets a 4.5 m skirt, and every 1 m
+    /// step across it rises at most 1 m more than the slope itself; the cut is capped at 3 m, so the far uphill corner stays partly in the slope. 🔴 Red-proof: a fixed 4 m skirt ⇒ a step
+    /// of 1.13 m somewhere across it.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ADeepCut_GetsAWiderSkirt_NeverSteeperThan45Degrees_AndIsCappedAt3m()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.5 * x) };
+        mini.Buildings.Add(MiniSet.Rect("h1", 0, 0, 10, 6, baseZ: 10));
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.PadsWidened);
+        Assert.InRange(L(10, 3), 12 - 0.02, 12 + 0.02);       // natural 15, cut 3 m (capped) ⇒ 12
+        float steepest = 0f;
+        for (double x = 10; x < 18; x += 1) steepest = MathF.Max(steepest, L(x + 1, 3) - L(x, 3));
+        Assert.True(steepest - 0.5f <= 1.0f + 0.02f, $"the cut's bank adds {steepest - 0.5f:F2} m per metre to the 0.5 slope (> 45°)");
+    }
+
+    /// <summary>A two-lane edge along y = 0 (lanes at y ±1.6, 3.2 m each) from x −90 to 90, in input coordinates.</summary>
+    private const string TwoLaneNet = "<net version=\"1.20\"><location netOffset=\"0,0\"/><edge id=\"e\" from=\"a\" to=\"b\">" +
+        "<lane id=\"e_0\" index=\"0\" width=\"3.2\" shape=\"-90,-1.6 90,-1.6\"/><lane id=\"e_1\" index=\"1\" width=\"3.2\" shape=\"-90,1.6 90,1.6\"/></edge></net>\n";
+
+    private static List<(float X, float Y, float Z)> NetPoints(string folder)
+    {
+        var net = Directory.GetFiles(folder, "*.net.xml").Single();
+        var doc = System.Xml.Linq.XDocument.Load(net);
+        return doc.Descendants("lane").SelectMany(l => l.Attribute("shape")!.Value.Split(' ').Select(p =>
+        {
+            var c = p.Split(',');
+            return (float.Parse(c[0], System.Globalization.CultureInfo.InvariantCulture), float.Parse(c[1], System.Globalization.CultureInfo.InvariantCulture),
+                    float.Parse(c[2], System.Globalization.CultureInfo.InvariantCulture));
+        })).ToList();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (G-21, G-25, R-4231; acceptance §6 item 1) — a road ACROSS a slope (0.1 / m rising north) is LEVEL across its full width + shoulder
+    /// (the uphill edge cut, the downhill edge filled), the skirt blends back to the slope, and the shipped net's z EQUALS the store under every road point
+    /// (re-elevated from the levelled ground, forced). 🔴 Red-proof: skip <c>Corridors.Apply</c> ⇒ the two road edges differ by 0.84 m; drop <c>force</c> ⇒
+    /// the net keeps the old (unlevelled) z.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ARoadAcrossASlope_IsLevelAcrossItsWidth_AndTheNetSitsOnTheStore()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.1 * y), Net = true, NetXml = TwoLaneNet };
+        var (folder, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.Equal(1, rep.RoadCorridors);
+        Assert.True(rep.RoadPostsLevelled > 0);
+        Assert.InRange(L(0, 4.0) - L(0, -4.0), -0.02, 0.02);           // level across the lanes and the shoulder
+        Assert.InRange(L(0, 0), 9.97, 10.03);                          // at the centreline's ground
+        Assert.InRange(L(0, 20), 12 - 0.01, 12 + 0.01);                // past the skirt: the slope
+        Assert.True(rep.NetPointsElevated > 0);
+        foreach (var (x, y, z) in NetPoints(folder))
+            Assert.InRange(z - L(x, y), -0.02, 0.02);                   // the net sits on the store
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (D-3, G-24, R-4234) — houses close to a road are TOLERATED: one standing ON the road (an old town, OSM drift) leaves the road its
+    /// natural cross-slope there and is counted as information, never an error; one beside it gets its pad, and the pad's skirt never alters the road's
+    /// levelled posts (the corridor is locked). 🔴 Red-proof: pass no lock to the pads ⇒ the road beside the house is cut below its level.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_HousesByTheRoad_AreTolerated_AndThePadsNeverAlterTheRoad()
+    {
+        var mini = new MiniSet { Ground = (x, y) => (float)(10 + 0.1 * y + 0.1 * x), Net = true, NetXml = TwoLaneNet };
+        mini.Buildings.Add(MiniSet.Rect("on", -60, -2, -52, 6, baseZ: 3.8 + 10 - 0.2));                // straddles the road
+        mini.Buildings.Add(MiniSet.Rect("by", 40, 6, 48, 14, baseZ: 10 + 0.1 * 6 + 0.1 * 40));        // beside it, uphill
+        var (_, world, rep) = await Import(mini);
+        var g = world.Height!;
+        float L(double x, double y) => g.Sample((float)(x - mini.MinX), (float)(y - mini.MinY));
+        Assert.True(rep.RoadPostsUnderHouses > 0, "the house on the road is reported");
+        Assert.Contains(rep.Warnings, w => w.Contains("inside a house footprint"));
+        Assert.Equal(2, rep.Pads);
+        Assert.InRange(L(44, 4.0) - L(44, -4.0), -0.02, 0.02);          // the road beside the house stays level across
+        Assert.InRange(L(44, 4.0) - L(44, 0), -0.02, 0.02);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4403</c> part 2 (V-15, G-22) — a BRIDGE over a 4 m valley levels nothing (the valley under it stays; reported as information), while the same edge without the
+    /// tag fills it toward its profile; a <c>layer</c> other than 0 counts as off the ground too. 🔴 Red-proof: drop the <c>OffGround</c> skip ⇒ the bridge fills the valley.
+    /// </summary>
+    [Fact]
+    public async Task CE4403_ABridgeOverAValley_LevelsNothingUnderIt()
+    {
+        static float Valley(double x, double y) => (float)(10 - 4 * Math.Max(0, 1 - Math.Abs(x) / 20));   // 4 m deep at x = 0, 40 m wide
+        string Net(string param) => TwoLaneNet.Replace("</edge>", param + "</edge>");
+        var bridge = new MiniSet { Ground = Valley, Net = true, NetXml = Net("<param key=\"bridge\" value=\"yes\"/>") };
+        var (_, wb, rb) = await Import(bridge);
+        float Lb(double x, double y) => wb.Height!.Sample((float)(x - bridge.MinX), (float)(y - bridge.MinY));
+        Assert.Equal(0, rb.RoadCorridors);
+        Assert.Contains(rb.Warnings, w => w.Contains("bridge or a tunnel"));
+        Assert.InRange(Lb(0, 0), 5.97, 6.03);                            // the valley floor under the bridge
+        var layered = new MiniSet { Ground = Valley, Net = true, NetXml = Net("<param key=\"layer\" value=\"1\"/>") };
+        Assert.Equal(0, (await Import(layered, "layered")).Item3.RoadCorridors);
+        var road = new MiniSet { Ground = Valley, Net = true, NetXml = TwoLaneNet };
+        var (_, wr, rr) = await Import(road, "road");
+        Assert.Equal(1, rr.RoadCorridors);
+        Assert.True(wr.Height!.Sample((float)(0 - road.MinX), (float)(0 - road.MinY)) > 6.5f, "an ordinary road fills toward its smoothed profile");
     }
 
     // ---- openings

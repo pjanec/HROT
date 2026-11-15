@@ -185,11 +185,14 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         };
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
         var woods = NavDoorways.Woods(world);
+        var craters = NavDoorways.Craters(world);   // ⭐ CE-4591 (D-2) — after the woods (a crater in a wood is a crater), before the doorways
+        var ditches = NavDoorways.Ditches(world);   // ⭐ CE-4593 (G-28) — a ditch is the same area
+        if (ditches.Count > 0) { var both = new List<NavDoorways.Volume>(craters.Count + ditches.Count); both.AddRange(craters); both.AddRange(ditches); craters = both; }
         IReadOnlyList<NavDoorways.Volume> volumes = doorways;
-        if (woods.Count > 0)
+        if (woods.Count > 0 || craters.Count > 0)
         {
-            var all = new List<NavDoorways.Volume>(woods.Count + doorways.Count);
-            all.AddRange(woods); all.AddRange(doorways);
+            var all = new List<NavDoorways.Volume>(woods.Count + craters.Count + doorways.Count);
+            all.AddRange(woods); all.AddRange(craters); all.AddRange(doorways);
             volumes = all;
         }
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
@@ -219,6 +222,9 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         }
         foreach (var d in world.Doors)
             areas.Add(new RecastNavmeshBaker.Area(d.Center.X - 1f, d.Center.Y - 1f, d.Center.X + 1f, d.Center.Y + 1f));
+        // ⭐ CE-4599 (B-2, V-10) — every baked PASSAGE breach: a gap in a garden wall stands outside any building box and would bake at the coarse cell
+        foreach (var (min, max) in world.BakedPassages)
+            areas.Add(new RecastNavmeshBaker.Area(min.X, min.Y, max.X, max.Y));
         return areas;
     }
 }

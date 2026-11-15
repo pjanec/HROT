@@ -96,8 +96,8 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
-                if ((uint)evt.Building >= (uint)terrain.Buildings.Count) continue;
-                if (evt.Collapse != 0) { ApplyCollapse(repo, terrain, evt.Building); continue; }
+                if ((uint)evt.Building >= (uint)WallGroups.Count(terrain)) continue;   // ⭐ CE-4599 — a wall group: a building or a free-wall line
+                if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building); continue; }
                 if ((uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
                 Apply(repo, terrain, evt.Building, evt.Breach);
             }
@@ -180,7 +180,7 @@ namespace Fdp.Toolkit.Terrain
         {
             var d = new BuildingDamage { Building = building };
             if (collapse) d.Collapsed = 1; else BuildingDamages.Add(ref d, in breach, terrain);
-            var b = terrain.Buildings[building];
+            var anchor = WallGroups.Anchor(terrain, building);   // ⭐ CE-4599 — a building's position, a line's first post
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
             repo.Bus.PublishManaged(new EntityCreationRequest
             {
@@ -191,7 +191,7 @@ namespace Fdp.Toolkit.Terrain
                 IsTransient = true,                  // never written into a scenario as an entity: the terrain-object section saves the breaches (S-4)
                 InitialComponents = new List<object>
                 {
-                    new SimTransform { Position = new Vector3(b.Position, b.BaseZ), Rotation = Quaternion.Identity },
+                    new SimTransform { Position = anchor, Rotation = Quaternion.Identity },
                     d,
                     new TerrainObjectKey { Key = key },
                 },

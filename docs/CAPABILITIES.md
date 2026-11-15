@@ -129,7 +129,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   tangent plane retired ([Geo Origin §6](DESIGN_Geo_Origin.md), R-4197; CE-4396) ⏳ building
 - **Trees and woods:** a wood hides what is inside it (sight lost per metre among the trees, from the air too), forbids wheeled vehicles
   and slows tracked ones, and stops some rounds; a lone tree is a trunk that blocks. Drawn as trees near and a canopy far. (R-4190; CE-4369,
-  CE-4377) ✅ — felling a lone tree 📐 (§2b)
+  CE-4377) ✅ — felling a lone tree ✅ (§2b)
 - **Destructible buildings:** a blast or a penetrating hit breaches a wall — a hole to see and shoot through, or a passage to walk through;
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
@@ -137,7 +137,7 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 ## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(📐 designed and planned, `2026-11-14`; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
 
-Everything in this chapter is **📐 designed and planned**: the designs are ruled, the tasks are filed, the build starts with the programme.
+Everything in this chapter is **📐 designed and planned** unless marked ✅ (built by the `terrain` lane, `2026-11-14` on): the designs are ruled, the tasks are filed.
 Designs: [Ground patches and road blockage](DESIGN_Ground_Patches_And_Road_Blockage.md) · [Vehicle breaching](DESIGN_Vehicle_Breaching.md).
 Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [vehicle breaching](UX/vehicle-breaching.svg).
 
@@ -146,22 +146,38 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Roads lie flat across a slope:** at import every road levels the ground across its own width (the grade along it kept, junctions
   levelled, bridges left alone); the SUMO road network is re-elevated to match, so SUMO's cars, the drawn road and our vehicles agree. Houses
   next to a road are tolerated — the ground ramps from the road's edge to the façade. (P-1, R-4231, R-4234) 📐
-- **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597) 📐
+- **A house placed while authoring gets its own level pad,** on every node the same, and *Save terrain as* keeps every pad. (P-3, CE-4597; rails `TerrainWorldMergeTests.CE4597_*`, `TerrainBakeTests.CE4597_*`) ✅
 - **Shape the ground while authoring a scenario:** draw an area and level it, raise a hill, lower a hollow or make a crater; roads stay
-  level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) 📐
+  level and keep working (SUMO's network follows after saving); a warning when a road gets too steep. (P-5, CE-4592) — ✅ built: the Level,
+  Raise and Lower tools (the newest shape wins, houses stay on their ground; rails `TerrainWorldMergeTests.CE4592_*`); 📐 still to come: the
+  Details read-out and the grade warning, roads re-levelled under a shape
 - **Ditches and foxholes:** draw a ditch along a line or click a foxhole into place; a man in it is hidden by the ground, the AI finds it as
-  cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) 📐
+  cover and defending squads take their posts in foxholes; an anti-tank ditch stops every vehicle while infantry crosses. (P-6, CE-4593) — ✅ built:
+  the ditch, anti-tank ditch and foxhole tools, every ditch closed to vehicles, cover along the banks and round a foxhole (rails
+  `TerrainWorldMergeTests.CE4593_*`); 📐 still to come: the Details panel, a ditch stopping at a road
 - **Craters:** a bomb or a shell leaves a hole in the ground on every node at once — the ground height, sight and fire change in the same
-  moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) 📐
+  moment; vehicles route round it, infantry crosses it, and after the gases clear its rim is cover. (P-4, CE-4591, R-4232, R-4233) — ✅ built:
+  the crater record from the warhead's charge, the cratered ground for height, sight and fire the same tick on every node (a standalone brain
+  included, over the wire), the navmesh closed to vehicles round it, a crater across a road cuts it (rails `CraterTests`, `CraterBakeTests`,
+  `EntityGroundDamageTranslatorTests`, `BridgeClosureTests.CE4591_*`); saved with the scenario, and its rim is cover once the gases clear; and drawn with its scorch for as long as it exists
 - **Blocked roads are blocked for everyone:** a roadblock, a wreck or a crater on a road makes SUMO's cars swerve round it or re-route, and
-  our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590) 📐
+  our own road-following vehicles re-plan; clearing it re-opens the road. (P-2, CE-4590; rails `BridgeClosureTests.CE4590_*`, `CE4591_*`) ✅
+- **Every wall stops a vehicle:** garden walls, fences and hedges hold every vehicle — AI or a player's — like a building's wall does; a low
+  wall is met, never climbed onto; and avoiding a man on the road never swerves a vehicle into a wall. (B-1, CE-4598, CE-6014, R-4237,
+  R-4239; rails `CarKinematicsSystemTests.CE4598_*`, `CE6014_*`; scenario `roadblock-blast`) ✅
 - **A player's tank breaks through weak barriers:** a player driving a tank goes through fences, hedges, garden walls and sandbags (an IFV
   through the lighter ones; wheeled vehicles stop); a tank bumps a building wall open for the infantry without driving in; the driver sees
   and hears the break, or a "too strong" cue. The AI never breaks a wall by accident. (B-1…B-3, CE-4598…CE-4600, R-4236…R-4240, R-4243) 📐
-- **Blasts breach garden walls too,** and every breach — by a blast, a tank or the bulldozer — is a gap infantry walks through and the AI uses
-  as a way into a building. (B-2, B-5, CE-4599, CE-4602) 📐
+- **Blasts breach garden walls too:** a charge, a shell or a bomb beside a garden wall, a fence or a hedge breaches it like a house wall —
+  sight and fire pass at once, every node draws the gap, and a gap cut to the ground is walkable after the bake. (B-2, CE-4599, R-4236; rails
+  `CE4599_*`) ✅
+- **Every breach is a way in for the AI** — a gap by a blast, a tank or the bulldozer is a gap infantry walks through and the AI uses as a way
+  into a building. (B-5, CE-4602; rail `BreachEntryTests`) ✅
+- **Lone trees can be felled:** a bomb or a shell fells the lone trees round it, and a player driving a tank or an IFV fells one by ramming or
+  pushing it; sight and fire pass at once on every node, the tree disappears from every view and the way opens; saved with the scenario.
+  (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
-  (B-4, CE-4601, R-4242) 📐
+  (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241) 📐
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. 📐

@@ -87,6 +87,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>World footprint (counter-clockwise).</summary>
         public Vector2[] Footprint { get; init; } = Array.Empty<Vector2>();
         public bool Solid { get; init; }
+        /// <summary>⭐ <c>CE-4597</c> (P-3; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-5) — the house stands on a PAD (its feature carries <c>"pad"</c>): where an
+        /// overlay merges onto its base, the base's ground under it is cut to its <see cref="BaseZ"/> (<see cref="TerrainWorldMerge"/>). A bridge, an imported house
+        /// (its pad is already in the store, P-1) and a solid block carry none.</summary>
+        public bool Pad { get; init; }
         public int Storeys => Math.Max(0, StoreyZ.Count - 1);
     }
 }

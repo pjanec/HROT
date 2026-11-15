@@ -9,7 +9,7 @@ public readonly record struct BlockBounds(Vector2 Min, Vector2 Max, int Houses, 
 
 /// <summary>
 /// ⭐ Terrain authoring U-3 / U-6 (docs/DESIGN_Terrain_Authoring.md §15a, §18e-2 B-5) — what the editor's LIVE bake tells the views, published as an immutable managed singleton by <see cref="StaticObstacleBakeSystem"/>
-/// after each committed bake (editor only — the system holds a <see cref="LiveOverlay"/> there alone): the bounds of every block (keyed by its entity guid — the part keys' prefix), the number of bakes, and the bake's DIRTY rectangles
+/// after each committed bake (⭐ CE-4596 P-0: on EVERY host — the blocks are the editor's alone, the dirty rectangles every host's): the bounds of every block (keyed by its entity guid — the part keys' prefix), the number of bakes, and the bake's DIRTY rectangles
 /// (null = unknown = everything). ⭐ ONE publication for both readers: the block outline gizmo (U-3) and the 3-D view's by-area chunk rebuild (U-6) — neither derives it a second time. Read-only for them; a new instance each bake.
 /// </summary>
 [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario | Fdp.Core.DataPolicy.NoReplay | Fdp.Core.DataPolicy.NodeLocal)]

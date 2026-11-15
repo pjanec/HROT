@@ -226,5 +226,65 @@ namespace Hrot.SimHost.Tests
             RunUntilBaked(sys, 2);
             Assert.Empty(_world.GetSingletonManaged<TerrainWorld>()!.Prisms);
         }
+
+
+        // ── CE-4596 (P-0; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-1, V-3) ─────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4596</c> (V-1) — a BARRAGE: an obstacle every 0.3 s of wall clock for 10 s never leaves the quiet period, yet the first bake
+        /// starts within <see cref="StaticObstacleBakeSystem.MaxLatencySeconds"/> of the first change, and the bakes keep coming while it lasts.
+        /// 🔴 Red-proof: drop the <c>overdue</c> test ⇒ no bake starts until the barrage ends (Bakes 0 at 10 s).
+        /// </summary>
+        [Fact]
+        public void CE4596_UnderABarrage_TheBakeStillCommits_WithinTheLatencyCap()
+        {
+            Terrain();
+            var sys = System();
+            double firstStart = double.NaN;
+            int startedBefore10 = 0;
+            for (int i = 0; i < 34; i++)
+            {
+                _wall = i * 0.3;
+                Obstacle(10f + i * 6f);
+                bool was = sys.Baking;
+                sys.Execute(_world, 0.016f);
+                if (sys.Baking && !was) { startedBefore10++; if (double.IsNaN(firstStart)) firstStart = _wall; }
+                // let a started bake finish before the next "impact" (the frame thread keeps polling it)
+                var deadline = DateTime.UtcNow.AddSeconds(30);
+                while (sys.Baking && DateTime.UtcNow < deadline) { Thread.Sleep(2); sys.Execute(_world, 0.016f); }
+            }
+            Assert.False(double.IsNaN(firstStart), "no bake started during the barrage");
+            Assert.True(firstStart <= StaticObstacleBakeSystem.MaxLatencySeconds + 0.3 + 1e-6, $"the first bake started at {firstStart:F1} s");
+            Assert.True(startedBefore10 >= 3, $"only {startedBefore10} bake(s) during a 10 s barrage");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4596</c> (V-3) — a host with NO live overlay (a cluster node, a display node, the player — everything but the editor) publishes
+        /// every committed bake's dirty rectangles (<see cref="LiveTerrainBakeInfo"/>), so the shared 3-D map rebuilds only the chunks under them. The
+        /// second bake (one obstacle added beside the first) knows where it changed: a rectangle round the new obstacle only. 🔴 Red-proof: publish
+        /// only when <c>LiveOverlay</c> is set (the old gate) ⇒ no <see cref="LiveTerrainBakeInfo"/> here.
+        /// </summary>
+        [Fact]
+        public void CE4596_AHostWithNoLiveOverlay_PublishesTheDirtyRectangles()
+        {
+            Terrain();
+            var sys = System();
+            Assert.Null(sys.LiveOverlay);
+            Obstacle(10f);
+            sys.Execute(_world, 0.016f);
+            _wall = 1.0;
+            RunUntilBaked(sys, 1);
+            Assert.True(_world.HasSingletonManaged<LiveTerrainBakeInfo>());
+            Assert.Equal(1, _world.GetSingletonManaged<LiveTerrainBakeInfo>()!.Bakes);
+
+            Obstacle(60f);
+            _wall = 1.1; sys.Execute(_world, 0.016f);
+            _wall = 2.0;
+            RunUntilBaked(sys, 2);
+            var info = _world.GetSingletonManaged<LiveTerrainBakeInfo>()!;
+            Assert.Equal(2, info.Bakes);
+            var dirty = Assert.Single(info.Dirty!);
+            Assert.True(dirty.Min.X > 50f && dirty.Max.X < 70f, $"the dirty rectangle {dirty.Min}..{dirty.Max} is not round the new obstacle at x=60");
+        }
     }
 }

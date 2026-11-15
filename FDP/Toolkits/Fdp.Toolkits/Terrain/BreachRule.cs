@@ -116,9 +116,12 @@ namespace Fdp.Toolkit.Terrain
             return best;
         }
 
-        /// <summary>D-2 — a PASSAGE iff the rectangle reaches the storey floor and is at least <c>passageMinWidth × passageMinHeight</c>; else a HOLE.</summary>
+        /// <summary>D-2 — a PASSAGE iff the rectangle reaches the storey floor and is at least <c>passageMinWidth × passageMinHeight</c>; else a HOLE.
+        /// ⭐ <c>CE-4599</c> (B-2, V-6) — or a cut from the panel's base to its TOP at least <c>passageMinWidth</c> wide, whatever the wall's height: a
+        /// 1 m garden wall or a 1.5 m hedge cut to the ground is walkable (it could never reach 1.8 m, so every such breach was a Hole and no navmesh followed).</summary>
         public static BreachKind Classify(in TerrainWallPanel panel, BreachTable table, float from, float to, float bottom, float top)
-            => bottom <= panel.BaseZ + 1e-3f && to - from >= table.PassageMinWidth && top - bottom >= table.PassageMinHeight
+            => bottom <= panel.BaseZ + 1e-3f && to - from >= table.PassageMinWidth
+               && (top - bottom >= table.PassageMinHeight || top >= panel.TopZ - 1e-3f)
                 ? BreachKind.Passage : BreachKind.Hole;
     }
 }

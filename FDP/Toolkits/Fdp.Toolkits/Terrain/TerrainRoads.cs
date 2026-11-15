@@ -19,6 +19,13 @@ namespace Fdp.Toolkit.Terrain
         private readonly List<(Vector2 A, Vector2 B)> _edges = new();
         private readonly List<Vector2> _nodes = new();
         private int _segments;
+        private readonly List<RoadCorridor> _corridors = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-4592</c> (P-5, G-24) — every road SEGMENT as a corridor: its sampled centre line and the half-width it levels (its lanes + <see cref="RoadCorridors.Shoulder"/>);
+        /// a segment with an end node above the ground (a bridge deck) is skipped (G-22). The end heights are filled where it is re-levelled.
+        /// </summary>
+        public IReadOnlyList<RoadCorridor> Corridors => _corridors;
 
         /// <summary>⭐ T-7a — how many road NODES the file declares (a hand-built <see cref="FromEdges"/> road has none: only edges). A node's index is its position in the file, as <c>RoadNetworkLoader</c> numbers it.</summary>
         public int NodeCount => _nodes.Count;
@@ -66,18 +73,23 @@ namespace Fdp.Toolkit.Terrain
             var r = new TerrainRoads();
             foreach (var n in json.Nodes) r._nodes.Add(n.Position.ToVector2());
             r._segments = json.Segments.Length;
+            var lifted = new HashSet<int>();
+            foreach (var n in json.Nodes) if (n.AboveGround > 0f) lifted.Add(n.Id);
             foreach (var s in json.Segments)
             {
                 var p0 = s.ControlPoints.P0.ToVector2(); var t0 = s.ControlPoints.T0.ToVector2();
                 var p1 = s.ControlPoints.P1.ToVector2(); var t1 = s.ControlPoints.T1.ToVector2();
+                var line = new List<Vector2> { p0 };
                 var prev = p0;
                 for (int i = 1; i <= SamplesPerSegment; i++)
                 {
                     float t = i / (float)SamplesPerSegment, t2 = t * t, t3 = t2 * t;
                     var q = (2 * t3 - 3 * t2 + 1) * p0 + (t3 - 2 * t2 + t) * t0 + (-2 * t3 + 3 * t2) * p1 + (t3 - t2) * t1;
-                    if (q != prev) r._edges.Add((prev, q));
+                    if (q != prev) { r._edges.Add((prev, q)); line.Add(q); }
                     prev = q;
                 }
+                if (line.Count >= 2 && !lifted.Contains(s.StartNodeId) && !lifted.Contains(s.EndNodeId))
+                    r._corridors.Add(new RoadCorridor(line.ToArray(), 0.5f * s.LaneWidth * Math.Max(1, s.LaneCount) + RoadCorridors.Shoulder, 0f, 0f));
             }
             return r;
         }

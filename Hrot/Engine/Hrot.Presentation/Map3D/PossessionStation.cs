@@ -509,6 +509,24 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, use.Text, cx - uw / 2, uy, use.Colour);
                 uy += HudLineHeight;
             }
+            // ⭐ CE-4600 (B-3b, V-17; mockup vehicle-breaching.svg A) — what the hull's contact with a barrier is doing: BREAKING (+ the push bar), TOO STRONG, BREACHED
+            if (_driver.IsVehicle && Hrot.UI.Common.Effects.ContactCues.Of(w)?.For(_driver.Unit, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime) is { } cue)
+            {
+                int tw = (int)HudText.Measure(font, cue.Text);
+                bool bar = cue.Kind == Fdp.Toolkit.Terrain.ContactBreachKind.Pushing;
+                Raylib.DrawRectangle(cx - tw / 2 - 6, uy - 3, tw + 12, HudLineHeight + (bar ? 10 : 0), new Color(0, 0, 0, 140));
+                HudText.Draw(font, cue.Text, cx - tw / 2, uy, CueColour(cue.Kind));
+                if (bar)
+                {
+                    int by = uy + HudLineHeight - 2;
+                    Raylib.DrawRectangle(cx - tw / 2, by, tw, 6, new Color(80, 80, 80, 200));
+                    Raylib.DrawRectangle(cx - tw / 2, by, (int)(tw * cue.Progress), 6, CueColour(cue.Kind));
+                    uy += 10;
+                }
+                LastContactCue = cue;
+                uy += HudLineHeight;
+            }
+            else LastContactCue = null;
             // ⭐ CE-1359 (W-8c) — the gun cannot turn to the crosshair: say so, where he looks
             if (BeyondTraverse(w, _driver.Unit, _driver.Mount, _driver.AimAt))
             {
@@ -862,6 +880,17 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ <c>CE-1359</c> (docs/DESIGN_Weapon_Layers.md W-8c) — the words under the crosshair while the selected gun cannot traverse
         /// to it (a door gun's arc): its fire is held, so the operator is told why.</summary>
         public const string BeyondArcText = "OUT OF ARC - the gun cannot turn there, fire held";
+
+        /// <summary>⭐ CE-4600 (B-3b) — the contact cue drawn last frame (null = none): a rail's read.</summary>
+        public Hrot.UI.Common.Effects.ContactCues.Cue? LastContactCue { get; private set; }
+
+        /// <summary>⭐ CE-4600 (B-3b; mockup vehicle-breaching.svg) — the cue's colour by what the contact did: amber while breaking (the HUD's hold colour), red too strong, green breached.</summary>
+        public static Color CueColour(Fdp.Toolkit.Terrain.ContactBreachKind kind) => kind switch
+        {
+            Fdp.Toolkit.Terrain.ContactBreachKind.Pushing => new Color(255, 170, 40, 255),
+            Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong => new Color(230, 85, 85, 255),
+            _ => new Color(91, 208, 106, 255),
+        };
 
         /// <summary>⭐ <c>CE-1359</c> — the crosshair's point is beyond the selected gun's limited traverse (<c>BallisticAim.BeyondTraverse</c>,
         /// the rule its weapon brain holds the fire by). False for a full-circle turret, a mount with no turret, or out of elevation only.</summary>

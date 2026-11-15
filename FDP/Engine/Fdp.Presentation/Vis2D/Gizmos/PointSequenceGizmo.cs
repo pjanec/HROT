@@ -39,6 +39,12 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <summary>⭐ B-17 P2 — THE drawing core this gizmo is a view of (the points, the finish / cancel convention, the menu the host attached).</summary>
     public ShapeEditSession Session { get; }
 
+    /// <summary>
+    /// ⭐ <c>CE-4592</c> (P-5 2b) — drawn FIRST each frame, under the shape, with the points placed so far: what the shape will do to the world it is drawn on (a ground
+    /// shape's tint of the height change). Null = nothing (every other tool). ⛔ It runs every frame — the callback must not allocate (R-2084).
+    /// </summary>
+    public Action<IDebugDrawBuilder, IReadOnlyList<Vector2>>? Underlay { get; set; }
+
     /// <inheritdoc/>
     public string? ToolMenuJson => Session.Menu?.Json;
 
@@ -100,6 +106,7 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
         _world = Fdp.Toolkit.World.WorldQuery.Of(view);
         var points = Session.Points;
         var heights = Session.Heights;
+        Underlay?.Invoke(draw, points);
         // ⭐ B-17 P7 ② — the ONE drawing look (GizmoEditStyle): kind colour, small screen-pixel squares, the first point white, placed segments solid, the next dashed,
         //   the closing one (areas) dotted, a faint fill once an area is convex. ⛔ The private blues, the round spheres and the cursor disc are gone.
         var kind = Session.Closed ? ShapeKind.Area : ShapeKind.Route;

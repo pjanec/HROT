@@ -125,14 +125,33 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ CE-1034 H1 — the ground's height at (x, y): the height grid where there is one, else <see cref="GroundZ"/>. Every
         /// question about "the ground" goes through this — never read <see cref="GroundZ"/> as the ground (R-248).</summary>
-        public float GroundHeightAt(float x, float y)
+        public float GroundHeightAt(float x, float y) => GroundHeightOf(Height, x, y);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4 part 2, D-1) — the height grid WITHOUT the craters a bake laid into <see cref="Height"/> (null = <see cref="Height"/> holds none). The bake
+        /// writes the craters into <see cref="Height"/> as a CACHE for the navmesh, the 3-D mesh and every reader that has no view; the simulation's truth is this
+        /// bare ground + the craters of the caller's view (<see cref="DoorStates.Craters"/>) — so a crater is never counted twice, and one the view no longer holds
+        /// (a seek back) is gone the same tick.
+        /// </summary>
+        public TerrainHeightGrid? BareHeight { get; init; }
+
+        /// <summary>⭐ <c>CE-4591</c> — the craters baked into <see cref="Height"/> (null = none): the navmesh's crater areas and the bake's dirty rectangles read them.</summary>
+        public CraterTable? HeightCraters { get; init; }
+
+        /// <summary>⭐ <c>CE-4591</c> — the grid the simulation's ground answers start from: <see cref="BareHeight"/>, else <see cref="Height"/>.</summary>
+        public TerrainHeightGrid? SimHeight => BareHeight ?? Height;
+
+        /// <summary>⭐ <c>CE-4591</c> — <see cref="GroundHeightAt(float, float)"/> over <see cref="SimHeight"/>: the ground without any baked crater.</summary>
+        public float BareGroundHeightAt(float x, float y) => GroundHeightOf(SimHeight, x, y);
+
+        private float GroundHeightOf(TerrainHeightGrid? grid, float x, float y)
         {
             var r = Rect;
-            if (!r.Valid) return Height?.Sample(x, y) ?? GroundZ;   // no rectangle (a world built in code with no bounds): the ground as it always was
-            if (x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY) return Height?.Sample(x, y) ?? GroundZ;   // inside: unchanged
+            if (!r.Valid) return grid?.Sample(x, y) ?? GroundZ;   // no rectangle (a world built in code with no bounds): the ground as it always was
+            if (x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY) return grid?.Sample(x, y) ?? GroundZ;   // inside: unchanged
             // ⭐ CE-4122 (§6ad-2) — outside the terrain: the edge height + the hills (+ an attached outside field, e.g. the SUMO net's)
             float cx = Math.Clamp(x, r.MinX, r.MaxX), cy = Math.Clamp(y, r.MinY, r.MaxY);
-            float edge = Height?.Sample(cx, cy) ?? GroundZ;
+            float edge = grid?.Sample(cx, cy) ?? GroundZ;
             float dx = x - cx, dy = y - cy;
             return (_beyond ?? BeyondGround.Default).HeightAt(x, y, edge, MathF.Sqrt(dx * dx + dy * dy));
         }
@@ -178,6 +197,12 @@ namespace Fdp.Toolkit.Terrain
         public IReadOnlyList<TerrainWalkable> Walkables { get; init; } = Array.Empty<TerrainWalkable>();
         public IReadOnlyList<TerrainSurface> Surfaces { get; init; } = Array.Empty<TerrainSurface>();
 
+        /// <summary>⭐ <c>CE-4592</c> (P-5, G-14) — the authored GROUND shapes of this world (an overlay's), applied to the height grid where it is merged (before the pads, G-18).</summary>
+        public IReadOnlyList<GroundShape> GroundShapes { get; init; } = Array.Empty<GroundShape>();
+
+        /// <summary>⭐ <c>CE-4592</c> (P-5, G-24) — the base's road corridors an overlay's ground change touches (its <c>corridor</c> parts): re-levelled where the world is merged, after the shapes and the pads.</summary>
+        public IReadOnlyList<RoadCorridor> RoadCorridors { get; init; } = Array.Empty<RoadCorridor>();
+
         /// <summary>⭐ Stage 1 — every wall/fence panel with its openings and material; each is ALSO expanded into
         /// <see cref="Prisms"/> (its solid pieces), so consumers that only know prisms see doorways and windows as gaps.
         /// 📄 docs/DESIGN_Building_Interiors.md §2, §3a, §3c.</summary>
@@ -193,6 +218,10 @@ namespace Fdp.Toolkit.Terrain
         /// their pieces are gone and their rubble prism is among the <see cref="Prisms"/>), so the damage view does not skip or add them again. Empty on a content world.</summary>
         public IReadOnlyList<int> BakedCollapsed { get; init; } = Array.Empty<int>();
 
+        /// <summary>⭐ <c>CE-4599</c> (B-2, V-10) — the plan boxes of the PASSAGE breaches baked into this world's geometry (a derived world), each padded by a metre: where the
+        /// navmesh bakes FINE cells, so a 0.8–1 m gap in a garden wall is resolved (CE-3111 measured a 0.8–0.9 m opening failing at the coarse cell). Empty on a content world.</summary>
+        public IReadOnlyList<(Vector2 Min, Vector2 Max)> BakedPassages { get; init; } = Array.Empty<(Vector2, Vector2)>();
+
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 
@@ -200,7 +229,7 @@ namespace Fdp.Toolkit.Terrain
         /// ⭐ <c>CE-4391</c> S-1 — true when this terrain can have LIVE state a view's <see cref="DoorStates"/> must carry: it has doors, or buildings
         /// whose walls can be breached. The gate every "build a <see cref="DoorStates"/> only when it matters" site reads (was <c>Doors.Count &gt; 0</c>).
         /// </summary>
-        public bool HasLiveState => Doors.Count > 0 || Buildings.Count > 0;
+        public bool HasLiveState => true;   // ⭐ CE-4591 (P-4, D-1) — a crater can land on ANY ground, so every world's view carries live state (doors, breaches, craters); DoorStates.Of is O(1) while nothing changed
 
         /// <summary>⭐ <c>CE-4391</c> S-1 (§8.2 B-5) — the lazy grid of this world's BUILDING wall panels, for "the panels near this burst"; built on first use.</summary>
         public BuildingPanelGrid BuildingPanels
@@ -304,7 +333,38 @@ namespace Fdp.Toolkit.Terrain
         /// and a unit walking under it stays on the ground. When every candidate is above the reach (a unit
         /// spawned at Z=0 inside a building footprint), the LOWEST candidate wins.
         /// </summary>
-        public float SurfaceZ(float x, float y, float zHint)
+        public float SurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: false);
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 D-4) — the surface a vehicle's HULL rests on: <see cref="SurfaceZ"/>
+        /// with no wall panel's top as a candidate. 📌 A panel's top within <see cref="StepHeight"/> was a surface, so a hull drove up onto a
+        /// 0.4 m garden wall and over it; a low wall is MET (the hull trace stops it), never climbed. A kerb (ground) and a slab are unchanged.
+        /// </summary>
+        public float HullSurfaceZ(float x, float y, float zHint) => SurfaceZCore(x, y, zHint, hull: true);
+
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1 <c>BarrierHit</c>) — the SOLID piece (not a wall panel) that stands over (<paramref name="x"/>,
+        /// <paramref name="y"/>) and rises above <paramref name="zHint"/> + a few cm from no higher than a step above it: what a hull's step that "rose like a wall"
+        /// met (an obstacle's box, a trunk, a solid building); the tallest such, −1 for none. Allocation-free.
+        /// </summary>
+        public int SolidUnder(float x, float y, float zHint)
+        {
+            var p = new Vector2(x, y);
+            int best = -1; float top = float.NegativeInfinity;
+            using var cand = PointCandidates(x, y);
+            for (int k = 0; k < cand.PieceCount; k++)
+            {
+                int i = cand.Piece(k);
+                if (i >= Prisms.Count) continue;
+                var prism = Prisms[i];
+                if (prism.Panel >= 0 || prism.BaseZ > zHint + StepHeight || prism.TopZ <= zHint + 0.05f) continue;
+                if (!InBox(p, prism.Min, prism.Max) || !PolygonMath.Contains(prism.Footprint, p)) continue;
+                if (prism.TopZ > top) { top = prism.TopZ; best = i; }
+            }
+            return best;
+        }
+
+        private float SurfaceZCore(float x, float y, float zHint, bool hull)
         {
             var p = new Vector2(x, y);
             float best = float.NegativeInfinity;
@@ -327,6 +387,7 @@ namespace Fdp.Toolkit.Terrain
                 //   wall's top (3 m) became the only surface, and the agent's Z hint then held it on the upper floor's slab. The same
                 //   rule as the ground mesh (TerrainWorldMesh: a panel keeps its ground). Its top is still a candidate surface.
                 if (prism.BaseZ <= reach && prism.Panel < 0) insideSolid = true;
+                if (hull && prism.Panel >= 0) continue;   // ⭐ CE-4598 (D-4) — a panel's top is never a hull's surface
                 Consider(prism.TopZ, reach, ref best, ref lowest);
             }
 
@@ -537,6 +598,31 @@ namespace Fdp.Toolkit.Terrain
         /// world built before materials behaves exactly as before.</para>
         /// </summary>
         /// <param name="doors">⭐ R-219 — the door states of the caller's view (<see cref="DoorStates.Of(Fdp.Core.ISimulationView, TerrainWorld)"/>); null = as authored.</param>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4, D-1) — does the line dip under the GROUND as <paramref name="doors"/>' view sees it: the height grid, lowered and rimmed by
+        /// the view's craters (<see cref="DoorStates.Craters"/>). With no crater near the line this is the grid's own answer, unchanged. The yes/no form.
+        /// </summary>
+        public bool GroundCrosses(Vector3 from, Vector3 to, DoorStates? doors)
+        {
+            if (doors?.Craters is { } craters && !craters.Misses(from, to)) return craters.GroundCrosses(this, from, to, wholeCrest: false, out _, out _);
+            var grid = doors != null ? SimHeight : Height;   // ⭐ CE-4591 — a view's truth is the bare ground + ITS craters; no view reads the cache
+            return grid != null && grid.Crosses(from, to);
+        }
+
+        /// <summary>⭐ <c>CE-4591</c> — <see cref="GroundCrosses(Vector3, Vector3, DoorStates?)"/> with where the line enters the ground and the crest over its crossing.</summary>
+        public bool GroundCrosses(Vector3 from, Vector3 to, DoorStates? doors, out float t, out float crest)
+        {
+            if (doors?.Craters is { } craters && !craters.Misses(from, to)) return craters.GroundCrosses(this, from, to, wholeCrest: true, out t, out crest);
+            t = 1f; crest = float.NegativeInfinity;
+            var grid = doors != null ? SimHeight : Height;
+            return grid != null && grid.Crosses(from, to, out t, out crest);
+        }
+
+        /// <summary>⭐ <c>CE-4591</c> (D-1) — the ground at (<paramref name="x"/>, <paramref name="y"/>) as <paramref name="doors"/>' view sees it: the bare ground + its craters (no view: the cache).</summary>
+        public float GroundHeightAt(float x, float y, DoorStates? doors)
+            => doors == null ? GroundHeightAt(x, y)
+               : doors.Craters is { } craters ? BareGroundHeightAt(x, y) + craters.Offset(x, y) : BareGroundHeightAt(x, y);
+
         public bool SegmentBlocked(Vector3 from, Vector3 to, DoorStates? doors = null)
         {
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
@@ -551,7 +637,7 @@ namespace Fdp.Toolkit.Terrain
             float transmittance = 1f;
             // ⭐ CE-1034 H2 (TH-D) — a HILL blocks sight: the ground trace over the height grid (opaque). Without a grid the ground is
             //   flat and no line between two points above it can dip under it. Under the ground at either end = malformed, ignored.
-            if (Height != null && Height.Crosses(from, to)) return true;
+            if (GroundCrosses(from, to, doors)) return true;   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
             // ⭐ CE-4369 (L-7, R-4190 T-2) — the WOODS: visibility lost per metre below the canopy, scaled by the trees per hectare
             if (Woods is { } woods)
             {
@@ -569,6 +655,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -581,6 +668,7 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
@@ -634,6 +722,30 @@ namespace Fdp.Toolkit.Terrain
             float x = from.X + (to.X - from.X) * tm, y = from.Y + (to.Y - from.Y) * tm, z = from.Z + (to.Z - from.Z) * tm;
             float along = ((x - p.A.X) * d.X + (y - p.A.Y) * d.Y) / len;
             return damage.Opens(panel, along, z);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-5) — does a breach let a HULL through this panel crossing? ⛔ Never in a
+        /// building's panel (a hull never enters a building — the tank stays out of its own bump, R-3025). In a free wall: when the breach is
+        /// open at the crossing's mid-point both just above the wall's base and at the line's height (clamped under the wall's top) — a gap a
+        /// hull drives through, not a hole above its wheels. Whether it is WIDE enough is the cut's size (B-3, V-9).
+        /// </summary>
+        private bool HullBreachOpen(DoorStates? doors, TerrainPrism prism, Vector3 from, Vector3 to, float lo, float hi)
+        {
+            var damage = doors?.Damage;
+            int panel = prism.Panel;
+            if (damage == null || panel < 0 || panel >= Panels.Count || !damage.HasBreaches(panel)) return false;
+            var p = Panels[panel];
+            if (p.Building >= 0) return false;
+            var d = p.B - p.A;
+            float len = d.Length();
+            if (len <= 1e-6f) return false;
+            float tm = (lo + hi) * 0.5f;
+            float x = from.X + (to.X - from.X) * tm, y = from.Y + (to.Y - from.Y) * tm, z = from.Z + (to.Z - from.Z) * tm;
+            float along = ((x - p.A.X) * d.X + (y - p.A.Y) * d.Y) / len;
+            const float inside = 0.05f;
+            return damage.Opens(panel, along, prism.BaseZ + inside)
+                && damage.Opens(panel, along, MathF.Max(prism.BaseZ + inside, MathF.Min(z, prism.TopZ - inside)));
         }
 
         /// <summary>Clips the parameter interval [<paramref name="lo"/>, <paramref name="hi"/>] to where the line is within <paramref name="prism"/>'s height.</summary>
@@ -714,7 +826,7 @@ namespace Fdp.Toolkit.Terrain
             var segMax = Vector2.Max(a, b);
             float length = Vector3.Distance(from, to);
             // ⭐ CE-1034 H2 — a hill in the way is an opaque crossing where the line enters the ground
-            if (Height != null && Height.Crosses(from, to, out float groundT, out _))
+            if (GroundCrosses(from, to, doors, out float groundT, out _))   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
                 crossed.Add(new Crossing(groundT * length, GroundKind, null, GroundMaterial, 0f, null, -1));
             // ⭐ CE-4369 (L-7) — the woods as ONE crossing (their whole loss), where the line meets its first wooded cell's canopy
             if (Woods is { } woods)
@@ -729,6 +841,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -741,6 +854,7 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
@@ -807,6 +921,10 @@ namespace Fdp.Toolkit.Terrain
 
             /// <summary>⭐ <c>CE-1128</c> — the outward normal of the face the line LEAVES through; zero = unknown (it does not leave the ground).</summary>
             public Vector3 ExitNormal { get; init; }
+
+            /// <summary>⭐ <c>CE-4600</c> (B-3) — the piece crossed: an index into <see cref="Prisms"/>, or <c>Prisms.Count + i</c> for door leaf i; −1 for the
+            /// ground, a slab, a rubble mound.</summary>
+            public int Piece { get; init; } = -1;
         }
 
         /// <summary>
@@ -835,8 +953,23 @@ namespace Fdp.Toolkit.Terrain
         }
         private static readonly int S_QueryFire = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryFire");   // ⭐ CE-3427
 
-        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null)
+        /// <summary>
+        /// ⭐ <c>CE-4598</c> (B-1; 📄 docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-5, D-4) — the HULL form of <see cref="QueryFire(Vector3, Vector3, List{FireCrossing}, DoorStates?)"/>:
+        /// the same crossings, except that ① a wall panel or a shut door leaf is met when the line runs up to <paramref name="bandM"/> above its
+        /// top (the hull's body below the probe line), and ② a breach in a BUILDING's panel never opens (a hull never enters a building, R-3025)
+        /// while a breach in a free wall opens when it is open from the wall's base to the line (or its top). ⛔ No allocation.
+        /// </summary>
+        public void QueryHull(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors, float bandM)
         {
+            long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
+            QueryFireCore(from, to, into, doors, bandM > 0f ? bandM : 1e-4f);
+            Fdp.Toolkit.Diagnostics.QueryTimings.End(S_QueryHull, t0);
+        }
+        private static readonly int S_QueryHull = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("terrain.QueryHull");   // ⭐ CE-4598
+
+        private void QueryFireCore(Vector3 from, Vector3 to, List<FireCrossing> into, DoorStates? doors = null, float hullBand = 0f)
+        {
+            bool hull = hullBand > 0f;
             into.Clear();
             var a = new Vector2(from.X, from.Y);
             var b = new Vector2(to.X, to.Y);
@@ -849,7 +982,7 @@ namespace Fdp.Toolkit.Terrain
             float fallbackPerMetre = fallback?.ResistanceMmRhaPerMetre ?? 1500f;
             // ⭐ CE-1034 H2 — a hill in the way stops any round: one crossing where the line enters the ground, its TopZ the crest
             //   (a blast diffracts over the hill like over a wall — AreaEffect.TerrainShadow)
-            if (Height != null && Height.Crosses(from, to, out float groundT, out float crest))
+            if (GroundCrosses(from, to, doors, out float groundT, out float crest))   // ⭐ CE-4591 (D-1) — over the craters of the caller's view
                 into.Add(new FireCrossing(groundT, (1f - groundT) * length, GroundResistanceMmRha, GroundKind, null, GroundMaterial, null, -1)
                     { TopZ = crest, EntryNormal = Vector3.UnitZ });
 
@@ -859,6 +992,7 @@ namespace Fdp.Toolkit.Terrain
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
             var dmg = doors?.Damage;   // ⭐ CE-4391 S-2 — collapsed buildings: their pieces are skipped, their rubble crossed
+            var felled = doors?.Trees;
             int rubbleCount = dmg?.RubbleArray.Length ?? 0;
             using var cand = new CandidateSet(this, from, to, Prisms.Count + leaves.Count);   // ⭐ CE-1035 Q0 — every piece, or the index's candidates
             for (int k = 0; k < cand.PieceCount + rubbleCount; k++)
@@ -871,24 +1005,32 @@ namespace Fdp.Toolkit.Terrain
                     if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
+                    if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
                 }
                 if (!BoxesOverlap(segMin, segMax, prism.Min, prism.Max)) continue;
                 foreach (var (t0, t1) in iv.Slice(0, PolygonMath.InsideIntervals(prism.Footprint, a, b, ts, iv)))   // ⭐ R-220 — no allocation
                 {
                     // the part of [t0, t1] where the line is also within the piece's height
                     float lo = t0, hi = t1;
+                    // ⭐ CE-4598 (D-4) — for a HULL a wall panel or a door leaf reaches the band above its top: the hull's body under the line
+                    bool banded = hull && pi >= 0 && (pi >= Prisms.Count || prism.Panel >= 0);
+                    float top = banded ? prism.TopZ + hullBand : prism.TopZ;
                     if (MathF.Abs(dz) < 1e-6f)
                     {
-                        if (!(from.Z > prism.BaseZ && from.Z < prism.TopZ)) continue;
+                        if (!(from.Z > prism.BaseZ && from.Z < top)) continue;
                     }
                     else
                     {
-                        float ta = (prism.BaseZ - from.Z) / dz, tb = (prism.TopZ - from.Z) / dz;
+                        float ta = (prism.BaseZ - from.Z) / dz, tb = (top - from.Z) / dz;
                         lo = MathF.Max(lo, MathF.Min(ta, tb));
                         hi = MathF.Min(hi, MathF.Max(ta, tb));
                     }
                     if (hi <= lo) continue;
-                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue;   // ⭐ CE-4391 B-8
+                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0)
+                    {
+                        if (!hull) { if (CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue; }   // ⭐ CE-4391 B-8
+                        else if (HullBreachOpen(doors, prism, from, to, lo, hi)) continue;                    // ⭐ CE-4598 (V-5)
+                    }
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
                     float path = (hi - lo) * length;
@@ -899,7 +1041,7 @@ namespace Fdp.Toolkit.Terrain
                     var exitN = hi < t1 - 1e-6f ? new Vector3(0f, 0f, dz > 0f ? 1f : -1f) : SideNormal(prism.Footprint, a + (b - a) * hi, dir, entering: false);
                     into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1)
-                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN });
+                        { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN, Piece = pi });
                 }
             }
 

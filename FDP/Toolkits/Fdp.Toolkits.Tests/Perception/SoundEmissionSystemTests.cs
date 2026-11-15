@@ -229,5 +229,29 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(new[] { DoorSounds.SwingRange, DoorSounds.SwingRange, DoorSounds.LockRange, DoorSounds.BreachRange },
                 new[] { read[0].Carry, read[1].Carry, read[2].Carry, read[3].Carry });
         }
+    
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-3b, V-17) — a vehicle BREAKING a barrier is heard: a Broke / Bumped <c>ContactBreachEvent</c> becomes one sound at the contact point, its hull's engine class,
+        /// carried 300 m; a "too strong" cue or a push in progress makes none. 🔴 Red-proof: drop <c>HearBreaks</c> ⇒ nothing heard.
+        /// </summary>
+        [Fact]
+        public void CE4600_AVehicleBreakingABarrier_IsHeard_AndATooStrongCueIsNot()
+        {
+            var (w, e) = World();
+            w.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            var s = new SoundEmissionSystem();
+            At(w, 1.0);
+            w.Bus.Publish(new Fdp.Toolkit.Terrain.ContactBreachEvent { Vehicle = e, Kind = (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong, X = 10f, Y = 0f, Z = 0f });
+            w.Bus.Publish(new Fdp.Toolkit.Terrain.ContactBreachEvent { Vehicle = e, Kind = (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke, X = 12f, Y = 3f, Z = 0f });
+            w.Bus.SwapBuffers();
+            Step(w, s);
+            var ring = SoundEmissionRing.Of(w);
+            System.Span<SoundEmission> got = stackalloc SoundEmission[8];
+            int n = ring.ReadAfter(0, got, out _);
+            Assert.Equal(1, n);
+            Assert.Equal(new Vector3(12f, 3f, 0f), got[0].At);
+            Assert.Equal(SoundEmissionSystem.BreakAudibleMetres, got[0].Carry);
+            Assert.Equal((byte)SoundKind.Movement, got[0].Kind);
+        }
     }
 }

@@ -56,7 +56,14 @@ namespace Fdp.Toolkit.Terrain
         /// so bounds that moved would give every base tile another key and the base's navtiles would never hit (measured: 0 of 610 with the features' own ±50 m margin). <paramref name="features"/> are
         /// CLONED into the document (a JSON node has one parent), so cached feature objects can be reused.
         /// </summary>
-        public static JsonObject WorldDocument(TerrainWorld baseWorld, IReadOnlyList<JsonObject> features)
+        public static JsonObject WorldDocument(TerrainWorld baseWorld, IReadOnlyList<JsonObject> features) => WorldDocument(baseWorld, features, null);
+
+        /// <summary>
+        /// ⭐ <c>CE-4592</c> (P-5, G-24 / G-29) — the overlay's world document, plus a <c>corridor</c> part for every road of <paramref name="roads"/> that a GROUND-CHANGING
+        /// feature (a ground shape, a ditch, a house on a pad) reaches — so the merge re-levels the road under it and a ditch stops at it. ⭐ ONE place for both callers
+        /// (the scenario-save compile and the editor's live overlay), so the saved and the live ground agree.
+        /// </summary>
+        public static JsonObject WorldDocument(TerrainWorld baseWorld, IReadOnlyList<JsonObject> features, TerrainRoads? roads)
         {
             var bmin = baseWorld.BoundsMin; var bmax = baseWorld.BoundsMax;
             foreach (var feat in features) GrowBounds(((JsonObject)feat["geometry"]!)["coordinates"], ref bmin, ref bmax);
@@ -67,9 +74,46 @@ namespace Fdp.Toolkit.Terrain
             };
             var arr = new JsonArray();
             foreach (var f in features) arr.Add(f.DeepClone());
+            if (roads != null) AddCorridors(arr, features, roads);
             world["features"] = arr;
             return world;
         }
+
+        /// <summary>How far a ground change can move the ground round its part (m): a 6 m raise's skirt is 9 m; a road that reaches it is re-levelled.</summary>
+        public const float CorridorReach = 12f;
+
+        private static void AddCorridors(JsonArray arr, IReadOnlyList<JsonObject> features, TerrainRoads roads)
+        {
+            var reach = new List<(Vector2 Min, Vector2 Max)>();
+            foreach (var f in features)
+                if (f["properties"] is JsonObject p && ((string?)p["kind"] == "ground" || ((string?)p["kind"] == "building" && p["pad"] is not null)))
+                {
+                    var (a, b) = BoundsOf(f);
+                    reach.Add((a - new Vector2(CorridorReach), b + new Vector2(CorridorReach)));
+                }
+            if (reach.Count == 0) return;
+            var corridors = roads.Corridors;
+            for (int i = 0; i < corridors.Count; i++)
+            {
+                var c = corridors[i];
+                var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
+                foreach (var q in c.Line) { min = Vector2.Min(min, q); max = Vector2.Max(max, q); }
+                min -= new Vector2(c.HalfWidth + RoadCorridors.Skirt); max += new Vector2(c.HalfWidth + RoadCorridors.Skirt);
+                bool touched = false;
+                foreach (var (a, b) in reach) if (min.X <= b.X && max.X >= a.X && min.Y <= b.Y && max.Y >= a.Y) { touched = true; break; }
+                if (!touched) continue;
+                var coords = new JsonArray();
+                foreach (var q in c.Line) coords.Add(new JsonArray(Round(q.X), Round(q.Y)));
+                arr.Add(new JsonObject
+                {
+                    ["type"] = "Feature",
+                    ["properties"] = new JsonObject { ["kind"] = "corridor", ["halfWidth"] = Round(c.HalfWidth), ["label"] = "corridor/" + i.ToString(System.Globalization.CultureInfo.InvariantCulture) },
+                    ["geometry"] = new JsonObject { ["type"] = "LineString", ["coordinates"] = coords },
+                });
+            }
+        }
+
+        private static double Round(float v) => Math.Round(v, 3);
 
         /// <summary>The ground rectangle a feature's geometry spans.</summary>
         public static (Vector2 Min, Vector2 Max) BoundsOf(JsonObject feature)

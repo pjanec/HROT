@@ -16,6 +16,38 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     public static class TerrainWorldMerge
     {
+        /// <summary>
+        /// ⭐⭐ <c>CE-4597</c> (P-3; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-5, G-6) — the base's heights with every overlay house that stands on a pad
+        /// (<see cref="TerrainBuilding.Pad"/>) cut in: <see cref="GroundPatches.PadOf"/> at its base, applied copy-on-write (the base grid is unchanged and shares every
+        /// tile no pad touches). Every node merges the same overlay over the same base ⇒ the same ground everywhere; the editor's live bake merges the same way.
+        /// </summary>
+        public static TerrainHeightGrid? PadHeights(TerrainHeightGrid? height, TerrainWorld overlay)
+        {
+            if (height == null) return null;
+            List<GroundPatch>? pads = null;
+            foreach (var b in overlay.Buildings)
+                if (b.Pad && b.Footprint.Length >= 3)
+                    (pads ??= new List<GroundPatch>()).Add(GroundPatches.PadOf(b.Footprint, b.BaseZ, height.Sample));
+            return pads == null ? height : GroundPatches.Apply(height, pads);
+        }
+
+        /// <summary>⭐ CE-4592 (V-28) — every building footprint of both worlds: a ground shape leaves them (and a margin) as islands, never pushing the ground into a house.</summary>
+        private static List<Vector2[]>? IslandsOf(TerrainWorld @base, TerrainWorld overlay)
+        {
+            if (overlay.GroundShapes.Count == 0 && overlay.RoadCorridors.Count == 0) return null;
+            var list = new List<Vector2[]>(@base.Buildings.Count + overlay.Buildings.Count);
+            foreach (var b in @base.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
+            foreach (var b in overlay.Buildings) if (b.Footprint.Length >= 3) list.Add(b.Footprint);
+            return list;
+        }
+
+        private static IReadOnlyList<GroundShape> Concat(IReadOnlyList<GroundShape> a, IReadOnlyList<GroundShape> b)
+        {
+            if (b.Count == 0) return a;
+            if (a.Count == 0) return b;
+            var l = new List<GroundShape>(a.Count + b.Count); l.AddRange(a); l.AddRange(b); return l;
+        }
+
         public static TerrainWorld Merge(TerrainWorld @base, TerrainWorld overlay)
         {
             if (@base == null) throw new ArgumentNullException(nameof(@base));
@@ -88,6 +120,8 @@ namespace Fdp.Toolkit.Terrain
             foreach (var f in overlay.SeedFolders) if (!seeds.Contains(f)) seeds.Add(f);
 
             bool overlayHasParts = prisms.Count > @base.Prisms.Count || walkables.Count > @base.Walkables.Count || surfaces.Count > @base.Surfaces.Count;
+            var shapes = GroundShapes.OffCorridors(overlay.GroundShapes, overlay.RoadCorridors);   // ⭐ CE-4593 (G-29) — a ditch stops at a road
+            var islands = IslandsOf(@base, overlay);
             var merged = new TerrainWorld
             {
                 Name = @base.Name,
@@ -96,11 +130,12 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = overlayHasParts ? Vector2.Min(@base.BoundsMin, overlay.BoundsMin) : @base.BoundsMin,
                 BoundsMax = overlayHasParts ? Vector2.Max(@base.BoundsMax, overlay.BoundsMax) : @base.BoundsMax,
                 GroundZ = @base.GroundZ,
-                Height = @base.Height,
+                Height = RoadCorridors.Relevel(PadHeights(GroundShapes.Apply(@base.Height, shapes, islands), overlay), overlay.RoadCorridors, islands),   // ⭐ CE-4592 (G-18, G-24) — shapes, pads on the shaped ground, then the touched road corridors re-levelled
                 Warnings = warnings,
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
+                GroundShapes = Concat(@base.GroundShapes, shapes),   // ⭐ CE-4593 — the ditches' navmesh areas read them
                 Panels = panels,
                 Buildings = buildings,
                 Doors = doors,

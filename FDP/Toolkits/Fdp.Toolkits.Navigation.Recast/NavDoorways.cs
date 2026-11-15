@@ -60,6 +60,68 @@ public static class NavDoorways
         return list;
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-4591</c> (P-4 part 2; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-9, D-2 R-4233) — the area id a crater's spans carry: EVERY vehicle keeps
+    /// out (<see cref="DoorAwareQueryFilter"/> refuses it to a mover that cannot open doors), infantry crosses at its plain cost. Marked after the woods, before
+    /// the doorways.
+    /// </summary>
+    public const int CraterArea = 4;
+
+    /// <summary>The sides of the polygon a crater's disc is marked with.</summary>
+    public const int CraterSides = 12;
+
+    /// <summary>
+    /// ⭐ <c>CE-4591</c> — the craters baked into <paramref name="world"/>'s height grid (<see cref="TerrainWorld.HeightCraters"/>) as convex volumes in RECAST
+    /// coordinates: a fan of <see cref="CraterSides"/> triangles round each changed disc (rim included), spanning from below its bowl to above its rim.
+    /// </summary>
+    public static IReadOnlyList<Volume> Craters(TerrainWorld world)
+    {
+        var craters = world.HeightCraters;
+        if (craters == null || craters.Count == 0) return Array.Empty<Volume>();
+        var list = new List<Volume>(craters.Count * CraterSides);
+        for (int i = 0; i < craters.Count; i++)
+        {
+            var c = craters[i];
+            float o = c.OuterRadius / MathF.Cos(MathF.PI / CraterSides);   // the polygon holds the whole disc
+            float ground = world.BareGroundHeightAt(c.Centre.X, c.Centre.Y);
+            float lo = ground - c.Depth - 2f, hi = ground + c.Rim + 2f;
+            for (int k = 0; k < CraterSides; k++)
+            {
+                float a0 = 2f * MathF.PI * k / CraterSides, a1 = 2f * MathF.PI * (k + 1) / CraterSides;
+                var verts = new float[9]
+                {
+                    c.Centre.X, lo, c.Centre.Y,
+                    c.Centre.X + o * MathF.Cos(a0), lo, c.Centre.Y + o * MathF.Sin(a0),
+                    c.Centre.X + o * MathF.Cos(a1), lo, c.Centre.Y + o * MathF.Sin(a1),
+                };
+                list.Add(new Volume(-1, verts, lo, hi) { Area = CraterArea });
+            }
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4593</c> (P-6, G-28, D-2) — every OBSTACLE-class ground shape (a ditch, an anti-tank ditch) as a convex volume of <see cref="CraterArea"/> (the area every
+    /// vehicle keeps out of, infantry crosses): its quad grown by its banks, spanning below its floor to above the ground.
+    /// </summary>
+    public static IReadOnlyList<Volume> Ditches(TerrainWorld world)
+    {
+        List<Volume>? list = null;
+        foreach (var s in world.GroundShapes)
+        {
+            if (!s.Obstacle || s.Polygon.Length != 4) continue;
+            var c = (s.Polygon[0] + s.Polygon[2]) * 0.5f;
+            float ground = world.BareGroundHeightAt(c.X, c.Y);
+            float lo = ground - MathF.Abs(s.Value) - 2f, hi = ground + 2f;
+            float grow = 0.6f * MathF.Abs(s.Value) + 0.3f;
+            var q = new Vector2[4];
+            for (int k = 0; k < 4; k++) { var v = s.Polygon[k] - c; q[k] = s.Polygon[k] + (v.LengthSquared() > 1e-9f ? Vector2.Normalize(v) * grow : Vector2.Zero); }
+            foreach (var (a, b, d) in new[] { (q[0], q[1], q[2]), (q[0], q[2], q[3]) })
+                (list ??= new List<Volume>()).Add(new Volume(-1, new float[] { a.X, lo, a.Y, b.X, lo, b.Y, d.X, lo, d.Y }, lo, hi) { Area = CraterArea });
+        }
+        return (IReadOnlyList<Volume>?)list ?? Array.Empty<Volume>();
+    }
+
     /// <summary>The doorway boxes of <paramref name="world"/>, in RECAST coordinates (x east, y up, z north).</summary>
     public static IReadOnlyList<Volume> For(TerrainWorld world)
     {
@@ -197,6 +259,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     {
         if (!Base.PassFilter(refs, tile, poly)) return false;
         if (poly.GetArea() == WoodsAreaId && _woodsCost <= 0f) return false;   // ⭐ CE-4369 — a wheeled vehicle never enters a wood (Q-T1)
+        if (poly.GetArea() == NavDoorways.CraterArea && !_canOpenDoors) return false;   // ⭐ CE-4591 (D-2) — no vehicle drives through a crater; infantry crosses
         if (!_doorPolys.TryGetValue(refs, out int door)) return true;
         if (!_canOpenDoors) return false;                                   // N2 — a vehicle never uses a doorway
         return StateOf(door) != TerrainDoorState.Locked;                    // a locked door is a wall

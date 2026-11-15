@@ -99,6 +99,8 @@ namespace Fdp.Toolkit.Terrain
             var prisms = sink.Prisms;
             var walkables = sink.Walkables;
             var surfaces = new List<TerrainSurface>();
+            var groundShapes = new List<GroundShape>();   // ⭐ CE-4592 (P-5)
+            var roadCorridors = new List<RoadCorridor>();   // ⭐ CE-4592 (G-24)
             // ⭐ O-2 (CE-4416) — "structure": "<key>" groups slab / ramp / polygon-building parts into ONE collapsible TerrainBuilding (no panels)
             var structures = new Dictionary<string, StructureAcc>(StringComparer.Ordinal);
             int StructureOf(JsonObject p, string where, IReadOnlyList<Vector2> plan, float minZ, float maxZ)
@@ -158,7 +160,7 @@ namespace Fdp.Toolkit.Terrain
                             props["baseZ"] is JsonNode bz ? ReadFloat(bz, where + ".baseZ") : (float?)null,   // null ⇒ TH-C, resolved on the footprint
                             label ?? templateName ?? $"building-{sink.Buildings.Count}",
                             props["building"] is JsonObject ? null : templateName,
-                            overrides, (string?)props["name"]);
+                            overrides, (string?)props["name"], Pad: props["pad"] is not null);   // ⭐ CE-4597 (G-5) — it stands on a pad
                         TerrainBuildingExpander.Expand(template, placement, GroundUnder, materials, name, sink, where);
                         break;
                     }
@@ -282,6 +284,35 @@ namespace Fdp.Toolkit.Terrain
                         }
                         break;
                     }
+                    case "ground":
+                    {
+                        // ⭐ CE-4592 (P-5, G-14) — an authored ground SHAPE (level / raise / lower an area); applied to the height grid where the world is merged
+                        var mode = GroundShapes.ModeOf((string?)props["mode"] ?? "raise", where);
+                        float value = props["value"] is JsonNode vn ? ReadFloat(vn, where + ".value") : 0f;
+                        uint order = props["order"] is JsonNode on ? on.GetValue<uint>() : 0u;
+                        string modeText = (string?)props["mode"] ?? "raise";
+                        if (geomType == "LineString" && DitchPresets.Of(modeText) is { } preset)
+                        {
+                            // ⭐ CE-4593 (P-6) — a ditch / foxhole: its line widened into quads
+                            float width = props["width"] is JsonNode wn ? ReadFloat(wn, where + ".width") : preset.Width;
+                            var line = ReadPositions(geometry["coordinates"], where).Select(p => new Vector2(p.X, p.Y)).ToList();
+                            foreach (var quad in DitchPresets.Strip(line, width))
+                                groundShapes.Add(new GroundShape(mode, quad, value, order, (string?)props["label"] ?? "") { Obstacle = preset.Obstacle });
+                            break;
+                        }
+                        foreach (var ring in OuterRings(geometry, geomType, where))
+                            groundShapes.Add(new GroundShape(mode, Flatten(ring), value, order, (string?)props["label"] ?? ""));
+                        break;
+                    }
+                    case "corridor":
+                    {
+                        // ⭐ CE-4592 (G-24) — a base road corridor the overlay's ground change touches: its line and the half-width it levels
+                        if (geomType != "LineString") throw new ArgumentException($"Terrain world {where}: a corridor is a LineString.");
+                        float half = props["halfWidth"] is JsonNode hw ? ReadFloat(hw, where + ".halfWidth") : throw new ArgumentException($"Terrain world {where}: a corridor needs 'properties.halfWidth'.");
+                        var line = ReadPositions(geometry["coordinates"], where).Select(p => new Vector2(p.X, p.Y)).ToArray();
+                        roadCorridors.Add(new RoadCorridor(line, half, 0f, 0f));
+                        break;
+                    }
                     case "surface":
                     {
                         string surface = (string?)props["surface"]
@@ -317,7 +348,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     default:
                         throw new ArgumentException(
-                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, prism, slab, ramp, surface).");
+                            $"Terrain world {where}: unknown kind '{kind}' (building, wall, fence, tree, prism, slab, ramp, surface, ground).");
                 }
             }
 
@@ -364,6 +395,8 @@ namespace Fdp.Toolkit.Terrain
                 Prisms = prisms,
                 Walkables = walkables,
                 Surfaces = surfaces,
+                GroundShapes = groundShapes,   // ⭐ CE-4592 (P-5)
+                RoadCorridors = roadCorridors,   // ⭐ CE-4592 (G-24)
                 Panels = sink.Panels,
                 Buildings = sink.Buildings,
                 Doors = sink.Doors,

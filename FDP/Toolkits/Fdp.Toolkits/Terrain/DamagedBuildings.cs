@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Terrain
                 for (int i = 0; i < d.Count; i++)
                 {
                     int p = d[i].Panel;
-                    if ((uint)p < (uint)world.Panels.Count && world.Panels[p].Building >= 0) into.Add(world.Panels[p].Building);
+                    if ((uint)p < (uint)world.Panels.Count) into.Add(WallGroups.Of(world, p));   // ⭐ CE-4599 — a free-wall line too (its group follows the buildings)
                 }
             }
         }

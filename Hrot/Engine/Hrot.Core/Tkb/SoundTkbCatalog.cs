@@ -23,6 +23,8 @@ namespace Hrot.Core.Tkb
         public const long ImpactSoft = 7331, ImpactHard = 7332;
         public const long Footsteps = 7341, WheeledEngine = 7342, TrackedEngine = 7343, Rotor = 7344, Jet = 7345;
         public const long Reload = 7351, EmptyClick = 7352, Breathing = 7353, Door = 7354;
+        /// <summary>⭐ CE-4600 (B-3b, V-17) — a wall / fence broken by a vehicle (heard as far as the AI hears it, 300 m).</summary>
+        public const long Crash = 7355;
         public const long Wind = 7361, Birds = 7362, Insects = 7363, Town = 7364, BattleRumble = 7365;
 
         /// <summary>The voice priorities (AU-7): higher keeps playing when the voices run out.</summary>
@@ -56,6 +58,7 @@ namespace Hrot.Core.Tkb
                 [EmptyClick]      = ("Sound: empty click",      S(SoundSynth.EmptyClick,       1f, SoundCategory.Own,        PriorityOwn, -6f)),
                 [Breathing]       = ("Sound: breathing",        S(SoundSynth.Breathing,        1f, SoundCategory.Own,        PriorityOwn, -12f, loop: true)),
                 [Door]            = ("Sound: door",             S(SoundSynth.Door,             4f, SoundCategory.Impacts,    PriorityImpact, -4f, range: 60f)),
+                [Crash]           = ("Sound: crash",            S(SoundSynth.Crash,           12f, SoundCategory.Impacts,    PriorityImpact, 0f, range: 300f)),   // ⭐ CE-4600 (B-3b)
                 [Wind]            = ("Sound: wind",             S(SoundSynth.Wind,             1f, SoundCategory.Ambient,    PriorityAmbient, -14f, loop: true)),
                 [Birds]           = ("Sound: birds",            S(SoundSynth.Birds,            1f, SoundCategory.Ambient,    PriorityAmbient, -16f, loop: true)),
                 [Insects]         = ("Sound: insects",          S(SoundSynth.Insects,          1f, SoundCategory.Ambient,    PriorityAmbient, -20f, loop: true)),

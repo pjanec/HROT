@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Road;
@@ -2294,5 +2296,440 @@ namespace CarKinem.Tests.Systems
             float onCurve = CarKinematicsSystem.CapLookaheadByChord(pool, 2, 56f, 7.86f, 1.965f);
             Assert.True(onCurve < 4f, $"across the corner the lookahead stays {onCurve:F2} m");
         }
-}
+
+        // ── CE-4598 (B-1; docs/DESIGN_Vehicle_Breaching.md §7 V-1, V-4, V-5, V-14, D-2, D-4) — the hull sees every wall ──
+
+        /// <summary>A free wall (a garden wall, a fence) along y = 10 from x = −20 to 80: <paramref name="kind"/> "wall" or "fence".</summary>
+        private static Fdp.Toolkit.Terrain.TerrainWorld GardenWall(float height, string kind = "wall", string material = "brick", float thickness = 0.3f)
+            => Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"" + kind + "\",\"label\":\"garden\",\"height\":" +
+                height.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"thickness\":" +
+                thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-20,10],[80,10]]}}]}");
+
+        /// <summary>The northmost corner (y) and the highest Z an AI tank driven north at the free wall reaches in 15 s.</summary>
+        private static (float NorthCorner, float TopZ) DriveAtTheWall(Fdp.Toolkit.Terrain.TerrainWorld world)
+        {
+            var (repo, e, pool) = HullWorld(new Vector2(30f, -15f), FacingNorth, new[] { new Vector3(30f, -15f, 0f), new Vector3(30f, 25f, 0f) },
+                                            mode: KinematicsMode.Direct, recovery: false, world: world);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float north = float.MinValue, topZ = 0f;
+            for (int i = 0; i < 15 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, NorthCorner(repo, e));
+                topZ = MathF.Max(topZ, repo.GetComponent<SimTransform>(e).Position.Z);
+            }
+            pool.Dispose();
+            repo.Dispose();
+            return (north, topZ);
+        }
+
+        /// <summary>The y of the hull's northmost corner.</summary>
+        private static float NorthCorner(EntityRepository repo, Entity e)
+        {
+            var p = repo.GetComponent<VehicleParams>(e);
+            var tf = repo.GetComponent<SimTransform>(e);
+            var f = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+            var fwd = Vector2.Normalize(new Vector2(f.X, f.Y));
+            var c = new Vector2(tf.Position.X, tf.Position.Y);
+            float north = float.MinValue;
+            foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                north = MathF.Max(north, CarKinem.Controllers.HullClearance.Corner(c, fwd, a * p.Length * 0.5f, b * p.Width * 0.5f).Y);
+            return north;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, D-2) — an AI tank driven at a garden wall, a fence and a hedge-high wall is HELD at it: no corner ever
+        /// past the wall. 📌 The user's observation: every hull drove through every garden wall — the guard's barrier was the blast meaning
+        /// (a panel WITH a building), blind to free walls. 🔴 Red-proof: trace the guard with <c>TracePurpose.Fire</c> again ⇒ the tank drives
+        /// through all three (the corner reaches y ≈ 28).
+        /// </summary>
+        [Theory]
+        [InlineData(1.0f, "wall", "brick", 0.3f)]     // a brick garden wall
+        [InlineData(1.6f, "fence", "fence-wood", 0.05f)]   // a fence
+        [InlineData(1.5f, "wall", "brick", 0.6f)]     // hedge-high
+        public void CE4598_AnAiHull_IsHeldAtAFreeWall_NeverThroughIt(float height, string kind, string material, float thickness)
+        {
+            var (north, _) = DriveAtTheWall(GardenWall(height, kind, material, thickness));
+            Assert.True(north <= 10f - thickness / 2f + 0.05f, $"a corner reached y={north:F2} — through the {kind} at y=10");
+            Assert.True(north >= 10f - thickness / 2f - 0.8f, $"stopped short: the nose reached only y={north:F2}");   // it drove up to it
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, D-4) — a LOW garden wall (0.4 m, under the 0.5 m step a hull climbs) is MET, never climbed: the hull stays on
+        /// the ground and never crosses it. 🔴 Red-proof: let <c>HullSurfaceZ</c> consider a panel's top ⇒ the tank stands on the wall
+        /// (z 0.4) and drives on over it; drop the hull band (<c>QueryHull</c>'s top + band) ⇒ the 0.5 m probe line runs over the wall.
+        /// </summary>
+        [Fact]
+        public void CE4598_ALowGardenWall_IsMet_NeverClimbed()
+        {
+            var (north, topZ) = DriveAtTheWall(GardenWall(0.4f));
+            Assert.True(topZ < 0.05f, $"the hull climbed onto the wall: z={topZ:F2}");
+            Assert.True(north <= 10f - 0.15f + 0.05f, $"a corner reached y={north:F2} — over the 0.4 m wall");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, acceptance §7.5 item 11) — a POSSESSED wheeled vehicle at full throttle into a garden wall is held at it
+        /// too (the operator's drive goes through the same guard). 📌 The user saw exactly this one drive through. 🔴 Red-proof: as above.
+        /// </summary>
+        [Fact]
+        public void CE4598_APossessedCar_AtFullThrottle_IsHeldAtAGardenWall()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}]}"));
+            float east = float.MinValue;
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                east = MathF.Max(east, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            Assert.True(east <= 15f - 0.15f + 0.05f, $"the nose reached x={east:F2} — through the wall at x=15");
+            Assert.True(east >= 15f - 0.15f - 1.5f, $"never reached the wall: nose x={east:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-5, acceptance §7.5 item 13) — a tank driven at a BUILDING wall straight through a Passage breach (its own
+        /// bump, B-D4) is still held outside: a hull never enters a building. 🔴 Red-proof: trace the guard with <c>TracePurpose.Fire</c> ⇒ it
+        /// drives in through the breach (the fire purpose skips breached crossings).
+        /// </summary>
+        [Fact]
+        public void CE4598_ATankAtABuildingBreach_StaysOut()
+        {
+            var w = Fdp.Toolkit.Terrain.Tests.BreachFixtures.House();   // the brick house: south wall x 20..30 at y = 20
+            int south = Fdp.Toolkit.Terrain.Tests.BreachFixtures.SouthWall(w);
+            var (repo, e, pool) = HullWorld(new Vector2(25f, 5f), FacingNorth, new[] { new Vector3(25f, 5f, 0f), new Vector3(25f, 26f, 0f) },
+                                            mode: KinematicsMode.Direct, recovery: false, world: w);
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.BuildingDamage>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainObjectKey>();
+            Fdp.Toolkit.Terrain.Tests.BreachFixtures.Damage(repo, w, 0,
+                new Fdp.Toolkit.Terrain.WallBreach(south, 0.5f, 9.5f, 0f, 3f, Fdp.Toolkit.Terrain.BreachKind.Passage));   // the whole wall open
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 15 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, NorthCorner(repo, e));
+            }
+            Assert.True(north <= 20f - 0.15f + 0.05f, $"a corner reached y={north:F2} — inside the house through its breach");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4598</c> (B-1, V-4, V-14; acceptance §7.5 item 15) — the break gate: only a hull on the Manual branch, held by a LIVE Fps
+        /// possession, outside a replay. A RELEASED hull keeps its <c>ManualDrive</c> (<c>Possession.LetGoOfManual</c>) and may not break; a
+        /// rider holds his own body, not the hull; a replay re-decides nothing. 🔴 Red-proof: gate on <c>HasComponent&lt;ManualDrive&gt;</c>
+        /// ⇒ the released row passes; drop the replay test ⇒ the replay row passes.
+        /// </summary>
+        [Fact]
+        public void CE4598_TheBreakGate_IsALivePlayerDriving_OnTheManualBranch_NeverInAReplay()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Tank, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            bool May() => CarKem_MayBreak(repo, e);
+
+            Assert.False(May());                                                              // Manual, ManualDrive kept, nobody holds it (released)
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            Assert.True(May());                                                               // a player drives it
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
+            Assert.False(May());                                                              // a rider: not the hull's controls
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
+            var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);
+            Assert.False(May());                                                              // an autonomous move (the AI corner)
+            nav.Mode = KinematicsMode.Manual; repo.SetComponent(e, nav);
+            Fdp.Toolkit.Replay.ReplayState.Enter(repo);
+            Assert.False(May());                                                              // a replay
+            Fdp.Toolkit.Replay.ReplayState.Leave(repo);
+            Assert.True(May());
+            repo.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(e);
+            Assert.False(May());                                                              // released again
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-6014</c> (found by CE-4598 B-1) — avoidance never steers a hull INTO a wall: a tank driving its path east past a man 1 m off its
+        /// line, a garden wall 0.2 m beyond its other side, keeps its path (the swerve that would hit the wall is dropped) and drives on — never held,
+        /// no corner past the wall. 📌 RoadblockBlastScenarioTests' IFV swerved round a man down and through a wall; with B-1 it was held there for
+        /// good. 🔴 Red-proof: drop the fallback to the path step ⇒ the tank stops at the wall (it never passes x = 60).
+        /// </summary>
+        [Fact]
+        public void CE6014_AvoidanceNeverSteersAHullIntoAWall_TheTankKeepsItsPath()
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[-10,-2.1],[110,-2.1]]}}]}"));
+            Stander(repo, new Vector3(25f, 1f, 0f));   // the man the tank swerves south for (CE3287_ADrivingVehicle_StillSteersRoundAMan)
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float east = float.MinValue, south = float.MaxValue;
+            for (int i = 0; i < 25 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                east = MathF.Max(east, tf.Position.X);
+                var f3 = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                var fwd = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    south = MathF.Min(south, CarKinem.Controllers.HullClearance.Corner(new Vector2(tf.Position.X, tf.Position.Y), fwd, a * p.Length * 0.5f, b * p.Width * 0.5f).Y);
+            }
+            Assert.True(east > 60f, $"held at the wall: it reached only x={east:F1}");
+            Assert.True(south >= -1.95f - 0.05f, $"a corner reached y={south:F2} — through the wall's face at -1.95");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-6014</c> — a vehicle does not swerve for a man DOWN who lies clear of its hull's way (2.5 m off its line, the tank 3.5 m wide):
+        /// it drives straight past; the same man STANDING there is still given way to, and a man down IN its way still makes it swerve.
+        /// 📌 RoadblockBlastScenarioTests: the IFV swerved 7 m round a body at the gate's jamb into the wall. 🔴 Red-proof: drop the
+        /// <c>InHullsWay</c> skip ⇒ the down row swerves like the standing one.
+        /// </summary>
+        [Theory]
+        [InlineData(-2.6f, 0f, false)]    // down, clear of the hull: no swerve
+        [InlineData(-2.6f, 100f, true)]   // the same man standing: give way
+        [InlineData(0.5f, 0f, true)]      // down in its way: swerve round him
+        public void CE6014_AVehicle_SwervesForAManDown_OnlyWhenHeLiesInItsWay(float manY, float health, bool swerves)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            var man = Stander(repo, new Vector3(25f, manY, 0f));
+            Hurt(repo, man, health);
+            Hurt(repo, e, 100f);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float most = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                most = MathF.Max(most, MathF.Abs(repo.GetComponent<SimTransform>(e).Position.Y));
+            }
+            if (swerves) Assert.True(most > 0.3f, $"it ran straight past the man (most {most:F2} m off the line)");
+            else Assert.True(most < 0.1f, $"it swerved {most:F2} m for a man down clear of its way");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        // ── CE-4600 (B-3; docs/DESIGN_Vehicle_Breaching.md §3.2, §6, §7.5, D-3, V-3, V-9) — a player's vehicle breaks weak barriers ──
+
+        /// <summary>
+        /// A possessed vehicle (Manual, held by a live Fps station) of <paramref name="cls"/> and <paramref name="massKg"/> at (0, 0) facing +X, a world with
+        /// <paramref name="geojsonFeatures"/>, the breach and cue events registered. The TKB template carries the mass.
+        /// </summary>
+        private static (EntityRepository Repo, Entity E) Possessed(VehicleClass cls, float massKg, float throttle, string geojsonFeatures)
+        {
+            CarKinem.Controllers.ContactBreach.Reset();
+            var (repo, e) = ManualWorld(cls, new Fdp.Toolkit.Navigation.ManualDrive { Forward = throttle });
+            repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)9001 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("breaker", 9001);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.VehicleParametersDto { Mass = massKg });
+            db.Register(t);
+            repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" + geojsonFeatures + "]}"));
+            return (repo, e);
+        }
+
+        private const string BrickGardenWallAtX15 = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"garden\",\"height\":1.0,\"thickness\":0.3,\"material\":\"brick\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+
+        /// <summary>Runs <paramref name="seconds"/>, collecting every breach and cue event; returns the farthest the nose reached (x) and the lowest speed after it first moved.</summary>
+        private static (float Nose, List<Fdp.Toolkit.Terrain.BuildingDamageEvent> Breaches, List<Fdp.Toolkit.Terrain.ContactBreachEvent> Cues) DriveInto(EntityRepository repo, Entity e, float seconds)
+        {
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            float nose = float.MinValue;
+            var breaches = new List<Fdp.Toolkit.Terrain.BuildingDamageEvent>(); var cues = new List<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                breaches.AddRange(repo.Bus.Read<Fdp.Toolkit.Terrain.BuildingDamageEvent>().ToArray());
+                cues.AddRange(repo.Bus.Read<Fdp.Toolkit.Terrain.ContactBreachEvent>().ToArray());
+                nose = MathF.Max(nose, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            return (nose, breaches, cues);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (acceptance §6 item 2, §7.5 item 12) — a possessed 60 t TANK at full throttle into a 1 m brick garden wall BREAKS it and drives on THROUGH:
+        /// one breach on the wall, a Passage from its base to its top, at least the drive-through width (V-9), and the nose well past the wall; the break costs speed
+        /// but never zeroes it. 🔴 Red-proof: return false from <c>ContactBreach.OnContact</c> ⇒ held at the wall, no breach.
+        /// </summary>
+        [Fact]
+        public void CE4600_APossessedTank_BreaksAGardenWall_AndDrivesThrough()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            var b = Assert.Single(breaches);
+            Assert.Equal((byte)Fdp.Toolkit.Terrain.BreachKind.Passage, b.Kind);
+            Assert.True(b.To - b.From >= 4.2f - 1e-3f, $"the cut is {b.To - b.From:F2} m — narrower than a vehicle drives through");
+            Assert.Equal(0f, b.Bottom, 3); Assert.Equal(1f, b.Top, 3);
+            Assert.True(nose > 15f + 3f, $"the tank stopped at the wall: nose x={nose:F2}");
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
+            Assert.Equal(e, b.Shooter);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (acceptance §6 item 2's slow half, item 3) — the same tank CREEPING (0.9 m/s, a light throttle — no ram, no push) stops at the wall and breaks
+        /// nothing; a possessed CAR at full throttle stops too and is told the wall is TOO STRONG. 🔴 Red-proof: drop the minimum ram speed ⇒ the creeping tank breaks it.
+        /// </summary>
+        [Fact]
+        public void CE4600_ACreepingTank_AndAPossessedCar_StopAtTheWall()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 0.06f, BrickGardenWallAtX15);
+            var (nose, breaches, _) = DriveInto(repo, e, 12f);
+            Assert.Empty(breaches);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the creeping tank went through: nose x={nose:F2}");
+            repo.Dispose();
+
+            var (car, c) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, BrickGardenWallAtX15);
+            var (carNose, carBreaches, cues) = DriveInto(car, c, 8f);
+            Assert.Empty(carBreaches);
+            Assert.True(carNose <= 15f - 0.15f + 0.05f, $"the car went through: nose x={carNose:F2}");
+            Assert.Single(cues, q => q.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);   // once, not every tick of contact
+            car.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (D-3, V-8; acceptance §7.5 item 12) — a tank RESTING against the wall (0.1 m off its face) at full throttle never reaches a ram speed, but
+        /// the PUSH breaks it: the push cue's bar first, then the break after the row's push seconds, then it drives through. 🔴 Red-proof: drop the push branch ⇒ held for good.
+        /// </summary>
+        [Fact]
+        public void CE4600_ATankRestingAgainstAWall_BreaksItByPush()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);
+            var tf = repo.GetComponent<SimTransform>(e);
+            float half = repo.GetComponent<VehicleParams>(e).Length * 0.5f;
+            tf.Position = new Vector3(15f - 0.15f - 0.1f - half, 0f, 0f);
+            repo.SetComponent(e, tf);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Pushing);
+            Assert.Single(breaches);
+            Assert.True(nose > 15f + 2f, $"pushed but not through: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (B-D4, V-5; acceptance §6 item 4) — a possessed tank at speed into a BUILDING wall opens a door-sized Passage (1.2 m wide, 2.2 m high, from the
+        /// floor) and is held OUTSIDE — it never enters; an IFV (25 t) is told the building is too strong. 🔴 Red-proof: treat a building panel like a small barrier
+        /// ⇒ the tank drives into the house.
+        /// </summary>
+        [Fact]
+        public void CE4600_ATankBumpsABuildingWallOpen_ButNeverEnters()
+        {
+            const string House = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[10,0],[10,10],[0,10]]," +
+                "\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[10,0],\"to\":[10,10],\"thickness\":0.3,\"material\":\"brick\"}," +
+                "{\"from\":[10,10],\"to\":[0,10],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[0,10],\"to\":[0,0],\"thickness\":0.3,\"material\":\"brick\"}]}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15,-5]}}";
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, House);
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            var b = Assert.Single(breaches);
+            Assert.Equal((byte)Fdp.Toolkit.Terrain.BreachKind.Passage, b.Kind);
+            Assert.Equal(1.2f, b.To - b.From, 2);
+            Assert.Equal(2.2f, b.Top - b.Bottom, 2);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the tank entered the house: nose x={nose:F2}");
+            Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Bumped);
+            repo.Dispose();
+
+            var (ifv, i) = Possessed(VehicleClass.Tank, 25000f, 1f, House);
+            var (_, ifvBreaches, ifvCues) = DriveInto(ifv, i, 6f);
+            Assert.Empty(ifvBreaches);
+            Assert.Contains(ifvCues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);
+            ifv.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-D3) — an IFV (25 t) breaks a hedge and a wooden fence but a brick garden wall is too strong for it (strength = resistance × thickness × height).
+        /// </summary>
+        [Theory]
+        [InlineData("hedge", 0.6f, 1.5f, true)]
+        [InlineData("fence-wood", 0.05f, 1.6f, true)]
+        [InlineData("brick", 0.3f, 1.0f, false)]
+        public void CE4600_AnIfv_BreaksHedgesAndFences_NotABrickWall(string material, float thickness, float height, bool breaks)
+        {
+            string wall = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"w\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                ",\"thickness\":" + thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+            var (repo, e) = Possessed(VehicleClass.Tank, 25000f, 1f, wall);
+            var (_, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Equal(breaks, breaches.Count > 0);
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4600</c> (B-D3; acceptance §6 item 3) — a possessed IFV (25 t) into a SANDBAG wall (a static obstacle, baked into the terrain as its box) crushes it:
+        /// ONE damage of the obstacle's whole Health through the ONE obstacle-damage path (its owner removes it), and the IFV drives on over the ground — not onto the
+        /// bags' top. 🔴 Red-proof: name no obstacle in <c>ContactBreach.Identify</c> ⇒ held, no damage.
+        /// </summary>
+        [Fact]
+        public void CE4600_AnIfv_CrushesASandbagWall_ThroughTheObstacleDamagePath()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 25000f, 1f, "");
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            var bags = repo.CreateEntity();
+            var shape = new Fdp.Toolkit.Terrain.ObstacleShape { Length = 8f, Width = 1f, Height = 1f };
+            repo.AddComponent(bags, new SimTransform { Position = new Vector3(15f, 0f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+            repo.AddComponent(bags, new Fdp.Toolkit.Terrain.StaticObstacle { Material = new FixedString32("sandbags") });
+            repo.AddComponent(bags, shape);
+            repo.AddComponent(bags, new Fdp.Toolkit.Combat.Components.Health { Current = 300f, Max = 300f });
+            var world = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!;
+            var prism = Fdp.Toolkit.Terrain.TerrainObstacles.PrismOf(new Vector3(15f, 0f, 0f), MathF.PI / 2f, shape,
+                Fdp.Toolkit.Terrain.TerrainMaterialLibrary.Shared.Get("sandbags", "t"), Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix + bags.Index);
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainObstacles.With(world, new[] { prism }));
+
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var damage = new List<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            float nose = float.MinValue, topZ = 0f;
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 8 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                damage.AddRange(repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>().ToArray());
+                var at = repo.GetComponent<SimTransform>(e).Position;
+                nose = MathF.Max(nose, at.X + p.Length * 0.5f); topZ = MathF.Max(topZ, at.Z);
+            }
+            var d = Assert.Single(damage);
+            Assert.Equal(bags, d.HitEntity);
+            Assert.True(d.TotalDamage >= 300f);
+            Assert.True(nose > 15f + 2f, $"held at the bags: nose x={nose:F2}");
+            Assert.True(topZ < 0.05f, $"the IFV climbed onto the bags: z={topZ:F2}");
+            repo.Dispose();
+        }
+
+        private static bool CarKem_MayBreak(EntityRepository repo, Entity e)
+            => CarKinem.Controllers.HullBreakGate.MayBreak(repo, e, repo.GetComponent<NavState>(e));
+    }
 }

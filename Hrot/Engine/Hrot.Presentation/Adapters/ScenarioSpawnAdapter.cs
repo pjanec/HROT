@@ -48,6 +48,7 @@ namespace Hrot.UI.Common.Adapters
         private Hrot.UI.Common.AddEntity.TerrainDrawOptions? _terrainDraw;
         Hrot.UI.Common.AddEntity.TerrainDrawOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Options => _terrainDraw;
         IReadOnlyList<System.Numerics.Vector2> Hrot.UI.Common.AddEntity.ITerrainDrawSource.Points => (IReadOnlyList<System.Numerics.Vector2>?)_areaArm?.ActiveGizmo?.Session.Points ?? System.Array.Empty<System.Numerics.Vector2>();
+        Hrot.UI.Common.AddEntity.TerrainGhostContext? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Context => TerrainContext?.Invoke();   // ⭐ CE-4592 — the ghost's context: the ground read-outs
         void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Finish() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
         void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Cancel() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Escape, true);
         /// <summary>⭐ Terrain authoring follow-up 2 — the scatter recipes the drawing panel offers (the host sets them from the recipes that carry a <c>scatter</c> section); empty ⇒ none.</summary>
@@ -421,6 +422,8 @@ namespace Hrot.UI.Common.Adapters
                 Closed:     feature is not { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line },
                 // ⭐ the commit reads what the drawing panel holds (kind, height / width, recipe, density, seed): ONE object, so the panel and the entity cannot disagree
                 Born:       drawOptions is null ? null : drawOptions.Born,
+                // ⭐ CE-4592 (P-5 2b, mockup B) — a ground area / ditch tints the height CHANGE it makes under the shape while it is drawn (the ONE effect the panel's hint reads)
+                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke())) : null,
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.

@@ -276,6 +276,8 @@ namespace Fdp.Toolkit.Combat.Systems
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
+            MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
             log.Add(record);
         }
 
@@ -427,10 +429,48 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <para>⭐ The deciding point is the detonation: a round that stops at a wall bursts <c>BurstStandOffMetres</c> back along its flight
         /// (<c>BallisticsSystem</c>), so d ≈ 0 against the wall it hit. ⭐ The panels come from <see cref="TerrainWorld.BuildingPanels"/>, never a scan of every panel.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4591</c> (P-4; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — a burst with explosive in it on (or just above) open ground makes a
+        /// crater (<see cref="CraterRule"/> + <c>craters.json</c>), published as a <see cref="CraterEvent"/> its <see cref="GroundDamageSystem"/> writes into this
+        /// node's record. ⛔ A kinetic round or a non-lethal warhead makes none; ⛔ nor an air burst, a burst on water or on a building's floor.
+        /// </summary>
+        private static void MakeCrater(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DetonationRecord record)
+        {
+            if (terrain == null || w.ExplosiveKg <= 0f || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<CraterEvent>()) return;
+            var now = (SimInstant)Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime;
+            if (!CraterRule.TryDecide(CraterRuleTable.Shared, terrain, burst, w.ExplosiveKg, now, out var crater)) return;
+            repo.Bus.Publish(CraterEvent.Of(in crater, evt.Shooter));
+            record.Crater = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"crater r {crater.Radius:0.##} m, depth {crater.Depth:0.##} m at {crater.Centre.X:0.#}, {crater.Centre.Y:0.#}");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4603</c> (B-6; 📄 docs/DESIGN_Vehicle_Breaching.md §7.7, UTM T-4 / T-6) — a burst with explosive in it fells every LONE trunk whose centre is within
+        /// <c>trees.json</c>'s radius of it (<see cref="TreeFellTable"/>), each as a <see cref="TreeFellEvent"/> its <see cref="TreeDamageSystem"/> writes. A trunk already felled in
+        /// this view is skipped. ⛔ A kinetic round or a non-lethal warhead fells none.
+        /// </summary>
+        private void FellTrees(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
+        {
+            if (terrain == null || w.ExplosiveKg <= 0f || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<TreeFellEvent>()) return;
+            float radius = TreeFellTable.Shared.Radius(w.ExplosiveKg);
+            if (radius <= 0f) return;
+            _trees.Clear();
+            LoneTrees.Near(terrain, new Vector2(burst.X, burst.Y), radius, _trees);
+            var felled = doors?.Trees;
+            for (int i = 0; i < _trees.Count; i++)
+            {
+                var key = TreeDamages.KeyOf(terrain.Prisms[_trees[i]]);
+                if (felled != null && felled.Contains(key)) continue;
+                repo.Bus.Publish(new TreeFellEvent { X = key.X, Y = key.Y, By = evt.Shooter });
+                record.TreesFelled++;
+            }
+        }
+        private readonly List<int> _trees = new();
+
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
-            if (terrain == null || terrain.Buildings.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
+            if (terrain == null || terrain.Panels.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             var table = terrain.Breaches;
             if (w.ExplosiveKg < table.MinKg) return;
             long t0 = Fdp.Toolkit.Diagnostics.QueryTimings.Begin();
@@ -452,14 +492,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 int pi = _panels[k];
                 var panel = terrain.Panels[pi];
                 if (panel.Building >= 0 && (_collapsedNow.Contains(panel.Building) || doors?.Damage?.Collapsed(panel.Building) == true)) continue;
+                int group = WallGroups.Of(terrain, pi);   // ⭐ CE-4599 (B-2, B-D7) — a building, or a free-wall line: blasts breach garden walls too
                 if (!BreachRule.TryDecide(table, panel, pi, burst, w.ExplosiveKg, w.Fuze, out var breach)) continue;
                 if (!LineClearToFace(terrain, doors, panel, burst)) continue;
                 repo.Bus.Publish(new BuildingDamageEvent
                 {
-                    Building = panel.Building, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
+                    Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
                 });
-                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, panel.Building)} panel {pi} {breach.Kind} " +
+                record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
                     $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
             }
         }

@@ -13,6 +13,13 @@ namespace CarKinem.Controllers
     /// rollout of the path follower itself (<see cref="WayOnClear"/>). 📌 Live: the CE-2198 guard traced only the centre, so the front half of
     /// a tank stood inside a building, and a hull that turns only while driving forward could not leave it.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1) — what held a hull's step: a wall PANEL (or a closed door) crossed — its opaque
+    /// <see cref="Piece"/> from the world query — or a SOLID piece the step rose into (<see cref="Rise"/>, <see cref="Piece"/> −1: the terrain names it at
+    /// <see cref="At"/>); where, and the barrier's outward normal toward the hull (2-D).
+    /// </summary>
+    public readonly record struct BarrierHit(bool Rise, int Piece, Vector2 At, Vector2 Normal);
+
     public static class HullClearance
     {
         /// <summary>A crossing that begins further along the line than this (of its length) ENTERS a barrier; one at 0 began inside it.</summary>
@@ -35,20 +42,28 @@ namespace CarKinem.Controllers
 
         /// <summary>
         /// Does the step from (<paramref name="from"/>, <paramref name="fromFwd"/>) to (<paramref name="to"/>, <paramref name="toFwd"/>) carry the
-        /// centre or a corner of a <paramref name="length"/> × <paramref name="width"/> hull INTO a closed barrier (a building's wall, a closed door —
-        /// R-252's meaning) at <see cref="CarKinem.Systems.CarKinematicsSystem.HullProbeM"/> above its wheels? A point already inside may move — so a
+        /// centre or a corner of a <paramref name="length"/> × <paramref name="width"/> hull INTO a hull barrier (any wall panel — a building's or,
+        /// ⭐ CE-4598, a garden wall's, a fence's, a hedge's — a closed door: <see cref="TracePurpose.Hull"/>) at <see cref="CarKinem.Systems.CarKinematicsSystem.HullProbeM"/> above its wheels? A point already inside may move — so a
         /// hull left half inside can still leave. A hull with no size is traced at its centre only (the CE-2198 rule).
         /// </summary>
         public static bool StepBlocked(IWorldQuery world, Vector2 from, Vector2 fromFwd, float fromZ, Vector2 to, Vector2 toFwd, float toZ,
                                        float length, float width)
+            => StepBarrier(world, from, fromFwd, fromZ, to, toFwd, toZ, length, width, out _);
+
+        /// <summary>
+        /// ⭐ <c>CE-4600</c> (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.1, §7.2 V-12) — <see cref="StepBlocked"/> that also says WHAT held the step: the first
+        /// barrier the centre or a corner met (<see cref="BarrierHit"/>). The contact rule reads it; the plain guard ignores it.
+        /// </summary>
+        public static bool StepBarrier(IWorldQuery world, Vector2 from, Vector2 fromFwd, float fromZ, Vector2 to, Vector2 toFwd, float toZ,
+                                       float length, float width, out BarrierHit hit)
         {
-            if (Enters(world, from, fromZ, to, toZ)) return true;
+            if (Enters(world, from, fromZ, to, toZ, out hit)) return true;
             if (length <= 0f || width <= 0f) return false;
             float a = length * 0.5f, b = width * 0.5f;
             for (int i = 0; i < 4; i++)
             {
                 float along = (i & 1) == 0 ? a : -a, side = (i & 2) == 0 ? b : -b;
-                if (Enters(world, Corner(from, fromFwd, along, side), fromZ, Corner(to, toFwd, along, side), toZ)) return true;
+                if (Enters(world, Corner(from, fromFwd, along, side), fromZ, Corner(to, toFwd, along, side), toZ, out hit)) return true;
             }
             return false;
         }
@@ -63,25 +78,37 @@ namespace CarKinem.Controllers
         /// not a "closed barrier", which is a blast meaning — W-7′) where it did not under <paramref name="a"/>; ② the line ENTERS a closed
         /// barrier (a building's wall panel, a closed door).
         /// </summary>
-        private static bool Enters(IWorldQuery world, Vector2 a, float za, Vector2 b, float zb)
+        private static bool Enters(IWorldQuery world, Vector2 a, float za, Vector2 b, float zb, out BarrierHit hit)
         {
+            hit = default;
             if (Vector2.DistanceSquared(a, b) < 1e-8f) return false;
             float step = Vector2.Distance(a, b);
             // ⭐ CE-4041 — the rise is from the POINT'S OWN ground under a, never from the hull's centre height: on a slope a corner half a
             //   hull ahead stands L/2 × slope above the centre, and read against the centre it "rose like a wall" the moment that passed
             //   VehicleMaxStepM. 📌 ua-hill-attack: every tank was held at the ridge's foot (slope ~0.1, a 9.8 m hull) and backed out again,
             //   no round fired for minutes. A corner stepping onto a solid block still rises by its height; one already on it rises 0.
-            float ground = world.SurfaceZ(a.X, a.Y, za), groundB = world.SurfaceZ(b.X, b.Y, za);
+            // ⭐ CE-4598 (D-4) — the HULL's surface: a wall panel's top is never one, so a low garden wall is met, not climbed
+            float ground = world.HullSurfaceZ(a.X, a.Y, za), groundB = world.HullSurfaceZ(b.X, b.Y, za);
             float rise = groundB - ground;
             if (rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxStepM && rise > CarKinem.Systems.CarKinematicsSystem.VehicleMaxClimbSlope * step)
+            {
+                hit = new BarrierHit(true, -1, b, Vector2.Normalize(a - b));   // a SOLID piece rose under b: which one is the terrain's to say (TerrainWorld.SolidUnder)
                 return true;
+            }
             var crossings = t_crossings ??= new List<TraceCrossing>();   // ⭐ one per thread: the kinematics runs ForEachParallel
             float probe = CarKinem.Systems.CarKinematicsSystem.HullProbeM;
             // ⭐ CE-4041 — and the barrier trace runs at the point's OWN ground + the probe: at the centre's height a front corner's line
             //   on a slope ran INTO the ramp (measured: held at the ramp's foot with the rise test fixed)
-            world.Trace(new Vector3(a, ground + probe), new Vector3(b, groundB + probe), TracePurpose.Fire, crossings);
+            // ⭐ CE-4598 (B-1, V-1) — the HULL purpose: every wall panel blocks, a free wall's too (the fire purpose's ClosedBarrier is the
+            //   blast meaning and saw only buildings, so every hull passed every garden wall); a building's breach never opens for a hull (V-5)
+            world.Trace(new Vector3(a, ground + probe), new Vector3(b, groundB + probe), TracePurpose.Hull, crossings);
             foreach (var c in crossings)
-                if (c.ClosedBarrier && c.T > EnterEpsilon) return true;
+                if (c.ClosedBarrier && c.T > EnterEpsilon)
+                {
+                    var n = new Vector2(c.EntryNormal.X, c.EntryNormal.Y);
+                    hit = new BarrierHit(false, c.Piece, a + (b - a) * c.T, n.LengthSquared() > 1e-6f ? Vector2.Normalize(n) : Vector2.Normalize(a - b));
+                    return true;
+                }
             return false;
         }
 
@@ -116,7 +143,7 @@ namespace CarKinem.Controllers
                 float c = MathF.Cos(turn), sn = MathF.Sin(turn);
                 var nf = Vector2.Normalize(new Vector2(f.X * c - f.Y * sn, f.X * sn + f.Y * c));
                 var nat = at + nf * RolloutStepM;
-                float nz = world.SurfaceZ(nat.X, nat.Y, z);
+                float nz = world.HullSurfaceZ(nat.X, nat.Y, z);   // ⭐ CE-4598 (D-4)
                 if (StepBlocked(world, at, f, z, nat, nf, nz, p.Length, p.Width)) return false;
                 if (path)
                 {

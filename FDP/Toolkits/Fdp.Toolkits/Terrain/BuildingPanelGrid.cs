@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Terrain
 
         private BuildingPanelGrid(Dictionary<long, int[]> cells, int panels) { _cells = cells; PanelCount = panels; }
 
-        /// <summary>Panels indexed (those with <see cref="TerrainWallPanel.Building"/> ≥ 0).</summary>
+        /// <summary>Panels indexed — every panel (⭐ CE-4599: free walls too).</summary>
         public int PanelCount { get; }
 
         public static BuildingPanelGrid Build(TerrainWorld world)
@@ -77,7 +77,7 @@ namespace Fdp.Toolkit.Terrain
             for (int i = 0; i < world.Panels.Count; i++)
             {
                 var p = world.Panels[i];
-                if (p.Building < 0) continue;
+                // ⭐ CE-4599 (B-2, B-D7, V-2) — EVERY panel: a free wall (garden wall, fence, hedge) is breached by a blast like a building's wall
                 count++;
                 float pad = p.Thickness * 0.5f;
                 var min = Vector2.Min(p.A, p.B) - new Vector2(pad); var max = Vector2.Max(p.A, p.B) + new Vector2(pad);

@@ -1,0 +1,5 @@
+{
+  "//": "CE-4603 (B-6; docs/DESIGN_Vehicle_Breaching.md §7.7, UTM §9.6 T-4/T-6) — a blast fells the LONE tree trunks within fellPerCbrtKg x cbrt(kg) metres of it, from minKg up (a tree inside a wood is not individual — the wood pays the area's cost). Starting values (lane ruling R-5022) — a playtest changes them.",
+  "minKg": 2.0,
+  "fellPerCbrtKg": 1.2
+}

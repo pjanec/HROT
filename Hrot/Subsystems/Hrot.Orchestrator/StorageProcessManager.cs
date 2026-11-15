@@ -232,7 +232,8 @@ public sealed class StorageProcessManager
         try
         {
             var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
-            var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition, unique: new Hrot.Terrain.Random.SynthUniqueBuildings(), bridgeNet: new Hrot.Traffic.BridgeNetBuilder());   // ⭐ T-7a — the bridges' SUMO net; ⭐ T-3 part 2 — the same generator the editor's live overlay uses
+            var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition, unique: new Hrot.Terrain.Random.SynthUniqueBuildings(), bridgeNet: new Hrot.Traffic.BridgeNetBuilder(),
+                reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4592 (G-16) — a shaped / padded ground reaches SUMO   // ⭐ T-7a — the bridges' SUMO net; ⭐ T-3 part 2 — the same generator the editor's live overlay uses
             if (r.Wrote && r.Folder != null && r.ContentHash != null)
             {
                 // ⭐ O-8 (CE-4420) — also kept BY HASH beside the terrains on the NAS ({nas}/assets/terrain/overlays/<hash>), so a recording that names the overlay can load it later

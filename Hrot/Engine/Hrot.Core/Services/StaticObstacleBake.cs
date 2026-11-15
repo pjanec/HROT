@@ -51,6 +51,13 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// <summary>R-244 — the wall-clock quiet period before a bake starts.</summary>
     public const double DebounceSeconds = 0.5;
 
+    /// <summary>
+    /// ⭐ <c>CE-4596</c> (P-0; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §9.1 V-1) — the LONGEST a change waits for its bake (wall-clock s,
+    /// from the frame the system first sees it): past it the bake starts even while changes keep arriving. 📌 Every change reset the quiet
+    /// period, so a barrage (a breach or a crater every &lt; 0.5 s) postponed every one of them until the shelling stopped.
+    /// </summary>
+    public const double MaxLatencySeconds = 2.0;
+
     private readonly Func<double> _wallSeconds;
     private readonly List<TerrainPrism> _prisms = new();
     private readonly List<Entity> _pending = new();
@@ -65,6 +72,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private int _bakedBase = int.MinValue;
     private ulong _seenSignature = EmptySignature;
     private double _seenAt;
+    private double _changedSince = double.NaN;   // ⭐ CE-4596 (V-1) — when the change now waiting was first seen (NaN = none waits)
     private int _epoch;   // ⭐ CE-3294 — the world the bake state above describes
 
     private const ulong EmptySignature = 1469598103934665603UL;
@@ -118,7 +126,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         //   the old world's handles, which the reload hands to new entities).
         if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch))
         {
-            _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0;
+            _bakedSignature = EmptySignature; _bakedBase = int.MinValue; _seenSignature = EmptySignature; _seenAt = 0; _changedSince = double.NaN;
             _runningBatch = new List<Entity>();
         }
         AckTheUnbakeable(world);   // ⭐ CE-4427 R-5 — before any early return: a world without the obstacle types hangs nothing either
@@ -140,40 +148,68 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         if (_running != null)
         {
-            if (!_running.IsCompleted) return;
+            if (!_running.IsCompleted)
+            {
+                // ⭐ CE-4600 (Breaching §7.5 item 16, MEASURED on city-battle: a change waited 7.5 s) — a change made WHILE a bake runs starts its latency clock NOW;
+                //   ⛔ was: the clock started only after the commit, so it waited the rest of the running bake + the whole cap + its own bake
+                if (double.IsNaN(_changedSince) && SignatureNow(world, bakery, obstacleSig, out _, out _, out _, out _) != _runningSignature) _changedSince = _wallSeconds();
+                return;
+            }
             Finish(world);
         }
 
-        // ⭐ CE-4391 S-3 (B-10, B-12) — the building damage the navmesh must follow (passages and collapses; a hole moves nothing) joins the input hash,
-        //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
-        var damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
-        ulong navHash = damage?.NavHash ?? 0UL;
-        ulong signature = obstacleSig;
-        if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
-        // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
         _liveOverlay?.PollFiles(_wallSeconds());   // ⭐ CE-4427 R-7 — a recipe / template edit (a stat per file, once a second)
-        ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
-        bool hasOverlay = overlayHash != LiveOverlay.EmptySignature;
-        if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
+        ulong signature = SignatureNow(world, bakery, obstacleSig, out var damage, out var craters, out var trees, out bool hasOverlay);
+        ulong navHash = (damage?.NavHash ?? 0UL) | (craters != null ? 1UL : 0UL) | (trees != null ? 1UL : 0UL);
         bool changed = signature != _bakedSignature || ((hasObstacles || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
+            _changedSince = double.NaN;
             foreach (var e in _pending) Ack(world, e);   // already in the baked world (e.g. it arrived while that bake ran)
             return;
         }
 
         double now = _wallSeconds();
-        if (signature != _seenSignature) { _seenSignature = signature; _seenAt = now; return; }
-        if (now - _seenAt < DebounceSeconds) return;
+        if (double.IsNaN(_changedSince)) _changedSince = now;
+        // ⭐ CE-4596 (P-0, V-1) — a change never waits past MaxLatencySeconds: under a barrage the quiet period never comes
+        bool overdue = now - _changedSince >= MaxLatencySeconds;
+        if (signature != _seenSignature) { _seenSignature = signature; _seenAt = now; if (!overdue) return; }
+        else if (!overdue && now - _seenAt < DebounceSeconds) return;
 
-        StartBake(world, bakery.Residency, damage, signature, hasOverlay);
+        _changedSince = double.NaN;
+        StartBake(world, bakery.Residency, damage, signature, hasOverlay, craters, trees);
+    }
+
+    /// <summary>
+    /// The signature of everything the bake reads, NOW: the obstacles' (<paramref name="obstacleSig"/>), the building damage the navmesh follows (a node that bakes damage), the
+    /// craters and felled trunks (every node), the editor's blocks and features. ONE place for the idle path and the running-bake check (CE-4600). Allocation-free: the view
+    /// tables are cached (<c>ViewTableCache</c>), the overlay signature a cached query.
+    /// </summary>
+    private ulong SignatureNow(EntityRepository world, StaticObstacleBakery bakery, ulong obstacleSig, out BuildingDamageTable? damage, out CraterTable? craters, out FelledTrees? trees, out bool hasOverlay)
+    {
+        // ⭐ CE-4391 S-3 (B-10, B-12) — the building damage the navmesh must follow (passages and collapses; a hole moves nothing) joins the input hash,
+        //   on a node that does world queries ONLY: a display node's terrain is never rewritten by damage.
+        damage = bakery.Residency.BakesDamage ? DamageOf(world) : null;
+        ulong navHash = damage?.NavHash ?? 0UL;
+        // ⭐ CE-4591 (P-4 part 2, V-6) — the craters join the input hash on EVERY node: the ground they lower is drawn everywhere
+        craters = CratersOf(world);
+        if (craters != null) navHash = navHash == 0 ? craters.Hash : (navHash ^ craters.Hash) * 1099511628211UL;
+        trees = TreesOf(world);   // ⭐ CE-4603 (B-6) — the felled trunks, on every node (the drawing hides them everywhere)
+        if (trees != null) navHash = navHash == 0 ? trees.Hash : (navHash ^ trees.Hash) * 1099511628211UL;
+        ulong signature = obstacleSig;
+        if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
+        // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
+        ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
+        hasOverlay = overlayHash != LiveOverlay.EmptySignature;
+        if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
+        return signature;
     }
 
     /// <summary>
     /// ⭐ ONE bake for everything that has gathered — a whole scenario's obstacles arrive within the quiet period. ⚠ CE-3436: its OWN method on purpose — the task's lambda captures locals, and a lambda in
     /// <c>Execute</c> made the compiler allocate its closure object at the top of EVERY frame (measured: 56 B per steady frame).
     /// </summary>
-    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay)
+    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay, CraterTable? craters, FelledTrees? trees)
     {
         CollectPrisms(world, _prisms);   // ⭐ CE-3436 — only now (a bake is starting), never per frame
         var prisms = new List<TerrainPrism>(_prisms);
@@ -191,7 +227,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
                 var (@base, version, folder) = residency.ExpansionBase();
                 expanded = overlay.Expand(sources, @base, version, folder);
             }
-            return residency.BakeObstacles(prisms, damage, expanded);
+            return residency.BakeObstacles(prisms, damage, expanded, craters, trees);
         });
     }
 
@@ -216,9 +252,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         }
     }
 
+    /// <summary>⭐ CE-4603 — the trunks this node's world has felled (the view's <see cref="DoorStates.Trees"/>), or null.</summary>
+    private static FelledTrees? TreesOf(EntityRepository world)
+        => world.IsComponentTypeRegistered<TreeDamage>() && world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { } t
+            ? DoorStates.Of(world, t).Trees : null;
+
+    /// <summary>⭐ CE-4591 — the craters this node's world holds (the view's <see cref="DoorStates.Craters"/>), or null.</summary>
+    private static CraterTable? CratersOf(EntityRepository world)
+        => world.IsComponentTypeRegistered<GroundDamage>() && world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { } t
+            ? DoorStates.Of(world, t).Craters : null;
+
     /// <summary>The building damage this node's world holds (the view's <see cref="DoorStates.Damage"/>), or null.</summary>
     private static BuildingDamageTable? DamageOf(EntityRepository world)
-        => world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { Buildings.Count: > 0 } t
+        => world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { Panels.Count: > 0 } t
             ? DoorStates.Of(world, t).Damage : null;
 
     private void Finish(EntityRepository world)
@@ -247,11 +293,11 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
         BakedParts = bake.Parts; LastDirty = bake.Dirty;
-        if (_liveOverlay != null)   // ⭐ Terrain authoring U-3 / U-6 — the editor's views read the block bounds and the dirty rectangles of THIS bake (one publication, immutable)
-        {
-            world.RegisterManagedComponent<LiveTerrainBakeInfo>();
-            world.SetSingletonManaged(LiveTerrainBakeInfo.From(Bakes, bake.Parts, bake.Dirty));
-        }
+        // ⭐ Terrain authoring U-3 / U-6 — the views read the block bounds and the dirty rectangles of THIS bake (one publication, immutable).
+        // ⭐ CE-4596 (P-0, V-3) — on EVERY host, not the editor's alone: the 3-D map (one map pack for every host) rebuilds only the chunks under
+        //   the rectangles; without it a player or a display node rebuilt the WHOLE 3-D terrain on every obstacle, breach or crater (a pop).
+        world.RegisterManagedComponent<LiveTerrainBakeInfo>();
+        world.SetSingletonManaged(LiveTerrainBakeInfo.From(Bakes, bake.Parts, bake.Dirty));
         FdpLog<StaticObstacleBakeSystem>.Info(
             $"[Obstacles] Baked {bake.Obstacles} static obstacle(s) into the terrain in {bake.Milliseconds} ms; acking {batch.Count}.");
         foreach (var e in batch) Ack(world, e);

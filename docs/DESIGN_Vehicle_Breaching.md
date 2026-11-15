@@ -377,3 +377,370 @@ writer. A point that lands on an obstacle becomes today's entity order, so one c
 | Rejected: a felled tree as a log on the ground | UTM T-4's own later item |
 | Rejected: the trunk's index as its key | piece indices renumber when the overlay re-sorts (V-11) |
 | Rejected: one record with the walls | a trunk is not a panel; a cell-keyed point set is the shape that fits it (the crater precedent) |
+
+### 7.8 As built — B-1 *(`terrain` lane, `2026-11-14`, CE-4598)*
+
+```mermaid
+classDiagram
+  direction LR
+  class IWorldQuery {
+    <<existing, EXTENDED>>
+    + HullSurfaceZ(x, y, zHint) default = SurfaceZ
+  }
+  class TracePurpose {
+    <<existing, EXTENDED>>
+    Sight · Fire · Sound
+    + Hull = 3
+  }
+  class HullTrace {
+    <<NEW static>>
+    HullBandM = 0.5 (= HullProbeM)
+  }
+  class TerrainWorldQuery {
+    <<existing, EXTENDED>>
+    + Trace(Hull) via TerrainWorld.QueryHull
+    + IsHullBarrier(kind) every panel, door, slab
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + HullSurfaceZ: no panel top
+    + QueryHull(from, to, into, doors, band)
+    + HullBreachOpen: never a building's, a free wall's from its base
+  }
+  class HullClearance {
+    <<existing, EXTENDED>>
+    Enters: HullSurfaceZ + Trace(Hull)
+    WayOnClear: HullSurfaceZ
+  }
+  class CarKinematicsSystem {
+    <<existing, EXTENDED>>
+    FinishMove: a hull's z = HullSurfaceZ
+  }
+  class HullBreakGate {
+    <<NEW static, consumed by B-3>>
+    MayBreak(repo, hull, nav): Manual and PossessedBy Fps and no replay
+  }
+  TerrainWorldQuery ..|> IWorldQuery
+  TerrainWorldQuery ..> TerrainWorld
+  HullClearance ..> IWorldQuery : Hull purpose
+  CarKinematicsSystem ..> HullClearance
+  CarKinematicsSystem ..> HullBreakGate : B-3
+```
+*What it shows that prose hid: the guard's two tests (the rise and the barrier line) both moved to the hull's own meaning, in the ONE world-query seam;
+the blast meaning (`ClosedBarrier` for Fire / Sight / Sound) is untouched, so blasts still diffract round garden walls. `QueryHull` is the fire
+query's own loop with two switches, not a second geometry walk.*
+
+| claim | code — as built | design |
+|---|---|---|
+| every panel blocks a hull, a free wall's too | `TerrainWorldQuery.IsHullBarrier` (`kind is slab/ramp/door/panel`), `TracePurpose.Hull` | V-1, D-2, R-4237 |
+| a low wall is met, never climbed | `TerrainWorld.HullSurfaceZ` skips panel tops; `QueryHull` meets a panel up to `HullBandM` under the line | D-4, R-4239 |
+| a building's breach never opens for a hull | `TerrainWorld.HullBreachOpen` returns false for `Building ≥ 0` | V-5, R-3025 |
+| the break gate | `HullBreakGate.MayBreak` — Manual branch, `PossessedBy.Mode == Fps` on the hull, `ReplayState` not active | V-4, V-14 |
+| walkers unchanged | a bent walker's step still traces `Fire` (a man shoved at a garden wall is not stopped by it — the navmesh keeps him off it) | ⛔ searched §7, none — out of B-1's scope |
+
+⭐ **Lane decisions (for the user's review):** [R-5000](blueprints/RULINGS.md) the hull band = the probe height (any panel whose top is above the
+wheels meets the hull — a 10 cm decorative edging panel holds a car too); [R-5001](blueprints/RULINGS.md) a free-wall breach opens for a hull only
+when open from the wall's base (a raised hole never), with no per-trace width test — the cut's size is B-3's (V-9); [R-5002](blueprints/RULINGS.md)
+the gate reads `PossessedBy` on the HULL (a station driving a vehicle holds the vehicle in `Fps`; a `Riding` soldier is not its driver).
+
+⭐ **CE-6014, fixed with it (found by B-1):** once the guard saw free walls, `RoadblockBlastScenarioTests`' IFV — swerving round a man down — was
+HELD at the wall beside the gate and never arrived (before B-1 it drove through the wall). ⇒ **avoidance never steers a hull into a wall**: when
+avoidance bent a vehicle's step and continuing ~1 s (≥ 2 m) along the swerved heading meets the hull guard, the path's own step is taken
+(`CarKinematicsSystem`, `SwerveLookaheadSeconds` / `SwerveLookaheadMinM`). A one-step check was measured too late (the swerve had already turned the
+hull). [R-5004](blueprints/RULINGS.md). ⭐ And the swerve's cause, traced in the run: the charge man's BODY lay inside the gate at its jamb, ~2 m clear
+of the IFV's hull — so **a vehicle swerves for a man down only when he lies in its hull's way** (`InHullsWay`: within half its width + 0.5 m of its
+line); a standing man is avoided as before. [R-5005](blueprints/RULINGS.md).
+
+Rails: `CarKinematicsSystemTests.CE4598_*` (an AI hull held at a brick wall, a fence and a hedge-high wall; a 0.4 m wall met, never climbed; a
+possessed car at full throttle held; a tank at a building's breach stays out; the gate), `BuildingBreachTests.Hull_*` (the trace meanings, a
+free-wall breach opens / a building's never / a raised hole never, 0 B steady).
+
+### 7.9 As built — B-2 *(`terrain` lane, `2026-11-14`, CE-4599)*
+
+```mermaid
+classDiagram
+  direction LR
+  class WallGroups {
+    <<NEW static>>
+    Count(world) = buildings + free-wall lines
+    Of(world, panel) · IsBuilding · LineKey · Anchor
+  }
+  class BuildingPanelIndex {
+    <<existing, EXTENDED>>
+    per world, once: group and rank of every panel
+    + the free-wall lines and their keys
+    ToLocal / ToGlobal by GROUP
+  }
+  class BuildingDamage {
+    <<existing, wire and layout UNCHANGED>>
+    Building = a WALL GROUP index
+  }
+  class BuildingDamages {
+    <<existing, EXTENDED>>
+    KeyOf / IndexOfKey: a line is terrain/wall:label
+  }
+  class BuildingPanelGrid {
+    <<existing, CHANGED>>
+    every panel - blasts breach free walls
+  }
+  class BreachRule {
+    <<existing, EXTENDED>>
+    Classify: base-to-top cut = Passage
+  }
+  class TerrainWorld {
+    <<existing, EXTENDED>>
+    + BakedPassages - the fine-cell boxes
+  }
+  class RecastNavmeshFactory {
+    <<existing, EXTENDED>>
+    FineAreas += BakedPassages
+  }
+  class TerrainPlan2D {
+    <<existing, ui, EXTENDED>>
+    pieces tagged by wall group
+  }
+  BuildingDamage ..> WallGroups : Building is a group
+  BuildingDamages ..> BuildingPanelIndex
+  WallGroups ..> BuildingPanelIndex
+  RecastNavmeshFactory ..> TerrainWorld : BakedPassages
+  TerrainPlan2D ..> WallGroups
+```
+*What it shows that prose hid: ONE record (D-1) by renaming nothing — a free-wall line becomes a wall GROUP numbered after the buildings, and every consumer
+that already went through the group key and rank (the wire, the save, the load, the remap, the drawing) carries free walls with no new path. The
+fields of `BuildingDamage` and `EntityBuildingDamage` did not change.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one record for every wall | `BuildingDamage.Building` = `WallGroups` index; `KeyOf` gives `<terrain>/wall:<label>` for a line | D-1, R-4236 |
+| a free-wall line has a stable key | consecutive free panels, same label, end-to-start continuous = one line; key `wall:<label>`, `#n` for a later same-label line, `wall@<x>,<y>` (cm, first post) unlabelled; panels ranked within it | V-11 |
+| blasts breach free walls | `BuildingPanelGrid` indexes every panel; `AreaEffectSystem.BreachWalls` publishes the group; gates that were "has buildings" are "has panels" | B-D7, V-2 |
+| a garden wall's breach is walkable | `BreachRule.Classify`: a cut from base to TOP ≥ the passage width is a Passage | V-6 |
+| narrow gaps resolve in the navmesh | `TerrainObstacles.With` records `BakedPassages`; `FineAreas` bakes them fine | V-10 |
+| every node draws the gap | `DamagedBuildings.Touched`, the 3-D chunks' group map and `TerrainPlan2D` key by wall group | V-16 |
+| a line never collapses | `ApplyCollapse` only for buildings; remap and load clear `Collapsed` off a line | — |
+| one cut across two panels | ⛔ not here — B-3's `BarrierHit` makes such cuts; blasts decide each panel already | V-12 |
+
+⭐ **Lane decisions (for the user's review):** [R-5006](blueprints/RULINGS.md) the record's field and wire are NOT widened — a group index in the existing
+`Building` field (the reversible, smaller choice; the handoff allowed widening); [R-5007](blueprints/RULINGS.md) a line's key is derived from its
+content (label + occurrence, else its first post) instead of a label written at import — no importer change, no re-import; [R-5008](blueprints/RULINGS.md)
+V-12 moves to B-3.
+
+Rails: `BuildingDamageSystemTests.CE4599_ACharge_BreachesAGardenWall_OnATerrainWithNoBuilding` (acceptance §6 item 5's blast, on the record and sight at
+once), `BuildingBreachTests.CE4599_*` (keys and ranks, remap and load across renumbering, the Passage rule incl. a 1.5 m hedge-high wall),
+`BuildingDamageBakeTests.CE4599_AGardenWallAndAHedgeGap_AreWalkable_AfterTheBake` (§7.5 item 14), `EntityBuildingDamageTranslatorTests.CE4599_*` (the
+wire), `TheBuildingDamagePlanTests.CE4599_*` (the 2-D drawing). ⚠ Save → reload of a free-wall breach is covered at the load's resolve and the save's
+group filter, not by a scenario file round-trip; the 3-D chunk redraw has no new frame rail.
+
+### 7.10 As built — B-3 core: the contact rule *(`terrain` lane, `2026-11-14`, CE-4600)*
+
+```mermaid
+sequenceDiagram
+  participant K as CarKinematicsSystem.FinishMove (per-entity phase)
+  participant H as HullClearance.StepBarrier
+  participant G as HullBreakGate
+  participant C as ContactBreach (+ contact-breach.json)
+  participant F as follow-up (BatchContext.Later)
+  participant W as BuildingDamageSystem / ObstacleDamage
+  K->>H: the step - held? BarrierHit (piece, point, normal)
+  K->>G: MayBreak - Manual, live Fps possession, no replay
+  K->>C: OnContact(hit, step velocity, throttle)
+  C->>C: Identify - a wall panel, or the solid piece risen into (an obstacle box) - strength = resistance x thickness x height
+  alt small barrier, ram or push
+    C->>F: the cut (hull at its crossing angle, every panel it overlaps) / the obstacle crushed + Broke cue
+    C-->>K: pass, speed x speedKept (never zero), a grace while the record is on its way
+  else building wall, a tank's ram
+    C->>F: a door-sized Passage + Bumped cue
+    C-->>K: held - it never enters
+  else too strong / no row / no ram yet
+    C->>F: TooStrong or Pushing cue
+    C-->>K: held
+  end
+  F->>W: BuildingDamageEvent (the ONE breach writer) / ObstacleDamage.Damage
+```
+*What it shows that prose hid: the contact rule writes NOTHING itself — it hands the existing breach writer and the existing obstacle-damage path an
+event in a follow-up, so a player's break, a blast and (B-4) the bulldozer reach one record by one path; the AI path never reaches `OnContact`.*
+
+| claim | code — as built | design |
+|---|---|---|
+| the hull says what held it | `HullClearance.StepBarrier` → `BarrierHit`; `TraceCrossing.Piece` (opaque, the terrain's index); `TerrainWorld.SolidUnder` for a rise | §3.1 BarrierHit |
+| who breaks what | `contact-breach.json` rows (tracked + mass): tank 40 t+ small ≤ 2000 + building bump; IFV 15 t+ small ≤ 150; wheeled none | B-D3, R-4243 |
+| ram or push | ram = the step's speed INTO the barrier ≥ 1.5 m/s; push = |throttle| ≥ 0.9 in contact for 2.5 s | D-3, B-D2, V-8 |
+| the cut | the hull's extent along the wall at its crossing angle + 0.5 m each side, ≥ 4.2 m, base to top (a Passage), on every free panel it overlaps | V-9, V-12, V-6 |
+| no speed zero; the record's lag | speed × 0.6 on a break; a 3 s grace lets the hull pass the barrier it broke until the record lands; a stub of it breaks at any speed | V-3, V-21 |
+| a building | a tank's ram only: a 1.2 × 2.2 m Passage from the floor; held (one bump per wall while it stays) | B-D4, V-5 |
+| obstacles | crushed: one `ObstacleDamage.Damage` of its whole Health; the hull stays on the ground through the dying box | B-D3 |
+| the write | a follow-up (`ParallelReadCheck.CurrentBatch.Later`) when in the per-entity phase, else at once | V-15, B-D10 |
+| no cost | `costHealth` 0, not applied | B-D12 |
+| feedback: dust, crash sound heard by the AI, the driver's HUD cue | ⛔ **B-3b** — the `ContactBreachEvent` (Broke / Bumped / TooStrong / Pushing + bar) is published; its consumers are not built | V-17, mockup |
+| a barrage's numbers | ⭐ measured and met on city-battle — §7.17 (and a latency defect fixed) | §7.5 item 16 |
+
+⭐ **Lane decisions (for the user's review):** [R-5015](blueprints/RULINGS.md) the starting values in `contact-breach.json` (strength thresholds 2000 /
+150, ram 1.5 m/s, push 2.5 s, kept 0.6, cut ≥ 4.2 m, bump 1.2 × 2.2 m); [R-5016](blueprints/RULINGS.md) a hull's push / grace / last-cue state is
+per-hull process state, not a recorded component (a replay never decides a break, so nothing to restore); [R-5017](blueprints/RULINGS.md) V-17's
+consumers are split into B-3b.
+
+Rails: `CarKinematicsSystemTests.CE4600_*` — a possessed tank breaks a brick garden wall and drives through (a ≥ 4.2 m base-to-top Passage, never a
+zero); a creeping tank and a possessed car stop (the car told *too strong* once); a tank resting at the wall breaks it by push; a tank bumps a
+building open and stays out, an IFV is told *too strong*; an IFV breaks a hedge and a fence, not a brick wall; an IFV crushes sandbags through the
+obstacle-damage path — red-proved (the hook off ⇒ 7 of 8 red). The kinematics suite is 110 / 0 under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
+
+### 7.11 As built — B-6: lone trees felled *(`terrain` lane, `2026-11-14`, CE-4603)*
+
+```mermaid
+graph TD
+  BLAST[AreaEffectSystem.FellTrees - trees.json radius - LoneTrees index] --> EV[TreeFellEvent 5104]
+  HULL[ContactBreach - a tank / IFV row with trees - ram or push] --> EV
+  EV --> SYS[TreeDamageSystem - one entity per cell x deciding node]
+  SYS --> REC[TreeDamage 489 - centimetre keys - dtTreeDamage 185 - TerrainObjects #trees]
+  REC --> VIEW[DoorStates.Trees - FelledTrees]
+  VIEW --> Q[sight / fire / hull skip the trunk - the same tick]
+  VIEW --> BK[the bake - TerrainObstacles.With drops it - navmesh + drawing - its box dirty]
+```
+*What it shows that prose hid: the crater's path (P-4) carries a second record kind unchanged — the same writer shape, the same view seam, the same bake
+cache — so the only NEW decisions are who fells (the fellers on the left) and the key (a position, never a piece index).*
+
+| claim | code — as built | design |
+|---|---|---|
+| the record keyed by position | `TreeDamage` (component 489, unmanaged, NoScenario): cell + up to 16 trunks as centimetre box centres (`TreeDamages.KeyOf`) — a piece index renumbers when the overlay re-sorts | D-6 |
+| the query-time skip | `FelledTrees` on `DoorStates.Trees`; the three segment loops of `TerrainWorld` (sight, `QuerySight`, fire / hull) skip a felled `Tree` piece — the same tick, on every node | R-4232's rule |
+| blasts | `AreaEffectSystem.FellTrees`: every lone trunk within `trees.json`'s radius (`LoneTrees.Near` — a per-world 16 m index, never a scan); none for a kinetic or non-lethal round | UTM T-4, T-6 |
+| a player's hull | `ContactBreach`: `Identify` names a `Tree` piece; a row with `"trees": true` (tank, IFV) fells it by ram or push; the follow-up publishes `TreeFellEvent`; ⛔ an AI hull never reaches the rule (B-D1) | D-6 |
+| the bake, every node | `StaticObstacleBakeSystem` adds `FelledTrees.Hash`; `TerrainObstacles.With(…, trees)` drops the trunks (navmesh obstacle and the drawing's tree go with it); `TerrainResidency.TreeDirt` dirties a 4 m box per trunk felled or standing again | §7.7 |
+| wire, save, seek | `dtTreeDamage` (185) egress / ingress; `TerrainObjects["#trees"] = { "felled": [[xCm, yCm], …] }` (merge = union, load = one entity per cell, the loader's); a seek restores the records and the bake follows | §7.7 |
+| ⭐ one writer (CE-5000 part 1) | `TreeDamageSystem` and `GroundDamageSystem` are ONE writer, `CellRecordSystem<TRecord, TItem>`, with their event and cell rule; ⭐ and ONE view-table cache, `ViewTableCache<TComp>`, used by `CraterTable.Of` and `FelledTrees.Of`; ⛔ `BuildingDamageTable.Of` keeps its own — adopting it returned a stale table in one test order (reverted `2026-11-15`, cause not found) — [CE-5000](blueprints/Blueprint_Issues_Tracker.md) 🟡 | ruling 9 |
+
+⭐ **Lane decisions (for the user's review):** [R-5022](blueprints/RULINGS.md) `trees.json` starting values; [R-5023](blueprints/RULINGS.md) a row's `trees` flag fells a trunk (not its wood
+strength). Rails: `TreeFellingTests` (the same-tick skip, a bomb's radius, the contact rule's rows, the save) and `TreeFellingBakeTests` (the bake drops the trunk, its box is dirty, a seek
+restores it; the ordinal pinned; the wire round-trips) — red-proved (the skip, the `FellTrees` call).
+
+### 7.12 As built — B-4: the bulldozer clears at a point *(`terrain` lane, `2026-11-14`, CE-4601)*
+
+```mermaid
+sequenceDiagram
+  participant I as Instructor / company call
+  participant R as ClearObstacleBehavior.Resolve (order time)
+  participant B as Clear / Cut (dozer brain, per-entity phase)
+  participant M as DozerCutSystem (Muscle, serial)
+  participant W as BuildingDamageSystem / TreeDamageSystem
+  I->>R: ClearObstacleOrder { Obstacle } or { At, PickRadius, TimeoutSeconds }
+  R->>R: an obstacle within the pick radius ⇒ Obstacle (today's path) · else a standing lone trunk ⇒ Tree · else the nearest wall panel ⇒ Wall · adds an inactive BladeCut
+  B->>B: drive to half a hull before the point · blade there ⇒ BladeCut { Active, Target, At, PushSeconds } (its own component)
+  M->>M: an active BladeCut whose blade is at the point for PushSeconds (on the node that owns dtWorldPos)
+  M->>W: BuildingDamageEvent (blade-wide, full-height Passage) or TreeFellEvent
+  B->>B: done when a Passage covers the point (or the trunk is felled) in its view · fails past the timeout · clears the marker
+```
+*What it shows that prose hid: the brain never decides destruction — it sets ONE marker on itself; the Muscle cuts through the same event the player's break and a
+blast use, so the record writers stay single.*
+
+| claim | code — as built | design |
+|---|---|---|
+| one order, an entity or a point | `ClearObstacleOrder` gains `At`, `PickRadius` (0 = 3 m), `TimeoutSeconds` (0 = 60 s); an entity given ⇒ unchanged | §7.6, R-4242 |
+| the resolver | `Resolve`: an obstacle's face within the radius ⇒ that obstacle; else a standing lone trunk (`LoneTrees`, not felled in the view) ⇒ a fell; else `DozerCutSystem.NearestPanel` ⇒ a wall cut; nothing ⇒ Failure on the first tick | §7.6 |
+| the brain marks, the Muscle cuts | `BladeCut` (component 491, Brain group, `dtBladeCut` 186) set by the brain's `Cut` once its blade is within reach; `DozerCutSystem` (in `DamageAssessmentModule`, on the node owning `dtWorldPos`) counts the blade's time at the point and publishes the cut | V-13, B-D11 |
+| success | `DozerCutSystem.PassageAt`: the nearest wall open at the point just above its base and at a man's height in the brain's view (a collapse counts); a trunk felled in the view | §7.6 |
+| parallel-safe | the resolver adds the marker inactive at order time; the per-entity tick only SETS its own component (no structural change in the phase); runs green under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` | R-4212 |
+| ⚠ deviation | the cut is NOT the hull guard's contact rule (§7.6's diagram said "the Muscle's contact rule (B-3)"): an AI hull at its arrival stops stepping into the wall, so the contact never fires — the Muscle cuts from the marker and the blade's position instead. One writer still: the same breach / fell events | R-5024 |
+| ⚠ a zero `At` | is "no point" (the order DTO's zero-default rule): a point exactly at the terrain's origin cannot be ordered | R-5025 |
+
+⭐ **Lane decisions (for the user's review):** [R-5024](blueprints/RULINGS.md), [R-5025](blueprints/RULINGS.md). Rails: `ClearObstacleBehaviorTests.CE4601_*` (a wall point:
+drive, mark, the Muscle cuts, success, the mark cleared, the gap open and the rest standing; a trunk felled; open ground fails; a point by a roadblock is the roadblock) — red-proved
+(no `Mark` ⇒ both red); `BladeCutWireTests` (the ordinals, the round trip).
+
+### 7.13 As built — B-5: every breach is a way in *(`terrain` lane, `2026-11-14`, CE-4602)*
+
+| claim | code — as built | design |
+|---|---|---|
+| a passage is a portal | `BuildingLayout.AppendBreachPortals`: a `Gap` portal for every PASSAGE in the view's damage on the building's walls, between the rooms on its two sides (outside ⇒ `RoomB = −1`, its face), at the passage's centre — skipped where an opening already is (a door, a gap); none for a collapsed building | V-19 |
+| read at QUERY time, not cached | the cached `BuildingLayout` stays the authored one; `WorldSurveySolve` appends the breach portals from `DoorStates.Damage` on each survey — a passage made this tick is a way in for the next survey, a seek back removes it; ⛔ no `BuildingLayoutCache.Invalidate` needed (the §7.2 V-19 fix it named) | R-4232's rule |
+| the clearing enters by it | `RoomOrder.Next` already accepts a `Gap` from outside; the survey now carries one, so a `ClearBuilding` on a doorless house enters by the tank's breach / the charge's / the bulldozer's cut | V-19 |
+| a running clearing re-plans | each room step reads a fresh survey (the passage appears in the next one); cover points round a passage follow the bake (the provider is rebuilt on every bake) | V-19 |
+| ⚠ not here | sound through a passage (`SoundPaths` reads the cached layout's portals) — a later item | — |
+
+Rails: `BreachEntryTests` (a doorless house: no way in; a passage ⇒ a Gap from outside in the survey, and the room order enters by it) — red-proved (no `AppendBreachPortals` ⇒ red).
+
+### 7.14 As built — B-3b, part 1: the break is heard *(`terrain` lane, `2026-11-14`, CE-4600)*
+
+| claim | code — as built | design |
+|---|---|---|
+| AI ears hear a break | `SoundEmissionSystem.HearBreaks`: a `ContactBreachEvent` of kind Broke or Bumped is ONE Movement sound at the contact point, the hull's engine class (tracked / wheeled), carried 300 m — the door's precedent (AQ104 E ③); a "too strong" cue or a push in progress makes none | V-17 |
+| ⭐ the rest | §7.15 | V-17 |
+
+Rail: `SoundEmissionSystemTests.CE4600_*`.
+
+### 7.15 As built — B-3b, part 2: the player sees and hears the break *(`terrain` lane, `2026-11-14`, CE-4600; cross-lane into the ui lane's HUD and audio — said)*
+
+```mermaid
+sequenceDiagram
+  participant K as CarKinematics (the hull's node)
+  participant B as event bus
+  participant E as EffectSpawnSystem (map host)
+  participant C as ContactCues
+  participant S as SoundEvents / SoundSources
+  participant P as PossessionStation (HUD)
+  K->>B: ContactBreachEvent (Broke / Bumped / TooStrong / Pushing + progress)
+  E->>B: read this frame's
+  E->>C: Record(vehicle, kind, progress, now)
+  E->>E: Broke - large dust puff, Bumped - medium (a push, too strong - none)
+  E->>S: Crash(at, heavy) - played by distance, 300 m
+  P->>C: For(possessed hull, now)
+  P->>P: BREAKING + push bar / TOO STRONG / BREACHED, under the crosshair
+```
+*What it shows that prose hid: one reader turns the event into all three of V-17's outputs, through the memories the HUD and the audio already
+drain (`HitFeedback`'s and `SoundEvents`' pattern) — and the event never leaves the node that decided it (CE-5001).*
+
+| claim | code — as built | design / mockup |
+|---|---|---|
+| the cue | `ContactCues.For`: *BREAKING — hold throttle* while push events keep coming (≤ 0.3 s), with the bar at the push's progress; *TOO STRONG for this vehicle* and *BREACHED — a way in for infantry* for 2 s; drawn in the slot under the crosshair, above *OUT OF ARC*, amber / red / green | mockup A |
+| the dust | Broke ⇒ `ImpactPuffLarge`, Bumped ⇒ `ImpactPuffMedium` at the contact point (dust, not a blast) | V-17 |
+| the crash | `SoundTkbCatalog.Crash` (7355), `SoundSynth.Crash` (a dull blow, then rubble), Impacts, 300 m — the AI's range; a bump open plays it at 0.6 gain | V-17 |
+| ⚠ deviations, said | no glyph before the cue's text (the HUD's raylib font carries no icons); R-5030: the player's break feedback is read where the contact is decided — and it reaches every node since CE-5001 (§7.16) | mockup A |
+
+Rail `AudioTests.CE4600_ABrokenWall_IsDustAndACrash_AndTheDriversCueSaysWhatTheContactDid`.
+
+### 7.16 As built — CE-5001: the contact reaches every node *(`terrain` lane, `2026-11-14`; cross-lane into the network lane's NED — said)*
+
+📐 Measured first: the hull's body (`CarKinematicsSystem`) runs on its MUSCLE and possession never moves ownership to the station (Entity Control M-6, AQ91 L-rows) ⇒ on a
+cluster with a Player node the contact is decided where no driver looks, and §7.15's cue, dust and crash reached only the all-in-one editor.
+
+```mermaid
+graph TD
+  K[the hull's muscle - CarKinematics publishes ContactBreachEvent] --> EG[ContactBreachEgressTranslator - local only, a break always, a push / too strong at most every 0.2 s per hull, SourceNodeId]
+  EG --> T[(ContactBreach topic dt 187 - Reliable, KeepLast 64)]
+  T --> IN[ContactBreachIngressTranslator on every node - drops its own, an unknown hull; WorldEvent, discarded while joining]
+  IN --> EV[ContactBreachEvent IsRemote]
+  EV --> FX[EffectSpawnSystem - the cue, the dust, the crash]
+  EV -.-> HB[SoundEmissionSystem.HearBreaks - skips a remote copy: heard once, where decided]
+```
+*What it shows that prose hid: the event now has TWO readers on a receiving node — the presentation, which wants it, and the AI ears, which must NOT hear it twice — so
+the remote flag decides, at the one place each reads it.*
+
+| claim | code — as built | design |
+|---|---|---|
+| the topic | `ContactBreach` (vehicle id, kind, contact point, progress, source node), `EDescriptorType.dtContactBreach` = 187 | V-17 |
+| the throttle | `ContactBreachEgressTranslator.RepeatSeconds` 0.2: the cue holds a push 0.3 s and a "too strong" 2 s, so five a second keeps it lit; a break is never held back | V-17 |
+| no echo, no double hearing | the ingress publishes `IsRemote`; the egress never sends a remote copy; `HearBreaks` skips one | — |
+| a join | a one-shot world event: `TranslatorClass.WorldEvent` + `DiscardIngress` (R-4007) — the classified set now six | R-4007 |
+
+Rail `ContactBreachWireTests` (the throttle, no echo, own / unknown dropped, remote republished).
+
+### 7.17 As built — §7.5 item 16: a barrage's numbers, stated and met *(`terrain` lane, `2026-11-14`, CE-4600 / CE-4591, V-20)*
+
+📐 **Measured on `city-battle`** (the showcase town: 474 buildings, a 1501 × 1501 m grid, its infantry + vehicle navmesh on a muscle): a Mk-82 (89 kg) every 0.5 s of wall clock
+for 30 s at random points in the town's core, each crater decided by the rule and written into its cell's record, the bake system on a 60 Hz frame. The run is a rail on demand
+(`CraterBakeTests.CE4600_ABarrageOnTheShowcaseTown_TheNumbers`, `HROT_RUN_MEASURE=1`, ≈ 90 s).
+
+| number | measured | stated budget |
+|---|---|---|
+| bursts → craters → records | 60 → 47 (13 on a floor or water: none, G-7) → **23 records** | one record per hit cell (V-7) ✅ |
+| a change → committed, steady barrage | median **2.00 s**, max **3.19 s** | ≤ the cap (2 s) + one bake + 0.5 s ✅ |
+| a change → committed, with the first (cold, 4.7 s) bake | max 7.43 s | ≤ the cap + the running bake + its own ✅ |
+| the frame thread's bake step | median 0.07 ms, p99 **1.6–2.8 ms** (the frames that rebuild the crater table after a new crater, 2–3 ms each) | p99 ≤ 4 ms ✅ |
+| steps over one 60 Hz frame after the first commit | **0** (a steady commit ≈ 5–8 ms) | 0 ✅ |
+
+⛔ **Found by measuring, and FIXED:** a change made WHILE a bake ran started its latency clock only after that bake's commit — it waited the rest of the running bake, the
+whole 2 s cap and its own bake (7.5 s measured; a bake every 3 s however busy the barrage). `StaticObstacleBakeSystem.Execute` now checks the signature while a bake runs
+(`SignatureNow`, the ONE signature for both paths) and starts the clock at the change.
+
+⚠ **Found — [CE-5002](blueprints/Blueprint_Issues_Tracker.md):** the town's FIRST frame on a node paid ≈ 12 ms building the view's tables (doors, damage, craters, trunks) for 474
+buildings — ⭐ fixed: `TerrainResidency.Commit` builds them inside the load's own pause (the first read after a load 11.9 → 1.0 ms, the first step 18 → 6 ms). ⚠ Left, measured, no GC
+in either: the FIRST bake's start (≈ 21 ms) and its commit (≈ 22 ms) — two cold frames once per session; every later start and commit stays under a frame.

@@ -64,6 +64,40 @@ public sealed class TerrainPlan2D
     /// <summary>⭐ T-3 — low scrub: a darker olive than the forest.</summary>
     public static readonly Rgba32 ScrubFill = new(112, 140, 78, 220);
 
+    /// <summary>⭐ CE-4593 (mockup D) — a ditch on the plan: its banks dug earth, its floor dark.</summary>
+    public static readonly Rgba32 DitchBank = new(74, 60, 38, 235), DitchFloor = new(30, 24, 16, 240);
+
+    /// <summary>⭐ CE-4591 (P-4, V-11; mockup F) — a crater on the plan: the rim's thrown earth, the bowl, its darkest centre.</summary>
+    public static readonly Rgba32 CraterRim = new(90, 74, 48, 180), CraterBowl = new(58, 46, 30, 235), CraterCentre = new(34, 26, 16, 245);
+
+    /// <summary>
+    /// ⭐⭐ CE-4591 (P-4, V-11; mockup <c>ground-shaping-and-ditches.svg</c> F) — the view's craters on the plan: each a disc of thrown earth to its outer radius, the bowl, a darker centre
+    /// (a 16-sided fan each). Emitted only when the crater table changed (the layer keys it by instance), never per frame.
+    /// </summary>
+    public static void EmitCraters(Fdp.Toolkit.Terrain.CraterTable craters, IDebugDrawBuilder draw)
+    {
+        for (int i = 0; i < craters.Count; i++)
+        {
+            var c = craters[i];
+            Disc(draw, c.Centre, c.OuterRadius, CraterRim);
+            Disc(draw, c.Centre, c.Radius, CraterBowl);
+            Disc(draw, c.Centre, c.Radius * 0.5f, CraterCentre);
+        }
+    }
+
+    private static void Disc(IDebugDrawBuilder draw, Vector2 centre, float r, Rgba32 fill)
+    {
+        const int K = 16;
+        var prev = centre + new Vector2(r, 0f);
+        for (int k = 1; k <= K; k++)
+        {
+            float a = 2f * MathF.PI * k / K;
+            var next = centre + new Vector2(MathF.Cos(a), MathF.Sin(a)) * r;
+            draw.DrawFilledTriangle(centre, prev, next, fill, TerrainLayer);
+            prev = next;
+        }
+    }
+
     /// <summary>⭐ CE-4392 X-2 — a collapsed building's rubble on the plan: a dusty grey-brown fill, a dashed outline.</summary>
     public static readonly Rgba32 RubbleFill = new(128, 118, 104, 235);
     private static readonly Rgba32 RubbleOutline = new(90, 82, 70, 230);
@@ -91,6 +125,16 @@ public sealed class TerrainPlan2D
                 };
                 FillPolygon(draw, s.Polygon, s.Triangles, fill);
             }
+            // ⭐ CE-4593 (P-6; mockup ground-shaping-and-ditches.svg D — "the ditch drawn as a dug band") — every ditch / anti-tank ditch / foxhole strip: its banks, then its floor darker
+            foreach (var g in world.GroundShapes)
+            {
+                if (g.Mode != Fdp.Toolkit.Terrain.GroundShapeMode.Ditch || g.Polygon.Length != 4) continue;
+                var q = g.Polygon;
+                draw.DrawFilledTriangle(q[0], q[1], q[2], DitchBank, TerrainLayer); draw.DrawFilledTriangle(q[0], q[2], q[3], DitchBank, TerrainLayer);
+                // the floor: the middle half across the strip (q[0]→q[1] and q[3]→q[2] run across it)
+                var a = Vector2.Lerp(q[0], q[1], 0.25f); var b = Vector2.Lerp(q[0], q[1], 0.75f); var c = Vector2.Lerp(q[3], q[2], 0.75f); var d = Vector2.Lerp(q[3], q[2], 0.25f);
+                draw.DrawFilledTriangle(a, b, c, DitchFloor, TerrainLayer); draw.DrawFilledTriangle(a, c, d, DitchFloor, TerrainLayer);
+            }
         }
 
         foreach (var w in world.Walkables)
@@ -110,9 +154,11 @@ public sealed class TerrainPlan2D
 
         foreach (var p in world.Prisms)
         {
-            if (!Wanted(p.Building)) continue;
+            // ⭐ CE-4599 (V-16) — a piece's WALL GROUP: a free wall's (garden wall, fence, hedge) pieces belong to its line, so a breached one is hidden and re-drawn like a building's
+            int group = p.Panel >= 0 ? Fdp.Toolkit.Terrain.WallGroups.Of(world, p.Panel) : p.Building;
+            if (!Wanted(group)) continue;
             if (damage != null && !Fdp.Toolkit.Terrain.DamagedBuildings.Keeps(p, damage)) continue;
-            mark?.Invoke(p.Building);
+            mark?.Invoke(group);
             EmitPrism(draw, p);
         }
 
@@ -123,10 +169,10 @@ public sealed class TerrainPlan2D
             var pieces = new List<TerrainPrism>();
             foreach (int pi in panels)
             {
-                if ((uint)pi >= (uint)world.Panels.Count || !Fdp.Toolkit.Terrain.DamagedBuildings.IsRecut(world, damage, pi) || !Wanted(world.Panels[pi].Building)) continue;
+                if ((uint)pi >= (uint)world.Panels.Count || !Fdp.Toolkit.Terrain.DamagedBuildings.IsRecut(world, damage, pi) || !Wanted(Fdp.Toolkit.Terrain.WallGroups.Of(world, pi))) continue;
                 pieces.Clear();
                 Fdp.Toolkit.Terrain.DamagedBuildings.RecutPanel(world, damage, pi, pieces);
-                mark?.Invoke(world.Panels[pi].Building);
+                mark?.Invoke(Fdp.Toolkit.Terrain.WallGroups.Of(world, pi));
                 var panel = world.Panels[pi];
                 var dir = Vector2.Normalize(panel.B - panel.A);
                 var across = new Vector2(-dir.Y, dir.X) * ((panel.Thickness * 0.5f) + 0.2f);

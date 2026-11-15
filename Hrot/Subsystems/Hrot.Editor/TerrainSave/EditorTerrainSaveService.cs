@@ -60,7 +60,8 @@ public sealed class EditorTerrainSaveService : ITerrainSaveService
         string temp = Path.Combine(Path.GetTempPath(), "tsa-" + Guid.NewGuid().ToString("N")[..10]);
         try
         {
-            var r = TerrainBake.SaveAs(SourceDir, Path.Combine(temp, newName), newName, Resolve, RecipeRoots, bakeNavtiles: false, bridgeNet: new Hrot.Traffic.BridgeNetBuilder());
+            var r = TerrainBake.SaveAs(SourceDir, Path.Combine(temp, newName), newName, Resolve, RecipeRoots, bakeNavtiles: false, bridgeNet: new Hrot.Traffic.BridgeNetBuilder(),
+            reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4597 (G-20)
             return Of(r.Summary);
         }
         finally { try { Directory.Delete(temp, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
@@ -83,7 +84,8 @@ public sealed class EditorTerrainSaveService : ITerrainSaveService
             scenarioDir = Path.Combine(ScenariosRoot, scenarioName);
             if (Directory.Exists(scenarioDir)) throw new IOException($"A scenario called '{scenarioName}' already exists — choose another name.");
         }
-        var r = TerrainBake.SaveAs(SourceDir, Path.Combine(TerrainRoot, newName), newName, Resolve, RecipeRoots, prebuildMesh, bridgeNet: new Hrot.Traffic.BridgeNetBuilder());
+        var r = TerrainBake.SaveAs(SourceDir, Path.Combine(TerrainRoot, newName), newName, Resolve, RecipeRoots, prebuildMesh, bridgeNet: new Hrot.Traffic.BridgeNetBuilder(),
+            reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4597 (G-20)
         if (scenarioDir is not null)
         {
             Directory.CreateDirectory(scenarioDir);

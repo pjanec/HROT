@@ -1,3 +1,4 @@
+using System.Numerics;
 using System;
 using System.IO;
 using System.Linq;
@@ -339,6 +340,230 @@ namespace Fdp.Toolkit.Terrain.Tests
             Row("D  BepuTerrainIndex", "whole only: ctor builds the tree from every prism/walkable; AttachTo replaces it (BepuTerrainIndex.cs:17-64); no Add/Remove");
             Row("D  TerrainCoverProvider", "whole only: Build loops every prism and panel (TerrainCoverProvider.cs:47-69); PointsAround (:77) is per piece but the provider is an immutable array");
             File.WriteAllText(Environment.GetEnvironmentVariable("HROT_MEASURE_OUT") ?? Path.Combine(Path.GetTempPath(), "o7.txt"), table.ToString());
+        }
+
+
+        // ── CE-4597 (P-3; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4 G-5, G-6) — a scenario house stands on its pad wherever the overlay merges ──
+
+        /// <summary>A 1 m grid over 0..100 rising 0.2 m per metre to the east.</summary>
+        private static TerrainWorld SlopeBase()
+        {
+            var sb = new System.Text.StringBuilder("ncols 101\nnrows 101\nxllcenter 0\nyllcenter 0\ncellsize 1\nNODATA_value -9999\n");
+            for (int row = 0; row < 101; row++)
+                for (int c = 0; c < 101; c++) sb.Append((0.2f * c).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(c < 100 ? " " : "\n");
+            string grid = sb.ToString();
+            const string geojson = "{ \"type\": \"FeatureCollection\", \"hrot\": { \"schemaVersion\": 1, \"bounds\": [0, 0, 100, 100], \"groundZ\": 0, \"heightGrid\": \"s.height.asc\" }, \"features\": [] }";
+            return TerrainWorldParser.Parse(geojson, "slope", new TerrainAssets { ReadFile = n => n == "s.height.asc" ? grid : null });
+        }
+
+        private static string House(string label, float x, float baseZ, bool pad) =>
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"" + label + "\",\"baseZ\":" + baseZ.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            (pad ? ",\"pad\":" + baseZ.ToString(System.Globalization.CultureInfo.InvariantCulture) : "") +
+            ",\"building\":{\"footprint\":[[0,0],[8,0],[8,6],[0,6]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[8,0]},{\"from\":[8,0],\"to\":[8,6]},{\"from\":[8,6],\"to\":[0,6]},{\"from\":[0,6],\"to\":[0,0]}]}]}}," +
+            "\"geometry\":{\"type\":\"Point\",\"coordinates\":[" + x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",40]}}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4597</c> (G-5, G-6) — an overlay house that stands on a pad (its feature carries <c>"pad"</c>) is cut into the base's ground at its base where the overlay
+        /// merges — the same on every node, the base grid unchanged and its far tiles shared; an overlay house with no pad (a bridge, say) leaves the ground alone.
+        /// 🔴 Red-proof: merge with the base's Height as it is ⇒ the uphill corner stays 1.6 m up.
+        /// </summary>
+        [Fact]
+        public void CE4597_AnOverlayHouseOnAPad_IsCutIntoTheBase_AnotherWithoutOne_IsNot()
+        {
+            var b = SlopeBase();
+            var o = TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,100,100],\"groundZ\":0},\"features\":[" +
+                House("p", 20f, 4f, pad: true) + "," + House("n", 60f, 12f, pad: false) + "]}", "slope");
+            Assert.True(o.Buildings[0].Pad); Assert.False(o.Buildings[1].Pad);
+            var m = TerrainWorldMerge.Merge(b, o);
+            Assert.NotSame(b.Height, m.Height);
+            Assert.InRange(m.Height!.Sample(28f, 46f), 3.99f, 4.01f);             // the pad house's uphill corner: on its pad (natural 5.6)
+            Assert.InRange(b.Height!.Sample(28f, 46f), 5.59f, 5.61f);             // the base is unchanged
+            Assert.InRange(m.Height.Sample(68f, 46f), 13.59f, 13.61f);            // the house with no pad: untouched slope
+            Assert.Equal(TerrainWorldMerge.PadHeights(b.Height, o)!.Sample(24f, 43f), m.Height.Sample(24f, 43f));   // the same answer every merge
+        }
+    
+        // ── ⭐ CE-4592 (P-5; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-14, G-18, V-28) — authored ground shapes ─────────────────────────────
+
+        private static TerrainWorld FlatBase()
+        {
+            int n = 201;
+            return new TerrainWorld { Name = "flat", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), Height = new TerrainHeightGrid(new Vector2(-100f), 1f, n, n, new float[n * n]) };
+        }
+
+        private static TerrainWorld ShapeOverlay(params System.Text.Json.Nodes.JsonObject[] features)
+        {
+            var doc = new System.Text.Json.Nodes.JsonObject { ["type"] = "FeatureCollection", ["features"] = new System.Text.Json.Nodes.JsonArray(features.Select(f => (System.Text.Json.Nodes.JsonNode)f).ToArray()) };
+            return TerrainWorldParser.Parse(doc.ToJsonString(), "overlay");
+        }
+
+        private static System.Text.Json.Nodes.JsonObject Ground(string key, string mode, float value, uint order, params Vector2[] square)
+            => FeatureExpander.OfKind(TerrainFeature.Ground, key, mode, 0f, value, order, Vector2.Zero, square, FlatBase(), new TerrainAssets(), Array.Empty<string?>())[0];
+
+        private static Vector2[] Square(float cx, float cy, float half) => new[] { new Vector2(cx - half, cy - half), new Vector2(cx + half, cy - half), new Vector2(cx + half, cy + half), new Vector2(cx - half, cy + half) };
+
+        /// <summary>
+        /// ⭐ G-14 — a Raise 5 m square compiled (the ONE expander), parsed and merged: inside +5, the skirt blends to the natural ground (≥ 1.5 × 5 = 7.5 m), outside
+        /// untouched; a Level shape sets its height; where two overlap the NEWEST (the higher order) wins whichever is listed first (V-28). 🔴 Red-proof: drop
+        /// <c>GroundShapes.Apply</c> from the merge ⇒ the hill is gone.
+        /// </summary>
+        [Fact]
+        public void CE4592_AGroundShape_RaisesLevelsAndBlends_AndTheNewestWins()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("g1", "raise", 5f, 1, Square(0f, 0f, 10f))));
+            Assert.Equal(5f, merged.GroundHeightAt(0f, 0f), 3);
+            Assert.Equal(5f, merged.GroundHeightAt(9.5f, 0f), 3);
+            float mid = merged.GroundHeightAt(10f + 3.75f, 0f);
+            Assert.InRange(mid, 0.5f, 4.5f);                       // in the skirt
+            Assert.Equal(0f, merged.GroundHeightAt(10f + 8f, 0f), 3);   // past the 7.5 m skirt
+
+            var both = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("b", "level", 2f, 2, Square(5f, 0f, 6f)), Ground("a", "raise", 5f, 1, Square(0f, 0f, 10f))));
+            Assert.Equal(2f, both.GroundHeightAt(5f, 0f), 3);       // the level (order 2) is the newest: it wins over the raise
+            Assert.Equal(5f, both.GroundHeightAt(-8f, 0f), 3);
+        }
+
+        /// <summary>⭐ V-28 / G-18 — a house inside a raised area keeps its ground (an island with a metre's margin); an unknown mode fails at the compile.</summary>
+        [Fact]
+        public void CE4592_AHouseInsideAShape_IsAnIsland_AndAnUnknownModeFails()
+        {
+            const string House = """{ "type": "Feature", "properties": { "kind": "building", "label": "H", "building": { "footprint": [[0,0],[6,0],[6,6],[0,6]], "storeys": [ { "height": 3, "walls": [ { "from": [0,0], "to": [6,0] }, { "from": [6,0], "to": [6,6] }, { "from": [6,6], "to": [0,6] }, { "from": [0,6], "to": [0,0] } ] } ] } }, "geometry": { "type": "Point", "coordinates": [-3, -3] } }""";
+            var house = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(House)!;
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(house, Ground("g1", "raise", 4f, 1, Square(0f, 0f, 15f))));
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 0f), 3);     // the house's floor
+            Assert.Equal(4f, merged.GroundHeightAt(10f, 10f), 3);   // the hill round it
+            Assert.Throws<ArgumentException>(() => Ground("bad", "dig", 1f, 1, Square(0f, 0f, 2f)));
+        }
+    
+        // ── ⭐ CE-4593 (P-6; §4c G-26…G-28, §4c-1 G-36) — ditches and foxholes ─────────────────────────────
+
+        private static System.Text.Json.Nodes.JsonObject Ditch(string key, string mode, float depth, uint order, Vector2 at, float heading, params Vector2[] line)
+            => FeatureExpander.OfKind(TerrainFeature.Ground, key, mode, heading, depth, order, at, line, FlatBase(), new TerrainAssets(), Array.Empty<string?>())[0];
+
+        /// <summary>
+        /// ⭐ G-26 / G-28 — a ditch drawn along a line is 2 m wide × 1 m deep with steep banks, an obstacle area (every vehicle keeps out, D-2); an anti-tank ditch 4 × 2 m;
+        /// a foxhole at a click and a heading a 2 m dip, no obstacle. 🔴 Red-proof: a ditch's skirt the Lower's (1.5 × depth) ⇒ the bank point 1.5 m out is too deep.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitch_IsASteepBankedStrip_AndAnObstacle_AFoxholeADip()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("a", "at-ditch", 0f, 2, Vector2.Zero, 0f, new Vector2(-20f, 30f), new Vector2(20f, 30f)),
+                Ditch("f", "foxhole", 0f, 3, new Vector2(0f, -40f), 90f)));
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, 0f), 3);          // the floor
+            Assert.Equal(-1f, merged.GroundHeightAt(5f, 0.9f), 2);        // still the floor at the edge of its 2 m
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 2.0f), 3);          // past the 0.9 m bank: untouched
+            Assert.Equal(-2f, merged.GroundHeightAt(0f, 30f), 3);          // the anti-tank ditch
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, -40f), 3);         // the foxhole
+            Assert.Equal(-1f, merged.GroundHeightAt(0.9f, -40f), 2);       // along its heading (east)
+            Assert.Equal(0f, merged.GroundHeightAt(0f, -42.5f), 3);        // across it, past its bank
+            var obstacles = merged.GroundShapes.Where(g => g.Obstacle).ToList();
+            Assert.Equal(2, obstacles.Count);                              // the two ditches, not the foxhole
+            Assert.Equal(4, Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged).Count);   // two triangles each
+            Assert.All(Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged), v => Assert.Equal(Fdp.Toolkit.Navigation.Recast.NavDoorways.CraterArea, v.Area));
+        }
+    
+        /// <summary>
+        /// ⭐ G-27 / G-36 / V-29 / V-30 — cover: a 1 m ditch 40 m long gives crouch points along BOTH banks, each facing its bank, on the ditch's floor; a foxhole gives four
+        /// all-round points. 🔴 Red-proof: drop <c>AddGroundCover</c> from the build ⇒ none.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitchGivesCoverAlongBothBanks_AFoxholeFourAllRound()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("f", "foxhole", 0f, 2, new Vector2(0f, -40f), 90f)));
+            var cover = Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(merged).Points;
+            var ditch = cover.Where(p => MathF.Abs(p.PositionY) < 1.5f).ToList();
+            Assert.True(ditch.Count >= 30, $"{ditch.Count} ditch points");
+            Assert.Contains(ditch, p => p.DirectionY > 0.99f && p.PositionY > 0f);   // the north bank, facing north
+            Assert.Contains(ditch, p => p.DirectionY < -0.99f && p.PositionY < 0f);  // the south bank, facing south
+            Assert.All(ditch, p => { Assert.Equal((byte)1, p.StanceHeight); Assert.Equal(-1f, p.PositionZ, 2); });
+            var fox = cover.Where(p => MathF.Abs(p.PositionY + 40f) < 0.1f && MathF.Abs(p.PositionX) < 0.1f).ToList();
+            Assert.Equal(4, fox.Count);
+        }
+    
+        /// <summary>
+        /// ⭐ G-19 — a road running straight across a 5 m hill: the shape's steepest road grade is the skirt's (5 m over ≈ 7.5 m, smoothstepped — over the 15 % warning); a road
+        /// 60 m away reads 0; a gentle 0.5 m rise stays under the warning.
+        /// </summary>
+        [Fact]
+        public void CE4592_TheGradeReadOut_WarnsForAHillAcrossARoad()
+        {
+            var b = new global::CarKinem.Road.RoadNetworkBuilder();
+            b.AddNode(new Vector2(-50f, 0f), 0f); b.AddNode(new Vector2(50f, 0f), 0f); b.AddNode(new Vector2(-50f, 60f), 0f); b.AddNode(new Vector2(50f, 60f), 0f);
+            b.AddSegment(new Vector2(-50f, 0f), new Vector2(100f, 0f), new Vector2(50f, 0f), new Vector2(100f, 0f), laneWidth: 3.5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+            b.AddSegment(new Vector2(-50f, 60f), new Vector2(100f, 0f), new Vector2(50f, 60f), new Vector2(100f, 0f), laneWidth: 3.5f, laneCount: 2, startNodeIdx: 2, endNodeIdx: 3);
+            var roads = b.Build(cellSize: 10f, gridWidth: 20, gridHeight: 20);
+            try
+            {
+                var hill = Ground("g", "raise", 5f, 1, Square(0f, 0f, 10f));
+                var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(hill));
+                var shape = merged.GroundShapes[0];
+                Assert.True(GroundShapes.SteepestRoadGrade(merged, in roads, in shape) > GroundShapes.GradeWarning);
+                var gentle = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("h", "raise", 0.5f, 1, Square(0f, 0f, 10f))));
+                Assert.True(GroundShapes.SteepestRoadGrade(gentle, in roads, gentle.GroundShapes[0]) < GroundShapes.GradeWarning);
+                var far = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(Ground("f", "raise", 5f, 1, Square(0f, -60f, 5f))));
+                Assert.Equal(0f, GroundShapes.SteepestRoadGrade(far, in roads, far.GroundShapes[0]));
+            }
+            finally { roads.Dispose(); }
+        }
+    
+        // ── ⭐ CE-4592 / CE-4593 (G-24, G-29) — a ground change re-levels the road it touches; a ditch stops at a road ─────────────────────────────
+
+        /// <summary>Two straight 2-lane roads (3.5 m lanes ⇒ a 4.5 m half-width with the shoulder): one along y = 0, one along y = 60.</summary>
+        private static TerrainRoads TwoRoads()
+        {
+            static global::CarKinem.Road.Vector2Json V(float x, float y) => new() { X = x, Y = y };
+            var json = new global::CarKinem.Road.RoadNetworkJson
+            {
+                Nodes = new[] { new global::CarKinem.Road.RoadNodeJson { Id = 0, Position = V(-60f, 0f) }, new global::CarKinem.Road.RoadNodeJson { Id = 1, Position = V(60f, 0f) },
+                                new global::CarKinem.Road.RoadNodeJson { Id = 2, Position = V(-60f, 60f) }, new global::CarKinem.Road.RoadNodeJson { Id = 3, Position = V(60f, 60f) } },
+                Segments = new[]
+                {
+                    new global::CarKinem.Road.RoadSegmentJson { Id = 0, StartNodeId = 0, EndNodeId = 1, LaneWidth = 3.5f, LaneCount = 2, ControlPoints = new() { P0 = V(-60f, 0f), T0 = V(120f, 0f), P1 = V(60f, 0f), T1 = V(120f, 0f) } },
+                    new global::CarKinem.Road.RoadSegmentJson { Id = 1, StartNodeId = 2, EndNodeId = 3, LaneWidth = 3.5f, LaneCount = 2, ControlPoints = new() { P0 = V(-60f, 60f), T0 = V(120f, 0f), P1 = V(60f, 60f), T1 = V(120f, 0f) } },
+                },
+            };
+            return TerrainRoads.FromJson(json);
+        }
+
+        private static TerrainWorld WithRoads(params System.Text.Json.Nodes.JsonObject[] features)
+            => TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(FlatBase(), features, TwoRoads()).ToJsonString(), "overlay");
+
+        /// <summary>
+        /// ⭐ G-24 — a 5 m raise whose edge runs along a road's centre: the overlay carries that road's corridor (not the far one), and the merge re-levels it — LEVEL
+        /// ACROSS its width, the uphill half not 5 m above the downhill one. 🔴 Red-proof: the same overlay without its corridors ⇒ the road is tilted ≥ 2 m across.
+        /// </summary>
+        [Fact]
+        public void CE4592_AHillOverARoad_ReLevelsTheRoadAcrossItsWidth()
+        {
+            var hill = Ground("g", "raise", 5f, 1, Square(0f, 10f, 10f));      // y 0…20: its edge on the road's centre line
+            var overlay = WithRoads(hill);
+            Assert.Single(overlay.RoadCorridors);                               // only the road it reaches
+            Assert.Equal(4.5f, overlay.RoadCorridors[0].HalfWidth, 3);
+            var merged = TerrainWorldMerge.Merge(FlatBase(), overlay);
+            Assert.Equal(merged.GroundHeightAt(0f, -3.5f), merged.GroundHeightAt(0f, 3.5f), 2);   // level across
+            Assert.Equal(5f, merged.GroundHeightAt(0f, 15f), 3);                // the hill beyond the road's reach stays
+
+            var bare = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(hill));
+            Assert.True(bare.GroundHeightAt(0f, 3.5f) - bare.GroundHeightAt(0f, -3.5f) > 2f);   // without: tilted
+        }
+
+        /// <summary>
+        /// ⭐ G-29 — a ditch drawn across a road stops at it: the road stays level over the ditch's line and no vehicle-closing area crosses it; the ditch either side is
+        /// whole. 🔴 Red-proof: drop <c>OffCorridors</c> from the merge ⇒ an obstacle slice sits on the road.
+        /// </summary>
+        [Fact]
+        public void CE4593_ADitchAcrossARoad_StopsAtTheRoad()
+        {
+            var ditch = Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(0f, -30f), new Vector2(0f, 30f));
+            var merged = TerrainWorldMerge.Merge(FlatBase(), WithRoads(ditch));
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 0f), 2);                 // the road over the ditch's line
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, -20f), 3);              // the ditch south of it
+            Assert.Equal(-1f, merged.GroundHeightAt(0f, 20f), 3);               // and north
+            foreach (var g in merged.GroundShapes.Where(g => g.Obstacle))
+                Assert.True(MathF.Abs((g.Polygon[0].Y + g.Polygon[2].Y) * 0.5f) > 4.5f);   // no slice on the road
+            Assert.NotEmpty(Fdp.Toolkit.Navigation.Recast.NavDoorways.Ditches(merged));
         }
 }
 }

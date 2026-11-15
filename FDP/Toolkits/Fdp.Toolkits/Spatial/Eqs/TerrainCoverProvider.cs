@@ -62,11 +62,60 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — 📐 the building panels were the 6–16 s silent stretch of the stress terrain's load
                 if (panel.Building >= 0) AddPanelFaces(world, panel, points);
             }
+            AddGroundCover(world, points);   // ⭐ CE-4593 (P-6, G-27, G-36) — ditches and foxholes
             Fdp.Core.LoadProgress.Report();
             var built = new TerrainCoverProvider(points.ToArray());
             Fdp.Core.LoadProgress.Report();
             return built;
         }
+
+        /// <summary>How far inside a ditch from its bank a cover point stands (m).</summary>
+        public const float DitchInset = 0.4f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4593</c> (P-6; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4c G-27, §4c-1 G-36, §9.3 V-29/V-30) — GROUND cover: along both banks of a DITCH a point every
+        /// <see cref="Spacing"/> m, <see cref="DitchInset"/> in from the bank, facing that bank (a pair facing each bank — V-30); a FOXHOLE's four ALL-ROUND points at its centre (V-29: a
+        /// threat from any side finds one). The stance by depth — the wall rule: ≥ 1.5 m stand · ≥ 0.9 crouch · ≥ 0.45 prone, shallower no cover. The ground still hides the man (TH-D).
+        /// </summary>
+        public static void AddGroundCover(TerrainWorld world, List<CoverPoint> points)
+        {
+            foreach (var s in world.GroundShapes)
+            {
+                if (s.Mode != GroundShapeMode.Ditch || s.Polygon.Length != 4) continue;
+                float depth = MathF.Abs(s.Value);
+                byte stance = depth >= 1.5f ? (byte)2 : depth >= 0.9f ? (byte)1 : depth >= 0.45f ? (byte)0 : byte.MaxValue;
+                if (stance == byte.MaxValue) continue;
+                var q = s.Polygon;
+                var centre = (q[0] + q[2]) * 0.5f;
+                if (!s.Obstacle)
+                {
+                    // a foxhole: its long axis q0→q3, its short axis q0→q1
+                    var along = q[3] - q[0]; var across = q[1] - q[0];
+                    if (along.LengthSquared() < 1e-6f || across.LengthSquared() < 1e-6f) continue;
+                    along = Vector2.Normalize(along); across = Vector2.Normalize(across);
+                    foreach (var d in new[] { along, -along, across, -across })
+                        points.Add(Point(world, centre, d, stance));
+                    continue;
+                }
+                // a ditch quad: its banks are the sides q0→q3 and q1→q2
+                foreach (var (a, b, other) in new[] { (q[0], q[3], q[1]), (q[1], q[2], q[0]) })
+                {
+                    var side = b - a; float len = side.Length();
+                    if (len < 1e-3f) continue;
+                    var dir = side / len;
+                    var toBank = Vector2.Normalize(a - other);   // across the ditch, towards this bank
+                    int n = Math.Max(1, (int)MathF.Ceiling((len / Spacing) - 1e-3f));
+                    for (int k = 0; k < n; k++)
+                        points.Add(Point(world, a + dir * ((k + 0.5f) * len / n) - toBank * DitchInset, toBank, stance));
+                }
+            }
+        }
+
+        private static CoverPoint Point(TerrainWorld world, Vector2 p, Vector2 facing, byte stance) => new()
+        {
+            PositionX = p.X, PositionY = p.Y, PositionZ = world.GroundHeightAt(p.X, p.Y),
+            DirectionX = facing.X, DirectionY = facing.Y, Quality = 1f, StanceHeight = stance, Kind = CoverKind.Cover,
+        };
 
         /// <summary>
         /// The cover points round ONE solid piece: one per started <see cref="Spacing"/> along each footprint edge (rounded up, CE-3143), <see cref="StandOff"/> out,
