@@ -18,8 +18,8 @@ Scope frozen at `d6a58138a`. Started at `bb9366695` (merged `coordinator`), mark
 
 ### 0.1 The chain per variant (✓ seen in order and caused · not seen — not judged on that variant)
 
-**Pass count** (each variant's judged arrows all ✓): collapse **#4 #5 #6** · stall **#3 #4 #5** · base **none** (closest: #9, every arrow but the
-PhaseLine). ⚠ R-2105 (three-squad Blue platoons) landed before collapse #6 / stall #5, so on the CURRENT scenario each has ONE pass.
+**Pass count** (each variant's judged arrows all ✓), on the CURRENT scenario (after R-2105): ✅ **collapse #6 #7 #8** · ✅ **stall #5 #6 #7** —
+acceptance 1 MET for both · ⛔ **base none** (closest: #9, every arrow but the PhaseLine — CE-2436).
 
 | arrow (§3.2) | base #11 (current) | base #9 (best) | stall #5 | collapse #6 |
 |---|---|---|---|---|
@@ -56,8 +56,7 @@ exist (§5 of the design: "set from the first three runs" — a run that fails t
 
 ### 0.4 Not reached — stated plainly
 
-⛔ **Acceptance 1 (each variant passes three times) is NOT met.** Collapse and stall pass every run since their fixes (three each, one on the current
-scenario); **base has no clean pass**: its assault is worn down crossing 113 m under the line's fire, so the PhaseLine report and the end come only when
+⛔ **Acceptance 1 is met for collapse and stall (three passes each on the current scenario), NOT for base**: **base has no clean pass**: its assault is worn down crossing 113 m under the line's fire, so the PhaseLine report and the end come only when
 Red breaks first (#9). Filed as **CE-2436** with the measurements — the fix is a tactics decision (Platoon / Company Attack), not more tuning here.
 ⛔ **The dynamism thresholds X / Y stay UNLOCKED** — §5 sets them from three CLEAN base runs, and there are none. Measured on every base run: moved
 > 50 m per 5 min ≈ 55–70 % · 35 % · 15–30 %, contacts 54–85 / min ⇒ the battle goes static in the last window, every time.
