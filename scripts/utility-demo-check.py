@@ -5741,6 +5741,12 @@ def _reports_of(log, frm=None, kind=None, subtype=None, after=-1.0):
             and (subtype is None or r.get("subtype") == subtype) and (r.get("seenAt") or -1) > after]
 
 
+def _live(nid):
+    """A man still alive, read where the brains run (the SimHost perspective: the Scenario view's Health is not the live one)."""
+    h = (comps_on("SimHost", nid) or {}).get("Health") or {}
+    return (h.get("Current") if h.get("Current") is not None else 1) > 0
+
+
 def run_cc_battalion(c, timeout):
     """⭐ CE-4615 — cc-battalion / -stall / -collapse (Battalion Test §3.2, §4): the chain judged IN ORDER and CAUSED — each arrow is found
     in the reports log, the units' tasks and the bursts, and must come AFTER the one it is caused by (a report precedes the order it triggers;
@@ -5761,6 +5767,7 @@ def run_cc_battalion(c, timeout):
     shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
     bursts = {}
     clouds = {}
+    outpost_alive = []
     seen_reports = {}
     ended = None
     end_wall = time.time() + window * 4 + 600
@@ -5774,6 +5781,9 @@ def run_cc_battalion(c, timeout):
                 print(f"   t={t:6.1f}  {n}: {k}", flush=True)
         if t - last_dyn >= 15.0:
             dyn.sample(t); last_dyn = t
+            op_alive = sum(1 for n, nid in ids.items() if n and n.startswith("Red Outpost ") and _live(nid))
+            if op_alive != outpost_alive[-1][1] if outpost_alive else True:
+                outpost_alive.append((round(t, 1), op_alive))
         for d in _detonations():
             if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
                 bursts[d.get("seq")] = (t, d.get("burst"))
@@ -5799,6 +5809,17 @@ def run_cc_battalion(c, timeout):
         if r.get("kind") == "Request":
             req_by.setdefault((names.get(r.get("from"), r.get("from")), r.get("subtype")), []).append(round(r.get("seenAt") or 0, 1))
     print(f"   requests by sender: {req_by}")
+    alive = {}
+    for n, nid in ids.items():
+        if n and (" Leader" in n or " Rifleman" in n):
+            side = "Blue" if n.startswith("Blue") else "Red"
+            unit = " ".join(n.split(" ")[:3]) if "Platoon" in n else " ".join(n.split(" ")[:2])
+            if _live(nid):
+                alive[unit] = alive.get(unit, 0) + 1
+            else:
+                alive.setdefault(unit, 0)
+    print(f"   alive at the end (men by unit): {dict(sorted(alive.items()))}")
+    print(f"   the outpost's men alive over time (t, n): {outpost_alive}")
     print(f"   ran {t_end - t_play:.0f} s of sim · ended by {ended or 'time'} · reports {len(log)} · mortar bursts {len(bursts)} · smoke clouds {len(clouds)}")
     kinds = {}
     for r in log:
@@ -5814,8 +5835,8 @@ def run_cc_battalion(c, timeout):
     # ① the outpost SPOTs, then withdraws (BreakContact) — after its SPOT
     spot = _reports_of(log, frm=u["Red Outpost"], kind="Spot")
     t_spot = spot[0]["seenAt"] if spot else None
-    t_brk = task_at("Red Outpost", "BreakContact", after=t_spot or -1)
-    arrows.append(("① outpost SPOT → BreakContact", t_brk, t_spot is not None and t_brk is not None, f"SPOT {t_spot}, BreakContact {t_brk}"))
+    t_brk = task_at("Red Outpost", "BreakContact", "InfantrySquadMove", after=t_spot or -1)   # R-2101: withdrawn by a Move behind the line
+    arrows.append(("① outpost SPOT → withdraws", t_brk, t_spot is not None and t_brk is not None, f"SPOT {t_spot}, BreakContact {t_brk}"))
     # ② the base of fire Sets, THEN the assault is ordered
     bset = _reports_of(log, frm=u["Blue 2nd Platoon"], kind="Progress", subtype="Set")
     t_bset = bset[0]["seenAt"] if bset else None

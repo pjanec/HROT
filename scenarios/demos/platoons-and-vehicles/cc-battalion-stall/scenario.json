@@ -3496,9 +3496,14 @@
        "act": "Order",
        "args": {
         "target": "cc461500-0000-4000-8000-000000000058",
-        "behavior": "BreakContact",
+        "behavior": "Order.Move",
         "params": {
-         "Speed": 3
+         "Location": [
+          485.0,
+          425.0,
+          0
+         ],
+         "Speed": 4
         }
        }
       }

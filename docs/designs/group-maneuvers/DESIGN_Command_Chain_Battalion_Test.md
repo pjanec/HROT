@@ -148,7 +148,9 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 | 1 | the report log is a 256-entry ring: SITREPs and SPOTs pushed the early reports out ⇒ the check saw no Set | the check keeps every report it has seen (by serial) |
 | 1 | every company fire call refused *"danger close (friends within 600 m)"*, no round flew | **R-2099** — the HQ's answer to a REQUEST is declared danger close (`SupportCommandBehavior`, Command Chain §8e) |
 | 2 | the only call was the tempo's SMOKE (CE-7025): the assault met an untouched line, PL 1 missed | **R-2100** — `CompanyAttack.EnterAssault` asks PREPARATORY HE on the objective as the assault goes in |
-| 2 | the outpost SPOTs (4 s) and never withdraws: the OP play is unbuilt | **R-2101** — a scenario rule (Blue within 150 m ⇒ `BreakContact`); the play is **CE-2435** |
+| 2 | the outpost SPOTs (4 s) and never withdraws: the OP play is unbuilt | **R-2101** — a scenario rule (Blue within 150 m ⇒ `Order.Move` back behind the line); the play is **CE-2435** |
+| 3 | the rule's `BreakContact` order read *"not accepted"*: the Order verb counts acceptance only while the target RUNS that order's id, and a one-shot BreakContact (or the men's own fight) ends it unseen | R-2101 revised: the rule orders a MOVE (it runs ~40 s); arrow ① accepts it |
+| 3 | ②③⑤⑥⑦ pass; the HE lands 2 m from the reported point; Blue still misses PL 1 | force balance under study (run 4 counts the survivors) |
 | 2 | a smoke mission makes a cloud, not a detonation | the check's arrow ③ counts smoke clouds too |
 
 ## 5. Acceptance
