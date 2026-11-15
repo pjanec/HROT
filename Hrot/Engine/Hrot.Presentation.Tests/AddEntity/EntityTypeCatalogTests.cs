@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(78, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1)
-        Assert.Equal(78, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(79, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2)
+        Assert.Equal(79, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -609,6 +609,7 @@ public sealed class EntityTypeCatalogTests
         112 Bulldozer (D9-class) | dis 1.1.225.9.1.0.0 | family Bulldozer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon -
         113 HMMWV (drone jammer) | dis 1.1.225.6.9.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         114 Radar SAM vehicle | dis 1.1.222.28.1.0.0 | family AirDefenceVehicle | folder Platform/Land/Russia/Air Defence Vehicle | icon _wheeled
+        115 Motorcycle | dis 1.1.0.80.1.0.0 | family Motorcycle | folder Platform/Land/Motorcycle | icon _motorcycle
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -723,6 +724,7 @@ public sealed class EntityTypeCatalogTests
         1.1.*.10 Mortar
         1.1.*.28 Air Defence Vehicle
         1.1.*.50 Weapon System (HROT)
+        1.1.*.80 Motorcycle
         1.1.*.81 Car
         1.2 Air
         1.2.*.1 Fighter/Air Defense

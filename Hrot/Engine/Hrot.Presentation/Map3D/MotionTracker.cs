@@ -37,6 +37,9 @@ public sealed class MotionTracker
     /// <see cref="RotorSpoolSeconds"/> like a rotor.</summary>
     public const float AntennaRevsPerSecond = 0.6f;
 
+    /// <summary>⭐ CE-4621 — a motorcycle's lean into a turn: <c>atan(v · yawRate / g)</c>, at most <see cref="MaxBank"/> (rad, ~35°), eased with <see cref="BankSeconds"/> (s). A DRAWING only.</summary>
+    public const float MaxBank = 0.61f, BankSeconds = 0.15f;
+
     /// <summary>A position jump bigger than this between two frames is a teleport, not motion.</summary>
     public const float TeleportMetres = 40f;
 
@@ -57,6 +60,7 @@ public sealed class MotionTracker
         public Vector3 Last; public float Roll, Gait, Crawl; public double SimTime; public bool Seen;
         public float Swing, Lean, Stride, Moving; public bool HasGait;   // ⭐ CE-1064 — the last gait, kept over a frame with no sim time
         public float RotorRate, RotorAngle; public double LastMoved; public bool HasMoved;   // ⭐ CE-1093 — the rotor's spool and its angle
+        public float Yaw, Bank; public bool HasYaw;   // ⭐ CE-4621 — a motorcycle's heading and how far it leans into a turn
         public double Wall; public bool HasWall; public float Pace;   // ⭐ CE-1353 — the frame clock and the sim's smoothed pace on it
     }
 
@@ -83,6 +87,9 @@ public sealed class MotionTracker
         _states[e] = st;
         return pose;
     }
+
+    /// <summary>⭐ CE-4621 — how far <paramref name="e"/> (a motorcycle) leaned into its turn when it was last drawn (rad, about +x; 0 when never seen) — what its seated riders lean with.</summary>
+    public float BankOf(Entity e) => _states.TryGetValue(e, out var st) ? st.Bank : 0f;
 
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — the same, for a body with no entity, by a stable <paramref name="key"/> (its network id).</summary>
     public MotionPose Advance(long key, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime)
@@ -122,7 +129,7 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f, bank = 0f;
         switch (family)
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
@@ -148,6 +155,25 @@ public sealed class MotionTracker
                 moving = Math.Clamp((speed - 0.05f) / MovingSpeed, 0f, 1f);   // ⭐ WL-6d — how much he is moving at all (the crawl)
                 st.Crawl = Wrap(st.Crawl + planar / CrawlMetres * MathF.PI * 2f);
                 st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
+                break;
+            }
+            case VisualFamily.Motorcycle:
+            {
+                // ⭐ CE-4621 — the wheels roll on the bike's own radius; a turn banks the body: the lean a rider needs, atan(v·ω/g), left turn = the top toward the left (a NEGATIVE turn about +x)
+                st.Roll = Wrap(st.Roll + along / ShapeKits.MotoWheelRadius);
+                float yaw = MathF.Atan2(forward.Y, forward.X);
+                float target = 0f;
+                if (st.HasYaw && dt > 1e-4)
+                {
+                    float dyaw = yaw - st.Yaw;
+                    if (dyaw > MathF.PI) dyaw -= MathF.PI * 2f; else if (dyaw < -MathF.PI) dyaw += MathF.PI * 2f;
+                    float speed = along / (float)dt, rate = dyaw / (float)dt;
+                    target = Math.Clamp(-MathF.Atan(speed * rate / 9.81f), -MaxBank, MaxBank);
+                    st.Bank += (target - st.Bank) * (1f - MathF.Exp(-(float)dt / BankSeconds));
+                }
+                else if (!st.HasYaw) st.Bank = 0f;
+                st.Yaw = yaw; st.HasYaw = true;
+                bank = st.Bank;
                 break;
             }
             case VisualFamily.AirDefenceVehicle:
@@ -182,7 +208,7 @@ public sealed class MotionTracker
 
         st.Last = position;
         st.SimTime = simTime;
-        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna, Bank: bank);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>

@@ -247,7 +247,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public void Draw3D(RenderContext ctx)
     {
         AmbientDrawn = 0;
-        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = GunnersTurned = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
+        BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = GunnersTurned = PillionsAimed = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
         _ropeUsers.Clear();
         _carried.Clear();
@@ -362,6 +362,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
                                            || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock);   // ⭐ CE-1353
+            if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
 
             KitPart[] parts;
             KitPivots pivots = default;
@@ -383,7 +384,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             else if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
             {
                 parts = held;                       // ⭐ CE-1081..1083 (§6m) — carried, dragged, seated, down: no gait of his own
-                motion = MotionPose.Still with { HipZ = 0.5f };
+                motion = SeatedMotion(world, e, carriage, body, look.Soldier, simTime);   // ⭐ CE-4621 — astride a bike: the lean, or the turn to his aim
             }
             else if (look.Family == VisualFamily.Person)
             {
@@ -1215,7 +1216,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
-                body = Carriage.InSeat(Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-4621 — a motorcycle BANKS into a turn (about its ground line): its riders lean with it (the bank its body was last drawn with)
+                body = Carriage.InSeat(Matrix4x4.CreateRotationX(_motion.BankOf(carriage.Holder)) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
                 // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
                 //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
                 body = TurnedWithStation(world, e, body, simTime);
@@ -1225,6 +1227,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 _drops.Riding(e, body.Translation.Z + hips, simTime);
                 _fall.Alive(e, StanceId.Crouched, simTime);
                 if (stands) return BlockFigure.AtWeapon(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel, soldier);
+                // ⭐ CE-4621 — astride a two-wheeler: the driver on the bars, a pillion holding on — or, on a FIRING seat with his rifle up, the rifle shouldered
+                if (seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Ride)
+                    return FiringAimed(world, e, seat, soldier) ? BlockFigure.RidingAiming(soldier) : BlockFigure.Riding(seat.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Driver, soldier);
                 return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
             }
             case CarriageKind.Manning when world.HasComponent<SimTransform>(carriage.Holder)
@@ -1382,6 +1387,53 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (!SeatSwitch.StationOf(world, man, out _, out _, out var gun) || !StationTurn(world, gun, now, out var pivot, out float azimuth)) return seatFrame;
         GunnersTurned++;
         return seatFrame * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot);
+    }
+
+    /// <summary>⭐ CE-4621 — a pillion drawn TURNED to his aim by the last frame (rails).</summary>
+    public int PillionsAimed { get; private set; }
+
+    /// <summary>The most a rider on a firing seat turns his upper body off the seat's forward (radians, ~160°) — the seat's own arc is the limit (PF-1), this one only keeps the drawing human.</summary>
+    public const float MaxSeatTwist = 160f * MathF.PI / 180f;
+
+    /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station, non-DRIVER seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered. ⛔ The driver (backend's rider seat has an arc, PF-4: fires only stopped) always stays on the bars — LD-9.</summary>
+    private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier)
+        => soldier && seat.Role is not (Fdp.Toolkit.Behavior.Components.SeatRole.Station or Fdp.Toolkit.Behavior.Components.SeatRole.Driver) && seat.TraverseMinDeg != null && seat.TraverseMaxDeg != null
+           && PostureOf(world, e) == WeaponPostureKind.Aimed;
+
+    /// <summary>
+    /// ⭐ CE-4621 — the motion of a man in a seat: the plain seat's still pose; astride a two-wheeler (<c>SeatPose.Ride</c>) his hips are the figure's origin and his
+    /// upper body LEANS (the driver to the bars, a pillion a little); a firing pillion with his rifle up TURNS to his aim — the aim point in the seat's frame, the twist
+    /// eased like a standing man's (<see cref="PostureBlend"/>) and limited to <see cref="MaxSeatTwist"/>, the head turning to where his eyes point.
+    /// </summary>
+    private MotionPose SeatedMotion(EntityRepository world, Entity e, in FigureCarriage carriage, in Matrix4x4 body, bool soldier, double simTime)
+    {
+        var still = MotionPose.Still with { HipZ = 0.5f };
+        if (carriage.Kind != CarriageKind.Seated || carriage.Seat is not { Pose: Fdp.Toolkit.Tkb.Domain.SeatPose.Ride } seat) return still;
+        bool driver = seat.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
+        float twist = 0f, pitch = 0f;
+        bool aiming = FiringAimed(world, e, seat, soldier) && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)
+                      && Matrix4x4.Invert(body, out var inverse)
+                      && AimInSeat(Vector3.Transform(at, inverse), out twist, out pitch);
+        if (aiming) PillionsAimed++;
+        if (soldier) (twist, pitch) = _postures.Aim(e, twist, pitch, simTime);
+        return still with
+        {
+            HipZ = 0f, Twist = twist,
+            Lean = (aiming || MathF.Abs(twist) > 0.02f ? 0f : driver ? BlockFigure.DriverLean : BlockFigure.PillionLean) - pitch,
+            HeadTurn = soldier ? _postures.Head(e, HeadTurnOf(world, e, twist), simTime) : 0f,
+        };
+    }
+
+    /// <summary>⭐ CE-4621 — the turn (counter-clockwise) and pitch (up) from the shoulder (0.53 m over the hips) to <paramref name="local"/> (an aim point in the seat's frame), the turn limited to <see cref="MaxSeatTwist"/>. False under 10 cm.</summary>
+    public static bool AimInSeat(Vector3 local, out float twist, out float pitch)
+    {
+        twist = pitch = 0f;
+        var d = local - new Vector3(0f, 0f, 0.53f);
+        float horizontal = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
+        if (horizontal < 0.1f) return false;
+        twist = Math.Clamp(MathF.Atan2(d.Y, d.X), -MaxSeatTwist, MaxSeatTwist);
+        pitch = Math.Clamp(MathF.Atan2(d.Z, horizontal), -MaxAimPitch, MaxAimPitch);
+        return true;
     }
 
     /// <summary>⭐ CE-1202 — seated gunners turned with their station's weapon by the last frame (rails).</summary>
@@ -1961,6 +2013,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return placed;
     }
 
+    /// <summary>⭐ CE-4621 — pins the look of <paramref name="tkbType"/> (a rail's seam: a stand-in type whose class the table does not have yet cannot resolve a family).</summary>
+    internal void PinLook(long tkbType, TypeLook look) => _looks[tkbType] = look;
+
     public TypeLook LookOf(long tkbType, ITkbDatabase? tkb)
     {
         if (_looks.TryGetValue(tkbType, out var look)) return look;
@@ -2127,6 +2182,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
+        VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         _ => new Color(180, 120, 200, 255),
     };
