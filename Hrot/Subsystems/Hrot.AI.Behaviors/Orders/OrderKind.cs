@@ -37,5 +37,24 @@ namespace Hrot.AI.Behaviors.Orders
         Embark = 12,
         /// <summary>March in formation along a route (<c>SquadMarch</c>).</summary>
         March = 13,
+        /// <summary>⭐ <c>CE-4621</c> M-3 (CD-2, R-4263) — cross an exposed zone at all costs: never halt, dismount, leave the route or
+        /// seek cover (<see cref="OrderConduct"/>) until the unit cannot comply (<c>BehaviorConduct.CannotComply</c>).</summary>
+        Dash = 14,
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4621</c> M-3 (CD-2, R-4263; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §8a) — the ONE table of what each ORDER KIND
+    /// forbids a unit to do: the gate compares it with a reaction's declared <see cref="Fdp.Toolkit.Behavior.Conduct"/>, never a behaviour
+    /// name. ⭐ <see cref="OrderKind.Defend"/> / <see cref="OrderKind.Hold"/> forbid leaving the position — what <c>HoldsFirm</c> asked by
+    /// name before (one mechanism). Every other kind forbids nothing.
+    /// </summary>
+    public static class OrderConduct
+    {
+        public static Fdp.Toolkit.Behavior.Conduct Forbids(OrderKind kind) => kind switch
+        {
+            OrderKind.Dash => Fdp.Toolkit.Behavior.Conduct.All,
+            OrderKind.Defend or OrderKind.Hold => Fdp.Toolkit.Behavior.Conduct.LeavesRoute,
+            _ => Fdp.Toolkit.Behavior.Conduct.None,
+        };
     }
 }

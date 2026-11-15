@@ -130,13 +130,41 @@ namespace Fdp.Toolkit.Combat
             if (!Has<IsEmbarkedTag>(world, weapon)) return true;
             ref readonly var tag = ref world.GetComponentRO<IsEmbarkedTag>(weapon);
             var host = tag.VehicleEntity;
-            if (!IsStation(world, host, tag.Seat, out var station) || station.HasArc == 0 || !Has<SimTransform>(world, host)) return true;
+            // ⭐ CE-4621 PF-1 — a STATION's arc, or a FIRING seat's (a man firing his own weapon from his seat): the ONE arc rule
+            if (!ArcSeat(world, host, tag.Seat, out var station) || station.HasArc == 0 || !Has<SimTransform>(world, host)) return true;
             var from = Has<SimTransform>(world, weapon) ? world.GetComponentRO<SimTransform>(weapon).Position : world.GetComponentRO<SimTransform>(host).Position;
             var local = Vector3.Transform(point - from, Quaternion.Inverse(world.GetComponentRO<SimTransform>(host).Rotation));
             float azimuth = MathF.Atan2(local.Y, local.X);   // CCW from the host's forward
             float elevation = MathF.Atan2(local.Z, MathF.Sqrt(local.X * local.X + local.Y * local.Y));
-            return azimuth >= station.TraverseMin - 1e-4f && azimuth <= station.TraverseMax + 1e-4f
+            return InTraverse(azimuth, station.TraverseMin, station.TraverseMax)
                 && elevation >= station.ElevationMin - 1e-4f && elevation <= station.ElevationMax + 1e-4f;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> PF-1 (MV-6) — is <paramref name="azimuth"/> (radians, CCW from the host's forward) inside the traverse arc
+        /// <paramref name="min"/> → <paramref name="max"/>, swept COUNTER-CLOCKWISE from min, WRAPPING through ±180° (the pillion's 30°…330° is both
+        /// sides and the rear). An arc with min ≤ max inside ±180° is exactly the old <c>min ≤ az ≤ max</c> test; one 360° or wider is all round.
+        /// </summary>
+        public static bool InTraverse(float azimuth, float min, float max)
+        {
+            const float TwoPi = 2f * MathF.PI, Eps = 1e-4f;
+            float width = max - min;
+            if (width >= TwoPi - Eps) return true;
+            if (width < 0f) width += TwoPi;
+            float from = azimuth - min;
+            from -= TwoPi * MathF.Floor(from / TwoPi);   // [0, 2π)
+            return from <= width + Eps || from >= TwoPi - Eps;
+        }
+
+        /// <summary>⭐ <c>CE-4621</c> PF-1 — the arc seat <paramref name="seat"/> of <paramref name="host"/> states: a station's, or a firing seat's.</summary>
+        private static bool ArcSeat(EntityRepository world, Entity host, int seat, out StationSeat station)
+        {
+            if (IsStation(world, host, seat, out station)) return true;
+            if (!Has<CarrierStations>(world, host)) return false;
+            ref readonly var stations = ref world.GetComponentRO<CarrierStations>(host);
+            if (!stations.IsFiringSeat(seat)) return false;
+            station = stations.Seats[seat];
+            return true;
         }
 
         /// <summary>

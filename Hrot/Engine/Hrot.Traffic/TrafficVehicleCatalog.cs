@@ -25,7 +25,9 @@ public static class TrafficVehicleCatalog
         var list = new List<TrafficVehicleType>();
         foreach (var t in tkb.GetAll())
         {
-            if (t.GetDescriptor<TrafficVehicleDto>() is not { Weight: > 0f } v) continue;
+            // ⭐ CE-4621 MV-10 — every mapped type is a SUMO vehicle type, a ZERO weight included: SUMO never spawns it (LiveCitySim's mix skips it),
+            //   but OUR entity of that type handed to traffic (TrafficHandover names its TKB type as the vType) drives as itself, not as a car
+            if (t.GetDescriptor<TrafficVehicleDto>() is not { Weight: >= 0f } v) continue;
             var p = t.GetDescriptor<VehicleParametersDto>();
             list.Add(new TrafficVehicleType(t.TkbType, t.Name, v.VClass,
                 p is { Length: > 0f } ? p.Length : DefaultLength,

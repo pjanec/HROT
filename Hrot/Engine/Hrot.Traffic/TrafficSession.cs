@@ -64,7 +64,8 @@ public sealed class TrafficSession : IDisposable
             PedWireFloat64StartTimes = true,
             StartTime = startTime,
             VehicleIdProvider = () => options.NextNetworkId().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            VehicleTypes = types.Count == 0 ? null : types.Select(t => new LiveCityVehicleType(
+            // ⭐ CE-4621 — a list with no positive weight is no mix (SumoSharp needs one): a TKB whose only mapped type is a zero-weight one (the motorcycle) keeps SUMO's default
+            VehicleTypes = !types.Any(t => t.Weight > 0f) ? null : types.Select(t => new LiveCityVehicleType(
                 t.TkbType.ToString(System.Globalization.CultureInfo.InvariantCulture), t.VClass, t.Length, t.Width, t.MaxSpeed, t.Weight,
                 ExternalType: t.TkbType, Color: 0u)).ToList(),
         };

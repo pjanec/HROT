@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: READY-TO-BUILD (2026-11-15) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
-current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review
+build-state: BUILDING (2026-11-15; backend M-1/M-2/M-3 built, §9) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
+current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3)
 stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the review record, folded into §2–§6
 known-rot: none
 known-conflict: none
@@ -305,6 +305,64 @@ what it DOES to the unit.
 | CD-4 | the dash's carriers get the SAME order kind: the dash play orders each bike with kind `Dash`, so the bike and the squad each read ONLY their own current order (no cross-entity read) | the parallel rule |
 | CD-5 | the forbidding YIELDS when the unit cannot comply — immobile (a mobility kill), or its carrier dead: then halting / dismounting is allowed | a disabled bike's men must get off |
 | CD-6 | firing is not a conduct — the pillion still fires, a self-defence shot is never refused | the dash fights on the move |
+
+## 9. As built — backend, `2026-11-15` (CE-4621; overnight, unattended; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Backend_Motorcycle.md`)
+
+```mermaid
+classDiagram
+  class BehaviorIngressSystem {
+    <<existing, THE ONE GATE>>
+    AdmitsWithReactions(…, behaviorId)
+    RefusalOf(…, behaviorId) ForbiddenByOrder
+  }
+  class SopActions {
+    <<existing>>
+    React(name) asks the gate WITH the id
+  }
+  class BehaviorConduct {
+    <<new, FDP, immutable after load>>
+    Install(does, forbids)
+    Of(hash) Conduct
+    ForbiddenBy(orderHash) Conduct
+    OrderHashOf(unit) running or paused order
+    Forbids(unit, reaction) bool
+    CannotComply(unit) CD-5
+  }
+  class Conduct {
+    <<new enum, FDP>>
+    Halts Dismounts LeavesRoute SeeksCover
+  }
+  class OrderConduct {
+    <<new, beside OrderKind>>
+    Forbids(OrderKind) Dash All, Defend Hold LeavesRoute
+  }
+  class OrderKinds {
+    <<existing, Build() at load>>
+  }
+  class BehaviorAttribute {
+    <<existing>>
+    Conduct
+  }
+  SopActions --> BehaviorIngressSystem
+  BehaviorIngressSystem --> BehaviorConduct : Forbids
+  OrderKinds --> BehaviorConduct : Install once
+  OrderKinds --> OrderConduct
+  OrderKinds ..> BehaviorAttribute : via ParamsDtoRegistry
+```
+*What the picture shows that prose hid:* FDP (the gate) cannot see `OrderKind`, so the Hrot loader that already builds the kind table
+(`OrderKinds.Build`, called at load by `CgfBehaviorSetup`) hands the gate a hash-keyed table — the gate compares DATA, never a behaviour name.
+
+| piece | as built | deviation from §2 / §8a |
+|---|---|---|
+| MC-2 / MC-2a | `VehicleParametersDto.OffRoadOpen/Scrub/Forest` → `VehicleParams` (0 = 1.0); `SurfaceClassGrid` (5 m cells; forest from `TerrainWoods`, scrub from the scrub surfaces, road = the road network's carriageways stamped last) built once in `CarKinematicsSystem`'s serial pre-pass, only when a factored type moves; the factor × `MaxSpeedFwd` and a 0.45 g lateral cap off-road | the grid is 5 m, not the woods' 25 m (a 25 m cell cannot tell a carriageway) |
+| MC-2a nav | `NavLayerSelection` bits 9…12 = the forest factor in fifteenths; `DotRecastNavmeshProvider.FilterFor(doors, mask)` keeps one woods-cost filter per factor (cost 15 / q) | — |
+| MC-1 | `TkbEntityTypes.Motorcycle = 115`, DIS 1.1.*.80.1, class `Motorcycle`; seat 0 rider (Driver, arc −120…120, fires stopped only), seat 1 pillion (arc 30…330 through the rear); SUMO `motorcycle`, weight 0 | the traffic catalogue now registers zero-weight types (never spawned) |
+| PF-1…PF-3 | `CarrierStations.FiringMask` / `StoppedOnlyMask`: a person's seat with an arc; `StrippedOn` keeps CanShoot there; `InStationArc` → `ArcSeat` + the wrapping `InTraverse`; the man sits at the seat; `RestoreHitCapabilities` follows the seat; the AI path (`HoldOf`) and the operator path (`OperatorFire`) both ask ONE `SeatHold` | — |
+| PF-4 | ⚠ `SeatDto.FiresStoppedOnly` grows the existing `HoldMoving` gate | the mount's `FiresOnTheMove` cannot hold a RIFLE; only a seat rule can |
+| CD-1…CD-3 | `[Behavior(Conduct = …)]` → `BehaviorDeclaration.Conduct`; `OrderConduct` beside `OrderKind` (+ `OrderKind.Dash = 14`); `OrderKinds.Build` installs `BehaviorConduct`; `AdmitsWithReactions` refuses a reaction the current (running or paused) order forbids; `SopActions.React` asks WITH the reaction's id ⇒ Failure, the next row runs, journaled `ForbiddenByOrder` ("its order forbids it") | the check sits in `AdmitsWithReactions` (the shared check the SOP asks first), not only `Admit` — a refusal only `Admit` saw would arrive after the row had already "won" |
+| CD-2 / `HoldsFirm` | `HoldsFirm` = the current order forbids `LeavesRoute` (Defend, Hold, and now Dash) | ⚠ no current reaction declares `LeavesRoute` (`ShelterFromAir` = Halts \| SeeksCover, not the §8a example) ⇒ a Defend / Hold unit refuses NO reaction: existing scenarios unchanged |
+| CD-5 | `BehaviorConduct.CannotComply`: the unit cannot move and rides nothing; it rides a dead / immobile carrier; or (a roster) a live member rides one | — |
+| `UnderFireMove` | ⚠ not gated — it is a component + reflex system, never a behaviour, so it has no conduct | a dash bike's under-fire reflex is the behaviors lane's (M-4) |
 
 ## ⛔ HISTORY — §2–§6 as first written (R-4261), before the review and the conduct categories — ⛔ do not quote
 

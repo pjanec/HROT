@@ -103,6 +103,22 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// </summary>
         public VehicleClass? VehicleClass { get; init; }
 
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> MC-2 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2) — this TYPE's top speed off the road, as a factor on
+        /// <see cref="MaxSpeedFwd"/>, on OPEN ground (a field, a meadow). A road is 1.0. <c>0</c> = not authored ⇒ 1.0 (every type authored
+        /// before CE-4621 is unchanged). Read from the surface-class grid in the one ground integrator.
+        /// </summary>
+        public float OffRoadOpen { get; init; }
+
+        /// <summary>⭐ <c>CE-4621</c> MC-2 — the same on SCRUB (low brush). <c>0</c> = not authored ⇒ 1.0.</summary>
+        public float OffRoadScrub { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> MC-2 / MC-2a — the same in a FOREST. <c>0</c> = not authored ⇒ 1.0 in the integrator AND today's per-class route rule
+        /// (a wheeled mover kept out of woods); authored ⇒ the route planner may enter a wood at a cost of 1 / factor.
+        /// </summary>
+        public float OffRoadForest { get; init; }
+
         // ⛔ CE-2151 (R-2009 B2) — PassengerExposure MOVED to CarrierDefDto.Exposure (Gen.Carrier): one producer, the carrier's descriptor.
     }
 }

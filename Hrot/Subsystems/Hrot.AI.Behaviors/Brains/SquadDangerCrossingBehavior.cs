@@ -327,7 +327,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SquadDangerCrossing, Params = typeof(SquadDangerCrossingParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.SquadDangerCrossing, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts,   /* CE-4621 M-3 (CD-1) */ Params = typeof(SquadDangerCrossingParamsJsonDto), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.SquadDangerCrossing, Curated = true, Group = "Library/Movement", ParamsType = typeof(SquadDangerCrossingBlackboard))]
         public static BTreeBuilder<SquadDangerCrossingBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<SquadDangerCrossingBlackboard, BTreeContext>()

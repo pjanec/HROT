@@ -36,7 +36,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
-        [Behavior(BehaviorNames.TakeCover, Params = typeof(EqsTacticsParams), Description = "Moves to the nearest cover and stays in it.")]
+        [Behavior(BehaviorNames.TakeCover, Conduct = Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(EqsTacticsParams), Description = "Moves to the nearest cover and stays in it.")]
         [BTreeDefinition(BehaviorNames.TakeCover, AssetId = "a2092000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Combat",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
@@ -67,7 +67,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.OverlayFlatAt<EqsTacticsParams>(json, memory, capacity);
 
-        [Behavior(BehaviorNames.FallBack, Params = typeof(EqsTacticsParams), Description = "Withdraws from the threat to a rearward position.")]
+        [Behavior(BehaviorNames.FallBack, Conduct = Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(EqsTacticsParams), Description = "Withdraws from the threat to a rearward position.")]
         [BTreeDefinition(BehaviorNames.FallBack, AssetId = "a2093000-0000-0000-0000-000000000001", Curated = true, Group = "Library/Movement",
             ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> Build()

@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                            int behaviorId = 0)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
-            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause))
+            if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause, behaviorId))
             {
                 // ⭐ CE-2081 lean B — a reaction that IS the task it would pause (or the task already paused) is refused: the two
                 //   runs would share one set of storage keys (they are keyed by behaviour), so the task could not be kept.
@@ -249,7 +249,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 return false;
             }
             RefusedCount++;
-            _lastRefusal = RefusalOf(repo, entity, origin, urgency, running);
+            _lastRefusal = RefusalOf(repo, entity, origin, urgency, running, behaviorId);
             BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
                 urgency: (byte)urgency, cause: (byte)_lastRefusal);   // ⭐ CE-1249 (BV-13)
             if (origin == BehaviorOrigin.Sop) WakeSop(repo, entity);   // ⭐ CE-3035 / R-195 — a refused SOP assignment wakes it
@@ -260,13 +260,14 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         /// <summary>⭐ <c>CE-1249</c> (BV-13) — why <see cref="AdmitsWithReactions"/> said no, for the journal (the same tests, in order).</summary>
-        private static BrainRefusal RefusalOf(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency,
-            in BehaviorState running)
+        internal static BrainRefusal RefusalOf(EntityRepository repo, Entity entity, BehaviorOrigin origin, ReactionUrgency urgency,
+            in BehaviorState running, int behaviorId = 0)
         {
             bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
             if (origin == BehaviorOrigin.Reaction)
             {
                 if (!slotEmpty && running.Origin == BehaviorOrigin.Possession) return BrainRefusal.Possessed;
+                if (BehaviorConduct.Forbids(repo, entity, running, behaviorId)) return BrainRefusal.ForbiddenByOrder;   // ⭐ CE-4621 M-3
                 if (running.Origin == BehaviorOrigin.Reaction) return BrainRefusal.LowerUrgency;
                 return BrainRefusal.StayOnTask;
             }
@@ -299,12 +300,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <see cref="BehaviorOrigin.Self"/> is always admitted (a reaction restarting itself stays a reaction).
         /// </summary>
         internal static bool AdmitsWithReactions(EntityRepository repo, Entity entity, BehaviorOrigin origin,
-            ReactionUrgency urgency, in BehaviorState running, out bool pause)
+            ReactionUrgency urgency, in BehaviorState running, out bool pause, int behaviorId = 0)
         {
             pause = false;
             bool slotEmpty = running.ActiveBehaviorHash == BehaviorIds.None;
             // ⭐ CE-3172 (M-7) — a possessed unit is the operator's: no reaction interrupts it.
             if (origin == BehaviorOrigin.Reaction && !slotEmpty && running.Origin == BehaviorOrigin.Possession) return false;
+            // ⭐⭐ CE-4621 M-3 (CD-3, R-4263) — the unit's ORDER forbids what this reaction does (Halts / Dismounts / LeavesRoute / SeeksCover):
+            //   refused, so an SOP row asking first (SopActions.React) gets Failure and its Selector tries the next row. CD-5: yields when
+            //   the unit cannot comply. A reaction with no identity (0) or no declared conduct is never refused here.
+            if (origin == BehaviorOrigin.Reaction && BehaviorConduct.Forbids(repo, entity, running, behaviorId)) return false;
             if (origin == BehaviorOrigin.Possession)
             {
                 // It outranks everything; it keeps the task: pauses a running order, keeps what a running reaction paused, and a

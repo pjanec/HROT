@@ -1006,5 +1006,92 @@ namespace Fdp.Toolkit.Behavior.Tests
             ingress.Execute(world, 1f / 60f);                               // the first step
             Assert.Equal(0x8000_0000u | (uint)(recorded + 1), RunTokens.Next());   // ⭐ numbered on from the world's count
         }
+    
+        // ── ⭐ CE-4621 M-3 — conduct categories (CD-1…CD-6, R-4263; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §8a) ──────────
+
+        private const string DashOrder = "SopT_DashOrder", MoveOrder = "SopT_MoveOrder", Dismount = "SopT_Dismount", Shoot = "SopT_Shoot";
+
+        private static void WithConduct(Fixture f)
+        {
+            f.Registry.Register(DashOrder, Tree(DashOrder, TaskRuns));
+            f.Registry.Register(MoveOrder, Tree(MoveOrder, TaskRuns));
+            f.Registry.Register(Dismount, Tree(Dismount, TaskRuns));
+            f.Registry.Register(Shoot, Tree(Shoot, TaskRuns));
+            BehaviorConduct.Install(
+                new[] { new KeyValuePair<int, Conduct>(BehaviorHash.FromName(Dismount), Conduct.Dismounts | Conduct.Halts) },
+                new[] { new KeyValuePair<int, Conduct>(BehaviorHash.FromName(DashOrder), Conduct.All) });
+        }
+
+        /// <summary>⭐ CD-3 — an order that forbids what a reaction does refuses it at THE ONE GATE: the SOP's ask returns Failure (its Selector
+        /// tries the next row — never a re-try), the journal says <c>ForbiddenByOrder</c>, a reaction that only shoots (CD-6) still runs, and an
+        /// order that forbids nothing changes nothing. 🔴 Red-proof: drop the conduct check from <c>AdmitsWithReactions</c> ⇒ red.</summary>
+        [Fact]
+        public void CE4621_AnOrderThatForbidsAReactionsConduct_RefusesIt_TheRowFallsThrough_AndTheJournalSaysWhy()
+        {
+            using var f = new Fixture();
+            WithConduct(f);
+            WithJournal(f);
+            f.Task(DashOrder, BehaviorOrigin.Superior);
+
+            Assert.Equal(NodeStatus.Failure, SopActions.React(f.World, f.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));
+            var j = Journal(f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskRefused, j.At(j.Count - 1).Kind);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ForbiddenByOrder, j.At(j.Count - 1).Cause);
+            Assert.Equal(BehaviorHash.FromName(Dismount), j.At(j.Count - 1).A);
+            Assert.Equal(NodeStatus.Failure, SopActions.React(f.World, f.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));   // stays refused…
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.BrainRefusalText.Of(Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ForbiddenByOrder),
+                "its order forbids it");
+
+            // the next row: a reaction that only shoots is admitted, pausing the dash…
+            Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, Shoot, ReactionUrgency.Contact, "{}"));
+            f.World.Bus.SwapBuffers();
+            f.Ingress.Execute(f.World, 0.016f);
+            Assert.Equal(BehaviorHash.FromName(Shoot), f.Task_.ActiveBehaviorHash);
+            Assert.Equal(BehaviorHash.FromName(DashOrder), f.Paused!.Hash);
+            // …and the PAUSED order still forbids — on the event path too (the gate itself, not only the SOP's ask)
+            int refusedBefore = f.Ingress.RefusedCount;
+            f.React(Dismount, ReactionUrgency.Hit);
+            Assert.Equal(BehaviorHash.FromName(Shoot), f.Task_.ActiveBehaviorHash);
+            Assert.Equal(refusedBefore + 1, f.Ingress.RefusedCount);
+            Assert.Equal((byte)Fdp.Toolkit.Behavior.Diagnostics.BrainRefusal.ForbiddenByOrder, Journal(f).At(Journal(f).Count - 1).Cause);
+
+            // an order that forbids nothing: the same reaction runs
+            using var g = new Fixture();
+            WithConduct(g);
+            g.Task(MoveOrder, BehaviorOrigin.Superior);
+            Assert.Equal(NodeStatus.Success, SopActions.React(g.World, g.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));
+        }
+
+        /// <summary>⭐ CD-5 — the forbidding yields when the unit cannot comply: it cannot move, or a man of its roster rides a carrier that cannot
+        /// (a disabled bike's men must get off). 🔴 Red-proof: make <c>CannotComply</c> return false ⇒ red.</summary>
+        [Fact]
+        public void CE4621_TheForbiddingYields_WhenTheUnitCannotComply()
+        {
+            using var f = new Fixture();
+            WithConduct(f);
+            f.Task(DashOrder, BehaviorOrigin.Superior);
+            if (!f.World.IsComponentTypeRegistered<ActorCapabilityState>()) f.World.RegisterComponent<ActorCapabilityState>();
+            f.World.AddComponent(f.Unit, new ActorCapabilityState { Capabilities = ActorCapabilities.CanShoot });   // a mobility kill
+            Assert.True(BehaviorConduct.CannotComply(f.World, f.Unit));
+            Assert.Equal(NodeStatus.Success, SopActions.React(f.World, f.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));
+
+            // a squad: its man rides a bike — refused while the bike can move, admitted once it cannot
+            using var g = new Fixture();
+            WithConduct(g);
+            g.Task(DashOrder, BehaviorOrigin.Superior);
+            if (!g.World.IsComponentTypeRegistered<ActorCapabilityState>()) g.World.RegisterComponent<ActorCapabilityState>();
+            if (!g.World.IsComponentTypeRegistered<IsEmbarkedTag>()) g.World.RegisterComponent<IsEmbarkedTag>();
+            if (!g.World.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>()) g.World.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            var bike = g.World.CreateEntity();
+            g.World.AddComponent(bike, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot });
+            var man = g.World.CreateEntity();
+            g.World.AddComponent(man, new IsEmbarkedTag { VehicleEntity = bike });
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster { Count = 1 };
+            roster.SubordinateEntities[0] = man;
+            g.World.AddComponent(g.Unit, roster);
+            Assert.Equal(NodeStatus.Failure, SopActions.React(g.World, g.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));
+            g.World.GetComponentRW<ActorCapabilityState>(bike).Capabilities = ActorCapabilities.CanShoot;
+            Assert.Equal(NodeStatus.Success, SopActions.React(g.World, g.Unit, Dismount, ReactionUrgency.UnderFire, "{}"));
+        }
     }
 }

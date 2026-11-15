@@ -232,7 +232,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in NoParams authored, ref ShelterFromAirBlackboard block, EntityRepository world, Entity self)
             => block = default;
 
-        [Behavior(BehaviorNames.ShelterFromAir, Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]   // it takes nothing (P1): the defaults
+        [Behavior(BehaviorNames.ShelterFromAir, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(NoParams), Categories = BehaviorCategory.MilitaryApc)]   // it takes nothing (P1): the defaults
         [BTreeDefinition(BehaviorNames.ShelterFromAir, Curated = true, Group = "Library/Reactions", ParamsType = typeof(ShelterFromAirBlackboard))]
         public static BTreeBuilder<ShelterFromAirBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ShelterFromAirBlackboard, BTreeContext>()

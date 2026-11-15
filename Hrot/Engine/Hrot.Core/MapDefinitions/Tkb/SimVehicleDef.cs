@@ -71,6 +71,12 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ M9 (DESIGN_Vehicle_Exposure_Cycle §6) — the kinematics preset when <see cref="Mobility"/>'s mapping is not the one
         /// (a pickup is wheeled but drives like a car, not a truck); null = by mobility.</summary>
         public CarKinem.Core.VehicleClass? Preset { get; set; }
+
+        /// <summary>⭐ CE-4621 MC-2 — this type's off-road top-speed factors (open · scrub · forest; a road 1.0); 0 = not authored ⇒ 1.0
+        /// (<c>VehicleParametersDto.OffRoadOpen / Scrub / Forest</c>).</summary>
+        public float OffRoadOpen { get; set; }
+        public float OffRoadScrub { get; set; }
+        public float OffRoadForest { get; set; }
         
         /// <summary>
         /// Fuel capacity in liters (0 = unlimited).

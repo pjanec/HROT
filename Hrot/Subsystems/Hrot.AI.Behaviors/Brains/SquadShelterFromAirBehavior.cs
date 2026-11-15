@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Resolve(in NoParams authored, ref Blackboard block, EntityRepository world, Entity self)
             => block = default;
 
-        [Behavior(BehaviorNames.SquadShelterFromAir, Params = typeof(NoParams), Categories = BehaviorCategory.Commander,
+        [Behavior(BehaviorNames.SquadShelterFromAir, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(NoParams), Categories = BehaviorCategory.Commander,
                   Description = "Every man of the squad takes overhead cover from a drone (a reaction).")]
         [BTreeDefinition(BehaviorNames.SquadShelterFromAir, Curated = true, Group = "Library/Reactions", ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> BuildTree()

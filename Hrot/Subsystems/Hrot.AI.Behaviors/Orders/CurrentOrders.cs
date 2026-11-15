@@ -97,6 +97,18 @@ namespace Hrot.AI.Behaviors.Orders
                     var name = registry.OrderNameOf(d.Name);
                     if (name != null && Enum.TryParse<OrderKind>(name, out var kind)) table[BehaviorHash.FromName(d.Name)] = kind;
                 }
+                // ⭐ CE-4621 M-3 (CD-1/CD-2) — hand THE ONE GATE (FDP, which cannot see OrderKind) what each reaction does and what each
+                //   order behaviour forbids, keyed by the same hash; built here, once, at load (never mid-tick)
+                var does = new List<KeyValuePair<int, Fdp.Toolkit.Behavior.Conduct>>();
+                foreach (var d in registry.Behaviors)
+                    if (d.Conduct != Fdp.Toolkit.Behavior.Conduct.None) does.Add(new(BehaviorHash.FromName(d.Name), d.Conduct));
+                var forbids = new List<KeyValuePair<int, Fdp.Toolkit.Behavior.Conduct>>();
+                foreach (var kv in table)
+                {
+                    var f = OrderConduct.Forbids(kv.Value);
+                    if (f != Fdp.Toolkit.Behavior.Conduct.None) forbids.Add(new(kv.Key, f));
+                }
+                Fdp.Toolkit.Behavior.BehaviorConduct.Install(does, forbids);
                 s_byHash = table;
                 return table;
             }
