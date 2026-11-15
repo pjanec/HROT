@@ -23,6 +23,8 @@ about it"* · `2026-11-15`: *"Lets think more about the air defense - sam site (
 radar together for simplicity, otherwise approved everything to be built by backend. The UI lane can provide the visuals for the carrier and
 launcher and the missile and the effect of launch."*
 
+🔒 The rulings, verbatim: R-4258 *"Single track with missile and radar together for simplicity"* · R-4259 *"Radar radiation needs to be published/replicated so other entities and on machines can detect that"*
+
 **The proven pattern** (NASAMS, IRIS-T SLM, Tor / Pantsir class short-range air defence): search → track → identify → envelope check → salvo of
 two → guide → kill assessment → relocate. ⭐ The modern lesson (Ukraine): a radar that radiates is FOUND and struck — it radiates in bursts and
 moves after it fires. ⇒ every piece below is adopted for a measured reason (§2), never because it is standard.
