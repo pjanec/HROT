@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: BUILDING (2026-11-15; B-1…B-5 built — §7 as-built) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
+build-state: BUILT (2026-11-15; B-1…B-6 — §7 as-built; sam-site 3/3, deterministic at 1/4/8 threads) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
 current-answer: §1 inventory · §2 decisions (as amended) · §3 UML · §4 the engagement in time · §5 slices and acceptance · §6 the review · ⭐ §7 AS-BUILT (where the build deviated, §7 wins)
 stale-below: § HISTORY at the bottom (§2–§5 as first approved)
 known-rot: §2a's missile id 6047 — taken (the 60 mm mortar smoke, CE-7025); as built 6050 (§7)
@@ -345,6 +345,8 @@ waits for it (`ChaffTooEarly`).*
 | RS-6 the escape | `AirAttackNodes`: tracked ⇒ off the bearing (half beam, half away), 10 m AGL for every attack profile, clears 8 s after the track, the pass not counted — the missile break's come-round shared (`ComeRound(countPass)`) | one come-round for both escapes |
 | RS-7 the emitter located | `EmitterLocatingSystem` in `Fdp.Toolkit.Squad.Command` (the CGF pack, before the staff), raised on the top commander's brain node; the SPOT is synthetic, sent "from" the commander's first subordinate (the inbox folds only a report with a sender) | no fake sender row in the picture |
 | RS-7 SEAD | `SupportCommand.Sead` at the head of the tick: plane → battery → armed drone, no request needed, one order per 5 s | an order reaches a unit's brain a frame later — "busy" alone ordered twice |
+| B-6 `sam-site` | on **city-battle** (its hill — the showcase's "hill AA"); the jet is the A-10 (no F-16 scenario exists); an FPV loiters near to keep the radar on past 30 s (shoot-and-scoot otherwise beats the direction finding — measured: 23 s on, then off) | the design named no terrain; RV-5's "relief" |
+| RS-10 "radiating" | `RadarEmissions.Radiates` = on AND the vehicle in the fight — the one rule the sensor, the warning receiver and the direction finding read | `sam-site`: a SAM destroyed while tracking kept its last "Track" |
 | RS-5 *"cued by a NON-radar contact"* | the row's fresh air sense (any sense); the radar's own contacts exist only while it radiates and it is off between engagements | no per-sense air sense exists; relocation outlasts the 3 s freshness |
 
 ## ⛔ HISTORY — §2–§5 as first approved (R-4258), before the §6 review amended them (R-4259) — ⛔ do not quote
