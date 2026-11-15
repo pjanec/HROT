@@ -5843,7 +5843,9 @@ def run_cc_battalion(c, timeout):
     # ① the outpost SPOTs, then withdraws (BreakContact) — after its SPOT
     spot = _reports_of(log, frm=u["Red Outpost"], kind="Spot")
     t_spot = spot[0]["seenAt"] if spot else None
-    t_brk = task_at("Red Outpost", "BreakContact", "InfantrySquadMove", after=t_spot or -1)   # R-2101: withdrawn by a Move behind the line
+    # R-2101: withdrawn by a Move behind the line — the order KIND resolves by the unit's class (`<Class>Move`), so any *Move counts
+    t_brk = min([ft for (n, k), ft in first.items() if n == "Red Outpost" and (k == "BreakContact" or k.endswith("Move")) and ft > (t_spot or -1)],
+                default=None)
     arrows.append(("① outpost SPOT → withdraws", t_brk, t_spot is not None and t_brk is not None, f"SPOT {t_spot}, BreakContact {t_brk}"))
     # ② the base of fire Sets, THEN the assault is ordered
     bset = _reports_of(log, frm=u["Blue 2nd Platoon"], kind="Progress", subtype="Set")
@@ -5884,9 +5886,12 @@ def run_cc_battalion(c, timeout):
     t_blue_res = task_at("Blue 3rd Platoon", "PlatoonAttack", after=t_order)
     arrows.append(("⑦ the Blue reserve committed (tempo)", t_blue_res, t_blue_res is not None and (t_req is None or t_blue_res >= t_req),
                    f"order {t_order}, fires asked {t_req}, reserve attacks {t_blue_res}"))
-    pls = _reports_of(log, frm=u["Blue Company"], kind="Progress", subtype="PhaseLine")
+    # ⭐ R-2095: the PLATOON's attack reports its phase line to the company too — a report from the company OR one of its platoons (run 8: the
+    #   assault platoon's PhaseLine was in the log and the company-only filter missed it)
+    blue_chain = {u[n]: n for n in ("Blue Company", "Blue 1st Platoon", "Blue 2nd Platoon", "Blue 3rd Platoon")}
+    pls = sorted([r for r in _reports_of(log, kind="Progress", subtype="PhaseLine") if r.get("from") in blue_chain], key=lambda r: r["seenAt"])
     arrows.append(("phase line reached BY a report (PROGRESS PhaseLine)", pls[0]["seenAt"] if pls else None, bool(pls),
-                   f"{[(r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
+                   f"{[(blue_chain[r.get('from')], r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
     # ⑧ the end
     arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
 
