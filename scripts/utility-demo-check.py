@@ -5712,7 +5712,7 @@ class Dynamism:
                 rows.append((o.get("title"), o.get("state"), o.get("changedAt")))
         return rows
 
-    def report(self, c, reports, objectives, t_from, t_to, moved_min=None, contacts_min=None):
+    def report(self, c, reports, objectives, t_from, t_to, moved_min=None, contacts_min=None, judge_lines=True):
         """Prints the measure; with thresholds, each window under them is a FAILED row (the battle went static)."""
         wins = self.windows(t_from, t_to)
         cpm = self.contacts_per_minute(reports, t_from, t_to)
@@ -5720,7 +5720,8 @@ class Dynamism:
               + " · ".join(f"[{a:.0f}–{b:.0f}] {s * 100:.0f} %" for a, b, s in wins) + f" · contacts {cpm:.2f}/min")
         for title, state, at in self.phase_lines(objectives):
             print(f"   phase line '{title}': {state} at {at}")
-            c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
+            if judge_lines:   # ⚠ a variant built to STALL misses its lines by design: printed, not judged
+                c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
         if moved_min is not None:
             for a, b, s in wins:
                 c.ok(s >= moved_min, f"DYNAMISM: [{a:.0f}–{b:.0f}] {s * 100:.0f} % of the men moved > {self.MOVED_M:.0f} m (≥ {moved_min * 100:.0f} %)")
@@ -5885,7 +5886,8 @@ def run_cc_battalion(c, timeout):
     for label, t, ok, ev in arrows:
         if any(label.startswith(r) for r in required):
             c.ok(ok, f"[{variant}] {label}: {ev}")
-    dyn.report(c, log, objectives, t_play, t_end, CC_MOVED_MIN if variant == "base" else None, CC_CONTACTS_MIN if variant == "base" else None)
+    dyn.report(c, log, objectives, t_play, t_end, CC_MOVED_MIN if variant == "base" else None, CC_CONTACTS_MIN if variant == "base" else None,
+               judge_lines=variant == "base")
 
 
 SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fire-discipline": run_ts_fire_discipline, "ts-aggression": run_ts_aggression, "ts-house-defenders": run_ts_house_defenders, "ts-three-defenders": run_ts_three_defenders, "ua-threat-ranking": run_threat_ranking,
