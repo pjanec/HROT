@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — §10–§17 RULED (R-4248…R-4250, R-4252, R-4255); OPEN: §18 combat C-1…C-8, §19 behaviours B-1…B-7, §20 slices (leans 2026-11-15) · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
+build-state: DESIGN — every decision RULED (R-4248…R-4250, R-4252, R-4255, R-4256); ⏳ the review of §18–§20 (§21) before READY-TO-BUILD · the FUTURE half of the aggregate programme; approved: S-1…S-5 (R-4248), S-6…S-9 (R-4249), X-1…X-5 (R-4250); leans NOT accepted: M-1…M-4 (§14), N-1…N-4 (§15), P-3…P-5 (§16), D-P1…D-P7 (§16a), the resolution policy (§16b); not built — its "binds NOW" items ride the FusionSquad's slices (DESIGN_Aggregate_Squad.md §7)
 updated: 2026-11-14 (split out of DESIGN_Aggregate_Squad.md — coordinator; section numbers kept, the ledger cites them)
 current-answer: the whole file — §10 scope and use cases · §12 vehicles (combined-arms units) · §13 de-aggregation (what binds now) · §14 movement · §15 sensors · §16 placing the men · §16a de-aggregation as a process · §16b who decides the resolution
 stale-below: §16 P-1 / P-2 (superseded by §16a, marked inline)
@@ -286,7 +286,7 @@ invisible to its tactics and its commanders.*
 | §16a D-P2…D-P7 | as written, with: the planned-posts component (SV-5), the Held participant (SV-6), the full live roster trimmed at the handover and removed on a withdrawn trigger (SV-7), plays restart from the current situation and a split is refused on an UNTYPED order (SV-10) — ⇒ **prerequisite: the platoons' squad orders routed (CE-4612 step ⑥)** — instructor orders at once (SV-14) |
 | §16b R-1…R-7 | one serial `ResolutionManager` (every 1–2 s); the policy an unmanaged World Environment component set by `SetResolutionPolicy`, detail areas = marked area entities (SV-15); focus = possessed units + physical forces of another side (+ optional camera); FIXED bands (SV-9); instructor > author > automatic (SV-14); automatic merge needs no focus within band + margin for the quiet time, out of contact, not in a detail area, not pinned, not mid-play, AND ⭐ UNOBSERVED by any physical sensor (kept for AUTOMATIC merges only — the user's override applies to instructor orders); the governor documented, not built (SV-8) |
 
-## 18. Combat between stochastic units — the attrition step *(leans, 2026-11-15)*
+## 18. Combat between stochastic units — the attrition step *(✅ C-1…C-8 APPROVED 2026-11-15 — R-4256)*
 
 **The proven solution:** a heterogeneous Lanchester exchange resolved per (firing system type × target class) pairing from a killer–victim table
 built from weapon data (the ATCAL / JTLS family): each step, each firer's expected kills = its live systems × rate × P(hit) × P(kill | hit),
@@ -312,7 +312,7 @@ modified by range, the target's posture and cover, the firer's suppression; fire
 | **C-7** | ⛔ no direct fire between a stochastic unit and a PHYSICAL entity (S-4) — it splits first (§16a) | the multi-resolution boundary |
 | **C-8** | the calibration TEST: the same engagement (a platoon defending a block against a company) resolved stochastically and physically (`cc-battalion`'s numbers) — the stochastic losses within an agreed band of the physical runs' mean | S-5 made checkable |
 
-## 19. What a stochastic unit does with an order *(leans, 2026-11-15)*
+## 19. What a stochastic unit does with an order *(✅ B-1…B-7 APPROVED 2026-11-15 — R-4256)*
 
 | # | lean | why |
 |---|---|---|
@@ -324,7 +324,7 @@ modified by range, the target's posture and cover, the firer's suppression; fire
 | **B-6** | **ClearBuilding** = Attack on the building's area · **Embark / Dismount** = the mounted / dismounted POSTURE (S-9) when its holdings have the vehicles, else refused · **Recover** = refused (no individual wounded) | the order set stays complete without plays that have no aggregate meaning |
 | **B-7** | REPORTS through the existing staff: SITREP from `UnitStrength`, SPOT / CONTACT from its contacts (N-2), PROGRESS Set / TaskFailed / ObjectiveSecure / FallingBack from the play | the commanders above see a unit like any other |
 
-## 20. Slices — the build order *(lean, 2026-11-15)*
+## 20. Slices — the build order *(✅ APPROVED 2026-11-15 — R-4256; user: "yes, approved, run the review")*
 
 | slice | builds | needs |
 |---|---|---|
