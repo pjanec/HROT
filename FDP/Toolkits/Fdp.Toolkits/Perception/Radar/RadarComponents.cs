@@ -60,6 +60,36 @@ namespace Fdp.Toolkit.Perception.Radar
         public float RcsM2;
     }
 
+    /// <summary>⭐ <c>CE-4617</c> (B-4) — what an aircraft's radar warning receiver says.</summary>
+    public enum RadarWarningLevel : byte
+    {
+        None = 0,
+        /// <summary>A radar of another side radiates with this aircraft in its range and line of sight.</summary>
+        Searched = 1,
+        /// <summary>A radar of another side TRACKS this aircraft (its <see cref="RadarEmission.TrackedTarget"/>).</summary>
+        Tracked = 2,
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4617</c> (B-4, RS-6 / RS-10 / RV-8; docs/designs/air-attack/DESIGN_Radar_SAM.md) — an aircraft's RADAR WARNING, written by its
+    /// OWN node (<c>RadarWarningReceiverSystem</c>, derived from every emitter's replicated <see cref="RadarEmission"/>) on a change only; read
+    /// by its attack behaviour (the escape). Not replicated: every node that needs it derives it.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.RadarWarning)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct RadarWarning
+    {
+        public RadarWarningLevel Level;
+        /// <summary>The emitter (the tracking one, else the nearest searching one).</summary>
+        public Entity Emitter;
+        /// <summary>Its antenna, and the bearing to it (degrees, 0 = north, clockwise).</summary>
+        public System.Numerics.Vector3 From;
+        public float BearingDeg;
+        /// <summary>Sim time the level or the emitter last changed.</summary>
+        public SimInstant Since;
+    }
+
     /// <summary>⭐ <c>CE-4617</c> — the ONE reader and the ONE writer of <see cref="RadarEmission"/>.</summary>
     public static class RadarEmissions
     {

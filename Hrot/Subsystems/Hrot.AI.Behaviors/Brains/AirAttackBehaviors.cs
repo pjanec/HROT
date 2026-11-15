@@ -349,7 +349,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ CE-7014 — <c>AirAttackState.BatteryOut</c> when the link was JAMMED (1 = the battery ran out): it comes down where it is.</summary>
         public const byte BatteryOutJammed = 2;
 
-        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5;
+        private const byte StageStart = 0, StageToRunIn = 1, StageRunIn = 2, StageOut = 3, StageOrbit = 4, StageEvade = 5, StageRadarEvade = 6;
+
+        /// <summary>⭐ <c>CE-4617</c> (B-4, RS-6 / RV-9; DESIGN_Radar_SAM.md) — tracked by a radar, an attacking aircraft drops to this height above
+        /// the target's ground (m): below the radar's clutter floor (<c>RadarPerception.ClutterFloorM</c>, 15 m).</summary>
+        public const float RadarEvadeAglM = 10f;
+        /// <summary>⭐ <c>CE-4617</c> — the radar escape clears this long after the last TRACKED warning (s).</summary>
+        public const float RadarClearS = 8f;
         private const byte StageSearch = 6, StagePursue = 7, StageDive = 8, StageHover = 9;
         /// <summary>⭐ <c>CE-7027</c> — a bomber quadcopter drops from this high over the point (m).</summary>
         public const float DefaultDropHeightAgl = 30f;
@@ -432,6 +438,14 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2191 (§7e) — a missile warning interrupts any stage: decoys, a break onto the missile's beam, then the attack comes round
             if (NewWarning(world, self, ref ws, now)) BeginEvade(ref p, ref ws, self, world, at);
             if (ws.Stage == StageEvade) return Evade(ref p, ref ws, self, world, at, target, now);
+            // ⭐ CE-4617 (B-4, RS-6) — a radar TRACKING it (its own RadarWarning, derived on this node): off the radar's bearing and down
+            //   below its clutter floor; the attack comes round 8 s after the track ends, and that pass is NOT counted (a radar abort)
+            if (RadarTracked(world, self))
+            {
+                if (ws.Stage != StageRadarEvade) BeginRadarEvade(ref p, ref ws, self, world, at);
+                ws.EvadeUntil = (SimInstant)(now + RadarClearS);
+            }
+            if (ws.Stage == StageRadarEvade) return RadarEvade(ref p, ref ws, self, world, at, target, now);
 
             if (ws.Stage == StageOrbit) return Orbit(ref p, ref ws, self, world, at, target, now, entity);
 
@@ -701,11 +715,64 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Decoys < DecoySalvo && DecoyFor(w.Seeker) is { } kind && !ChaffTooEarly(kind, in w, now)
                 && Countermeasures.Release(world, self, kind)) ws.Decoys++;
             if (now < ws.EvadeUntil) return NodeStatus.Running;
+            return ComeRound(ref p, ref ws, self, world, at, target, countPass: true);
+        }
 
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (B-4, RS-6 / RV-9) — is <paramref name="self"/> TRACKED by a radar now (its <see cref="Fdp.Toolkit.Perception.Radar.RadarWarning"/>,
+        /// written on this node by <c>RadarWarningReceiverSystem</c> from the emitters' replicated state)? A searching radar does not count.
+        /// </summary>
+        public static bool RadarTracked(EntityRepository world, Entity self)
+            => world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarWarning>()
+               && world.HasComponent<Fdp.Toolkit.Perception.Radar.RadarWarning>(self)
+               && world.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarWarning>(self).Level == Fdp.Toolkit.Perception.Radar.RadarWarningLevel.Tracked;
+
+        /// <summary>⭐ <c>CE-4617</c> — the radar escape: the weapon stops; the aircraft turns AWAY from the radar's bearing (half beam, half away —
+        /// off the line it is tracked along) and drops to <see cref="RadarEvadeAglM"/>, below the clutter floor.</summary>
+        private static void BeginRadarEvade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at)
+        {
+            StopFire(world, self, ref ws);
+            if (ws.Stage != StageRadarEvade) ws.Resume = ws.Stage == StageOrbit ? StageOrbit : StageRunIn;
+            ws.Stage = StageRadarEvade;
+            RadarEscape(ref p, ref ws, self, world, at);
+        }
+
+        private static void RadarEscape(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at)
+        {
+            var w = world.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarWarning>(self);
+            float b = w.BearingDeg * (MathF.PI / 180f);
+            var toRadar = new Vector2(MathF.Sin(b), MathF.Cos(b));   // 0 = north (+Y), clockwise
+            var beam = new Vector2(toRadar.Y, -toRadar.X);
+            var heading = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out _, out var v) && v.X * v.X + v.Y * v.Y > 1f
+                ? Vector2.Normalize(new Vector2(v.X, v.Y)) : ws.Dir;
+            if (Vector2.Dot(beam, heading) < 0f) beam = -beam;
+            var dir = Vector2.Normalize(beam - toRadar);
+            var to = at + new Vector3(dir * BreakAwayM, 0f);
+            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + RadarEvadeAglM), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Flee);
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> — while tracked it keeps escaping (a fresh leg when one ends); <see cref="RadarClearS"/> after the last track
+        /// the attack comes round — ⭐ a radar abort is NOT a counted pass (RV-9: three aborts would drive it off without firing).</summary>
+        private static NodeStatus RadarEvade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world,
+                                             Vector3 at, Vector3 target, double now)
+        {
+            if (now < ws.EvadeUntil)
+            {
+                if (RadarTracked(world, self) && LocomotionMoveTo.Status(world, self) != NodeStatus.Running) RadarEscape(ref p, ref ws, self, world, at);
+                return NodeStatus.Running;
+            }
+            return ComeRound(ref p, ref ws, self, world, at, target, countPass: false);
+        }
+
+        /// <summary>⭐ <c>CE-2191</c> (shared by <c>CE-4617</c>) — the attack comes round after an escape: the orbit carries on; any other profile
+        /// flies a fresh run-in from where it is now — the aborted pass counted (a missile) or not (a radar track).</summary>
+        private static NodeStatus ComeRound(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world,
+                                            Vector3 at, Vector3 target, bool countPass)
+        {
             ws.Stage = ws.Resume;
             ws.NextSteer = 0;
             if (ws.Resume == StageOrbit) return NodeStatus.Running;
-            if (++ws.Passes >= MaxPasses)
+            if (countPass && ++ws.Passes >= MaxPasses)
             {
                 BehaviorLog.Error(self, world, $"AirAttack: driven off — {MaxPasses} passes, the last broken off by a missile.");
                 return NodeStatus.Failure;

@@ -49,6 +49,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.GuidedRound>();   // ⭐ M4 — a guided round (Muscle)
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.Decoy>();                 // ⭐ CE-2188 — a flare / chaff (Muscle)
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.MissileWarning>();        // ⭐ CE-2189 — the last warning (Brain)
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarWarning>())
+                world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarWarning>();      // ⭐ CE-4617 (B-4) — the radar warning (Brain)
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.ShotOrdinal>();   // ⭐ AQ85 A — the deflection sequence index
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();     // ⭐ AQ85 E — suppression
             world.RegisterComponent<PhysicsCollider>();

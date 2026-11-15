@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: BUILDING (2026-11-15; B-1…B-3 built — §7 as-built) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
+build-state: BUILDING (2026-11-15; B-1…B-4 built — §7 as-built) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
 current-answer: §1 inventory · §2 decisions (as amended) · §3 UML · §4 the engagement in time · §5 slices and acceptance · §6 the review · ⭐ §7 AS-BUILT (where the build deviated, §7 wins)
 stale-below: § HISTORY at the bottom (§2–§5 as first approved)
 known-rot: §2a's missile id 6047 — taken (the 60 mm mortar smoke, CE-7025); as built 6050 (§7)
@@ -341,6 +341,8 @@ waits for it (`ChaffTooEarly`).*
 | RS-5 *"200–500 m to cover"* | **350 m straight away from the last aircraft** at 8 m/s, given up after 90 s; ⏸ no cover search | the EQS cover query is a separate cost; filed with the B-6 report |
 | RS-3 chaff only in the end-game | the round's gate **and** the aircraft holding its chaff for it (`ChaffTooEarly`, from the warning's time to go) | a cloud dropped at the launch (where the aircraft dropped it) would always be wasted — the defeat rate would be ~0, not 20–40 % |
 | RS-4 `AirSense.FireAt` | `FireControlSight.SeesForAnyMount` (eyes, or the radar when ANY own mount fires a radar-guided round); the executor still asks per mount | the node runs before the weapon brain picks the mount |
+| RS-6 / RV-8 the warning | `RadarWarningReceiverSystem` writes the aircraft's own `RadarWarning` (499, derived, not replicated) on its brain node from the replicated emissions — searched AND tracked (RV-8's event form REJECTED by R-4259's RS-10, as §2 says) | — |
+| RS-6 the escape | `AirAttackNodes`: tracked ⇒ off the bearing (half beam, half away), 10 m AGL for every attack profile, clears 8 s after the track, the pass not counted — the missile break's come-round shared (`ComeRound(countPass)`) | one come-round for both escapes |
 | RS-5 *"cued by a NON-radar contact"* | the row's fresh air sense (any sense); the radar's own contacts exist only while it radiates and it is off between engagements | no per-sense air sense exists; relocation outlasts the 3 s freshness |
 
 ## ⛔ HISTORY — §2–§5 as first approved (R-4258), before the §6 review amended them (R-4259) — ⛔ do not quote

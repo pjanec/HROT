@@ -1320,6 +1320,10 @@ namespace Fdp.Core
         /// registers it (never on the wire — every node holds the TKB). ⚠ 498 measured free 2026-11-15.</summary>
         public const int RadarSignature = 498;
 
+        /// <summary><c>RadarWarning</c> — ⭐ CE-4617 (B-4, RS-6 / RS-10): an aircraft's radar warning (none / searched / tracked, the emitter, its
+        /// bearing), DERIVED on the aircraft's brain node from the emitters' replicated <c>RadarEmission</c> (<c>RadarWarningReceiverSystem</c>).</summary>
+        public const int RadarWarning = 499;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
