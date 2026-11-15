@@ -598,6 +598,7 @@ namespace Fdp.Toolkit.Squad.Command
                         SubjectNetId = subject.IsNull ? 0 : CommandPictureOps.NetIdOf(repo, subject),
                         Round = (RequestKind)r.Subtype == RequestKind.FireSupport && (r.Equipment & ElementEquipment.Smoke) != 0
                             ? FireSupportRound.Smoke : FireSupportRound.HighExplosive,   // ⭐ CE-7025
+                        Rounds = (RequestKind)r.Subtype == RequestKind.FireSupport ? r.Count : (byte)0,   // ⭐ CE-2436 AU-3 (A-5) — a sustained mission
                     };
                     break;
             }

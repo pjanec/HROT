@@ -50,6 +50,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// 2 the reserve committed · 3 bypassed).</summary>
         public SimInstant ObjectiveSince;
         public byte Escalation;
+        /// <summary>⭐ <c>CE-2436</c> AU-3 (A-1) — the posts the company's base of fire keeps under fire (the current objective's reported elements;
+        /// none ⇒ the objective); <see cref="Posts"/> of them.</summary>
+        public Vector3 Post0, Post1, Post2, Post3;
+        public int Posts;
 
         public Vector3 Objective(int i) => new(OX[i], OY[i], OZ[i]);
 
@@ -84,6 +88,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultRadius = 80f, DefaultDeadlineSeconds = 480f;
         public const float SupportStandOffMetres = 250f, ReserveStandOffMetres = 400f, SupportArcHalfDegrees = 30f, SupportRangeMetres = 450f;
         public const float ConsolidateRadius = 80f;
+        /// <summary>⭐ <c>CE-2436</c> AU-3 (A-5) — a sustained mission's rounds per gun; the screen stands this far from the objective toward where the
+        /// company came from (m); an element this close to the objective is one of its posts (m).</summary>
+        public const int SustainedRounds = 8;
+        public const float ScreenMetres = 50f, PostMatchMetres = 40f;
         public const BehaviorFaultCode AbortedFault = BehaviorFaultCode.Custom + 7023;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -182,6 +190,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus EnterSupport(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
             Points(ref p);
+            CompanyPosts(ref p, world, self);   // ⭐ CE-2436 AU-3 (A-1) — the base of fire's targets
             p.ObjectiveSince = (SimInstant)CommandPictureOps.Now(world);
             p.Escalation = 0;
             SetPhase(ref p, CompanyAttackPlan.PhaseSupport);
@@ -192,9 +201,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus EnterAssault(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, CompanyAttackPlan.PhaseAssault);
-            // ⭐ CE-4615 (R-2100) — the base of fire is up and the assault goes in: PREPARATORY FIRE (HE) on the objective. 📐 Live on cc-battalion
-            //   the only call was the tempo's SMOKE (CE-7025), so the assault met an untouched line and never took it. The half-deadline smoke stays.
-            AskFires(world, self, p.Objective(Math.Min(p.Current, p.Objectives - 1)), FireSupportRound.HighExplosive);
+            // ⭐ CE-4615 (R-2100) — the base of fire is up and the assault goes in: fire (HE) on the objective. 📐 Live on cc-battalion
+            //   the only call was the tempo's SMOKE (CE-7025), so the assault met an untouched line and never took it.
+            // ⭐⭐ CE-2436 AU-3 (A-5) — a SUSTAINED mission on the REPORTED posts for the approach (rounds over time, not one 3-round burst)
+            AskFires(world, self, PostsCentre(ref p, world, self), FireSupportRound.HighExplosive, SustainedRounds);
             return NodeStatus.Success;
         }
 
@@ -203,6 +213,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             // ⭐ CE-4610 — objective k taken is phase line k (1-based) reached: reported up, so the battalion sees the company's progress
             CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective(p.Current), p.Current + 1);
+            // ⭐ CE-2436 AU-3 (A-5) — the SHIFT beyond: the objective is taken, the indirect fire moves on to the next one (the depth of the
+            //   attack); the last one taken asks nothing more (the company consolidates on it)
+            if (p.Current + 1 < p.Objectives) AskFires(world, self, p.Objective(p.Current + 1), FireSupportRound.HighExplosive, SustainedRounds);
             p.Current++;
             return NodeStatus.Success;
         }
@@ -250,6 +263,75 @@ namespace Hrot.AI.Behaviors.Brains
             p.ReserveAt = o + new Vector3(dir * ReserveStandOffMetres, 0f);
         }
 
+        /// <summary>⭐ AU-3 (A-1) — the company base of fire's posts: fresh picture elements within <see cref="PostMatchMetres"/> of the current
+        /// objective (≤ 4); none ⇒ the objective.</summary>
+        private static unsafe void CompanyPosts(ref CompanyAttackPlan p, EntityRepository world, Entity self)
+        {
+            var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
+            p.Posts = 0;
+            if (world.HasComponent<CommandPicture>(self))
+            {
+                ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+                var now = (SimInstant)CommandPictureOps.Now(world);
+                for (int i = 0; i < picture.Elements.Count && p.Posts < 4; i++)
+                {
+                    ref readonly var e = ref picture.Elements.Items[i];
+                    if (e.Count == 0 || now - e.ObservedAt > PlatoonAttackBehavior.ElementFreshSeconds) continue;
+                    if (Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(o.X, o.Y)) > PostMatchMetres) continue;
+                    AddPost(ref p, e.At);
+                }
+            }
+            if (p.Posts == 0) AddPost(ref p, o);
+        }
+
+        private static void AddPost(ref CompanyAttackPlan p, Vector3 at)
+        {
+            switch (p.Posts) { case 0: p.Post0 = at; break; case 1: p.Post1 = at; break; case 2: p.Post2 = at; break; default: p.Post3 = at; break; }
+            p.Posts++;
+        }
+
+        private static bool SupportByFire(ref CompanyAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order)
+        {
+            behaviour = BehaviorNames.PlatoonSupportByFire;
+            order = JsonSerializer.Serialize(new PlatoonSupportByFireParamsJsonDto
+            {
+                Position = p.SupportAt, Speed = p.Speed,
+                Post1 = p.Posts > 0 ? p.Post0 : default, Post2 = p.Posts > 1 ? p.Post1 : default,
+                Post3 = p.Posts > 2 ? p.Post2 : default, Post4 = p.Posts > 3 ? p.Post3 : default,
+            }, json);
+            return true;
+        }
+
+        /// <summary>⭐ AU-3 (A-5) — where the reported posts are: the centre of the company picture's fresh elements within
+        /// <see cref="PostMatchMetres"/> of the current objective; none ⇒ the objective.</summary>
+        private static Vector3 PostsCentre(ref CompanyAttackPlan p, EntityRepository world, Entity self)
+        {
+            var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
+            if (!world.HasComponent<CommandPicture>(self)) return o;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            var now = (SimInstant)CommandPictureOps.Now(world);
+            Vector3 sum = Vector3.Zero; int n = 0;
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Count == 0 || now - e.ObservedAt > PlatoonAttackBehavior.ElementFreshSeconds) continue;
+                if (Vector2.Distance(new Vector2(e.At.X, e.At.Y), new Vector2(o.X, o.Y)) > PostMatchMetres) continue;
+                sum += (Vector3)e.At; n++;
+            }
+            return n > 0 ? sum / n : o;
+        }
+
+        /// <summary>⭐ AU-3 (A-5) — the smoke SCREEN: <see cref="ScreenMetres"/> from the current objective toward where the company came from —
+        /// on the crossing the assault makes, not on the objective.</summary>
+        private static Vector3 ScreenPoint(ref CompanyAttackPlan p)
+        {
+            var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
+            var from = p.Current == 0 ? p.Start : p.Objective(p.Current - 1);
+            var back = new Vector2(from.X - o.X, from.Y - o.Y);
+            var dir = back.LengthSquared() > 1e-4f ? Vector2.Normalize(back) : -Vector2.UnitY;
+            return o + new Vector3(dir * ScreenMetres, 0f);
+        }
+
         /// <summary>The ONE order writer: a slot whose order of this phase does not stand, or that is dirty, is ordered again; and the tempo
         /// clock (C-4) is checked here, once per tick of the phase.</summary>
         [SharedAiAction]
@@ -284,7 +366,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Escalation < 1 && spent >= p.Deadline * 0.5)
             {
                 p.Escalation = 1;
-                if (AskFires(world, self, p.Objective(p.Current), FireSupportRound.Smoke)) ws.FireRequests++;   // ⭐ CE-7025 — smoke on it first
+                // ⭐ CE-7025 — smoke first; ⭐ CE-2436 AU-3 (A-5) — as a SCREEN on the crossing, between the objective and the assault's route,
+                //   ⛔ never on the objective (📐 measured: smoke on it blinds the company's own base of fire)
+                if (AskFires(world, self, ScreenPoint(ref p), FireSupportRound.Smoke)) ws.FireRequests++;
             }
             if (p.Escalation < 2 && spent >= p.Deadline)
             {
@@ -307,12 +391,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The company's REQUEST FireSupport on <paramref name="at"/> with <paramref name="round"/> (smoke = the
         /// <see cref="ElementEquipment.Smoke"/> flag), up to its
         /// headquarters (the staff sends it after the report delay).</summary>
-        public static bool AskFires(EntityRepository world, Entity self, Vector3 at, FireSupportRound round = FireSupportRound.HighExplosive)
+        public static bool AskFires(EntityRepository world, Entity self, Vector3 at, FireSupportRound round = FireSupportRound.HighExplosive, int rounds = 1)
         {
             SimInstant now = (SimInstant)CommandPictureOps.Now(world);
             return ReportQueue.Enqueue(world, self, new CommandReport
             {
-                Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = at, Radius = 50f, Count = 1,
+                Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = at, Radius = 50f, Count = (byte)Math.Clamp(rounds, 1, 20),
                 Equipment = round == FireSupportRound.Smoke ? ElementEquipment.Smoke : ElementEquipment.NoEquipment, ObservedAt = now,
             }, now + CommandNodes.ReportDelaySeconds);
         }
@@ -327,7 +411,8 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 case CompanyAttackPlan.PhaseSupport:
                 case CompanyAttackPlan.PhaseAssault:
-                    if (role == CompanyAttackPlan.Support) return Defend(p.SupportAt, o, SupportArcHalfDegrees, SupportRangeMetres, p.Speed, json, out behaviour, out order);
+                    // ⭐⭐ CE-2436 AU-3 (A-1) — the company's base of fire FIRES on the reported posts (every squad SupportByFire), seen or not
+                    if (role == CompanyAttackPlan.Support) return SupportByFire(ref p, json, out behaviour, out order);
                     if (role == CompanyAttackPlan.Reserve) return Defend(p.ReserveAt, o, 0f, 0f, p.Speed, json, out behaviour, out order);
                     if (role == CompanyAttackPlan.Assault && p.Phase == CompanyAttackPlan.PhaseAssault)
                     {

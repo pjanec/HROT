@@ -48,6 +48,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// posts, seen or not (DESIGN_Assault_Under_Fire §5).</summary>
         public const string SupportByFire = "SupportByFire";
 
+        /// <summary>⭐ CE-2436 AU-3 (A-1 at the company) — a platoon's base of fire: each squad <c>SupportByFire</c> on the same posts, spread across the
+        /// line of fire; SET once every squad is (DESIGN_Assault_Under_Fire §9.3).</summary>
+        public const string PlatoonSupportByFire = "PlatoonSupportByFire";
+
         /// <summary>⭐ CE-2123 — go to a point firing at the top threat, no posture decision: a superior's MOVE order (DESIGN_Squad_Tactics §3.6).</summary>
         public const string AdvanceTo = "AdvanceTo";
 

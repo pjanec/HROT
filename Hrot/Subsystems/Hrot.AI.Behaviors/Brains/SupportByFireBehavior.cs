@@ -156,4 +156,84 @@ namespace Hrot.AI.Behaviors.Brains
             return ws.RoundsAtFiring - have >= (long)EstablishRoundsPerMan * System.Math.Max(1, men);
         }
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-2436</c> AU-3 (A-1 one level up; 📄 DESIGN_Assault_Under_Fire §9.3) — a PLATOON's base of fire (the company's): every live squad is
+    /// ordered <c>SupportByFire</c> on the same reported posts, its point spread <see cref="SpreadMetres"/> across the line of fire; the platoon
+    /// reports SET once every live squad has (each squad's SET is its suppression ESTABLISHED — R-2107), so the company's assault goes in only under
+    /// established fire. 📌 measured: the company's base of fire ran <c>PlatoonDefend</c> 250 m back and fought only what it saw.
+    /// ⭐ R-2084: a squad is ordered only when dirty or its order no longer stands.
+    /// </summary>
+    public static class PlatoonSupportByFireBehavior
+    {
+        /// <summary>Squads stand this far apart across the line of fire (m).</summary>
+        public const float SpreadMetres = 20f;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct PlatoonSupportByFireBlackboard
+        {
+            public SupportByFireParams Order;
+            public SupportByFireState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.PlatoonSupportByFire)]
+        public static void Resolve(in PlatoonSupportByFireParamsJsonDto authored, ref PlatoonSupportByFireBlackboard block, EntityRepository world, Entity self)
+        {
+            var squad = new SupportByFireParamsJsonDto
+            {
+                Position = authored.Position, Post1 = authored.Post1, Post2 = authored.Post2, Post3 = authored.Post3, Post4 = authored.Post4,
+                Speed = authored.Speed, CooldownSeconds = authored.CooldownSeconds,
+            };
+            var tmp = new SupportByFireBehavior.SupportByFireBlackboard();
+            SupportByFireBehavior.Resolve(in squad, ref tmp, world, self);
+            block.Order = tmp.Order;
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.PlatoonSupportByFire, Params = typeof(PlatoonSupportByFireParamsJsonDto), Categories = BehaviorCategory.Commander,
+                  Description = "A platoon's base of fire: every squad keeps the reported posts under sustained fire.")]
+        [BTreeDefinition(BehaviorNames.PlatoonSupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(PlatoonSupportByFireBlackboard))]
+        public static BTreeBuilder<PlatoonSupportByFireBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<PlatoonSupportByFireBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Order, bb => bb.State, Run);
+
+        public static unsafe NodeStatus Run(ref SupportByFireParams p, ref SupportByFireState ws, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<UnitRoster>(self)) return NodeStatus.Running;
+            int n = Math.Min(world.GetComponentRO<UnitRoster>(self).Count, CommandPicture.MaxSubordinates);
+            if (ws.Issued == 0)
+            {
+                ws.Issued = 1;
+                for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
+            }
+            var toPosts = new Vector2(p.P0.X - p.Position.X, p.P0.Y - p.Position.Y);
+            var dir = toPosts.LengthSquared() > 1e-4f ? Vector2.Normalize(toPosts) : Vector2.UnitY;
+            var across = new Vector2(-dir.Y, dir.X);
+            var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            int live = 0, set = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var squad = CommandPictureOps.Subordinate(world, self, i);
+                if (squad.IsNull || !world.IsAlive(squad)) continue;
+                live++;
+                if (CommandPictureOps.ProgressOf(world, self, i) == ProgressKind.Set) set++;
+                if (ws.Dirty[i] == 0 && CommandOrders.Stands(world, self, squad)) continue;
+                ws.Dirty[i] = 0;
+                var at = p.Position + new Vector3(across * ((i - (n - 1) * 0.5f) * SpreadMetres), 0f);
+                CommandOrders.Assign(world, self, squad, BehaviorNames.SupportByFire, System.Text.Json.JsonSerializer.Serialize(new SupportByFireParamsJsonDto
+                {
+                    Position = at, Speed = p.Speed, CooldownSeconds = p.CooldownSeconds,
+                    Post1 = p.Posts > 0 ? p.P0 : default, Post2 = p.Posts > 1 ? p.P1 : default, Post3 = p.Posts > 2 ? p.P2 : default, Post4 = p.Posts > 3 ? p.P3 : default,
+                }, json), newOrder: true);
+                CommandOrders.AskSitrep(world, squad);
+                ws.Orders++;
+            }
+            if (ws.SetSent == 0 && live > 0 && set == live)
+            {
+                ws.SetSent = 1;
+                CommandNodes.ReportProgress(world, self, ProgressKind.Set, p.Position);
+            }
+            return NodeStatus.Running;
+        }
+    }
 }

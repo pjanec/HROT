@@ -87,6 +87,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 var point = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].At;
                 bool smoke = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].Round == FireSupportRound.Smoke;   // ⭐ CE-7025
+                int rounds = world.GetComponentRO<CommandPicture>(self).Requests.Items[fire].Rounds;   // ⭐ CE-2436 AU-3 (A-5) — sustained: rounds per gun
                 if (AirDefenceNear(world, self, point, p.AirDefenceMetres, p.AirDefenceFreshSeconds, now, out var aa))
                 {
                     // HQ-7 — the air defence first; the request waits while it stays reported
@@ -108,6 +109,7 @@ namespace Hrot.AI.Behaviors.Brains
                     else if (!battery.IsNull)
                         CommandOrders.Order(world, self, battery, nameof(OrderKind.Strike),
                             JsonSerializer.Serialize(new StrikeOrder { Location = point, Method = FireMissionMethod.FireForEffect, Smoke = smoke,
+                                                                     Rounds = rounds > 1 ? rounds : 0,
                                                                      // ⭐ CE-4615 (R-2099) — a REQUESTED mission is declared danger close: the requester called
                                                                      //   for fire on its own fight (81 mm's 600 m always holds a company's own men), as a
                                                                      //   doctrinal call does; an undeclared strike (an operator's) keeps the battery's refusal

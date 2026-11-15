@@ -154,5 +154,103 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(reported ? 1 : 0, p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement));
             }
         }
+    
+
+        /// <summary>The company's queued FireSupport REQUESTs (not yet sent).</summary>
+        private static System.Collections.Generic.List<CommandReport> FireRequests(Squad s)
+        {
+            var list = new System.Collections.Generic.List<CommandReport>();
+            if (!s.Repo.HasComponent<ReportOutbox>(s.Commander)) return list;
+            var q = s.Repo.GetComponentRO<ReportOutbox>(s.Commander).Queued;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == ReportKind.Request && q.Items[i].Report.Subtype == (byte)RequestKind.FireSupport) list.Add(q.Items[i].Report);
+            return list;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-3 (A-5) — the company's indirect fire: as the assault goes in it asks a SUSTAINED HE mission
+        /// (<see cref="CompanyAttackBehavior.SustainedRounds"/> rounds a gun) on the REPORTED posts (their centre); at half the deadline its smoke is a
+        /// SCREEN <see cref="CompanyAttackBehavior.ScreenMetres"/> from the objective toward where it came from — never on the objective; objective 1
+        /// taken ⇒ the fire SHIFTS to objective 2 (sustained). ✅ Red-proofs: the rounds not passed ⇒ Count 1 · the screen on the objective ⇒ the
+        /// screen point check · the shift dropped ⇒ no request at objective 2.
+        /// </summary>
+        [Fact]
+        public void CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond()
+        {
+            var c = new Company();
+            Vector3 o1 = new(0f, 600f, 0f), o2 = new(0f, 1000f, 0f);
+            var postA = new Vector3(10f, 610f, 0f);
+            var postB = new Vector3(-10f, 590f, 0f);
+            c.P.ReportSpot(c.Second, postA, 2);
+            c.P.ReportSpot(c.Second, postB, 2);
+            c.Ticks(2);
+            CompanyAttack(c, 100f, o1, o2);
+            c.Ticks(6);
+            var support = c.Last<PlatoonSupportByFireParamsJsonDto>(c.Second, BehaviorNames.PlatoonSupportByFire);
+            Assert.True(Near(support.Post1, postA) || Near(support.Post1, postB), $"the base of fire on a reported post ({support.Post1})");
+            Assert.True(Near(support.Post2, postA) || Near(support.Post2, postB), $"and on the other ({support.Post2})");
+
+            c.Set(c.Second); c.Ticks(5);
+            var he = FireRequests(c.S).Single(r => (r.Equipment & ElementEquipment.Smoke) == 0);
+            Assert.Equal(CompanyAttackBehavior.SustainedRounds, he.Count);
+            Assert.True(Near(he.At, (postA + postB) * 0.5f), $"sustained on the posts' centre ({he.At})");
+
+            c.Over(55);
+            var smoke = FireRequests(c.S).Single(r => (r.Equipment & ElementEquipment.Smoke) != 0);
+            Assert.True(Vector2.Distance(new(smoke.At.X, smoke.At.Y), new(o1.X, o1.Y)) > CompanyAttackBehavior.ScreenMetres - 1f, $"not on the objective ({smoke.At})");
+            Assert.True(smoke.At.Y < o1.Y, "between the objective and where the assault comes from");
+
+            c.Set(c.First); c.Ticks(5);   // objective 1 taken
+            Assert.Contains(FireRequests(c.S), r => (r.Equipment & ElementEquipment.Smoke) == 0 && Near(r.At, o2) && r.Count == CompanyAttackBehavior.SustainedRounds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-3 (A-5) — a FireSupport REQUEST asking N rounds is answered by the battery with a SUSTAINED mission: its strike
+        /// carries <c>Rounds</c> = N (a plain request keeps the battery's default). ✅ Red-proof: <c>Rounds</c> not passed ⇒ 0.
+        /// </summary>
+        [Fact]
+        public void CE2436_ASustainedRequest_IsFiredAsASustainedMission()
+        {
+            var p = Headquarters();
+            var battery = p.S.Members[2];
+            var street = new Vector3(0f, 1200f, 0f);
+            p.Report(p.S.Members[0], new CommandReport
+            {
+                Kind = ReportKind.Request, Subtype = (byte)RequestKind.FireSupport, At = street, Count = 8, Equipment = ElementEquipment.Smoke,
+            });
+            p.Ticks(4);
+            var strike = System.Text.Json.JsonSerializer.Deserialize<Hrot.AI.Behaviors.Orders.StrikeOrder>(
+                p.S.Orders.Last(o => o.Entity.Equals(battery) && o.IntentId == StrikeIntent).JsonParams, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(8, strike.Rounds);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-3 (A-1 one level up) — a PLATOON's base of fire: every squad is ordered <c>SupportByFire</c> on the same posts, its
+        /// point spread <see cref="PlatoonSupportByFireBehavior.SpreadMetres"/> across the line of fire; the platoon reports SET only once EVERY
+        /// squad has (each squad's SET = its suppression established). ✅ Red-proofs: Set on the first squad ⇒ Set with one squad · no spread ⇒
+        /// both squads on one point.
+        /// </summary>
+        [Fact]
+        public void CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre()
+        {
+            var p = new Platoon(squads: 2);
+            var at = new Vector3(0f, 100f, 0f);
+            var post = new Vector3(0f, 300f, 0f);
+            p.S.Order(System.Text.Json.JsonSerializer.Serialize(new PlatoonSupportByFireParamsJsonDto { Position = at, Post1 = post },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed), BehaviorNames.PlatoonSupportByFire);
+            p.Ticks(4);
+            var a = OrderTo<SupportByFireParamsJsonDto>(p, p.Alpha, BehaviorNames.SupportByFire);
+            var b = OrderTo<SupportByFireParamsJsonDto>(p, p.Bravo, BehaviorNames.SupportByFire);
+            Assert.True(Vector2.Distance(new(a.Post1.X, a.Post1.Y), new(post.X, post.Y)) < 0.01f);
+            Assert.True(Vector2.Distance(new(b.Post1.X, b.Post1.Y), new(post.X, post.Y)) < 0.01f);
+            Assert.InRange(Vector2.Distance(new(a.Position.X, a.Position.Y), new(b.Position.X, b.Position.Y)),
+                           PlatoonSupportByFireBehavior.SpreadMetres - 0.5f, PlatoonSupportByFireBehavior.SpreadMetres + 0.5f);   // spread across
+            Assert.InRange(System.MathF.Abs(a.Position.Y - at.Y), 0f, 0.5f);                                                      // on the line, not toward the posts
+
+            p.ReportSet(p.Alpha); p.Ticks(3);
+            Assert.DoesNotContain(Queued(p.S, p.S.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
+            p.ReportSet(p.Bravo); p.Ticks(3);
+            Assert.Single(Queued(p.S, p.S.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
+        }
     }
 }
