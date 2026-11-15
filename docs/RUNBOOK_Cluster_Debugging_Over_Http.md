@@ -534,6 +534,15 @@ comparison bracketed the defect from both sides in one run.
 ⚠ **What it cannot tell you:** anything about `Cyclone*` translators, DDS topics, descriptor ordinals or
 authority handover — those exist only when there is a wire.
 
+### 9.0 ⭐⭐ A WHOLE BATTLE, REPLAYED EXACTLY — **edit load · paused preview · run-to** *(measured `2026-11-15`, behaviors)*
+
+`/scenario/load/edit` → wait for `clusterState == OperatingEdit` → `POST /preview/enter {"startPaused": true}` (zero steps — check `simTime == 0`,
+CE-4570) → `POST /sim/run-to {"seconds": T, "step": S}` in chunks, sampling between them. ⛔ **Not** `/scenario/load/live` (run-to is Preview-only)
+and ⛔ **not** play-then-pause (it runs a few seconds on the wall clock first). 📌 Two such runs of `cc-battalion` (124 units, 345 s) agreed on
+every task change, every report time to the microsecond and the report counts. ⭐ Wired as `utility-demo-check.py --launch --host editor`.
+⚠ Speed (4 cores, ~75 men): step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× — and 1/6 changed the battle's outcome there (deadlier fire), so a coarse
+step is for replaying, not for judging.
+
 ### 9.1 ⭐⭐⭐ THE LOCKSTEP DIFF — **step BOTH hosts and diff ONE entity per step**
 
 📌 **`2026-09-04`, `CE-172`.** *"The tanks behave differently on the cluster"* is unanswerable as stated.
