@@ -55,6 +55,7 @@ behaviour code you build beside); restore the test projects you run; push `chore
 | ⭐⭐ **decide, never wait** — every default the design names is yours to tune, recorded as an `R-` lane decision with what would change it | |
 | ⭐⭐ **every engine change GROWS an existing seam** (§3): the integrator's params, the woods grid, the station arc, `StrippedOn`, the acoustic mask, THE ONE GATE — ⛔ never a parallel copy | ruling 9 |
 | ⭐⭐ **never compare a behaviour name** — the conduct categories (CD-1…CD-6) are the mechanism | 🔒 user |
+| ⭐⭐ **the TERRAIN work is YOURS tonight** — no terrain lane runs (🔒 user: *"Let backend do it, or the UI do it. No third lane will be running overnight."*): the surface-class grid (generalising `TerrainWoods`, `TerrainWorld`), the per-mover nav pricing (`NavDoorways` / `NavLayerSelection` / the Recast provider's filter), the woods opened to a wheeled type at its factor — cross-lane edits into the terrain lane's files, said in each commit | the terrain lane's id block is NOT yours — allocate from your own |
 | ⭐ **cross-lane edits allowed and said** — `Hrot.AI.Behaviors` (the SOP reactions' conduct flags, the plays), `Hrot.Traffic` (the vType) | |
 | ⭐ **ids**: allocate the missile / type ids from what is FREE on every lane (the radar SAM's 6047 collided — measure first) | |
 | ⛔ **NOT yours**: MC-4a (the FPV's realistic terminal guidance) and the dash's acceptance runs (M-4) — they change every drone scenario and wait for `behaviors` after its AU-6; the 3-D model and the first-person HUD are `ui`'s (CE-4621 M-1v / M-2p) | |

@@ -48,6 +48,8 @@ judgment and doesn't stop until the feature is finished."*
 `STATUS_Ui_Motorcycle_Visuals.md`. ⭐ `backend` builds the type in its M-1 (CE-4621) at the same time — until it lands, build against a test
 template with the class you agree in your notes; when backend's note names the type id and seat ids, bind to them (the radar SAM precedent).
 
+⭐ No terrain lane runs tonight (🔒 user); the motorcycle's terrain work (the surface-class grid, the route pricing) is `backend`'s — nothing in this batch needs terrain changes.
+
 ## 1. The items
 | # | builds | done when |
 |---|---|---|
