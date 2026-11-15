@@ -61,8 +61,11 @@ scenario); **base has no clean pass**: its assault is worn down crossing 113 m u
 Red breaks first (#9). Filed as **CE-2436** with the measurements — the fix is a tactics decision (Platoon / Company Attack), not more tuning here.
 ⛔ **The dynamism thresholds X / Y stay UNLOCKED** — §5 sets them from three CLEAN base runs, and there are none. Measured on every base run: moved
 > 50 m per 5 min ≈ 55–70 % · 35 % · 15–30 %, contacts 54–85 / min ⇒ the battle goes static in the last window, every time.
-⛔ **CE-7037 (the stepped gate on a big scenario) not run** — the CPU went to the live runs; diagnosis from code stands (the master advances on the WALL
-clock outside `Stepping`); the probe `scratchpad/cc/clockprobe.py` is written. `stepped-hash.py` on cc-battalion therefore not run either.
+✅ **CE-7037 — NOT reproduced on the current build, and the stepped gate PASSES on cc-battalion.** `scratchpad/cc/clockprobe.py city-battle 60`
+(Release, after the pool fix): preview entered PAUSED, sim time stayed **0** for 60 s wall, then 20 steps = exactly 1/3 s ×3. ⇒ the earlier ≈ 8 s free
+run is not there now (it predates tonight's `FdpWorkerPool` fix; not re-bisected). `HROT_PARALLEL_SIM=1 stepped-hash.py --threads 1,4,8 --scenario
+cc-battalion`: **STATE EQUAL** — 0 component types and 0 `SimTransform` rows differ across 972 entities (the overall hashes differ only by the tick
+counter, 878 / 865 / 880, which the type compare excludes).
 
 ## 1. The items
 
@@ -77,7 +80,7 @@ clock outside `Stepping`); the probe `scratchpad/cc/clockprobe.py` is written. `
 | A | CE-4608 a relieved assault squad holds (SquadDefend at the objective's building point) | ✅ `c10c13f33` | rail `CE4608_*` |
 | A | CE-7038 a battery mission that fires no round is refused with a reason | ✅ `8aac795db` | Indirect Fire as built · R-2098 |
 | A | CE-7035 civilian half (fixture + five real undeclared reads) | ✅ `8aac795db` | Parallel Simulation §18.2a |
-| A | CE-7037 the stepped gate on a big scenario | ⏳ code read: the master runs on WALL time outside `Stepping`, so city-battle's clock ran free for ~8 s; probe written, to run after the live checks | — |
+| A | CE-7037 the stepped gate on a big scenario | ✅ not reproduced (paused clock holds at 0 for 60 s); stepped-hash 1/4/8 on cc-battalion STATE EQUAL — §0.4 · was: ⏳ code read: the master runs on WALL time outside `Stepping`, so city-battle's clock ran free for ~8 s; probe written, to run after the live checks | — |
 | B | CE-7033 dynamism measure (`Dynamism` in utility-demo-check.py) | ✅ built; thresholds not yet locked | `2c372f627` |
 | C | CE-4615 generator + 3 scenarios + `run_cc_battalion` | ✅ `2c372f627` | Battalion Test §4a · R-2096, R-2097 |
 | D | live runs ×3 per variant, thresholds X / Y | ⏳ 5 base runs + 1 per variant so far, each run's failure root-caused and fixed (§0); acceptance (3 clean runs each) NOT reached — §0.4 | §0 |
