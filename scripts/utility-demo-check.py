@@ -5779,6 +5779,7 @@ def run_cc_battalion(c, timeout):
     ended = None
     end_wall = time.time() + window * 4 + 600
     last_dyn = -1e9
+    last_t, stalled_since = None, time.time()
     while time.time() < end_wall:
         t = sim_time() or 0.0
         for n, nid in u.items():
@@ -5811,7 +5812,11 @@ def run_cc_battalion(c, timeout):
         # ⭐ R-2104 — the end (Red below 30 %, Objective 2 held) can come BEFORE the assault reports its objective taken: keep watching up to
         #   180 s more for the chain's last report (PhaseLine) rather than judging an arrow the run stopped too early to see (base run 9)
         pl_seen = any(r.get("kind") == "Progress" and r.get("subtype") == "PhaseLine" and r.get("from") in blue_ids for r in seen_reports.values())
-        if (ended and (pl_seen or variant != "base" or t >= ended[1] + 180.0)) or t - t_play >= window:
+        # ⚠ "The end" trigger STOPS the clock: once the run has ended and sim time stands still for 30 s of wall time, no later report can
+        #   come — stop waiting (base run #9 sat 30 min at 889.65 s until the wall limit)
+        if t != last_t:
+            last_t, stalled_since = t, time.time()
+        if (ended and (pl_seen or variant != "base" or t >= ended[1] + 180.0 or time.time() - stalled_since >= 30.0)) or t - t_play >= window:
             break
         time.sleep(5.0)
     t_end = sim_time() or 0.0
