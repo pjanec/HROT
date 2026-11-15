@@ -81,6 +81,7 @@ namespace Fdp.Toolkit.Combat
         {
             yield return typeof(WeaponSystemParams);
             yield return typeof(WeaponSystemState);
+            yield return typeof(ChargeTimer);   // ⭐ CE-4621 M-5 — registered with the weapon system (a charge is one); added only when armed
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)

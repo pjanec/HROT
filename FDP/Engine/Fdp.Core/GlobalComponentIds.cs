@@ -1328,5 +1328,9 @@ namespace Fdp.Core
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
         public const int SimLink = 475;
+
+        /// <summary><c>ChargeTimer</c> — ⭐ CE-4621 M-5 (MV-9): a charge's timer (<c>SimInstant DetonateAt</c>), recorded; ticked by <c>ChargeSystem</c>.
+        /// ⚠ The backend block (434–449) is full; 486 measured free in backend, behaviors, ui and coordinator 2026-11-15.</summary>
+        public const int ChargeTimer = 486;
     }
 }
