@@ -4617,7 +4617,7 @@ def run_pc_assault(c, timeout):
     if not EDITOR_HOST:
         call("POST", "/sim/play", {})
     men = {k: v for k, v in ids.items() if k and (" Leader" in k or " Rifleman" in k)}
-    reports, last, log = {}, {}, []
+    reports, last, log, drill = {}, {}, [], {}
     t = sim_time() or 0.0
     while t < seconds:
         if EDITOR_HOST:
@@ -4631,6 +4631,15 @@ def run_pc_assault(c, timeout):
                 last[name] = k
                 log.append((t, name, k))
                 print(f"   t={t:6.1f}  {name:12s} {k}", flush=True)
+        for name, nid in blue.items():   # ⭐ a stall explains itself from the run that hit it: the clearing squad's drill phase and orders
+            if last.get(name) == "ClearBuilding":
+                m = ((data(call("GET", f"/entities/{nid}/squad")) or {}).get("maneuver") or {})
+                sig = (m.get("phaseName"), tuple((x.get("order") or {}).get("kind") for x in m.get("members") or []))
+                if drill.get(name) != sig:
+                    drill[name] = sig
+                    pos = [tuple(round(v) for v in (position(x.get("networkId")) or (0, 0, 0))) for x in m.get("members") or []]
+                    live = [_live(x.get("networkId")) for x in m.get("members") or []]
+                    print(f"   t={t:6.1f}  {name} drill {sig[0]} since {m.get('phaseSince')} orders {list(sig[1])} live {live} at {pos}", flush=True)
         for r in squad_reports(last=256):
             if r.get("serial") not in reports:
                 reports[r.get("serial")] = r
