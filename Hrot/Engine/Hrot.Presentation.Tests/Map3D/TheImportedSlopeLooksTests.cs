@@ -168,6 +168,108 @@ public sealed class TheImportedSlopeLooksTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4597</c> (P-3, G-5 — a house PLACED in a scenario stands on a pad; user, <c>2026-11-15</c>: <i>"show it"</i>) — three repository templates (house-2f, barn,
+    /// courtyard-house) placed on a 12 % slope through the scenario's own path (<see cref="OverlayExpansion.House"/> → the overlay document → <see cref="TerrainWorldMerge.Merge"/>,
+    /// what the save and every node do). The "before" is the same houses with no <c>pad</c>: each stands at its lowest ground with the slope running into its uphill walls.
+    /// The asserts: the ground under each footprint is flat at the house's base after, and sloped before.
+    /// </summary>
+    [SkippableFact]
+    public void ScenarioHousePads_OnASlope_ReachTheFrame()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        int n = 161;
+        var z = new float[n * n];
+        for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) z[r * n + c] = Raw(-80 + c, -80 + r);
+        var b = new TerrainWorld { Name = "slope-p3", BoundsMin = new Vector2(-80f), BoundsMax = new Vector2(80f), Height = new TerrainHeightGrid(new Vector2(-80f), 1f, n, n, z) };
+        var assets = TerrainAssets.ForFolder(Path.Combine(_nas, "none"), ContentLayout.BuildingAssets(ContentLayout.TryFindSourceTree()!));
+        var placed = new (string Key, string Template, Vector2 At, float Heading)[]
+        {
+            ("h-2f", "house-2f", new Vector2(-30f, 10f), 0f),
+            ("h-barn", "barn", new Vector2(5f, -5f), 20f),
+            ("h-court", "courtyard-house", new Vector2(35f, 20f), -10f),
+        };
+        TerrainWorld Merge(bool pads)
+        {
+            var features = new System.Collections.Generic.List<System.Text.Json.Nodes.JsonObject>();
+            foreach (var p in placed)
+            {
+                var f = OverlayExpansion.House(p.Key, p.Template, p.Heading, 0f, p.At, b, assets);
+                if (!pads) ((System.Text.Json.Nodes.JsonObject)f["properties"]!).Remove("pad");
+                features.Add(f);
+            }
+            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(b, features).ToJsonString(), "slope-p3/overlay", assets);
+            return TerrainWorldMerge.Merge(b, overlay);
+        }
+        var before = Merge(false); var after = Merge(true);
+        Assert.Equal(placed.Length, after.Buildings.Count);
+        for (int i = 0; i < after.Buildings.Count; i++)
+        {
+            var h = after.Buildings[i];
+            float lo = float.MaxValue, hi = float.MinValue, rawLo = float.MaxValue, rawHi = float.MinValue;
+            var (min, max) = (new Vector2(float.MaxValue), new Vector2(float.MinValue));
+            foreach (var v in h.Footprint) { min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+            for (float x = min.X + 0.5f; x <= max.X - 0.5f; x += 0.5f)
+                for (float y = min.Y + 0.5f; y <= max.Y - 0.5f; y += 0.5f)
+                {
+                    if (!Inside(h.Footprint, new Vector2(x, y))) continue;
+                    float a = after.Height!.Sample(x, y), r0 = before.Height!.Sample(x, y);
+                    lo = MathF.Min(lo, a); hi = MathF.Max(hi, a); rawLo = MathF.Min(rawLo, r0); rawHi = MathF.Max(rawHi, r0);
+                }
+            _out.WriteLine($"{h.Label}: base {h.BaseZ:F2}; ground under it {lo:F2}…{hi:F2} with the pad, {rawLo:F2}…{rawHi:F2} without");
+            Assert.InRange(hi - lo, 0f, 0.1f);    // a rotated footprint on the 1 m grid: a few cm of ripple along a slanted edge
+            Assert.InRange(lo - h.BaseZ, -0.1f, 0.1f);
+            Assert.True(rawHi - rawLo > 1f, "the slope under the house without its pad");
+        }
+
+        // a cross-section through the barn and the 2-storey house, for the eye
+        Directory.CreateDirectory(Shots());
+        using (var csv = new StreamWriter(Path.Combine(Shots(), "scenario-profiles.csv")))
+        {
+            csv.WriteLine("y,raw_x-30,pad_x-30,raw_x5,pad_x5");
+            for (float y = -40; y <= 45; y += 0.25f)
+                csv.WriteLine(FormattableString.Invariant($"{y},{before.Height!.Sample(-30f, y)},{after.Height!.Sample(-30f, y)},{before.Height!.Sample(5f, y)},{after.Height!.Sample(5f, y)}"));
+        }
+
+        Vector3 At(TerrainWorld w, float x, float y, float above) => new(x, y, w.Height!.Sample(x, y) + above);
+        Vector2 Centre(int i) { var c = Vector2.Zero; foreach (var v in after.Buildings[i].Footprint) c += v; return c / after.Buildings[i].Footprint.Length; }
+        var views = new System.Collections.Generic.List<(string Name, Vector3 Eye, Vector3 At)> { ("overview", At(b, -5f, -75f, 45f), At(b, 0f, 10f, 0f)) };
+        for (int i = 0; i < after.Buildings.Count; i++)
+        {
+            var c = Centre(i);
+            string name = after.Buildings[i].Label!.Split('/')[0];
+            views.Add((name + "-from-uphill", At(b, c.X - 14f, c.Y + 22f, 9f), At(b, c.X, c.Y, 0f)));      // onto the uphill wall and the cut bank behind it
+            views.Add((name + "-uphill-corner", At(b, c.X + 18f, c.Y + 10f, 3f), At(b, c.X, c.Y + 4f, 0.5f)));
+        }
+        using var frame = UiFrameHarness.Begin(900, 560);
+        LitShader.Reset();
+        foreach (bool padded in new[] { false, true })
+        {
+            using var repo = new EntityRepository();
+            repo.SetSingletonManaged(padded ? after : before);
+            using var terrain = new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(repo));
+            for (int i = 0; i < views.Count; i++)
+            {
+                Settle(frame, terrain, null, Cam(views[i].Eye, views[i].At));
+                frame.Screenshot(Path.Combine(Shots(), $"scenario-{i}-{views[i].Name}-{(padded ? "pad" : "nopad")}.png"));
+            }
+        }
+        for (int i = 1; i < views.Count; i++)
+        {
+            float changed = Changed(Path.Combine(Shots(), $"scenario-{i}-{views[i].Name}-nopad.png"), Path.Combine(Shots(), $"scenario-{i}-{views[i].Name}-pad.png"));
+            _out.WriteLine($"{views[i].Name}: {changed:P1} of the frame changed");
+            Assert.True(changed > 0.01f, $"{views[i].Name}: the pad does not reach the frame ({changed:P2})");
+        }
+    }
+
+    private static bool Inside(Vector2[] poly, Vector2 p)
+    {
+        bool inside = false;
+        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+            if ((poly[i].Y > p.Y) != (poly[j].Y > p.Y) && p.X < (poly[j].X - poly[i].X) * (p.Y - poly[i].Y) / (poly[j].Y - poly[i].Y) + poly[i].X) inside = !inside;
+        return inside;
+    }
+
     private static string File(int i, string name, bool after) => $"slope-{i}-{name}-{(after ? "imported" : "raw")}.png";
 
     private static float Changed(string beforePng, string afterPng)
