@@ -1009,6 +1009,10 @@ namespace Hrot.SimHost.Tests
                 var released = intents.FindAll(i => i.Mount == 2);
                 Assert.Equal(decoys, released.Count);
                 Assert.All(released, r => Assert.Equal(ammo, r.Ammo));
+                // ⭐ CE-4617 (B-2, RV-7) — chaff is held for the missile's END-GAME: warned at 1 s with 5 s to go, none before 3 s
+                //   (2 s to go … ≤ CountermeasureSystem.ChaffEndGameS). 🔴 Red-proof: the hold removed ⇒ the first chaff at 1 s.
+                if (seeker == Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar)
+                    Assert.All(released, r => Assert.True(r.Frame >= 60 + 2 * 60 - 1, $"chaff at frame {r.Frame}: before the end-game"));
             }
 
             // a warning raised 30 s before the attack starts (its 5 s missile long gone) changes nothing

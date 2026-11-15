@@ -656,6 +656,14 @@ namespace Hrot.AI.Behaviors.Brains
         };
 
         /// <summary>
+        /// ⭐ <c>CE-4617</c> (B-2, RV-7; docs/designs/air-attack/DESIGN_Radar_SAM.md) — chaff is held until the missile's END-GAME (its time to go,
+        /// estimated from the warning, inside <see cref="Fdp.Toolkit.Combat.Systems.CountermeasureSystem.ChaffEndGameS"/>): a radar seeker
+        /// ignores a cloud before that (<c>CountermeasureSystem.InChaffEndGame</c>), so a cloud dropped at the launch is wasted. Flares are unchanged.
+        /// </summary>
+        public static bool ChaffTooEarly(DecoyKind kind, in MissileWarning w, double now)
+            => kind == DecoyKind.Chaff && w.TimeToImpactS - (now - (double)w.At) > Fdp.Toolkit.Combat.Systems.CountermeasureSystem.ChaffEndGameS;
+
+        /// <summary>
         /// ⭐ <c>CE-2191</c> — the break: the weapon stops, and the aircraft turns to put the missile on its BEAM (90° to the line to the missile,
         /// on the side nearer its heading, a little away from it — the line-of-sight rate a 30°/s seeker cannot follow) and flies
         /// <see cref="BreakAwayM"/> out; a helicopter also drops to <see cref="EvadeHeightAglRotor"/>. A second warning re-breaks.
@@ -690,7 +698,8 @@ namespace Hrot.AI.Behaviors.Brains
                                         Vector3 at, Vector3 target, double now)
         {
             var w = world.GetComponentRO<MissileWarning>(self);
-            if (ws.Decoys < DecoySalvo && DecoyFor(w.Seeker) is { } kind && Countermeasures.Release(world, self, kind)) ws.Decoys++;
+            if (ws.Decoys < DecoySalvo && DecoyFor(w.Seeker) is { } kind && !ChaffTooEarly(kind, in w, now)
+                && Countermeasures.Release(world, self, kind)) ws.Decoys++;
             if (now < ws.EvadeUntil) return NodeStatus.Running;
 
             ws.Stage = ws.Resume;

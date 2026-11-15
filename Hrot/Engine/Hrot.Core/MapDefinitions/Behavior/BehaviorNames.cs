@@ -129,6 +129,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2191</c> (Air Ops §7f) — a unit with an air-defence weapon stands and fires at the aircraft it sees.</summary>
         public const string EngageAircraft = "EngageAircraft";
 
+        /// <summary>⭐ <c>CE-4617</c> (DESIGN_Radar_SAM RS-5) — a radar SAM: radar on, a salvo at the aircraft it tracks, then radar off and relocate.</summary>
+        public const string RadarSamEngage = "RadarSamEngage";
+
         /// <summary>⭐ <c>CE-1056</c> I-2d — a soldier walks to a vehicle and boards it (DESIGN_Entity_Interactions §7.3).</summary>
         public const string Embark = "Embark";
         /// <summary>⭐ <c>CE-2176</c> (Weapon Systems §4b) — walk to a crew weapon and take its Gunner seat.</summary>

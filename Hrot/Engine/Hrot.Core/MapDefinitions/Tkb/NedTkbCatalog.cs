@@ -580,6 +580,68 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         /// <summary>⭐ The HMMWV (M1025-class, an M2 in its roof ring), ONE definition for both variants (2026-10-31, user: "HMMWV (M2, crewed)" /
         /// "HMMWV (M2, no crew)"): <paramref name="crewed"/> = its gunner seat starts with a rifleman at the M2, else it starts empty.</summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RS-1 / RV-2 / RV-6 / RV-15 / RV-17; docs/designs/air-attack/DESIGN_Radar_SAM.md) — the RADAR SAM vehicle: a
+        /// 6×6 truck (an SA-8 class, rounded) carrying a search-and-track radar on its mast and four ready missiles on its turret-0 launcher
+        /// (the canisters elevate with it, 0–85°; no reload). The radar's eye IS the vehicle's sight height (the mast — L-4): its eyes, its
+        /// radar and its launcher share it. The launcher fires a salvo of two, 2 s apart (<c>RoundsInFlight</c> / <c>SalvoIntervalS</c>);
+        /// the lock is the aim time. Unarmoured-ish (splinter protection). Starter values — lane decisions L-7…L-10.
+        /// </summary>
+        private static void RadarSam(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.AirDefence_RadarSam;
+            builder
+                .DefineVehicle(type, "Radar SAM vehicle")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SHGPUCDM-------";   // 2525B ground unit · combat · air defence · missile
+                    v.ColorHex = "#5A5E3A";
+                    v.Scale = 1.0f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 17_500;
+                    p.Length = 9.1f;
+                    p.Width = 2.8f;
+                    p.Height = 4.2f;
+                    p.MaxSpeed = 16.0f;
+                    p.Acceleration = 1.5f;
+                    p.TurnRate = 15.0f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 20; c.ArmorSide = 10; c.ArmorRear = 10; c.ArmorTop = 5;
+                    c.MaxHealth = 400;
+                    c.BlastSusceptibility = 0.3f;
+                    c.EyeHeight = RadarSamMastM;   // ⭐ RV-17 / L-4 — the radar's eye on the mast
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "RadarSam_Launcher", Ammunition = 4, Range = 8000, RateOfFire = 30,
+                        DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(Hrot.Core.Tkb.MunitionTkbCatalog.RadarSamLibraryName),
+                        AimSeconds = 2f,   // the lock (M4: "the lock IS the aim time")
+                        FireOnMove = false,
+                        MuzzleVelocity = 800f,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile),
+                        Category = WeaponCategory.Sam, TurretIndex = 0,
+                        RoundsInFlight = 2, SalvoIntervalS = 2f,   // ⭐ RV-2 — a salvo of two, 2 s apart
+                        MuzzleOffset = new System.Numerics.Vector3(1.0f, 0f, 0.4f),
+                    });
+                    c.SensorRange = 3000;
+                    c.RadarRange = 8000;   // ⭐ RS-2 — against the 10 m² reference (RadarPerception)
+                })
+                .WithTurrets(type, new TurretDto { PivotX = -1.5f, PivotZ = 2.6f, TrunnionX = 0.4f,
+                    ElevationMinDeg = 0f, ElevationMaxDeg = 85f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 40f })
+                .WithFaction(type, 2)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine, LauncherReport))
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 28, Subcategory = 1 });
+        }
+
+        /// <summary>⭐ <c>CE-4617</c> (RV-17) — the radar SAM's mast: its radar's (and so its sight's) height above the ground, m.</summary>
+        public const float RadarSamMastM = 6f;
+
         private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed)
         {
             builder
@@ -858,6 +920,7 @@ namespace Hrot.Map.Definitions.Tkb
             builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
             if (tkbDb.TryGetByType(TkbEntityTypes.Ew_DroneJammer, out var jammer) && jammer != null)
                 jammer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 400f });
+            RadarSam(builder);
             
             // T-72 (OPFOR)
             builder

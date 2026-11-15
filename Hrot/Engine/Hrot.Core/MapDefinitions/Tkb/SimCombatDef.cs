@@ -103,6 +103,13 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ <c>CE-3233</c> (B-11, ST-7) — what the weapon LOOKS like to an observer; null = by <see cref="Category"/>. Copied onto
         /// <c>WeaponMountDto.Appearance</c>.</summary>
         public Fdp.Toolkit.Tkb.Domain.ItemLook? Look { get; set; }
+
+        /// <summary>⭐ <c>CE-4617</c> (RV-2) — a guided mount's salvo: rounds in the air at once (0 = the category's profile) and the interval
+        /// between them, s. <c>WeaponMountDto.RoundsInFlight</c> / <c>SalvoIntervalS</c>.</summary>
+        public int RoundsInFlight { get; set; }
+
+        /// <inheritdoc cref="RoundsInFlight"/>
+        public float SalvoIntervalS { get; set; }
     }
     
     /// <summary>

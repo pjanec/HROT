@@ -69,23 +69,23 @@ namespace Fdp.Toolkit.Combat.Tests
 
         private void At(double t) => _w.SetSingleton(new GlobalTime { TotalTime = t });
 
-        private Entity Aircraft()
+        private Entity Aircraft(int chaff = 1)
         {
             var e = _w.CreateEntity();
             _w.AddComponent(e, new SimTransform { Position = new Vector3(1000, 0, 300), Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 60, 0) });
             _w.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Helicopter) });
             // what CombatTkbTranslator gives mount 0 on the owner: the total load and the loadout
-            _w.AddComponent(e, new WeaponState { Ammo = 3, MaxAmmo = 3 });
-            _w.AddComponent(e, AmmoLoadout.From(new[] { new AmmoLoadDto { AmmoGuid = Flare, Rounds = 2 }, new AmmoLoadDto { AmmoGuid = Chaff, Rounds = 1 } }));
+            _w.AddComponent(e, new WeaponState { Ammo = 2 + chaff, MaxAmmo = 2 + chaff });
+            _w.AddComponent(e, AmmoLoadout.From(new[] { new AmmoLoadDto { AmmoGuid = Flare, Rounds = 2 }, new AmmoLoadDto { AmmoGuid = Chaff, Rounds = chaff } }));
             return e;
         }
 
-        /// <summary>A homing round 500 m short of the aircraft, flying at it, with a 20° cone (or one pointed away).</summary>
-        private Entity Round(Entity target, GuidanceKind seeker, float rejection, bool lookingAway = false)
+        /// <summary>A homing round <paramref name="short"/> m short of the aircraft (500 by default), flying at it, with a 20° cone (or one pointed away).</summary>
+        private Entity Round(Entity target, GuidanceKind seeker, float rejection, bool lookingAway = false, float @short = 500f)
         {
             var e = _w.CreateEntity();
-            var at = new Vector3(500, 0, 300);
+            var at = new Vector3(1000f - @short, 0, 300);
             _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
             _w.AddComponent(e, new SimVelocity { Linear = (lookingAway ? new Vector3(0, -1, 0) : Vector3.UnitX) * 700f });
             _w.AddComponent(e, new GuidedRound
@@ -198,6 +198,61 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(ReleaseAndThrow(heli, DecoyKind.Flare));
             Assert.False(OnADecoy(stubborn), "rejection 1: never seduced");
             Assert.True(OnADecoy(ir));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RV-7; docs/designs/air-attack/DESIGN_Radar_SAM.md) — chaff seduces a RADAR round only in its END-GAME
+        /// (inside 1.5 km, or 3 s to go): at 4 km (5 s at 800 m/s… here 700) a cloud is ignored even by a seeker that never rejects; at 1 km it
+        /// is taken. A flare against an IR round 4 km out still works (unchanged). 🔴 Red-proof: the gate removed ⇒ the far radar round is seduced.
+        /// </summary>
+        [Fact]
+        public void CE4617_Chaff_SeducesARadarRound_OnlyInItsEndGame_AndFlaresAreUnchanged()
+        {
+            var heli = Aircraft();
+            var far = Round(heli, GuidanceKind.Radar, rejection: 0f, @short: 4000f);
+            var near = Round(heli, GuidanceKind.Radar, rejection: 0f, @short: 1000f);
+            var farIr = Round(heli, GuidanceKind.InfraRed, rejection: 0f, @short: 4000f);
+            Assert.True(ReleaseAndThrow(heli, DecoyKind.Chaff));
+            Assert.False(OnADecoy(far), "4 km out: outside the end-game, the cloud is ignored");
+            Assert.True(OnADecoy(near), "1 km out: inside it, the cloud is taken");
+            _w.GetComponentRW<WeaponState>(heli).CooldownSecondsRemaining = 0f;
+            Assert.True(ReleaseAndThrow(heli, DecoyKind.Flare));
+            Assert.True(OnADecoy(farIr), "a flare still seduces an IR round at any range");
+            Assert.True(CountermeasureSystem.InChaffEndGame(new Vector3(2000, 0, 0), new Vector3(800, 0, 0), new Vector3(4300, 0, 0)), "2.3 km but 2.9 s to go");
+            Assert.False(CountermeasureSystem.InChaffEndGame(new Vector3(2000, 0, 0), new Vector3(400, 0, 0), new Vector3(4300, 0, 0)), "2.3 km and 5.8 s to go");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (RV-7, the design's target) — four chaff in the end-game defeat the radar SAM's missile (rejection 0.9) in 20–40 %
+        /// of seeded engagements (1 − 0.9⁴ ≈ 34 %), deterministic per seed. 🔴 Red-proof: rejection 0.6 (the Stinger's flare figure) ⇒ ~87 %.
+        /// </summary>
+        [Fact]
+        public void CE4617_FourChaffInTheEndGame_DefeatTheRadarSam_TwentyToFortyPercentOfTheTime()
+        {
+            static int Defeated(int trials)
+            {
+                int defeated = 0;
+                for (int i = 0; i < trials; i++)
+                {
+                    var t = new CountermeasureSystemTests();
+                    var heli = t.Aircraft(chaff: 4);
+                    var round = t.Round(heli, GuidanceKind.Radar, rejection: 0.9f, @short: 1000f);
+                    for (int c = 0; c < 4; c++)
+                    {
+                        t.At(100 + i * 7.3 + c * 0.5);
+                        t._w.GetComponentRW<WeaponState>(heli).CooldownSecondsRemaining = 0f;
+                        Assert.True(t.ReleaseAndThrow(heli, DecoyKind.Chaff));
+                    }
+                    if (t.OnADecoy(round)) defeated++;
+                    t.Dispose();
+                }
+                return defeated;
+            }
+            const int Trials = 300;
+            int a = Defeated(Trials);
+            Assert.Equal(a, Defeated(Trials));
+            float rate = a / (float)Trials;
+            Assert.InRange(rate, 0.20f, 0.40f);
         }
 
         /// <summary>

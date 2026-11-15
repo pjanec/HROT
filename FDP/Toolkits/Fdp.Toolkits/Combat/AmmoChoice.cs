@@ -47,7 +47,11 @@ namespace Fdp.Toolkit.Combat
         /// by its locomotion class: a helicopter on its pad too), Ground otherwise.</summary>
         public static bool InDomain(EntityRepository world, Entity target, long ammo)
         {
-            var domain = CombatTkb.MissileOf(world, ammo)?.TargetDomain ?? Fdp.Toolkit.Tkb.Domain.TargetDomain.Either;
+            var missile = CombatTkb.MissileOf(world, ammo);
+            // ⭐ CE-4617 (B-3, RS-8) — a seeker that cannot lock a target this small (an FPV for the radar SAM): never this round
+            if (missile is { MinTargetRcsM2: > 0f } && !target.IsNull && world.IsAlive(target)
+                && Fdp.Toolkit.Perception.Radar.RadarEmissions.CrossSectionOf(world, target) < missile.MinTargetRcsM2) return false;
+            var domain = missile?.TargetDomain ?? Fdp.Toolkit.Tkb.Domain.TargetDomain.Either;
             if (domain == Fdp.Toolkit.Tkb.Domain.TargetDomain.Either || target.IsNull || !world.IsAlive(target)) return true;
             // ⭐ airborne insertion B-6 (D-4) — a man coming down a rope or under a canopy is neither an aircraft nor a ground target for a
             //   GUIDED round: a Stinger never locks him, a Javelin never picks him; a gun (Either) still shoots him

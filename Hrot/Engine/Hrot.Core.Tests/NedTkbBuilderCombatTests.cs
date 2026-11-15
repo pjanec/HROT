@@ -788,6 +788,49 @@ namespace Hrot.Map.Common.Tests
             Assert.NotEqual(hmmwv.DisType.Subcategory, jammer.DisType.Subcategory);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RS-1 / RS-3 / RV-2 / RV-15 / RV-17; docs/designs/air-attack/DESIGN_Radar_SAM.md §2a) — the radar SAM vehicle as
+        /// the ids note fixed it: type 114, DIS 1.1.Russia.28.1, the class <c>AirDefenceVehicle</c> (the key ui maps to a 3-D family); ONE weapon
+        /// — four ready missiles on turret 0, a salvo of two 2 s apart, no reload — whose round is the radar SAM missile (6050: radar seeker,
+        /// 60° cone, 800 m/s, 18 s, 0.5 km minimum, chaff rejection 0.9, a proximity-fused library warhead, a placeholder look); the launcher
+        /// elevates 0–85°; the sight is the mast's and the sensor list carries eyes, ears AND the 8 km radar.
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadarSamVehicle_IsType114_DisClassLauncherSalvoAndRadar_AndItsMissileIs6050()
+        {
+            var db = BuildDatabase();
+            Assert.Equal(114L, TkbEntityTypes.AirDefence_RadarSam);   // a permanent wire value
+            var sam = db.GetByType(TkbEntityTypes.AirDefence_RadarSam)!;
+            Assert.Equal((1, 1, NedTkbCatalog.Russia, 28, 1), ((int)sam.DisType.Kind, (int)sam.DisType.Domain, sam.DisType.Country, (int)sam.DisType.Category, (int)sam.DisType.Subcategory));
+            Assert.Equal("AirDefenceVehicle", Hrot.Core.Tkb.EntityClassTable.Default.MostSpecific(sam.DisType)!.Name);
+
+            var mount = Assert.Single(sam.GetDescriptor<WeaponSuiteDto>()!.Mounts);
+            Assert.Equal((WeaponCategory.Sam, 0, 4, 2, 2f), (mount.Category, mount.TurretIndex, mount.InitialAmmunition, mount.RoundsInFlight, mount.SalvoIntervalS));
+            Assert.Equal(0, mount.MagazineSize);   // no reload
+            Assert.Equal(Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile, unchecked((long)mount.AmmoGuid));
+            var turret = Assert.Single(sam.GetDescriptor<TurretSuiteDto>()!.Turrets);
+            Assert.Equal((0f, 85f), (turret.ElevationMinDeg, turret.ElevationMaxDeg));
+
+            var sensors = sam.GetDescriptor<SensorCapabilitiesDto>()!;
+            Assert.Equal(NedTkbCatalog.RadarSamMastM, sensors.EyeHeightStanding);
+            var radar = Assert.Single(sensors.Sensors, e => e.Kind == Fdp.Toolkit.Perception.Components.SensorModality.Radar);
+            Assert.Equal(8000f, radar.Radar!.Range);
+            Assert.Contains(sensors.Sensors, e => e.Kind == Fdp.Toolkit.Perception.Components.SensorModality.Visual);
+
+            Assert.Equal(6050L, Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile);   // ⚠ the note's 6047 is the 60 mm smoke (CE-7025)
+            var rounds = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(rounds);
+            var missileType = rounds.GetByType(Hrot.Core.Tkb.MunitionTkbCatalog.TkbRadarSamMissile)!;
+            Assert.Equal("2.1.222.1.0.0.0", missileType.DisType.ToString());   // anti-air, guided (CE-3213's rule)
+            var m = missileType.GetDescriptor<MissileDto>()!;
+            Assert.Equal((GuidanceKind.Radar, 800f, 18f, 500f, TargetDomain.Air, 60f, 0.9f),
+                         (m.Guidance, m.SpeedMps, m.MaxFlightSeconds, m.MinRangeM, m.TargetDomain, m.SeekerConeDeg, m.ChaffRejection));
+            var w = missileType.GetDescriptor<WarheadDto>()!;
+            Assert.Equal(FuzeKind.Proximity, w.Fuze);
+            Assert.True(w.HasAreaEffect, "the library's fragmentation warhead");
+            Assert.NotNull(missileType.GetDescriptor<MunitionVisualDto>());   // the placeholder look ui tunes
+        }
+
         /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — the INFANTRY COMPANY: a land unit of the infantry arm at company echelon whose roster
         /// is three platoon commanders, a brain with NO standing orders (lane default R-7000: its work is its task).</summary>
         [Fact]

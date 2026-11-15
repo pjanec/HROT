@@ -78,6 +78,23 @@ namespace Fdp.Toolkit.Combat.Systems
             return true;
         }
 
+        /// <summary>⭐ <c>CE-4617</c> (B-2, RV-7; docs/designs/air-attack/DESIGN_Radar_SAM.md) — chaff seduces a RADAR round only in its
+        /// END-GAME: within this distance of the cloud (m) …</summary>
+        public const float ChaffEndGameM = 1500f;
+
+        /// <summary>… or this many seconds from it at the round's speed. Earlier, the seeker's range gate tells a slow cloud from a fast
+        /// aircraft (a chaff dropped at the launch never works). IR flares are unchanged.</summary>
+        public const float ChaffEndGameS = 3f;
+
+        /// <summary>Is a radar round at <paramref name="pos"/> moving at <paramref name="vel"/> inside its end-game against a cloud at <paramref name="cloud"/>?</summary>
+        public static bool InChaffEndGame(Vector3 pos, Vector3 vel, Vector3 cloud)
+        {
+            float d = Vector3.Distance(pos, cloud);
+            if (d <= ChaffEndGameM) return true;
+            float v = vel.Length();
+            return v > 1e-3f && d / v <= ChaffEndGameS;
+        }
+
         /// <summary>
         /// Every homing round the <paramref name="kind"/> fools, not already on a decoy, with <paramref name="decoy"/> in its cone: one
         /// draw — at or above its <see cref="GuidedRound.Rejection"/> it re-targets the decoy. ⭐ One draw per decoy, so a salvo of N
@@ -97,6 +114,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 var pos = repo.GetComponentRO<SimTransform>(r).Position;
                 var vel = repo.HasComponent<SimVelocity>(r) ? repo.GetComponentRO<SimVelocity>(r).Linear : Vector3.Zero;
                 if (!GuidedRoundSystem.InCone(in g, pos, vel, p)) continue;
+                if (g.Guidance == GuidanceKind.Radar && !InChaffEndGame(pos, vel, p)) continue;   // ⭐ CE-4617 (RV-7)
                 var rng = SimRng.FromSim(r.Index, SeductionSalt + decoy.Index, (float)now);
                 if (rng.NextSingle() < g.Rejection) continue;   // the seeker rejected this decoy
                 g.Target = decoy;

@@ -42,7 +42,7 @@ namespace Fdp.Toolkit.Perception.Radar
         /// <summary>How far the radar reaches (m) — what a warning receiver compares its distance with.</summary>
         public float RangeM;
         /// <summary>Sim time (s) the radar last switched ON — the direction finding's "continuous emission" clock.</summary>
-        public double OnSince;
+        public SimInstant OnSince;
 
         public readonly bool IsOn => Mode != RadarMode.Off;
     }
@@ -63,6 +63,25 @@ namespace Fdp.Toolkit.Perception.Radar
     /// <summary>⭐ <c>CE-4617</c> — the ONE reader and the ONE writer of <see cref="RadarEmission"/>.</summary>
     public static class RadarEmissions
     {
+        /// <summary>The radar cross-section of <paramref name="target"/> (its <see cref="RadarSignature"/>; none ⇒ the 10 m² reference — L-2).</summary>
+        public static float CrossSectionOf(ISimulationView view, Entity target)
+        {
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<RadarSignature>()) return Sensors.RadarPerception.ReferenceRcsM2;
+            return view.HasComponent<RadarSignature>(target) ? view.GetComponentRO<RadarSignature>(target).RcsM2 : Sensors.RadarPerception.ReferenceRcsM2;
+        }
+
+        /// <summary>The stated range (m) of the radar <paramref name="unit"/>'s TKB lists (its <c>SensorCapabilitiesDto.Sensors</c>), 0 = none —
+        /// whether it carries one at all (the brain's node may hold no sensor child: perception solves elsewhere, RV-4).</summary>
+        public static float RangeOf(EntityRepository repo, Entity unit)
+        {
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(repo, unit, out var t)) return 0f;
+            var list = t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.SensorCapabilitiesDto>()?.Sensors;
+            if (list == null) return 0f;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i].Kind == Components.SensorModality.Radar && list[i].Radar is { } radar) return radar.Range;
+            return 0f;
+        }
+
         /// <summary>Is <paramref name="unit"/>'s radar radiating (false with no component, or a world that does not register it)?</summary>
         public static bool IsOn(ISimulationView view, Entity unit)
         {
@@ -82,13 +101,13 @@ namespace Fdp.Toolkit.Perception.Radar
             if (!repo.HasComponent<RadarEmission>(unit))
             {
                 if (mode == RadarMode.Off) return true;   // never added just to say "off"
-                repo.AddComponent(unit, new RadarEmission { Mode = mode, TrackedTarget = tracked, EmitterClass = emitterClass, RangeM = rangeM, OnSince = now });
+                repo.AddComponent(unit, new RadarEmission { Mode = mode, TrackedTarget = tracked, EmitterClass = emitterClass, RangeM = rangeM, OnSince = (SimInstant)now });
                 return true;
             }
             var was = repo.GetComponentRO<RadarEmission>(unit);
             if (was.Mode == mode && was.TrackedTarget == tracked && was.EmitterClass == emitterClass && was.RangeM == rangeM) return true;
             ref var e = ref repo.GetComponentRW<RadarEmission>(unit);
-            if (!was.IsOn && mode != RadarMode.Off) e.OnSince = now;
+            if (!was.IsOn && mode != RadarMode.Off) e.OnSince = (SimInstant)now;
             e.Mode = mode;
             e.TrackedTarget = tracked;
             e.EmitterClass = emitterClass;
