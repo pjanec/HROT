@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: DESIGN — decisions R-4261, the review R-4262 approved; ⏳ §8a (how a unit knows it must not halt) awaiting the user, then the fold-in of §8 into §2–§6 and READY-TO-BUILD
+build-state: READY-TO-BUILD (2026-11-15) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review
-stale-below: nothing
+stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the review record, folded into §2–§6
 known-rot: none
 known-conflict: none
 related-designs:
@@ -45,6 +45,253 @@ exposure, the last-second break turn buys a miss.
 | SUMO's `motorcycle` class; traffic types are `TrafficVehicleDto` rows | `VTypeDefaults.cs:156`, `UrbanCombatTkbCatalog.cs:206, :439` | civilian bikes (IM-7) |
 | ⛔ a timer detonation · a firing seat · a dispersal play · a two-wheeler | — | built here |
 
+## 2. Decisions *(✅ R-4261 · the review R-4262 · conduct categories R-4263 · the player R-4263 — folded `2026-11-15`; the first text is in HISTORY)*
+
+🔒 User, `2026-11-15`: *"Approved, fold them in. I think the motorcycle also needs to be possessable and player can also embark it as a passenger
+(the one that can shoot while motorcycle drives)"*.
+
+| # | decision | why / review |
+|---|---|---|
+| **MC-1** | ONE `Motorcycle` type (soldiers and insurgents; the side from the faction): a Driver seat + a pillion FIRING seat (PF-1), both exposed; ~28 m/s on a road; its own SUMO vType (MV-10); its own 3-D family and kit (two wheels, riders seated) by the ui lane, mockup first (MV-11) | — |
+| **MC-2** | ⭐ an **off-road speed factor per TYPE** (open · scrub · forest; road 1.0) on `VehicleParametersDto` → `VehicleParams` (0 = 1.0, so every existing type is unchanged) — read from ONE surface-class grid (the 25 m `TerrainWoods` grid generalised: one array index, built in the serial pre-pass), applied in the ONE ground integrator; the tracked-in-woods cap folds into the same table; ONE forest source. The bike: open 0.6 · scrub 0.45 · forest 0.3, grip ~0.45 g off-road | MV-3, MV-4 |
+| **MC-2a** | the SAME per-type table prices the route planner's per-mover filter — a bike may enter a wood at its factor (today `WheeledWoodsCost = 0` closes it); a cover-seeking route = waypoints the play sets now; an exposure cost on the planner is a later row | MV-5 — one owner |
+| **MC-3** | `GreyZoneDash` — a squad on 2–3 bikes under an order of kind **`Dash`** (CD-2): the play's waypoints, ≥ 80 m between bikes (one drone, one bike — reuse `PlatoonConvoy`'s gap), full speed, never stop | MV-12, MV-13 |
+| **MC-4** | the pillion is the LOOKOUT: the rider reads the exposed crew's memory as a DECLARED cross read; **riding masks hearing** — one rule in the acoustic masking (a listener on a moving vehicle hears × k); a diving drone at **time-to-go ≈ commit + 0.3 s** ⇒ break hard ACROSS its approach bearing (two sightings) | MV-7, MV-8 |
+| **MC-4a** | ⭐ **the FPV's terminal guidance becomes realistic** (cross-lane into the FPV design): it aims from its OWN perceived track with an operator delay (~0.3–0.5 s) and stops re-aiming at a COMMIT point (time-to-go ≈ 0.7 s); the expected miss of a break is ½·a·(commit + delay)² — ⚠ every drone scenario changes (R-4262) | MV-1 |
+| **MC-5** | a bike hit or a man down ⇒ the others ride on (CD-2 forbids halting); survivors of a disabled bike may dismount (CD-5) and go to cover on foot | MV-2 |
+| **MC-6** | at the dismount point the bike halts, the squad dismounts (`SquadDismount`), the order changes from `Dash`; the abandoned bikes stay where they are, owned by nobody (any unit may take one) | MV-13 |
+| **MC-7** | the defender is the existing `DroneOperator` / `DroneTeam`; it picks by its score (a bike 1 beats a rider 0.3) | MV-13 |
+| **CD-1** | ⭐ every REACTION declares its **conduct** on `[Behavior]`: `Halts` · `Dismounts` · `LeavesRoute` · `SeeksCover` | 🔒 user: categories, never names |
+| **CD-2** | ⭐ every ORDER KIND declares the conduct it **forbids**, in ONE table beside `OrderKind`: new kind **`Dash`** forbids all four; Defend / Hold forbid LeavesRoute (`HoldsFirm` folds in) | the order is compared, never a behaviour |
+| **CD-3** | ⭐ the ONE gate (`BehaviorIngressSystem.Admit`) refuses a reaction whose conduct the unit's current order forbids — refusal `ForbiddenByOrder`, journaled; no SOP row changes; ⚠ the refused row FALLS THROUGH to the next row (never a re-try loop — the build verifies `SopActions.React`'s return) | MV-2 |
+| **CD-4** | the dash orders each bike with kind `Dash` too — the bike and the squad each read ONLY their own order | the parallel rule |
+| **CD-5** | the forbidding yields when the unit cannot comply (immobile, its carrier dead) | — |
+| **CD-6** | firing is not a conduct — the pillion still fires; self-defence is never refused | — |
+| **IM-1** | `DriveBy` — our bike handed to traffic (`TrafficHandover`), neutral, weapon hidden → a brain move at the act → slow to 2–5 m/s alongside → the pillion fires a burst / throws → the pre-chosen escape route at speed → split; re-blend (dump the bike) | MV-10, MV-12 |
+| **IM-2** | `ParkedBomb` — ride in, park, leave (on foot / a waiting bike), detonate by `ChargeTimer` or phone; optional secondary device for responders | MV-9, MV-12 |
+| **IM-3** | the bike-borne bomb at a checkpoint = `RamTarget` on a two-wheeler ([Checkpoint & Ramming](DESIGN_Checkpoint_And_Ramming.md)) | — |
+| **IM-5** | `SwarmRaid` — an assembly area → converge from N directions (night allowed) → pillions fire on the approach → dismount and fight → DISPERSE on divergent routes to a rally point, picking up casualties; defenders HEAR massed engines | MV-12 |
+| **IM-6** | scout / getaway — compositions (`Sentry` + reports; a waiting move) | — |
+| **IM-7** | civilian bikes in SUMO; the INSURGENT is our own entity handed to traffic (never a SUMO mirror) | MV-10 |
+| **IM-8** | the counters: a motorcycle ban (a scenario rule); "two men on one bike" an indicator at the checkpoint | — |
+| **PF-1** | ⭐ a **firing seat**: any seat may state a traverse arc — the EXISTING station arc (`SeatDto.TraverseMinDeg/MaxDeg` → `WeaponSystems.InStationArc`, generalised, ⚠ wrapping through ±180°); its man KEEPS `CanShoot` (one rule in `Embarkation.StrippedOn`; `CombatLife.RestoreHitCapabilities` asks it too) and fires his own weapon; the seat is placed at its X/Y/Z like a station (his eye and muzzle) | MV-6 — generic: pickup beds, firing ports |
+| **PF-2** | his spread = the moving-shooter law (his velocity is already the vehicle's) + a rough-ride factor off-road | MV-6 |
+| **PF-3** | the passenger's own weapon brain decides to fire inside the arc; the rider only drives | 🔒 user |
+| **PF-4** | the rider's seat keeps `CanShoot` with NO fire on the move — the existing `HoldMoving` gate | MV-6 |
+| **PL-1** | ⭐ **the player may DRIVE the bike** — possess a soldier, *Drive* (the existing use verb, any vehicle with a Driver seat) ⇒ manual driving; the speed factor (MC-2) slows him off-road too | 🔒 user |
+| **PL-2** | ⭐ **the player may RIDE PILLION and shoot** — *Board* (the existing verb) takes the firing seat while an AI (or another player) drives; in first person his camera is at the seat's eye, he looks freely and fires his own weapon INSIDE the arc (outside it the HUD shows *out of arc* and nothing fires) with PF-2's spread; ⚠ the first-person fire path for an EMBARKED man is unmeasured — the build measures it first | 🔒 user |
+| **PL-3** | the AI rider of a player's pillion obeys the player's squad order (or a *Drive to* order from the player) — the player does not steer | — |
+| ⛔ IM-4 | the sticky bomb — DROPPED | 🔒 user |
+
+## 3. UML *(as folded)*
+
+```mermaid
+classDiagram
+  class VehicleParams {
+    <<existing, grows OffRoad factors per type>>
+    Open
+    Scrub
+    Forest
+  }
+  class SurfaceClassGrid {
+    <<new, generalises TerrainWoods, serial build>>
+    ClassAt()
+  }
+  class CarKinematicsSystem {
+    <<existing, the one integrator>>
+  }
+  class NavMoverFilter {
+    <<existing per-mover filter, priced by the same table>>
+  }
+  class SeatDto {
+    <<existing, any seat may state TraverseMin and Max>>
+  }
+  class InStationArc {
+    <<existing WeaponSystems, generalised to seats, wraps>>
+  }
+  class Embarkation {
+    <<existing, StrippedOn keeps CanShoot on a firing seat>>
+  }
+  class AcousticPerception {
+    <<existing, masking grows a moving-vehicle term>>
+  }
+  class BehaviorIngressSystem {
+    <<existing, THE ONE GATE refuses ForbiddenByOrder>>
+  }
+  class BehaviorConduct {
+    <<new flags on Behavior attribute>>
+    Halts
+    Dismounts
+    LeavesRoute
+    SeeksCover
+  }
+  class OrderConduct {
+    <<new table beside OrderKind>>
+    Forbids()
+  }
+  class FpvTerminalGuidance {
+    <<FPV design, perceived track, delay, commit>>
+  }
+  class ChargeTimer {
+    <<new, unmanaged, recorded>>
+    DetonateAt
+  }
+  class Charges {
+    <<existing, Ask with no asker is the timer path>>
+  }
+  class TrafficHandover {
+    <<existing, our bike into SUMO and back>>
+  }
+  class GreyZoneDash {
+    <<new play, order kind Dash>>
+  }
+  class DriveBy {
+    <<new play>>
+  }
+  class SwarmRaid {
+    <<new play>>
+  }
+  class OperatorUse {
+    <<existing, Drive and Board verbs>>
+  }
+  CarKinematicsSystem ..> VehicleParams
+  CarKinematicsSystem ..> SurfaceClassGrid
+  NavMoverFilter ..> VehicleParams : one table
+  Embarkation ..> SeatDto
+  InStationArc ..> SeatDto
+  BehaviorIngressSystem ..> BehaviorConduct : the reaction
+  BehaviorIngressSystem ..> OrderConduct : the current order
+  GreyZoneDash ..> OrderConduct : Dash
+  ChargeTimer ..> Charges
+  DriveBy ..> TrafficHandover
+  DriveBy ..> InStationArc : the pillion fires
+  SwarmRaid ..> InStationArc
+  OperatorUse ..> SeatDto : the player drives or rides pillion
+  FpvTerminalGuidance .. GreyZoneDash : the threat
+  AcousticPerception .. GreyZoneDash : riders hear less
+```
+*What it shows that prose hid: every engine change GROWS an existing seam — the integrator's params, the woods grid, the station arc, the boarding
+rule, the acoustic mask, the one admission gate — and the player rides on the same seat rules as the AI (the existing Drive / Board verbs).*
+
+```mermaid
+sequenceDiagram
+  participant R as rider, bike 1
+  participant P as pillion lookout, AI or player
+  participant G as the one gate
+  participant D as FPV drone
+  R->>R: order kind Dash, full speed on the play's waypoints
+  D->>R: search, pick, pursue on its perceived track
+  P->>R: drone diving, time-to-go near commit
+  R->>R: hard break across its approach bearing
+  D-->>R: committed, misses or hits
+  R->>G: squad SOP wants SquadDismount under fire
+  G-->>R: refused, ForbiddenByOrder, the next row runs
+  P->>P: fires inside his arc while riding
+  R->>R: at the dismount point the order changes, dismount
+```
+*What it shows: the drone is beaten only because it COMMITS; the squad's own reflexes are held back by its order's category at the one gate; the
+pillion's fire is untouched by it.*
+
+```mermaid
+graph TD
+  SIM[SimHost - GroundKinematicsModule, CarKinematicsSystem with the speed factor] --> SG[SurfaceClassGrid, built serially]
+  NAV[navmesh per-mover filter] --> SG2[the same per-type table]
+  CGF[CgfLogicPack - brains, plays, the FPV] --> GATE[BehaviorIngressSystem, the one gate]
+  PER[perception capability - AcousticPerception] --> MASK[moving-vehicle masking]
+  INT[Interactions capability on every node - ChargeSystem] --> CT[ChargeTimer, acts where it owns the position]
+  TRAF[Hrot.Traffic - TrafficHandover, the bike vType] --> SUMO[SUMO]
+  MAP[map hosts - PossessionStation, first person] --> PL[the player drives or rides pillion]
+  SCH[kernel scheduler every frame] --> SIM
+  SCH --> CGF
+  SCH --> PER
+  SCH --> INT
+```
+*What it shows: each change rides the module that already owns its neighbour, on every node that needs it — the timer on every node (acting only
+where it owns the charge), the masking where perception solves, the gate where the brains run.*
+
+## 4. The dash in time *(defaults; the builder tunes, recording each)*
+
+| t | bike 1 | bike 2 / 3 | the drone |
+|---|---|---|---|
+| 0 | order `Dash`, full speed, waypoints | 80 m spacing | searching |
+| +20 s | spotted | — | picks by score, pursues on its perceived track |
+| dive, ~2.3 s out | the pillion sees it dive | ride on | re-aims, with its operator delay |
+| time-to-go ≈ 1 s | hard break across its bearing | ride on | commits at ≈ 0.7 s, stops re-aiming |
+| impact | miss ⇒ ride on · hit ⇒ survivors may dismount (CD-5) | ride on | spent |
+| arrival | the order changes, dismount, fight on foot | the same | — |
+
+## 5. The plays
+
+| play | steps | built from |
+|---|---|---|
+| `GreyZoneDash` | order `Dash` → waypoints → spacing → MC-4 break → dismount at the edge | `PlatoonConvoy`'s gap, `SquadDismount`, the gate |
+| `DriveBy` | traffic handover → brain move at the act → 2–5 m/s alongside → burst / throw → escape route → split, re-blend | `TrafficHandover`, hidden weapons, the firing seat, `HiddenTargetThrow`, the hostile act |
+| `ParkedBomb` | ride → park → leave → `ChargeTimer` / phone (+ secondary) | `Charges.Ask(charge, Null)`, `TriggerIed` |
+| `SwarmRaid` | assembly → converge from N directions → pillions fire → dismount, fight → disperse to a rally point with casualties | the motorcycle squad, `PlatoonAttack`, `BreakContact` |
+| scout / getaway | `Sentry` + reports; a waiting move | compositions |
+
+## 6. Slices and acceptance
+
+| # | lane | builds | ⭐ done when (a rail each, red-proved) |
+|---|---|---|---|
+| **M-1** | backend | MC-2 / MC-2a (per-type factors, the surface-class grid, the nav pricing) + MC-1 the type (SUMO vType) | a bike crosses open ground at 0.6 × its road speed and may route through a wood; every existing vehicle suite and scenario hash unchanged; 0 B per frame |
+| **M-1v** | ui | the motorcycle family + kit (two wheels, seated riders), mockup first | drawn in 2-D and 3-D; a frame rail under `xvfb-run -a` |
+| **M-2** | backend | PF-1…PF-4 the firing seat (the generalised arc, seat placement, the capability paths) | a pillion fires inside his arc, not ahead; the arc wraps through ±180°; the rider never fires moving; a pickup-bed rifleman fires too |
+| **M-2p** | ui + backend | PL-1…PL-3 the player: drive, and ride pillion firing in first person | possess → Drive → the bike drives and is slowed off-road; possess → Board pillion → fire inside the arc only, the HUD's *out of arc* outside it |
+| **M-3** | behaviors | CD-1…CD-6 conduct + the gate | a squad on a `Dash` under fire does not dismount and its bike does not shelter; the next row runs; a disabled bike's men dismount; the journal shows `ForbiddenByOrder` |
+| **M-4** | behaviors (+ the FPV design) | MC-4a the realistic FPV guidance; MC-3…MC-7 the dash; the hearing mask | seeded runs on open ground vs two FPV operators: the riders are UNHURT (miss beyond the casualty radius) in a measured share; existing drone scenarios re-run and their rails reconciled |
+| **M-5** | behaviors | `DriveBy`, `ParkedBomb`, `ChargeTimer` | the drive-by fires from the pillion and escapes; the parked bomb goes off on its timer after the rider has left |
+| **M-6** | behaviors | `SwarmRaid` + dispersal | N bikes converge, fight, disperse to a rally point |
+
+⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
+invariant number output (R-4221); a new recorded component unmanaged and fixed before its first recording.
+
+## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; MV-1 the realistic FPV terminal guidance included)
+
+⭐ 23 raw findings merged into 13. The design is NOT buildable as drawn until MV-1…MV-5 are ruled.
+
+| # | sev | the defect | evidence | ⭐ lean |
+|---|---|---|---|---|
+| MV-1 | ⛔ BLOCKER | the break turn CANNOT beat the FPV as coded: it re-aims every 0.2 s at the target's TRUE position with a lead, turning ~31 m/s² against the bike's ~8 — the escape is ~0.16 m; and a miss still bursts on the ground (PG-7: 2 m lethal, 5 m casualty) | `AirAttackBehaviors.cs:346, :613-631`, `RotorcraftModel.cs:93`, `DroneImpactSystem.cs:54-67` | ⭐ **cross-lane, the FPV's terminal guidance becomes realistic**: it aims from the drone's own perceived track + an operator delay (~0.3–0.5 s) and STOPS re-aiming at a commit point (time-to-go ≈ 0.7 s); the design states the expected miss ½·a·(commit + delay)²; M-3's acceptance = the riders UNHURT (miss beyond the casualty radius) in a measured share. ⚠ every drone scenario changes — the user's call |
+| MV-2 | ⛔ BLOCKER | the existing reactions break "never stop": the squad SOP dismounts a mounted squad under fire (above the Riding row) and the vehicle SOP sends a bike to `ShelterFromAir` on a drone | ✔ `BasicSquadSop.cs:91-98` (origin/behaviors), `BasicVehicleSop.cs:60-64` | during a dash those rows YIELD (the `PushThrough` precedent: "a carrier never stops in the kill zone"); the bike's drone row becomes MC-4; a rail: a burst nearby in a dash ⇒ no dismount, no route change |
+| MV-3 | ⛔ BLOCKER | the speed factor keyed per MOBILITY CLASS cannot tell a bike from a pickup (both `Wheeled`) | ✔ `NedTkbBuilder.cs:184-189` | per TYPE: three factors on `VehicleParametersDto` → `VehicleParams` (unmanaged, on every node, already read in the integrator), 0 = 1.0 |
+| MV-4 | ⛔ BLOCKER | the ground-class lookup per vehicle per tick walks every surface polygon (`foreach` over an interface — allocates) | `TerrainWorld.cs:1103-1109` | ONE surface-class grid, generalising the 25 m `TerrainWoods` grid (one array index), built in the serial pre-pass; ONE forest source; the tracked-in-woods cap folds into the same table |
+| MV-5 | ⛔ BLOCKER | the route planner cannot do what the dash assumes: a wheeled mover never enters a wood (cost 0 = closed), open / scrub are not navmesh areas, no exposure cost exists | ✔ `NavDoorways.cs:211` (`WheeledWoodsCost = 0f`) | the same per-type table prices the integrator AND the per-mover nav filter (a bike may enter a wood at its factor); the cover-seeking route = waypoints the play authors now, an exposure cost on the planner later (its own row) |
+| MV-6 | SHOULD | the firing seat duplicates an arc that exists, sits at the hull's ground point, and two capability paths bypass it | `CarrierDefDto.cs:128` (`TraverseMinDeg`), `WeaponSystems.InStationArc :128-140`, `EmbarkedStateSystem.cs:129-151`, `CombatLife.cs:93` | reuse the station arc for any seat (wrap through ±180° — a rail); place firing seats at their seat position like stations; the rider = a seat with no fire on the move through the existing `HoldMoving` gate; `RestoreHitCapabilities` asks `StrippedOn`; `ShooterSpeed` dropped (the velocity is already copied) |
+| MV-7 | SHOULD | the lookout and "riding masks hearing" have no hook: the vehicle reacts from its own memory; hearing is masked by weather only | `AirDefenceBehaviors.cs:34-55`, `AcousticPerception.cs:261-263` | the rider reads the exposed crew's memory as a DECLARED cross read; one rule in the acoustic masking: a listener on a moving vehicle hears × k; both in the UML (a third and fourth engine touch) |
+| MV-8 | SHOULD | "40 m" is the wrong trigger; the dive starts ~69 m slant, ~2.3 s out | `AirAttackBehaviors.cs:342, :619-623` | trigger on time-to-go (commit + 0.3 s); break across the approach bearing from two sightings; lower grip off-road (~0.45 g) |
+| MV-9 | SHOULD | the timer calls the wrong API and the wrong host | `Charges.cs:42-57`, `CoreInfrastructureCapabilities.cs:149` | `Charges.Ask(charge, Null)` is the timer path; an unmanaged recorded `ChargeTimer { SimInstant DetonateAt }` ticked beside `ChargeSystem` (every node; acts where it owns the position) |
+| MV-10 | SHOULD | blending: SUMO's own civilian bikes can never become insurgents; our bike handed to SUMO falls back to a CAR's vType | `TrafficHandover.cs:15-65`, `TrafficVehicleCatalog.cs:28` | the insurgent is OUR entity handed to traffic (`TrafficHandover`), then a brain move at the act; the motorcycle type registers its own SUMO vType; a rail that the shadow is despawned |
+| MV-11 | SHOULD | no two-wheeler visual (`CarKits` draws four wheels); no mockup (R-4143) | `VisualFamily.cs:10-35`, `CarKits.cs:43-59` | a `Motorcycle` family + kit (+ riders seated) by the ui lane, with a mockup first |
+| MV-12 | SHOULD | the plays miss steps | §5 | drive-by: fire at 2–5 m/s, a pre-chosen escape route, re-blend (dump the bike); parked bomb: an optional secondary device for responders; swarm: assembly area, rally point, casualty pick-up; night (speed, detection); defenders HEAR massed engines; a defender counter-play |
+| MV-13 | NIT | wording / reuse | — | the drone picks by score (bike 1 > rider 0.3), not "nearest"; spacing's reason = one drone one bike (reuse `PlatoonConvoy`'s gap); an owner for abandoned bikes; the SUMO file path; "only TWO engine changes" → four |
+
+⭐ **Found sound:** a passenger's brain, perception and weapon brain keep running aboard; the weapon dispatcher's only gate is `CanShoot`, so the
+one `StrippedOn` rule reaches the executor; his own bike never blocks his fire; exposed riders are seen and targetable; the FPV numbers in §1 are
+right; the takeover from traffic works (a non-traffic move despawns the shadow); the speed values are sensible (open 0.6 ≈ 60 km/h).
+
+### 8a. How a unit knows it must not halt — CONDUCT CATEGORIES, never behaviour names *(✅ CD-1…CD-6 APPROVED `2026-11-15`, R-4263 — folded into §2)*
+
+🔒 User, `2026-11-15`: *"how would we detect that the motorcycle is on the dash to suppress the undesired behaviors like the crew stopping when under
+fire … We shouldn't compare exact behavior names. We need to somehow flag different behaviors by their category. What we can compare is the name of
+the order, but never a concrete behavior."*
+
+📐 **Measured:** every reaction reaches a unit through ONE gate — `BehaviorIngressSystem.Admit` (*"THE ONE GATE"*, R-188, origin/behaviors
+`BehaviorIngressSystem.cs:224-260`), which already refuses some reactions and journals why (`BrainRefusal`). The typed order exists
+(`CurrentOrders.Of`, its `OrderKind`, CE-4612); `HoldsFirm` (kind ∈ {Defend, Hold}) is today's one order-kind question. ⛔ No reaction declares
+what it DOES to the unit.
+
+| # | lean | why |
+|---|---|---|
+| CD-1 | ⭐ every REACTION behaviour declares its **conduct** as flags on its `[Behavior]` attribute (beside `Fulfils`): `Halts` · `Dismounts` · `LeavesRoute` · `SeeksCover` (e.g. `SquadDismount` = Dismounts \| Halts; `ShelterFromAir` = LeavesRoute \| SeeksCover; `VehicleFightFromCover` = Halts) | the CATEGORY of what a behaviour does, declared once by its author — never compared by name |
+| CD-2 | ⭐ every ORDER KIND declares the conduct it **forbids**, in ONE table beside `OrderKind`: a new kind **`Dash`** (cross an exposed zone at all costs) forbids Halts \| Dismounts \| LeavesRoute \| SeeksCover; Move / March forbid nothing; `HoldsFirm`'s Defend / Hold become the same table (forbids LeavesRoute) — one mechanism | the user's rule: the ORDER is compared, never a behaviour |
+| CD-3 | ⭐ the ONE gate refuses a reaction whose conduct the unit's current order forbids — a new refusal cause `ForbiddenByOrder`, journaled like the others; NO SOP row changes; ⚠ the refused row must FALL THROUGH to the next SOP row (so the dash's own break-turn row is reached), never spin re-trying — verify `SopActions.React`'s return on a refusal | zero edits across the SOPs; every unit type gets it by construction |
+| CD-4 | the dash's carriers get the SAME order kind: the dash play orders each bike with kind `Dash`, so the bike and the squad each read ONLY their own current order (no cross-entity read) | the parallel rule |
+| CD-5 | the forbidding YIELDS when the unit cannot comply — immobile (a mobility kill), or its carrier dead: then halting / dismounting is allowed | a disabled bike's men must get off |
+| CD-6 | firing is not a conduct — the pillion still fires, a self-defence shot is never refused | the dash fights on the move |
+
+## ⛔ HISTORY — §2–§6 as first written (R-4261), before the review and the conduct categories — ⛔ do not quote
+
 ## 2. Decisions *(✅ APPROVED `2026-11-15`, R-4261)*
 
 | # | decision | why |
@@ -69,9 +316,9 @@ exposure, the last-second break turn buys a miss.
 | **PF-4** | the rider fires only when stopped | the same |
 | ⛔ IM-4 | the sticky bomb — DROPPED (🔒 user: *"Ignore the sticky car bomb."*) | — |
 
-## 3. UML
+### 3. UML
 
-```mermaid
+```text
 classDiagram
   class GroundSpeedFactor {
     <<new, TKB per mobility class>>
@@ -144,7 +391,7 @@ classDiagram
 *What it shows that prose hid: the motorcycle needs only TWO engine changes — the speed factor in the one integrator, the firing seat in the one
 boarding rule — and both are generic (every vehicle, every open seat); everything else is a play composed from parts that exist.*
 
-```mermaid
+```text
 sequenceDiagram
   participant R as rider, bike 1
   participant P as pillion lookout
@@ -161,7 +408,7 @@ sequenceDiagram
 ```
 *What it shows: the drone is beaten by geometry at the last second, not by speed — and the group's spacing is what keeps one drone to one bike.*
 
-```mermaid
+```text
 graph TD
   SIM[SimHost - GroundKinematicsModule registers CarKinematicsSystem] --> CK[CarKinematicsSystem, the speed factor]
   CGF[CgfLogicPack - the brains] --> PLAYS[GreyZoneDash, DriveBy, SwarmRaid, ParkedBomb]
@@ -176,7 +423,7 @@ graph TD
 *What it shows: each piece rides the module that already runs its neighbours — the factor in the ground integrator every simulating node runs, the
 seat rule in the boarding / fire path, the timer beside the charge's owner.*
 
-## 4. The dash in time *(defaults; the builder tunes, recording each)*
+### 4. The dash in time *(defaults; the builder tunes, recording each)*
 
 | t | bike 1 | bike 2 / 3 | the drone |
 |---|---|---|---|
@@ -186,7 +433,7 @@ seat rule in the boarding / fire path, the timer beside the charge's owner.*
 | +26 s | missed ⇒ rides on · hit ⇒ survivors to cover | ride on | spent; the operator launches the next |
 | arrival | dismount at the edge, order on foot | the same | — |
 
-## 5. The insurgent plays
+### 5. The insurgent plays
 
 | play | steps | built from |
 |---|---|---|
@@ -195,7 +442,7 @@ seat rule in the boarding / fire path, the timer beside the charge's owner.*
 | `SwarmRaid` | rally points → converge from N directions → pillions fire on the approach → dismount and fight (`SquadDismount`, the attack) → on the signal DISPERSE: each bike its own divergent route | the motorcycle squad, `PlatoonAttack`, `BreakContact` |
 | scout / getaway | `Sentry` + the report path; a waiting `MoveToLocation` | compositions |
 
-## 6. Slices and acceptance
+### 6. Slices and acceptance
 
 | # | builds | ⭐ done when (a rail each, red-proved) |
 |---|---|---|
@@ -208,47 +455,4 @@ seat rule in the boarding / fire path, the timer beside the charge's owner.*
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221); a new recorded component unmanaged and fixed before its first recording.
 
-## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; MV-1 the realistic FPV terminal guidance included)
-
-⭐ 23 raw findings merged into 13. The design is NOT buildable as drawn until MV-1…MV-5 are ruled.
-
-| # | sev | the defect | evidence | ⭐ lean |
-|---|---|---|---|---|
-| MV-1 | ⛔ BLOCKER | the break turn CANNOT beat the FPV as coded: it re-aims every 0.2 s at the target's TRUE position with a lead, turning ~31 m/s² against the bike's ~8 — the escape is ~0.16 m; and a miss still bursts on the ground (PG-7: 2 m lethal, 5 m casualty) | `AirAttackBehaviors.cs:346, :613-631`, `RotorcraftModel.cs:93`, `DroneImpactSystem.cs:54-67` | ⭐ **cross-lane, the FPV's terminal guidance becomes realistic**: it aims from the drone's own perceived track + an operator delay (~0.3–0.5 s) and STOPS re-aiming at a commit point (time-to-go ≈ 0.7 s); the design states the expected miss ½·a·(commit + delay)²; M-3's acceptance = the riders UNHURT (miss beyond the casualty radius) in a measured share. ⚠ every drone scenario changes — the user's call |
-| MV-2 | ⛔ BLOCKER | the existing reactions break "never stop": the squad SOP dismounts a mounted squad under fire (above the Riding row) and the vehicle SOP sends a bike to `ShelterFromAir` on a drone | ✔ `BasicSquadSop.cs:91-98` (origin/behaviors), `BasicVehicleSop.cs:60-64` | during a dash those rows YIELD (the `PushThrough` precedent: "a carrier never stops in the kill zone"); the bike's drone row becomes MC-4; a rail: a burst nearby in a dash ⇒ no dismount, no route change |
-| MV-3 | ⛔ BLOCKER | the speed factor keyed per MOBILITY CLASS cannot tell a bike from a pickup (both `Wheeled`) | ✔ `NedTkbBuilder.cs:184-189` | per TYPE: three factors on `VehicleParametersDto` → `VehicleParams` (unmanaged, on every node, already read in the integrator), 0 = 1.0 |
-| MV-4 | ⛔ BLOCKER | the ground-class lookup per vehicle per tick walks every surface polygon (`foreach` over an interface — allocates) | `TerrainWorld.cs:1103-1109` | ONE surface-class grid, generalising the 25 m `TerrainWoods` grid (one array index), built in the serial pre-pass; ONE forest source; the tracked-in-woods cap folds into the same table |
-| MV-5 | ⛔ BLOCKER | the route planner cannot do what the dash assumes: a wheeled mover never enters a wood (cost 0 = closed), open / scrub are not navmesh areas, no exposure cost exists | ✔ `NavDoorways.cs:211` (`WheeledWoodsCost = 0f`) | the same per-type table prices the integrator AND the per-mover nav filter (a bike may enter a wood at its factor); the cover-seeking route = waypoints the play authors now, an exposure cost on the planner later (its own row) |
-| MV-6 | SHOULD | the firing seat duplicates an arc that exists, sits at the hull's ground point, and two capability paths bypass it | `CarrierDefDto.cs:128` (`TraverseMinDeg`), `WeaponSystems.InStationArc :128-140`, `EmbarkedStateSystem.cs:129-151`, `CombatLife.cs:93` | reuse the station arc for any seat (wrap through ±180° — a rail); place firing seats at their seat position like stations; the rider = a seat with no fire on the move through the existing `HoldMoving` gate; `RestoreHitCapabilities` asks `StrippedOn`; `ShooterSpeed` dropped (the velocity is already copied) |
-| MV-7 | SHOULD | the lookout and "riding masks hearing" have no hook: the vehicle reacts from its own memory; hearing is masked by weather only | `AirDefenceBehaviors.cs:34-55`, `AcousticPerception.cs:261-263` | the rider reads the exposed crew's memory as a DECLARED cross read; one rule in the acoustic masking: a listener on a moving vehicle hears × k; both in the UML (a third and fourth engine touch) |
-| MV-8 | SHOULD | "40 m" is the wrong trigger; the dive starts ~69 m slant, ~2.3 s out | `AirAttackBehaviors.cs:342, :619-623` | trigger on time-to-go (commit + 0.3 s); break across the approach bearing from two sightings; lower grip off-road (~0.45 g) |
-| MV-9 | SHOULD | the timer calls the wrong API and the wrong host | `Charges.cs:42-57`, `CoreInfrastructureCapabilities.cs:149` | `Charges.Ask(charge, Null)` is the timer path; an unmanaged recorded `ChargeTimer { SimInstant DetonateAt }` ticked beside `ChargeSystem` (every node; acts where it owns the position) |
-| MV-10 | SHOULD | blending: SUMO's own civilian bikes can never become insurgents; our bike handed to SUMO falls back to a CAR's vType | `TrafficHandover.cs:15-65`, `TrafficVehicleCatalog.cs:28` | the insurgent is OUR entity handed to traffic (`TrafficHandover`), then a brain move at the act; the motorcycle type registers its own SUMO vType; a rail that the shadow is despawned |
-| MV-11 | SHOULD | no two-wheeler visual (`CarKits` draws four wheels); no mockup (R-4143) | `VisualFamily.cs:10-35`, `CarKits.cs:43-59` | a `Motorcycle` family + kit (+ riders seated) by the ui lane, with a mockup first |
-| MV-12 | SHOULD | the plays miss steps | §5 | drive-by: fire at 2–5 m/s, a pre-chosen escape route, re-blend (dump the bike); parked bomb: an optional secondary device for responders; swarm: assembly area, rally point, casualty pick-up; night (speed, detection); defenders HEAR massed engines; a defender counter-play |
-| MV-13 | NIT | wording / reuse | — | the drone picks by score (bike 1 > rider 0.3), not "nearest"; spacing's reason = one drone one bike (reuse `PlatoonConvoy`'s gap); an owner for abandoned bikes; the SUMO file path; "only TWO engine changes" → four |
-
-⭐ **Found sound:** a passenger's brain, perception and weapon brain keep running aboard; the weapon dispatcher's only gate is `CanShoot`, so the
-one `StrippedOn` rule reaches the executor; his own bike never blocks his fire; exposed riders are seen and targetable; the FPV numbers in §1 are
-right; the takeover from traffic works (a non-traffic move despawns the shadow); the speed values are sensible (open 0.6 ≈ 60 km/h).
-
-### 8a. How a unit knows it must not halt — CONDUCT CATEGORIES, never behaviour names *(coordinator, `2026-11-15`; ⏳ lean for the user)*
-
-🔒 User, `2026-11-15`: *"how would we detect that the motorcycle is on the dash to suppress the undesired behaviors like the crew stopping when under
-fire … We shouldn't compare exact behavior names. We need to somehow flag different behaviors by their category. What we can compare is the name of
-the order, but never a concrete behavior."*
-
-📐 **Measured:** every reaction reaches a unit through ONE gate — `BehaviorIngressSystem.Admit` (*"THE ONE GATE"*, R-188, origin/behaviors
-`BehaviorIngressSystem.cs:224-260`), which already refuses some reactions and journals why (`BrainRefusal`). The typed order exists
-(`CurrentOrders.Of`, its `OrderKind`, CE-4612); `HoldsFirm` (kind ∈ {Defend, Hold}) is today's one order-kind question. ⛔ No reaction declares
-what it DOES to the unit.
-
-| # | lean | why |
-|---|---|---|
-| CD-1 | ⭐ every REACTION behaviour declares its **conduct** as flags on its `[Behavior]` attribute (beside `Fulfils`): `Halts` · `Dismounts` · `LeavesRoute` · `SeeksCover` (e.g. `SquadDismount` = Dismounts \| Halts; `ShelterFromAir` = LeavesRoute \| SeeksCover; `VehicleFightFromCover` = Halts) | the CATEGORY of what a behaviour does, declared once by its author — never compared by name |
-| CD-2 | ⭐ every ORDER KIND declares the conduct it **forbids**, in ONE table beside `OrderKind`: a new kind **`Dash`** (cross an exposed zone at all costs) forbids Halts \| Dismounts \| LeavesRoute \| SeeksCover; Move / March forbid nothing; `HoldsFirm`'s Defend / Hold become the same table (forbids LeavesRoute) — one mechanism | the user's rule: the ORDER is compared, never a behaviour |
-| CD-3 | ⭐ the ONE gate refuses a reaction whose conduct the unit's current order forbids — a new refusal cause `ForbiddenByOrder`, journaled like the others; NO SOP row changes; ⚠ the refused row must FALL THROUGH to the next SOP row (so the dash's own break-turn row is reached), never spin re-trying — verify `SopActions.React`'s return on a refusal | zero edits across the SOPs; every unit type gets it by construction |
-| CD-4 | the dash's carriers get the SAME order kind: the dash play orders each bike with kind `Dash`, so the bike and the squad each read ONLY their own current order (no cross-entity read) | the parallel rule |
-| CD-5 | the forbidding YIELDS when the unit cannot comply — immobile (a mobility kill), or its carrier dead: then halting / dismounting is allowed | a disabled bike's men must get off |
-| CD-6 | firing is not a conduct — the pillion still fires, a self-defence shot is never refused | the dash fights on the move |
 

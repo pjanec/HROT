@@ -425,7 +425,7 @@ Rejected: **one node per manoeuvre** — six copies of the same 200-line shape, 
 with the convoy ambush** — it needs S1 + S2 + the dismount first; **the autonomous scorer (`ManeuverSelect`) first** — D3 waits for
 a real danger-area provider, and a mission or the SOP can pick the drill until then.
 
-## 12. The next three — the grey-zone motorcycle, the checkpoint, ramming and the car bomb *(coordinator, `2026-11-15`; ANALYSIS with leans — each gets its own design with UML before it is built)*
+## 12. The next three — the grey-zone motorcycle, the checkpoint, ramming and the car bomb *(coordinator, `2026-11-15`; ANALYSIS — ⭐ now DESIGNED and READY-TO-BUILD: [DESIGN_Motorcycle.md](designs/vehicle-tactics/DESIGN_Motorcycle.md) (CE-4621) and [DESIGN_Checkpoint_And_Ramming.md](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md) (CE-4622); where they differ from this section, THEY are current)*
 
 🔒 User, `2026-11-15`: *"Some motorcyclist trying to get over the no man's zone, which is full of suicide drones … to cross the land as quickly as
 possible and to avoid the drones by speed driving … used for transporting the troops over the exposed areas"* · *"the second one is the checkpoint
