@@ -520,7 +520,7 @@ and the motorcycle separately; build MC-2 (off-road speed) first — it is engin
 | IM-1 | ⭐ **`DriveBy`** — two up; ride to the target (a man, a vehicle at a stop, a post), slow alongside, the PILLION fires a burst or throws a grenade, escape at speed into traffic / a side street, split up | the hidden weapon revealed on the act (§5h), `HiddenTargetThrow`, the hostile act; escape = `BreakContact` on wheels | a passenger firing his OWN weapon from an exposed seat (exposed seats exist — `CarrierTkbTranslator.cs:110-120` — a seat that FIRES is unmeasured) |
 | IM-2 | ⭐ **parked motorcycle bomb** — ride in, park among other bikes / at a market / beside a post, walk away (or onto a waiting bike), detonate by timer or phone | the cargo charge (`Charges`, `TriggerIed` for the phone), `PlaceCharge`-style placement | a TIMER detonation; a charge carried by a two-wheeler |
 | IM-3 | **motorcycle VBIED at a checkpoint** — = R-4260's `RamTarget` with a two-wheeler; ⭐ the checkpoint must handle bikes (they slip through a serpentine meant for cars) | `RamTarget`, the checkpoint ladder | the checkpoint's lines sized for a bike too |
-| IM-4 | **sticky bomb** — at a stop (a traffic light, a checkpoint queue) the pillion attaches a charge to a vehicle and the bike rides off | a charge ATTACHED to another entity | ⛔ attaching a charge to a vehicle |
+| IM-4 | ⛔ **DROPPED** (🔒 user, `2026-11-15`: *"Ignore the sticky car bomb."*) — **sticky bomb** — at a stop (a traffic light, a checkpoint queue) the pillion attaches a charge to a vehicle and the bike rides off | a charge ATTACHED to another entity | ⛔ attaching a charge to a vehicle |
 | IM-5 | **swarm raid (Sahel)** — 20–100 bikes, two men each, converge on a post from several directions (often at night), fight, then DISPERSE in many directions at once | the motorcycle squad of §12.3 at scale; `PlatoonAttack` / `CompanyAttack` on bikes; dispersal = many `BreakContact`s on divergent routes | a dispersal play; night (existing weather / light) |
 | IM-6 | **scout / spotter / getaway** — a lone rider watches a patrol and reports to the cell (the "dicker"); a second bike waits to extract the bombers | `Sentry` + the report path; a waiting `MoveToLocation` | none — composition |
 | IM-7 | **blending in** — insurgent bikes ARE civilian traffic until they act: SUMO can drive motorcycles (a traffic type with SUMO's `motorcycle` class, as the cars are `TrafficVehicleDto`, `UrbanCombatTkbCatalog.cs:206, :439`) and an insurgent rides like one, neutral, his weapon hidden, until the act | traffic + identification (neutral → hostile on the act) | civilian motorcycles in the traffic catalogue |
@@ -529,4 +529,20 @@ and the motorcycle separately; build MC-2 (off-road speed) first — it is engin
 ⭐ **Lean on the order:** ONE motorcycle (MC-1, MC-2) serves both the soldier and the insurgent — build it once; then **IM-1 drive-by** and **IM-2
 parked bomb** first (the commonest, cheapest, and they test the checkpoint and patrol scenarios trainees most need), IM-3 falls out of R-4260 for
 free, IM-5's swarm after the grey-zone dash (the same group play at scale); IM-4 last (a new attach mechanism).
+
+#### 12.6a The pillion who fires — like a technical's gunner *(🔒 user, `2026-11-15`: "Can we have the second passenger on the motorcycle firing from his hand weapon while riding, behaving like the gunner in a technical? … the driver cannot reasonably shoot and drive at the same time." — leans)*
+
+📐 **Measured — why he cannot today:** boarding STRIPS `CanMove | CanShoot` from every passenger (`Embarkation.StrippedAboard`,
+`Embarkation.cs:50`); the one exception is a WEAPON SYSTEM's own Gunner seat (`StrippedOn`, `:517-525`). ⭐ And a technical's gunner does NOT fire
+his own weapon: on a vehicle crew seat *"the HOST fires and the man fires nothing"* (W-I) — the mounted gun is the vehicle's mount, its man only
+mans it. ⇒ the pillion is a NEW case: a passenger who keeps his OWN weapon. The moving-shooter penalty already exists (σ × 2 above 0.5 m/s,
+`HitModel.cs:20-34`).
+
+| # | lean | why |
+|---|---|---|
+| PF-1 | ⭐ a seat that **fires its man's own weapon**: `SeatDto` gains a fire arc (e.g. the pillion: both sides and the rear, never forward across the rider); a man in such a seat KEEPS `CanShoot` (not `CanMove`) and fires through his own `WeaponChannel` — ONE rule in `StrippedOn` | ⭐ generic, not a motorcycle hack: the same seat is a pickup bed's riflemen, an open truck's, a Bradley's firing ports |
+| PF-2 | his spread = the moving-shooter law with HIS VEHICLE's speed (the existing `MovingFactor`), plus a rough-ride factor off-road (MC-2's ground classes) | one accuracy law; a drive-by is inaccurate unless the rider slows |
+| PF-3 | WHO decides to fire: the passenger's own weapon brain — his threat evaluation, the ROE, inside the seat's arc — as a gunner chooses; the RIDER only drives | 🔒 the user's point: the driver cannot shoot and drive |
+| PF-4 | the rider fires only when STOPPED (his own weapon, no arc limit while stopped) — never moving | the same reasoning |
+| PF-5 | the plays use it: the drive-by (IM-1) slows and holds a steady line past the target while the pillion fires a burst, then speeds away; the swarm raid (IM-5) and the night raid on a post fire from the pillions on the approach, then dismount | the doctrine the sources show |
 
