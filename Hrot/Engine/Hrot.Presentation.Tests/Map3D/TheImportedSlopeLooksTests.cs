@@ -91,8 +91,7 @@ public sealed class TheImportedSlopeLooksTests : IDisposable
         var mini = new MiniSet { Ground = Raw, Net = true, NetXml = TwoLaneNet };
         foreach (var h in Houses)
         {
-            double cx = (h.X0 + h.X1) / 2, cy = (h.Y0 + h.Y1) / 2;
-            mini.Buildings.Add(MiniSet.Rect(h.Id, h.X0, h.Y0, h.X1, h.Y1, storeys: h.Storeys, baseZ: Raw(cx, cy)));
+            mini.Buildings.Add(MiniSet.Rect(h.Id, h.X0, h.Y0, h.X1, h.Y1, storeys: h.Storeys, baseZ: Raw(h.X0, h.Y0)));   // a house stands at the LOWEST ground under it (TH-C); its pad only cuts (G-2)
         }
         string terrains = ContentLayout.TerrainAssets(_nas), scenarios = ContentLayout.Scenarios(_nas);
         Directory.CreateDirectory(terrains); Directory.CreateDirectory(scenarios);
