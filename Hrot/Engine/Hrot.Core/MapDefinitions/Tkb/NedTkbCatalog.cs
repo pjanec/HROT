@@ -600,7 +600,7 @@ namespace Hrot.Map.Definitions.Tkb
             const long type = TkbEntityTypes.Motorcycle;
             builder
                 .DefineVehicle(type, "Motorcycle")
-                .WithVisual(type, v => { v.IconName = "car"; v.SymbolCode = "SHGPEVC--------"; v.ColorHex = "#5C5C5C"; v.Scale = 0.6f; })
+                .WithVisual(type, v => { v.IconName = "_motorcycle"; v.SymbolCode = "SHGPEVC--------"; v.ColorHex = "#5C5C5C"; v.Scale = 0.6f; })   // ⭐ ui (CE-4621): IconName = its own picker glyph (assets/icons/_motorcycle)
                 .WithPhysics(type, p =>
                 {
                     p.Mass = 200; p.Length = 2.1f; p.Width = 0.8f; p.Height = 1.2f;
@@ -625,11 +625,11 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         // ⭐ PF-4 — the rider: a firing seat (front and sides) that fires only while the bike is STOPPED — he drives
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, Exposed = true,
-                                      X = 0.1f, Z = 0.75f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
+                                      X = 0.1f, Z = 0.75f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,   // ⭐ ui (CE-4621 U-2): astride, the 3-D map's figure
                                       TraverseMinDeg = -120f, TraverseMaxDeg = 120f, FiresStoppedOnly = true },
                         // ⭐ PF-1 — the pillion: a passenger seat with a traverse arc ⇒ a FIRING seat (his own weapon, inside the arc)
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Exposed = true,
-                                      X = -0.45f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
+                                      X = -0.45f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,
                                       TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
                     },
                 })

@@ -1395,9 +1395,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>The most a rider on a firing seat turns his upper body off the seat's forward (radians, ~160°) — the seat's own arc is the limit (PF-1), this one only keeps the drawing human.</summary>
     public const float MaxSeatTwist = 160f * MathF.PI / 180f;
 
-    /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered.</summary>
+    /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station, non-DRIVER seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered. ⛔ The driver (backend's rider seat has an arc, PF-4: fires only stopped) always stays on the bars — LD-9.</summary>
     private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier)
-        => soldier && seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station && seat.TraverseMinDeg != null && seat.TraverseMaxDeg != null
+        => soldier && seat.Role is not (Fdp.Toolkit.Behavior.Components.SeatRole.Station or Fdp.Toolkit.Behavior.Components.SeatRole.Driver) && seat.TraverseMinDeg != null && seat.TraverseMaxDeg != null
            && PostureOf(world, e) == WeaponPostureKind.Aimed;
 
     /// <summary>

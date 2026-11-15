@@ -23,39 +23,18 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// ⭐⭐ <c>CE-4621</c> (motorcycle, docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, §6 M-1v; mockup <c>motorcycle-visuals.svg</c>; 🔒 user, 2026-11-15: <i>"the UI might take the visual part
 /// of it"</i>) — the motorcycle's 3-D model: the family and its kit (TWO wheels that roll, a tank, a long seat), the bank into a turn (a drawing only, 0 B), the two seated riders
 /// (<see cref="SeatPose.Ride"/>: the driver on the bars, a pillion holding on) and the pillion FIRING — his upper body turned to the aim, the rifle shouldered — on the real frame.
-/// ⏳ Type 115 / class <c>Motorcycle</c> / the seats are backend's (CE-4621 M-1 / M-2): until they land the rail draws a STAND-IN type (<see cref="StandIn"/>) with the agreed ids' shape
-/// (DIS 1.1.*.80.1, seat 0 Driver, seat 1 the pillion with an arc), its look pinned. ⛔ The frame tests SKIP without a display:
+/// ✅ Type 115 / class <c>Motorcycle</c> / the seats are backend's (CE-4621 M-1 / M-2, merged): the rail draws the REAL type through the real catalogue. ⛔ The frame tests SKIP without a display:
 /// <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~MotorcycleModelRail</c>. 🔴 Red-proof: the bank removed from the layer fails the bank rail; the twist removed from
 /// <c>SeatedMotion</c> fails the firing-pose rail.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class MotorcycleModelRail
 {
-    /// <summary>The stand-in's TKB id (never a shipped one) and size — backend's type 115 is 2.1 × 0.8 × 1.15 m by the kit's measure.</summary>
-    internal const long StandIn = 9115;
-    private static readonly Vector3 Size = new(2.1f, 0.8f, 1.15f);
+    /// <summary>⭐ Backend's REAL type 115 (CE-4621 M-1 / M-2: DIS 1.1.0.80.1, class <c>Motorcycle</c>, seat 0 the rider / Driver — fires only stopped, an arc −120…120 —, seat 1 the pillion, a firing seat 30…330), through the real catalogue.</summary>
+    internal const long StandIn = TkbEntityTypes.Motorcycle;
+    private static readonly Vector3 Size = new(2.1f, 0.8f, 1.2f);
 
-    /// <summary>The stand-in motorcycle in a TKB: the agreed shape of backend's type — DIS 1.1.0.80.1, seat 0 the Driver, seat 1 a pillion with an arc (both exposed, astride).</summary>
-    internal static Fdp.Toolkit.Tkb.TkbDatabase WithStandIn()
-    {
-        var db = Map3DTests.BuiltIn();
-        new Hrot.Map.Definitions.Tkb.NedTkbBuilder(db)
-            .DefineVehicle(StandIn, "Motorcycle (stand-in)")
-            .WithPhysics(StandIn, p => { p.Length = Size.X; p.Width = Size.Y; p.Height = Size.Z; p.MaxSpeed = 28f; p.Mobility = Hrot.Map.Definitions.Tkb.TerrainMobility.Wheeled; })
-            .WithCarrier(StandIn, new CarrierDefDto
-            {
-                Exposure = PassengerExposure.Open,
-                Seats =
-                {
-                    new SeatDto { Role = SeatRole.Driver, X = 0.02f, Z = 0.90f, Pose = SeatPose.Ride },
-                    new SeatDto { Role = SeatRole.Passenger, X = -0.52f, Z = 0.90f, Pose = SeatPose.Ride, TraverseMinDeg = 70f, TraverseMaxDeg = 290f },
-                },
-            })
-            .WithDisType(StandIn, new DISEntityType { Kind = 1, Domain = 1, Category = 80, Subcategory = 1 });
-        return db;
-    }
-
-    private static EntityBodyLayer3D.TypeLook StandInLook() => new(VisualFamily.Motorcycle, Size, EntityBodyLayer3D.DefaultColour(VisualFamily.Motorcycle), false);
+    internal static Fdp.Toolkit.Tkb.TkbDatabase WithStandIn() => Map3DTests.BuiltIn();
 
     // ── the kit ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -97,9 +76,33 @@ public sealed class MotorcycleModelRail
         Assert.InRange(minX, -1.15f, -0.95f);  // the rack / rear tyre
         Assert.InRange(maxY, 0.3f, 0.45f);     // the bars' grips
         Assert.InRange(minZ, -0.05f, 0.05f);   // on its wheels
-        Assert.InRange(maxZ, 1.0f, 1.2f);      // the bars
+        Assert.InRange(maxZ, 1.0f, 1.25f);     // the bars
         var wheels = ShapeKits.Motorcycle.Parts.Where(p => p.Role == PartRole.WheelSpoke).Select(p => p.BodyTransform(Size).Translation).OrderBy(t => t.X).ToArray();
         Assert.InRange(wheels[1].X - wheels[0].X, 1.3f, 1.5f);   // a 1.4 m wheelbase
+    }
+
+    /// <summary>⭐ CE-4621 — backend's class <c>Motorcycle</c> (DIS <c>1.1.*.80</c>, type 115) maps to the family, and the REAL type's family, size, seats and kit are the bike's: the kit's metres ARE the TKB's metres, both seats are astride, the hips are where the kit's seat is.</summary>
+    [Fact]
+    public void TheClass_MapsToTheFamily_AndTheRealType115IsTheBike_ItsSeatsAstride_ItsHipsOnTheKitsSeat()
+    {
+        Assert.Equal(VisualFamily.Motorcycle, VisualFamilies.FamilyOfClass["Motorcycle"]);
+        var bike = Map3DTests.BuiltIn().GetByType(TkbEntityTypes.Motorcycle)!;
+        Assert.Equal(VisualFamily.Motorcycle, VisualFamilies.Of(bike));
+        var tkb = Map3DTests.BuiltIn();
+        using var world = new EntityRepository();
+        var look = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => ArticulationPose.Neutral).LookOf(TkbEntityTypes.Motorcycle, tkb);
+        Assert.Equal(VisualFamily.Motorcycle, look.Family);
+        Assert.InRange(look.Size.X, Size.X - 0.01f, Size.X + 0.01f); Assert.InRange(look.Size.Y, Size.Y - 0.01f, Size.Y + 0.01f);
+        Assert.InRange(look.Size.Z, Size.Z - 0.1f, Size.Z + 0.1f);   // the TKB's box wins: the kit's metres are the TKB's metres (its 1.2 m height may come from the render model)
+        var seats = bike.GetDescriptor<CarrierDefDto>()!.Seats;
+        Assert.Equal(2, seats.Count);
+        Assert.All(seats, s => Assert.Equal(SeatPose.Ride, s.Pose));
+        // the kit's seat carries them: the rider's hips (z 0.75) sit on the low seat (top 0.705), the pillion's (z 0.85) on the raised pad (top 0.805)
+        float TopOfSeatAt(float x) => ShapeKits.Motorcycle.Parts
+            .Where(p => p.Colour == ColourRole.Dark && p.Shape == PartShape.Box && MathF.Abs(p.Extent.Y * Size.Y - 0.28f) < 0.01f && MathF.Abs((p.Centre.X - x / Size.X) * Size.X) < 0.3f)
+            .Max(p => (p.Centre.Z + p.Extent.Z / 2f) * Size.Z);
+        Assert.InRange(seats[0].Z - TopOfSeatAt(seats[0].X), 0.0f, 0.12f);
+        Assert.InRange(seats[1].Z - TopOfSeatAt(seats[1].X), 0.0f, 0.12f);
     }
 
     // ── the motion: the wheels roll, a turn banks the body ──────────────────────────────────────────────────────────────────────
@@ -203,8 +206,8 @@ public sealed class MotorcycleModelRail
         Assert.Equal((CarriageKind.Seated, SeatPose.Ride, SeatRole.Driver), (driver.Kind, driver.Seat!.Pose, driver.Seat.Role));
         Assert.Equal((CarriageKind.Seated, SeatPose.Ride, SeatRole.Passenger), (pillion.Kind, pillion.Seat!.Pose, pillion.Seat.Role));
         Assert.True(pillion.Seat.X < driver.Seat.X, "the pillion sits behind");
-        Assert.Null(driver.Seat.TraverseMinDeg);
-        Assert.NotNull(pillion.Seat.TraverseMinDeg);
+        Assert.True(driver.Seat.FiresStoppedOnly && driver.Seat.TraverseMinDeg != null, "the rider: an arc, fires only stopped (PF-4)");
+        Assert.True(pillion.Seat.TraverseMinDeg != null && !pillion.Seat.FiresStoppedOnly, "the pillion: a firing seat");
     }
 
     // ── ⭐ U-3: the pillion in first person — the HUD cue outside the seat's arc ───────────────────────────────────────────────────
@@ -244,11 +247,13 @@ public sealed class MotorcycleModelRail
         var driver = Rider(0); var pillion = Rider(1);
         var at = new Vector3(100f, 50f, 1f);
         Assert.True(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 0f, 0f)), "dead ahead: across the rider — out of arc");
-        Assert.True(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(20f, 20f, 0f)), "45° ahead-left: out of arc");
+        Assert.True(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 8f, 0f)), "15° ahead-left: out of arc");
+        Assert.False(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(20f, 20f, 0f)), "45°: in (the arc is 30° … 330°)");
         Assert.False(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(0f, 30f, 0f)), "left: in");
         Assert.False(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(0f, -30f, 0f)), "right: in");
         Assert.False(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(-30f, 0f, 0f)), "behind: in");
-        Assert.False(PossessionStation.OutsideSeatArc(world, driver, at + new Vector3(30f, 0f, 0f)), "the driver's seat states no arc: no cue (his fire is held by the move gate, PF-4)");
+        Assert.False(PossessionStation.OutsideSeatArc(world, driver, at + new Vector3(30f, 0f, 0f)), "the rider's arc is the front and sides (−120° … 120°): ahead is in");
+        Assert.True(PossessionStation.OutsideSeatArc(world, driver, at + new Vector3(-30f, 0f, 0f)), "behind the rider: out of his arc");
         // the bike turns right 90° (heading −y): what was behind is now to its left-rear... and "ahead" of the world is its left side
         world.SetComponent(bike, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, -MathF.PI / 2f) });
         Assert.False(PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 0f, 0f)), "world +x is the turned bike's LEFT: in");
@@ -257,7 +262,7 @@ public sealed class MotorcycleModelRail
         var foot = world.CreateEntity();
         world.AddComponent(foot, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
         Assert.False(PossessionStation.OutsideSeatArc(world, foot, new Vector3(30f, 0f, 0f)));
-        for (int i = 0; i < 100; i++) PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 0f, 0f));
+        for (int i = 0; i < 5000; i++) PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 0f, 0f));   // warm (the tiered JIT too)
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 2000; i++) PossessionStation.OutsideSeatArc(world, pillion, at + new Vector3(30f, 0f, 0f));
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // ⭐ per-frame HUD: 0 B
@@ -283,7 +288,7 @@ public sealed class MotorcycleModelRail
         Assert.True(SeatSwitch.TryEye(world, Rider(1), db, out var pillion));
         Assert.True(driver.Y > pillion.Y + 0.4f, $"facing +y: the driver is ahead of the pillion ({driver} / {pillion})");
         Assert.InRange(driver.X, 99.9f, 100.1f);
-        Assert.InRange(driver.Z, 3f + 0.9f + 0.5f, 3f + 0.9f + 0.8f);   // the seat's z + his eyes above his hips
+        Assert.InRange(driver.Z, 3f + 0.75f + 0.5f, 3f + 0.75f + 0.9f);   // the seat's z + his eyes above his hips
     }
 
     /// <summary>⭐ The fire arc on the maps (mockup panels C, D): the selected bike's pillion seat draws an amber wedge, its edges and arc, from the seat's place; the driver's seat (no arc) and a station draw nothing.</summary>
@@ -298,20 +303,19 @@ public sealed class MotorcycleModelRail
         world.AddComponent(bike, new TkbIdentity { TkbType = (TkbTypeId)StandIn });
         var draw = new ArcDraw();
         new Hrot.ScenarioEditor.Gizmos.SeatArcGizmo().Draw(world, bike, draw);
-        // 70 … 290 = 220° of arc: two edges + 22 segments, all from / around the pillion's place (x −0.52 behind the reference point)
-        Assert.Equal(2 + 22, draw.Lines.Count);
-        var edges = draw.Lines.Take(2).ToArray();
-        Assert.All(edges, l => Assert.Equal(new Vector3(100f - 0.52f, 50f, 0f), l.From));
-        // the first edge is the arc's start (70°, ahead-left), the second its end (290°, ahead-right): neither is dead ahead, both point forward-ish of the sides
-        Assert.True(edges[0].To.X > 100f - 0.52f && edges[0].To.Y > 50f, "70° is left and a little ahead");
-        Assert.True(edges[1].To.X > 100f - 0.52f && edges[1].To.Y < 50f, "290° is right and a little ahead");
-        Assert.All(draw.Lines.Skip(2), l => Assert.InRange(Vector3.Distance(l.From, new Vector3(100f - 0.52f, 50f, 0f)), SeatArcGizmoRange - 0.1f, SeatArcGizmoRange + 0.1f));
-        // the bike turned 180°: the wedge turns with it (the rear is now toward +x)
+        // the rider's arc (−120 … 120 = 240°: two edges + 24 segments) then the pillion's (30 … 330 = 300°: two edges + 30 segments)
+        Assert.Equal(26 + 32, draw.Lines.Count);
+        var pillionOrigin = new Vector3(100f - 0.45f, 50f, 0f);
+        var pillion = draw.Lines.Skip(26).ToArray();
+        Assert.All(pillion.Take(2), l => Assert.Equal(pillionOrigin, l.From));
+        Assert.True(pillion[0].To.X > pillionOrigin.X && pillion[0].To.Y > 50f, "30° is left and ahead");
+        Assert.True(pillion[1].To.X > pillionOrigin.X && pillion[1].To.Y < 50f, "330° is right and ahead");
+        Assert.All(pillion.Skip(2), l => Assert.InRange(Vector3.Distance(l.From, pillionOrigin), SeatArcGizmoRange - 0.1f, SeatArcGizmoRange + 0.1f));
+        // the bike turned 180°: the pillion's wedge turns with it (its rear, the middle of the arc, is now toward +x)
         world.SetComponent(bike, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI) });
         var turned = new ArcDraw();
         new Hrot.ScenarioEditor.Gizmos.SeatArcGizmo().Draw(world, bike, turned);
-        Assert.True(turned.Lines.Skip(2).Average(l => l.To.X) > 100f + 10f, "the arc of the rear now lies to +x");
-        Assert.Equal(0, new ArcDraw().Lines.Count);
+        Assert.True(turned.Lines.Skip(26 + 2).Average(l => l.To.X) > 100f + 3f, "the arc of the rear now lies to +x");
     }
 
     private const float SeatArcGizmoRange = Hrot.ScenarioEditor.Gizmos.SeatArcGizmo.Range;
@@ -378,7 +382,6 @@ public sealed class MotorcycleModelRail
         var two = new MapCamera();
         canvas.Camera = two;
         var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => pose);
-        bodies.PinLook(StandIn, StandInLook());   // ⏳ until backend's class `Motorcycle` is in the table
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => G(x, y);
         canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
@@ -434,6 +437,12 @@ public sealed class MotorcycleModelRail
         var turning = Screen("moto-4-banked-front.png");
         for (int i = 0; i < 40; i++) { Clock(0.05); Place(at, yaw); LookAtBike(7f, yaw + MathF.PI + 0.35f, -0.05f); Render(); }   // stopped: the bank eases off (0.15 s)
         var upright = Screen("moto-4b-upright-front.png");
+        // the gallery picture (the picker's thumbnail), to the scratchpad only: the bike and its two riders alone, at rest, from the front three-quarter
+        foreach (var gone in new[] { target }) world.DestroyEntity(gone);
+        Place(new Vector3(spot.X, spot.Y, ground), 0f);
+        for (int i = 0; i < 40; i++) { Clock(0.05); Render(); }
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.85f), 4.6f, Side + 0.75f, -0.18f);
+        Screen("moto-6-thumb.png");
         Assert.True(Diff(upright, turning) > 800, $"a turning bike is drawn banked (differs from the upright one by {Diff(upright, turning)} px)");
     }
 

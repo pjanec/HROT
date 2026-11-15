@@ -640,7 +640,7 @@ public static class ShapeKits
         new KitPivots(new Vector2(SamAxisX / SaL, 0f), new Vector2(SamTrunnionX / SaL, SamTrunnionZ / SaH)));
 
     // ── ⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the MOTORCYCLE: two wheels, a tank, a long seat, a rack; the riders are men drawn at the seats ─────
-    private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.15f;   // a 250-500 cc bike: 2.1 m long, 0.8 m across the bars, 1.15 m to the bars (the riders sit above)
+    private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.2f;   // backend's type 115: 2.1 m long, 0.8 m across the bars, 1.2 m to the bars (the riders sit above)
     /// <summary>The motorcycle's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>), a 0.62 m tyre.</summary>
     public const float MotoWheelRadius = 0.31f;
 
@@ -664,8 +664,8 @@ public static class ShapeKits
         {
             p.Add(Mo(-0.52f, s * 0.10f, 0.39f, 0.48f, 0.04f, 0.05f, ColourRole.Dark, pitch: -22f));   // the swing arm, from the pivot to the rear axle
             p.Add(Mo(0.65f, s * 0.07f, 0.66f, 0.04f, 0.03f, 0.80f, ColourRole.Metal, pitch: -8f));    // a fork leg, raked back
-            p.Add(Mo(0.18f, s * 0.22f, 0.40f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                 // the rider's foot peg
-            p.Add(Mo(-0.34f, s * 0.22f, 0.40f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                // the pillion's foot peg
+            p.Add(Mo(0.26f, s * 0.24f, 0.27f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                 // the rider's foot peg (his hips are backend's seat 0: x 0.1, z 0.75)
+            p.Add(Mo(-0.29f, s * 0.24f, 0.37f, 0.06f, 0.08f, 0.03f, ColourRole.Metal));                // the pillion's foot peg (seat 1: x −0.45, z 0.85)
             p.Add(Mo(0.55f, s * 0.38f, 1.08f, 0.07f, 0.10f, 0.05f, ColourRole.Dark));                  // a grip
         }
         p.Add(Mo(0.70f, 0f, 0.65f, 0.55f, 0.12f, 0.04f, ColourRole.Body));                    // the front mudguard
@@ -673,8 +673,9 @@ public static class ShapeKits
         p.Add(Mo(0.725f, 0f, 0.93f, 0.02f, 0.16f, 0.16f, ColourRole.Glass));                  // its lens
         p.Add(Mo(0.55f, 0f, 1.08f, 0.05f, 0.74f, 0.04f, ColourRole.Dark));                    // the handlebar
         p.Add(Mo(0.28f, 0f, 0.90f, 0.50f, 0.30f, 0.20f, ColourRole.Body));                    // the fuel tank
-        p.Add(Mo(-0.28f, 0f, 0.80f, 1.05f, 0.28f, 0.09f, ColourRole.Dark));                   // the long seat for two
-        p.Add(Mo(-0.80f, 0f, 0.82f, 0.30f, 0.22f, 0.12f, ColourRole.Body));                   // the tail
+        p.Add(Mo(-0.05f, 0f, 0.66f, 0.60f, 0.28f, 0.09f, ColourRole.Dark));                   // the seat: the rider's low front (top 0.705, his hips at 0.75)
+        p.Add(Mo(-0.50f, 0f, 0.76f, 0.50f, 0.28f, 0.09f, ColourRole.Dark));                   // the pillion's raised pad (top 0.805, his hips at 0.85)
+        p.Add(Mo(-0.82f, 0f, 0.80f, 0.30f, 0.22f, 0.14f, ColourRole.Body));                   // the tail
         p.Add(Mo(-0.92f, 0f, 0.90f, 0.22f, 0.30f, 0.03f, ColourRole.Metal));                  // the rear rack
         p.Add(Mo(-0.72f, 0f, 0.60f, 0.40f, 0.18f, 0.04f, ColourRole.Body));                   // the rear mudguard
         p.Add(Mo(-0.35f, -0.19f, 0.32f, 0.65f, 0.08f, 0.08f, ColourRole.Metal));              // the exhaust, on the right

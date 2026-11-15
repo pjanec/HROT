@@ -23,7 +23,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <summary>The wedge's reach (m) and the arc's segment step (degrees).</summary>
         public const float Range = 30f, StepDegrees = 10f;
 
-        private static readonly Rgba32 Amber = new(242, 192, 51, 230);
+        private static readonly Rgba32 Amber = new(242, 192, 51, 230), Stopped = new(170, 140, 70, 150);
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
@@ -40,27 +40,27 @@ namespace Hrot.ScenarioEditor.Gizmos
                 var seat = seats[i];
                 if (seat.TraverseMinDeg is not { } min || seat.TraverseMaxDeg is not { } max || seat.Role == SeatRole.Station) continue;
                 var origin = position + Vector3.Transform(new Vector3(seat.X, seat.Y, 0f), tf.Rotation);
-                Arc(draw, origin, tf.Rotation, min, max);
+                Arc(draw, origin, tf.Rotation, min, max, seat.FiresStoppedOnly ? Stopped : Amber);   // the rider's (fires only stopped) in a dimmer amber
             }
         }
 
         /// <summary>The wedge of <paramref name="min"/> … <paramref name="max"/> (degrees, counter-clockwise from the vehicle's forward, Min round to Max): the two edges and an arc of segments (public for the rail).</summary>
-        public static void Arc(IDebugDrawBuilder draw, Vector3 origin, Quaternion rotation, float minDeg, float maxDeg)
+        public static void Arc(IDebugDrawBuilder draw, Vector3 origin, Quaternion rotation, float minDeg, float maxDeg, Rgba32 colour)
         {
             float span = (maxDeg - minDeg) % 360f;
             if (span <= 0f) span += 360f;
             Vector3 At(float deg) => origin + Vector3.Transform(new Vector3(MathF.Cos(deg * MathF.PI / 180f), MathF.Sin(deg * MathF.PI / 180f), 0f) * Range, rotation);
             if (span < 359.9f)
             {
-                draw.DrawLine(origin, At(minDeg), Amber, thickness: 1.6f, layer: DebugTraceLayers.Actions);
-                draw.DrawLine(origin, At(minDeg + span), Amber, thickness: 1.6f, layer: DebugTraceLayers.Actions);
+                draw.DrawLine(origin, At(minDeg), colour, thickness: 1.6f, layer: DebugTraceLayers.Actions);
+                draw.DrawLine(origin, At(minDeg + span), colour, thickness: 1.6f, layer: DebugTraceLayers.Actions);
             }
             int steps = Math.Max(1, (int)MathF.Ceiling(span / StepDegrees));
             var from = At(minDeg);
             for (int s = 1; s <= steps; s++)
             {
                 var to = At(minDeg + span * s / steps);
-                draw.DrawLine(from, to, Amber, thickness: 1.2f, layer: DebugTraceLayers.Actions, style: LineStyle.Dashed);
+                draw.DrawLine(from, to, colour, thickness: 1.2f, layer: DebugTraceLayers.Actions, style: LineStyle.Dashed);
                 from = to;
             }
         }

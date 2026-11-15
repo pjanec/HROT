@@ -15,8 +15,8 @@ public static partial class BlockFigure
     /// <summary>The upper body's forward lean (radians) of a driver over the bars (~17°) and of a pillion (~7°).</summary>
     public const float DriverLean = 0.30f, PillionLean = 0.12f;
 
-    /// <summary>The bars' hands, relative to the driver's hips (m): forward, either side, and a little above the hips; a pillion's on the driver's waist.</summary>
-    private static readonly Vector3 BarsHand = new(0.53f, 0.36f, 0.20f), WaistHand = new(0.44f, 0.22f, 0.12f);
+    /// <summary>The bars' hands, relative to the driver's hips (m; backend's seat 0 at z 0.75, the bars at 1.08): forward, either side, above the hips; a pillion's on the driver's waist (0.55 m ahead).</summary>
+    private static readonly Vector3 BarsHand = new(0.45f, 0.36f, 0.33f), WaistHand = new(0.50f, 0.22f, -0.02f);
 
     private static KitPart[] RideLegs()
         => Legs(new(0f, 0.11f, 0f), new(0.16f, 0.24f, -0.46f), new(0f, -0.11f, 0f), new(0.16f, -0.24f, -0.46f), swings: false, bend: new Vector3(1f, 0f, 0.2f));
