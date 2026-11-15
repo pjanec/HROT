@@ -174,6 +174,10 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const float DefaultSearchRadius = 60f;
         public const float SupportStandOffMetres = 120f, AssaultStandOffMetres = 40f, ReserveStandOffMetres = 100f;
+
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2114) — an assault whose approach failed is ordered again while at least this many of its men stand
+        /// (fire and movement needs two halves).</summary>
+        public const int ApproachMinMen = 2;
         public const float FlankDegrees = 70f, SupportArcHalfDegrees = 25f, SupportRangeMetres = 220f;
         public const float SupportPostRadius = 25f, ConsolidateRadius = 60f;
         public const float ElementFreshSeconds = 120f;
@@ -563,6 +567,14 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Casevac[slot] = 0;
                     p.Dirty[slot] = 1;
                 }
+                // ⭐⭐ CE-2436 AU-6 (R-2114, lane decision) — an ASSAULT whose approach FAILED (fire and movement ends when one of its two halves has
+                //   nobody left) but which still STANDS is ordered again: the new order splits the survivors into two halves afresh. ⛔ Its order
+                //   "stood" (Stands names the run, not the task), and AssaultSet waits for a Set ⇒ the squad idled at 50 m until it went Black.
+                //   📌 Live (cc-battalion run #9): each assault squad in turn stopped 47 / 34 / 8 m short with no task, and the objective was never taken
+                if (p.Dirty[slot] == 0 && p.Phase == PlatoonAttackPlan.PhaseApproach && p.Role[slot] == PlatoonAttackPlan.Assault
+                    && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.TaskFailed
+                    && Fdp.Toolkit.Squad.CombatEffective.StandingMembers(world, squad) >= ApproachMinMen)
+                    p.Dirty[slot] = 1;
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;

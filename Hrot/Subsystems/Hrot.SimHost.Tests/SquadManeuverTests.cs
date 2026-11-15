@@ -3936,6 +3936,34 @@ namespace Hrot.SimHost.Tests
                         "the base of fire is ordered forward as the assault");
         }
 
+        /// <summary>⭐⭐ <c>CE-2436</c> AU-6 (R-2114) — the assault's APPROACH FAILS (its fire and movement lost a half: TaskFailed) while the squad
+        /// still stands: it is ordered forward again. With one man standing it is not (it is lost — the relief's business). 📌 Live cc-battalion
+        /// run #9: each assault squad stopped short with no task. 🔴 Red-proof: the re-order guard off ⇒ no second order.</summary>
+        [Theory]
+        [InlineData(0, true)]
+        [InlineData(3, false)]
+        public void CE2436_AFailedApproach_WhileTheSquadStands_IsOrderedAgain(int broken, bool again)
+        {
+            var p = new Platoon(squads: 2);
+            var alpha = MakeSquad(p.S, 0, 4, 100f);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);
+            int before = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) + p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
+            Assert.True(before > 0, "the assault was ordered forward");
+            Break(p, alpha, broken);
+            p.Report(p.Alpha, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+            });
+            p.Ticks(4);
+            int after = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) + p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
+            Assert.Equal(again, after > before);
+        }
+
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs
         /// still stand) while its SITREP is never Black: with no reserve the platoon breaks the attack off, as for a Black assault. Unbroken, it does
         /// not. 🔴 Red-proof: <c>AssaultBlack</c> back on the colour alone ⇒ no break contact.</summary>
