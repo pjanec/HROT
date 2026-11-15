@@ -96,7 +96,7 @@ A task is done only when every V-row its slice lists is done (ground patches §9
 
 | | |
 |---|---|
-| [CE-4594](blueprints/Blueprint_Issues_Tracker.md) — the terrain editor's user-friendly way | its own design later; it builds on §4d of the ground-patch design (one feature family, one patch type, the stack) |
+| [CE-4594](blueprints/Blueprint_Issues_Tracker.md) — the terrain editor's user-friendly way | ⭐ designed `2026-11-15`: [DESIGN_Terrain_Editor_UX.md](DESIGN_Terrain_Editor_UX.md) (leans await the user); it builds on §4d of the ground-patch design (one feature family, one patch type, the stack) |
 | a per-scenario breaching switch | ⛔ not in v1 (R-4240) |
 | damage to the breaking vehicle | ⛔ not in v1 (B-D12; the cost column stays 0) |
 | a tracked-only vehicle navmesh layer | later, if wanted (R-4233) |

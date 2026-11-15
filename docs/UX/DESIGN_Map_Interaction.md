@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: ROUTES1-DESIGN.md §11.1 says right-click COMMITS a route edit — ⭐ OVERRULED AND BUILT (P2, 2026-11-08): D11 made right-click the menu and Enter / ✓ / the menu's Finish the commit, and `RouteWaypointGizmo` no longer commits on a right-release; ROUTES1 §11.1 stays the spec for everything else (click a segment inserts, Delete removes — P6)
 related-designs:
+  - ../DESIGN_Terrain_Editor_UX.md — CE-4594: EXTENDS §2.5's snap row with terrain targets (road edges, building walls, line ends — ON for terrain lines, a deviation the user rules) and makes terrain line / area tools always-multi like D5's placement
   - docs/UX/DESIGN_Entity_Copy_Paste.md — paste placement reuses PlacementSession (press, drag turns, release)
   - DESIGN_Show_On_Map.md — the map previews drawn from forms (a local debug-primitive buffer), not edited
   - DESIGN_Editing_UX.md — the programme: §1.5 the inventory, §3.12 the target, D11 / D12 / D16 (approved as a first iteration)

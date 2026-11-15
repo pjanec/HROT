@@ -11,8 +11,8 @@ related-designs:
 
 # STATUS — `terrain` close-out (started at `d8ddb1e16`, merged `coordinator@cf0fb9ea6`)
 
-⭐ **In one line:** items 1–3 done; none of the three red rail sets was a code defect (each pinned a superseded design); the programme is
-BUILT with six named remainders; item 4 (the optional CE-4594 design) not started.
+⭐ **In one line:** items 1–4 done; none of the three red rail sets was a code defect (each pinned a superseded design); the programme is
+BUILT with six named remainders; the CE-4594 design is written and awaits the user's leans.
 
 ## 1. The items
 
@@ -22,7 +22,7 @@ BUILT with six named remainders; item 4 (the optional CE-4594 design) not starte
 | | **remainders (named)** | 📋 | **CE-5004** D-4 — a re-import as a new terrain version: awaits [Architect Question 112](../Architect_Question_112_Terrain_Versions_On_Reimport.md) (large blast radius ⇒ the user's) · **CE-4402** the low door on scale-1 — needs the scale terrains re-imported (input sets not in this checkout) · **CE-5002** the cold first bake (~21 ms + ~22 ms once per session — profile first) · **CE-5000** part 3 (debt) · **V-29** a squad taking its foxhole posts — behaviors lane (R-5031) · the bulldozer's map *clear here* gesture | |
 | **2** | [CE-4588](../Blueprint_Issues_Tracker.md) — three 2-D terrain rails | ✅ all green under `xvfb-run -a` | ① `PresentationGizmoTests…LabelsBuildings`: an `open` surface is drawn now (Terrain Authoring §18i I-3) ⇒ 6 triangles, colours asserted. ② `FilmFrameRail.CE1380_…`: the fixture's unit had no `EntityInfo` ⇒ the empty-scenario hint (L-12 / CE-4311) covered its symbol; the film was right. ③ `Map3DFrameRail.CE1227_V_DemoCity…`: the same hint (≈ 4 300 samples) + a reference built without U-4's overview tops (≈ 1 400, every one a house's wall edge) + the close-up read on a CE-4559 cache-hit frame (0 strokes, true of that frame) | `DESIGN_Terrain_World.md` §10 rails row |
 | **3** | the stale geo rail → [CE-5003](../Blueprint_Issues_Tracker.md) | ✅ | the rail pinned the deleted tangent plane's `(0, 0)`; re-pointed to UTM everywhere's local-only frame (geodetic refused, then `UseOrigin` gives a frame). Production untouched. Red-proved: the default transform made a UTM frame at (0, 0) ⇒ red; reverted ⇒ green | none needed — `DESIGN_Geo_Origin.md` §6 UE-2 / UE-a says it |
-| **4** | ⏸ optional CE-4594 design | ⛔ not started | — | — |
+| **4** | optional [CE-4594](../Blueprint_Issues_Tracker.md) design — the terrain editor's user-friendly way | ✅ DESIGNED (nothing built) | [DESIGN_Terrain_Editor_UX.md](../../DESIGN_Terrain_Editor_UX.md): INVENTORY (graph + grep), the friction measured, UML (3 diagrams, all parse), [mockup](../../UX/terrain-editor.svg); leans TE-1…TE-12 for the user — ⚠ TE-6 (snapping ON for terrain lines) deviates from Map Interaction's off-default and is the user's call | reciprocal links in Ground §4d's doc, Terrain Authoring, Map Interaction |
 
 **Finding (not in scope, filed):** [CE-5005](../Blueprint_Issues_Tracker.md) — the empty-scenario hint draws `?` for `—` and `▸` (raylib's default
 font); the ui lane's file, not edited.
@@ -56,6 +56,6 @@ pre-existing; no new skip.
 ## 4. Ids
 
 - **CE-5003** (the stale geo rail, ✅), **CE-5004** (D-4, split off CE-4403), **CE-5005** (the hint's glyphs, ui lane). Next free: `CE-5006`.
-- No ruling ids.
+- No ruling ids (TE-1…TE-12 are leans, not rulings, until the user approves).
 - Cross-lane edits: none in production. The tests re-pointed live in the ui / presentation suites (`FilmFrameRail`, `Map3DFrameRail`,
   `PresentationGizmoTests`) — said here; the CAPABILITIES / USAGES / tracker rows are shared files.
