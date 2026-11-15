@@ -33,7 +33,7 @@ ClearObstacle | hostedInput=Hrot.AI.Behaviors.Brains.ClearObstacleOrder | inputB
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1544
 CombatShowcase | hostedInput=- | inputBytes=0
-CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=144
+CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=192
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
@@ -106,6 +106,7 @@ PlatoonConvoy | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonConvoyParamsJso
 PlatoonDefend | hostedInput=- | inputBytes=400
 PlatoonHillAttack | hostedInput=- | inputBytes=256
 PlatoonHold | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonHoldParamsJsonDto | inputBytes=16
+PlatoonSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.PlatoonSupportByFireParamsJsonDto | inputBytes=120
 Points | hostedInput=- | inputBytes=160
 Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40

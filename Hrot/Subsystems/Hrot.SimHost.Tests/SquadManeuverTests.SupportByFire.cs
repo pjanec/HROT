@@ -182,7 +182,7 @@ namespace Hrot.SimHost.Tests
             var postA = new Vector3(10f, 610f, 0f);
             var postB = new Vector3(-10f, 590f, 0f);
             c.P.ReportSpot(c.Second, postA, 2);
-            c.P.ReportSpot(c.Second, postB, 2);
+            c.P.ReportSpot(c.Third, postB, 2);   // another reporter: one reporter's near spots fold into one element
             c.Ticks(2);
             CompanyAttack(c, 100f, o1, o2);
             c.Ticks(6);

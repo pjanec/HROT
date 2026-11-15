@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2 BUILT (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2 BUILT, AU-3 BUILT but A-9 (§9)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -200,4 +200,18 @@ would change with a live run showing the posts off the windows, or the arrival t
 `CE2277` ×3, `CE2346`, `CE2284` updated (the approach in contact is `FireAndMovement`). **R-2107 numbers:** 15 s / 3 rounds a man; the
 smoke once per fire-and-movement run — would change with a live run where the support's Set comes too late for the deadline, or where one
 grenade does not cover the crossing.
+
+### 9.3 AU-3 — the sustained mission, the screen, the shift beyond, the company's base of fire *(R-2108, lane decision — for the user's review)*
+
+| piece | as built | where |
+|---|---|---|
+| A-5 sustained | a FireSupport REQUEST's `Count` is its rounds per gun (a byte the wire already carries) → the picture's `PendingRequest.Rounds` → `SupportCommand`'s battery strike `StrikeOrder.Rounds` (above 1 a sustained mission; else the battery's default 3) | `StaffSystems` (fold), `CommandComponents`, `SupportCommandBehavior` |
+| A-5 on the posts | `CompanyAttack.EnterAssault` asks **8** rounds a gun of HE on the CENTRE of the reported posts (fresh elements within 40 m of the objective; none ⇒ the objective) — replacing R-2100's 3-round burst on the objective | `CompanyBehaviors.PostsCentre` |
+| A-5 the screen | the half-deadline smoke (CE-7025) lands **50 m from the objective toward where the company came from** — on the crossing, ⛔ never on the objective (📌 it blinded the own base of fire) | `ScreenPoint` |
+| A-5 shift beyond | objective k taken (`NextObjective`) ⇒ a sustained HE request on objective k + 1; the last one taken asks nothing | `NextObjective` |
+| A-1 company | the company's base of fire is `PlatoonSupportByFire`: every squad `SupportByFire` on the company's posts (≤ 4 fresh elements near the objective), spread 20 m across the line of fire; the platoon reports SET once every live squad has (= each squad's suppression established) | `PlatoonSupportByFireBehavior`, `CompanyAttack.SupportByFire` |
+| ⛔ A-9 covered position | **NOT BUILT** — the base of fire still stands at the fixed 250 m; a cover query for the company (a world survey round the support point, the near face of a building on the line of fire) is the next step | — |
+
+**Rails:** `CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond` · `CE2436_ASustainedRequest_IsFiredAsASustainedMission`
+· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red.
 
