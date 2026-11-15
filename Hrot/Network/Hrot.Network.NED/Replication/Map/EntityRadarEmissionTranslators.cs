@@ -120,7 +120,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             var tracked = d.TrackedTarget != 0 && _entityMap.TryGetEntity(d.TrackedTarget, out var t) ? t : Entity.Null;
             cmd.AddComponent(unit, new RadarEmission
             {
-                Mode = (RadarMode)d.Mode, EmitterClass = (RadarEmitterClass)d.EmitterClass, TrackedTarget = tracked, RangeM = d.RangeM, OnSince = d.OnSince,
+                Mode = (RadarMode)d.Mode, EmitterClass = (RadarEmitterClass)d.EmitterClass, TrackedTarget = tracked, RangeM = d.RangeM, OnSince = (SimInstant)d.OnSince,
             });
         }
 

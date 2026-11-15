@@ -46,6 +46,16 @@ namespace Hrot.AI.Behaviors.Brains
             => new BTreeBuilder<Blackboard, BTreeContext>()
             .Selector(rows => rows
                 .Sequence(row => row
+                    .Condition(bb => bb.AirSense, SopConditions.SensedFresh, Id("c4617000-0000-0000-0000-0000000000b2"))
+                        .Label("Air threat (fresh, 3 s)")
+                    .Condition(RadarSamNodes.CanEngageByRadar, Id("c4617000-0000-0000-0000-0000000000b3"))
+                        .Label("A radar and a radar-guided launcher with a round")
+                    .React(BehaviorNames.RadarSamEngage, ReactionUrgency.UnderFire, Id("c4617000-0000-0000-0000-0000000000b4"))
+                        .Label("React: RadarSamEngage"),
+                    Id("c4617000-0000-0000-0000-0000000000b1"))
+                    .Label("Aircraft + a radar SAM → radar on, salvo, relocate")
+                    .Comment("CE-4617 (DESIGN_Radar_SAM RS-5): a radar SAM vehicle answers an air cue with its radar and a salvo, then switches off and relocates; an empty launcher falls through to the rows below.")
+                .Sequence(row => row
                     .Condition(bb => bb.AirSense, SopConditions.SensedFresh, Id("c2165000-0000-0000-0000-0000000000a2"))
                         .Label("Air threat (fresh, 3 s)")
                     .Condition(bb => bb.AirDefence, AirDefenceNodes.CanEngageAir, Id("c2165000-0000-0000-0000-0000000000a3"))

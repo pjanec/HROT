@@ -112,6 +112,7 @@ Points | hostedInput=- | inputBytes=160
 Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
 QuietArea | hostedInput=- | inputBytes=240
+RadarSamEngage | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
@@ -140,7 +141,7 @@ StationWeapon | hostedInput=Hrot.Map.Definitions.Behavior.StationWeaponParamsJso
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
 SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=120
-SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=20
+SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDto | inputBytes=32
 Suppress | hostedInput=Hrot.Map.Definitions.Behavior.SuppressParamsJsonDto | inputBytes=56
 SuppressAndManeuver | hostedInput=Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto | inputBytes=1216
 Surrender | hostedInput=Hrot.Map.Definitions.Behavior.SurrenderParamsJsonDto | inputBytes=16

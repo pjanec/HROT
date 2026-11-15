@@ -29,6 +29,10 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-7014</c> (City Battle §11 R-2) — the HMMWV (102) carrying a DRONE JAMMER (a 400 m bubble, <c>JammerDto</c>): an enemy drone inside
         /// loses its link. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Ew_DroneJammer = 113;
+        /// <summary>⭐ <c>CE-4617</c> (B-2, RS-1; docs/designs/air-attack/DESIGN_Radar_SAM.md §2a) — the RADAR SAM vehicle: one wheeled truck carrying
+        /// the search-and-track radar on a mast AND four ready missiles on its turret-0 launcher. One type — the side comes from the scenario's
+        /// faction. DIS 1.1.*.28.1, class <c>"AirDefenceVehicle"</c>. ⛔ A permanent wire value: never reuse or renumber it.</summary>
+        public const long AirDefence_RadarSam = 114;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

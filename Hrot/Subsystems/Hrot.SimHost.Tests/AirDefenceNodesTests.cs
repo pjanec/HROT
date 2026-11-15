@@ -181,6 +181,193 @@ namespace Hrot.SimHost.Tests
             Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
         }
 
+        // ── ⭐⭐ CE-4617 (B-3; docs/designs/air-attack/DESIGN_Radar_SAM.md RS-4 / RS-5 / RV-1 / RV-10 / RV-11) — the radar SAM ─────────────
+
+        private void RegRadar()
+        {
+            void Reg<T>() where T : unmanaged { if (!_w.IsComponentTypeRegistered<T>()) _w.RegisterComponent<T>(); }
+            Reg<ActiveSensorTracks>(); Reg<Fdp.Toolkit.Perception.Radar.RadarEmission>(); Reg<Fdp.Toolkit.Perception.Radar.RadarSignature>();
+            Reg<WeaponState>(); Reg<Fdp.Toolkit.Motion.Locomotion>(); Reg<EntityInfo>();
+        }
+
+        /// <summary>The radar SAM vehicle (type 114) with its four missiles, a weapon channel, on the hostile side.</summary>
+        private Entity RadarSam(Vector3 at)
+        {
+            RegRadar();
+            var sam = Place(TkbEntityTypes.AirDefence_RadarSam, at);
+            _w.AddComponent(sam, new WeaponState { Ammo = 4, MaxAmmo = 4 });
+            _w.AddComponent(sam, new WeaponChannel());
+            _w.AddComponent(sam, new EntityInfo { Name = "SAM", ForceId = ForceId.Hostile });
+            _w.AddComponent(sam, new ActiveSensorTracks());   // its sight model: nothing held yet (none at all would read "seen")
+            return sam;
+        }
+
+        /// <summary>An aircraft of a real catalogue <paramref name="type"/>: its locomotion and its stamped cross-section.</summary>
+        private Entity Aircraft(long type, Vector3 at, Fdp.Toolkit.Tkb.Domain.LocomotionClass cls)
+        {
+            RegRadar();
+            var a = Helicopter(at);
+            _w.GetComponentRW<Fdp.Toolkit.Motion.Locomotion>(a).Class = cls;
+            _w.AddComponent(a, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
+            float rcs = _tkb.GetByType(type).GetDescriptor<Fdp.Toolkit.Tkb.Domain.SignaturesDto>()?.Radar?.RcsM2 ?? 10f;
+            _w.AddComponent(a, new Fdp.Toolkit.Perception.Radar.RadarSignature { RcsM2 = rcs });
+            return a;
+        }
+
+        /// <summary><paramref name="unit"/>'s sensors hold <paramref name="target"/> now, by <paramref name="kind"/> (what the brain's track set says).</summary>
+        private unsafe void Track(Entity unit, Entity target, SensorModality kind)
+        {
+            if (!_w.HasComponent<ActiveSensorTracks>(unit)) _w.AddComponent(unit, new ActiveSensorTracks());
+            ref var t = ref _w.GetComponentRW<ActiveSensorTracks>(unit);
+            int slot = -1;
+            for (int i = 0; i < t.Count; i++) if (t.EntityIds[i] == (long)target.PackedValue) slot = i;
+            if (slot < 0) slot = t.Count++;
+            t.EntityIds[slot] = (long)target.PackedValue;
+            t.Modalities[slot] = (byte)kind;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (RV-1) — THE fire-control rule on real catalogue mounts: a helicopter held by the RADAR only is seen by the radar
+        /// SAM's launcher (a radar-guided round) and NOT by the M2 on a technical, nor by a Stinger gunner's launcher (IR) — the eyes' rule
+        /// (<see cref="Fdp.Toolkit.Perception.SightNow"/>) is unchanged for all of them; once the eyes hold it too, every mount sees it.
+        /// ✅ Red-proof (mutant): the radar half without the guidance check ⇒ the M2 sees a radar-only contact ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_ARadarOnlyContact_IsSeenByTheRadarSamsLauncher_NeverByAnMgOrAnIrLauncher()
+        {
+            var sam = RadarSam(new Vector3(0, 0, 0));
+            var m2 = Place(TkbEntityTypes.Technical_Hmg, new Vector3(20, 0, 0));
+            var stinger = Place(TkbEntityTypes.Infantry_StingerGunner, new Vector3(40, 0, 0));
+            var heli = Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(3000, 0, 150), Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            foreach (var u in new[] { sam, m2, stinger }) Track(u, heli, SensorModality.Radar);
+
+            Assert.True(FireControlSight.Sees(_w, sam, heli, CombatTkb.MountOf(_w, sam, 0)), "the radar SAM fires on its radar track");
+            Assert.True(FireControlSight.SeesForAnyMount(_w, sam, heli));
+            Assert.False(Fdp.Toolkit.Perception.SightNow.Sees(_w, sam, heli), "the eyes' rule is unchanged");
+            var mg = WeaponSystems.WeaponOf(_w, m2);
+            Assert.False(FireControlSight.Sees(_w, m2, heli, CombatTkb.MountOf(_w, mg, 0)), "an MG never fires at a radar-only contact");
+            Assert.False(FireControlSight.SeesForAnyMount(_w, m2, heli));
+            var stingerLauncher = WeaponSystems.WeaponOf(_w, stinger);
+            Assert.False(FireControlSight.Sees(_w, stinger, heli, CombatTkb.MountOf(_w, stingerLauncher, 0)), "an IR launcher needs the eyes");
+
+            Track(m2, heli, SensorModality.Radar | SensorModality.Visual);
+            Assert.True(FireControlSight.Sees(_w, m2, heli, CombatTkb.MountOf(_w, mg, 0)), "seen by the eyes: every mount");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (RV-11, RS-4) — the radar SAM can engage aircraft and is a radar SAM while it has a missile; EMPTY, neither (it falls
+        /// through to the shelter row). Its salvo: 2 at a manned helicopter, 1 at a recon or bomber drone, NONE at an FPV (0.01 m² — below its
+        /// seeker's 0.03 m² lock).
+        /// ✅ Red-proofs (mutants): the ammunition not read ⇒ the empty launcher still counts ⇒ red; the lock floor dropped ⇒ an FPV gets a missile ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadarSam_EngagesOnlyWithAMissileLeft_TwoAtAManned_OneAtADrone_NoneAtAnFpv()
+        {
+            var sam = RadarSam(new Vector3(0, 0, 0));
+            Assert.True(AirDefenceNodes.CanEngageAir(_w, sam, 80f));
+            Assert.True(RadarSamNodes.IsRadarSam(_w, sam));
+            Assert.False(RadarSamNodes.IsRadarSam(_w, Place(TkbEntityTypes.Technical_Zu23, new Vector3(30, 0, 0))), "a gun is no radar SAM");
+
+            var rotor = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+            Assert.Equal(2, RadarSamNodes.SalvoFor(_w, sam, Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(3000, 0, 150), rotor)));
+            Assert.Equal(2, RadarSamNodes.SalvoFor(_w, sam, Aircraft(TkbEntityTypes.Jet_F16, new Vector3(4000, 0, 800), Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing)));
+            Assert.Equal(1, RadarSamNodes.SalvoFor(_w, sam, Aircraft(TkbEntityTypes.Drone_Recon, new Vector3(1000, 0, 100), rotor)));
+            Assert.Equal(1, RadarSamNodes.SalvoFor(_w, sam, Aircraft(TkbEntityTypes.Drone_Bomber, new Vector3(1000, 50, 100), rotor)));
+            Assert.Equal(0, RadarSamNodes.SalvoFor(_w, sam, Aircraft(TkbEntityTypes.Drone_Fpv, new Vector3(800, 0, 50), rotor)));
+
+            _w.GetComponentRW<WeaponState>(sam).Ammo = 0;
+            Assert.False(AirDefenceNodes.CanEngageAir(_w, sam, 80f), "an empty launcher does not win the air row");
+            Assert.False(RadarSamNodes.IsRadarSam(_w, sam));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (RS-5, RV-10) — <see cref="RadarSamNodes.RadarSamEngage"/>: cued, its radar comes ON (Search); once the radar holds
+        /// the helicopter — with NO visual track — Track on it and ONE salvo of TWO at it; when the helicopter is down (the outcome) the radar
+        /// goes OFF and it relocates (Success); the deactivator leaves the radar off. A second run with no track at all relocates after the
+        /// 20 s of quiet. ✅ Red-proofs (mutants): the eyes' rule in place of the fire-control rule ⇒ no salvo ⇒ red; no relocation ⇒ Running
+        /// past the outcome ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4617_RadarSamEngage_RadarOn_ASalvoOfTwoOnARadarTrack_ThenOffAndRelocate()
+        {
+            var sam = RadarSam(new Vector3(0, 0, 0));
+            var heli = Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(3000, 0, 150), Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            Remember(sam, heli, new Vector3(3000, 0, 150), 5);   // the cue: a report
+            var p = default(RadarSamParams);
+            var ws = default(RadarSamState);
+            var status = NodeStatus.Running;
+            Fdp.Toolkit.Perception.Radar.RadarEmission Emission() => _w.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarEmission>(sam);
+
+            _w.SetSingleton(new GlobalTime { TotalTime = 1.0 });
+            status = RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w);
+            Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Search, Emission().Mode);
+            Assert.NotEqual(CombatConstants.ActionIdAimAndFire, _w.GetComponentRO<WeaponChannel>(sam).ActiveAction);   // nothing tracked yet
+
+            Track(sam, heli, SensorModality.Radar);   // the radar holds it; the eyes do not
+            _w.SetSingleton(new GlobalTime { TotalTime = 2.0 });
+            status = RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w);
+            Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Track, Emission().Mode);
+            Assert.Equal(heli, Emission().TrackedTarget);
+            ref var ch = ref _w.GetComponentRW<WeaponChannel>(sam);
+            Assert.Equal(CombatConstants.ActionIdAimAndFire, ch.ActiveAction);
+            var fire = System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref ch.Params[0]);
+            Assert.Equal((heli, 2), (fire.Target, fire.Rounds));
+
+            ch.Status = NodeStatus.Success;   // the weapon brain fired the two
+            _w.SetSingleton(new GlobalTime { TotalTime = 8.0 });
+            status = RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w);
+            Assert.Equal(NodeStatus.Running, status);
+            _w.GetComponentRW<Health>(heli).Current = 0f;   // the outcome: down
+            for (double t = 9.0; t < 60.0 && status == NodeStatus.Running; t += 0.5)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = t });
+                status = RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w);
+                if (ws.Stage == 1) Assert.False(Emission().IsOn, "the radar is off while it relocates");
+            }
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.False(Emission().IsOn);
+
+            // the quiet path: cued, nothing ever tracked ⇒ relocate after QuietSeconds
+            var ws2 = default(RadarSamState);
+            var heli2 = Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(-3000, 0, 150), Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            _w.GetComponentRW<ActiveSensorTracks>(sam).Count = 0;
+            Remember(sam, heli2, new Vector3(-3000, 0, 150), 50);
+            double started = 100.0, ended = -1;
+            var s2 = NodeStatus.Running;
+            for (double t = started; t < started + 60 && s2 == NodeStatus.Running; t += 0.5)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = t });
+                s2 = RadarSamNodes.RadarSamEngage(ref p, ref ws2, sam, _w);
+                if (ws2.Stage == 1 && ended < 0) ended = t;
+            }
+            Assert.InRange(ended - started, (double)RadarSamNodes.Defaults.QuietSeconds - 0.5, (double)RadarSamNodes.Defaults.QuietSeconds + 1.0);
+            RadarSamNodes.Deactivate_RadarSamEngage(ref p, ref ws2, sam, _w);
+            Assert.False(Emission().IsOn);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (found by <c>sam-site</c>) — a radar SAM DESTROYED while tracking radiates nothing: its last <c>RadarEmission</c> says
+        /// Track, but <see cref="Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn"/> answers off; the node releases (radar written Off,
+        /// Failure) and the SOP row no longer fires for it. ✅ Red-proof (mutant): the in-fight test dropped from the one rule ⇒ "on" ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_ADestroyedRadarSam_RadiatesNothing_AndItsEngagementEnds()
+        {
+            var sam = RadarSam(new Vector3(0, 0, 0));
+            var heli = Aircraft(TkbEntityTypes.Heli_UH60, new Vector3(3000, 0, 150), Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            Fdp.Toolkit.Perception.Radar.RadarEmissions.Set(_w, sam, Fdp.Toolkit.Perception.Radar.RadarMode.Track, heli,
+                Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, 8000f, 1.0);
+            Assert.True(Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn(_w, sam));
+            _w.GetComponentRW<Health>(sam).Current = 0f;
+            Assert.False(Fdp.Toolkit.Perception.Radar.RadarEmissions.IsOn(_w, sam), "a destroyed radar radiates nothing");
+            Assert.False(RadarSamNodes.IsRadarSam(_w, sam));
+            var p = default(RadarSamParams);
+            var ws = default(RadarSamState);
+            _w.SetSingleton(new GlobalTime { TotalTime = 2.0 });
+            Assert.Equal(NodeStatus.Failure, RadarSamNodes.RadarSamEngage(ref p, ref ws, sam, _w));
+            Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Off, _w.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarEmission>(sam).Mode);
+        }
+
         // ── ⭐⭐ CE-2436 AU-7 (A-10; DESIGN_Assault_Under_Fire §9.5) — the infantry against drones ─────────────────────────────────
 
         /// <summary>

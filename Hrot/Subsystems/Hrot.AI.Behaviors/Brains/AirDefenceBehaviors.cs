@@ -75,7 +75,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void FireAt(EntityRepository world, Entity self, ref EngageState fire, ref SimInstant retryAt, Entity air, double now)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return;
-            bool seen = !air.IsNull && SightNow.Sees(world, self, air);
+            bool seen = !air.IsNull && FireControlSight.SeesForAnyMount(world, self, air);   // ⭐ CE-4617 (RV-1) — the one fire-control rule
             if (!seen) { PostureNodes.StopFiring(world, self, ref fire); return; }
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool mine = !fire.Threat.IsNull && channel.ActiveAction == CombatConstants.ActionIdAimAndFire;

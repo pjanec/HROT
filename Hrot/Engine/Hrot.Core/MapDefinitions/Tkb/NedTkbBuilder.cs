@@ -342,6 +342,8 @@ namespace Hrot.Map.Definitions.Tkb
                         MinElevationDeg   = wm.MinElevationDeg,
                         MaxElevationDeg   = wm.MaxElevationDeg,
                         RateOfFire        = wm.RateOfFire,       // ⭐ CE-2188 (BS-1 §5.4c) — a dispenser's release interval
+                        RoundsInFlight    = wm.RoundsInFlight,   // ⭐ CE-4617 (RV-2) — a guided mount's salvo
+                        SalvoIntervalS    = wm.SalvoIntervalS,
                         Appearance        = wm.Look is { } look ? new ItemAppearanceDto { Look = look } : null,   // ⭐ CE-3233 (B-11, ST-7)
                     });
                 }

@@ -124,7 +124,7 @@ namespace Hrot.SimHost.Tests
             var tracking = new Fdp.Toolkit.Perception.Radar.RadarEmission
             {
                 Mode = Fdp.Toolkit.Perception.Radar.RadarMode.Track, TrackedTarget = heliHere,
-                EmitterClass = Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, RangeM = 8000f, OnSince = 12.5,
+                EmitterClass = Fdp.Toolkit.Perception.Radar.RadarEmitterClass.AirDefence, RangeM = 8000f, OnSince = (Fdp.Core.SimInstant)12.5,
             };
             var sample = Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, tracking);
             Assert.Equal(77, sample.TrackedTarget);
@@ -143,7 +143,7 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(Fdp.Toolkit.Perception.Radar.RadarMode.Track, got.Mode);
                 Assert.Equal(heliThere, got.TrackedTarget);
                 Assert.Equal(8000f, got.RangeM);
-                Assert.Equal(12.5, got.OnSince);
+                Assert.Equal(12.5, (double)got.OnSince);
             }
             Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, default));
         }

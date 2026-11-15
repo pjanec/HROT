@@ -309,5 +309,19 @@ namespace Fdp.Toolkit.Perception
                 if (tracks.EntityIds[t] == id && (tracks.Modalities[t] & (byte)SensorModality.Visual) != 0) return true;
             return false;
         }
+
+        /// <summary>⭐ <c>CE-4617</c> (B-3) — does a sensor of <paramref name="kind"/> on <paramref name="self"/> hold <paramref name="target"/>
+        /// RIGHT NOW (<see cref="ActiveSensorTracks"/>)? Unlike <see cref="Sees"/>, no sight model ⇒ false: a radar must be there to hold
+        /// anything. Read by the fire-control rule (<c>Fdp.Toolkit.Combat.FireControlSight</c>).</summary>
+        public static unsafe bool Holds(ISimulationView view, Entity self, Entity target, SensorModality kind)
+        {
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<ActiveSensorTracks>()) return false;
+            if (target.IsNull || !view.HasComponent<ActiveSensorTracks>(self)) return false;
+            ref readonly var tracks = ref view.GetComponentRO<ActiveSensorTracks>(self);
+            long id = (long)target.PackedValue;
+            for (int t = 0; t < tracks.Count; t++)
+                if (tracks.EntityIds[t] == id && (tracks.Modalities[t] & (byte)kind) != 0) return true;
+            return false;
+        }
     }
 }

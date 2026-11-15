@@ -242,6 +242,8 @@ namespace Hrot.CGF
             simList.Add(new Fdp.Toolkit.Perception.Systems.NearMissSensingSystem());
             // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c) — a missile launched at one of its aircraft: SensorChange.MissileWarning + details.
             simList.Add(new Fdp.Toolkit.Perception.Systems.MissileWarningSensingSystem());
+            // ⭐ CE-4617 (B-4, DESIGN_Radar_SAM RS-6 / RS-10) — each of its aircraft's radar warning, derived from the replicated emitters.
+            simList.Add(new Fdp.Toolkit.Perception.Systems.RadarWarningReceiverSystem(gateOnAuthority));
             // ⭐ CE-2176 IF-3 — the bursts this node saw, for a fire-mission observer (DESIGN_Indirect_Fire §3.8).
             simList.Add(new Fdp.Toolkit.Combat.DetonationMemorySystem());
             // ⭐ CE-3174 (C-7, docs/DESIGN_Entity_Control.md §8d) — the ammunition per mount, mirrored for every station's HUD (dtWeaponAmmo).
@@ -249,6 +251,8 @@ namespace Hrot.CGF
             simList.Add(_squadCoordinationSystem);   // CE-454: after TargetMemory is boosted, before behaviours read the pool
             // ⭐⭐ CE-2293 CC-C (Command Chain §5) — the staff: compose and send the standing reports, then fold the ones that arrived into
             //   each commander's picture — after the merge (the pool is fresh), before the brain tick (this frame's guards see it).
+            // ⭐ CE-4617 (B-5, DESIGN_Radar_SAM RS-7) — a radar radiating 30 s is located: a SPOT to the other sides' top commanders, before the inbox folds it
+            simList.Add(new Fdp.Toolkit.Squad.Command.EmitterLocatingSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffComposerSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Squad.Command.StaffInboxSystem(gateOnAuthority));
             // ⭐ CE-2273 DA-A — a unit's authored proficiency reaches its men (written on each man: the hit model reads only him).

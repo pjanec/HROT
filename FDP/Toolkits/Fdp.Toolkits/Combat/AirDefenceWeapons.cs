@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Combat
@@ -26,7 +27,7 @@ namespace Fdp.Toolkit.Combat
             {
                 var m = CombatTkb.MountOf(world, unit, i);
                 if (m == null) break;
-                if (AirCapable(world, unit, m, minElevationDeg)) return true;
+                if (AirCapable(world, unit, m, minElevationDeg) && HasRounds(world, unit, i)) return true;   // ⭐ CE-4617 (RV-11) — an empty launcher does not count
             }
             Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
             int n = WeaponSystems.Controlled(world, unit, controlled);
@@ -34,9 +35,27 @@ namespace Fdp.Toolkit.Combat
             {
                 if (WeaponSystems.IsBroken(world, controlled[k])) continue;
                 var m = CombatTkb.MountOf(world, controlled[k], 0);
-                if (m != null && AirCapable(world, controlled[k], m, minElevationDeg)) return true;
+                if (m != null && AirCapable(world, controlled[k], m, minElevationDeg) && HasRounds(world, controlled[k], 0)) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4617</c> (B-3, RV-11; docs/designs/air-attack/DESIGN_Radar_SAM.md) — does mount <paramref name="mountIndex"/> of <paramref name="owner"/>
+        /// have a round left: its <see cref="WeaponState.Ammo"/> (mount 0 on the owner, another on its mount child). A unit whose world keeps no
+        /// weapon state for it answers true (nothing can say it is empty — the weapon brain decides, as before).
+        /// </summary>
+        public static bool HasRounds(EntityRepository world, Entity owner, int mountIndex)
+        {
+            if (!world.IsComponentTypeRegistered<WeaponState>()) return true;
+            if (mountIndex == 0) return !world.HasComponent<WeaponState>(owner) || world.GetComponentRO<WeaponState>(owner).Ammo != 0;
+            if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return true;
+            Span<Entity> mounts = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateMounts(world, owner, mounts);
+            for (int i = 0; i < n; i++)
+                if (world.HasComponent<WeaponMountInfo>(mounts[i]) && world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex == mountIndex)
+                    return !world.HasComponent<WeaponState>(mounts[i]) || world.GetComponentRO<WeaponState>(mounts[i]).Ammo != 0;
+            return true;
         }
 
         /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10b) — inside this range (m) EVERY man fires at a drone, a rifle too (the last moments before it
