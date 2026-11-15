@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — leans A-1…A-10 for the user (2026-11-15); nothing built
+build-state: READY-TO-BUILD — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked
 stale-below: nothing
@@ -105,7 +105,7 @@ classDiagram
 *What it shows: two new plays (a squad and a vehicle version of support by fire) and extensions of the plays that exist — no new command
 mechanism; the drones are tasked through the operator that already exists.*
 
-## 5. Decisions — leans for the user
+## 5. Decisions — ✅ APPROVED (user, `2026-11-15`: *"Approved"* — R-4254)
 
 | # | decision | ⭐ lean | rejected |
 |---|---|---|---|
