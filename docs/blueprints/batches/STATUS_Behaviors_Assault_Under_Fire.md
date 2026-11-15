@@ -17,6 +17,8 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |
 |---|---|---|---|---|---|
+| AU-1..5, AU-7 live #5 (`f28d19813`) | ⛔ not taken — **PL 1 reached (first time)**; the assault squad reached 45 m and began `ClearBuilding`, went Black, the reserve was out on a casevac ⇒ AT-10 aborted beside an intact base of fire (probe) ⇒ **R-2112** | ✅ Set 117.7 s | ✅ 119.5 s | — | ②③④⑤⑥⑦ ✓; ① ⛔ (the outpost sheltered from Blue's PARKED drones at t = 0 ⇒ `FlightGround`); ⑧ ⛔; moved > 50 m: 61 / 43 / 11 % · 107.8 contacts/min; drone team live: recon orbit ✓, both bombers flown |
+| (live #4) | — run killed by the job's 60-min wall limit before the verdict (78 men + drones run slower) | | | | |
 | AU-1..4 live #3 (`e9738509f`) | ⛔ not taken — Red's line nearly destroyed (Red platoons 1 / 0 / 2 men left, Blue 5 / 5 / 6) yet PL 1 failed at 420 s; 439 `TaskFailed` reports | ✅ Set 113.2 s (established) | ✅ 130.2 s — after the Set | — | ②③④⑤⑥⑦ ✓; ① ⛔ (outpost: no withdrawal seen); PL ⛔; ⑧ ⛔; moved > 50 m: 51 / 35 / 11 % · 99.6 contacts/min |
 | AU-1..3 live #2 | ⛔ — the check's wall limit at 612 s sim | the base of fire paused by its SOP's hold (probe: 31 → 47 s) | 593.7 s | — | not judged — the defect fixed in AU-4's commit |
 | AU-1 + AU-2 live #1 | ⛔ not taken (assault platoon 2 / 12 left) | support Set 116.6 s | 131.2 s | — | ②–⑦ ✓; ① ⛔ (the withdrawal not seen); PL ⛔; ⑧ ⛔ (Red 13 left) |
@@ -25,6 +27,7 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 
 | id | decision | would change it |
 |---|---|---|
+| R-2112 | AU-6: a lost assault with no free reserve is relieved by the platoon's BASE OF FIRE when it is not Black (the spent assault holds as the reserve); AT-10 breaks off only when no squad is fit | a live run where the base of fire's move forward leaves the assault without covering fire and both are lost |
 | R-2111 | AU-5: a company subordinate whose roster holds a drone is its DRONE TEAM (role `Drones`, never a platoon role): its recon drone circles the objective on the team's order, its operator flies the armed drones at the posts the base of fire was ordered on; at the consolidation it only watches; the drone strike is NOT a gate on the assault | a live run where the recon drone's reports never reach the company, or the bombers strike our own men |
 | R-2110 | AU-7: a round at a target in the air gets an elevation error too and σ × (1 + speed / 10 m/s); the anti-drone shotgun is 12 pellets over 15 mils, spent past 60 m, one a squad (types 212 / 213); a drone may be fired at by a shotgun in its range, an MG or autocannon, an air-defence weapon, and any small arm inside 20 m; the drone gunners (shotgun, MG) stand and engage, the rest take cover | a live run where a drone is never downed (the speed factor too wide) or always (too narrow) |
 | R-2109 | AU-4: a company's vehicles take the `Vehicle` role (never assault), stand 35 m beside the base of fire's point and run the exposure cycle with Scoot, one exposure a position; the SOPs spare a base of fire as a defence; drones unjammable by one switch (`DroneJamming.DronesUnjammable`) | a live run where 35 m leaves the IFVs in the open; a base of fire that should break off on contact |

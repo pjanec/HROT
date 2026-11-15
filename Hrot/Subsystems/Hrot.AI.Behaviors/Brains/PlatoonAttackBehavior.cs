@@ -760,20 +760,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>AWatch → ARelieve (AT-9): the assault reports Black and a reserve is free.</summary>
         [SharedAiCondition]
         public static bool AssaultFailing(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
-            => p.Made != 0 && p.Aborted == 0 && AssaultBlack(ref p, self, world) && FreeReserve(ref p, self, world) >= 0;
+            => p.Made != 0 && p.Aborted == 0 && AssaultBlack(ref p, self, world) && FreeRelief(ref p, self, world) >= 0;
 
         /// <summary>AWatch → AAbort (AT-10): the assault reports Black and no reserve is left.</summary>
         [SharedAiCondition]
         public static bool AssaultLost(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
             => p.Made != 0 && p.Aborted == 0 && p.Phase != PlatoonAttackPlan.PhaseConsolidate
-               && AssaultBlack(ref p, self, world) && FreeReserve(ref p, self, world) < 0;
+               && AssaultBlack(ref p, self, world) && FreeRelief(ref p, self, world) < 0;
 
         /// <summary>ARelieve's entry: the free reserve becomes the assault, the spent assault a reserve; both ordered again.</summary>
         [SharedAiAction]
         public static unsafe NodeStatus Relieve(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
         {
             int n = Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity);
-            int a = p.SlotOf(PlatoonAttackPlan.Assault, n), r = FreeReserve(ref p, self, world);
+            int a = p.SlotOf(PlatoonAttackPlan.Assault, n), r = FreeRelief(ref p, self, world);
             if (a < 0 || r < 0) return NodeStatus.Success;
             p.Role[a] = PlatoonAttackPlan.Reserve;
             p.Role[r] = PlatoonAttackPlan.Assault;
@@ -821,6 +821,27 @@ namespace Hrot.AI.Behaviors.Brains
             if (!unit.IsNull && !Fdp.Toolkit.Squad.CombatEffective.IsStanding(world, unit)) return true;
             var colour = new SubordinateColourParams { Slot = a, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-6 (R-2112, lane decision) — who can relieve a lost assault: a free reserve (<see cref="FreeReserve"/>), else the BASE
+        /// OF FIRE when it is not Black — the platoon shifts its support forward rather than break off with a fit squad in hand (the doctrine's
+        /// answer when the reserve is committed). 📌 Live (cc-battalion run #5, t ≈ 400 s): the reserve was out on a casevac when the assault went
+        /// Black at the building, and the platoon aborted beside an intact base of fire against a Red line down to 1–2 men a platoon. −1 = nobody:
+        /// AT-10 breaks off.
+        /// </summary>
+        private static unsafe int FreeRelief(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
+        {
+            int r = FreeReserve(ref p, self, world);
+            if (r >= 0) return r;
+            int n = Math.Min(RosterCount(world, self), PlatoonAttackPlan.Capacity);
+            for (int s = 0; s < n; s++)
+            {
+                if (p.Role[s] != PlatoonAttackPlan.Support || p.Casevac[s] != 0 || !Alive(world, self, s)) continue;
+                var colour = new SubordinateColourParams { Slot = s, AtLeast = StatusColour.Black };
+                if (!PictureConditions.SubordinateColour(ref colour, self, world)) return s;
+            }
+            return -1;
         }
 
         private static unsafe int FreeReserve(ref PlatoonAttackPlan p, Entity self, EntityRepository world)
