@@ -185,7 +185,10 @@ def build(name, v):
                   [{"act": "Message", "args": {"toKind": "All", "text": "Blue Company attacks: Objective 1, then Objective 2", "seconds": 8}},
                    {"act": "Order", "args": {"target": bco, "behavior": "CompanyAttack",
                                              "params": {"Objective1": [OBJ1[0], OBJ1[1], 0], "Objective2": [OBJ2[0], OBJ2[1], 0],
-                                                        "DeadlineSeconds": DEADLINE}}}]))
+                                                        "DeadlineSeconds": DEADLINE,
+                                                        # R-2097 rev. 3 — the objective is the BLOCK (3–4 buildings within 35 m), not the
+                                                        #   default 80 m (≈ 8): clearing every building first ran past the 1.5 × bypass (run 6)
+                                                        "Radius": 35}}}]))
     s.add(trigger("The end", F, {"$type": "Compound", "operator": "Or", "conditions": [achieved(hold), achieved(broken), at_time(900)]},
                   [{"act": "EndExercise", "args": {"reason": "Objective 2 held, Red below 30 %, or 15 min"}}]))
     doc = {"$meta": {"docType": "Hrot.Scenario", "schemaVersion": 1},

@@ -5768,6 +5768,7 @@ def run_cc_battalion(c, timeout):
     shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
     bursts = {}
     clouds = {}
+    reserve_at = {}
     outpost_alive = []
     seen_reports = {}
     ended = None
@@ -5790,6 +5791,12 @@ def run_cc_battalion(c, timeout):
                 bursts[d.get("seq")] = (t, d.get("burst"))
         for cid, (cx, cy, _src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
             clouds.setdefault(cid, (t, (cx, cy)))
+        o3 = ((data(call("GET", f"/entities/{u['Red 3rd Platoon']}/order")) or {}).get("task") or {})   # R-2102: the reserve's order point
+        pos3 = (o3.get("params") or {}).get("Position")
+        if pos3 and len(pos3) >= 2:
+            reserve_at.setdefault("first", pos3)
+            if "first" in reserve_at and "moved" not in reserve_at and math.hypot(pos3[0] - reserve_at["first"][0], pos3[1] - reserve_at["first"][1]) > 20:
+                reserve_at["moved"] = (t, o3.get("behavior"), pos3)
         for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
             seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}
@@ -5857,8 +5864,14 @@ def run_cc_battalion(c, timeout):
     lost = [r for n in ("Red 1st Platoon", "Red 2nd Platoon") for r in _reports_of(log, frm=u[n])
             if (r.get("kind") == "Progress" and r.get("subtype") == "TaskFailed") or (r.get("kind") == "Sitrep" and r.get("strength") == "Black")]
     t_lost = min((r["seenAt"] for r in lost), default=None)
+    # ⭐ R-2102 — the company reserve's response to a failing / LOST block: CE-7004 picks REINFORCE (a block failing — Black — while the reserve is free)
+    #   or COUNTER-ATTACK (a block lost); either commits it, seen as its order point moving (> 20 m) or its PlatoonAttack
     t_ca = task_at("Red 3rd Platoon", "PlatoonAttack", after=t_lost or 1e9)
-    arrows.append(("④ a Red block LOST → the counter-attack", t_ca, t_lost is not None and t_ca is not None, f"lost {t_lost}, counter-attack {t_ca}"))
+    moved = reserve_at.get("moved")
+    t_rs = moved[0] if moved and t_lost is not None and moved[0] >= t_lost else None
+    t_resp = min([x for x in (t_ca, t_rs) if x is not None], default=None)
+    arrows.append(("④ a Red block failing / LOST → the company reserve commits", t_resp, t_lost is not None and t_resp is not None,
+                   f"lost {t_lost}, counter-attack {t_ca}, reinforce {moved}"))
     # ⑤ SITREP Red → REQUEST Reinforce from the company ⑥ → the battalion reserve ordered (PlatoonDefend: it is a platoon)
     red = [r for r in _reports_of(log, frm=u["Red Company"], kind="Sitrep") if r.get("strength") in ("Red", "Black")]
     rr = _reports_of(log, frm=u["Red Company"], kind="Request", subtype="Reinforce")
