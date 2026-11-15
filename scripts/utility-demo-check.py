@@ -5712,7 +5712,7 @@ class Dynamism:
                 rows.append((o.get("title"), o.get("state"), o.get("changedAt")))
         return rows
 
-    def report(self, c, reports, objectives, t_from, t_to, moved_min=None, contacts_min=None, judge_lines=True):
+    def report(self, c, reports, objectives, t_from, t_to, moved_min=None, contacts_min=None, judge_lines=True, closed_at=None):
         """Prints the measure; with thresholds, each window under them is a FAILED row (the battle went static)."""
         wins = self.windows(t_from, t_to)
         cpm = self.contacts_per_minute(reports, t_from, t_to)
@@ -5720,6 +5720,10 @@ class Dynamism:
               + " · ".join(f"[{a:.0f}–{b:.0f}] {s * 100:.0f} %" for a, b, s in wins) + f" · contacts {cpm:.2f}/min")
         for title, state, at in self.phase_lines(objectives):
             print(f"   phase line '{title}': {state} at {at}")
+            # ⭐ R-2104 — a line FAILED by the exercise ENDING (the end objective closes the rest) was not missed: only one failed before the end is
+            if state == "Failed" and closed_at is not None and at is not None and at >= closed_at - 1.0:
+                print(f"     (closed by the end at {closed_at:.0f} s, not missed)")
+                continue
             if judge_lines:   # ⚠ a variant built to STALL misses its lines by design: printed, not judged
                 c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
         if moved_min is not None:
@@ -5764,6 +5768,7 @@ def run_cc_battalion(c, timeout):
     call("POST", "/sim/play", {})
     t_play = sim_time() or 0.0
     first = {}          # (unit name, task) → first sim time seen
+    blue_ids = {ids[n] for n in ("Blue Company", "Blue 1st Platoon", "Blue 2nd Platoon", "Blue 3rd Platoon")}
     window = float(os.environ.get("CC_SECONDS", "900"))
     shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
     bursts = {}
@@ -5803,7 +5808,10 @@ def run_cc_battalion(c, timeout):
         for o in objs.get("objectives") or []:
             if o.get("title") in ("Blue holds Objective 2", "Red below 30 %") and o.get("state") == "Achieved" and not ended:
                 ended = (o.get("title"), t)
-        if ended or t - t_play >= window:
+        # ⭐ R-2104 — the end (Red below 30 %, Objective 2 held) can come BEFORE the assault reports its objective taken: keep watching up to
+        #   180 s more for the chain's last report (PhaseLine) rather than judging an arrow the run stopped too early to see (base run 9)
+        pl_seen = any(r.get("kind") == "Progress" and r.get("subtype") == "PhaseLine" and r.get("from") in blue_ids for r in seen_reports.values())
+        if (ended and (pl_seen or variant != "base" or t >= ended[1] + 180.0)) or t - t_play >= window:
             break
         time.sleep(5.0)
     t_end = sim_time() or 0.0
@@ -5905,7 +5913,7 @@ def run_cc_battalion(c, timeout):
         if any(label.startswith(r) for r in required):
             c.ok(ok, f"[{variant}] {label}: {ev}")
     dyn.report(c, log, objectives, t_play, t_end, CC_MOVED_MIN if variant == "base" else None, CC_CONTACTS_MIN if variant == "base" else None,
-               judge_lines=variant == "base")
+               judge_lines=variant == "base", closed_at=ended[1] if ended else None)
 
 
 SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fire-discipline": run_ts_fire_discipline, "ts-aggression": run_ts_aggression, "ts-house-defenders": run_ts_house_defenders, "ts-three-defenders": run_ts_three_defenders, "ua-threat-ranking": run_threat_ranking,
