@@ -5760,6 +5760,7 @@ def run_cc_battalion(c, timeout):
     window = float(os.environ.get("CC_SECONDS", "900"))
     shooters = {ids.get(n) for n in ids if n and n.startswith("Blue Mortar")}
     bursts = {}
+    clouds = {}
     seen_reports = {}
     ended = None
     end_wall = time.time() + window * 4 + 600
@@ -5776,6 +5777,8 @@ def run_cc_battalion(c, timeout):
         for d in _detonations():
             if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
                 bursts[d.get("seq")] = (t, d.get("burst"))
+        for cid, (cx, cy, _src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
+            clouds.setdefault(cid, (t, (cx, cy)))
         for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
             seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}
@@ -5796,7 +5799,7 @@ def run_cc_battalion(c, timeout):
         if r.get("kind") == "Request":
             req_by.setdefault((names.get(r.get("from"), r.get("from")), r.get("subtype")), []).append(round(r.get("seenAt") or 0, 1))
     print(f"   requests by sender: {req_by}")
-    print(f"   ran {t_end - t_play:.0f} s of sim · ended by {ended or 'time'} · reports {len(log)} · mortar bursts {len(bursts)}")
+    print(f"   ran {t_end - t_play:.0f} s of sim · ended by {ended or 'time'} · reports {len(log)} · mortar bursts {len(bursts)} · smoke clouds {len(clouds)}")
     kinds = {}
     for r in log:
         kinds[(r.get("kind"), r.get("subtype"))] = kinds.get((r.get("kind"), r.get("subtype")), 0) + 1
@@ -5824,9 +5827,9 @@ def run_cc_battalion(c, timeout):
     near = None
     if req:
         p = req[0].get("at") or [0, 0, 0]
-        after = [(bt, b) for bt, b in sorted(bursts.values(), key=lambda x: x[0]) if bt >= t_req]
+        after = [(bt, b) for bt, b in sorted(list(bursts.values()) + list(clouds.values()), key=lambda x: x[0]) if bt >= t_req]
         near = min((math.hypot(b[0] - p[0], b[1] - p[1]) for _, b in after), default=None)
-    arrows.append(("③ REQUEST FireSupport → bursts on the reported point", t_req, near is not None and near <= 120,
+    arrows.append(("③ REQUEST FireSupport → bursts / smoke on the reported point", t_req, near is not None and near <= 120,
                    f"request {t_req} at {req[0].get('at') if req else None}, nearest later burst {near if near is None else round(near)} m"))
     # ④ a Red block LOST (TaskFailed / Black) → the company reserve counter-attacks
     lost = [r for n in ("Red 1st Platoon", "Red 2nd Platoon") for r in _reports_of(log, frm=u[n])

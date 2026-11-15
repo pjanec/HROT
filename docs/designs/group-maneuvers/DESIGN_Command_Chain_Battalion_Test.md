@@ -141,6 +141,16 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 
 ⭐ **R-2096** *(lane decision — for the user's review)*: **`CompanyDefend` builds a LINE** — its blocks stand ACROSS the threat with the reserve and the fall-back behind (`CompanyBehaviors.cs` ~:613-625) — not two blocks in depth as §3.1 drew them. ⇒ Red's company is a line facing west AT Objective 1 (two blocks across the street, its reserve 110 m behind), its fall-back ON Objective 2; "block 1" in §3.2 is a block of that line, "block 2" its depth. Every CompanyDefend feature the chain needs is kept (a LOST block counter-attacked once, Red ⇒ Reinforce, the fall-back). The IFVs overwatch from the start line on their own SOP, outside the company (a vehicle in a platoon's roster is untested there). Would change: a `CompanyDefend` that can hold blocks in depth.
 
+⭐ **What the live runs fixed** *(behaviors, `2026-11-15`)*:
+
+| run | measured | fixed where |
+|---|---|---|
+| 1 | the report log is a 256-entry ring: SITREPs and SPOTs pushed the early reports out ⇒ the check saw no Set | the check keeps every report it has seen (by serial) |
+| 1 | every company fire call refused *"danger close (friends within 600 m)"*, no round flew | **R-2099** — the HQ's answer to a REQUEST is declared danger close (`SupportCommandBehavior`, Command Chain §8e) |
+| 2 | the only call was the tempo's SMOKE (CE-7025): the assault met an untouched line, PL 1 missed | **R-2100** — `CompanyAttack.EnterAssault` asks PREPARATORY HE on the objective as the assault goes in |
+| 2 | the outpost SPOTs (4 s) and never withdraws: the OP play is unbuilt | **R-2101** — a scenario rule (Blue within 150 m ⇒ `BreakContact`); the play is **CE-2435** |
+| 2 | a smoke mission makes a cloud, not a detonation | the check's arrow ③ counts smoke clouds too |
+
 ## 5. Acceptance
 
 1. Each variant's live check PASSES on three runs, every chain arrow of §3.2 found in order, each CAUSED by its predecessor (the report precedes the

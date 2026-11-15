@@ -192,6 +192,9 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus EnterAssault(ref CompanyAttackPlan p, Entity self, EntityRepository world)
         {
             SetPhase(ref p, CompanyAttackPlan.PhaseAssault);
+            // ⭐ CE-4615 (R-2100) — the base of fire is up and the assault goes in: PREPARATORY FIRE (HE) on the objective. 📐 Live on cc-battalion
+            //   the only call was the tempo's SMOKE (CE-7025), so the assault met an untouched line and never took it. The half-deadline smoke stays.
+            AskFires(world, self, p.Objective(Math.Min(p.Current, p.Objectives - 1)), FireSupportRound.HighExplosive);
             return NodeStatus.Success;
         }
 

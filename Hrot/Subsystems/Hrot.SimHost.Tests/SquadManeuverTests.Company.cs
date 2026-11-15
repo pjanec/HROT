@@ -150,10 +150,11 @@ namespace Hrot.SimHost.Tests
             c.Ticks(6);
             c.Set(c.Second); c.Ticks(5);
             Assert.Equal(1, c.OrdersTo(c.First, BehaviorNames.PlatoonAttack));
-            Assert.False(OutboxHasRequest(c, RequestKind.FireSupport));
+            Assert.True(OutboxHasFires(c, smoke: false), "⭐ CE-4615 (R-2100) — preparatory HE as the assault goes in");
+            Assert.False(OutboxHasFires(c, smoke: true));
 
             c.Over(55);
-            Assert.True(OutboxHasRequest(c, RequestKind.FireSupport), "fires asked at half the deadline");
+            Assert.True(OutboxHasFires(c, smoke: true), "smoke asked at half the deadline");
             Assert.Equal(0, c.OrdersTo(c.Third, BehaviorNames.PlatoonAttack));
 
             c.Over(50);
@@ -165,6 +166,17 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>The company's own outbox holds a REQUEST of <paramref name="kind"/> not yet sent.</summary>
+        /// <summary>⭐ CE-4615 — the company's outbox holds a FireSupport REQUEST for SMOKE (true) or HE (false) not yet sent.</summary>
+        private static bool OutboxHasFires(Company c, bool smoke)
+        {
+            if (!c.S.Repo.HasComponent<ReportOutbox>(c.S.Commander)) return false;
+            var q = c.S.Repo.GetComponentRO<ReportOutbox>(c.S.Commander).Queued;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == ReportKind.Request && q.Items[i].Report.Subtype == (byte)RequestKind.FireSupport
+                    && ((q.Items[i].Report.Equipment & ElementEquipment.Smoke) != 0) == smoke) return true;
+            return false;
+        }
+
         private static bool OutboxHasRequest(Company c, RequestKind kind)
         {
             if (!c.S.Repo.HasComponent<ReportOutbox>(c.S.Commander)) return false;

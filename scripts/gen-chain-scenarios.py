@@ -174,6 +174,12 @@ def build(name, v):
     hold = s.add(objective("Blue holds Objective 2", F, "HoldArea", {"common": {"title": "Blue holds Objective 2", "subject": bco, "required": True},
                                                                     "area": circle(OBJ2, 60), "minMen": 4, "maxEnemy": 0, "holdSeconds": 120}))
     broken = s.add(objective("Red below 30 %", F, "Strength", {"common": {"title": "Red below 30 %", "subject": rhq}, "threshold": 0.3}))
+    # ⭐ R-2101 (lane decision) — the outpost's withdrawal: Defend & Attack §4.2's OP play is designed, not built (CE-2435), so the scenario
+    #   carries the rule — Blue closing within 150 m of the outpost (a condition, never a clock) orders it to break contact
+    close = s.add(objective("Blue closes on the outpost", H, "ReachArea", {"common": {"title": "Blue closes on the outpost", "subject": bco, "scored": False},
+                                                                         "area": circle(OUTPOST, 150), "minMen": 1}))
+    s.add(trigger("The outpost withdraws", H, achieved(close),
+                  [{"act": "Order", "args": {"target": outpost, "behavior": "BreakContact", "params": {"Speed": 3}}}]))
     s.add(trigger("Blue Company attacks", F, at_time(30),
                   [{"act": "Message", "args": {"toKind": "All", "text": "Blue Company attacks: Objective 1, then Objective 2", "seconds": 8}},
                    {"act": "Order", "args": {"target": bco, "behavior": "CompanyAttack",

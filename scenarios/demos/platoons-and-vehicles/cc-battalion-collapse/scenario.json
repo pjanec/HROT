@@ -2544,6 +2544,82 @@
   },
   "cc461500-0000-4000-8000-000000000082": {
    "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Blue closes on the outpost",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "ReachArea",
+    "Params": {
+     "common": {
+      "title": "Blue closes on the outpost",
+      "subject": "cc461500-0000-4000-8000-000000000002",
+      "scored": false
+     },
+     "area": {
+      "circle": {
+       "center": [
+        335.0,
+        400.0,
+        0
+       ],
+       "radius": 150
+      }
+     },
+     "minMen": 1
+    },
+    "Origin": "Superior"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000083": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "The outpost withdraws",
+    "ForceId": "Hostile"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "The outpost withdraws"
+     },
+     "when": {
+      "$type": "OnEntity",
+      "ref": "cc461500-0000-4000-8000-000000000082",
+      "predicate": {
+       "$type": "PropertyMatch",
+       "componentType": "ObjectiveStatus",
+       "propertyPath": "State",
+       "operator": "Equals",
+       "predicate": {
+        "$type": "Numeric",
+        "minValue": 2,
+        "maxValue": 2
+       }
+      }
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "cc461500-0000-4000-8000-000000000058",
+        "behavior": "BreakContact",
+        "params": {
+         "Speed": 3
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000084": {
+   "TkbIdentity": {
     "TkbType": 8861
    },
    "EntityInfo": {
@@ -2594,7 +2670,7 @@
     "Origin": "Superior"
    }
   },
-  "cc461500-0000-4000-8000-000000000083": {
+  "cc461500-0000-4000-8000-000000000085": {
    "TkbIdentity": {
     "TkbType": 8861
    },
