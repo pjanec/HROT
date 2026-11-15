@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-15
 build-state: BUILDING (2026-11-15; backend M-1/M-2/M-3 built, §9) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
-current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3)
+current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3, M-5, M-6)
 stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the review record, folded into §2–§6
 known-rot: none
 known-conflict: none
@@ -362,6 +362,10 @@ classDiagram
 | CD-1…CD-3 | `[Behavior(Conduct = …)]` → `BehaviorDeclaration.Conduct`; `OrderConduct` beside `OrderKind` (+ `OrderKind.Dash = 14`); `OrderKinds.Build` installs `BehaviorConduct`; `AdmitsWithReactions` refuses a reaction the current (running or paused) order forbids; `SopActions.React` asks WITH the reaction's id ⇒ Failure, the next row runs, journaled `ForbiddenByOrder` ("its order forbids it") | the check sits in `AdmitsWithReactions` (the shared check the SOP asks first), not only `Admit` — a refusal only `Admit` saw would arrive after the row had already "won" |
 | CD-2 / `HoldsFirm` | `HoldsFirm` = the current order forbids `LeavesRoute` (Defend, Hold, and now Dash) | ⚠ no current reaction declares `LeavesRoute` (`ShelterFromAir` = Halts \| SeeksCover, not the §8a example) ⇒ a Defend / Hold unit refuses NO reaction: existing scenarios unchanged |
 | CD-5 | `BehaviorConduct.CannotComply`: the unit cannot move and rides nothing; it rides a dead / immobile carrier; or (a roster) a live member rides one | — |
+| MV-9 `ChargeTimer` | unmanaged, recorded `ChargeTimer { SimInstant DetonateAt }` (component id 486), registered with the weapon system; `ChargeTimers.Arm` (a follow-up inside the parallel phase); `ChargeSystem` ticks the timers it holds and asks `Charges.Ask(charge, Null)` once due (0 B while waiting; never in a replay) | the timer ticks where it was ARMED (no replication needed): the ask reaches the position owner through the interaction transport, as every ask does |
+| IM-2 `ParkedBomb` | run by the VEHICLE: ride to the spot → stop → arm the cargo charge's timer → `EjectPassengersCommand` → Success | ⚠ the riders leave by their own SOP; a getaway bike and a secondary device are not built (L-13) |
+| IM-1 `DriveBy` | run by the BIKE: ride up at speed → within the pass distance order the pillion (`PillionOf`: the firing seat) `FireAtTarget` and pass 30 m beyond at 2–5 m/s → escape to the pre-chosen point at speed | ⚠ the traffic handover before the act and the re-blend after it are not built (L-14) |
+| IM-5 `SwarmRaid` | a COMMANDER's play over bikes: approach ring (bearing 2π·i/N) → converge → fight (held, stopped — the rider fires too) → out on divergent bearings → rally; each phase waits for every live bike (or 180 s) | ⚠ mounted fight only: no dismount, no casualty pick-up, no night rule (L-15) |
 | `UnderFireMove` | ⚠ not gated — it is a component + reflex system, never a behaviour, so it has no conduct | a dash bike's under-fire reflex is the behaviors lane's (M-4) |
 
 ## ⛔ HISTORY — §2–§6 as first written (R-4261), before the review and the conduct categories — ⛔ do not quote

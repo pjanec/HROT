@@ -17,8 +17,8 @@ Started at `94c637bee` (merged `coordinator@f5e0a1df8`, `behaviors@9099edff5`); 
 | **M-2** PF-1…PF-4 | ✅ built | `CarrierStations.FiringMask` / `StoppedOnlyMask` (a person's seat with an arc); `StrippedOn` keeps CanShoot on a firing seat; `InStationArc` → `ArcSeat` + the wrapping `InTraverse`; the man sits at the seat's place (`EmbarkedStateSystem`); `RestoreHitCapabilities` follows the seat; the AI path (`HoldOf`) and the operator path (`OperatorFire`) both ask ONE `SeatHold` (OutOfArc / HoldMoving for a stopped-only seat) |
 | **M-2p** sim half | ✅ built | measured in code: an embarked possessed man's `OperatorControl` runs `OperateWeapon` (his own weapon channel); before, `OperatorFire` ignored the seat ⇒ a pillion fired anywhere. Now `OperatorFire` asks `SeatHold` (OutOfArc / HoldMoving, said to the HUD through `WeaponPostureOf`); a possessed RIDER drives through `UpdateVehicle`, so the off-road factor applies (PL-1) |
 | **M-3** conduct + the gate | ✅ built | `Conduct` flags on `[Behavior]` (13 reactions declared); `OrderConduct` beside `OrderKind` (+ `Dash = 14`); `OrderKinds.Build` installs the FDP `BehaviorConduct` table; THE ONE GATE (`AdmitsWithReactions`) refuses `ForbiddenByOrder`; `SopActions.React` asks with the reaction's id ⇒ Failure ⇒ the next row; journaled; CD-5 `CannotComply`; `HoldsFirm` reads the table |
-| **M-5** DriveBy · ParkedBomb · ChargeTimer | ⏳ | — |
-| **M-6** SwarmRaid | ⏳ | — |
+| **M-5** DriveBy · ParkedBomb · ChargeTimer | ✅ built | `ChargeTimer` (recorded, id 486) + `ChargeTimers.Arm` (parallel-safe follow-up) ticked in `ChargeSystem` → `Charges.Ask(charge, Null)`; `ParkedBomb` (vehicle: ride, park, arm, eject the riders); `DriveBy` (bike: ride up, the pillion ordered to `FireAtTarget`, a slow pass, the escape) |
+| **M-6** SwarmRaid | ✅ built | a commander over bikes: N bearings → converge → fight → divergent dispersal → rally |
 
 ## Lane decisions (for the user's review — each says what would change it)
 
@@ -36,6 +36,10 @@ Started at `94c637bee` (merged `coordinator@f5e0a1df8`, `behaviors@9099edff5`); 
 | L-10 | **the conduct check sits in `AdmitsWithReactions`** (the check `SopActions.React` asks first), with the reaction's id passed in | a refusal only in `Admit` arrives after the SOP row already returned Success ⇒ no fall-through (the inventory measured it, `SopActions.cs:59`) |
 | L-11 | **no exemption for `ReactionUrgency.Break`** (unlike the ROE's StayOnTask) | the dash's order is absolute until the unit cannot comply (CD-5); self-defence fire declares no conduct (CD-6) |
 | L-12 | **no production behaviour fulfils `Dash` yet** | the dash play (`GreyZoneDash`, MC-3) sits on the FPV work (M-4, not this handoff); the kind, the table and the gate are ready for it |
+| L-13 | `ParkedBomb` runs on the VEHICLE and puts ALL riders out (`EjectPassengersCommand`); their leaving is their own SOP; no getaway bike, no secondary device | the design's "leave on foot / a waiting bike" needs a two-entity play; the timer + the eject are the engine half. A getaway = a second unit's `MoveToLocation` |
+| L-14 | `DriveBy` starts from OUR bike already in play — no `TrafficHandover` before the act, no re-blend after | the handover is an engine path of its own (MV-10) that no rail drives yet; the play is reachable from a mission today |
+| L-15 | `SwarmRaid` fights MOUNTED (held at the objective, the rider's stopped-only seat fires too); no dismount, no casualty pick-up, no night rule | dismounting a roster of bikes and re-boarding them is SquadDismount / SquadEmbark's work at the squad level; filed as the next step |
+| L-16 | `ChargeTimer`'s component id is **486** (the coordinator / new-lane block) | the backend block 434–449 is full; 486 measured free on every lane |
 
 ## Gates (rule 8) — M-1 … M-3
 
@@ -57,4 +61,4 @@ Started at `94c637bee` (merged `coordinator@f5e0a1df8`, `behaviors@9099edff5`); 
 - The HUD's refusal: a possessed pillion's trigger outside his arc is held with **`ActionReason.OutOfArc`**, a rider's while moving with **`ActionReason.HoldMoving`** — both reach the posture the HUD reads (`WeaponPostureOf.Report`, via `SayAt`), the same channel as every other operator-fire reason.
 
 ## Next step
-M-5: `ChargeTimer` (unmanaged, recorded, `SimInstant DetonateAt`, component id 486 — measured free on every lane; registered by `WeaponSystemTkbTranslator`; ticked in `ChargeSystem`, `Charges.Ask(charge, Null)` once due) → `ParkedBomb` → `DriveBy`; then M-6 `SwarmRaid`.
+All six slices built. Open: L-13…L-15 follow-ups (a getaway bike, the traffic handover / re-blend, a dismounted swarm fight); M-4 and MC-4a are behaviors' (not this handoff).
