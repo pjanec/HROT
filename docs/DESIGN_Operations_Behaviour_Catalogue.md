@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — a catalogue and gap analysis, not a buildable design; each programme it names gets its own design (with UML) before it is built
-updated: 2026-10-11 (§11 behaviors lane)
-current-answer: §11 the behaviors-lane review of the taxonomy and the squad-tactics start (leans, awaiting the user) · §10.1 the user's answers (D1–D8 all decided) · §2 the scenarios decomposed · §3 the behaviour taxonomy · §4–§7 what each needs (blocks, sensors, EQS, engine) · §8 squad model · §9 roadmap · §10 decisions for the user
+updated: 2026-11-15 (§3a status — coordinator)
+current-answer: §3a the STATUS (what is built, 2026-11-15) · §12 the next three (motorcycle grey-zone crossing, checkpoint, ramming / car bomb) · §11 the behaviors-lane review · §10.1 the user's answers · §2 the scenarios decomposed · §3 the taxonomy
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -181,6 +181,61 @@ graph TD
 *What the picture shows that prose hid: most "scenarios" are compositions — house search IS room clearing repeated, attacking a
 building IS fire-and-movement plus room clearing, a convoy ambush IS the vehicle reaction plus a dismount plus fight-from-cover. The
 library needs ~40 blocks, not one behaviour per scenario. ✅ = built, 🟨 = built but not driven.*
+
+### 3a. Status — what is built *(measured `2026-11-15`, coordinator; 🔒 user: "let's check what we have implemented and what is still missing" · "Yes, please update the catalog")*
+
+⚠ The ✅ / 🟨 marks in the diagram above are the `2026-10-11` state — ⛔ do not read them as current; THIS table is. 📐 Basis: the 141 behaviour
+names registered on `behaviors` (`Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/BehaviorNames.cs`), targeted greps and the classes' summaries —
+NOT run; a row's evidence is the class that implements it.
+
+| row | state | implemented by |
+|---|---|---|
+| IND-1 tactical movement | ✅ | `UnderFireMove` (crawl to cover, rise elsewhere), `FireAndMovement` rushes |
+| IND-2 fight from cover | ✅ | `FightFromCover`, `PeekAndFire`, `WindowDuel` |
+| IND-3 react to explosion / drone | ✅ | `EvadeGrenade` (`GrenadeReflex.cs`), `TakeCover`, `ShelterFromAir` / `SquadShelterFromAir`, the anti-drone rule (CE-2436 AU-7) |
+| IND-4 throw grenade | ✅ | `HiddenTargetThrow` (at a hidden enemy, into a room) |
+| IND-5 self & buddy aid | 🟨 | buddy aid by `CasualtyCare`; ⛔ self-aid not built |
+| IND-6 observe a sector | ✅ | `Sentry`, `PersonObserveFire` |
+| SQD-1 march / formations | ✅ | `SquadMarch`, `JoinFormation`, the formations |
+| SQD-2 react to contact · break contact | ✅ | `ReactToContact`, `BreakContact` |
+| SQD-3 fire & movement · bounding | ✅ | `FireAndMovement`, `BoundingOverwatch`, `SupportByFire` (CE-2436) |
+| SQD-4 dismount under fire | ✅ | `SquadDismount`, `PlatoonConvoy`'s contact phase |
+| SQD-5 room clearing | ✅ | `ClearRoom`, `BreachDoor` |
+| SQD-6 house-by-house search | ✅ | `ClearArea` (its buildings in turn), `ClearBuilding` |
+| SQD-7 trench clearing | ⛔ | nothing — ditches now exist (CE-4593), the play does not |
+| SQD-8 defend building | ✅ | `SquadDefend`, `PlatoonDefend` |
+| SQD-9 attack building | ✅ | `PlatoonAttack`, `CompanyAttack`, `ClearBuilding` |
+| SQD-10 ambush | ✅ | `Ambush` |
+| SQD-11 defend area | ✅ | `DefendArea`, `HoldArea` |
+| SQD-12 urban patrol | 🟨 | movement through a city (`UrbanMovement`); ⛔ no patrol loop |
+| SQD-13 checkpoint / crowd control | 🟨 | crowd control ✅ (`HoldTheLine`, `BatonCharge`, `PushThrough`, the escalation of force); ⛔ the checkpoint itself — §12 |
+| SQD-14 cross danger area | ✅ | `SquadDangerCrossing`, `DangerCrossing` |
+| VEH-1 convoy march | ✅ | `PlatoonConvoy` (CE-2347) |
+| VEH-2 convoy react to ambush / IED | ✅ | `PlatoonConvoy`'s contact phase: the squads' own SOP dismounts and fights, secure, remount |
+| VEH-3 motorcycle dash | ⛔ | no two-wheeler, no play — §12 (now: crossing a drone-saturated grey zone) |
+| VEH-4 vehicle as a weapon | ⛔ | no ramming, no car bomb — §12 |
+| AIR-1 precision strike / fire mission | ✅ | `AirPlatformStrike`, `ArtilleryUnitStrike`, the battery fire mission, `SpotForFire` |
+| AIR-2 FPV drone | ✅ | `DroneOperator`, the AirAttack Dive profile |
+| AIR-3 loiter / overwatch drone | ✅ | `DroneRecon`, `AirArmedSearch`, the drone team (CE-2436 AU-5) |
+| AIR-4 counter-drone | ✅ | `EngageAircraft`, `ShelterFromAir`, the shotgun + drone rule (CE-2436 AU-7); the radar SAM building (CE-4617) |
+| ASY-1 suicide bomber on foot | ✅ | `DetonateCharge` (a worn charge, CE-2238) |
+| ASY-2 VBIED driver | ⛔ | §12 |
+| ASY-3 hit-and-run ambush | 🟨 | composable from `Ambush` + `BreakContact`; no dedicated play |
+| ASY-4 IED | ✅ | `TriggerIed` |
+| ASY-5 riot instigator | ✅ | the instigator in `CrowdSystem` (CE-2238) |
+| CIV-1 daily routine | ✅ | `CivilianHsm` (Routine) |
+| CIV-2 panic flight | ✅ | `CivilianReact` / the HSM's Alarmed state |
+| CIV-3 gather / onlookers | ✅ | the crowd (CE-2237) |
+| CIV-4 riot | ✅ | the protest (CE-2240) |
+| CIV-5 mob attack on a victim | ⛔ | nothing found |
+| CIV-6 casualty | ✅ | the injury states (CE-2155) |
+| CIV-7 shelter indoors | ✅ | the HSM's shelter (Civilians §5e) |
+| MED-1 casualty states | ✅ | injury states + bleed-out (CE-2155) |
+| MED-2 medic | ✅ | `CasualtyCare`, `CarryCasualty` |
+| MED-3 CASEVAC | ✅ | `LoadCasualty`, `SquadRecover` |
+
+⭐ **31 built · 5 partial · 5 missing** (the missing: SQD-7, VEH-3, VEH-4 / ASY-2, CIV-5). ⭐ Next (🔒 user, `2026-11-15`): VEH-3 as the grey-zone
+motorcycle crossing, SQD-13's checkpoint, VEH-4 / ASY-2 the ramming and the car bomb — analysed in §12.
 
 ## 4. Capability nodes needed *(① layer — shared C#, one per concept)*
 
