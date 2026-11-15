@@ -175,9 +175,9 @@ def build(name, v):
                                                                     "area": circle(OBJ2, 60), "minMen": 4, "maxEnemy": 0, "holdSeconds": 120}))
     broken = s.add(objective("Red below 30 %", F, "Strength", {"common": {"title": "Red below 30 %", "subject": rhq}, "threshold": 0.3}))
     # ⭐ R-2101 (lane decision) — the outpost's withdrawal: Defend & Attack §4.2's OP play is designed, not built (CE-2435), so the scenario
-    #   carries the rule — Blue closing within 140 m of the outpost (a condition, never a clock) orders it back behind the line
+    #   carries the rule — Blue closing within 100 m of the outpost (a condition, never a clock) orders it back behind the line
     close = s.add(objective("Blue closes on the outpost", H, "ReachArea", {"common": {"title": "Blue closes on the outpost", "subject": bco, "scored": False},
-                                                                         "area": circle(OUTPOST, 140), "minMen": 1}))
+                                                                         "area": circle(OUTPOST, 100), "minMen": 1}))
     s.add(trigger("The outpost withdraws", H, achieved(close),
                   [{"act": "Order", "args": {"target": outpost, "behavior": "Order.Move",   # back behind the line (a MOVE is accepted while it runs; a
                                              "params": {"Location": [OBJ1[0] + 60, OBJ1[1], 0], "Speed": 4}}}]))   #  one-shot BreakContact ended unseen)
