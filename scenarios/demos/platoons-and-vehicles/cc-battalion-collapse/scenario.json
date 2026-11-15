@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "demo-city",
-  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~47 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 180 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
+  "description": "What: CE-4615 (the command chain on a battalion slice, real squads, ~47 men) - on demo-city, 'Blue Battalion HQ' (SupportCommand, 2 x 81 mm) over 'Blue Company' (three platoons of 2 x 4, 2 IFVs on the start line), ordered CompanyAttack at 30 s on Objective 1 (425,425) then Objective 2 (645,445), deadline 300 s; 'Red Battalion HQ' (SupportCommand, its reserve platoon held back) over 'Red Company' (CompanyDefend: a line facing west at Objective 1, its depth and fall-back at Objective 2) and a 2-man 'Red Outpost' forward. No traffic, no civilians. Judge: Red's chain: a thin line is LOST => the weak company reserve counter-attacks; the company goes RED => REQUEST Reinforce => the battalion HQ sends its reserve platoon (CompanyDefend / PlatoonDefend by echelon) \u2014 each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before. End: Blue holds Objective 2 for 120 s, Red below 30 %, or 15 min. Check: python3 scripts/utility-demo-check.py --launch cc-battalion-collapse. \ud83d\udcc4 docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615)"
  },
  "entities": {
   "cc461500-0000-4000-8000-000000000001": {
@@ -40,7 +40,7 @@
   "cc461500-0000-4000-8000-000000000002": {
    "SimTransform": {
     "Position": [
-     150.0,
+     240.0,
      405.0,
      0.0
     ],
@@ -66,7 +66,7 @@
   "cc461500-0000-4000-8000-000000000003": {
    "SimTransform": {
     "Position": [
-     150.0,
+     240.0,
      365.0,
      0.0
     ],
@@ -92,7 +92,7 @@
   "cc461500-0000-4000-8000-000000000004": {
    "SimTransform": {
     "Position": [
-     150.0,
+     240.0,
      358.0,
      0.0
     ],
@@ -118,7 +118,7 @@
   "cc461500-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
-     147.0,
+     237.0,
      356.0,
      0.0
     ],
@@ -151,7 +151,7 @@
   "cc461500-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [
-     149.0,
+     239.0,
      356.0,
      0.0
     ],
@@ -184,7 +184,7 @@
   "cc461500-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [
-     151.0,
+     241.0,
      356.0,
      0.0
     ],
@@ -217,7 +217,7 @@
   "cc461500-0000-4000-8000-000000000008": {
    "SimTransform": {
     "Position": [
-     153.0,
+     243.0,
      356.0,
      0.0
     ],
@@ -250,7 +250,7 @@
   "cc461500-0000-4000-8000-000000000009": {
    "SimTransform": {
     "Position": [
-     150.0,
+     240.0,
      372.0,
      0.0
     ],
@@ -276,7 +276,7 @@
   "cc461500-0000-4000-8000-000000000010": {
    "SimTransform": {
     "Position": [
-     147.0,
+     237.0,
      370.0,
      0.0
     ],
@@ -309,7 +309,7 @@
   "cc461500-0000-4000-8000-000000000011": {
    "SimTransform": {
     "Position": [
-     149.0,
+     239.0,
      370.0,
      0.0
     ],
@@ -342,7 +342,7 @@
   "cc461500-0000-4000-8000-000000000012": {
    "SimTransform": {
     "Position": [
-     151.0,
+     241.0,
      370.0,
      0.0
     ],
@@ -375,7 +375,7 @@
   "cc461500-0000-4000-8000-000000000013": {
    "SimTransform": {
     "Position": [
-     153.0,
+     243.0,
      370.0,
      0.0
     ],
@@ -408,7 +408,7 @@
   "cc461500-0000-4000-8000-000000000014": {
    "SimTransform": {
     "Position": [
-     170.0,
+     260.0,
      405.0,
      0.0
     ],
@@ -434,7 +434,7 @@
   "cc461500-0000-4000-8000-000000000015": {
    "SimTransform": {
     "Position": [
-     170.0,
+     260.0,
      398.0,
      0.0
     ],
@@ -460,7 +460,7 @@
   "cc461500-0000-4000-8000-000000000016": {
    "SimTransform": {
     "Position": [
-     167.0,
+     257.0,
      396.0,
      0.0
     ],
@@ -493,7 +493,7 @@
   "cc461500-0000-4000-8000-000000000017": {
    "SimTransform": {
     "Position": [
-     169.0,
+     259.0,
      396.0,
      0.0
     ],
@@ -526,7 +526,7 @@
   "cc461500-0000-4000-8000-000000000018": {
    "SimTransform": {
     "Position": [
-     171.0,
+     261.0,
      396.0,
      0.0
     ],
@@ -559,7 +559,7 @@
   "cc461500-0000-4000-8000-000000000019": {
    "SimTransform": {
     "Position": [
-     173.0,
+     263.0,
      396.0,
      0.0
     ],
@@ -592,7 +592,7 @@
   "cc461500-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [
-     170.0,
+     260.0,
      412.0,
      0.0
     ],
@@ -618,7 +618,7 @@
   "cc461500-0000-4000-8000-000000000021": {
    "SimTransform": {
     "Position": [
-     167.0,
+     257.0,
      410.0,
      0.0
     ],
@@ -651,7 +651,7 @@
   "cc461500-0000-4000-8000-000000000022": {
    "SimTransform": {
     "Position": [
-     169.0,
+     259.0,
      410.0,
      0.0
     ],
@@ -684,7 +684,7 @@
   "cc461500-0000-4000-8000-000000000023": {
    "SimTransform": {
     "Position": [
-     171.0,
+     261.0,
      410.0,
      0.0
     ],
@@ -717,7 +717,7 @@
   "cc461500-0000-4000-8000-000000000024": {
    "SimTransform": {
     "Position": [
-     173.0,
+     263.0,
      410.0,
      0.0
     ],
@@ -750,7 +750,7 @@
   "cc461500-0000-4000-8000-000000000025": {
    "SimTransform": {
     "Position": [
-     120.0,
+     210.0,
      445.0,
      0.0
     ],
@@ -776,7 +776,7 @@
   "cc461500-0000-4000-8000-000000000026": {
    "SimTransform": {
     "Position": [
-     120.0,
+     210.0,
      438.0,
      0.0
     ],
@@ -802,7 +802,7 @@
   "cc461500-0000-4000-8000-000000000027": {
    "SimTransform": {
     "Position": [
-     117.0,
+     207.0,
      436.0,
      0.0
     ],
@@ -835,7 +835,7 @@
   "cc461500-0000-4000-8000-000000000028": {
    "SimTransform": {
     "Position": [
-     119.0,
+     209.0,
      436.0,
      0.0
     ],
@@ -868,7 +868,7 @@
   "cc461500-0000-4000-8000-000000000029": {
    "SimTransform": {
     "Position": [
-     121.0,
+     211.0,
      436.0,
      0.0
     ],
@@ -901,7 +901,7 @@
   "cc461500-0000-4000-8000-000000000030": {
    "SimTransform": {
     "Position": [
-     123.0,
+     213.0,
      436.0,
      0.0
     ],
@@ -934,7 +934,7 @@
   "cc461500-0000-4000-8000-000000000031": {
    "SimTransform": {
     "Position": [
-     120.0,
+     210.0,
      452.0,
      0.0
     ],
@@ -960,7 +960,7 @@
   "cc461500-0000-4000-8000-000000000032": {
    "SimTransform": {
     "Position": [
-     117.0,
+     207.0,
      450.0,
      0.0
     ],
@@ -993,7 +993,7 @@
   "cc461500-0000-4000-8000-000000000033": {
    "SimTransform": {
     "Position": [
-     119.0,
+     209.0,
      450.0,
      0.0
     ],
@@ -1026,7 +1026,7 @@
   "cc461500-0000-4000-8000-000000000034": {
    "SimTransform": {
     "Position": [
-     121.0,
+     211.0,
      450.0,
      0.0
     ],
@@ -1059,7 +1059,7 @@
   "cc461500-0000-4000-8000-000000000035": {
    "SimTransform": {
     "Position": [
-     123.0,
+     213.0,
      450.0,
      0.0
     ],
@@ -1308,7 +1308,7 @@
   "cc461500-0000-4000-8000-000000000043": {
    "SimTransform": {
     "Position": [
-     265.0,
+     205.0,
      393.0,
      0.0
     ],
@@ -1338,7 +1338,7 @@
   "cc461500-0000-4000-8000-000000000044": {
    "SimTransform": {
     "Position": [
-     265.0,
+     205.0,
      417.0,
      0.0
     ],
@@ -1428,7 +1428,7 @@
       0
      ],
      "Threat": [
-      150.0,
+      240.0,
       405.0,
       0
      ],
@@ -1783,8 +1783,8 @@
   "cc461500-0000-4000-8000-000000000058": {
    "SimTransform": {
     "Position": [
-     335.0,
-     400.0,
+     380.0,
+     410.0,
      0.0
     ],
     "Rotation": [
@@ -1809,8 +1809,8 @@
   "cc461500-0000-4000-8000-000000000059": {
    "SimTransform": {
     "Position": [
-     335.0,
-     400.0,
+     380.0,
+     410.0,
      0.0
     ],
     "Rotation": [
@@ -1842,8 +1842,8 @@
   "cc461500-0000-4000-8000-000000000060": {
    "SimTransform": {
     "Position": [
-     335.0,
-     403.0,
+     380.0,
+     413.0,
      0.0
     ],
     "Rotation": [
@@ -2441,7 +2441,7 @@
      "common": {
       "title": "Blue reaches PL 1",
       "subject": "cc461500-0000-4000-8000-000000000002",
-      "deadlineSeconds": 330
+      "deadlineSeconds": 420
      },
      "area": {
       "circle": {
@@ -2472,7 +2472,7 @@
      "common": {
       "title": "Blue reaches PL 2",
       "subject": "cc461500-0000-4000-8000-000000000002",
-      "deadlineSeconds": 630
+      "deadlineSeconds": 720
      },
      "area": {
       "circle": {
@@ -2561,11 +2561,11 @@
      "area": {
       "circle": {
        "center": [
-        335.0,
-        400.0,
+        380.0,
+        410.0,
         0
        ],
-       "radius": 150
+       "radius": 140
       }
      },
      "minMen": 1
@@ -2666,7 +2666,7 @@
           445.0,
           0
          ],
-         "DeadlineSeconds": 180.0
+         "DeadlineSeconds": 300.0
         }
        }
       }

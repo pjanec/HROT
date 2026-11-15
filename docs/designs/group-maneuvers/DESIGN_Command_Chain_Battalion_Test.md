@@ -150,7 +150,8 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 | 2 | the only call was the tempo's SMOKE (CE-7025): the assault met an untouched line, PL 1 missed | **R-2100** — `CompanyAttack.EnterAssault` asks PREPARATORY HE on the objective as the assault goes in |
 | 2 | the outpost SPOTs (4 s) and never withdraws: the OP play is unbuilt | **R-2101** — a scenario rule (Blue within 150 m ⇒ `Order.Move` back behind the line); the play is **CE-2435** |
 | 3 | the rule's `BreakContact` order read *"not accepted"*: the Order verb counts acceptance only while the target RUNS that order's id, and a one-shot BreakContact (or the men's own fight) ends it unseen | R-2101 revised: the rule orders a MOVE (it runs ~40 s); arrow ① accepts it |
-| 3 | ②③⑤⑥⑦ pass; the HE lands 2 m from the reported point; Blue still misses PL 1 | force balance under study (run 4 counts the survivors) |
+| 3 | ②③⑤⑥⑦ pass; the HE lands 2 m from the reported point; Blue still misses PL 1 | — |
+| 4 | Blue WINS the fight on the line (Red 1st Platoon 0 / 8 left, 2nd 2 / 8) but never occupies Objective 1; the outpost dies within ~10 s (the IFVs 70 m off) | probes: every man of Blue's assault platoon alive; the support Sets in 80 s, then the assault squad BOUNDS ≈ 0.8 m/s (≈ 20 m a bound) to an assault position 210 m away — the deadline's bypass (1.5 × 180 s) moved the company on first. ⇒ **R-2097 rev. 2** (tunables, no behaviour defect): Blue assembles 185 m out (the design's ≈ 150 m start line), the IFVs at the rear, the outpost 45 m before the line (withdrawal at 140 m), `DeadlineSeconds` 300, PL 1 / PL 2 by 420 / 720 s |
 | 2 | a smoke mission makes a cloud, not a detonation | the check's arrow ③ counts smoke clouds too |
 
 ## 5. Acceptance

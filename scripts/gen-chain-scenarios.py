@@ -25,13 +25,13 @@ OUT = os.path.join(REPO, "scenarios", "demos", "platoons-and-vehicles")
 # ── the coordinates (measured on demo-city's houses, 2026-11-14: offices at x 411-444 / y 411-502, shops at x 639 / y 416-486) ──
 OBJ1 = (425.0, 425.0)          # the office cluster — Red's line, Blue's Objective 1
 OBJ2 = (645.0, 445.0)          # the shop column — Red's depth / fall-back, Blue's Objective 2
-BLUE_START = (150.0, 405.0)    # Blue's company assembles here (275 m short of Objective 1)
-START_LINE_X = 275.0           # the start line (≈ 150 m before Objective 1)
-OUTPOST = (335.0, 400.0)       # Red's outpost, forward on the axis
+BLUE_START = (240.0, 405.0)    # Blue's company assembles here (185 m short of Objective 1 — the design's start line ≈ 150 m; R-2097 rev. 2: at 275 m the bounding assault (≈ 0.8 m/s, measured) reached its assault position only after the deadline's bypass)
+START_LINE_X = 205.0           # the IFVs overwatch from the rear of the assembly (at 70 m they killed the outpost within 10 s, measured)
+OUTPOST = (380.0, 410.0)       # Red's outpost, 45 m forward of its line on the axis
 RED_RESERVE = (720.0, 620.0)   # Red's battalion reserve, north-east, out of the fight
 BLUE_HQ = (60.0, 400.0)
 RED_HQ = (760.0, 640.0)
-DEADLINE = 180.0               # CompanyAttack's tempo (lean of the design; R-2097)
+DEADLINE = 300.0               # CompanyAttack's tempo (R-2097 rev. 2: the lean 180 s bypassed Objective 1 at 270 s, before the assault could arrive)
 FRONTAGE, DEPTH = 160.0, 220.0  # the Red line: blocks at y ≈ 385 / 465, its reserve at x ≈ 535, the fall-back at x ≈ 645
 
 EAST = [0, 0, 0, 1]
@@ -147,7 +147,7 @@ def build(name, v):
                   designation="SquadLeader" if i == 0 else "Wingman", behavior=("ManWeapon", {"weapon": tube}), man=True))
         s.add(ent(2002, f"Blue Mortar {i + 1} Loader", F, tx - 2, BLUE_HQ[1] - 33, commander=battery, man=True))
     for i, dy in enumerate((-12, 12)):   # the IFVs overwatch from the start line (their own SOP; no commander — R-2096)
-        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X - 10, OBJ1[1] - 20 + dy, man=False,
+        s.add(ent(101, f"Blue IFV {i + 1}", F, START_LINE_X, BLUE_START[1] + dy, man=False,
                   extra={"TargetMemory": {"Entries": []}, "Sop": {"Name": "BasicVehicleSop", "Params": {}, "Origin": "Superior"}}))
     # ── Red ──
     rhq = s.add(ent(306, "Red Battalion HQ", H, *RED_HQ, rot=WEST, behavior=("SupportCommand", {"Reserve": 2})))   # slot 1 = its reserve
@@ -167,17 +167,17 @@ def build(name, v):
     # ── the scripted top: phase lines, objectives, the attack order, the end ──
     s.add(line("PL 1", F, [(OBJ1[0], OBJ1[1] - 150), (OBJ1[0], OBJ1[1] + 150)]))
     s.add(line("PL 2", F, [(OBJ2[0], OBJ2[1] - 150), (OBJ2[0], OBJ2[1] + 150)]))
-    pl1 = s.add(objective("Blue reaches PL 1", F, "ReachArea", {"common": {"title": "Blue reaches PL 1", "subject": bco, "deadlineSeconds": 330},
+    pl1 = s.add(objective("Blue reaches PL 1", F, "ReachArea", {"common": {"title": "Blue reaches PL 1", "subject": bco, "deadlineSeconds": 420},
                                                                "area": circle(OBJ1, 60), "minMen": 4}))
-    pl2 = s.add(objective("Blue reaches PL 2", F, "ReachArea", {"common": {"title": "Blue reaches PL 2", "subject": bco, "deadlineSeconds": 630},
+    pl2 = s.add(objective("Blue reaches PL 2", F, "ReachArea", {"common": {"title": "Blue reaches PL 2", "subject": bco, "deadlineSeconds": 720},
                                                                "area": circle(OBJ2, 60), "minMen": 4}))
     hold = s.add(objective("Blue holds Objective 2", F, "HoldArea", {"common": {"title": "Blue holds Objective 2", "subject": bco, "required": True},
                                                                     "area": circle(OBJ2, 60), "minMen": 4, "maxEnemy": 0, "holdSeconds": 120}))
     broken = s.add(objective("Red below 30 %", F, "Strength", {"common": {"title": "Red below 30 %", "subject": rhq}, "threshold": 0.3}))
     # ⭐ R-2101 (lane decision) — the outpost's withdrawal: Defend & Attack §4.2's OP play is designed, not built (CE-2435), so the scenario
-    #   carries the rule — Blue closing within 150 m of the outpost (a condition, never a clock) orders it back behind the line
+    #   carries the rule — Blue closing within 140 m of the outpost (a condition, never a clock) orders it back behind the line
     close = s.add(objective("Blue closes on the outpost", H, "ReachArea", {"common": {"title": "Blue closes on the outpost", "subject": bco, "scored": False},
-                                                                         "area": circle(OUTPOST, 150), "minMen": 1}))
+                                                                         "area": circle(OUTPOST, 140), "minMen": 1}))
     s.add(trigger("The outpost withdraws", H, achieved(close),
                   [{"act": "Order", "args": {"target": outpost, "behavior": "Order.Move",   # back behind the line (a MOVE is accepted while it runs; a
                                              "params": {"Location": [OBJ1[0] + 60, OBJ1[1], 0], "Speed": 4}}}]))   #  one-shot BreakContact ended unseen)
