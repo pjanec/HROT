@@ -306,7 +306,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// (<c>rf-wall-hugger</c>): a grenade, then a contact, and two posted defenders were sent 50–60 m out of the house.</summary>
         [SharedAiCondition]
         public static bool NotDefending(Entity self, EntityRepository world)
-            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend;   // ⭐ CE-4612 — the order's kind
+            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.Defend   // ⭐ CE-4612 — the order's kind
+               && !SupportByFireBehavior.Supporting(world, self);   // ⭐ CE-2436 — a squad supporting by fire is already fighting its contact
 
         internal static SquadDefendParams Defaults(Vector3 position, float radius, float speed) => new()
         {

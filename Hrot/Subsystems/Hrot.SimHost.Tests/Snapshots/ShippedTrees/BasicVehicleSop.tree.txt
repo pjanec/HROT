@@ -8,6 +8,7 @@ variable HitSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"Hit","Seconds":
 variable ThreatSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"FirstThreat","Seconds":3}
 variable AirDefence Hrot.AI.Behaviors.Brains.EngageAircraftParams = {"ClearSeconds":10,"MinElevationDeg":80}
 parse (empty) -> ok
+  c4617000-0000-0000-0000-0000000000b2 {"Kind":"AirThreat","Seconds":3}
   c2165000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
   c2165000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}
   c2165000-0000-0000-0000-000000000011 {"Kind":"AirThreat","Seconds":3}
@@ -18,6 +19,11 @@ parse {} -> ok
 parse {"bogus":1} -> refused InvalidOperationException
 Selector c2165000-0000-0000-0000-000000000002 "Rows — first true wins"
   # A vehicle's reaction table (DESIGN_Vehicle_Exposure_Cycle §8): a drone first, then being hit, then contact; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).
+  Sequence c4617000-0000-0000-0000-0000000000b1 "Aircraft + a radar SAM → radar on, salvo, relocate"
+    # CE-4617 (DESIGN_Radar_SAM RS-5): a radar SAM vehicle answers an air cue with its radar and a salvo, then switches off and relocates; an empty launcher falls through to the rows below.
+    Condition c4617000-0000-0000-0000-0000000000b2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
+    Condition c4617000-0000-0000-0000-0000000000b3 call Hrot.AI.Behaviors.Brains.RadarSamNodes.CanEngageByRadar "A radar and a radar-guided launcher with a round"
+    Action c4617000-0000-0000-0000-0000000000b4 sop React:RadarSamEngage:UnderFire "React: RadarSamEngage"
   Sequence c2165000-0000-0000-0000-0000000000a1 "Aircraft + an air-defence weapon → engage"
     # CE-2191 (Air Ops §7f): a unit that carries or controls an air-defence weapon (a SAM launcher, a gun elevating ≥ 80°) stands and fires at the aircraft; every other unit falls through to its old rows.
     Condition c2165000-0000-0000-0000-0000000000a2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"

@@ -666,6 +666,22 @@ namespace Hrot.NED.Descriptors
         public byte Kind;
     }
 
+    // ⭐ CE-4617 (B-1, RS-10; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a radar's EMISSION, the carrier's brain owner → every node: the radar
+    //   sensor, an aircraft's warning receiver and the enemy's direction finding derive from it. Reliable + TransientLocal + KeepLast 1, like
+    //   EntityGesture: a late joiner must know which radars radiate. TrackedTarget is the network id (0 = none).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityRadarEmission
+    {
+        [DdsKey] public int EntityId;
+        public byte Mode;
+        public byte EmitterClass;
+        public int TrackedTarget;
+        public float RangeM;
+        public double OnSince;
+    }
+
     // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, the brain owner → every node. Reliable + TransientLocal + KeepLast 1, like
     //   EntityGesture: a late joiner must know who has acted, and how gravely.
     // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks, the Muscle → every node (vision on a Perception node, the map's cone, HTTP).

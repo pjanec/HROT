@@ -175,6 +175,11 @@ namespace Fdp.Toolkit.Perception.LineOfSight
         private static Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> OverTerrain(Func<TerrainWorld?> source)
             => view => source() is { } w ? TerrainWorldQuery.ForView(view, w) : null;   // ⭐ CE-3219 part 3 — doors AND clouds
 
+        /// <summary>⭐ <c>CE-4617</c> — the world query <see cref="ForLiveWorld"/>'s sight reads, for another test that must ask the SAME world
+        /// (the radar's clutter floor reads its ground height).</summary>
+        public static Func<ISimulationView, Fdp.Toolkit.World.IWorldQuery?> LiveWorldQuery(EntityRepository world)
+            => OverTerrain(TerrainWorldSource.Live(world));
+
         public static TerrainWorldLosStrategy ForLiveWorld(
             EntityRepository world, Func<ISimulationView, Entity, StanceId>? stanceReader = null)
             => new(

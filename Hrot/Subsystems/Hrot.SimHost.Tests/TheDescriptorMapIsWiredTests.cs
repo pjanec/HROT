@@ -312,7 +312,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status
                     D(Hrot.NED.Descriptors.EDescriptorType.dtExerciseResult),      // ⭐ rules S2-e — the exercise's phase and outcome
                     D(Hrot.NED.Descriptors.EDescriptorType.dtRuleLeaves),        // ⭐ rules V-3 — a trigger's when-leaves with their live values
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtBladeCut) },        // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker (terrain lane)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtBladeCut),          // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker (terrain lane)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtRadarEmission) },   // ⭐ CE-4617 (B-1, RS-10) — a radar's emission
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

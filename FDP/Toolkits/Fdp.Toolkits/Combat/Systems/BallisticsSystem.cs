@@ -160,7 +160,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ M4 — a missile lives its flight (MaxFlightSeconds), not a bullet's 2 s: a 2 km TOW vanished mid-flight
                 if (guided && repo.HasComponent<GuidedRound>(entity) && repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks > 0)
                     lifetime = repo.GetComponentRO<GuidedRound>(entity).LifetimeTicks;
-                if (currentTick - proj.SpawnTick >= lifetime)
+                // ⭐ CE-2436 AU-7 (A-10a) — a pellet past its range is spent (no reach beyond it)
+                bool spentByRange = proj.RangeLimitM > 0f
+                    && System.Numerics.Vector3.DistanceSquared(repo.GetComponentRO<SimTransform>(entity).Position, proj.Muzzle) > proj.RangeLimitM * proj.RangeLimitM;
+                if (spentByRange || currentTick - proj.SpawnTick >= lifetime)
                 {
                     if (shot != null) ShotLog.EndCarried(shot, ShotOutcome.Expired, currentTick, repo.GetComponent<SimTransform>(entity).Position, terrain, in proj);
                     repo.DestroyEntity(entity);

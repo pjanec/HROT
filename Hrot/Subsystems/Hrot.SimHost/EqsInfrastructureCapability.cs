@@ -92,6 +92,11 @@ public static class EqsSolverStartup
         //   only a muscle subset, so it would otherwise be missing there). Idempotent.
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        // ⭐ CE-4617 (RS-2, RS-10) — what the radar template reads: its targets' cross-section and its carrier's emission. Idempotent.
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarSignature>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarSignature>();
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarEmission>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.AcousticCursor>())

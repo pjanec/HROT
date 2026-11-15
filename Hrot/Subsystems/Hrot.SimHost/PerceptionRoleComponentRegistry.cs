@@ -48,6 +48,8 @@ public static class PerceptionRoleComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
         // ⭐ CE-3061 — what a thermal sensor reads on its targets (docs/DESIGN_Thermal_And_Acoustic_Sensing.md §4).
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        // ⭐ CE-4617 (RS-2) — what a radar reads on its targets (stamped from the TKB on every node).
+        world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarSignature>();
         // ⭐ CE-3062 — what an acoustic sensor hears on its sources, and the anonymous contact it makes.
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>();
         world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.AcousticCursor>();   // ⭐ CE-3282 — a hearing sensor's ring cursor (Sensing §8.3)

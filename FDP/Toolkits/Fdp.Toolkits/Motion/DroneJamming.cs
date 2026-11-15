@@ -63,9 +63,19 @@ namespace Fdp.Toolkit.Motion
             }
         }
 
-        /// <summary>True when <paramref name="drone"/>, at <paramref name="at"/>, is inside the bubble of a jammer of another force.</summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-5 (A-6; user, `2026-11-15`: <i>"jamming is no longer effective because the drones are controlled by optical
+        /// wire" · "let's consider drones be unjammable"</i>) — drones are UNJAMMABLE: no jammer downs one. The jammer bubbles are still built and
+        /// read (<see cref="Of"/>) — ⛔ not removed (a jammer type and its rails stay; a future radio-controlled drone class could set this per
+        /// type); this switch is the one place the rule lives. Protection against a drone is physical: cover, dispersion, shooting it (A-10).
+        /// </summary>
+        public static bool DronesUnjammable = true;
+
+        /// <summary>True when <paramref name="drone"/>, at <paramref name="at"/>, is inside the bubble of a jammer of another force — never while
+        /// <see cref="DronesUnjammable"/> (the user's ruling, A-6).</summary>
         public static bool Jammed(EntityRepository repo, Entity drone, Vector3 at)
         {
+            if (DronesUnjammable) return false;
             var j = Of(repo);
             if (j.Count == 0) return false;
             var own = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(drone) ? repo.GetComponentRO<EntityInfo>(drone).ForceId : ForceId.Neutral;

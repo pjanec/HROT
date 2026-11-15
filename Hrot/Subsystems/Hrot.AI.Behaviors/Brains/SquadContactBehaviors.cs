@@ -277,7 +277,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Member <paramref name="member"/> can throw the smoke: live, his type carries it, at least Regular (DA-12 "Regular+").</summary>
-        private static bool Smoker(in SquadPlayContext ctx, int member, out Entity man)
+        internal static bool Smoker(in SquadPlayContext ctx, int member, out Entity man)   // ⭐ CE-2436 AU-2 — FireAndMovement's crossing smoke too
             => ctx.Live(member, out man)
                && Fdp.Toolkit.Combat.AmmoChoice.TypeCarries(ctx.World, man, Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke)
                && Fdp.Toolkit.Behavior.Components.ProficiencyOf.Tier(ctx.World, man) >= Fdp.Toolkit.Behavior.Components.ProficiencyTier.Regular;

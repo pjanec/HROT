@@ -318,6 +318,36 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(farDamage[0] < nearDamage[0] / 3f, $"20 m off: {farDamage[0]:0} against {nearDamage[0]:0}");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-2, RS-2a; docs/designs/air-attack/DESIGN_Radar_SAM.md) — an aircraft BEYOND the terrain's edge is still hurt by
+        /// a SAM's proximity burst: the radar SAM's warhead (the library's <c>"Radar SAM warhead"</c>) bursting 4 m outside a helicopter that
+        /// flies 2 km past a 100 m terrain hurts it as badly as over the terrain — the exposure trace answers the world's own edge rule, and
+        /// the victims come from a full query, never the terrain's grid. 🔴 Red-proof: the burst 40 m off ⇒ far less (the law, not a constant).
+        /// </summary>
+        [Fact]
+        public void CE4617_ARadarSamBurst_HurtsAnAircraftBeyondTheTerrain_AsMuchAsOverIt()
+        {
+            const long RadarSam = 6050, Helicopter = 781;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            db.Register(new TkbTemplate("Radar SAM warhead", RadarSam) { DisType = new DISEntityType { Kind = 2 } });
+            var heliType = new TkbTemplate("burst test helicopter", Helicopter);
+            heliType.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 800, BlastSusceptibility = 0.8f });
+            db.Register(heliType);
+            _w.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50) });
+            var over = Hull(Helicopter, 0f, 0f, 800f, 4f, 3f);
+            var beyond = Hull(Helicopter, 2000f, 0f, 800f, 4f, 3f);
+            var off = Hull(Helicopter, 2400f, 0f, 800f, 4f, 3f);
+            _w.GetComponentRW<SimTransform>(over).Position = new Vector3(0f, 0f, 300f);
+            _w.GetComponentRW<SimTransform>(beyond).Position = new Vector3(2000f, 0f, 300f);
+            _w.GetComponentRW<SimTransform>(off).Position = new Vector3(2400f, 0f, 300f);
+            var (_, overDamage) = Burst(RadarSam, new Vector3(0f, 8f, 301.5f), over);
+            var (_, beyondDamage) = Burst(RadarSam, new Vector3(2000f, 8f, 301.5f), beyond);
+            var (_, offDamage) = Burst(RadarSam, new Vector3(2400f, 44f, 301.5f), off);
+            Assert.True(overDamage[0] >= 150f, $"over the terrain, 4 m from the hull: {overDamage[0]:0} of 800");
+            Assert.True(beyondDamage[0] >= overDamage[0] * 0.9f, $"beyond the terrain: {beyondDamage[0]:0} against {overDamage[0]:0} over it");
+            Assert.True(offDamage[0] < beyondDamage[0] / 3f, $"40 m off: {offDamage[0]:0} against {beyondDamage[0]:0}");
+        }
+
         private void VehicleTypes()
         {
             var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();

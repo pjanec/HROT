@@ -113,6 +113,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(_world.IsAlive(missile));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (A-10a) — a shotgun PELLET is spent past its range (<see cref="BallisticProjectile.RangeLimitM"/>): 59 m from its
+        /// muzzle it still flies, 61 m out it is gone; a round with no limit at the same place flies on. ✅ Red-proof: the range test dropped ⇒ the
+        /// pellet lives on ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_APellet_IsSpentPastItsRange_ARoundWithNoLimitFliesOn()
+        {
+            SetCurrentTick(5);
+            Entity Round(float x, float limit)
+            {
+                var e = SpawnBullet(new Vector3(x, 0f, 0f), spawnTick: 0);
+                ref var p = ref _world.GetComponentRW<BallisticProjectile>(e);
+                p.Muzzle = Vector3.Zero; p.RangeLimitM = limit;
+                return e;
+            }
+            var near = Round(59f, 60f);
+            var far = Round(61f, 60f);
+            var rifle = Round(61f, 0f);
+            RunAndReadEvents();
+            Assert.True(_world.IsAlive(near));
+            Assert.False(_world.IsAlive(far));
+            Assert.True(_world.IsAlive(rifle));
+        }
+
         // ── Test 1 ────────────────────────────────────────────────────────────
 
         /// <summary>

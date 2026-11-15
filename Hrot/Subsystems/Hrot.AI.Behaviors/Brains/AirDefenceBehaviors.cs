@@ -54,12 +54,28 @@ namespace Hrot.AI.Behaviors.Brains
             return TargetMemory.IsAnonymous(in mem, found) ? Entity.Null : new Entity((ulong)mem.EntityIds[found]);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (A-10b) — may <paramref name="self"/> fire at a drone at <paramref name="droneAt"/>
+        /// (<see cref="AirDefenceWeapons.CanEngageDrone"/> at that range)? A unit whose weapons the type does not describe (no mount data)
+        /// leaves it to the weapon brain, as before.
+        /// </summary>
+        public static bool MayFireAtDrone(EntityRepository world, Entity self, Vector3 droneAt)
+        {
+            if (CombatTkb.MountOf(world, self, 0) == null)
+            {
+                Span<Entity> controlled = stackalloc Entity[WeaponSystems.MaxControlled];
+                if (WeaponSystems.Controlled(world, self, controlled) == 0) return true;   // no weapon data: the weapon brain decides
+            }
+            var me = world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : droneAt;
+            return AirDefenceWeapons.CanEngageDrone(world, self, Vector3.Distance(me, droneAt));
+        }
+
         /// <summary>Aimed fire at <paramref name="air"/> while it is SEEN — the weapon brain picks the mount (a MANPADS at an aircraft,
         /// the ZU-23, an HMG on a pintle); a failure (out of arc) waits <see cref="RetryFireSeconds"/> before the next try; unseen ⇒ stop.</summary>
         public static void FireAt(EntityRepository world, Entity self, ref EngageState fire, ref SimInstant retryAt, Entity air, double now)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return;
-            bool seen = !air.IsNull && SightNow.Sees(world, self, air);
+            bool seen = !air.IsNull && FireControlSight.SeesForAnyMount(world, self, air);   // ⭐ CE-4617 (RV-1) — the one fire-control rule
             if (!seen) { PostureNodes.StopFiring(world, self, ref fire); return; }
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);
             bool mine = !fire.Threat.IsNull && channel.ActiveAction == CombatConstants.ActionIdAimAndFire;

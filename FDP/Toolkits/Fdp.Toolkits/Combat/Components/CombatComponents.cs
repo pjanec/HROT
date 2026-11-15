@@ -175,6 +175,9 @@ namespace Fdp.Toolkit.Combat.Components
         /// <summary>⭐ <c>CE-4155</c> (SR-82; APPENDED) — the FIRST thrower of a round that was picked up and thrown back (<see cref="Shooter"/> is
         /// the last); <see cref="Entity.Null"/> = never rethrown. Rides to the detonation and from there to <c>DamageAssessedEvent.OriginalSource</c>.</summary>
         public Entity OriginalShooter;
+        /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10a; APPENDED) — the round is SPENT this far from its <see cref="Muzzle"/> (m): a shotgun's pellet
+        /// past its mount's range does nothing (<c>BallisticsSystem</c> ends it, <c>ShotOutcome.Expired</c>). 0 = no limit (every other round).</summary>
+        public float RangeLimitM;
     }
 
     /// <summary>⭐ Stage 6 (<c>CE-1032</c>) — the warhead bits of <see cref="BallisticProjectile.Warhead"/>.</summary>

@@ -8,6 +8,7 @@ using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Radar;
 using Hrot.AI.Behaviors.Brains;
 using Xunit;
 
@@ -927,6 +928,115 @@ namespace Hrot.SimHost.Tests
         /// ✅ Red-proofs (mutants): no evasion stage ⇒ the rockets ripple through the warning ⇒ red; chaff for an infra-red seeker ⇒ red;
         /// the break flown AT the missile ⇒ the track closes on it ⇒ red; no come-round ⇒ the attack ends without a rocket ⇒ red.
         /// </summary>
+        // ── ⭐⭐ CE-4617 (B-4; docs/designs/air-attack/DESIGN_Radar_SAM.md RS-6 / RS-10 / RV-8 / RV-9) — the radar warning and the escape ─────
+
+        private Entity Emitter(Vector3 at, ForceId force, RadarMode mode, Entity tracked, float range = 8000f)
+        {
+            Reg<RadarEmission>(); Reg<RadarWarning>(); Reg<EntityInfo>();
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new EntityInfo { Name = "SAM", ForceId = force });
+            _w.AddComponent(e, new RadarEmission { Mode = mode, TrackedTarget = tracked, RangeM = range, EmitterClass = RadarEmitterClass.AirDefence });
+            return e;
+        }
+
+        private RadarWarning WarningOf(Entity aircraft)
+            => _w.HasComponent<RadarWarning>(aircraft) ? _w.GetComponentRO<RadarWarning>(aircraft) : default;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-4, RS-10) — the aircraft's radar warning receiver DERIVES its warning from the emitters' replicated state: a radar
+        /// of the other side searching with the aircraft in range ⇒ <b>searched</b> (with the bearing to it); tracking THIS aircraft ⇒ <b>tracked</b>;
+        /// switched off ⇒ none; out of its range, or a radar of its own side (even tracking it) ⇒ none. 0 B per steady tick.
+        /// ✅ Red-proofs (mutants): the side not compared ⇒ the friendly radar warns ⇒ red; the range not compared ⇒ 9 km away warns ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_TheRadarWarning_SearchedThenTracked_NoneWhenOff_OutOfRange_OrOwnSide()
+        {
+            Reg<RadarEmission>(); Reg<RadarWarning>(); Reg<EntityInfo>();
+            var heli = SpawnHeli(new Vector3(0f, 0f, 150f), out _);
+            _w.AddComponent(heli, new EntityInfo { Name = "heli", ForceId = ForceId.Friend });
+            var rwr = new Fdp.Toolkit.Perception.Systems.RadarWarningReceiverSystem();
+            void Tick() => rwr.Execute(_w, Dt);
+
+            var sam = Emitter(new Vector3(4000f, 0f, 0f), ForceId.Hostile, RadarMode.Search, Entity.Null);
+            Tick();
+            Assert.Equal(RadarWarningLevel.Searched, WarningOf(heli).Level);
+            Assert.Equal(sam, WarningOf(heli).Emitter);
+            Assert.InRange(WarningOf(heli).BearingDeg, 89f, 91f);   // east
+
+            ref var e = ref _w.GetComponentRW<RadarEmission>(sam);
+            e.Mode = RadarMode.Track; e.TrackedTarget = heli;
+            Tick();
+            Assert.Equal(RadarWarningLevel.Tracked, WarningOf(heli).Level);
+
+            for (int i = 0; i < 5; i++) Tick();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) Tick();
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+
+            _w.GetComponentRW<RadarEmission>(sam).Mode = RadarMode.Off;
+            Tick();
+            Assert.Equal(RadarWarningLevel.None, WarningOf(heli).Level);
+
+            Emitter(new Vector3(9000f, 0f, 0f), ForceId.Hostile, RadarMode.Search, Entity.Null);   // beyond its 8 km
+            Emitter(new Vector3(1000f, 0f, 0f), ForceId.Friend, RadarMode.Track, heli);             // its own side
+            Tick();
+            Assert.Equal(RadarWarningLevel.None, WarningOf(heli).Level);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4617</c> (B-4, RS-6 / RV-9) — a helicopter on a running-fire pass TRACKED by a radar off its left bow: its weapons stop, it turns
+        /// off the radar's bearing (never closing on it) and drops to <see cref="AirAttackNodes.RadarEvadeAglM"/> — below the clutter floor; 8 s
+        /// after the track ends it comes round and fires on the new pass, and that aborted pass is NOT counted (a radar abort).
+        /// ✅ Red-proofs (mutants): the radar stage removed ⇒ the rockets ripple while tracked ⇒ red; the pass counted ⇒ Passes 1 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4617_ATrackedHelicopter_LeavesTheBearing_DropsBelowTheFloor_ThenComesRound_UncountedPass()
+        {
+            Reg<RadarWarning>();
+            var heli = SpawnCmHeli(new Vector3(-4000f, 300f, 60f), out var pod, out var dispenser);
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            var intents = new System.Collections.Generic.List<(int Mount, long Ammo, int Frame)>();
+            uint entered = 0;
+            var status = NodeStatus.Running;
+            int trackedAt = -1, clearedAt = -1;
+            var radar = new Vector3(-1500f, 1800f, 0f);   // off the left bow of a run-in flown east
+            float maxCosToRadar = -1f, lowest = float.MaxValue;
+            int frame = 0;
+            for (; frame < 60 * 300 && status == NodeStatus.Running; frame++)
+            {
+                var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                if (trackedAt < 0 && new Vector2(at.X, at.Y).Length() < 3200f) trackedAt = frame;
+                bool tracked = trackedAt >= 0 && frame < trackedAt + 60 * 3;
+                if (trackedAt >= 0 && !tracked && clearedAt < 0) clearedAt = frame;
+                float b = MathF.Atan2(radar.X - at.X, radar.Y - at.Y) * (180f / MathF.PI);
+                var w = new RadarWarning { Level = tracked ? RadarWarningLevel.Tracked : RadarWarningLevel.None, From = radar, BearingDeg = b < 0f ? b + 360f : b };
+                if (_w.HasComponent<RadarWarning>(heli)) _w.GetComponentRW<RadarWarning>(heli) = w; else _w.AddComponent(heli, w);
+                status = TimedStep(ref p, ref ws, heli, executor, ref entered, frame, intents, 60f, heli, pod, dispenser);
+                if (tracked && frame > trackedAt + 30)
+                {
+                    var v = _w.GetComponentRO<SimVelocity>(heli).Linear;
+                    var flat = new Vector2(v.X, v.Y);
+                    var now = _w.GetComponentRO<SimTransform>(heli).Position;
+                    var toRadar = Vector2.Normalize(new Vector2(radar.X - now.X, radar.Y - now.Y));
+                    if (flat.LengthSquared() > 1f) maxCosToRadar = MathF.Max(maxCosToRadar, Vector2.Dot(Vector2.Normalize(flat), toRadar));
+                }
+                if (trackedAt >= 0 && clearedAt < 0 || clearedAt >= 0 && frame < clearedAt + 60 * 8)
+                    lowest = MathF.Min(lowest, _w.GetComponentRO<SimTransform>(heli).Position.Z);
+            }
+
+            Assert.True(trackedAt > 0, "the track came on the run-in");
+            int resumeAt = clearedAt + (int)(AirAttackNodes.RadarClearS / Dt);
+            Assert.DoesNotContain(intents, i => i.Frame >= trackedAt + 1 && i.Frame < resumeAt);   // no round while it escapes
+            Assert.InRange(maxCosToRadar, -1f, 0.1f);   // off the bearing, never closing on the radar
+            Assert.InRange(lowest, AirAttackNodes.RadarEvadeAglM - 3f, AirAttackNodes.RadarEvadeAglM + 4f);   // below the 15 m floor
+            Assert.Equal(AirAttackNodes.DefaultRipple, intents.FindAll(i => i.Mount == 1 && i.Frame >= resumeAt).Count);   // the come-round pass fires
+            Assert.Equal(0, ws.Passes);   // a radar abort is not a counted pass
+            Assert.Equal(NodeStatus.Success, status);
+        }
+
         [Fact]
         public void S7e_AWarnedHelicopter_StopsFiring_DropsFlares_BreaksOntoTheMissilesBeam_ThenComesRound()
         {
@@ -1009,6 +1119,10 @@ namespace Hrot.SimHost.Tests
                 var released = intents.FindAll(i => i.Mount == 2);
                 Assert.Equal(decoys, released.Count);
                 Assert.All(released, r => Assert.Equal(ammo, r.Ammo));
+                // ⭐ CE-4617 (B-2, RV-7) — chaff is held for the missile's END-GAME: warned at 1 s with 5 s to go, none before 3 s
+                //   (2 s to go … ≤ CountermeasureSystem.ChaffEndGameS). 🔴 Red-proof: the hold removed ⇒ the first chaff at 1 s.
+                if (seeker == Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar)
+                    Assert.All(released, r => Assert.True(r.Frame >= 60 + 2 * 60 - 1, $"chaff at frame {r.Frame}: before the end-game"));
             }
 
             // a warning raised 30 s before the attack starts (its 5 s missile long gone) changes nothing
@@ -1402,12 +1516,24 @@ namespace Hrot.SimHost.Tests
         /// <c>JammerDto</c>) and loses its link — it comes down WHERE IT IS (<c>BatteryOut</c> = jammed), never reaching the tank; outside the bubble it
         /// pursued as before; a jammer of its OWN side spares it. The bubbles are the serial pre-pass's index (<c>DroneJamming.PrepareFrame</c>, called
         /// here as <c>BrainPhase</c> does). ✅ Red-proof: the jammed check dropped ⇒ it pursues on ⇒ red.
+        /// ⭐ <c>CE-2436</c> AU-5 (A-6, the user's ruling) — drones are UNJAMMABLE by default (<c>DroneJamming.DronesUnjammable</c>): the third case,
+        /// the enemy jammer with the default, the drone reaches the tank. The first two keep proving the jammer itself with the switch off.
         /// </summary>
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide)
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public void CE7014_ADroneInAnEnemyJammersBubble_LosesItsLink_AndComesDownWhereItIs(bool ownSide, bool unjammable)
         {
+            bool was = Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable;
+            Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable = unjammable;
+            try { JammerCase(ownSide || unjammable); }
+            finally { Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable = was; }
+        }
+
+        private void JammerCase(bool spared)
+        {
+            bool ownSide = spared;
             const long JammerType = 9413;
             var drone = SpawnDrone(new Vector3(-600f, 0f, 60f));
             var tank = SpawnGround(Vector3.Zero, 2500f, vehicle: true, ForceId.Friend);
@@ -1419,7 +1545,7 @@ namespace Hrot.SimHost.Tests
             var jammer = _w.CreateEntity();
             _w.AddComponent(jammer, new SimTransform { Position = new Vector3(-250f, 0f, 0f), Rotation = Quaternion.Identity });
             _w.AddComponent(jammer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)JammerType });
-            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide ? ForceId.Hostile : ForceId.Friend });
+            _w.AddComponent(jammer, new EntityInfo { ForceId = ownSide && !Fdp.Toolkit.Motion.DroneJamming.DronesUnjammable ? ForceId.Hostile : ForceId.Friend });
 
             var p = new AirAttackParams { Target = tank, Point = Vector3.Zero };
             var ws = default(AirAttackState);
@@ -1433,7 +1559,7 @@ namespace Hrot.SimHost.Tests
             }
             if (ownSide)
             {
-                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer spares it: it reached the tank
+                Assert.Equal(0, ws.BatteryOut);                          // its own side's jammer (or the unjammable rule) spares it: it reached the tank
                 Assert.True(closest < 20f, $"it pursued to the tank: closest {closest:F0} m");
                 return;
             }

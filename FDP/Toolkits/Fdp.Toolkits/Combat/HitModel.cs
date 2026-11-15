@@ -126,6 +126,68 @@ namespace Fdp.Toolkit.Combat
             return Math.Clamp(MathF.Atan(radius / range) / sigma, 0f, 1f);
         }
 
+        // ── ⭐⭐ CE-2436 AU-7 (A-10; R-2110) — fire at a target in the AIR, and the shotgun's pellets ─────────────────────────────
+
+        /// <summary>A target in the air moving this fast (m/s) widens the aim error by one more × (1 + speed / this): a 30 m/s drone ⇒ × 4.</summary>
+        public const float AirSpeedPerFactor = 10f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (R-2110) — the aim error's factor on a target in the AIR: <c>1 + speed / </c><see cref="AirSpeedPerFactor"/>
+        /// (a hovering drone 1, a 30 m/s one 4 — tracking a small, fast target is the hard part, not killing it); 1 for a ground target.
+        /// The speed is the target's as this node knows it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>).
+        /// </summary>
+        public static float AirFactor(EntityRepository repo, Entity target)
+        {
+            if (target.IsNull || !repo.IsAlive(target) || !Fdp.Toolkit.Motion.Locomotions.InAir(repo, target)) return 1f;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var v)) return 1f;
+            return 1f + v.Length() / AirSpeedPerFactor;
+        }
+
+        /// <summary><paramref name="direction"/> pitched by <paramref name="angle"/> radians up (positive) or down, about the horizontal axis
+        /// across it — the second axis of a 2-D spread (a target in the air, a pellet pattern). Straight up / down ⇒ unchanged.</summary>
+        public static Vector3 Pitch(Vector3 direction, float angle)
+        {
+            float length = direction.Length();
+            if (angle == 0f || length <= 0f) return direction;
+            var d = direction / length;   // a velocity keeps its speed
+            var up = Vector3.UnitZ - d * Vector3.Dot(d, Vector3.UnitZ);
+            if (up.LengthSquared() < 1e-8f) return direction;
+            up = Vector3.Normalize(up);
+            return (d * MathF.Cos(angle) + up * MathF.Sin(angle)) * length;
+        }
+
+        /// <summary>A pellet's place in the pattern, two streams: pellet <paramref name="i"/> of shot <paramref name="ordinal"/> of
+        /// <paramref name="pellets"/> ⇒ (azimuth, elevation) in [−1, 1)². Deterministic, as every round.</summary>
+        public static (float Az, float El) PelletOffset(uint ordinal, int pellets, int i)
+        {
+            uint k = ordinal * (uint)pellets + (uint)i + 1u;
+            return (Sequence(k), RangeSequence(k));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 — the chance ONE SHOT hits a circle of <paramref name="radius"/> at <paramref name="range"/>: the aim error σ
+        /// (in both axes when <paramref name="air"/>, else across only, as <see cref="HitChance"/>), and for a shotgun
+        /// (<paramref name="pellets"/> &gt; 1) its pattern of half-width <paramref name="patternMils"/> around the aim — the aim must fall
+        /// within the pattern, and the pellets landing on the circle are N × its share of the pattern. Beyond <paramref name="pelletRange"/>
+        /// a pellet is spent ⇒ 0. One round at a ground target = <see cref="HitChance"/>, unchanged.
+        /// </summary>
+        public static float ShotHitChance(float sigma, float range, float radius, bool air, int pellets, float patternMils, float pelletRange)
+        {
+            if (pellets <= 1)
+            {
+                float one = HitChance(sigma, range, radius);
+                return air ? one * one : one;
+            }
+            if (pelletRange > 0f && range > pelletRange) return 0f;
+            float pattern = MathF.Max(patternMils, 0.1f) / 1000f;
+            float a = range <= radius ? MathF.PI * 0.5f : MathF.Atan(radius / range);
+            float caught = sigma <= 0f ? 1f : Math.Clamp((pattern + a) / sigma, 0f, 1f);   // the aim falls where the pattern still covers the target
+            if (air) caught *= caught;
+            float share = MathF.PI * a * a / (4f * pattern * pattern);                      // the target's share of the 2-D pattern
+            float onTarget = pellets * MathF.Min(share, 1f);
+            return caught * (1f - MathF.Exp(-onTarget));
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-4584</c> (AQ101 §R C, R-4227) — <b>the ONE near miss</b>: <paramref name="unit"/> is being fired at, close by — it gets a
         /// <see cref="Events.NearMissEvent"/> (which the brain's <c>NearMissSensingSystem</c> turns into <c>SensorChange.NearMiss</c>, here or across

@@ -266,6 +266,24 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, tank.AimedAt.Count);             // tried again after the wait
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-7 (A-10b) — a RIFLEMAN (his type's M4 only) holds his fire at a seen drone 67 m off; brought to 15 m he fires.
+        /// ✅ Red-proof: the gate in <c>FireAtDrone</c> dropped ⇒ he fires at 67 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2436_ARifleman_HoldsFireAtADistantDrone_FiresOnceItIsClose()
+        {
+            var r = new Raid(new ShelterFromAirParams { ClearSeconds = 30f }, seen: true);
+            if (!r.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) r.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            r.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+            r.Repo.AddComponent(r.Self, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman) });
+            r.Run(1.0, sensed: true);
+            Assert.Empty(r.AimedAt);
+            r.SenseAt(new Vector3(0f, 12f, 8f));
+            r.Run(0.3, sensed: true);
+            Assert.Equal(r.Drone, Assert.Single(r.AimedAt));
+        }
+
         /// <summary>⭐ <c>V8_R5</c> — leaving: the sensor goes, the fire and the move stop.</summary>
         [Fact]
         public void V8_Leaving_ReleasesTheSensorFireAndMove()
