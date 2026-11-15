@@ -763,6 +763,11 @@ live demo (`bc-room-clear` follows the slice).
   stood at their points in an EMPTY room for 290 s, held by a defender last seen there who had fallen back. ⭐ **As built now: CB-55 as designed — a pooled
   hostile counts only while FRESH (seen within `RoomDrill.ClearFreshTicks` = 180 ticks, 3 s)**; the men in the room looking and not seeing him refutes him.
   Rail: `CE2257_BC1_ClearRoom_…` (a fresh hostile holds the room; one seen > 3 s ago does not).
+- **CB-55 — ⭐ AS BUILT `2026-11-15` (`CE-2436` R-2117, lane decision): Entering has a bound.** Once every entry man is released, a man still
+  short of his point after `RoomDrill.EnterTimeoutSeconds` (20 s) counts as placed — he covers from where he stands (as stacking has its 30 s and
+  breaching its 12 s). 📌 `pc-assault` (editor): entry points upstairs (a leader 5.6 m off at z 3) or behind furniture (2–3 m) held the squad in
+  Entering for good, every contact in the room already dead. ⛔ SUPERSEDED: "every entry man within 1.2 m of his point" with no bound. Rail:
+  `CE2257_BC1_ASmallRoom_…` (a man 3 m short holds it within the 3 s, not after the bound).
 
 Rails: `SquadManeuverTests.CE2257_BC1_*` (the pure plan · the drill through the brain: the stack on the door, not the nearer window,
 the breach order with its key, the 0.6 s flow, the sectors, no RoomClear with an enemy in the room, RoomClear and holding · a small

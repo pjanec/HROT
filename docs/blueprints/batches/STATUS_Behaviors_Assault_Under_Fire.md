@@ -47,10 +47,19 @@ approach, the clearing squad entering and clearing rooms one every ~40–60 s, t
 the first (275 → 600 s). Root cause: CB-55's `HostileInRoom` counted a defender LAST SEEN in the room with no freshness ⇒ **R-2116**.
 ⚠ The editor run does NOT repeat on this scenario (CE-2438) — each run is a sample, the check logs the drill per chunk.
 
+| `pc-assault` run | with | outcome | why (the drill dump) |
+|---|---|---|---|
+| R-2116 #1 | R-2116 | ⛔ 2 rooms, then Entering 345 → 600 s | — (before the stuck dump) |
+| R-2116 #2 | R-2116 | ⛔ Entering the FIRST room 240 → 600 s, all 4 at the threshold | — |
+| R-2116 #3 | R-2116 | ⛔ still clearing at 600 s (3 rooms) | slow, not stuck |
+| R-2116 #4 | R-2116 + dump | ⛔ Entering 345 → 600 s | the leader 2.1 m and a rifleman 3.0 m short of their points; the only in-room contact DEAD ⇒ **R-2117** |
+| R-2116 #5 | R-2116 + dump | ✅ **PASS — `BuildingClear`**, the first | stuck 30 s once (the leader 5.6 m off a point upstairs), then through |
+
 ## 1. Decisions taken (lane decisions — for the user's review)
 
 | id | decision | would change it |
 |---|---|---|
+| R-2117 | AU-6 (Building Clearing CB-55): Entering gets a bound — 20 s after every entry man is released, a man short of his point covers from where he stands; the room then clears on the 3 s quiet as before | a live run where the bound clears a room with a defender hidden where the short man would have looked |
 | R-2116 | AU-6 (Building Clearing CB-55 as designed): a hostile in the squad's pool holds a room uncleared only while FRESH (seen within 3 s); the entry men at their points not seeing him for 3 s refute him — the as-built "no freshness filter, the pool forgets" kept men in an empty room for 290 s | a live run where a hidden defender (behind cover in the room) survives the 3 s look and shoots the next man in |
 | R-2115 | AU-6: a squad whose commander is a UNIT still counts as under command while it runs that commander's order, even when the unit is below `IsInTheFight`'s line (AQ97 A: "a live commander above him" — his own master once his unit is wiped out); no order of its ⇒ his own rows as before | a live run where a shattered platoon's squads wait on orders that never come (then: the commander's running play as the test, read from the tick-start view) |
 | R-2114 | AU-6: an assault whose APPROACH failed (`TaskFailed` — fire and movement lost a half) while ≥ 2 of its men stand is ordered forward again (the new order re-splits the survivors); with fewer it is lost and R-2112's relief takes over | a live run where the re-ordered squad fails again at once in a loop (then: a cooldown, or Bound instead of Rush) |

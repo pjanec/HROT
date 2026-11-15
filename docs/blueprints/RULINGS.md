@@ -900,6 +900,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2114** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): an assault whose approach failed while it still stands is ordered forward again. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 | ⭐ **R-2115** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a squad under a unit commander still counts as under command while it runs that commander's order, even below the unit's fighting line. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
 | ⭐ **R-2116** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a pooled hostile holds a room uncleared only while fresh (seen within 3 s) — CB-55 as designed. 📄 `docs/designs/group-maneuvers/DESIGN_Building_Clearing.md` §7.1a |
+| ⭐ **R-2117** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a room entry is bounded — 20 s after every entry man is released, a man short of his point covers from where he stands. 📄 `docs/designs/group-maneuvers/DESIGN_Building_Clearing.md` §7.1a |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1256,6 +1257,7 @@ R-2113 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | the ou
 R-2114 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | while ≥ 2 of its men stand is ordered forward again
 R-2115 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | still counts as under command while it runs that commander's order
 R-2116 | docs/designs/group-maneuvers/DESIGN_Building_Clearing.md | hostile counts only while FRESH
+R-2117 | docs/designs/group-maneuvers/DESIGN_Building_Clearing.md | Entering has a bound
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians
