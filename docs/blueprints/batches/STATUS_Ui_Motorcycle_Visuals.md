@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — OVERNIGHT, UNATTENDED run in progress (updated at every slice's end)
+state: LIVE — all four items built, gated and live-checked (2026-11-15)
 updated: 2026-11-15
 current-answer: the whole file
 stale-below: nothing
@@ -15,24 +15,34 @@ related-designs:
 
 Started on `b0e44e530` (coordinator merged). Backend (`a2e399011`) had only its started-marker at dispatch: type 115, class `Motorcycle` and the seats do NOT exist on `origin/backend` yet ⇒ built against a STAND-IN type (id 9115, DIS `1.1.0.80.1`, seat 0 Driver, seat 1 pillion with an arc), the look pinned; re-bind when backend lands.
 
-## Progress
+## Progress — ✅ ALL FOUR ITEMS BUILT, GATED AND LIVE-CHECKED *(backend's M-1 / M-2 landed mid-run; merged `7effc694c`, bound)*
 | item | state |
 |---|---|
 | U-1 mockup | ✅ `docs/designs/vehicle-tactics/motorcycle-visuals.svg` (+ `scripts/gen-motorcycle-mockup.py`), `c525fe21e` |
-| U-2 family + kit + riders + arc | ✅ built against the stand-in (commit `CE-4621 U-2 + U-3`, pushed). Family `Motorcycle`, 2-wheel kit, bank, `SeatPose.Ride` riders, the firing pillion turned to his aim, `SeatArcGizmo` (the arc wedge on both maps for the selected bike), picker glyph `_motorcycle`. ⏳ waits for backend: `["Motorcycle"]` in `FamilyOfClass` (its rail `CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable` fails on a missing class), the real seat numbers, the thumbnail (needs type 115) |
-| U-3 PL-2 pillion first person | ✅ **MEASURED: WIRING, built** — see "U-3 measurement" |
-| U-4 PL-1 driving | ✅ the lean (bank) and the eye rail built; ⏳ the LIVE drive check waits for type 115 (a stand-in cannot run in the real editor) — see "U-4" |
+| U-2 family + kit + riders + arc + glyph + thumbnail | ✅ bound to the REAL type 115 / class `Motorcycle` / seats; kit fitted to backend's numbers (rider hips x 0.1 z 0.75, pillion x −0.45 z 0.85, body 2.1 × 0.8 × 1.2); `["Motorcycle"]` in `FamilyOfClass`; thumbnail in the atlas (page 1, slot 0/2; 79 pictures); picker glyph `_motorcycle` |
+| U-3 PL-2 pillion in first person | ✅ **MEASURED: WIRING** (below), built, **live-checked** |
+| U-4 PL-1 driving | ✅ the lean built; **live-checked**: drove at 28 m/s, turned, the bike and its rider leaned |
+
+## Live checks (real editor under `xvfb-run`, editor mode, HTTP per the runbook; scenario `test-move`, type 115 + riflemen spawned)
+| check | result |
+|---|---|
+| **U-4 drive** | possessed man 1006, *Drive* press (`use` / `useVerb 0` / `useTarget` = the bike) ⇒ he sat in seat 0 at (x + 0.1, z 0.75) = backend's rider seat; the bike then possessed (the UI's handover step) and driven with control frames: **28 m/s**; a left turn (steer 1) ⇒ heading turned, angular z 0.29; the scene capture shows the bike banked into the turn, the rider leaning (`live-scene-turn.png`). ⏳ *slowed off-road*: `test-move` has no terrain classes (flat, no surface grid) — backend's MC-2 is covered by its own rails, not checked live here |
+| **U-3 board** | men 1008 / 1010, *Board* (`useVerb 1` — the primary is *Drive* while the driver seat is free) ⇒ seat **1**, at the pillion's place (z 0.85) |
+| **U-3 the HUD cue** | camera looking +x, bike heading +x ⇒ the crosshair is AHEAD, outside the pillion's 30°…330° arc: the HUD shows **`OUT OF ARC - this seat cannot fire there, fire held`** under the crosshair (`live-pillion-hud2.png`, X screenshot) |
+| **U-3 fire inside / outside the arc** | trigger held + `aim` AHEAD ⇒ `ActionStatus.Weapon.Reason = OutOfArc`, ammo **210 → 210**; trigger + `aim` REAR-LEFT (az ≈ 134°) ⇒ ammo **210 → 194**. Drawn: the pillion turned back, the rifle pointing rear-left (`live-pillion-fires.png`, scene capture) |
+
+Files (⛔ not in git): `/tmp/claude-0/-home-user-HROT/1bf325a1-da7f-51ac-b2db-4ed0c6f53d2b/scratchpad/live/{live-scene-turn.png,live-pillion-hud2.png,live-pillion-fires.png}` and `…/scratchpad/moto/{mockup.png,side-by-side.png,shots/moto-*.png}`.
 
 ## Gates (rule 8 contract)
 | gate | command | result |
 |---|---|---|
-| T-1 the feature's own suite | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter MotorcycleModelRail` (`HROT_HIDDEN_WINDOW=1`) | **12 passed / 0 failed / 0 skipped** — the real frame rail RAN (not skipped) |
-| the seams it touches | same project, `--filter "MotorcycleModelRail\|Gizmo\|Possession"` | **459 / 0 / 0** |
-| T1 whole project | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build` (with `HROT_HIDDEN_WINDOW=1`) | 2183 passed / 7 failed / 10 skipped: **3 PRE-EXISTING at the base `b0e44e530`** (clean worktree built + run: `CE1309_TheMindStateBar…`, `CE1086_TheFpvDrone…` — the FPV's drawn size changed by another lane, expected 0.6 got 0.35 —, `CE4388_TheCachedWireSphere…`); 3 pass without the hidden-window switch (`CE4582_TheCardsHide…`, `P7B_In3D…`, `CE1039_Sessions…` = the hidden-window mode, not the change); `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` (a terrain road-vertex height) fails in my tree and was SKIPPED in the base worktree — unrelated to bodies, **base unconfirmed**, filed as an observation |
-| red-proof (ONE key rail, visual work) | remove the bank from `EntityBodyLayer3D` | `TheMotorcycle_IsDrawn_ByTheRealFrame…` fails: *"a turning bike is drawn banked (differs … by 0 px)"*; restored, green |
-| 0 B per frame | `TheMotion_AllocatesNothing…`, `TheCue_OutsideSeatArc…` | 0 B asserted |
-| `--no-build` column | the test project was BUILT (not the production one) before every run | yes |
-| tree clean after runs | `git status` | clean apart from this batch's files |
+| T-1 the feature's own suite | `HROT_HIDDEN_WINDOW=1 xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter MotorcycleModelRail` | **13 passed / 0 failed / 0 skipped** (the real-frame rail RAN) |
+| picker / catalog / class table / atlas | `--filter "CE1017\|S1_TheIcon\|CE2138\|EntityTypeCatalog\|Atlas"` plus the rail | 89 / 89 *(goldens carry type 115, the class 80 oracle, `_motorcycle`, atlas count 79)* |
+| T1 whole project | `HROT_HIDDEN_WINDOW=1 xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build` | 2185 passed / **8 failed** / 10 skipped. ⭐ **3 PRE-EXISTING at base `b0e44e530`** (clean worktree, built and run): `CE1309_TheMindStateBar…`, `CE1086_TheFpvDrone…` (the FPV's drawn size — another lane's), `CE4388_TheCachedWireSphere…`. 4 are the HIDDEN-WINDOW mode / window-sharing rails (they pass or change without `HROT_HIDDEN_WINDOW`): `CE1039_Sessions…`, `CE4582_TheCardsHide…`, `P7B_In3D…`, `TheBuildingDamagePlanTests…`. `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` (a road vertex 1.13 m off the ground, random terrain): at the base worktree it SKIPPED ⇒ **base unconfirmed**; not a body rail — terrain lane's |
+| red-proof (ONE key rail — visual work) | remove the bank from `EntityBodyLayer3D` | `TheMotorcycle_IsDrawn_ByTheRealFrame…` fails (*differs by 0 px*); restored, green |
+| 0 B per frame | `TheMotion_AllocatesNothing…`, `TheCue_OutsideSeatArc…` | 0 B asserted (the cue rail warms 5 000 calls first: the tiered JIT allocates once) |
+| restore after the merge | `dotnet build Hrot.Presentation.Tests` WITH restore, then `--no-restore` / `--no-build` | done; the TEST project was built before every run |
+| tree clean | `git status` after the runs | clean apart from this batch's files |
 
 ## Fidelity (R-4146) — the real frame beside the mockup
 `/tmp/claude-0/-home-user-HROT/1bf325a1-da7f-51ac-b2db-4ed0c6f53d2b/scratchpad/moto/side-by-side.png` (mockup on top; real frames below: riding two up, the pillion firing to the rear-left, a banked left turn) — ⛔ not in git. Matches: two wheels, tank, long seat, driver on the bars, pillion upright behind, the pillion's torso turned toward the aim with the rifle shouldered, the arc wedge from his seat. Deviations (the mockup updated to the as-built is NOT needed — they are drawing detail): the rifle is the soldier block-figure's (a flat box), the driver's legs are straighter than the mockup's; the wedge in the real gizmo is a dashed arc + two edge lines (no fill).
@@ -61,8 +71,8 @@ Started on `b0e44e530` (coordinator merged). Backend (`a2e399011`) had only its 
 | LD-7 | the fire-arc wedge is a `SeatArcGizmo` (family Channels: the selected and pinned units, like the action status), amber dashed arc + edges, range 30 m, from the TKB's seats — not a recorded component | the user wanting it always on ⇒ a layer switch |
 | LD-8 | the stand-in type is 9115 (a test-only id; never shipped) | — |
 
-## Waits for backend (merge `origin/backend` when it has them)
-type `TkbEntityTypes.Motorcycle = 115` · class `"Motorcycle"` (`1.1.*.80`) · the seats (Pose `Ride`, X/Z ≈ (0.02, 0.90) and (−0.52, 0.90), the pillion's arc) · M-2 (`StrippedOn`) · MC-2 (off-road factor). Then: `["Motorcycle"] = VisualFamily.Motorcycle` in `FamilyOfClass`, turn `MotorcycleModelRail`'s stand-in into the real type, the thumbnail (`scripts/thumbnails.py --add-image`), the live U-3/U-4 checks.
+## What waits for backend
+Nothing blocks ui. Cross-lane edits I made in backend's `NedTkbCatalog.Motorcycle` (said): both seats `Pose = Ride` (was `Sit`), `IconName = "_motorcycle"` (was `"car"`, which has no art). Still backend's: the rough-ride spread (their L-8), the dash / drive-by / swarm plays (M-4…M-6).
 
 ## Ids
-`CE-4621` (coordinator's) updated with ui's state; no new ui ids allocated yet.
+`CE-4621` (coordinator's) updated with ui's state; no new ui ids allocated. ⭐ for the coordinator: `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` is red in the ui tree (terrain's).

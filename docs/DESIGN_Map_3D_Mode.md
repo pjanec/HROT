@@ -4079,7 +4079,7 @@ classDiagram
 
 Rails: `AirDefenceVehicleModelRail` (see the STATUS for the count; pure + frame under `xvfb-run -a`) — the REAL type 114, the class binding, the kit fitted to the TKB turret, the fire order and covers per round count, `LauncherLoad` (0 B), the rounds frame (4 / 2 / 0 ⇒ 2 covers fewer each), the launch frame (flash, smoke and missile in the frame of the shot, at the mouth); — family / kit / size / roles; the neutral kit inside its box; the launcher's elevation about the REAR hinge (to 85°) and traverse; the antenna spinning about the mast with nothing else moving; the tracker's spool, rate, wind-down and wheel roll; **0 B**; the `RadarActivity` seam; the real frame (side, three-quarter, elevated 45° and 85°, the mast Off vs On — the changed pixels lie in the top third of the truck only). Shots go to `HROT_RAIL_SHOTS`, never git.
 
-### 6al.2 CE-4621 U-1 … U-3 — the motorcycle: two wheels, two seated riders, the pillion who fires *(ui, `2026-11-15`; build-state: BUILT against a STAND-IN type — re-bind to backend's type 115 / class `Motorcycle` / seats when they land; U-4 the driving: see the STATUS)*
+### 6al.2 CE-4621 U-1 … U-3 — the motorcycle: two wheels, two seated riders, the pillion who fires *(ui, `2026-11-15`; build-state: BUILT — bound to backend's type 115 / class `Motorcycle` / seats, thumbnail, live-checked (drive, lean, board the pillion seat, the out-of-arc cue, fire in / out of the arc))*
 
 Owner of the TYPE and the behaviour: [DESIGN_Motorcycle.md](designs/vehicle-tactics/DESIGN_Motorcycle.md) §2 MC-1 / PF-1 / PL-1…PL-3, §2a (the fixed ids), §6 M-1v / M-2p. Mockup (house style, R-4143): [`motorcycle-visuals.svg`](designs/vehicle-tactics/motorcycle-visuals.svg) (`scripts/gen-motorcycle-mockup.py`). Precedent mirrored: §6al.1 (the radar SAM).
 
@@ -4087,7 +4087,7 @@ Owner of the TYPE and the behaviour: [DESIGN_Motorcycle.md](designs/vehicle-tact
 
 | what | as built |
 |---|---|
-| family / kit | `VisualFamily.Motorcycle` · `ShapeKits.Motorcycle` (METRES, `Mo(...)`, 2.1 × 0.8 × 1.15 m): TWO wheels (`MotoWheelRadius` 0.31 m, front narrower than rear, a `WheelSpoke` each), engine, frame, raked fork, bars, tank, long seat, tail, rack, exhaust, pegs. `["Motorcycle"]` in `FamilyOfClass` waits for backend's class |
+| family / kit | `VisualFamily.Motorcycle` · `ShapeKits.Motorcycle` (METRES, `Mo(...)`, 2.1 × 0.8 × 1.15 m): TWO wheels (`MotoWheelRadius` 0.31 m, front narrower than rear, a `WheelSpoke` each), engine, frame, raked fork, bars, tank, long seat, tail, rack, exhaust, pegs. `["Motorcycle"]` in `FamilyOfClass` (backend's class `1.1.*.80`); kit fitted to backend's TKB: 2.1 × 0.8 × 1.2 m, seat 0 hips (0.1, 0, 0.75), seat 1 (−0.45, 0, 0.85) |
 | the bank | `MotionTracker` `case Motorcycle`: wheels roll on the bike's radius; `MotionPose.Bank` = `atan(v·ω/g)` capped at `MaxBank` 35°, eased `BankSeconds` 0.15 s; `EntityBodyLayer3D` banks the BODY about its ground line (`CreateRotationX`) and the seated riders lean with it (`MotionTracker.BankOf(holder)`, last frame's). A DRAWING only — the sim never leans. 0 B |
 | the riders | `SeatPose.Ride` (=4, appended to the FDP enum): `BlockFigure.Riding(driver, soldier)` — the SEATED figure's parts in the same order (outfit, blood, rails read it unchanged), legs astride, feet on the pegs, the driver's hands on the bars (upper body leans `DriverLean`), a pillion's on the man ahead (`PillionLean`), the rifle slung across the back |
 | ⭐ the firing pillion | a soldier on a FIRING seat (a seat stating `TraverseMinDeg/MaxDeg`, role ≠ Station — PF-1) whose weapon brain posture is `Aimed` is drawn `BlockFigure.RidingAiming`: the rifle shouldered and level, the upper body TURNED to the aim point in the SEAT's frame (`AimInSeat`, limited to `MaxSeatTwist` 160°, eased by the same `PostureBlend` as a standing man's), head turning to his eyes. `SeatedMotion` computes it |
@@ -4118,7 +4118,7 @@ classDiagram
 
 *What it shows: no new man is drawn — the existing seated-rider path gains one pose and one firing variant; the bank and the arc each enter in ONE place (`MotionTracker.BankOf`, `InArc`).*
 
-Rails: `MotorcycleModelRail` (10: kit, motion + 0 B, figures, `AimInSeat`, the carriage, the arc and the HUD cue (0 B), the real frame under `xvfb-run -a`). ⏳ waits for backend: the real type 115 / class / seat numbers (the stand-in uses 9115, DIS 1.1.0.80.1, seat 0 Driver `Ride` at (0.02, 0, 0.90), seat 1 pillion `Ride` at (−0.52, 0, 0.90) with an arc 70…290), the thumbnail.
+Rails: `MotorcycleModelRail` (13: kit, motion + 0 B, figures, `AimInSeat`, the carriage, the arc and the HUD cue (0 B), the real frame under `xvfb-run -a`). ✅ the rail draws the REAL type 115 through the real catalogue; thumbnail = atlas page 1 slot 0/2 (79 pictures). The DRIVER always stays on the bars (backend's rider seat has an arc — PF-4 — but only a non-driver firing seat is drawn aiming); his arc wedge is dimmer.
 
 ### 6am. CE-4582 — unit cards hidden behind terrain; one card per unit, every unit text a row of it *(coordinator, `2026-11-14`; build-state: BUILT step 1 `2026-11-14` — ⭐ read **6am.AB** first: D-1's mechanism, D-7's rows and D-9's mask are SUPERSEDED there; step 2 WON'T DO — the user accepts trees hiding cards, CE-4587)*
 
