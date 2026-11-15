@@ -63,6 +63,23 @@ published/replicated so other entities and on machines can detect that."*
 | **RS-9** | **who builds**: backend builds all of RS-1…RS-10 incl. the behaviours (cross-lane into `Hrot.AI.Behaviors`, said) and the placeholder look rows (DIS type and class, a placeholder `MunitionVisualDto` and effect set); **ui** builds the vehicle's visual family / shape kit, a second time-driven spinning mast part keyed on `RadarEmission.On`, the missile look and the launch effect (cross-lane into `MunitionTkbCatalog`, said) | RV-15 — ⛔ there is no asset key to bind; 3-D bodies come from the DIS type → `VisualFamily` → a `ShapeKit` |
 | **RS-10** | ⭐⭐ **RADAR RADIATION IS PUBLISHED** (🔒 user: *"needs to be published/replicated so other entities and on machines can detect that"*): one unmanaged, recorded, **replicated** `RadarEmission` on the emitting vehicle — `On`, `Mode` (Search / Track), `TrackedTarget`, the emitter's class and range — written ONLY by its owner (added with its final value, D-31). It is the ONE owner of "is the radar radiating": the radar sensor runs off it (RS-2), the visuals spin the mast off it (RS-9), and **every node DERIVES its detections from it**: an aircraft's radar warning receiver (inside the emitter's range and line of sight ⇒ *searched*; `TrackedTarget` = me ⇒ *tracked*) writes the aircraft's OWN `RadarWarning` on the aircraft's node; the side's direction finding gives RS-7's SPOT. Any later passive receiver (an EW vehicle, an ESM sensor) reads the same component | ⭐ the thermal design's own rule (§3a): *derive where the sensor solves from published inputs* — and its stated exception, *"a source NOT observable from published data … then that one input gets published"*: radiation is exactly that. ⛔ Rejected: the sensor's enabled flag (not visible to other entities) and a warning EVENT from the SAM (RV-8 — it only covers the tracked case and one receiver) |
 
+### 2a. The fixed ids — ONE entity type for both lanes *(coordinator, `2026-11-15`; 🔒 user: "Does the ui handoff specify what entity type to assign the visuals to?" — it did not)*
+
+📐 Measured free on every lane (`coordinator`, `behaviors`, `backend`, `ui`, `terrain`): vehicle id 114, munition id 6047, DIS land category 28,
+the class and family names. ⛔ Permanent wire values once built — never reuse or renumber.
+
+| what | the value | where it is declared | owner |
+|---|---|---|---|
+| the vehicle's TKB entity type | **`TkbEntityTypes.AirDefence_RadarSam = 114`** — "Radar SAM vehicle" (one type; the side comes from the scenario's faction) | `Hrot/Engine/Hrot.Core/MapDefinitions/TkbEntityTypes.cs` (next to `Ew_DroneJammer = 113`) | backend B-2 |
+| its DIS type | **Kind 1 · Domain 1 (land) · Category 28** (SISO: *Air Defense / Missile Defense Unit Equipment*) · Subcategory 1 | `NedTkbCatalog.cs` (`WithDisType`, as `Ew_DroneJammer` at `:838`) | backend B-2 |
+| its entity class | **`"AirDefenceVehicle"`** = `1.1.*.28` | `Hrot/Engine/Hrot.Core/Tkb/EntityClassTable.cs` (beside `"Bulldozer"` at `:170`) | backend B-2 |
+| its 3-D family | **`VisualFamily.AirDefenceVehicle`**, keyed by the class name in `FamilyOfClass` | `Hrot/Engine/Hrot.Presentation/Map3D/VisualFamily.cs` (beside `["Bulldozer"]` at `:78`) + its `ShapeKit` | **ui** U-1 |
+| the missile | **`MunitionTkbCatalog.TkbRadarSamMissile = 6047`** (next to `TkbThrowingStar = 6046`) | `MunitionTkbCatalog.cs` | backend B-2 (placeholder look row) · ui U-2 tunes the look |
+| the launcher | ⭐ the vehicle's OWN turret-0 mount — **no separate weapon-system entity** (unlike the ZU-23 technical's 615) | the type's combat mounts | backend B-2 |
+
+*Why one class and one family:* `VisualFamily.Of` picks the 3-D body from the DIS class chain (`VisualFamily.cs:93-99`), so the class name is the
+ONE key both lanes share — backend declares it, ui maps it. ⛔ No asset key, no model path (never read by the presentation).
+
 ## 3. UML *(as amended, R-4259)*
 
 ```mermaid
