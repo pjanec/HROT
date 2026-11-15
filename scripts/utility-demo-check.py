@@ -6109,6 +6109,11 @@ def main():
         t0 = sim_time()
         SCENARIOS[a.scenario](c, a.timeout)
         print(f"== simTime {t0} → {sim_time()}")
+        if EDITOR_HOST:   # ⭐ the determinism probe: two runs with the same steps must end on the same hash (EntityGuid is random by design)
+            h = data(call("GET", "/world/hash?byType=1")) or {}
+            types = {k: v for k, v in (h.get("types") or {}).items() if k != "EntityGuid"} if isinstance(h.get("types"), dict) else h.get("types")
+            print(f"== world hash {h.get('hash')} at tick {h.get('tick')} · simTime {h.get('simTime')} · {h.get('entities')} entities")
+            print(f"== world hash by type {json.dumps(types, sort_keys=True)}")
     finally:
         if proc:
             stop(proc)
