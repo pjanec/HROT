@@ -60,6 +60,11 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 | AU-4: `--filter SquadManeuverTests\|SuppressNodesTests\|ScenarioRulesTests\|AirAttackNodesTests\|VehicleFightFromCover\|BasicInfantrySop` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 497 / 497 · 493 / 497 — the four reds are the `BasicInfantrySopTests` CE3306 / CE4035 / CE2332 / CE1269, recorded PRE-EXISTING under PAR in `STATUS_Behaviors_Command_Chain_Overnight.md` §3 (row "after CE-4610") |
 | AU-4: registry suites | ✓ | 36 / 36 after re-recording: one new line, `VehicleSupportByFire` 328 |
 | AU-4 red-proofs | — | platoon guard dropped · squad guard dropped · vehicle check dropped · `AllSet` waits on the vehicle · drones jammable again ⇒ each RED; restored 43 / 43 |
+| AU-7 + AU-5: `dotnet test Fdp.Toolkits.Tests --filter Combat\|Utility` | ✓ | 721 / 721 |
+| AU-7 + AU-5: SimHost `--filter SquadManeuverTests\|SuppressNodes\|ScenarioRules\|AirAttackNodes\|VehicleFightFromCover\|BasicInfantrySop\|AirDefenceNodes\|ShelterFromAirNodes\|BasicVehicleSop` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 517 / 517 · 513 / 517 — the same four pre-existing `BasicInfantrySopTests` reds as AU-4 |
+| AU-7 + AU-5: registry suites | ✓ | one moved line after re-recording: new `DroneTeam` 28 |
+| AU-7: `Hrot.Core.Tests` (the catalogue, types 212 / 213) | built | 370 / 371 — ⚠ the red `HrotEnvironmentTests.CreateGeoTransform_HasNoDefaultOrigin_…` is geo-frame code this batch does not touch (`LocalOnlyFrame.ToGeodetic` throws by design since CE-4396, 2026-11-10); NOT proven at a base sha |
+| AU-7 + AU-5 red-proofs (`scratchpad/mutate6.py`, `mutate7.py`) | — | pellets not spawned · pattern dropped · range limit not set · range expiry dropped · rifle's 20 m dropped · shotgun range ignored · MG not counted · pellets not a drone gunner · air 2-D estimate dropped · pellet range estimate dropped · drone-gunner choice dropped · strike kept at the consolidation · operator ordered with no strike ⇒ each RED (13); the other five see the row below |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids
