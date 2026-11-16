@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -23,7 +23,7 @@ A short tour of the simulation's capabilities, one chapter per area. Each bullet
 it best (`scenarios/<category>/<name>/scenario.json` — showcases, demos by area, tests; a plain name finds it, R-4185). Every scenario carries a `description` saying what happens and how to judge it, and most have
 a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
-- **Marks:** ✅ the live check passes · ⚠ passes with a caveat · ⏸ parked, varies run to run · ⏳ not built · 📐 **designed and planned** — the
+- **Marks:** ✅ the live check passes · ⚠ passes with a caveat · ⏸ parked, varies run to run · ⏳ not built · 🚧 **being built now** on a lane (the design is ruled and dispatched) · 🧪 **experimental** — built on a separate branch, not part of the product until the user takes it in · 📐 **designed and planned** — the
   design is ruled and its tasks are filed, the build has not started (it will come soon).
 - **Deeper:** the rules behind each bullet, with code and design links, are in [OVERVIEW_Rules_And_Demos.md](OVERVIEW_Rules_And_Demos.md).
   The machinery is in [OVERVIEW_Behaviour_Building_Blocks.md](OVERVIEW_Behaviour_Building_Blocks.md). The engine architecture is in the
@@ -200,6 +200,19 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Small things people do:** take out a phone on a pause, hold a stone ready to throw. (Shown inside the riot demos.)
 - **Neutral people are never targets:** no unit aims at them, and they are not counted as threats. ▶ `ua-civ-neutral-gate` ✅
 
+## 3a. Animals *(added `2026-11-16`; ⚠ built by the `backend` and `ui` lanes, the batch still finishing — [DESIGN_Animals](designs/animals/DESIGN_Animals.md), CE-4623)*
+
+- **Nine species** — cattle, sheep, horses, dogs, cats, hens, pigs, goats and birds — each with its own type, size, gait and sounds. They graze
+  round their herd's spot, rest at night, grow uneasy, and flee from shots, vehicles and blasts. They are frightened by the SAME fear model as
+  civilians, from every side.
+- **Herds and flocks:** a herd moves and flees together; birds lift off as a flock and settle elsewhere. A frightened big animal breaks
+  through a small fence (a wall or hedge holds); horses and goats jump low fences.
+- **Species behaviours:** a guard dog barks at a stranger and bites one who comes close; a horse can be ridden, and its rider can fire from
+  the saddle.
+- **Animal areas:** draw an area, say what lives there and how many, and the animals are placed when the run starts.
+- **Sounds that carry:** calls, alarm calls and barks are heard at their own ranges, and the soldiers' hearing picks them up.
+- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · ⏳ a cat jumping onto a sill
+
 ## 4. Armed people, riots and police
 
 - **"Is he armed?" is judged by each observer.** It depends on range, light and optics, and on whether the weapon is in his hands, on
@@ -288,6 +301,12 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   civilians, all in one battle on demo-city. ▶ `uc-urban-battle` ✅ — the IED, the dismount and the mortar now happen on screen; the air
   strike does not yet (CE-4032)
 
+- *(added `2026-11-16`)* **A company assault under fire,** suppression first: the base of fire takes a covered building on the line of
+  fire and opens up; mortars fire a sustained mission and a smoke screen; the assault crosses under smoke and is ordered forward again if its
+  approach fails; a spent assault is relieved; IFVs fire on reported posts they cannot see; a drone team scouts and strikes; phase lines have
+  deadlines. Three versions of the battle: the plan works, it stalls (the reserve is committed), or the defence collapses.
+  ▶ `cc-battalion` ✅ · `cc-battalion-stall` ✅ · `cc-battalion-collapse` ✅ ([DESIGN_Assault_Under_Fire](designs/group-maneuvers/DESIGN_Assault_Under_Fire.md), CE-2436)
+
 ## 8. Buildings and close quarters
 
 - **Doors:** a mover routes round a locked door and opens a closed one on the way. A locksmith unlocks a door. ▶ `bt-doors` ✅
@@ -324,6 +343,26 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   to bring a limited-arc mount onto the target. (R-2086; CE-2430, CE-2431, CE-2432) ▶ `ua-technical-scoot`
 - **Possessed weapons fire:** a player in a technical's heavy machine gun hits people; a possessed ZU-23 fires. (CE-1299, CE-2317) ✅
 
+- *(added `2026-11-16`)* **Motorcycles:** bikes ride off-road by surface (open ground, scrub, forest), carry a rider and a pillion who
+  fires while riding, and run three plays — a drive-by, a parked bomb on a timer, and a swarm raid from all sides. A **grey-zone dash** past
+  drones: riders listen for them (riding dulls their hearing), break hard when one dives, and dismount at the edge.
+  ⏳ no live demo yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
+- 📐 **Checkpoints and ramming:** a vehicle checkpoint with its drill, and vehicles that ram through a barrier or another vehicle.
+  ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
+
+## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
+
+- 🚧 **A minefield is one object:** an outline, a mine type (anti-personnel, anti-tank or mixed), a spacing and a row direction. Thousands of
+  mines are worked out from it, the same on every computer, never stored one by one.
+- 🚧 **Stepping on a mine:** a man sets off an anti-personnel mine; an anti-tank mine needs a vehicle's weight and hits it from below. A mine
+  goes off once.
+- 🚧 **Each side knows only what it has learned:** a strike makes the area round it SUSPECTED; engineers sweep it slowly and mark the cells
+  clear or mined; a marked field is known to everyone who sees it; your own fields are known from the start. The knowledge is saved, replayed
+  and shared by the whole side.
+- 🚧 **Routes avoid what the side knows,** and go through only when there is no other way — then the squad halts and calls the engineers.
+- 🚧 **Clearing a lane:** a mine-clearing tank with a plough or flail, or a line charge, cuts a marked lane; the company's breach play covers
+  it with fire and smoke, and the squads cross in single file.
+
 ## 10. Drones, aircraft and air defence
 
 - **FPV drones** search for a target, dive on it and hit the first thing in their path. A roof or deck shields what is under it.
@@ -338,6 +377,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   goes prone. ▶ `ua-eject` ⚠ this demo ORDERS the eject at 40 s; no demo yet shoots a plane down and lets the pilot eject by himself
 - **Command chain with air:** the HQ sends the strike plane at nearby air defence first; otherwise the attack helicopter searches the
   point. ▶ `uc-a10-zu23-dry` ✅ · `uc-request-chain` 🟡
+
+- *(added `2026-11-16`)* **A realistic FPV pilot:** the drone dives on what its camera saw a moment ago, with the operator's delay, so a
+  vehicle that turns hard at the last second can make it miss — though rarely by more than the warhead's wounding radius. ▶ `ua-drone-shelter` ✅
+- *(added `2026-11-16`)* **Shooting drones down:** an anti-drone shotgun, machine guns, cannon, air defence, and any rifle at close range;
+  the gunners stand and fire, everyone else takes cover. Drones can be made immune to jamming with one switch. (shown in `cc-battalion`)
+- *(added `2026-11-15`)* **A radar SAM site:** a search radar finds aircraft, a tracking radar guides the missiles; aircraft get a radar
+  warning when they are painted. ▶ `sam-site` ✅ (3 of 3, the same at 1, 4 and 8 threads) ([DESIGN_Radar_SAM](designs/air-attack/DESIGN_Radar_SAM.md))
 
 ## 11. Indirect fire
 
@@ -363,8 +409,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 | | what |
 |---|---|
 | **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
-| **designed, not built** | 📐 dynamic terrain, §2b — house pads and level roads at import, ground shaping, ditches and foxholes, craters, blocked roads for SUMO, a player's tank breaking weak barriers, the bulldozer's cut, felling lone trees |
-| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · temperament and stress breaks · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
+| **being built** | 🚧 minefields, §9b · 🧪 the stochastic unit, §15 (experimental) |
+| **designed, not built** | 📐 checkpoints and ramming (§9) · mounted archers (bows from horseback, later) · knowledge of other places per side (a destroyed bridge, a cleared building — the minefield builds the shared machinery first) |
+| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
 ## 14. Authoring, live control and review — what a user can change, and when *(added `2026-11-06`)*
@@ -480,3 +527,14 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | Keyboard shortcuts routed to the focused window, listed under View ▸ Settings | ● | ● | ● | ✅ CE-4282, CE-4337 |
 | A node extension (a folder of plug-ins every node loads) | ⚙ | ⚙ | ⚙ | ✅ CE-4293 |
 | Run the editor and its frame tests with no window on screen (`HROT_HIDDEN_WINDOW=1`) | ⚙ | ⚙ | ⚙ | ✅ CE-4386 |
+| *(2026-11-16)* The terrain editor, the user-friendly way: draw walls, fences, hedges, ditches and berms that follow the slope; place a ROW of obstacles as one group; delete or edit several placed objects at once in one undo step | ● | – | – | ✅ CE-4594, CE-5008, CE-5015, CE-5017 ([DESIGN_Terrain_Editor_UX](DESIGN_Terrain_Editor_UX.md)) |
+| *(2026-11-16)* Animal areas: what lives there, how many | ● | – | – | ⚠ CE-4623 (the form binds to a temporary component until backend lands) |
+
+## 15. The stochastic unit — whole units fought as numbers *(🧪 experimental, `2026-11-16`: three `exp/agg-*` lanes — [DESIGN_Stochastic_Units_And_Resolution](designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) §23, CE-4616)*
+
+- 🧪 **One entity for a whole platoon, company or battalion,** its men and vehicles kept as slots (health, ammunition, stress), so a large
+  battle costs a fraction of one fought man by man. The SAME orders, reports and SITREPs as physical units.
+- 🧪 **Movement, sensing and combat as probabilities:** the unit moves as a shape across the terrain at its slowest member's pace, detects
+  by a chance that grows with exposure, and fights with killer–victim tables generated from the real weapon and armour models.
+- 🧪 **Changing resolution mid-run:** a stochastic unit can split into real soldiers and vehicles when the fight comes close — keeping every
+  identity — and merge back later.
