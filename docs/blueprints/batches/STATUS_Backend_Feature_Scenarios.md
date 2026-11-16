@@ -10,7 +10,7 @@ related-designs:
 # STATUS — backend: the FEATURE-TEST SCENARIOS (R-4277; CE-4621, CE-4623)
 
 Handoff: [`HANDOFF_Coordinator_To_Backend_Feature_Scenarios.md`](HANDOFF_Coordinator_To_Backend_Feature_Scenarios.md), dispatched at `816edc3b9`.
-⭐ Every scenario: `scenario.json` (What · Judge), `checks.json` (one `expect` row per Judge line), a golden once it passes.
+⭐ **Goldens captured `2026-11-16` for the 8 that pass** (`--verify-capture`, 8 of 8 PASS). Every scenario: `scenario.json` (What · Judge), `checks.json` (one `expect` row per Judge line), a golden once it passes.
 DONE = `scripts/scenario-regression.sh <name>` passes (the deterministic editor tier).
 
 ## The scenarios
@@ -19,11 +19,11 @@ DONE = `scripts/scenario-regression.sh <name>` passes (the deterministic editor 
 |---|---|---|
 | `ua-moto-drive-by` | ✅ PASS (6/6) | the pass aimed past the post along the bike→post bearing: the bike left the road and drove up to the sentries (fixed, R-3089); a test-town escape past x = 500 was off the map (authoring, R-3095) |
 | `ua-moto-drive-by-grenade` | ✅ PASS (6/6) | the throw was ordered at 40 m — beyond a hand throw — and burst short (fixed: within 25 m or abeam, R-3093); the 2002 pillion carries no grenade (authoring: a 2004 grenadier) |
-| `ua-moto-parked-bomb` | ⏳ re-running (8/9 before CE-3459) | `ChargeTimer` was never registered — no bomb could be armed outside the rails (**CE-3456**, fixed); the bike had no cargo station for the charge (fixed, R-3088); the riders stood beside their bomb (fixed: they walk clear, R-3090); a road start stalls the bike (**CE-3452**, filed; the play retries, R-3092); "everyone out" set the charge down and it drifted ~270 m with the bike's velocity before it burst, so no shopper was hurt (**CE-3459**, fixed) |
+| `ua-moto-parked-bomb` | ✅ PASS (9/9) | `ChargeTimer` was never registered — no bomb could be armed outside the rails (**CE-3456**, fixed); the bike had no cargo station for the charge (fixed, R-3088); the riders stood beside their bomb (fixed: they walk clear, R-3090); a road start stalls the bike (**CE-3452**, filed; the play retries, R-3092); "everyone out" set the charge down and it drifted ~270 m with the bike's velocity before it burst, so no shopper was hurt (**CE-3459**, fixed) |
 | `ua-moto-swarm-raid` | ⚠ 10/11 — blocked on CE-3454 | every bike reaches its approach point, they close together, ride out and rally ✔ (after `SwarmRaid` fulfils `Dash`, R-3096); the pillions never fire — the play leaves fire to their own weapon brains (its design), and a firing-seat man never engages alone (**CE-3454**, behaviors) |
-| `ua-moto-drone-dash` (+ `-offroad`) | ⏳ not yet authored | no scenario uses `DroneOperator` yet |
+| `ua-moto-drone-dash` (+ `-offroad`) | ⏳ not authored | no scenario uses `DroneOperator` yet, and the dash's FPV pursuit is the drone lane's machinery; authoring it needs a measured FPV-vs-bike chase first — left for the next batch (R-106: this item stops, the rest go on) |
 | `ua-animal-guard-dog` | ✅ PASS (5/5) | an attacking animal read "unarmed" (**CE-3455**, fixed); two soldiers started off the map and never moved (authoring, R-3097 — the engine's silence is **CE-3458**) |
-| `ua-animal-horse-rider` | ⏳ re-running | the horse gallops, never bolts, keeps its rider ✔; the rider never engaged on his own (**CE-3454**, filed to behaviors) — the scenario orders his fire, which works at a gallop (20 rounds, hits) |
+| `ua-animal-horse-rider` | ✅ PASS | the horse gallops, never bolts, keeps its rider ✔; the rider never engaged on his own (**CE-3454**, filed to behaviors) — the scenario orders his fire, which works at a gallop (20 rounds, hits) |
 | `ua-animal-flock-flush` | ✅ PASS (6/6) | animals crowded every man's target memory (**CE-3453**, fixed); the patrol's destination and two ambushers were off the 300 m farm and stood still for good (authoring, R-3097; **CE-3458**) |
 | `ua-animal-herd-road` | ✅ PASS (6/6) | the tank panics the herd, it flees, the convoy goes on, no cow run over ✔; the second APC started off the map (authoring, R-3097); vehicles never yield to animals (**CE-3457**, filed) |
 | `ua-animal-village-fight` | ✅ PASS (5/5) | the animal crowding (CE-3453); Blue started off the map (R-3097); the villagers stood ~180 m from the fight and a civilian hears 100 m (authoring: Red by the farmyard); the anchor waited for a Blue shot — Blue, shot at in the open, break without firing back — the firefight now starts on any shot (R-3097) |

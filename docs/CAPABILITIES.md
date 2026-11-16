@@ -211,7 +211,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   the saddle.
 - **Animal areas:** draw an area, say what lives there and how many, and the animals are placed when the run starts.
 - **Sounds that carry:** calls, alarm calls and barks are heard at their own ranges, and the soldiers' hearing picks them up.
-- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · ⏳ a cat jumping onto a sill
+- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · feature scenarios (R-4277, `scripts/scenario-regression.sh <name>`): `ua-animal-guard-dog` ✅ 5/5 · `ua-animal-horse-rider` ✅ (⚠ the rider is ordered to fire — a firing-seat man never engages alone, CE-3454) · `ua-animal-flock-flush` ✅ 6/6 · `ua-animal-herd-road` ✅ 6/6 (⚠ the herd clears the road by fear; vehicles never yield to animals, CE-3457) · `ua-animal-village-fight` ✅ 5/5 · ⏳ a cat jumping onto a sill
 
 ## 4. Armed people, riots and police
 
@@ -346,7 +346,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - *(added `2026-11-16`)* **Motorcycles:** bikes ride off-road by surface (open ground, scrub, forest), carry a rider and a pillion who
   fires while riding, and run three plays — a drive-by, a parked bomb on a timer, and a swarm raid from all sides. A **grey-zone dash** past
   drones: riders listen for them (riding dulls their hearing), break hard when one dives, and dismount at the edge.
-  ⏳ no live demo yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
+  ▶ feature scenarios (R-4277): `ua-moto-drive-by` ✅ 6/6 · `ua-moto-drive-by-grenade` ✅ 6/6 · `ua-moto-parked-bomb` ✅ 9/9 (⚠ a road start can stall, CE-3452 — the play retries) · `ua-moto-swarm-raid` ⚠ 10/11 (the pillions never fire on their own, CE-3454) · ⏳ the grey-zone dash, no scenario yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
 - 📐 **Checkpoints and ramming:** a vehicle checkpoint with its drill, and vehicles that ram through a barrier or another vehicle.
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
 
