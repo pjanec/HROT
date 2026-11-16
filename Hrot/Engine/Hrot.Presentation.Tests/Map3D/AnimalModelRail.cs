@@ -118,7 +118,8 @@ public sealed class AnimalModelRail
                     minX = MathF.Min(minX, w.X); maxX = MathF.Max(maxX, w.X); maxY = MathF.Max(maxY, MathF.Abs(w.Y)); minZ = MathF.Min(minZ, w.Z); maxZ = MathF.Max(maxZ, w.Z);
                 }
             }
-            Assert.InRange(minX, -size.X / 2f - 0.02f, -size.X / 2f + 0.02f); Assert.InRange(maxX, size.X / 2f - 0.02f, size.X / 2f + 0.02f);   // centred and measured: the box IS the kit
+            float ahead = AnimalKits.OriginAhead(f);
+            Assert.InRange(minX, -size.X / 2f + ahead - 0.02f, -size.X / 2f + ahead + 0.02f); Assert.InRange(maxX, size.X / 2f + ahead - 0.02f, size.X / 2f + ahead + 0.02f);   // measured: the box IS the kit (a horse drawn OriginAhead forward)
             Assert.InRange(minZ, -0.02f, 0.02f);                                                                                              // on its feet
             Assert.InRange(maxZ, size.Z - 0.02f, size.Z + 0.02f);
             if (VisualFamilies.IsQuadruped(f))
@@ -253,7 +254,7 @@ public sealed class AnimalModelRail
         var terrain = Map3DTests.TestTown();
         var world = Map3DTests.WorldWith(terrain);
         world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>(); world.RegisterComponent<Health>(); world.RegisterComponent<AnimalState>(); world.RegisterComponent<FlockState>();
-        var tkb = Map3DTests.BuiltIn();
+        var tkb = WithAnimals();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         double clock = 0.0;
         void Clock(double dt) { clock += dt; world.SetSingletonUnmanaged(new GlobalTime { TotalTime = clock }); }
@@ -270,7 +271,6 @@ public sealed class AnimalModelRail
         var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => pose);
         (VisualFamily F, long Type)[] species = [(VisualFamily.Cattle, 700), (VisualFamily.Sheep, 701), (VisualFamily.Horse, 702), (VisualFamily.Dog, 705), (VisualFamily.Cat, 706),
                                                  (VisualFamily.Poultry, 709), (VisualFamily.Pig, 710), (VisualFamily.Goat, 711), (VisualFamily.Bird, 708), (VisualFamily.Bird, 707)];
-        foreach (var (f, type) in species) bodies.PinLook(type, new EntityBodyLayer3D.TypeLook(f, ShapeKits.DefaultSize(f), EntityBodyLayer3D.DefaultColour(f), false));
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => G(x, y);
         canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
@@ -376,23 +376,44 @@ public sealed class AnimalModelRail
 
     // ── ⭐ AU-6: the rider ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>⭐ A STAND-IN for backend's type 703 (riding horse: seat 0 the rider — a firing seat that fires while riding —, seat 1 a second rider, §6.1) until backend registers it: DIS 3.1.0.202.2, a Ride seat on the horse's back.</summary>
-    private static Fdp.Toolkit.Tkb.TkbDatabase WithRidingHorse(out long type)
+    /// <summary>⭐ Backend's REAL animal types 700…711 (AB-1: DIS, classes, sizes, the riding horse's seats), through the real catalogue.</summary>
+    private static Fdp.Toolkit.Tkb.TkbDatabase WithAnimals()
     {
         var db = Map3DTests.BuiltIn();
-        type = 703;
-        if (!db.TryGetByType((TkbTypeId)type, out _))
-        {
-            var t = new Fdp.Interfaces.TkbTemplate("Animal_HorseRiding_StandIn", type) { DisType = new DISEntityType { Kind = 3, Domain = 1, Category = 202, Subcategory = 2 } };
-            var carrier = new Fdp.Toolkit.Tkb.Domain.CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
-            carrier.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, Exposed = true, X = -0.05f, Z = 1.49f,
-                                                                    Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride, TraverseMinDeg = -180f, TraverseMaxDeg = 180f });
-            carrier.Seats.Add(new Fdp.Toolkit.Tkb.Domain.SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Exposed = true, X = -0.55f, Z = 1.49f,
-                                                                    Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride, TraverseMinDeg = 70f, TraverseMaxDeg = 290f });
-            t.AddDescriptor(carrier);
-            db.Register(t);
-        }
+        Hrot.Core.Tkb.AnimalTkbCatalog.RegisterAll(db);
         return db;
+    }
+
+    private static Fdp.Toolkit.Tkb.TkbDatabase WithRidingHorse(out long type) { type = 703; return WithAnimals(); }
+
+    // ── ⭐ the real types: family by CLASS, the size scaled by the TKB's length, the saddle on the horse's back ────────────────────
+
+    [Fact]
+    public void EveryAnimalTkbType_ResolvesToItsFamilyByClass_NeverThePerson_ScaledToTheTkbsLength_AndTheRidersSeatSitsOnTheHorsesBack()
+    {
+        var db = WithAnimals();
+        (long Type, VisualFamily F)[] expect = [(700, VisualFamily.Cattle), (701, VisualFamily.Sheep), (702, VisualFamily.Horse), (703, VisualFamily.Horse), (704, VisualFamily.Horse), (705, VisualFamily.Dog),
+                                                (706, VisualFamily.Cat), (707, VisualFamily.Bird), (708, VisualFamily.Bird), (709, VisualFamily.Poultry), (710, VisualFamily.Pig), (711, VisualFamily.Goat)];
+        foreach (var (type, f) in expect)
+        {
+            var t = db.GetByType((TkbTypeId)type)!;
+            Assert.Equal(f, VisualFamilies.Of(t));
+            var look = EntityBodyLayer3D.Resolve(t);
+            Assert.Equal(f, look.Family);
+            Assert.False(look.Child || look.Soldier);
+            var length = t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>()?.Length;
+            if (length is > 0f) Assert.InRange(look.Size.X, length.Value - 0.01f, length.Value + 0.01f);   // a cow is as long as its TKB says; its proportions are the kit's
+        }
+        foreach (var name in new[] { "Cattle", "Sheep", "Horse", "Dog", "Cat", "Bird", "Poultry", "Pig", "Goat" }) Assert.True(VisualFamilies.FamilyOfClass.ContainsKey(name));
+        // the saddle: the rider's hips (backend's seat 0) sit on the horse's back (the kit's torso top, scaled by the type's length), the second rider behind him
+        var horse = EntityBodyLayer3D.Resolve(db.GetByType((TkbTypeId)703)!);
+        var kit = ShapeKits.For(VisualFamily.Horse);
+        float backTop = kit.Parts[0].Centre.Z * horse.Size.Z + kit.Parts[0].Extent.Z * horse.Size.Z / 2f;
+        var seats = db.GetByType((TkbTypeId)703)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!.Seats;
+        Assert.InRange(seats[0].Z - backTop, -0.05f, 0.12f);
+        float torsoX = kit.Parts[0].Centre.X * horse.Size.X;
+        Assert.InRange(seats[0].X - torsoX, 0.1f, 0.55f);   // the hips sit forward of the torso centre, behind the withers (torso half-length 0.7)
+        Assert.True(seats[1].X < seats[0].X);
     }
 
     [Fact]
@@ -468,7 +489,6 @@ public sealed class AnimalModelRail
         var two = new MapCamera();
         canvas.Camera = two;
         var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => pose);
-        bodies.PinLook(type, new EntityBodyLayer3D.TypeLook(VisualFamily.Horse, ShapeKits.DefaultSize(VisualFamily.Horse), EntityBodyLayer3D.DefaultColour(VisualFamily.Horse), false));
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => G(x, y);
         canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
@@ -518,10 +538,5 @@ public sealed class AnimalModelRail
         return n;
     }
 
-    private static string RepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "assets", "icons"))) dir = dir.Parent;
-        return dir?.FullName ?? throw new DirectoryNotFoundException("repo root (assets/icons)");
-    }
+    private static string RepoRoot() => Fdp.Testing.TestRepo.Root;   // the ONE repo-root walk-up (CE-3343)
 }

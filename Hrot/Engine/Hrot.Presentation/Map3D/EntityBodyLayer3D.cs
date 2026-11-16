@@ -2139,6 +2139,11 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             // ⭐ CE-1086 (§6n N-7) — a drone is as big as its flight body (the collider the sim stamps from Gen.Flight)
             size = new Vector3(2f * flight.BodyRadiusM, 2f * flight.BodyRadiusM, flight.BodyHeightM);
         }
+        else if (VisualFamilies.IsAnimal(family) && Positive(t.GetDescriptor<VehicleParametersDto>()?.Length) is { } animalLength)
+        {
+            // ⭐ CE-4623 — an animal keeps its kit's PROPORTIONS: scaled uniformly to the TKB's length (backend's width / height are first estimates; the kit's seat height then follows the length)
+            size *= animalLength / size.X;
+        }
         else if (family != VisualFamily.Person && family != VisualFamily.Unit)
         {
             var sim = t.GetDescriptor<SimVehicleDef>();

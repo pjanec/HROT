@@ -30,7 +30,7 @@ ROLE = lambda role, body: {"Body": body, "Dark": DARK, "Light": lighten(body), "
 # (X0, X1, BodyW, Z0, BodyH, NeckUp, NeckL, NeckW, NeckT, HeadDown, HeadL, HeadW, HeadH, SnoutL, SnoutW, SnoutCol, LegT, FrontX, HindX, LegY, HoofH, TailL, TailDeg, TailCol, TorsoCol, HeadCol, LegCol, horns, udder, mane, beard, floppy, upright, curly)
 SPECIES = {
     "Cattle": dict(x0=-1.15, x1=0.55, bw=0.70, z0=0.60, bh=0.72, nup=5, nl=0.55, nw=0.40, nt=0.42, hd=40, hl=0.52, hw=0.30, hh=0.30, sl=0.12, sw=0.26, sc="Skin", lt=0.15, fx=0.35, hx=-0.85, ly=0.24, hoof=0.08, tl=0.80, td=0, tc="Dark", horns="short", udder=1, floppy=1, body="#8C5C38"),
-    "Horse": dict(x0=-0.85, x1=0.55, bw=0.55, z0=0.85, bh=0.62, nup=50, nl=0.65, nw=0.22, nt=0.30, hd=50, hl=0.55, hw=0.18, hh=0.22, sl=0.10, sw=0.16, sc="Dark", lt=0.10, fx=0.38, hx=-0.65, ly=0.18, hoof=0.07, tl=0.70, td=12, tc="Dark", mane=1, upright=1, body="#82522F"),
+    "Horse": dict(x0=-0.85, x1=0.55, bw=0.55, z0=0.70, bh=0.61, nup=50, nl=0.65, nw=0.22, nt=0.30, hd=50, hl=0.55, hw=0.18, hh=0.22, sl=0.10, sw=0.16, sc="Dark", lt=0.10, fx=0.38, hx=-0.65, ly=0.18, hoof=0.07, tl=0.70, td=12, tc="Dark", mane=1, upright=1, body="#82522F"),
     "Sheep": dict(x0=-0.45, x1=0.30, bw=0.42, z0=0.32, bh=0.42, nup=30, nl=0.20, nw=0.16, nt=0.18, hd=45, hl=0.22, hw=0.14, hh=0.16, sl=0.05, sw=0.11, sc="Dark", lt=0.06, fx=0.18, hx=-0.32, ly=0.14, hoof=0.05, tl=0.12, td=20, tc="Light", torso="Light", head="Dark", leg="Dark", floppy=1, body="#E4E0D4"),
     "Dog": dict(x0=-0.40, x1=0.25, bw=0.20, z0=0.28, bh=0.24, nup=40, nl=0.16, nw=0.12, nt=0.14, hd=15, hl=0.20, hw=0.11, hh=0.12, sl=0.10, sw=0.08, sc="Dark", lt=0.06, fx=0.18, hx=-0.30, ly=0.08, hoof=0.04, tl=0.35, td=140, tc="Body", floppy=1, body="#B0804C"),
     "Cat": dict(x0=-0.22, x1=0.14, bw=0.14, z0=0.14, bh=0.15, nup=45, nl=0.08, nw=0.09, nt=0.09, hd=15, hl=0.12, hw=0.10, hh=0.09, sl=0.03, sw=0.05, sc="Skin", lt=0.035, fx=0.10, hx=-0.17, ly=0.045, hoof=0.02, tl=0.34, td=160, tc="Body", upright=1, body="#C8823C"),
@@ -206,7 +206,7 @@ s.note(36, 972, ["seek, replay jump and a late-joining node draw the SAME birds 
 panel(750, 750, 730, 250, "The rider - in the saddle: legs round the barrel, hands on the reins; he FIRES while riding (rifle shouldered)")
 def rider(ox, oy, k, firing):
     P = draw_quad(ox, oy, k, "Horse", angles=[0.3, -0.2, 0.2, -0.3] if firing else None, head=-0.2 if firing else 0.0)
-    hz = 0.85 + 0.62 + 0.02   # the saddle: the horse's back
+    hz = 0.70 + 0.61 + 0.04   # the saddle: the horse's back
     hx = 0.0
     def seg(a, b, col, w):
         (x1, y1), (x2, y2) = P(*a), P(*b)

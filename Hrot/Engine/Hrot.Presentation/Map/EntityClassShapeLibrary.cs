@@ -63,8 +63,8 @@ public sealed class EntityClassShapeLibrary : IEntityShapeLibrary
     /// <summary>⭐ CE-4623 — the animal outline of a DIS type, or null when it is no animal.</summary>
     public static string? AnimalProfileNameOf(DISEntityType dis)
     {
-        var family = Hrot.UI.Common.Map3D.VisualFamilies.AnimalOfDis(dis);
-        if (family == Hrot.UI.Common.Map3D.VisualFamily.Unknown) return null;
+        var family = Hrot.UI.Common.Map3D.VisualFamilies.Of(dis);   // the class table: Cattle … Goat are more specific than Person
+        if (!Hrot.UI.Common.Map3D.VisualFamilies.IsAnimal(family)) return null;
         return family == Hrot.UI.Common.Map3D.VisualFamily.Bird ? (dis.Subcategory == 2 ? AnimalFlock : AnimalBird) : AnimalQuadruped;
     }
 

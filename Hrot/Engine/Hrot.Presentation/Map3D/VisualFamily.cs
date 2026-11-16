@@ -105,6 +105,9 @@ public static class VisualFamilies
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
         ["Motorcycle"] = VisualFamily.Motorcycle,       // ⭐ CE-4621 — the motorcycle (DIS 1.1.*.80, type 115)
         ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
+        // ⭐ CE-4623 (AU-2, AR-19) — the animals: each class is more specific than `Person` (Kind 3), so a cow is never drawn as a man (rail)
+        ["Cattle"] = VisualFamily.Cattle, ["Sheep"] = VisualFamily.Sheep, ["Horse"] = VisualFamily.Horse, ["Dog"] = VisualFamily.Dog, ["Cat"] = VisualFamily.Cat,
+        ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat,
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
@@ -127,29 +130,9 @@ public static class VisualFamilies
     public static bool IsQuadruped(VisualFamily f) => f is VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat
                                                           or VisualFamily.Pig or VisualFamily.Goat;
 
-    /// <summary>
-    /// ⭐ CE-4623 (AU-2, AR-19) — <b>STAND-IN</b> for the animal classes until backend declares them (AB-1): the §4a fixed DIS ids (Kind 3 · land 1 or air 2 · categories 200–208 → the family).
-    /// ⛔ It must run BEFORE the class walk — an undeclared animal class falls UP to <c>Person</c> (Kind 3) and a cow would be drawn as a man. Re-bind: when the classes
-    /// exist, their rows join <see cref="FamilyOfClass"/> (the CE-2138 rail then requires them in the table) and this method is deleted.
-    /// </summary>
-    public static VisualFamily AnimalOfDis(DISEntityType dis)
-    {
-        if (dis.Kind != 3) return VisualFamily.Unknown;
-        if (dis.Domain == 2) return dis.Category == 205 ? VisualFamily.Bird : VisualFamily.Unknown;
-        if (dis.Domain != 1) return VisualFamily.Unknown;
-        return dis.Category switch
-        {
-            200 => VisualFamily.Cattle, 201 => VisualFamily.Sheep, 202 => VisualFamily.Horse, 203 => VisualFamily.Dog, 204 => VisualFamily.Cat,
-            206 => VisualFamily.Poultry, 207 => VisualFamily.Pig, 208 => VisualFamily.Goat,
-            _ => VisualFamily.Unknown,
-        };
-    }
-
     /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
     public static VisualFamily Of(DISEntityType dis)
     {
-        var animal = AnimalOfDis(dis);   // ⭐ CE-4623 — an animal is never the man a Kind-3 type would otherwise fall up to
-        if (animal != VisualFamily.Unknown) return animal;
         var chain = EntityClassTable.Default.Chain(dis);
         for (int i = chain.Count - 1; i >= 0; i--)
             if (FamilyOfClass.TryGetValue(chain[i].Name, out var family)) return family;

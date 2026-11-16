@@ -25,7 +25,23 @@ related-designs:
 | bound | at |
 |---|---|
 | `AnimalState` (501), `FlockState` (502), `AnimalMode`, `FlockMode`, `AnimalFlags.Bolting`, `LocomotionClass.Quadruped / Bird`, `HerdMember` (503) | merged `origin/backend@3fb384efa`; the stand-in structs deleted, `AnimalReader` reads backend's components |
-| still stand-ins | the family keying by DIS (`VisualFamilies.AnimalOfDis`) until the classes exist; the area component `AnimalAreaDef` (temporary id 511) until backend declares TKB 712's component; type 703's seats in the rider rail |
+| classes `Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird` `Poultry` `Pig` `Goat` -> `FamilyOfClass`; types 700-711 from `AnimalTkbCatalog` (the rails draw the REAL types; the size is scaled to the TKB length; the horse's rider seat is backend's 703 seat) | merged `origin/backend@5c797b66e` (AB-1, AB-2); the DIS stand-in `AnimalOfDis` deleted; the 2-D outline reads the family; the CE2138 DIS-names golden gained backend's animal classes |
+| still stand-ins | the area component `AnimalAreaDef` (temporary id 511) until backend declares TKB 712's component |
+| finding for backend | the 703 / 704 rider seat x 0.15 is over the withers of a nose-to-tail box; honest value about -0.15 (the kit is drawn `OriginAhead` = 0.30 m forward of its box so the rider sits on the saddle) |
 
 ## Lane decisions - for the user's review
 (see the end of this file; each says what would change it)
+
+| id | decision (taken overnight, by measurement) | what would change it |
+|---|---|---|
+| L-1 | the nine kits come from ONE parametric builder (`MetreKit` + a `QuadSpec` row per species): each kit's box is MEASURED from its parts, the mockup draws the SAME table | the user wants hand-modelled meshes (a real art pass replaces the kit, the gait roles stay) |
+| L-2 | an animal keeps its kit's proportions: scaled UNIFORMLY to backend's TKB length (its width / height are first estimates); the horse's back is set to backend's seat height (1.35 m rider hips) | backend tunes the species table (AR-21) or wants width / height honoured exactly |
+| L-3 | animal sounds use the existing `Ambient` sound category (no new `SoundCategory` — it would add a volume row to every audio panel) | the user wants a separate "Animals" volume slider |
+| L-4 | the call rhythm (`AnimalSoundCatalog.CallsMade`) is the operator's closed-form timing; backend's AB-8 must share it (one rule, AR-7) — until then they are two copies | backend publishes its timing function: delete mine and call theirs |
+| L-5 | rest calls throttle per herd (2.5 s), alarms per herd (1 s), a bark never; at most 3 animal sounds a frame; calls stop for ~6 s after shooting | the sound design wants a chorus |
+| L-6 | the birdsong bed is LIFTED (up to +60 %) by perched flocks / birds within 80 m, never replaced: the old always-on bed stays (it already falls silent under fire) | the user wants no birdsong away from trees |
+| L-7 | one species per animal area (a mixed pen = several areas) | backend's area component carries several species |
+| L-8 | a saddled (riding / war) horse stands head-up — it does not graze with a rider on it | backend sets Guard / Alert itself |
+| L-9 | a flock changing mode (perched -> flying) snaps between layouts (no blend): the flock entity itself moves away at once | the take-off looks wrong live (a 0.4 s blend is one line in `DrawFlock`) |
+| L-10 | no saddle drawn on the horse kit (a herd horse would wear one) | a "tack" flag on the riding type |
+| L-11 | the area form's temporary component id is 511 (506-511 unallocated; ui's block 460-475 is exhausted) | backend declares the real one: delete `AnimalAreaDef`, rebind `AnimalAreaOps` |

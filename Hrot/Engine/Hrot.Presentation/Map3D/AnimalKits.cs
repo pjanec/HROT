@@ -138,7 +138,7 @@ internal sealed class MetreKit
     public ShapeKit Build(out Vector3 size, float minWidth = 0f) => Build(out size, out _, minWidth);
 
     /// <summary>Builds against a MEASURED box: <paramref name="sizeOverride"/> / <paramref name="shiftOverride"/> pin the fractions to another kit's box (the lying animal is drawn in the standing animal's box).</summary>
-    public ShapeKit Build(out Vector3 size, out float shiftX, float minWidth = 0f, Vector3? sizeOverride = null, float? shiftOverride = null)
+    public ShapeKit Build(out Vector3 size, out float shiftX, float minWidth = 0f, Vector3? sizeOverride = null, float? shiftOverride = null, float originAhead = 0f)
     {
         var min = new Vector3(float.MaxValue); var max = new Vector3(float.MinValue);
         foreach (var p in _p)
@@ -151,7 +151,7 @@ internal sealed class MetreKit
                 min = Vector3.Min(min, w); max = Vector3.Max(max, w);
             }
         }
-        shiftX = shiftOverride ?? (min.X + max.X) / 2f;
+        shiftX = shiftOverride ?? ((min.X + max.X) / 2f - originAhead);   // originAhead: the kit is drawn this far AHEAD of its box's centre (a horse's saddle sits where its TKB seat says)
         float width = MathF.Max(MathF.Max(max.Y, -min.Y) * 2f, minWidth);
         var sz = sizeOverride ?? new Vector3(max.X - min.X, width, max.Z);
         size = sz;
@@ -188,7 +188,7 @@ public static class AnimalKits
     // ── the species table (metres) — the mockup's numbers (scripts/gen-animals-mockup.py SPECIES) ───────────────────────────────────────────────────────────────────────
     internal static readonly QuadSpec CattleSpec = new(-1.15f, 0.55f, 0.70f, 0.60f, 0.72f, 5f, 0.55f, 0.40f, 0.42f, 40f, 0.52f, 0.30f, 0.30f, 0.12f, 0.26f, ColourRole.Skin,
                                                        0.15f, 0.35f, -0.85f, 0.24f, 0.08f, 0.80f, 0f, ColourRole.Dark, Horns: HornKind.Short, Udder: true, UprightEars: false, FloppyEars: true);
-    internal static readonly QuadSpec HorseSpec = new(-0.85f, 0.55f, 0.55f, 0.85f, 0.62f, 50f, 0.65f, 0.22f, 0.30f, 50f, 0.55f, 0.18f, 0.22f, 0.10f, 0.16f, ColourRole.Dark,
+    internal static readonly QuadSpec HorseSpec = new(-0.85f, 0.55f, 0.55f, 0.70f, 0.61f, 50f, 0.65f, 0.22f, 0.30f, 50f, 0.55f, 0.18f, 0.22f, 0.10f, 0.16f, ColourRole.Dark,
                                                       0.10f, 0.38f, -0.65f, 0.18f, 0.07f, 0.70f, 12f, ColourRole.Dark, Mane: true, UprightEars: true, LegCol: ColourRole.Body);
     internal static readonly QuadSpec SheepSpec = new(-0.45f, 0.30f, 0.42f, 0.32f, 0.42f, 30f, 0.20f, 0.16f, 0.18f, 45f, 0.22f, 0.14f, 0.16f, 0.05f, 0.11f, ColourRole.Dark,
                                                       0.06f, 0.18f, -0.32f, 0.14f, 0.05f, 0.12f, 20f, ColourRole.Light, TorsoCol: ColourRole.Light, HeadCol: ColourRole.Dark, LegCol: ColourRole.Dark, FloppyEars: true);
@@ -211,7 +211,7 @@ public static class AnimalKits
     internal static Vector3 Withers(in QuadSpec s) => new(s.X1 - 0.08f, 0f, s.Z0 + s.BodyH * 0.85f);
 
     /// <summary>The standing quadruped of a species; <paramref name="lying"/> the same animal lying down (belly on the ground, legs folded under).</summary>
-    internal static ShapeKit BuildQuad(in QuadSpec s0, bool lying, out Vector3 size, out float shiftX, Vector3? sizeOverride = null, float? shiftOverride = null)
+    internal static ShapeKit BuildQuad(in QuadSpec s0, bool lying, out Vector3 size, out float shiftX, Vector3? sizeOverride = null, float? shiftOverride = null, float originAhead = 0f)
     {
         var s = s0;
         if (lying) s = s with { Z0 = s.LegT * 0.7f, NeckUp = s.NeckUp + 25f };
@@ -269,7 +269,7 @@ public static class AnimalKits
         k.Add(tc.X, 0f, tc.Z, 0.05f, 0.05f, s.TailL, s.TailCol, pitch: s.TailDeg);
         if (s.CurlyTail) k.Add(root.X - 0.07f, 0f, root.Z + 0.08f, 0.07f, 0.05f, 0.05f, s.TailCol);
         if (s.Udder && !lying) k.Add(s.X0 + 0.55f, 0f, s.Z0 - 0.03f, 0.30f, 0.22f, 0.12f, ColourRole.Skin);
-        return k.Build(out size, out shiftX, 0f, sizeOverride, shiftOverride);
+        return k.Build(out size, out shiftX, 0f, sizeOverride, shiftOverride, originAhead);
     }
 
     // ── the birds ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -323,12 +323,18 @@ public static class AnimalKits
     private static readonly Dictionary<VisualFamily, (ShapeKit Standing, ShapeKit Lying, Vector3 Size)> _quads = new();
     private static readonly (ShapeKit Kit, Vector3 Size) _hen, _flying, _perched;
 
+    /// <summary>
+    /// ⭐ How far ahead of its box's centre a species' kit is drawn (m). A horse's TKB box runs nose to tail and backend puts the rider's hips at x 0.15 — over the saddle only if the body sits this much forward of the
+    /// box's centre (the head and neck are what pull the box's centre ahead of the torso). 📌 Finding for backend: honest seat x for the 703 / 704 kit would be about −0.15.
+    /// </summary>
+    public static float OriginAhead(VisualFamily f) => f == VisualFamily.Horse ? 0.30f : 0f;
+
     static AnimalKits()
     {
         foreach (var f in new[] { VisualFamily.Cattle, VisualFamily.Sheep, VisualFamily.Horse, VisualFamily.Dog, VisualFamily.Cat, VisualFamily.Pig, VisualFamily.Goat })
         {
             var spec = SpecOf(f);
-            var standing = BuildQuad(spec, false, out var size, out var shift);   // the box is the STANDING animal's, measured from its parts — never typed
+            var standing = BuildQuad(spec, false, out var size, out var shift, originAhead: OriginAhead(f));   // the box is the STANDING animal's, measured from its parts — never typed
             var lying = BuildQuad(spec, true, out _, out _, size, shift);          // the lying animal is drawn in the same box
             _quads[f] = (standing, lying, size);
         }
