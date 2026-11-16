@@ -52,9 +52,11 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | ST-3 rails | `Fdp.Toolkits.Tests --filter ~Aggregate`, plain AND with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` (incl. `StochasticCombatRails`: the table = HitModel / ArmorModel numbers, a duel trades losses, cover over 30 seeds, serial = parallel at 4 / 8, 0 B steady) · `Hrot.SimHost.Tests --filter CgfLogicPackTests` (43 / 51) | ✅ 20 / 0 · ✅ 20 / 0 · ✅ 18 / 0 |
 | C-6 + ST-4 rails | `Fdp.Toolkits.Tests --filter ~Aggregate`, plain AND under the parallel checks · `--filter ~AreaEffect` (T-1, the touched feature) | ✅ 23 / 0 · ✅ 23 / 0 · ✅ 51 / 0 |
 | ST-5 rails | `Fdp.Toolkits.Tests --filter ~Aggregate`, plain AND under the parallel checks (incl. `UnitResolutionRails`) | ✅ 27 / 0 · ✅ 27 / 0 |
+| ⭐ T2 (once, at the end) | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Combat\|~Squad\|~Navigation.RoutePlanner\|~Replay` · `Hrot.Core.Tests` (all) · `Hrot.Network.NED.Tests` (all) · `Hrot.SimHost.Tests --filter` the eight touched feature suites | ✅ 1156 / 0 (1 skip) · ✅ 380 / 0 · ✅ 198 / 0 after the fix below · ✅ 102 / 0 (1 skip) |
+| ⛔ a gate MISS, fixed | `TheEntityKeyedWireTypesAreReadableByReflectionTests` was red from the ST-0 commit (`d45dfa77a`) to the last: the three new entity-keyed wire types had no row in `docs/reference/NED_DDS_Protocol.md` — ST-0 gated NED on `RoleGroupOwnershipStrategyTests` only. Rows added | ⚠ the lesson: a new wire type ⇒ run the WHOLE `Hrot.Network.NED.Tests` (4 s) |
 | ⚠ pre-existing red fixed | `CgfLogicPackTests` pinned 37 / 45 while the pack had 39 / 47 (the animals lane's `HerdSystem`, `AnimalAreaSystem`) — now 40 / 48 with the follower | cross-lane edit of a pin, said |
 | S0 type rails | `--filter ~S0` (Toolkits) | 6 red, ALL pre-existing (the known S0 set + `S0WalkerTests.Resolve_AtLoad`); none names an aggregate type |
 
 ## 4. Ids allocated
 
-`CE-8000` (contract) · `R-8000`…`R-8002` · components 285, 286 · descriptors 220–222 (contract).
+`CE-8000` … `CE-8013` (Area AGG-B in the tracker) · `R-8000`…`R-8003` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
