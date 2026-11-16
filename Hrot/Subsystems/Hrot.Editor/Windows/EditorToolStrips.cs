@@ -82,14 +82,8 @@ internal sealed class TerrainToolsWindow : ToolStripWindow
     private readonly List<ToolStripEntry> _entries = new();
     private string? _lastArmed;
 
-    /// <summary>The placed-obstacle types the strip offers (<see cref="TkbEntityTypes.Obstacles"/>): label and the shared icon key of each.</summary>
-    internal static readonly (long Type, string Label, string IconKey)[] ObstacleMembers =
-    {
-        (TkbEntityTypes.Obstacle_Car, "Car", "clutter/car"),
-        (TkbEntityTypes.Obstacle_SandbagWall, "Sandbag wall", "clutter/sandbags"),
-        (TkbEntityTypes.Obstacle_ConcreteBlock, "Concrete block", "clutter/block"),
-        (TkbEntityTypes.Obstacle_Crate, "Crate", "clutter/crate"),
-    };
+    /// <summary>The placed-obstacle types the strip offers — the obstacle row's ONE table (<see cref="ObstacleRowOptions.Types"/>, which is <see cref="TkbEntityTypes.Obstacles"/> with its boxes and icons).</summary>
+    internal static IEnumerable<(long Type, string Label, string IconKey)> ObstacleMembers => ObstacleRowOptions.Types.Select(t => (t.Type, t.Name, t.IconKey));
 
     public TerrainToolsWindow(Func<EntityRepository?> world, Func<ISpawnController?> spawn, Func<string?> activeTool,
                               IReadOnlyList<TerrainPick> picks, IReadOnlyList<(string Id, string Name, float Density)> scatterRecipes)

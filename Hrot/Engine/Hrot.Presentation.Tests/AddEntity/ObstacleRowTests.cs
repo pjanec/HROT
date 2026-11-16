@@ -152,6 +152,30 @@ public sealed class ObstacleRowTests
         Assert.Equal(cmds.Select(c => c.InitialTransform!.Value.Position.X).OrderBy(x => x).ToArray(), into.Select(fp => (fp.Min(p => p.X) + fp.Max(p => p.X)) / 2f).OrderBy(x => x).ToArray(), new FloatCmp());
     }
 
+    /// <summary>
+    /// ⭐ CE-5010 (TE-5, R-4264) — SEVEN obstacle types, ONE table: every id of <c>TkbEntityTypes.Obstacles</c> is a registered obstacle whose box and material are its <c>ClutterTypes</c> entry's (so a baked clutter item and the live obstacle of that name are one box), the row's Item list
+    /// offers exactly those types in the same order, and the three new wire ids are distinct from every other obstacle. 🔴 Red-proof: register the barrel from <c>ClutterTypes.Crate</c> ⇒ the size assert fails; drop one from <c>Obstacles</c> ⇒ the count / list assert fails.
+    /// </summary>
+    [Fact]
+    public void TheSevenObstacleTypes_AreRegisteredFromTheClutterTable_AndTheRowOffersThemAll()
+    {
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterObstacles(db);
+        Assert.Equal(7, TkbEntityTypes.Obstacles.Length);
+        Assert.Equal(TkbEntityTypes.Obstacles.Length, TkbEntityTypes.Obstacles.Distinct().Count());
+        Assert.Equal(TkbEntityTypes.Obstacles, ObstacleRowOptions.Types.Select(t => t.Type).ToArray());
+        Assert.Equal((8820L, 8821L, 8822L), (TkbEntityTypes.Obstacle_Barrel, TkbEntityTypes.Obstacle_JerseyBarrier, TkbEntityTypes.Obstacle_GuardBooth));
+        foreach (var (type, name, box, icon) in ObstacleRowOptions.Types)
+        {
+            var dto = db.GetByType(type)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>()!;
+            Assert.Equal((box.Length, box.Width, box.Height, box.Material), (dto.Length, dto.Width, dto.Height, dto.Material));
+            Assert.Equal(box.Name, name);
+            Assert.True(NodeEditor.Core.Widgets.Icons.TryGet(icon, out _), icon);
+        }
+        var health = TkbEntityTypes.Obstacles.ToDictionary(t => t, t => db.GetByType(t)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>()!.MaxHealth);
+        Assert.Equal((50f, 400f, 120f), (health[TkbEntityTypes.Obstacle_Barrel], health[TkbEntityTypes.Obstacle_JerseyBarrier], health[TkbEntityTypes.Obstacle_GuardBooth]));   // starter values
+    }
+
     private sealed class FloatCmp : IEqualityComparer<float> { public bool Equals(float a, float b) => System.MathF.Abs(a - b) < 0.01f; public int GetHashCode(float f) => 0; }
 
     private static float YawDeg(Quaternion q) => System.MathF.Round(2f * System.MathF.Atan2(q.Z, q.W) * (180f / MathF.PI) * 100f) / 100f;

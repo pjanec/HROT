@@ -3972,6 +3972,10 @@ namespace Hrot.Editor
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
             // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6) — the GROUND / DITCH tab of Details for a placed ground shape (mode, value, the derived skirt, the Effect read-out)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.GroundFeatureDetailsViewDescriptor.For(() => _world, GhostContext.Get));
+            // ⭐ CE-5010 (TE-8, mockup E) — the ONE TERRAIN tab of Details for every non-ground feature (a wall's kind · material · height, a wood's density, a row's spacing, a group's count, a scatter's recipe …)
+            var scatterRecipesOnce = new Lazy<IReadOnlyList<(string Id, string Name, float Density)>>(() =>
+                { try { return Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); } catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { return Array.Empty<(string, string, float)>(); } });   // read once, on first use (a disk read, never per frame)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainFeatureDetailsViewDescriptor.For(() => _world, () => scatterRecipesOnce.Value));
 
             // ⭐⭐ CE-4210 MA-8 (SR-39a) — the MACRO section of Details for a macro instance: status, the macro (the same picker's Macros group), the args form.
             //   ⚠ Its own StructEdit service (the facet service is built later); picks resolved at call time like the AI section's.

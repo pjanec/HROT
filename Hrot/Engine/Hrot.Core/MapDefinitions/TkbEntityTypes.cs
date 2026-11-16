@@ -127,9 +127,14 @@ namespace Hrot.Map.Common
         //   dies (its footprint per instance), cleared by a charge or a blade (CE-6003). ⛔ PERMANENT WIRE VALUE; 8819 measured free on every lane
         //   (git grep of every origin branch, 2026-11-13). Not in Obstacles (the palette's starter set): the simulation makes it.
         public const long Obstacle_Wreck         = 8819;
+        // ⭐ CE-5010 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-4264) — the three clutter-only boxes become obstacle types too, so a row of barrels / jersey barriers / booths is real obstacle ENTITIES.
+        //   ⛔ PERMANENT WIRE VALUES; 8820–8822 measured free (no use in any origin branch's TkbEntityTypes.cs, nor anywhere in the tree), 2026-11-16.
+        public const long Obstacle_Barrel        = 8820;
+        public const long Obstacle_JerseyBarrier = 8821;
+        public const long Obstacle_GuardBooth    = 8822;
 
-        /// <summary>The four starter obstacle types (O4).</summary>
-        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate };
+        /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
+        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth };
 
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 (R-3012, W-0) — the WORLD ENVIRONMENT: one per scenario, the FIRST entity with
         //   no SimTransform (presence of SimTransform is the engine's "is this spatial?" predicate, docs/designs/tkb-1/DESIGN.md

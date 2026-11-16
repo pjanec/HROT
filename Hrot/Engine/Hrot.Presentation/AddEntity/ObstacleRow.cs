@@ -31,6 +31,9 @@ public sealed class ObstacleRowOptions
         (TkbEntityTypes.Obstacle_SandbagWall, "Sandbag wall", ClutterTypes.SandbagWall, "clutter/sandbags"),
         (TkbEntityTypes.Obstacle_ConcreteBlock, "Concrete block", ClutterTypes.ConcreteBlock, "clutter/block"),
         (TkbEntityTypes.Obstacle_Crate, "Crate", ClutterTypes.Crate, "clutter/crate"),
+        (TkbEntityTypes.Obstacle_Barrel, "Barrel", ClutterTypes.Barrel, "clutter/barrel"),                          // ⭐ CE-5010 — the other three obstacle types (TE-5)
+        (TkbEntityTypes.Obstacle_JerseyBarrier, "Jersey barrier", ClutterTypes.JerseyBarrier, "clutter/barrier"),
+        (TkbEntityTypes.Obstacle_GuardBooth, "Guard booth", ClutterTypes.GuardBooth, "clutter/booth"),
     };
 
     /// <summary>The options of <paramref name="spec"/>, or null when it is not the row tool's spec.</summary>
