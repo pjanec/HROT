@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4624</c> MS-T2 (DESIGN_Minefields.md KR-15, MF-14, R-5049) — the scenario's <c>Knowledge</c> section: what the sides learned of PLACES, and the field-level
+    /// ⭐⭐ <c>CE-4624</c> MS-T2 (DESIGN_Minefields.md KR-15, MF-14, R-5054) — the scenario's <c>Knowledge</c> section: what the sides learned of PLACES, and the field-level
     /// ground truth beside it, keyed by the SUBJECT's stable guid (a minefield is an entity, not a terrain object — hence not <see cref="TerrainObjectsSection"/>).
     /// <code>"Knowledge": {
     ///   "&lt;guid&gt;|&lt;side+1&gt;|&lt;kind&gt;|&lt;chunk&gt;": { "cells": [[row, col, level], …], "marked": true, "learnedAt": 12.5, "source": 2 },
