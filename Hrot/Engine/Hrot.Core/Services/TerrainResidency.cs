@@ -247,7 +247,7 @@ public sealed class TerrainResidency
                 if (!string.Equals(actualOverlay, header.ContentHash, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
-                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!));
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
                 if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
             }

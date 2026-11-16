@@ -45,7 +45,14 @@ namespace Fdp.Toolkit.Terrain
         /// (<see cref="TerrainAssets.ForFolder"/> for a terrain folder). <c>null</c> ⇒ the shared materials and no templates
         /// (a world that places a template then fails loudly, naming it).
         /// </summary>
-        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets)
+        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets) => Parse(geojson, name, assets, groundOf: null);
+
+        /// <summary>
+        /// ⭐ CE-5014 — as above, for an OVERLAY: a document that names no height grid of its own stands its pieces (a wall, a fence, a tree, a prism, a slab's
+        /// vertices) on <paramref name="groundOf"/> — the BASE terrain's relief it is merged onto — instead of the flat <c>groundZ</c>. 📐 Measured: without it a fence
+        /// drawn on a 50 m hill baked at base 0, under the ground. The result's <see cref="TerrainWorld.Height"/> stays the document's own (null): the merge keeps the base's.
+        /// </summary>
+        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets, TerrainHeightGrid? groundOf)
         {
             assets ??= TerrainAssets.None;
             var materials = assets.Materials;
@@ -91,8 +98,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
             // ⭐ TH-C — a piece with no explicit baseZ stands on the LOWEST ground under it (no gap on the downhill side)
-            float GroundUnder(IReadOnlyList<Vector2> polygon) => grid?.LowestUnder(polygon) ?? groundZ;
-            float GroundAlong(IReadOnlyList<Vector2> line) => grid?.LowestAlong(line) ?? groundZ;
+            var ground = grid ?? groundOf;   // ⭐ CE-5014 — an overlay stands on its base's relief
+            float GroundUnder(IReadOnlyList<Vector2> polygon) => ground?.LowestUnder(polygon) ?? groundZ;
+            float GroundAlong(IReadOnlyList<Vector2> line) => ground?.LowestAlong(line) ?? groundZ;
 
             List<string>? warnings = null;
             var sink = new TerrainBuildingExpander.Sink();
@@ -271,8 +279,8 @@ namespace Fdp.Toolkit.Terrain
                                     //   top surface is max(ground, ramp), joined along their intersection whatever the grid's
                                     //   triangulation — continuous for the navmesh's step and for SurfaceZ by construction.
                                     if (walkableKind == TerrainWalkableKind.Ramp && above <= RampFootTolerance) above = -RampFootSink;
-                                    float ground = grid?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
-                                    ring[i] = new Vector3(ring[i].X, ring[i].Y, ground + above);
+                                    float under = ground?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
+                                    ring[i] = new Vector3(ring[i].X, ring[i].Y, under + above);
                                 }
                             var walkable = MakeWalkable(walkableKind, ring, relative ? null : flatZ, where);
                             if (walkableKind == TerrainWalkableKind.Ramp && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)

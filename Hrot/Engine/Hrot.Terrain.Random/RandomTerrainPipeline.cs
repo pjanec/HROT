@@ -163,7 +163,7 @@ public sealed class RandomTerrainPipeline
         if (features.Count > 0)
         {
             OverlayExpansion.SortByLabel(features);
-            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(world, features).ToJsonString(), "preview", assets);
+            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(world, features).ToJsonString(), "preview", assets, world.Height);   // ⭐ CE-5014
             foreach (var b in overlay.Buildings)
                 buildings.Add(new PreviewBuilding(b.Label, b.Footprint, Math.Max(1, b.Storeys), Enterable: !b.Solid));
             foreach (var s in overlay.Surfaces)

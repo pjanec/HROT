@@ -463,6 +463,30 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
     
         /// <summary>
+        /// ⭐ CE-5014 (user finding `2026-11-16`: "fences or ditches … are shown under the terrain, probably at zero altitude") — an overlay's pieces stand on the BASE's
+        /// relief: a fence and a lone tree drawn on a 50 m slope have their base on the ground under them (the LOWEST along / under, TH-C), not at the overlay's flat
+        /// groundZ; the overlay keeps no height of its own. 📐 Measured before the fix: base 0, top 1.6 on 50 m ground. 🔴 Red-proof: drop <c>groundOf</c> in the parser ⇒ base 0.
+        /// </summary>
+        [Fact]
+        public void CE5014_AnOverlaysFenceAndTree_StandOnTheBasesRelief_NotAtZero()
+        {
+            int n = 201; var h = new float[n * n];
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++) h[y * n + x] = 50f + 0.2f * (x - 100);   // a slope: 50 m at x = 0, rising east
+            var hill = new TerrainWorld { Name = "hill", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), Height = new TerrainHeightGrid(new Vector2(-100f), 1f, n, n, h) };
+            var parts = FeatureExpander.OfKind(TerrainFeature.Fence, "f", "", 0f, 0f, 1, Vector2.Zero, new[] { new Vector2(-20, 5), new Vector2(20, 5) }, hill, new TerrainAssets(), Array.Empty<string?>())
+                .Concat(FeatureExpander.OfKind(TerrainFeature.Tree, "t", "", 0f, 0f, 2, new Vector2(30f, 30f), Array.Empty<Vector2>(), hill, new TerrainAssets(), Array.Empty<string?>())).ToList();
+            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(hill, parts).ToJsonString(), "hill", new TerrainAssets(), hill.Height);
+            Assert.Null(overlay.Height);                                                   // the overlay keeps no relief of its own: the merge keeps the base's
+            var merged = TerrainWorldMerge.Merge(hill, overlay);
+            var fence = merged.Panels.Single(p => p.Label == "f/0");
+            Assert.Equal(new Vector2(-20, 5), fence.A);                                    // where it was drawn
+            Assert.Equal(hill.Height!.LowestAlong(new[] { new Vector2(-20, 5), new Vector2(20, 5) }), fence.BaseZ, 3);   // on the ground (its low end, 46 m)
+            Assert.InRange(fence.BaseZ, 45f, 47f);
+            var tree = merged.Prisms.Single(p => p.Kind == TerrainPrismKind.Tree);
+            Assert.InRange(tree.BaseZ, 55.5f, 56.5f);                                      // 50 + 0.2 × 30, less the trunk's lowest corner
+        }
+
+        /// <summary>
         /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-12; §8 R-11) — a BERM drawn along a line raises a 3 m strip 1.5 m (its own height overrides), blended out by a skirt,
         /// and is no obstacle area (a terrain-class line). 🔴 Red-proof: map "berm" to the ditch mode ⇒ the strip is LOWERED.
         /// </summary>

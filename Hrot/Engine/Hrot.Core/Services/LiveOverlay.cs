@@ -257,7 +257,7 @@ public sealed class LiveOverlay
             OverlayExpansion.SortByLabel(features);
             parts.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
             string json = OverlayExpansion.WorldDocument(baseWorld, features, _roads).ToJsonString();   // ⭐ CE-4592 (G-24) — the same corridors the save writes
-            var world = TerrainWorldParser.Parse(json, baseWorld.Name, _assets!.WithInlineTemplates(inline));
+            var world = TerrainWorldParser.Parse(json, baseWorld.Name, _assets!.WithInlineTemplates(inline), baseWorld.Height);   // ⭐ CE-5014 — walls / trees on the base's relief, not at 0
             return new LiveOverlayResult(world, parts, baseWorld, baseVersion);
         }
     }
