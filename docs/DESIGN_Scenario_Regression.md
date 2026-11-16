@@ -845,12 +845,6 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 | **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
 | **H4** | §10 RH-8, written then | — |
 
-## ⛔ HISTORY
-
-- **First version (2026-10-22, R-4065):** a Python runner over HTTP (`scripts/scenario-check.py`) as phase 1, the engine as phase 2. ⛔
-  SUPERSEDED the same day by R-4066 — the engine is the product; the Python runner was deleted once the engine verifier ran (it measured
-  the HTTP-stepped pace — ~10 steps a second in a windowed editor — and nothing else of note).
-
 ## 11. ⏳ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: DESIGN — RT-1…RT-9 await the user)*
 
 🔒 User, `2026-11-16`, verbatim: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully
@@ -995,3 +989,9 @@ sits waiting on a build, and nothing here is a foreground blocker.*
 
 ⚠ **Unverified, to measure on the first night:** a standard runner's cores / memory against `--mode all` + Xvfb; a scheduled workflow's
 behaviour when the repository is quiet for weeks; DDS multicast on a GitHub runner (the multi-process row may need loopback-only settings).
+
+## ⛔ HISTORY
+
+- **First version (2026-10-22, R-4065):** a Python runner over HTTP (`scripts/scenario-check.py`) as phase 1, the engine as phase 2. ⛔
+  SUPERSEDED the same day by R-4066 — the engine is the product; the Python runner was deleted once the engine verifier ran (it measured
+  the HTTP-stepped pace — ~10 steps a second in a windowed editor — and nothing else of note).
