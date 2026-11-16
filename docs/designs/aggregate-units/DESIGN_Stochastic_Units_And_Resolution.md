@@ -503,6 +503,7 @@ them by construction); the red edge is today's dead path — the area effect nev
 | **ST-4** | determinism at 1 / 4 / 8 threads | the battalion-vs-battalion scenario, its named checks | the scenario's map picture |
 | **ST-5** | the resolution manager, de-aggregation (children from the TKB composite, stable `<unit>/<slot>` keys), re-aggregation, the Held participant, C-7's forced handover | the policy (§16b), the planners' plan / assign split (D-P3) | the user's de- / re-aggregate request and the process's progress |
 
+
 ### 23.4 As-built — exp/agg-backend *(folded by the lane, obligation ⑤; status and gates in [`STATUS_AggBackend.md`](../../blueprints/batches/STATUS_AggBackend.md))*
 
 ```mermaid
@@ -590,6 +591,8 @@ planner.*
 | ST-5: Planning uses the FALLBACK posts at once (D-P5) | the real planners' plan / assign split (D-P3) is agg-behaviors' | CE-8013 |
 | ST-5: HELD is a tag (`AggregateChild.Held`, 288), not yet a lifecycle participant (SV-6); children are destroyed with `DestroyEntity` | single-world first; the cluster's lifecycle is the wiring step | CE-8013 |
 | ST-5: in Physical, `SplittingSince` is when the unit last became merge-ELIGIBLE (the quiet clock) | one recorded field instead of a new one (SV-12) | — |
+| CE-8016 (F-9): an authored stochastic unit gets its slots + holdings at SPAWN from the TKB composite (`StochasticUnitFill`, Hrot.Core — the composite lives there): the nested composite flattened to leaves in declaration order; a man → a slot (role from the designation, else his first mount's category; his basic load), a vehicle / system → a holding grouped by type; `CompositeSlot` = leaf index + 1, inverted by `ChildType` (CE-8013 ①); the first soldier per role feeds `KillerVictimTkb.PersonalSoldiers` | SV-3: the SAME composite the physical units are built from — no second roster; once, the owner only | CE-8016 |
+| CE-8015: `AggregateUnit`'s six authored fields are attribute-vocabulary rows (ids 281–286, `Aggregate.*`); `Splitting` stays read-only | the generic unit form + the patch path to the wire through the existing descriptor map | CE-8015 |
 | ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
 
 ### 23.5 agg-behaviors — ST-0 ⑦: the commanders' orders ROUTED *(exp/agg-behaviors, `2026-11-16`; build-state: BUILDING — increment 1 BUILT; lane decisions R-8300…R-8304 "for the user's review")*

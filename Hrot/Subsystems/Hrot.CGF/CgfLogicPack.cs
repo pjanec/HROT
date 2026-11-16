@@ -268,6 +268,9 @@ namespace Hrot.CGF
             // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
+            // ⭐ CE-8016 (agg-behaviors' F-9; SV-3) — an authored stochastic unit's slots and holdings from its TKB composite, once, before the
+            //   unit's steps read them (serial; the owner only)
+            simList.Add(new Hrot.Core.Tkb.StochasticUnitFillSystem(gateOnAuthority));
             // ⭐ CE-8004 (ST-1, M-4; DESIGN_Stochastic_Units_And_Resolution §14) — the stochastic units' path follower, beside the stress phase
             //   (§22's module diagram): every CGF node runs it by construction; it moves only the units this node owns.
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority));

@@ -171,6 +171,29 @@ the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play 
 | agg-ui | `AggregateUnit.Splitting` (the stage), `Resolution`, `Pin` (the instructor's request writes `Pin`); a split's children carry `AggregateChild { Unit, Slot, Held }` |
 | identities | `UnitSplits.ChildGuid(unitGuid, compositeSlot)` — the same children every split |
 
+## 3e. The unit form's attributes — for agg-ui *(CE-8015, the R-4278 follow-up)*
+
+⭐ `AggregateUnit`'s editable fields are in the attribute vocabulary (`AttributeVocabulary.All`), so the generic form shows them and a patch
+reaches the component AND the wire (the existing `dtAggregateUnit` ↔ `AggregateUnit` map — no new descriptor):
+
+| path | id | value |
+|---|---|---|
+| `Aggregate.Resolution` | 281 | `AggregateResolution` (0 Unset · 1 Physical · 2 Fusion · 3 Stochastic) — the AUTHORED resolution; ⚠ live, the instructor changes it through `Pin` |
+| `Aggregate.Pin` | 282 | `ResolutionPin` (0 none · 1 keep · 2 physical · 3 stochastic) |
+| `Aggregate.Echelon` | 283 | 0 squad · 1 platoon · 2 company |
+| `Aggregate.Formation` | 284 | `UnitFormation` |
+| `Aggregate.Posture` | 285 | `UnitPosture` |
+| `Aggregate.Prepared` | 286 | `PreparedLevel` |
+
+⛔ `Splitting` (the split stage) is READ-ONLY — show it from the component; the manager owns it. Values out of range are clamped.
+
+## 3f. The spawn-time fill — for agg-behaviors *(CE-8016, your F-9)*
+
+⭐ Author a stochastic unit as `AggregateUnit { Resolution = Stochastic }` + its TKB type; `StochasticUnitFillSystem` (in `CgfLogicPack`, the owner
+only, once) fills `UnitSlotTable` (one slot per man of the flattened composite: role from the designation, full health, his basic load,
+`CompositeSlot` = leaf index + 1) and `UnitHoldings` (vehicles / systems grouped by type, × count, mobility from the TKB), and the echelon if 0.
+A table you author yourself (Count > 0) is left alone. Platoon = 30 slots · company = 90 · tank platoon = one holding of 4 M1s.
+
 ## 4. Ids allocated by this commit
 
 | | |
