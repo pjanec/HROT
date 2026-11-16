@@ -153,6 +153,8 @@ namespace Hrot.Core.Tkb
         /// (wide cone, chaff only in its end-game), air targets only, a proximity-fused fragmentation warhead (the library's
         /// <c>"Radar SAM warhead"</c>). ⚠ The ids note named 6047 — taken by the mortar smoke on every lane (CE-7025) — so 6050. ⛔ Permanent wire value.</summary>
         public const int TkbRadarSamMissile = 6050;
+        /// <summary>⭐ CE-4624 (minefields §3a, MR-17) — the mines' bursts: anti-personnel, anti-tank, the line charge (registered in MS-T1 / MS-T4). ⛔ Permanent wire values.</summary>
+        public const int TkbMineAntiPersonnel = 6051, TkbMineAntiTank = 6052, TkbLineCharge = 6053;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),

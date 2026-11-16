@@ -209,6 +209,12 @@ namespace Hrot.NED.Descriptors
         //   flags; and a bird flock's state. Measured free on ui, behaviors, backend, coordinator 2026-11-16.
         dtAnimalState                 = 189,
         dtFlockState                  = 190,
+        // ⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, §6.1) — a minefield (authored: parameters + lanes), its struck / cleared mines (the deciding
+        //   node → every node), a side's knowledge of it (the deciding node → every node). 191–193 measured free on every lane 2026-11-16. ⚠ Fdp.Toolkit.Terrain.Minefields
+        //   states them (MinefieldDescriptorOrdinal …); a rail pins them.
+        dtMinefield                   = 191,
+        dtMinefieldStrikes            = 192,
+        dtMinefieldKnowledge          = 193,
         // etc., all known descriptor types here
     }
 

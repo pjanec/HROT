@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// saw before OpenGround existed.
     /// </summary>
     [Flags]
-    public enum DangerAreaKinds : byte
+    public enum DangerAreaKinds : ushort   // ⭐ CE-4624 (MR-9) — widened from a byte: every bit was used
     {
         /// <summary>The v1 crossings: <see cref="StreetCrossing"/> + <see cref="Intersection"/>.</summary>
         Crossings      = 0,
@@ -38,6 +38,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// nobody asks for), NOT <c>1 &lt;&lt; 7</c>: this enum crosses the DDS wire as a byte and the IDL compiler reads it SIGNED (−128..127).
         /// <see cref="DangerAreaKindsOf.BitOf"/> is the one place the mapping lives.</summary>
         Shelled        = 1 << 0,
+        /// <summary>⭐ <c>CE-4624</c> — a minefield the side knows (MR-9). ⚠ Shelled stays on bit 0 (lane decision R-5043: no recorded / saved value changes).</summary>
+        Minefield      = 1 << (int)DangerAreaKind.Minefield,
     }
 
     /// <summary>⭐ <c>CE-3081</c> — whether a sensor asking for <see cref="DangerAreaKinds"/> keeps an area of a kind.</summary>
@@ -46,7 +48,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public static bool Wants(DangerAreaKinds wanted, DangerAreaKind kind)
         {
             if (wanted == DangerAreaKinds.Crossings) wanted = DangerAreaKinds.StreetCrossing | DangerAreaKinds.Intersection;
-            return kind <= DangerAreaKind.Shelled && ((int)wanted & BitOf(kind)) != 0;   // ⭐ CE-4583 — the bound takes the new kind
+            return kind <= DangerAreaKind.Minefield && ((int)wanted & BitOf(kind)) != 0;   // ⭐ CE-4583 / CE-4624 — the bound takes the new kinds
         }
 
         /// <summary>⭐ <c>CE-4583</c> — the <see cref="DangerAreaKinds"/> bit of <paramref name="kind"/>: <c>1 &lt;&lt; kind</c>, except
