@@ -18,7 +18,7 @@ ai agent interpretting the results) as part of regression test suite"*
 ⭐ Your handoff already asks for ONE acceptance demo. R-4277 makes it a SET, each one a regression test: a `scenario.json` whose `description`
 says **What** happens and how to **Judge** it, and a `checks.json` whose `expect` rows say the same thing to the machine (Scenario Regression §3:
 `field` / `near` / `task` / `health` / `blast` cues, `after`, `never`, `atEnd`) + a `golden`. ⭐ A slice is DONE only when its scenario passes
-`scripts/scenario-regression.sh <name>` three seeds in a row, and equal at 1 / 4 / 8 threads. A cue the grammar cannot say ⇒ extend the grammar
+`scripts/scenario-regression.sh <name>` in the deterministic editor run *(amended `2026-11-16`: the 1 / 4 / 8-thread hash is NOT part of a scenario's verdict — it stays the parallel rule's own gate)*. A cue the grammar cannot say ⇒ extend the grammar
 (§9's process) — ⛔ never a check judged by reading a log.
 
 | scenario (`scenarios/demos/minefields/…`) | what it proves — every line an `expect` row |

@@ -378,7 +378,7 @@ on every new behaviour.
 |---|---|
 | ⭐⭐⭐ **every feature ships a SET of feature-test scenarios** — one per situation it must handle, not one showcase | 📌 every scenario built so far found defects no rail had (`farm-under-fire` found four) |
 | ⭐⭐⭐ **each states its expectation TWICE, the same way:** the `description` (*What* happens · how to *Judge* it) for people, and `checks.json` `expect` rows for the machine (`docs/DESIGN_Scenario_Regression.md` §3) + a `golden` | ⛔ never a verdict read from a log or judged by an agent; a cue the grammar cannot say ⇒ extend the grammar |
-| ⭐⭐ **DONE = `scripts/scenario-regression.sh <name>` passes** — three seeds, equal at 1 / 4 / 8 threads | ⛔ green rails alone are not "the feature works" |
+| ⭐⭐ **DONE = `scripts/scenario-regression.sh <name>` passes** in the deterministic editor run (and, once built, the nightly cluster run with replication) — ⚠ the 1 / 4 / 8-thread `stepped-hash.py` is a DIFFERENT test (parallel safety), kept under the parallel rule, never part of a scenario's verdict (user, `2026-11-16`) | ⛔ green rails alone are not "the feature works" |
 | ⭐⭐ **every handoff lists its scenarios and their expect rows UPFRONT**, and `docs/CAPABILITIES.md` marks the feature by them (✅ / ⚠ / ⏳) | the suite runs in the background (T3), never a foreground blocker |
 
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*

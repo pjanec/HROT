@@ -28,7 +28,7 @@ Merge `origin/coordinator`; `dotnet restore` the runner; push `chore: started fe
 ## 1. Every scenario
 `scenarios/demos/<area>/<name>/` with `scenario.json` (a `description`: **What** happens · **Judge**: the numbered expectations), `checks.json`
 (one `expect` row per Judge line — `field` / `near` / `task` / `health` / `shot` / `blast` cues, `after`, `never`, `atEnd`), `golden.json`.
-DONE = `scripts/scenario-regression.sh <name>` passes three seeds in a row and is equal at 1 / 4 / 8 threads. A cue the grammar cannot say ⇒
+DONE = `scripts/scenario-regression.sh <name>` passes in the deterministic editor run *(the 1 / 4 / 8-thread hash is a separate parallel-safety test, not part of the verdict — user, `2026-11-16`)*. A cue the grammar cannot say ⇒
 extend the grammar (§9), ⛔ never a check read from a log. Mark each in `docs/CAPABILITIES.md` (§3a, §9) with ✅ / ⚠.
 
 ## 2. Build first — the pillion's THROW
@@ -50,5 +50,5 @@ existing throw path (`HiddenTargetThrow`, the grenade arc), with a rail in `Driv
 | `ua-animal-village-fight` | a firefight among livestock · animals hit are drawn dead (no wreck) · animals and civilians panic together · no animal is ever a target |
 
 ## 4. Gates and report
-Each feature's own suites stay green (T-1); `stepped-hash.py --threads 1,4,8` on each scenario; the report names every defect a scenario found and
+Each feature's own suites stay green (T-1); the report names every defect a scenario found and
 where it was fixed (design folded, obligation ⑤), the gate-report contract (rule 8), ids from your block.
