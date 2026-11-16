@@ -3971,6 +3971,7 @@ namespace Hrot.Editor
             // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.AnimalAreaDetailsViewDescriptor.For(() => _world));   // ⭐ CE-4623 AU-7 — the animal area's form (species, count, seed, Enclosed)
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.MinefieldDetailsViewDescriptor.For(() => _world, field => { if (_world is { } w) _spawnAdapter?.StartLaneAuthoringMode(w, field); }));   // ⭐ CE-4624 MS-U3 — the minefield's form (type, spacing, orientation, seed, anti-handling, known at start, the derived counts, the lanes + Add lane = the area tool in line mode)
             // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6) — the GROUND / DITCH tab of Details for a placed ground shape (mode, value, the derived skirt, the Effect read-out)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.GroundFeatureDetailsViewDescriptor.For(() => _world, GhostContext.Get));
             // ⭐ CE-5010 (TE-8, mockup E) — the ONE TERRAIN tab of Details for every non-ground feature (a wall's kind · material · height, a wood's density, a row's spacing, a group's count, a scatter's recipe …)

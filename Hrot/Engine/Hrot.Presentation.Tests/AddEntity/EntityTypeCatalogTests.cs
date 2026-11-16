@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(79, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2)
-        Assert.Equal(79, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(90, idx.Count);   // ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2)
+        Assert.Equal(90, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -703,6 +703,7 @@ public sealed class EntityTypeCatalogTests
         8820 Barrel | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8821 Jersey barrier | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Category 91 | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

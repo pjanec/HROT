@@ -366,6 +366,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
+                                           || look.Family == VisualFamily.MineClearer && FlailActivity.IsOn(world, e)   // ⭐ CE-4624 — the flail drum spins while the flail is on
                                            || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var animalMode = animal ? AnimalReader.ModeOf(world, e) : AnimalMode.Calm;
             if (look.Family == VisualFamily.Horse && type is 703 or 704 && animalMode == AnimalMode.Calm) animalMode = AnimalMode.Guard;   // ⭐ CE-4623 — a saddled (riding / war) horse stands head up, it does not graze
@@ -2105,6 +2106,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.StrikesType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.KnowledgeType   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
             || Hrot.Core.Tkb.TreeDamageTkb.Is(tkbType))   // ⭐ CE-4603 (B-6) — nor a cell's felled trunks (the trees vanish from the terrain); terrain lane, cross-lane   // ⭐ CE-4591 (P-4) — nor a ground cell's craters (drawn into the ground); terrain lane, cross-lane one-line edit   // ⭐ CE-4391 S-1 — nor a building's DAMAGE entity (breaches): drawn into the walls in S-4 (ui, R-4195); a cross-lane one-line edit
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
@@ -2267,6 +2269,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
+        VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         >= VisualFamily.Cattle and <= VisualFamily.Goat => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
