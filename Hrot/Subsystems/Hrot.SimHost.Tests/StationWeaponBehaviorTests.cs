@@ -33,6 +33,7 @@ namespace Hrot.SimHost.Tests
             public NodeStatus? Finished;
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
+            private readonly CarryStationSystem _carry = new();   // ⭐ CE-2441 — the station moves are asked, applied by it (as in production)
             private double _time;
             private long _frame;
 
@@ -112,6 +113,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 Repo.Bus.SwapBuffers();
                 foreach (var f in Repo.Bus.Read<BehaviorFinishedEvent>()) if (f.Entity == Man) Finished = f.Result;
+                _carry.Execute(Repo, 0.1f);
                 _ingress.Execute(Repo, 0.1f);
                 _brain.Execute(Repo, 0.1f);
                 Repo.FlushCommandBuffers();

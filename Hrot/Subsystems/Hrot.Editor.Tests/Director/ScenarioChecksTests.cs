@@ -122,7 +122,7 @@ public sealed class ScenarioChecksTests
         public readonly Dictionary<long, JsonObject> Comps = new();
         public readonly JsonArray ShotRows = new();
         public readonly JsonArray BlastRows = new();
-        public EntityRepository? World => null;
+        public EntityRepository? World { get; set; }
         public IShotWorld Units => U;
         public string? BehaviourName(int hash) => null;
         public JsonObject? Components(int id) => Comps.TryGetValue(id, out var c) ? c : null;
@@ -216,6 +216,52 @@ public sealed class ScenarioChecksTests
         var v = book.Verdicts().ToDictionary(x => x.Name);
         Assert.Equal(3.0, v["a Bradley is struck"].Time!.Value, 6);
         Assert.True(v["both Bradleys alive"].Ok);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> (Minefields MR-19, R-4277) — the <c>knowledge</c> cue reads what a SIDE knows of a named minefield, as the side's own readers do
+    /// (<c>PlaceKnowledgeTable</c>): <c>Marked</c> holds for the side that knows it (here: known at start) and not for another; a cell state counts the
+    /// field's grid cells the side knows in it (default <c>&gt;= 1</c>). The grammar names a knowledge cue with no side or an unknown state.
+    /// 🔴 Red-proof: read the knowledge of side 0 for every cue ⇒ Friend's rows fail.
+    /// </summary>
+    [Fact]
+    public void CE4624_TheKnowledgeCue_ReadsWhatASideKnowsOfAField()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "Friend knows the field", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Marked"},
+                {"name": "Hostile knows the field", "on": "knowledge", "who": "Field A", "side": "Hostile", "is": "Marked"},
+                {"name": "Friend knows every cell mined", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "KnownMined", "op": "==", "value": 16},
+                {"name": "Friend suspects a cell", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Suspected"},
+                {"name": "Hostile knows nothing", "on": "knowledge", "who": "Field A", "side": "Hostile", "is": "Unknown", "op": "==", "value": 16}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>(); world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+        var field = world.CreateEntity();
+        world.AddComponent(field, new SimTransform { Position = new Vector3(500f, 200f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 4f, KnownAtStartSides = 1 << (int)ForceId.Friend });
+        world.AddComponent(field, new NetworkIdentity { Value = 77 });
+        world.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline   // 40 × 40 m ⇒ a 4 × 4 grid of 10 m cells
+        {
+            Points = new[] { new Vector2(0f, 0f), new Vector2(40f, 0f), new Vector2(40f, 40f), new Vector2(0f, 40f) },
+        });
+        var w = new FakeWorld { World = world };
+        w.U.Ids["Field A"] = 77;
+        var book = new ConditionBook(checks, w, 0);
+        book.Finish(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["Friend knows the field"].Ok);
+        Assert.False(v["Hostile knows the field"].Ok);
+        Assert.True(v["Friend knows every cell mined"].Ok);
+        Assert.False(v["Friend suspects a cell"].Ok);
+        Assert.True(v["Hostile knows nothing"].Ok);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "knowledge", "who": "Field A", "is": "Mined"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("needs side", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("is is one of", StringComparison.Ordinal));
     }
 
     /// <summary>

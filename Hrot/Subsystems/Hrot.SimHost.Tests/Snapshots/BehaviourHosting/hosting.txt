@@ -4,6 +4,7 @@ AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputByte
 AirPlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=24
 AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=296
 AllMustPass | hostedInput=- | inputBytes=144
+AnimalHsm | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
 AssembleAfterDrop | hostedInput=Hrot.Map.Definitions.Behavior.AssembleAfterDropParamsJsonDto | inputBytes=1232
 BTreeCuratedBindingDemo | hostedInput=- | inputBytes=0
@@ -17,6 +18,7 @@ Best | hostedInput=- | inputBytes=304
 BlueprintBehaviourDemo | hostedInput=- | inputBytes=0
 BoundingOverwatch | hostedInput=Hrot.Map.Definitions.Behavior.BoundingOverwatchParamsJsonDto | inputBytes=1424
 Bounty | hostedInput=- | inputBytes=176
+Breach | hostedInput=Hrot.Map.Definitions.Behavior.BreachParamsJsonDto | inputBytes=56
 BreachDoor | hostedInput=Hrot.Map.Definitions.Behavior.BreachDoorParamsJsonDto | inputBytes=216
 Break | hostedInput=Hrot.Map.Definitions.Behavior.BreakParamsJsonDto | inputBytes=20
 BreakContact | hostedInput=Hrot.Map.Definitions.Behavior.BreakContactParamsJsonDto | inputBytes=1232
@@ -29,6 +31,7 @@ CivilianSop | hostedInput=- | inputBytes=0
 ClearArea | hostedInput=Hrot.Map.Definitions.Behavior.ClearAreaParamsJsonDto | inputBytes=1712
 ClearAreaObjective | hostedInput=- | inputBytes=240
 ClearBuilding | hostedInput=Hrot.Map.Definitions.Behavior.ClearBuildingParamsJsonDto | inputBytes=1632
+ClearLane | hostedInput=Hrot.Map.Definitions.Behavior.ClearLaneParamsJsonDto | inputBytes=48
 ClearObstacle | hostedInput=Hrot.AI.Behaviors.Brains.ClearObstacleOrder | inputBytes=56
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1544
@@ -37,6 +40,7 @@ CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJso
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
+CrossLane | hostedInput=Hrot.Map.Definitions.Behavior.CrossLaneParamsJsonDto | inputBytes=48
 DangerCrossing | hostedInput=- | inputBytes=128
 DangerCrossingBp | hostedInput=Hrot.AI.Behaviors.Brains.DangerCrossingParams | inputBytes=60
 DashRide | hostedInput=- | inputBytes=128
@@ -92,6 +96,8 @@ LandPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputByt
 LoadCasualty | hostedInput=Hrot.Map.Definitions.Behavior.LoadCasualtyParamsJsonDto | inputBytes=80
 ManWeapon | hostedInput=Hrot.Map.Definitions.Behavior.ManWeaponParamsJsonDto | inputBytes=36
 MemberEvaluation | hostedInput=- | inputBytes=616
+MineStrike | hostedInput=Hrot.Map.Definitions.Behavior.MineStrikeParamsJsonDto | inputBytes=40
+MinefieldAhead | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto | inputBytes=20
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
@@ -120,6 +126,7 @@ RadarSamEngage | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes
 ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
+ReconMinefield | hostedInput=Hrot.Map.Definitions.Behavior.ReconMinefieldParamsJsonDto | inputBytes=520
 ReportLatency | hostedInput=- | inputBytes=168
 Sample | hostedInput=- | inputBytes=264
 SampleGuard | hostedInput=- | inputBytes=0

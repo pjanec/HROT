@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-16
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -464,7 +464,21 @@ knowledge and the side through the shared pack; the record family (serial writer
 and the shelled area kept apart agree with AQ101; observations as events respect R-4212. ⚠ TKB 7206 is free in production (a test-local constant
 in `EjectionSystemTests.cs:26` only).
 
-## 11. As-built deviations approved — `2026-11-16` *(R-4278)*
+## 11. As built — behaviors, `2026-11-16` (CE-4624 MS-B1…MS-B4; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Behaviors_Minefields.md`)
+
+| slice | as built | deviation from §3 / §8 |
+|---|---|---|
+| MS-B1 | `MineStrikeReflexSystem` (CGF pack, before the brain tick): a `MineStruck` ⇒ the drill as a REACTION (urgency Hit), once per (unit, field) a minute — a struck VEHICLE itself; a struck MAN's live commander, else the man. `MineStrike` (Halts \| LeavesRoute): every live man of the unit ordered to hold (`PersonHold`), the unit stops (a vehicle's crew stays aboard); Success once the side has MARKED the field (`PlaceKnowledgeTable.Marked`) or after `Hold` (120 s). The report up the chain is the knowledge path itself | ⚠ R-2125: NO back-out along breadcrumbs (MR-5's per-mover record does not exist yet) — the unit holds in place; the followers of a struck vehicle do not reverse in its tracks (no convoy context) |
+
+| MS-B2 | `ReconMinefield` (a man's behaviour; a commander orders it to his engineer): the field's parameters, outline (≤ 24 points) and knowledge grid read ONCE into the blackboard; **seek** — one 4-neighbour cell at a time toward `At`; every step a **probe** at detector pace (half a cell's length): a cell holding a live-by-geometry mine (the lattice inside the outline, not in a lane — arithmetic, 0 B) is KNOWN-MINED and never entered, else KNOWN-CLEAR and walked into; the first mined cell starts the **trace** (the mine on the LEFT; left · straight · right · back) on swept-clear cells only, until back at its start (closed ⇒ `MinefieldMarked`) or `MaxCells`; `Mark` marks an unclosed walk. Every probe raises `MinefieldCellsSwept` (one cell) through the batch buffer; `Minefield` is a declared brain read | the start is the man's OWN cell (seek toward the strike), not "the cell nearest the strike" — that cell is mined; a struck mine counts as a mine to the detector (conservative; `MinefieldStrikes` not read) |
+
+| MS-B3 | `ClearLane` (the clearer): drive to the lane's mouth (5 m/s), the tool ON through ONE seam (`ClearerEquipment.SetActive`), the lane at the TOOL's pace (0.5 m/s), the tool OFF at the end and in the deactivator · `CrossLane` (a squad): all to the assembly point on the lane's axis 10 m short of its mouth, then one man at a time once the one ahead is 5 m on, each STRAIGHT down the axis to 10 m past the end · `Breach` (a commander): the roster's vehicle = the clearer, its last foot unit = the assault, every other = support; ① support `SupportByFire` on the far side (60 m past the end) + a SMOKE request there (`CompanyAttackBehavior.AskFires`), ② the clearer `ClearLane`, ③ once its order has ended, the assault `CrossLane` | ⚠ the equipment switch is a STAND-IN (terrain MS-T4 names it — `NOTE_Behaviors_To_Terrain_Minefield_Switch.md`); the line charge not driven; `LaneCleared` not raised by the brain (no lane geometry in the event — the engine's swath clear owns the lane) |
+
+| MS-B4 | the march asks its route sensor for `Minefield` too (`SquadMarchPlay.WatchRoute`, every march with `DangerAreas`); `SquadSopConditions.MinefieldAhead` — the next area is a `Minefield` within 30 m along the route — and `DangerAreaAhead` is FALSE for a minefield (never crossed as a drill); the shipped `BasicSquadSop` row before the crossing row reacts `MinefieldAhead` (Alert, pauses the march): every live man holds (`PersonHold`), ONE `Engineers` request (`RequestKind.Engineers` = 6, appended) at the field's near side through the report queue; Success once the area is gone (the lane is cleared / the field marked and routed round) or after 900 s — the march resumes | ⚠ no HQ answers the request yet (CE-2442 — no engineer asset kind; the request carries no field id); the engineers are ordered by the scenario |
+
+**Rails:** `MineStrikeBehaviorTests` (a man's squad holds, once per field, the hold ends · a vehicle stops, its crew aboard · the conduct is Halts \| LeavesRoute, a Dash refuses it) · `ReconMinefieldBehaviorTests` (from outside a 40 × 40 m field: the 12 edge cells probed and found mined, he walks round it never inside, the field marked once for his side) · `MinefieldBreachBehaviorTests` (the clearer's two legs and tool pace · single file five metres apart · the breach's order: far-side fire, the lane, then the crossing) · `SquadManeuverTests.CE4624_MS_B4_*` (a minefield is its own condition, never a crossing · the SOP halts the marching squad, holds every man, asks for engineers once at the near side, resumes the march when the area is gone) · `CE2161_TheMarch_AsksForOpenGround_…` (the march's kinds include `Minefield`).
+
+## 12. As-built deviations approved — `2026-11-16` *(R-4278)*
 
 🔒 User, verbatim: *"approved the work for the lanes (not yet RT-1…RT-9) but do not write handoff yet, firrst we finish the RT-1…RT-9 and then we write all at once"*
 

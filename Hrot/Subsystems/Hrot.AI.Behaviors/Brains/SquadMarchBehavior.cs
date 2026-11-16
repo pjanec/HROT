@@ -219,6 +219,7 @@ namespace Hrot.AI.Behaviors.Brains
             settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
                            | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
                            | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield   // ⭐ CE-4624 MS-B4 — and a minefield its side knows (KG-7)
                            | (p.OpenGround != 0 ? Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround : 0);
             var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
             if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);

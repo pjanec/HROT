@@ -186,6 +186,8 @@ namespace Hrot.Editor.Director
                     };
                     return ok ? _rel : null;
                 }
+                case "knowledge":
+                    return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
                 default:
                 {
                     if (_w.World is not { } world) return null;
@@ -194,6 +196,37 @@ namespace Hrot.Editor.Director
                     return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> (Minefields MR-19, R-4277) — what <see cref="CheckCue.Side"/> knows of the minefield <see cref="AnchorSpec.Who"/> names, as the side's
+        /// own readers see it (<see cref="Fdp.Toolkit.Terrain.PlaceKnowledgeTable"/>, the union of every node's records): <c>Marked</c> holds when the side knows it in full
+        /// (marked, or known at start); a cell state holds when the COUNT of the field's grid cells the side knows in that state compares by <c>op</c> / <c>value</c>.
+        /// For any field the name matches.
+        /// </summary>
+        private bool KnowledgeHolds(EntityRepository world, CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.Side is null || !Enum.TryParse<ForceId>(c.Side, true, out var force)) return false;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) return false;
+            var state = c.Spec.Is is JsonValue sv ? sv.ToString() : "";
+            var table = Fdp.Toolkit.Terrain.PlaceKnowledgeTable.Of(world);
+            var outline = new List<System.Numerics.Vector2>();
+            foreach (var id in UnitsNamed(who))
+            {
+                var field = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (field.IsNull || !world.HasComponent<Fdp.Toolkit.Terrain.Minefield>(field)) continue;
+                if (state == "Marked") { if (table.Marked((int)force, field)) return true; continue; }
+                if (!Enum.TryParse<Fdp.Toolkit.Terrain.MineCellKnowledge>(state, out var want)) return false;
+                outline.Clear();
+                if (!Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.TryOutline(world, field, outline, out var anchor)) continue;
+                var g = Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.Grid(world.GetComponentRO<Fdp.Toolkit.Terrain.Minefield>(field), anchor, outline);
+                int n = 0;
+                for (int r = 0; r < g.Rows; r++)
+                    for (int col = 0; col < g.Cols; col++)
+                        if (table.Knows((int)force, field, col, r) == want) n++;
+                if (Compare(JsonValue.Create(n), c.Op, c.Value)) return true;
+            }
+            return false;
         }
 
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;

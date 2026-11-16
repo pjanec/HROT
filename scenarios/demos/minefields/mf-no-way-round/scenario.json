@@ -1,0 +1,237 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a Friend 'Squad' (Man Leader + Man 1-3) at (58-70, 80) marches east to (185, 80) with DangerAreas on. 'Field B', an own anti-personnel field Friend knows from the start (KnownAtStartSides), lies across the way at (130-150, 50-110). The march's route sensor reports it as a Minefield danger area; it is never crossed as a drill - the squad's SOP halts it (the MinefieldAhead reaction pauses the march), every man holds, and it calls the engineers (CE-4624 MS-B4, Minefields KG-7, R-2127). Judge: (1) the squad marches; (2) it reacts MinefieldAhead, short of the field - within 30 m along its route, so the leader ends at x >= 90, not where it started; (3) nobody enters the field (x stays below 130); (4) no mine goes off and nobody is hurt; (5) the squad is still halted at the end. Fail: the squad walks into the field, a blast, or the crossing drill. Check: scripts/scenario-regression.sh mf-no-way-round"
+  },
+  "entities": {
+    "a4624f10-0000-4000-8000-0000000000f1": {
+      "SimTransform": {
+        "Position": [
+          130,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8830
+      },
+      "EntityInfo": {
+        "Name": "Field B",
+        "ForceId": "Friend"
+      },
+      "Minefield": {
+        "Type": "AntiPersonnel",
+        "SpacingM": 4,
+        "OrientationDeg": 0,
+        "Seed": 2,
+        "KnownAtStartSides": 2
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 60
+          },
+          {
+            "X": 0,
+            "Y": 60
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "a4624f10-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            185,
+            80,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4,
+          "DangerAreas": true
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a4624f10-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f10-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a4624f10-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          66,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f10-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f10-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          62,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f10-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f10-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          58,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f10-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}
