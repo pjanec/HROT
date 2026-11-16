@@ -44,6 +44,7 @@ of a specific existing game (its name, characters or art) — our own take on th
 | F-21 | **Snowball fight** | team | throws, the throw arc, weather | the snowball, a hit tally | — | (suggested) |
 | F-22 | **Fireworks** over the city at night | demo | arcing shells that burst in the air, night | coloured bursts | — | (suggested) |
 | F-23 | **Western train robbery** | team | — | trains (CE-4632) | CE-4632 | "we are missing the train" |
+| F-24 | **Power-ups** — pick-up items in the world that give a timed effect or an item: speed, a shield, extra throws, a lasso, a smoke cloud, double points, rapid fire, a med kit, ammo, planks | all games | picking up a LYING round is built and arbitrated by its owner (one grant wins — `RoundPickUp`, CE-3235); a picked item goes to the man's hands (`PersonHands.Give`); a live item burns down a timer in his hands (`HandsFuzeSystem`); macros respawn units | a `PowerUp` pickup entity (kind, value, respawn time), a per-unit `ActiveEffects` record (a few timed slots, recorded), each effect read at an existing seam (speed, aim time, the unseat rule, the score), the HUD icon | CE-4642 | "Racing, and maybe not just that, requires some concept of picking power-ups." |
 
 ## Serious spin-offs (shared engine, NOT fun content)
 
