@@ -341,7 +341,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     {
         var spawn = new RecordingSpawn();
         var picks = TerrainPickCatalog.FeaturePicks();
-        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Wall)));
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Wall && p.Shape == TerrainShape.Line)));
         Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Tree)));
         Assert.False(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Scatter)));
         Assert.Equal($"area-{TkbEntityTypes.TerrainFeature}-{{\"$terrain\":\"feature:2::Line\"}}", spawn.Calls[0]);
@@ -497,7 +497,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     {
         Assert.Equal(TerrainPickCatalog.Earthworks, TerrainPickCatalog.Groups[^1]);
         var earth = TerrainPickCatalog.FeaturePicks().Where(p => p.Group == TerrainPickCatalog.Earthworks).ToList();
-        Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Foxhole" }, earth.Select(p => p.Name).ToArray());
+        Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Berm", "Foxhole" }, earth.Select(p => p.Name).ToArray());
         Assert.All(earth.Take(3), p => { Assert.Null(p.Disabled); Assert.Equal(TerrainShape.Area, p.Shape); Assert.Equal(TerrainFeature.Ground, p.FeatureKind); Assert.Equal("terrain/source", p.GlyphKey); });
         Assert.Contains("V-14", earth.Single(p => p.Name == "Crater").Disabled);
         // ⭐ CE-4593 (P-6) — the ditches are line tools, the foxhole a point tool
@@ -517,5 +517,29 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Equal(7.5f, l.Pad);
         Assert.True(l.Seed > r.Seed, "the shape drawn later has the higher draw order");
         Assert.Equal("Level ground", level.OfType<EntityInfo>().Single().Name.ToString());
+    }
+
+    /// <summary>
+    /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7, TE-12) — <i>Wall around a plot</i> is an AREA tool born as a CLOSED wall line (its first point repeated, once); the
+    /// <i>Berm</i> is a line tool among the ditches, a preset that raises. 🔴 Red-proof: drop <c>CloseRing</c> from <c>BornWith</c> ⇒ the wall is open.
+    /// </summary>
+    [Fact]
+    public void CE5012_AWallAroundAPlot_IsBornClosed_AndTheBermIsARaisingLineTool()
+    {
+        var plot = TerrainPickCatalog.FeaturePicks().Single(p => p.Name == "Wall around a plot");
+        Assert.Equal(TerrainShape.Area, plot.Shape);
+        Assert.Equal(TerrainFeature.Wall, plot.FeatureKind);
+        var corners = new List<System.Numerics.Vector2> { new(0, 0), new(20, 0), new(20, 20), new(0, 20) };
+        var born = new List<object> { new Hrot.Map.Common.Components.EditablePolyline { Points = corners } };
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, plot.Spec, System.Numerics.Quaternion.Identity, born);
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, plot.Spec, System.Numerics.Quaternion.Identity, born);   // idempotent
+        var pts = born.OfType<Hrot.Map.Common.Components.EditablePolyline>().Single().Points;
+        Assert.Equal(5, pts.Count);
+        Assert.True(Fdp.Toolkit.Terrain.WallGate.IsClosed(pts));
+        Assert.Equal(TerrainFeature.Wall, born.OfType<TerrainFeature>().Single().Kind);
+
+        var berm = TerrainPickCatalog.FeaturePicks().Single(p => p.Name == "Berm");
+        Assert.Equal(TerrainShape.Line, berm.Shape);
+        Assert.True(Fdp.Toolkit.Terrain.DitchPresets.Of("berm")!.Value.Raise);
     }
 }

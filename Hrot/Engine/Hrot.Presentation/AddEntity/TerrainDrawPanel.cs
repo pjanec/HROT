@@ -39,7 +39,10 @@ public sealed class TerrainDrawOptions
     /// <summary>Scatter only: the recipes that can be scattered, (id, name, items per 100 m²) — filled by the host from the recipes that carry a <c>scatter</c> section.</summary>
     public IReadOnlyList<(string Id, string Name, float Density)> ScatterRecipes { get; set; } = Array.Empty<(string, string, float)>();
 
-    public bool IsLine => Shape == TerrainShape.Line && Kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge;
+    /// <summary>A wall / fence / hedge — drawn as a line, or (⭐ CE-5012, TE-7) round a plot as an area and born as a CLOSED line (<see cref="IsClosedWall"/>).</summary>
+    public bool IsLine => Kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge;
+    /// <summary>⭐ CE-5012 (TE-7) — <i>Wall around a plot</i>: a wall drawn as an area, stored as a closed line (the first point repeated).</summary>
+    public bool IsClosedWall => IsLine && Shape == TerrainShape.Area;
     public bool IsBridge => Kind == TerrainFeature.Bridge;
     public bool IsScatter => Kind == TerrainFeature.Scatter;
     /// <summary>⭐ CE-4592 (P-5 2b, mockup B) — a ground AREA (Level / Raise / Lower).</summary>
@@ -65,7 +68,7 @@ public sealed class TerrainDrawOptions
     /// <summary>⭐ CE-4592 — the ground area's Mode row (the template), as the mockup's draw panel: Level · Raise · Lower.</summary>
     public static readonly (string Mode, string Name)[] GroundModes = { ("level", "Level"), ("raise", "Raise"), ("lower", "Lower") };
     /// <summary>⭐ CE-4593 — the ditch's Preset row: Ditch · Anti-tank ditch (the Foxhole is a click, not a line).</summary>
-    public static readonly (string Mode, string Name)[] DitchModes = { ("ditch", "Ditch"), ("at-ditch", "Anti-tank ditch") };
+    public static readonly (string Mode, string Name)[] DitchModes = { ("ditch", "Ditch"), ("at-ditch", "Anti-tank ditch"), ("berm", "Berm") };   // ⭐ CE-5012 (TE-12) — the berm raises
 
     /// <summary>⭐ CE-4592 / CE-4593 — the value typed in the panel (a raise / lower dZ, a level Z, a ditch depth); null = the mode's default.</summary>
     public float? GroundValue { get; set; }
@@ -82,7 +85,7 @@ public sealed class TerrainDrawOptions
     };
 
     /// <summary>The value row's label: <c>Raise by</c> · <c>Lower by</c> · <c>Level to</c> · <c>Depth</c>.</summary>
-    public string ValueLabel => Template switch { "raise" => "Raise by", "lower" => "Lower by", "level" => "Level to", _ => "Depth" };
+    public string ValueLabel => Template switch { "raise" => "Raise by", "lower" => "Lower by", "level" => "Level to", "berm" => "Height", _ => "Depth" };
 
     /// <summary>Switches a ground area's mode / a ditch's preset; the typed value goes back to the new mode's default.</summary>
     public void SetMode(string mode) { if (mode != Template) { Template = mode; GroundValue = null; } }
@@ -378,7 +381,7 @@ public sealed class TerrainDrawPanel
         var ctx = src.Context;
         if (o.IsGround && o.LevelDefault is null && pts.Count > 0 && ctx?.Base.Height is { } grid) o.LevelDefault = MathF.Round(grid.Sample(pts[0].X, pts[0].Y) * 10f) / 10f;
         string title = $"{o.KindName} — " + (pts.Count == 0 ? "click to start" : "click to add a point");
-        Title(o.IsDitch ? "earth/dig" : "earth/mound", title);
+        Title(o.IsDitch && o.Template != "berm" ? "earth/dig" : "earth/mound", title);
         ImGui.Spacing();
         float x0 = 66f * s;
         var modes = o.IsDitch ? TerrainDrawOptions.DitchModes : TerrainDrawOptions.GroundModes;

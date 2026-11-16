@@ -32,7 +32,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         /// <summary>A drawn LINE (open): a wall / fence / hedge, a bridge, a tree row, a ditch.</summary>
         public static bool IsLine(byte kind, string template)
-            => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Bridge or TerrainFeature.Row || (kind == TerrainFeature.Ground && template is "ditch" or "at-ditch");
+            => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Bridge or TerrainFeature.Row || (kind == TerrainFeature.Ground && template is "ditch" or "at-ditch" or "berm");
     }
 
     /// <summary>

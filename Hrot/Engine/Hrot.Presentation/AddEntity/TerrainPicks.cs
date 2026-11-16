@@ -90,6 +90,7 @@ public static class TerrainPickCatalog
             F(Vegetation, TerrainFeature.Row, "Tree row", "tree", TerrainShape.Line, "lone trees along a line, every 8 m"),       // ⭐ CE-5008 (TE-3) — lone trunks, never a wood
             F(Vegetation, TerrainFeature.Group, "Tree group", "tree", TerrainShape.Area, "lone trees in an area"),
             F(Walls, TerrainFeature.Wall, "Wall", "", TerrainShape.Line, "a brick or concrete wall, 2 m"),
+            F(Walls, TerrainFeature.Wall, "Wall around a plot", "", TerrainShape.Area, "a closed wall: click the corners; Edit Shape ▸ Add gate here opens a 3 m gate"),   // ⭐ CE-5012 (TE-7)
             F(Walls, TerrainFeature.Fence, "Fence", "", TerrainShape.Line, "a wooden fence, 1.6 m"),
             F(Walls, TerrainFeature.Hedge, "Hedge", "", TerrainShape.Line, "a hedge, 1.5 m"),
             F(Water, TerrainFeature.Water, "Water", "", TerrainShape.Area, "a lake or pond; impassable"),
@@ -102,6 +103,7 @@ public static class TerrainPickCatalog
             F(Earthworks, TerrainFeature.Ground, "Crater", "crater", TerrainShape.Point, "a crater left by a blast", "A pre-shelled crater is a saved crater record (V-14) — not yet."),
             F(Earthworks, TerrainFeature.Ground, "Ditch", "ditch", TerrainShape.Line, "a lowered line 2 × 1 m: cover, and no vehicle crosses it"),
             F(Earthworks, TerrainFeature.Ground, "Anti-tank ditch", "at-ditch", TerrainShape.Line, "a ditch 4 m wide, 2 m deep: stops every vehicle"),
+            F(Earthworks, TerrainFeature.Ground, "Berm", "berm", TerrainShape.Line, "a raised earth line 3 m wide, 1.5 m high"),   // ⭐ CE-5012 (TE-12)
             F(Earthworks, TerrainFeature.Ground, "Foxhole", "foxhole", TerrainShape.Point, "a fighting hole 2 × 1.5 × 1 m along its heading"),
         };
         foreach (var t in Fdp.Toolkit.Terrain.ClutterTypes.All)

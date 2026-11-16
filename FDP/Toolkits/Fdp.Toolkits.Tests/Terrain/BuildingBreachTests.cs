@@ -599,6 +599,13 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var ring = PlotWall("[[0,0],[20,0],[20,20],[0,20],[0,0]]");               // segments: 0 south · 1 east · 2 north · 3 west
             var gated = PlotWall("[[20,11.5],[20,20],[0,20],[0,0],[20,0],[20,8.5]]");   // a gate at 10 m on the east: 0 east tail · 1 north · 2 west · 3 south · 4 east head
+            // ⭐ WallGate.Open is what makes that line from the ring and a click beside the east side
+            var opened = WallGate.Open(new[] { new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0) }, new Vector2(21f, 10f), out _);
+            Assert.Equal(new[] { new Vector2(20, 11.5f), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 8.5f) }, opened);
+            Assert.Null(WallGate.Open(new[] { new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20) }, Vector2.Zero, out var notClosed));   // an open line takes no gate
+            Assert.NotNull(notClosed);
+            Assert.Null(WallGate.Open(new[] { new Vector2(0, 0), new Vector2(3, 0), new Vector2(3, 3), new Vector2(0, 0) }, new Vector2(1.5f, 0f), out var tooShort));
+            Assert.Contains("too short", tooShort);
             int g = BuildingDamages.IndexOfKey(ring, "range/wall:plot/0");
             Assert.Equal(g, BuildingDamages.IndexOfKey(gated, "range/wall:plot/0"));   // the same key
             int P(TerrainWorld w, int rank) => BuildingPanelIndex.ToGlobal(w, g, rank);

@@ -463,6 +463,23 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
     
         /// <summary>
+        /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-12; §8 R-11) — a BERM drawn along a line raises a 3 m strip 1.5 m (its own height overrides), blended out by a skirt,
+        /// and is no obstacle area (a terrain-class line). 🔴 Red-proof: map "berm" to the ditch mode ⇒ the strip is LOWERED.
+        /// </summary>
+        [Fact]
+        public void CE5012_ABerm_IsARaisedStrip_NotAnObstacle()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("b", "berm", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("h", "berm", 3f, 2, Vector2.Zero, 0f, new Vector2(-20f, 40f), new Vector2(20f, 40f))));
+            Assert.Equal(1.5f, merged.GroundHeightAt(0f, 0f), 3);          // the crest
+            Assert.Equal(1.5f, merged.GroundHeightAt(5f, 0.5f), 2);        // still the crest across its 3 m
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 12f), 3);           // past the skirt: untouched
+            Assert.Equal(3f, merged.GroundHeightAt(0f, 40f), 3);           // its own height
+            Assert.DoesNotContain(merged.GroundShapes, g => g.Obstacle);
+        }
+
+        /// <summary>
         /// ⭐ G-27 / G-36 / V-29 / V-30 — cover: a 1 m ditch 40 m long gives crouch points along BOTH banks, each facing its bank, on the ditch's floor; a foxhole gives four
         /// all-round points. 🔴 Red-proof: drop <c>AddGroundCover</c> from the build ⇒ none.
         /// </summary>

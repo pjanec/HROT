@@ -45,6 +45,15 @@ namespace Hrot.ScenarioEditor.Gizmos
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert point after" },
             new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete point" });
 
+        /// <summary>⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7) — a CLOSED wall's menu adds <i>Add gate here</i> (at the right-click).</summary>
+        private static readonly string RingMenuJson = DrawingActions.JsonWith(
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 1, Label = "Insert point after" },
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = 2, Label = "Delete point" },
+            new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Id = AddGateId, Label = "Add gate here (3 m)" });
+
+        /// <summary>The menu row that opens a gate in a closed wall.</summary>
+        public const int AddGateId = 3;
+
 
         private readonly EntityRepository _repo;
         private readonly Entity           _entity;
@@ -54,7 +63,19 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         // ⭐ B-17 P2 — the working copy lives in the ONE drawing core: ABSOLUTE world points (= relative Points + origin), the selected vertex,
         //   insert / delete, and the finish / cancel convention (Enter · ✓ · the menu finish; Esc cancels; right-click is the menu).
-        private readonly ShapeEditSession _session = new(minPoints: 3, closed: true, noun: "an area");
+        private readonly ShapeEditSession _session;
+
+        // ⭐ CE-5012 (TE-7, TE-15) — a terrain LINE (wall, hedge, row, ditch) is edited as an OPEN line (no closing side, two points least); a CLOSED wall (its first point
+        //   repeated) as a ring whose repeated point the write-back restores. Everything else (an area, a zone) is the closed area it always was.
+        private readonly bool _openLine;
+        private readonly bool _ring;
+        private readonly string _menuJson;
+        private Vector2? _menuAt;   // where the last right-click was (the menu opens there): Add gate here puts the gate on the side nearest it
+
+        /// <summary>⭐ CE-5012 — true when this edits an open terrain line (rails).</summary>
+        public bool IsOpenLine => _openLine;
+        /// <summary>⭐ CE-5012 — true when this edits a closed wall (rails).</summary>
+        public bool IsRing => _ring;
 
         /// <summary>⭐ B-17 P2 — the drawing core this editor is a view of.</summary>
         public ShapeEditSession Session => _session;
@@ -79,7 +100,19 @@ namespace Hrot.ScenarioEditor.Gizmos
             _entity    = entity;
             _networkId = networkId;
             _onRemove  = onRemove ?? throw new ArgumentNullException(nameof(onRemove));
-            _session.Menu = new ShapeMenu(MenuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
+            IReadOnlyList<Vector2>? loaded = _repo.HasManagedComponent<EditablePolyline>(_entity) ? ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(_entity).Points : null;
+            if (_repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>() && _repo.HasComponent<Fdp.Toolkit.Terrain.TerrainFeature>(_entity))
+            {
+                var f = _repo.GetComponentRO<Fdp.Toolkit.Terrain.TerrainFeature>(_entity);
+                if (TerrainFeatureLook.IsLine(f.Kind, f.Template.ToString()))
+                {
+                    _ring = loaded != null && Fdp.Toolkit.Terrain.WallGate.IsClosed(loaded);
+                    _openLine = !_ring;
+                }
+            }
+            _session = _openLine ? new ShapeEditSession(minPoints: 2, closed: false, noun: "a line") : new ShapeEditSession(minPoints: 3, closed: true, noun: _ring ? "a closed wall" : "an area");
+            _menuJson = _ring ? RingMenuJson : MenuJson;
+            _session.Menu = new ShapeMenu(_menuJson, DrawingMenu.CommandOf);   // the SAME ids the menu rows carry
             _session.ReasonChanged += reason => Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(_repo)?.SetHint(reason);   // ⭐ B-17 P6 — "an area needs 3 points" replaces the hint until the next handle is touched
 
             _originOffset = Vector2.Zero;
@@ -96,8 +129,9 @@ namespace Hrot.ScenarioEditor.Gizmos
                 if (poly.Points != null)
                 {
                     var abs = new List<Vector2>(poly.Points.Count);
-                    foreach (var p in poly.Points)
-                        abs.Add(_originOffset + p);
+                    int count = _ring ? poly.Points.Count - 1 : poly.Points.Count;   // a ring's repeated last point is the write-back's, not a handle
+                    for (int i = 0; i < count; i++)
+                        abs.Add(_originOffset + poly.Points[i]);
                     _session.Load(abs);
                     _written = new List<Vector2>(_session.Points);
                 }
@@ -126,14 +160,14 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             // ContextMenuBinding so right-clicking a vertex handle shows the insert/delete menu.
             if (IsFocused)
-                draw.DrawContextMenuBinding(_networkId, MenuJson);
+                draw.DrawContextMenuBinding(_networkId, _menuJson);
 
             // Draw live preview edges so the edited shape is visible during drag.
             // ⭐ B-17 P7 ③ — through GizmoEditStyle (the ONE look): the area colour, a faint fill when convex, white square handles (grabbed = amber), the centre a diamond.
             //   Each handle is an invisible pick box with the ids (the hit area is what it always was) plus the small drawn square.
             int n = _points.Count;
-            if (n >= 3) GizmoEditStyle.FillConvex(draw, _points, ShapeKind.Area);
-            for (int i = 0; i < n; i++)
+            if (n >= 3 && !_openLine && !_ring) GizmoEditStyle.FillConvex(draw, _points, ShapeKind.Area);   // a wall is not a filled area
+            for (int i = 0; i < (_openLine ? n - 1 : n); i++)   // ⭐ CE-5012 — an open line has no closing side
             {
                 var a = new Vector3(_points[i].X, _points[i].Y, 0f);
                 var b = new Vector3(_points[(i + 1) % n].X, _points[(i + 1) % n].Y, 0f);
@@ -200,6 +234,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             // ⭐ B-17 P2 — the drawing rows (Finish · Cancel) are the session's; Insert / Delete are this editor's own and need a selected vertex.
             if (DrawingMenu.CommandOf(actionId) != null) { Resolve(_session.ApplyMenuAction(actionId)); return; }
+            if (actionId == AddGateId && _ring) { AddGate(); return; }
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
 
             if (actionId == 1) // Insert after
@@ -222,6 +257,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         public void OnMouseEvent(MapMouseButton button, bool isPressed, Vector3 worldPos)
         {
             // ⭐ B-17 P2 (D11) — right-click is the MENU: it no longer writes back and exits. The on-map ✓ (a left click) finishes.
+            if (button == MapMouseButton.Right && isPressed) { _menuAt = new Vector2(worldPos.X, worldPos.Y); return; }   // ⭐ CE-5012 — where Add gate here goes
             if (button != MapMouseButton.Left || isPressed) return;
             var at = new Vector2(worldPos.X, worldPos.Y);
             if (_session.HitDone(at)) { Resolve(_session.Finish()); return; }
@@ -256,6 +292,33 @@ namespace Hrot.ScenarioEditor.Gizmos
         }
         public void Dispose() { }
 
+        /// <summary>
+        /// ⭐ CE-5012 (TE-7) — <i>Add gate here</i>: the closed wall becomes ONE open line from gate post to gate post round the plot (<see cref="Fdp.Toolkit.Terrain.WallGate"/>), at
+        /// the side nearest the right-click (else the side after the selected corner, else the first) — one undo step; the tool ends (the shape is a line now). A side too short
+        /// for the gate says so on the hint line and changes nothing.
+        /// </summary>
+        public bool AddGate(Vector2? at = null)
+        {
+            var ring = new List<Vector2>(_points.Count + 1);
+            for (int i = 0; i < _points.Count; i++) ring.Add(_points[i]);
+            if (ring.Count < 3) return false;
+            ring.Add(ring[0]);
+            int k = _activeVertex >= 0 && _activeVertex < _points.Count ? _activeVertex : 0;
+            var where = at ?? _menuAt ?? (ring[k] + ring[k + 1]) * 0.5f;
+            var open = Fdp.Toolkit.Terrain.WallGate.Open(ring, where, out var reason);
+            if (open is null)
+            {
+                if (reason != null) Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(_repo)?.SetHint(reason);
+                return false;
+            }
+            EditSteps.Begin(_repo, "Add gate");
+            try { Write(open); }
+            finally { EditSteps.End(_repo); }
+            _activeVertex = -1;
+            _onRemove();
+            return true;
+        }
+
         // ---- private helpers ---------------------------------------------------
 
         // ⭐ B-17 P6 — every write-back is ONE bracketed edit (EditSteps): a finished drag, an insert, a delete = one undo step each (the preview is in-memory,
@@ -275,8 +338,17 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (!_repo.IsAlive(_entity)) return;
 
-            var relPoints = new List<Vector2>(_points.Count);
-            foreach (var p in _points)
+            var abs = new List<Vector2>(_points.Count + 1);
+            for (int i = 0; i < _points.Count; i++) abs.Add(_points[i]);
+            if (_ring && abs.Count > 0) abs.Add(abs[0]);   // ⭐ CE-5012 — a closed wall keeps its first point repeated
+            Write(abs);
+        }
+
+        private void Write(IReadOnlyList<Vector2> absolute)
+        {
+            if (!_repo.IsAlive(_entity)) return;
+            var relPoints = new List<Vector2>(absolute.Count);
+            foreach (var p in absolute)
                 relPoints.Add(p - _originOffset);
 
             var updatedPolyline = new EditablePolyline { Points = relPoints };

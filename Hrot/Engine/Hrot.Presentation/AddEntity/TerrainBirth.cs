@@ -97,12 +97,26 @@ public static class TerrainBirth
     public static uint DrawOrderNow() => (uint)Math.Max(1.0, (DateTime.UtcNow - new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds);
 
     /// <summary>
+    /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7; the recipe <c>enclosure</c> precedent) — a wall / fence / hedge drawn as an AREA (<i>Wall around a plot</i>) is stored as a
+    /// CLOSED line: its first point repeated at the end, so the expander's LineString walls every side and a gate can later rotate its start (one entity, one key). Idempotent.
+    /// </summary>
+    public static void CloseRing(string? spec, List<object> components)
+    {
+        if (FeatureOf(spec) is not { Shape: TerrainShape.Area } f || f.Kind is not (TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge)) return;
+        int i = components.FindIndex(c => c is Hrot.Map.Common.Components.EditablePolyline);
+        if (i < 0 || components[i] is not Hrot.Map.Common.Components.EditablePolyline { Points: { Count: >= 3 } pts } || pts[0] == pts[^1]) return;
+        var closed = new List<System.Numerics.Vector2>(pts) { pts[0] };
+        components[i] = new Hrot.Map.Common.Components.EditablePolyline { Points = closed };
+    }
+
+    /// <summary>
     /// Adds the <see cref="TerrainBlock"/> (<paramref name="tkbType"/> 8817) or <see cref="TerrainFeature"/> (8818) for <paramref name="spec"/> to <paramref name="components"/>, heading from
     /// <paramref name="rotation"/>; also its name (the recipe's / template's title) unless one is there. Never twice. ⛔ A spec of the other kind than the type adds nothing.
     /// </summary>
     public static void BornWith(long tkbType, string? spec, System.Numerics.Quaternion rotation, List<object> components, uint? seed = null, float extraHeadingDeg = 0f)
     {
         if (Parse(spec) is not { } p) return;
+        if (tkbType == TkbEntityTypes.TerrainFeature) CloseRing(spec, components);
         if (p.Kind == TerrainPickKind.Block && tkbType == TkbEntityTypes.TerrainBlock && !components.Exists(c => c is TerrainBlock))
             components.Add(new TerrainBlock { Recipe = new FixedString32(p.Id), Seed = seed ?? NewSeed(), HeadingDeg = (HeadingOf(rotation) + extraHeadingDeg) % 360f, Fit = TerrainBlock.FitAll });
         else if (p.Kind == TerrainPickKind.House && tkbType == TkbEntityTypes.TerrainFeature && !components.Exists(c => c is TerrainFeature))
