@@ -26,6 +26,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             var man = new TkbTemplate("Rifleman", Rifleman);
             man.AddDescriptor(new WeaponSuiteDto { Mounts = new() { new WeaponMountDto
                 { DispersionMils = 2f, Penetration = 6f, DamagePerHit = 12.5f, Range = 500f, AimSeconds = 0.8f, MagazineSize = 30, ReloadSeconds = 3f } } });
+            man.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 100f });
             db.Register(man);
             var ifv = new TkbTemplate("IFV", Ifv);
             ifv.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 800, ArmorFront = 30, ArmorSide = 15, ArmorRear = 10, PresentedAreaM2 = 12.6f });
@@ -52,6 +53,8 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.True(t.TryGet(new TkbTypeId(Rifleman), new TkbTypeId(Ifv), out var rifleOnHull));
             Assert.Equal(0f, rifleOnHull.Suitability);
             Assert.Equal(new TkbTypeId(Rifleman), t.PersonalWeapon(SlotRole.Rifleman));
+            // ⭐ CE-8019 — the damage on a man is in SLOT health: the body's (100 HP) hit, × 25 / 100 — ✅ red-proof: unscaled ⇒ 4× ⇒ red
+            Assert.Equal(ArmorModel.HitDamage(6f, 12.5f, 0f) * KillerVictimGenerator.MeanZoneFactor * UnitSplits.SlotFullHealth / 100f, rifle.DamagePerHit, 4);
         }
 
         /// <summary>⭐ The fire phase builds the table ONCE from the world's TKB over the held types when none is in force (no host wiring needed

@@ -32,6 +32,15 @@ namespace Fdp.Toolkit.Aggregate
         public const float SuppressingRoundsPerMan = 6f;
         /// <summary>The expected rounds per man near-missed (missed rounds land near a man in this share).</summary>
         public const float NearMissShare = 0.25f;
+        /// <summary>CALIBRATED (CE-8009, the C-8 ladder) — the share of hits that land on the man ALREADY under fire (the up slot with the least
+        /// health): a physical shooter stays on his target until it falls, so hits CONCENTRATE; spread evenly by exposure, nobody falls until
+        /// everybody falls (measured: no loss for 10 s, then a side at once).</summary>
+        public const float FocusShare = 0.3f;
+        /// <summary>CALIBRATED (CE-8009) — a broken man (stress at the break level) goes to ground: this share of a standing man's exposure.</summary>
+        public const float BrokenExposure = 0.5f;
+        /// <summary>CALIBRATED (CE-8009) — a broken man still fires from the ground at this share (the physical loser keeps hitting the winner
+        /// for a minute after its men break; a broken side that falls silent loses ~1 man where the physical one costs the winner ~3).</summary>
+        public const float BrokenFireShare = 0.6f;
 
         /// <summary>Is the step due at <paramref name="now"/> after <paramref name="last"/>?</summary>
         internal static bool Due(SimInstant now, SimInstant last) => (double)now - (double)last >= StepSeconds - 1e-6;
@@ -126,11 +135,11 @@ namespace Fdp.Toolkit.Aggregate
             {
                 var weapon = table.PersonalWeapon((SlotRole)r);
                 if ((long)weapon == 0) continue;
-                int shooters = 0;
+                float shooters = 0f;
                 for (int i = 0; i < slots.Count; i++)
-                    if ((int)slots.Slots[i].Role == r && slots.IsUp(i) && slots.Slots[i].Ammo > 0
-                        && (float)slots.Slots[i].Stress < StochasticCombat.BreakLevel) shooters++;
-                if (shooters == 0) continue;
+                    if ((int)slots.Slots[i].Role == r && slots.IsUp(i) && slots.Slots[i].Ammo > 0)
+                        shooters += (float)slots.Slots[i].Stress < StochasticCombat.BreakLevel ? 1f : StochasticCombat.BrokenFireShare;   // ⭐ CE-8009
+                if (shooters <= 0f) continue;
                 fired |= Split(repo, ref alloc, table, weapon, shooters * fire * dt, FireAllocation.PersonalSource, in det, at);
             }
             // the held systems (crew-served weapons, the vehicles' guns): operational ones with ammunition
@@ -312,7 +321,7 @@ namespace Fdp.Toolkit.Aggregate
             // ③ the men: cover × posture, then the seeded draw per exposed slot
             int exposed = slots.Present();
             float cover = StochasticCombat.CoverFactor(u.Prepared) * (u.Posture == UnitPosture.Mounted ? StochasticCombat.MountedExposure : 1f);
-            float lam = lambda[FireAllocation.PersonnelClass] * cover;
+            float lam = lambda[FireAllocation.PersonnelClass] * cover * GroundFactor(in slots);   // ⭐ CE-8009 — broken men are down in the dirt
             var rng = Fdp.Toolkit.Determinism.SimRng.FromSim(self.Index, SaltDraw, (float)(double)now, seed);
             int downNow = 0;
             if (lam > 0f && exposed > 0)
@@ -394,22 +403,46 @@ namespace Fdp.Toolkit.Aggregate
         /// <summary>The slot a hit lands on: a seeded draw over the UP slots weighted by exposure (a crewman under armour 0.5, the rest 1).</summary>
         private static int PickExposed(in UnitSlotTable t, ref Fdp.Toolkit.Determinism.SimRng rng)
         {
+            // ⭐ CE-8009 — the focus: the man already hit (the least health below full) takes FocusShare of the hits
+            if (rng.NextSingle() < StochasticCombat.FocusShare)
+            {
+                int focus = -1; float least = UnitSplits.SlotFullHealth;
+                for (int i = 0; i < t.Count; i++)
+                    if (t.IsUp(i) && (float)t.Slots[i].Health < least) { least = (float)t.Slots[i].Health; focus = i; }
+                if (focus >= 0) return focus;
+            }
             float sum = 0f;
-            for (int i = 0; i < t.Count; i++) if (t.IsUp(i)) sum += Exposure(t.Slots[i].Role);
+            for (int i = 0; i < t.Count; i++) if (t.IsUp(i)) sum += Exposure(in t.Slots[i]);
             if (sum <= 0f) return -1;
             float x = rng.NextSingle() * sum;
             for (int i = 0; i < t.Count; i++)
             {
                 if (!t.IsUp(i)) continue;
-                x -= Exposure(t.Slots[i].Role);
+                x -= Exposure(in t.Slots[i]);
                 if (x < 0f) return i;
             }
             for (int i = t.Count - 1; i >= 0; i--) if (t.IsUp(i)) return i;
             return -1;
         }
 
-        /// <summary>CALIBRATED exposure weight of a role.</summary>
-        private static float Exposure(SlotRole r) => r == SlotRole.Crew ? 0.5f : 1f;
+        /// <summary>⭐ CE-8009 — the share of the incoming fire that still finds the up men: a broken man has gone to ground
+        /// (<see cref="StochasticCombat.BrokenExposure"/>), the rest stand (1); the mean over the up slots.</summary>
+        private static float GroundFactor(in UnitSlotTable t)
+        {
+            float sum = 0f; int up = 0;
+            for (int i = 0; i < t.Count; i++)
+            {
+                if (!t.IsUp(i)) continue;
+                up++;
+                sum += (float)t.Slots[i].Stress >= StochasticCombat.BreakLevel ? StochasticCombat.BrokenExposure : 1f;
+            }
+            return up == 0 ? 1f : sum / up;
+        }
+
+        /// <summary>A slot's share of the incoming hits: crew under armour half, a broken man gone to ground <see cref="StochasticCombat.BrokenExposure"/>.</summary>
+        private static float Exposure(in UnitSlot s)
+            => (s.Role == SlotRole.Crew ? 0.5f : 1f) * ((float)s.Stress >= StochasticCombat.BreakLevel ? StochasticCombat.BrokenExposure : 1f);
+
 
         /// <summary>① — the unit's own rounds: personal lines spread over its up slots of a firing role, held lines from that holding.</summary>
         private static void Spend(EntityRepository repo, Entity self, ref UnitSlotTable slots, bool hasHoldings, in FireAllocation mine)

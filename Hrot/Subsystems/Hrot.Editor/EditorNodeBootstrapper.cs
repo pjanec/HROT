@@ -272,7 +272,7 @@ internal sealed class EditorNodeBootstrapper : SharedApplicationBootstrapper
 
         // ⭐ CE-454 (W3): the one mapper list both Brain hosts share. ⚠ NOT gated on authority (CGF's gate follows a role policy; the editor is offline and has none).
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
-        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus);
+        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, entityMap, mapperRegistry, _blueprintRegistry, nodeBus: context.EventBus, lifecycle: () => EntityCreation?.Elm);
 
         // ⭐⭐⭐ CE-4270 B9 (§4.1ag, R-3077): the ONE role table, the same one CGF and the fused server resolve. The editor's row is the fused set with the network
         //   off and no gameplay server (it serves no players). The injected arm (Stride's mode 1) puts the supplied tier in the Muscle's slot.

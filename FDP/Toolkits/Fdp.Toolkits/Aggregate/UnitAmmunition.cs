@@ -2,6 +2,7 @@ using System;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Combat.Components;
 
 namespace Fdp.Toolkit.Aggregate
 {
@@ -61,6 +62,74 @@ namespace Fdp.Toolkit.Aggregate
             if (load <= 0) return false;
             share = Math.Clamp((float)left / load, 0f, 1f);
             return true;
+        }
+
+        // ── ⭐ CE-8013 ③ (X-4) — a slot's rounds onto its soldier at the handover, and back at the merge ─────────────────────────────
+
+        /// <summary>
+        /// ⭐ The handover: the soldier was spawned with his full basic load; each of his mounts (his own <see cref="WeaponState"/> and his mount
+        /// children) keeps the SAME share of what it carries that the slot has left of the soldier's total — so a slot at half its rounds
+        /// hands over a man at half on every weapon. Allocation-free (rare: once per child per split).
+        /// </summary>
+        public static void ToSoldier(EntityRepository repo, Entity soldier, int slotRounds)
+        {
+            if (!repo.IsComponentTypeRegistered<WeaponState>()) return;
+            long carried = Sum(repo, soldier);
+            if (carried <= 0) return;
+            double share = Math.Clamp((double)Math.Max(0, slotRounds) / carried, 0.0, 1.0);
+            long given = 0; Entity last = default; bool any = false;
+            Scale(repo, soldier, share, ref given, ref last, ref any);
+            // the rounding remainder goes to the last mount, so the soldier carries exactly min(slot, carried)
+            long want = Math.Min(Math.Max(0, slotRounds), carried);
+            if (any && given < want)
+            {
+                ref var w = ref repo.GetComponentRW<WeaponState>(last);
+                w.Ammo += (int)(want - given);
+            }
+        }
+
+        /// <summary>⭐ The merge: the soldier's rounds over all his mounts, clamped to a slot's 16 bits; −1 when he carries no weapon state.</summary>
+        public static int ToSlot(EntityRepository repo, Entity soldier)
+        {
+            if (!repo.IsComponentTypeRegistered<WeaponState>()) return -1;
+            bool has = repo.HasComponent<WeaponState>(soldier) || HasMountChild(repo, soldier);
+            if (!has) return -1;
+            return (int)Math.Clamp(Sum(repo, soldier), 0, ushort.MaxValue);
+        }
+
+        private static long Sum(EntityRepository repo, Entity soldier)
+        {
+            long n = 0;
+            if (repo.HasComponent<WeaponState>(soldier)) n += Math.Max(0, repo.GetComponentRO<WeaponState>(soldier).Ammo);
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>())
+                foreach (var c in repo.Query().With<WeaponState>().With<Fdp.Toolkit.Replication.Components.PartMetadata>().IncludeAll().Build())
+                    if (repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(c).ParentEntity == soldier)
+                        n += Math.Max(0, repo.GetComponentRO<WeaponState>(c).Ammo);
+            return n;
+        }
+
+        private static bool HasMountChild(EntityRepository repo, Entity soldier)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) return false;
+            foreach (var c in repo.Query().With<WeaponState>().With<Fdp.Toolkit.Replication.Components.PartMetadata>().IncludeAll().Build())
+                if (repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(c).ParentEntity == soldier) return true;
+            return false;
+        }
+
+        private static void Scale(EntityRepository repo, Entity soldier, double share, ref long given, ref Entity last, ref bool any)
+        {
+            if (repo.HasComponent<WeaponState>(soldier))
+            {
+                ref var w = ref repo.GetComponentRW<WeaponState>(soldier);
+                w.Ammo = (int)Math.Floor(Math.Max(0, w.Ammo) * share); given += w.Ammo; last = soldier; any = true;
+            }
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) return;
+            foreach (var c in repo.Query().With<WeaponState>().With<Fdp.Toolkit.Replication.Components.PartMetadata>().IncludeAll().Build())
+            {
+                if (repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(c).ParentEntity != soldier) continue;
+                ref var w = ref repo.GetComponentRW<WeaponState>(c);
+                w.Ammo = (int)Math.Floor(Math.Max(0, w.Ammo) * share); given += w.Ammo; last = c; any = true;
+            }
         }
     }
 }

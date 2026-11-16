@@ -88,5 +88,9 @@ internal sealed class FakeDescriptorTranslator : IDescriptorTranslator
             new FakeDescriptorTranslator(
                 (long)Hrot.NED.Descriptors.EDescriptorType.dtPartDamage,
                 GlobalComponentIds.PartDamage),
+            // ⭐ CE-8015 — EntityAggregateUnitEgressTranslator declares dtAggregateUnit → AggregateUnit (the unit form's attributes)
+            new FakeDescriptorTranslator(
+                (long)Hrot.NED.Descriptors.EDescriptorType.dtAggregateUnit,
+                GlobalComponentIds.AggregateUnit),
         });
 }

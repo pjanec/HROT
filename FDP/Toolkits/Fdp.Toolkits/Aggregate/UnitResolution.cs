@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.NetworkSpawning.Events;
@@ -100,6 +101,13 @@ namespace Fdp.Toolkit.Aggregate
         /// <summary>X-4 — a slot's health onto a soldier of max <paramref name="max"/>, and back.</summary>
         public static float ToSoldier(float slotHealth, float max) => max <= 0f ? slotHealth : slotHealth / SlotFullHealth * max;
         public static float ToSlot(float current, float max) => max <= 0f ? current : MathF.Max(0f, current) / max * SlotFullHealth;
+
+        /// <summary>⭐ CE-8013 ② — a child that counts: HELD (Constructing, SV-6) or Active; ⛔ not one already in teardown (a merge's).</summary>
+        public static bool Live(EntityRepository repo, Entity c)
+        {
+            var l = repo.GetLifecycleState(c);
+            return l == EntityLifecycle.Active || l == EntityLifecycle.Constructing;
+        }
     }
 
     /// <summary>
@@ -124,6 +132,8 @@ namespace Fdp.Toolkit.Aggregate
         private SimInstant _last = (SimInstant)(-1.0);
         private readonly List<(Vector3 At, ForceId Force)> _enemies = new();
         private Vector3[] _posts = new Vector3[UnitSlotTable.Capacity];
+        // ⭐ CE-8013 ④ — per step: every entity a PHYSICAL sensor holds as acquired → the forces of those observers (bit per ForceId)
+        private readonly Dictionary<long, uint> _seenBy = new();
 
         /// <summary>The policy in force (agg-behaviors' <c>ResolutionPolicy</c> plugs in here); default SV-9's fixed bands.</summary>
         public Func<EntityRepository, ResolutionBands> Policy { get; init; } = static _ => ResolutionBands.Default;
@@ -159,8 +169,42 @@ namespace Fdp.Toolkit.Aggregate
                 if (f == ForceId.Neutral) continue;
                 _enemies.Add(((Vector3)repo.GetComponentRO<SimTransform>(e).Position, f));
             }
+            CollectObserved(repo);
             foreach (var unit in _units!)
                 Decide(repo, unit, now, in bands);
+        }
+
+        /// <summary>⭐ CE-8013 ④ (§16b R-6 UNOBSERVED) — who each physical sensor currently holds (acquired), by the observer's force.</summary>
+        private unsafe void CollectObserved(EntityRepository repo)
+        {
+            _seenBy.Clear();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.SensorContactList>()
+                || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()) return;
+            foreach (var sensor in repo.Query().With<Fdp.Toolkit.Perception.Components.SensorContactList>().With<Fdp.Toolkit.Replication.Components.PartMetadata>().Build())
+            {
+                var owner = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(sensor).ParentEntity;
+                if (!repo.IsAlive(owner) || !repo.HasComponent<EntityInfo>(owner)) continue;
+                uint bit = 1u << ((int)repo.GetComponentRO<EntityInfo>(owner).ForceId & 31);
+                ref readonly var list = ref repo.GetComponentRO<Fdp.Toolkit.Perception.Components.SensorContactList>(sensor);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list.State[i] != (byte)Fdp.Toolkit.Perception.Components.SensorContactState.Acquired) continue;
+                    long id = list.EntityIds[i];
+                    _seenBy[id] = _seenBy.TryGetValue(id, out uint m) ? m | bit : bit;
+                }
+            }
+        }
+
+        /// <summary>⭐ CE-8013 ④ — is any of <paramref name="unit"/>'s children held (acquired) by a sensor of ANOTHER force? Then an automatic
+        /// merge waits: men never vanish in front of a trainee (§16b).</summary>
+        private bool Observed(EntityRepository repo, Entity unit)
+        {
+            if (_seenBy.Count == 0 || !repo.IsComponentTypeRegistered<AggregateChild>()) return false;
+            uint mine = repo.HasComponent<EntityInfo>(unit) ? 1u << ((int)repo.GetComponentRO<EntityInfo>(unit).ForceId & 31) : 0u;
+            foreach (var c in repo.Query().With<AggregateChild>().Build())
+                if (repo.GetComponentRO<AggregateChild>(c).Unit == unit && _seenBy.TryGetValue((long)c.PackedValue, out uint by) && (by & ~mine) != 0)
+                    return true;
+            return false;
         }
 
         private float NearestEnemy(Vector3 at, ForceId mine)
@@ -232,7 +276,7 @@ namespace Fdp.Toolkit.Aggregate
             if (u.Pin == ResolutionPin.PinPhysical || u.Pin == ResolutionPin.PinKeep) return;
             if (u.Pin != ResolutionPin.PinStochastic)
             {
-                if (!far) { u.SplittingSince = now; return; }
+                if (!far || Observed(repo, unit)) { u.SplittingSince = now; return; }   // ⭐ CE-8013 ④ — UNOBSERVED too (automatic only)
                 if ((double)now - (double)u.SplittingSince < b.QuietSeconds) return;
             }
             u.Splitting = SplitStage.Merging;
@@ -245,8 +289,8 @@ namespace Fdp.Toolkit.Aggregate
         private static bool HasChildren(EntityRepository repo, Entity unit)
         {
             if (!repo.IsComponentTypeRegistered<AggregateChild>()) return false;
-            foreach (var c in repo.Query().With<AggregateChild>().Build())
-                if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) return true;
+            foreach (var c in repo.Query().With<AggregateChild>().IncludeAll().Build())
+                if (repo.GetComponentRO<AggregateChild>(c).Unit == unit && UnitSplits.Live(repo, c)) return true;
             return false;
         }
     }
@@ -257,7 +301,9 @@ namespace Fdp.Toolkit.Aggregate
     /// carrying the EXPLICIT identity <see cref="UnitSplits.ChildGuid"/>, its post, and the HELD tag; the handover maps the LATEST slot table
     /// (health, stress) onto each child and releases it, removing the slots that died meanwhile; a merge sums the children back and removes
     /// them. ⚠ <see cref="ChildType"/> (the TKB composite's slot → type) MUST be set by the host that has the TKB (the silent-default rule:
-    /// none ⇒ <see cref="Materialise"/> throws). ⚠ Ammunition is not mapped yet (a soldier's per-mount <c>WeaponAmmo</c>) — CE-8013.
+    /// none ⇒ <see cref="Materialise"/> throws). ⭐ CE-8013: the held children stay Constructing (<see cref="HeldChildParticipant"/>) until the
+    /// handover; with <see cref="Lifecycle"/> set, a child leaves through the lifecycle's teardown (every node sees it go), else it is
+    /// destroyed in place (a single world). ⭐ Ammunition crosses both ways (<see cref="UnitAmmunition.ToSoldier"/> / <see cref="UnitAmmunition.ToSlot"/>).
     /// </summary>
     public sealed class BusResolutionSwitch : IUnitResolutionSwitch
     {
@@ -265,6 +311,18 @@ namespace Fdp.Toolkit.Aggregate
 
         /// <summary>The TKB type of the unit's composite slot (host-supplied).</summary>
         public Func<EntityRepository, Entity, int, TkbTypeId>? ChildType { get; init; }
+
+        /// <summary>⭐ CE-8013 — the node's lifecycle: a released child leaves through its teardown. Null ⇒ destroyed in place (single-world
+        /// hosts, rails) — ⚠ a networked host passes it, or the children's replicas outlive the merge.</summary>
+        public Func<Fdp.Toolkit.Lifecycle.EntityLifecycleModule?>? Lifecycle { get; init; }
+
+        private void Remove(EntityRepository repo, Entity c, string why)
+        {
+            var elm = Lifecycle?.Invoke();
+            if (elm != null && repo.GetLifecycleState(c) == EntityLifecycle.Active)
+                elm.BeginDestruction(c, repo.GlobalVersion, why, ((ISimulationView)repo).GetCommandBuffer());
+            else repo.DestroyEntity(c);   // a held child (Constructing) is never seen: removed at once; the participant abandons its wait
+        }
 
         public void Materialise(EntityRepository repo, Entity unit, ReadOnlySpan<Vector3> posts)
         {
@@ -307,7 +365,7 @@ namespace Fdp.Toolkit.Aggregate
             {
                 ref var tag = ref repo.GetComponentRW<AggregateChild>(c);
                 int i = tag.Slot;
-                if (i >= slots.Count || !slots.IsUp(i)) { repo.DestroyEntity(c); continue; }   // died meanwhile (SV-7)
+                if (i >= slots.Count || !slots.IsUp(i)) { Remove(repo, c, "split: died before the handover"); continue; }   // died meanwhile (SV-7)
                 if (health && repo.HasComponent<Health>(c))
                 {
                     ref var h = ref repo.GetComponentRW<Health>(c);
@@ -315,6 +373,7 @@ namespace Fdp.Toolkit.Aggregate
                 }
                 if (stress && repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(c))
                     repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.Stress>(c).Level = (float)slots.Slots[i].Stress;
+                UnitAmmunition.ToSoldier(repo, c, slots.Slots[i].Ammo);   // ⭐ CE-8013 ③ (X-4)
                 tag.Held = 0;
             }
             _requested.Remove(unit);
@@ -322,7 +381,7 @@ namespace Fdp.Toolkit.Aggregate
 
         public void Cancel(EntityRepository repo, Entity unit)
         {
-            foreach (var c in Children(repo, unit)) repo.DestroyEntity(c);
+            foreach (var c in Children(repo, unit)) Remove(repo, c, "split cancelled");
             _requested.Remove(unit);
         }
 
@@ -347,9 +406,11 @@ namespace Fdp.Toolkit.Aggregate
                     }
                     if (stress && repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(c))
                         slots.Slots[i].Stress = (Half)repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(c).Level;
+                    int rounds = UnitAmmunition.ToSlot(repo, c);   // ⭐ CE-8013 ③ (X-4) — −1: he carries no weapon state, the slot keeps its count
+                    if (rounds >= 0) slots.Slots[i].Ammo = (ushort)rounds;
                 }
                 if (repo.HasComponent<SimTransform>(c)) { sum += (Vector3)repo.GetComponentRO<SimTransform>(c).Position; n++; }
-                repo.DestroyEntity(c);
+                Remove(repo, c, "merged");
             }
             for (int i = 0; i < slots.Count; i++) if (!seen[i] && slots.IsUp(i)) slots.Slots[i].Health = (Half)0f;
             if (n > 0 && repo.HasComponent<SimTransform>(unit)) repo.GetComponentRW<SimTransform>(unit).Position = sum / n;   // the centroid (X-4)
@@ -359,7 +420,7 @@ namespace Fdp.Toolkit.Aggregate
         {
             int n = 0;
             if (!repo.IsComponentTypeRegistered<AggregateChild>()) return 0;
-            foreach (var c in repo.Query().With<AggregateChild>().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) n++;
+            foreach (var c in repo.Query().With<AggregateChild>().IncludeAll().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit && UnitSplits.Live(repo, c)) n++;
             return n;
         }
 
@@ -367,7 +428,7 @@ namespace Fdp.Toolkit.Aggregate
         {
             var list = new List<Entity>();   // a split / merge is rare: allocation is fine here (R-2084: not every frame)
             if (!repo.IsComponentTypeRegistered<AggregateChild>()) return list;
-            foreach (var c in repo.Query().With<AggregateChild>().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) list.Add(c);
+            foreach (var c in repo.Query().With<AggregateChild>().IncludeAll().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit && UnitSplits.Live(repo, c)) list.Add(c);
             return list;
         }
     }
