@@ -167,13 +167,13 @@ namespace Fdp.Toolkit.Navigation
         /// Appends the last <see cref="Route"/> to <paramref name="output"/> as points along the curves, entry to exit, in travel
         /// direction. <paramref name="z"/> gives each point's height (the navmesh's, or 0).
         /// </summary>
-        /// <summary>⭐ CE-9003 (C-7, R-9006) — drive the outer lane on the travel side instead of the centre line (<see cref="LaneOffset"/>). Set by the planner for
+        /// <summary>⭐ CE-9003 (C-7, R-9006) — drive the outer lane on the travel side instead of the centre line (<see cref="LaneOffset"/>) — only on a graph whose lines are carriageway centres (<see cref="RoadNetworkBlob.LinesAreCentres"/>). Set by the planner for
         /// <see cref="RoadUse.StronglyPrefer"/> (the convoy's road use); every other road use keeps the centre line as before.</summary>
         public bool KeepLane { get; set; }
 
         public void EmitLeg(in RoadNetworkBlob roads, List<Vector3> output, Func<int, float, Vector2, float> z)
         {
-            bool lane = KeepLane;
+            bool lane = KeepLane && roads.LinesAreCentres;   // ⭐ a lane-line graph (imported from SUMO) is driven as drawn
             if (_sameSegment)
             {
                 Partial(roads, _entry.Segment, _entry.Along, _exit.Along, output, z, lane);

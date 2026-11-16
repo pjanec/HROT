@@ -83,6 +83,10 @@ namespace CarKinem.Convoy
         /// <summary>Each rank's position along the trail and its speed, as the lead's system read them at the start of this frame; <see cref="RankValid"/> bit per rank.</summary>
         public fixed double RankS[MaxRanks];
         public fixed float RankV[MaxRanks];
+        /// <summary>Each rank's position (x, y) — a follower also stops when its predecessor is physically within the minimum gap (a lead that reversed or
+        /// looped is closer in metres than along the path).</summary>
+        public fixed float RankX[MaxRanks];
+        public fixed float RankY[MaxRanks];
         public uint RankValid;
         /// <summary>The highest rank present.</summary>
         public byte LastRank;
@@ -109,6 +113,14 @@ namespace CarKinem.Convoy
             var last = new Vector2(X[Head], Y[Head]);
             float d = Vector2.Distance(p, last);
             if (d < Spacing) return;
+            // ⭐ only FORWARD along the trail: a lead that reverses (a hull recovery, an overshot corner) leaves no doubled-back path for the
+            //   column to drive into it (📌 cv-offroad-join-leave: the followers knotted on a lead that backed up). It records again once ahead.
+            if (Count >= 2)
+            {
+                int prev = (Head - 1 + Capacity) % Capacity;
+                var dir = last - new Vector2(X[prev], Y[prev]);
+                if (Vector2.Dot(p - last, dir) <= 0f) return;
+            }
             double s = S[Head] + d;
             Head = (Head + 1) % Capacity;
             X[Head] = p.X; Y[Head] = p.Y; S[Head] = s;
@@ -156,6 +168,7 @@ namespace CarKinem.Convoy
 
         public readonly double RankArc(int r) => RankS[r];
         public readonly float RankSpeed(int r) => RankV[r];
+        public readonly Vector2 RankPos(int r) => new(RankX[r], RankY[r]);
         public readonly bool HasRank(int r) => r >= 0 && r < MaxRanks && (RankValid & (1u << r)) != 0;
 
         private static Vector2 Dir(Vector2 a, Vector2 b) { var d = b - a; return d.LengthSquared() > 1e-8f ? Vector2.Normalize(d) : Vector2.UnitX; }

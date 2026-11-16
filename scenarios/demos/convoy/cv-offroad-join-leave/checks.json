@@ -16,12 +16,12 @@
       "is": "PlatformConvoy"
     },
     {
-      "name": "the lead drives the road in its lane",
+      "name": "the lead drives the road in its lane (lane 0 of the imported net, y 954.2)",
       "on": "near",
       "who": "Convoy 1",
       "point": [
         330,
-        950.7
+        954.2
       ],
       "within": 2.5
     },
@@ -41,7 +41,7 @@
       "who": "Convoy 4",
       "point": [
         330,
-        950.7
+        954.2
       ],
       "within": 3
     },

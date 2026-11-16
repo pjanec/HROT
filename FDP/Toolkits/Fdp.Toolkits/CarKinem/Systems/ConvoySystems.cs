@@ -53,6 +53,7 @@ namespace CarKinem.Systems
                 int newest = trail.Count - 1;
                 trail.RankS[0] = trail.NewestS + Vector2.Distance(leadPos, trail.Point(newest));
                 trail.RankV[0] = repo.HasComponent<VehicleState>(lead) ? repo.GetComponentRO<VehicleState>(lead).Speed : 0f;
+                trail.RankX[0] = leadPos.X; trail.RankY[0] = leadPos.Y;
                 trail.RankValid = 1u;
                 foreach (var e in _members!)
                 {
@@ -61,6 +62,8 @@ namespace CarKinem.Systems
                     if (m.Lead != lead || m.Rank == 0 || m.Rank >= ConvoyTrail.MaxRanks || !repo.HasComponent<ConvoyProgress>(e)) continue;
                     trail.RankS[m.Rank] = repo.GetComponentRO<ConvoyProgress>(e).ArcS;
                     trail.RankV[m.Rank] = repo.HasComponent<VehicleState>(e) ? repo.GetComponentRO<VehicleState>(e).Speed : 0f;
+                    var ep = repo.GetComponentRO<SimTransform>(e).Position;
+                    trail.RankX[m.Rank] = ep.X; trail.RankY[m.Rank] = ep.Y;
                     trail.RankValid |= 1u << m.Rank;
                     if (m.Rank > trail.LastRank) trail.LastRank = m.Rank;
                 }
@@ -158,7 +161,11 @@ namespace CarKinem.Systems
 
             float along = (float)(predS - prog.ArcS);
             float top = repo.HasComponent<VehicleParams>(e) ? repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd : 15f;
-            float speed = along <= minGap ? 0f : Math.Clamp(predV + GapGain * (along - gap), 0f, MathF.Max(top, 0.1f));
+            // ⭐ never closer than the minimum gap — along the path AND in metres (a predecessor that reversed or cut back is nearer than its arc says)
+            float cur0 = repo.HasComponent<VehicleState>(e) ? MathF.Max(0f, repo.GetComponentRO<VehicleState>(e).Speed) : 0f;
+            float decel = repo.HasComponent<VehicleParams>(e) && repo.GetComponentRO<VehicleParams>(e).MaxDecel > 0f ? repo.GetComponentRO<VehicleParams>(e).MaxDecel : 6f;
+            bool tooClose = along <= minGap || Vector2.Distance(p, trail.RankPos(ahead)) <= m.MinGap + cur0 * cur0 / (2f * decel);   // + its stopping distance
+            float speed = tooClose ? 0f : Math.Clamp(predV + GapGain * (along - gap), 0f, MathF.Max(top, 0.1f));
 
             // the pursuit point: a lookahead ahead of me ON the trail, never past the predecessor's place less the minimum gap
             float cur = repo.HasComponent<VehicleState>(e) ? repo.GetComponentRO<VehicleState>(e).Speed : 0f;

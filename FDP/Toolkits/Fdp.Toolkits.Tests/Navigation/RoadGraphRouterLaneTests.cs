@@ -13,12 +13,14 @@ namespace Fdp.Toolkit.Navigation.Tests
     /// </summary>
     public sealed class RoadGraphRouterLaneTests
     {
-        private static RoadNetworkBlob Road(int lanes)
+        private static RoadNetworkBlob Road(int lanes, bool centres = true)
         {
             var b = new RoadNetworkBuilder();
             b.AddNode(new Vector2(0, 0)); b.AddNode(new Vector2(200, 0));
             b.AddSegment(new Vector2(0, 0), new Vector2(200, 0), new Vector2(200, 0), new Vector2(200, 0), 13.9f, 3.5f, lanes, 0, 1);
-            return b.Build(50f, 8, 8);
+            var blob = b.Build(50f, 8, 8);
+            blob.LinesAreCentres = centres;
+            return blob;
         }
 
         private static List<Vector3> Leg(in RoadNetworkBlob road, Vector2 from, Vector2 to, bool keepLane = true)
@@ -44,6 +46,9 @@ namespace Fdp.Toolkit.Navigation.Tests
                 Assert.All(Leg(two, new Vector2(20, 0), new Vector2(180, 0), keepLane: false), p => Assert.Equal(0f, p.Y, 2));   // not asked: the centre line, as before
             }
             finally { two.Dispose(); }
+            var laneLines = Road(2, centres: false);   // a net whose lines ARE lanes (imported from SUMO): driven as drawn
+            try { Assert.All(Leg(laneLines, new Vector2(20, 0), new Vector2(180, 0)), p => Assert.Equal(0f, p.Y, 2)); }
+            finally { laneLines.Dispose(); }
             var one = Road(1);
             try { Assert.All(Leg(one, new Vector2(20, 0), new Vector2(180, 0)), p => Assert.Equal(0f, p.Y, 2)); }
             finally { one.Dispose(); }

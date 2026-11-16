@@ -186,6 +186,30 @@ namespace CarKinem.Tests.Convoy
             Assert.True(worstLag < 3f * 15f, $"the tail fell {worstLag:F1} m behind its place — the column split");
         }
 
+        /// <summary>📌 Found by <c>cv-offroad-join-leave</c> (the column knotted on a lead that backed out of an overshot corner): the trail records only
+        /// FORWARD motion, and a follower stops when its predecessor is physically within the minimum gap even if the arc says it is far. 🔴 Red-proofs:
+        /// drop the forward test ⇒ the reversing lead's points are appended ⇒ red; drop the metres guard ⇒ the follower drives into the backed-up lead ⇒ red.</summary>
+        [Fact]
+        public void ALeadThatBacksUp_LeavesNoTrailBehind_AndItsFollowerStopsShortOfIt()
+        {
+            var t = new ConvoyTrail();
+            for (int x = 0; x <= 20; x += 2) t.Record(new Vector2(x, 0));
+            int count = t.Count;
+            t.Record(new Vector2(16, 0)); t.Record(new Vector2(12, 0));   // backing up
+            Assert.Equal(count, t.Count);
+            t.Record(new Vector2(23, 0));                                   // forward again
+            Assert.Equal(count + 1, t.Count);
+
+            var w = new World();
+            for (int i = 0; i < 30 * 6; i++) w.Step();
+            // the lead is put back (as a reversing hull ends up) right in front of its first follower
+            var f = w.Pos(w.F[0]);
+            w.Repo.GetComponentRW<SimTransform>(w.LeadE).Position = new Vector3(f + new Vector2(14f, 0f), 0f);
+            ref var nav = ref w.Repo.GetComponentRW<NavState>(w.LeadE); nav.TargetSpeed = 0f;
+            for (int i = 0; i < 30 * 3; i++) w.Step(leadStops: true);
+            Assert.True(Vector2.Distance(w.Pos(w.F[0]), w.Pos(w.LeadE)) >= 4f, $"the follower drove into its backed-up lead ({Vector2.Distance(w.Pos(w.F[0]), w.Pos(w.LeadE)):F1} m)");
+        }
+
         [Fact]
         public void TheConvoySystems_AllocateNothing_InASteadyFrame()
         {
