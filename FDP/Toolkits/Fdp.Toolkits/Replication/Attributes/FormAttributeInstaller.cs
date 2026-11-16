@@ -77,6 +77,13 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
         Temperament(AttributeIds.TemperamentNerve, FormAttributes.TemperamentField.Nerve);
         Temperament(AttributeIds.TemperamentResolve, FormAttributes.TemperamentField.Resolve);
 
+        foreach (ushort id in AggregateIds)   // ⭐ CE-8015 — a stochastic unit's AggregateUnit
+        {
+            ushort attribute = id;
+            builder.RegisterHandler<Fdp.Toolkit.Aggregate.AggregateUnit>(attribute, (ctx, r) =>
+                FormAttributes.SetAggregate(ref ctx.PatchContext.GetUnmanagedComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(), attribute, FormAttributes.AsDouble(r.Value)));
+        }
+
         foreach (ushort id in WeatherIds)
         {
             ushort attribute = id;
@@ -84,6 +91,13 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
                 FormAttributes.SetWeather(ref ctx.PatchContext.GetUnmanagedComponent<WeatherConditions>(), attribute, FormAttributes.AsDouble(r.Value)));
         }
     }
+
+    /// <summary>⭐ CE-8015 — the stochastic unit's attribute ids (AggregateUnit).</summary>
+    public static readonly ushort[] AggregateIds =
+    {
+        AttributeIds.AggregateResolution, AttributeIds.AggregatePin, AttributeIds.AggregateEchelon,
+        AttributeIds.AggregateFormation, AttributeIds.AggregatePosture, AttributeIds.AggregatePrepared,
+    };
 
     /// <summary>The weather scalars' attribute ids.</summary>
     public static readonly ushort[] WeatherIds =
