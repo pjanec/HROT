@@ -1,0 +1,49 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-7 the compliant bomber.",
+ "runFor": 90,
+ "golden": {
+  "every": 10
+ },
+ "anchors": [
+  {
+   "name": "burst",
+   "on": "blast",
+   "n": 1
+  }
+ ],
+ "expect": [
+  {
+   "name": "the car reads routine",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Routines",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the search starts",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.SearchStage",
+   "op": "==",
+   "value": 1
+  },
+  {
+   "name": "the charge bursts at the stop line",
+   "on": "blast",
+   "where": {
+    "burst.0": [
+     ">=",
+     360
+    ]
+   }
+  },
+  {
+   "name": "no shot before the burst",
+   "never": {
+    "on": "shot"
+   },
+   "before": "burst"
+  }
+ ]
+}

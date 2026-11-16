@@ -950,6 +950,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2130** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-3): a car whose engine is hit COASTS only while it rams (a committed driver), any other disabled car brakes; the driver is seat 0 (his loss stops the car); a penetrating hit on a soft skin (≤ 10 mm side) reaches one non-station occupant at 30 %, never through armour. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
 | ⭐ **R-2131** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-4): the checkpoint site is ONE approach ROUTE (its last point the stop line) — the warning line is a time and the stand-off is derived (2 × the charge's lethal radius, 25–150 m); "still fast past the warning line" = cannot stop at the line with an ordinary brake (> 4 m/s²); the watch reads what the men remember seeing; pedestrians are not watched yet. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
 | ⭐ **R-2132** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-5): the vehicle ladder's rungs at ⅔ / 0.4 / 0.2 of the warning time; a vehicle that has not slowed below 80 % of its speed at the signal by the warning-shot time IGNORED THE SIGNAL and is a threat; the bike goes from the warning shot to lethal; warning shot ≥ NonLethal, disabling / lethal = Lethal, lifted by a lethal act. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
+| ⭐ **R-2133** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-6): "out, hands up" is a REACTION assignment to each man aboard (`ComplyAtCheckpoint`), custody grows a VEHICLE search (a stopped vehicle complies, 4 m reach, the concealed boot revealed), release = the men board again, found = the men detained. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1322,6 +1323,7 @@ R-2129 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | the ord
 R-2130 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | coasting is for a ramming car only
 R-2131 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | the site is a ROUTE, not five areas
 R-2132 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | IGNORED THE SIGNAL
+R-2133 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | grows a VEHICLE search
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians
