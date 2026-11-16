@@ -827,6 +827,49 @@ stochastic squad, which is the whole point of step ⑥.*
 | **R-8329** | component id **138** (`PlannedPosts`) stays reserved, unused; 139 free | — |
 | **R-8330** | D-P3 NOT built: `SquadDefendBehavior.Plan` is an async state machine over a commander's child EQS sensors (`SquadManeuverRunner.AskTerrainAll` hangs the ask on `ctx.Commander`, measured FROM `FirstLive` man) with the roster-driven `AnyWithoutPost` / `PickAll` interleaved after each ask (windows, frames, roof, cover, fan, coverage — 1137 lines). A memberless stochastic unit has no roster, no commander cognitive state and no body to measure from, and the manager's Planning stage is one synchronous step with no wait. A split without changing the physical defence needs the asks re-parameterised over (count, origin, area) AND a manager wait for the plan — a design of its own | a design for the asks over a unit entity + a manager Planning wait; then PlannedPosts (138) and `UnitSplits.FallbackPosts` preference |
 
+### 23.5d agg-behaviors — F-14 and F-15 measured: a defender fires at what is in REACH; the stochastic base of fire closes too far *(`2026-11-16`; lane decisions R-8338…R-8340 "for the user's review"; finding CE-8302)*
+
+**Measured** *(probe scenarios on HEAD `81dcdbbd0` and on F-14's own commit `ea0ea16ee` — the same verdicts on both, so the merges since changed nothing; each probe removed after)*
+
+| probe *(authored 8-rifleman squad under a physical `CompanyDefend`, an unarmed Red platoon 300 m north)* | fires? |
+|---|---|
+| Defend `Position` = the squad's own spot (300 m) · no `Position` (the play holds where it is) · a FILLED squad · no `Threat` | ✅ at 1.25 s |
+| Defend `Position` = the company's spot, **100 m back (400 m from the contact)** | ⛔ never in 60 s — the squad walks back and holds there |
+| five squads HOLDING at 290 / 310 / 330 / 360 / 400 m, each from its own target | all REPORT the contact at 1.25 s; ⭐ only the **290 m** one fires |
+
+**Claims** *(the verdict rests on)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| phase A gives a line only for P(hit) > 0, and P(hit) is 0 past the weapon's `MaxRange` | ✅ `StochasticCombat.cs:191` (`Line`) · `KillerVictimTable.cs:36` (`PHitAt`) | ✅ §14 C-2 (fire by suitability × P(hit) at range) |
+| the rifleman's `MaxRange` is the TKB weapon's `Range` = **300 m** (M4) | ✅ `KillerVictimTkb.cs:71` · `NedTkbCatalog.cs:51, :523` | ✅ C-8 (the killer–victim numbers come from the TKB) |
+| `CompanyDefend` puts a lone subordinate ON the company's `Position` (a one-member line) | ✅ `CompanyBehaviors.cs:832` | ✅ City Battle §3a (the company's blocks across its frontage) |
+| `StochasticUnitDefend` holds its ordered position; it does not close on a contact | ✅ `StochasticUnitDefendBehavior.Hold` | ✅ §23.5 R-8306 / B-1 (Defend = occupy and hold) |
+| the base of fire's neutral order is `AttackOrder { Position = the reported posts, HoldBack }` and HoldBack holds at the ASSAULT distance (100 m) of that position | ✅ `CompanyBehaviors.cs:512` · `StochasticUnitAttackBehavior.cs:127` (phase 3) · `AssaultDistanceMetres` | ⚠ §19 **B-8**: *"SupportByFire = Attack without closing"* — 100 m from the posts IS closing (inside the assault distance B-4 gives the assault modifiers). No distance is ruled: searched the aggregate designs + `docs/` + `.dev/` (`grep HoldBack / SupportStandOff / base of fire`), none for a stochastic one. The physical base of fire stands at `SupportAt`, **250 m** short (`CompanyAttackBehavior.SupportStandOffMetres`; `search_graph .*(SupportStandOff\|HoldBack\|SupportByFire\|AssaultDistance).*` returned only `PlatoonAttackBehavior.SupportStandOffMetres`, total 1 — the index under-reports, ⚠ coverage not checkable through the CLI) |
+| the assault is ordered only once the base of fire reports Set; the reserve only at the deadline (×1) | ✅ `CompanyBehaviors.cs:589` (`SupportSet`) · `:535` · `:466` | ✅ CE-7005 tempo |
+
+| # | lane decision *(for the user's review)* | would change it |
+|---|---|---|
+| **R-8338** | ⭐ **F-14 is NOT a defect.** A defending stochastic unit fires at every reported contact inside its weapons' reach and at none beyond it; F-14's squad had been ordered to a position 400 m from the contact, past its riflemen's 300 m. A defender does not leave its ordered position to engage (it holds — as `SquadDefend` does). No code changed | the user wanting a defender to close on a contact it sees but cannot reach |
+| **R-8339** | `agg-defend-fires` pins it: the defender sees the attacker at 500 m long before it can hit it, holds its fire while the attacker is beyond 300 m, fires within seconds once it is inside, and never leaves its spot | — |
+| **R-8340** | ⭐ **F-15 is a DIFFERENT cause, in our code.** In `agg-battalion-fight` the company that runs `StochasticUnitAttack` (Blue Company 2, roster slot 1) is the BASE OF FIRE, not the assault: its HoldBack holds 100 m from the posts, i.e. on the enemy line, so it walks into both Red front companies and is destroyed (~328 → 335 s) before it can report Set ⇒ the assault (Blue Company 1, slot 0) is never ordered (measured: no behaviour at all for 450 s) and the reserve (Blue Company 3, at the 400 m stand-off, out of reach) waits for the 900 s deadline. ⚠ The scenario's rows call Company 2 "the assault company" — wrong label, right behaviour. ⏳ Filed **CE-8302**: hold the stochastic base of fire at a SUPPORT stand-off (lean: the physical `SupportStandOffMetres` 250 m — inside the rifle's 300 m), then relabel and re-capture `agg-battalion-fight` | the user preferring the base of fire to close (then the scenario is right as is) |
+
+```mermaid
+sequenceDiagram
+  participant HQ as Blue HQ (CompanyAttack)
+  participant BoF as Blue Co 2 = BASE OF FIRE (StochasticUnitAttack, HoldBack)
+  participant A as Blue Co 1 = ASSAULT
+  participant R as Red front (StochasticUnitDefend ×2)
+  HQ->>BoF: Order(SupportByFire, AttackOrder{Position = posts, HoldBack})
+  Note over A: CSupport: the assault waits for the base of fire's Set
+  BoF->>BoF: approach to 100 m short of the POSTS (the enemy line)
+  BoF-->>R: inside 300 m at ~328 s: both sides fire
+  R-->>BoF: 90 slots down by ~335 s (agg-backend's balance, F-15)
+  BoF-->>HQ: TaskFailed (never Set)
+  Note over HQ,A: SupportSet never true ⇒ the assault is never ordered, the reserve waits for the 900 s deadline
+```
+*What the picture shows that the prose hid: the base of fire's hold point is measured from the TARGET, so "never closes" still ends on the enemy line — and the assault's only trigger is a Set that a destroyed unit never sends.*
+
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 
 🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —
@@ -931,6 +974,12 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | **R-8335** | the children are addressed by network id (measured per scenario, deterministic in a fresh run); each id's `EntityGuid` is checked against SV-4's `uuid5(<unit>, child:<composite slot>)` — so a re-keyed or missing man fails | F-22 answered (a child name): then by name |
 | **R-8336** | split-on-contact and merge-back set `mergeMargin: 250` by the author's policy — the default merge distance (500 m) lies inside the split trigger (600 m) and a unit flip-flops every ~63 s (F-23) | F-23 fixed in the manager: the policy line goes |
 | **R-8337** | agg-squad-holds-house judges the FALLBACK line (as built), its `$doc` says the window / door posts wait for D-P3 | D-P3 built |
+
+#### 23.6e As built — `agg-defend-fires` (F-14, R-8339) *(`2026-11-16`; same generator, same folder)*
+
+| scenario | terrain | result | why it tests the Judge line |
+|---|---|---|---|
+| `agg-defend-fires` | berlin | ✅ 8 / 8 (+ golden) — a physical company `CompanyDefend` over one FILLED stochastic squad on its position; a stochastic Red squad attacks from 500 m. Blue reports it at 2.25 s; Red crosses y 500 (300 m) at 211.75 s; Blue's first fire line 212.25 s, a Red slot down 212.25 s; Blue never fires before, never moves, never breaks contact | the anchor `in reach` is the attacker's centre 300 m off (the M4's `MaxRange`), so the scenario reads both halves of R-8338: no fire beyond reach, fire within 5 s inside it |
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The stochastic-unit FEATURE-TEST scenarios (R-4277, design DESIGN_Stochastic_Units_And_Resolution.md §23.6): all nineteen, ST-0 ... ST-5 and mixed.
+"""The stochastic-unit FEATURE-TEST scenarios (R-4277, design DESIGN_Stochastic_Units_And_Resolution.md §23.6): all twenty, ST-0 ... ST-5, mixed and F-14's agg-defend-fires.
 Writes scenarios/demos/aggregates/<name>/{scenario.json,checks.json}; golden.json is CAPTURED (scripts/scenario-regression.sh's runner, --verify-capture).
 Re-runnable: `python3 scripts/gen-agg-scenarios.py [name ...]`; `--probe <name>` writes an ST-5 scenario's MEASURING rows (which network ids its split children get) instead of its own.
 
@@ -720,12 +720,58 @@ def agg_forced_handover(probe=False):
     write(s, "berlin", desc, checks)
 
 
+def agg_defend_fires(probe=False):
+    """F-14 (R-8338): a DEFENDING stochastic squad engages an enemy that approaches it - and not before the enemy is inside its weapons' reach."""
+    s = Scn("agg-defend-fires", "a9000020")
+    co = s.unit("Blue Company", BLUE, (1000, 150), COMPANY, behavior=("CompanyDefend", {"Position": pt((1000, 200)), "Threat": pt((1000, 700))}))
+    s.unit("Blue Stochastic Squad", BLUE, (1000, 200), SQUAD, co, aggregate={})
+    s.unit("Red Stochastic Squad", RED, (1000, 700), SQUAD, aggregate={}, behavior=("StochasticUnitAttack", {"Position": pt((1000, 200))}))
+    if probe:   # the measuring rows that gave the $doc's times
+        rows = []
+        for who in ("Blue Stochastic Squad", "Red Stochastic Squad"):
+            rows += [field(f"{who} fires", who, "FireAllocation.Count", ">", 0), field(f"{who} reported", who, "UnitDetections.Pairs.0.Reported", "==", 1),
+                     field(f"{who} slot down", who, "UnitSlotTable.Slots.*.Health", "<", 0.5, where=LIVE)]
+            for y in (650, 600, 550, 500, 450, 400, 350):
+                rows.append(field(f"{who} y<{y}", who, "SimTransform.Position.1", "<", y))
+            for y in (190, 210, 250):
+                rows.append(field(f"{who} y>{y}", who, "SimTransform.Position.1", ">", y))
+            for n in (3, 6):
+                rows.append(field(f"{who} {n} down", who, "UnitSlotTable.Slots.*.Health", "<", 0.5, where=LIVE, elements=n))
+            for t in ("StochasticUnitDefend", "StochasticUnitAttack", "StochasticUnitBreakContact", "StochasticUnitHold"):
+                rows.append(task(f"{who} runs {t}", who, t))
+            rows.append(field(f"{who} holdings", who, "UnitHoldings.Count", ">", 0))
+        write(s, "berlin", "measure", {"runFor": 400, "golden": False, "expect": rows})
+        return
+    B, R = "Blue Stochastic Squad", "Red Stochastic Squad"
+    desc = ("What: on berlin a physical 'Blue Company' (CompanyDefend at (1000,200), facing north) over ONE stochastic 'Blue Stochastic Squad' (from the TKB composite) standing on that position; "
+            "a stochastic 'Red Stochastic Squad' 500 m north ATTACKS it (StochasticUnitAttack on (1000,200)) and walks in. Judge: (1) the squad is ordered Defend by KIND and holds its position (it never "
+            "breaks contact, never leaves); (2) it does NOT fire while the enemy is beyond its riflemen's reach (the M4's 300 m, the killer-victim table's MaxRange) - it has seen it long before; "
+            "(3) it fires within seconds of the enemy coming inside 300 m (Red's centre past y 500) and the fire tells: a Red slot goes down. Fail: no fire after the enemy closes (finding F-14), "
+            "fire before it is in reach, or the defender leaving its position. Check: scripts/scenario-regression.sh agg-defend-fires")
+    checks = {"$doc": "§23.6 / F-14 (R-8338, R-8339). F-14 measured: a defending stochastic unit fires whenever a reported contact is inside its weapons' MaxRange (StochasticFirePhase.Line, "
+                      "KvEntry.PHitAt = 0 past MaxRange; the rifleman's M4 Range 300 in NedTkbCatalog) - the squad that 'never fired' had been ordered to a position 400 m from the contact. "
+                      "The anchor 'in reach' = Red's centre past y 500 (300 m from the squad at y 200; both on x 1000). Measured: Blue sees Red at 2.25 s (500 m), Red crosses y 500 at 211.75 s, "
+                      "Blue's first fire line at 212.25 s, the first Red slot down at 212.25 s.",
+              "runFor": 240, "golden": {"every": 30}, "anchors": {"in reach": {"on": "field", "who": R, "path": "SimTransform.Position.1", "op": "<", "value": 500}},
+              "expect": [
+        task("the company runs CompanyDefend", "Blue Company", "CompanyDefend", before=10),
+        task("the squad is ordered Defend by KIND: it runs the generic Defend play", B, "StochasticUnitDefend", before=10),
+        field("it sees the attacker long before it is in reach (a reported contact)", B, "UnitDetections.Pairs.0.Reported", "==", 1, before=30),
+        never("it does not fire while the attacker is beyond its riflemen's 300 m", {"on": "field", "who": B, "path": "FireAllocation.Count", "op": ">", "value": 0}, before="in reach"),
+        field("it FIRES once the attacker is inside 300 m (F-14)", B, "FireAllocation.Count", ">", 0, after="in reach", before="in reach+5"),
+        field("... and its fire tells: a Red slot goes down", R, "UnitSlotTable.Slots.*.Health", "<", 0.5, after="in reach", before="in reach+10", where=LIVE),
+        never("the defender holds: it never breaks contact", {"on": "task", "who": B, "is": ["StochasticUnitBreakContact", "PlatoonDefend", "SquadDefend"]}),
+        never("... and never leaves its position (stays within 10 m of y 200)", {"on": "field", "who": B, "path": "SimTransform.Position.1", "op": ">", "value": 210}),
+    ]}
+    write(s, "berlin", desc, checks)
+
+
 GENERATORS = {"agg-march-mounted": lambda: agg_march_mounted(381.25, 350, 60 / 3.6), "agg-platoon-under-company": agg_platoon_under_company, "agg-refused-order": agg_refused_order, "agg-recorded": agg_recorded, "agg-march-open": agg_march_open,
               "agg-route-dropped": agg_route_dropped, "agg-detect-by-range": agg_detect_by_range, "agg-sees-physical": agg_sees_physical, "agg-break-contact": agg_break_contact,
               "agg-platoon-duel": agg_platoon_duel, "agg-shelled-unit": agg_shelled_unit, "agg-prepared-defence": agg_prepared_defence, "agg-out-of-ammo": agg_out_of_ammo,
               "agg-battalion-fight": agg_battalion_fight, "agg-mixed-company-attack": agg_mixed_company_attack,
               "agg-split-on-contact": agg_split_on_contact, "agg-squad-holds-house": agg_squad_holds_house, "agg-merge-back": agg_merge_back,
-              "agg-forced-handover": agg_forced_handover}
+              "agg-forced-handover": agg_forced_handover, "agg-defend-fires": agg_defend_fires}
 
 if __name__ == "__main__":
     args = sys.argv[1:]
