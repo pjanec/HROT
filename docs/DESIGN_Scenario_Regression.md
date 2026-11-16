@@ -845,7 +845,7 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 | **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
 | **H4** | §10 RH-8, written then | — |
 
-## 11. ⏳ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: DESIGN — RT-4 and RT-9 WITHDRAWN by the user; the rest await the user)*
+## 11. ✅ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: READY-TO-BUILD — RT-1…RT-3, RT-5…RT-8 APPROVED (R-4279), RT-4 and RT-9 WITHDRAWN; dispatched to `backend`)*
 
 🔒 User, `2026-11-16`, verbatim: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully
 deterministic run; the networkless editor where everything is easier and faster (networkless) could be used for quicker tests and overnight
@@ -970,7 +970,7 @@ graph TD
 *What it shows: everything runs on GitHub's runners (free for a public repository, RT-8) — one build, then one job per scenario, each on its own
 fresh virtual machine, up to 20 at a time; the result is the Actions view and its junit. Nothing here is a foreground blocker for a lane.*
 
-### 11.4 ⭐ Leans — RT-1…RT-9 *(for the user)*
+### 11.4 ⭐ RT-1…RT-9 — ✅ APPROVED `2026-11-16` (R-4279; user: *"approved. pls write handoffs"*), RT-4 and RT-9 withdrawn
 
 | # | question | ⭐ lean | why |
 |---|---|---|---|
