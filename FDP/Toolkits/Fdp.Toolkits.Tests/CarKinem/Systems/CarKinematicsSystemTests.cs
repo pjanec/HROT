@@ -2478,6 +2478,48 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>R-4280</c> (R-5000 changed — <i>"vehicles should be able to cross the 10cm curb"</i>) — a tank drives over a 10 cm edging (a wall
+        /// panel lower than <c>HullTrace.MinPanelHeightM</c>) and stays on the ground. 🔴 Red-proof: drop the kerb skip in <c>QueryFireCore</c> ⇒ held at y ≈ 10.
+        /// </summary>
+        [Fact]
+        public void R4280_ATank_DrivesOverATenCentimetreKerb()
+        {
+            var (north, topZ) = DriveAtTheWall(GardenWall(0.1f, thickness: 0.15f));
+            Assert.True(north > 14f, $"held at the kerb: the nose reached only y={north:F2}");
+            Assert.True(topZ < 0.05f, $"the hull stood on the kerb: z={topZ:F2}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4280</c> — a possessed CAR drives over a 10 cm kerb; the same car is still held by a 1 m garden wall (the possessed-car rail below).
+        /// 🔴 Red-proof: as above.
+        /// </summary>
+        [Theory]
+        [InlineData(0.1f, true)]
+        [InlineData(1.0f, false)]
+        public void R4280_APossessedCar_CrossesAKerb_ButNotAGardenWall(float height, bool crosses)
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"edge\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                ",\"thickness\":0.15,\"material\":\"concrete\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}]}"));
+            float east = float.MinValue;
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                east = MathF.Max(east, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            repo.Dispose();
+            if (crosses) Assert.True(east > 20f, $"held at the {height} m kerb: nose x={east:F2}");
+            else Assert.True(east <= 15f - 0.075f + 0.05f, $"through the {height} m wall: nose x={east:F2}");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, acceptance §7.5 item 11) — a POSSESSED wheeled vehicle at full throttle into a garden wall is held at it
         /// too (the operator's drive goes through the same guard). 📌 The user saw exactly this one drive through. 🔴 Red-proof: as above.
         /// </summary>

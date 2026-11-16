@@ -27,6 +27,11 @@ namespace Fdp.Toolkit.World
         /// probe (<c>CarKinematicsSystem.HullProbeM</c>, the line's height above the ground). A panel whose top is within this below the line
         /// is crossed (D-4 — a 0.4 m garden wall is met, not passed over).</summary>
         public const float HullBandM = 0.5f;
+
+        /// <summary>⭐ <c>R-4280</c> (R-5000 changed, user `2026-11-16`: <i>"vehicles should be able to cross the 10cm curb"</i>) — a wall panel LOWER
+        /// than this (its own height, top − base) is a kerb or an edging: a hull rolls over it — never met, never a surface. A 0.4 m garden wall is
+        /// still met (D-4). A constant beside <see cref="HullBandM"/> because the hull trace (the terrain world) sits below the breach table (R-5056).</summary>
+        public const float MinPanelHeightM = 0.25f;
     }
 
     /// <summary>
