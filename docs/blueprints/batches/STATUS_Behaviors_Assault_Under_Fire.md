@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-15
-current-answer: §0 the base variant · §1 decisions · §2 slices · §3 gates · §4 thresholds and ids
+updated: 2026-11-16
+current-answer: ⭐ §-1 THE MORNING SUMMARY · §0 the base variant · §1 decisions · §2 slices · §3 gates · §4 thresholds and ids
 stale-below: nothing
 related-designs:
   - HANDOFF_Coordinator_To_Behaviors_Assault_Under_Fire.md — the batch (dispatched at 8d5169c5f)
@@ -13,10 +13,24 @@ related-designs:
 
 Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da341`).
 
+## −1. ⭐ THE MORNING SUMMARY *(`2026-11-16`)*
+
+| | |
+|---|---|
+| **AU-6 acceptance** (3 / 3 take Objective 1 + the chain + suppression first) | ⛔ **NOT met.** With R-2112…R-2119: **#18 a full pass** (every arrow, Objective 1 held, PL by report); #19 held but no PhaseLine report (the clearing still running at 15 min); #20 PhaseLine by report but no 30 s hold (the platoon rightly moved on to Objective 2); #21 neither (the assault platoon down to 2). ⇒ **1 strict pass, 2 partial, 1 fail** in the last four. Suppression before the assault: ✅ in EVERY run since #3 |
+| ⭐ **what changed the outcome** | the stalls were fixed one by one (R-2114 a failed approach re-ordered · R-2115 a squad under a below-the-line platoon keeps its order · R-2116 a room held only by a FRESH hostile · R-2117 a bounded room entry) — found on the FOCUSED loop (`pc-assault`, 11 min a run), no stall left there — then **R-2118: the 81 mm now fire on a request inside a building** (they never fired in #13 / #15) ⇒ Red breaks in 4–6 min |
+| ⚠ **for your review — two judgement calls** | ① **the roof bursts' lethality** (#16 / #17: two Red platoons gone by 260–317 s with Blue nearly intact) — the fragments ARE traced through slabs, most likely the roof / top-floor posts; not verified · ② **what "taken" means**: the strict reading wants a PhaseLine report (only after the whole office is cleared — slow) AND a hold (broken when the attack correctly moves on). I lean: **taken = the platoon's PhaseLine report OR the 30 s hold** — that reads #18, #19, #20 as three passes. ⛔ Not applied: it would be moving the goalpost at night |
+| ⚠ **the authored PL deadlines** (PL 1 by 420 s, PL 2 by 720 s) | missed in EVERY run since the attack waits for suppression (Set ≈ 113 s, PL 1 ≈ 517–606 s) — they predate this batch; changing them is yours |
+| **gates** | ✅ T-1 suites + new rails, a mutant for every rail (mutate10…15), PAR + read check + world guard (only the filed CE-2437 / CE-2439 red), **0 B per steady frame** (found and fixed a boxed enumerator in the order lookups, 96 B / frame), invariant culture (no number formatting added). ⛔ **stepped hash**: 1 vs 4 equal, 1 vs 8 differed ONCE in 5 (`BlueprintBlackboard1024`, **CE-2440**) |
+| **the loop itself** | the editor host + run-to is wired (`--host editor`, RUNBOOK §9.0) and repeats exactly on `cc-battalion`; ⛔ NOT on `pc-defend-house` (**CE-2438**, parked cars suspected) |
+| **next** | your call on ② (then 3 / 3 is met as #18–#20) · CE-2440 (catch the 8-thread race) · lock X / Y (§4 proposal) · A-9 covered position · AU-4's blind cannon fire |
+
 ## 0. The base variant (`cc-battalion`)
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |
 |---|---|---|---|---|---|
+| R-2119 live #20 | 🟡 **PL 1 BY a report at 517 s** — but no 30 s hold (the platoon moved on to Objective 2, as it should); ended at 15 min | ✅ Set 118.0 s | ✅ 128.8 s | — | ①②③⑤⑥ + PL ✓; AU-6 hold ⛔; PL deadlines ⛔; moved > 50 m 50 / 35 / 12 % · 102.1 contacts/min |
+| R-2119 live #21 | ⛔ neither — the assault platoon down to 2; ① the outpost killed before it withdrew | ✅ Set 113.8 s | ✅ 130.1 s | — | ②③⑤⑥ ✓; ① ⛔; PL ⛔; AU-6 ⛔; moved > 50 m 61 / 24 / 19 % · 111.2 contacts/min |
 | R-2119 live #18 (`0b261b9cd`) | ✅ **TAKEN** — Blue held Objective 1 (≥ 4 men, no enemy, 30 s) from 875 s; PL 1 BY a report at 606 s; Red's three platoons wiped out; ended by "Red below 30 % with Objective 1 held" | ✅ Set 113.1 s | ✅ 122.9 s (after the Set) | — | ⭐ **every required arrow ✓** (① SPOT 4.1 → withdraws 23.4 s · ② · ③ 16 bursts, 2 m · ⑤ · ⑥ · PL · ⑧ · AU-6); only the authored PL deadlines (420 / 720 s) ⛔; moved > 50 m 61 / 27 % · 109.1 contacts/min |
 | R-2119 live #19 | 🟡 **Objective 1 HELD from 608 s** — but the platoon never sent its PhaseLine report; Red stayed above 30 % (5 + 8 left) ⇒ ended at 15 min | ✅ Set 113.5 s | ✅ 124.7 s | — | ①②③⑤⑥⑧ + AU-6 ✓; PL by report ⛔; the PL deadlines ⛔; moved > 50 m 61 / 30 / 18 % · 113.2 contacts/min |
 | R-2118 live #16 | 🟡 Red broken (< 30 %) at **260 s** with Blue 8 / 12 / 12 — the 81 mm on the office roof (16 bursts, 1 m from the request) broke the defence; the END (Red < 30 %) stopped the clock before the assault reached the objective ⇒ not seen TAKEN ⇒ **R-2119** | ✅ Set 115.3 s | ✅ 123.3 s | — | ①②③⑤⑥⑧ ✓; PL ⛔ (the run ended first); ⚠ the roof bursts' lethality to verify |
@@ -99,7 +113,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | AU-4 | ✅ `VehicleSupportByFire`; the company's `Vehicle` role; IFVs under the company · 🔴 **defect fixed**: the SOPs paused a base of fire (`Supporting` in both `NotDefending` guards) · ⚠ no blind cannon fire on reported points | `CE2436_CompanyAttack_AVehicleSupportsByFire…`, `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` | Assault Under Fire §9.4 |
 | AU-5 | ✅ A-6 the company's DRONE TEAM (`Drones` role → `DroneTeam`: the recon drone circles the objective, the operator flies the bombers at the posts); the unjammable rule (AU-4's commit); a Blue drone team in `cc-battalion` | `CE2436_AU5_…` (two), `CE7014_…` | §9.6 |
 | AU-7 | ✅ A-10a the SHOTGUN (`Pellets` on the mount: N ordinary rounds over a 2-D pattern, spent past the range; types 212 / 213, one a squad); A-10 fire at the air spread in height and widened by speed (R-2110); A-10b `CanEngageDrone` + the shelter's gate; A-10c the drone gunners engage | `CE2436_AU7_…` ×3 (`AirDefenceNodesTests`), `CE2436_ARifleman_…` (`ShelterFromAirNodesTests`), `CE2436_AShotgun_…` (`FireProcessingSystemTests`), `CE2436_APellet_…` (`BallisticsSystemTests`), `CE2436_AU7_UnderADrone_…` | §9.5 |
-| AU-6 | | | |
+| AU-6 | 🟡 the stalls fixed (R-2112…R-2117), the mortars fire (R-2118), the end waits for the objective (R-2119); **1 strict pass + 2 partial in the last four** — §−1 | `CE2436_AFailedApproach_…`, `CE2436_AUnitBelowItsLine_…`, `CE2257_BC1_ClearRoom_…` (stale hostile), `CE2257_BC1_ASmallRoom_…` (bounded entry), `FireSolutionTests.CE2436_APointInsideARoofedHouse_…`, `CE2436_ThePlatoonAttack_InItsSteadyApproach_AllocatesNothingPerFrame` | ✅ Defend & Attack AT-12, Decision Layer (UnderCommand), Building Clearing CB-55 ×2, Indirect Fire §3.6, RUNBOOK §9.0 |
 
 ## 3. Gates
 
@@ -141,4 +155,11 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 ## 4. Dynamism thresholds and ids
 
-Not locked yet. Ids allocated: none yet.
+⛔ **NOT LOCKED** — the handoff locks X / Y from THREE clean runs, and there is one (#18). 📐 Measured over the twelve live runs since R-2112
+(#6…#21): moved > 50 m in the first 300 s window **47–64 %** (min 47, #7) · contacts **99–123 / min** (min 99.1, #15). ⭐ **Proposal:
+`CC_MOVED_MIN = 0.45`, `CC_CONTACTS_MIN = 90`** (≈ 5 % / 10 % under the worst run) — to lock with 3 / 3. ⚠ The later windows (300–600 s:
+12–43 %) fall as the attack goes firm on the objective — judge the first window only.
+
+**Ids allocated this batch:** tracker `CE-2437` (the read check on a round born this tick) · `CE-2438` (the editor run does not repeat on
+pc-defend-house) · `CE-2439` (NavigationStatus read undeclared, hill attack) · `CE-2440` (the blueprint blackboard races at 8 threads) ·
+rulings `R-2106`…`R-2119` (all LANE DECISIONS for your review, §1).
