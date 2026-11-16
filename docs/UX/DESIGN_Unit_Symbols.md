@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — for the user's approval (§3 the cases, §4 the decisions with leans and the open options)
+build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-16` (P-1…P-5 + O-1; O-2 not now) — R-8602; tasks CE-8605, CE-8607…CE-8611
 updated: 2026-11-16
 current-answer: the whole file
 stale-below: nothing
@@ -64,7 +64,7 @@ and only the standalone case needs the echelon filter — a card is already one 
 | **F** | ✓ | ✗ | ✗ | the men only — nothing new |
 | **G** | — | ✗ | ✓ | zoom: squads < 1.5 m/px · platoons < 6 · companies < 25 · battalions beyond; a SELECTED unit also shows its children one level down |
 
-## 4. The decisions *(leans — reply "approved" or name the one to change)*
+## 4. The decisions *(✅ APPROVED `2026-11-16` — 🔒 user: "approved, with O-1 split labels" — R-8602)*
 
 | # | decision (lean) | rejected — one line each | would change it |
 |---|---|---|---|
@@ -73,8 +73,8 @@ and only the standalone case needs the echelon filter — a card is already one 
 | **P-3** | standalone symbols show ONE echelon at a time by zoom (thresholds above, ~40 px apart on screen) + the selection's children | every echelon at once — company, platoon and squad symbols stacked at nearly one point | the thresholds, tuned on a real scenario |
 | **P-4** | in 3-D the symbol lives ONLY in the card (upright, screen-sized); with Labels off nothing is shown in 3-D | a billboard sprite over the unit in 3-D — a second 3-D path for one row's sake | the user wanting the symbol in 3-D without cards |
 | **P-5** | the unit card shows the unit's STRENGTH bar (`UnitStrength`, the SITREP colour) — for physical units too (case B) | a physical unit's card with name only (today) — the strength is the first thing a commander asks | — |
-| ❓ **O-1** *(an OPTION for you)* | case A is busy close up — the MEN's cards (today's), not the symbols. Lean: split **Labels** into **Unit cards** and **Men's cards** (both on by default, so nothing changes until you untick one) — then "symbols in unit cards, no men's cards" is one click | leave it — case A stays as drawn | your call |
-| ❓ **O-2** *(an OPTION)* | a hostile unit is symbolised only as far as it is KNOWN to the viewing side? — lean: NOT now (the editor and the instructor see ground truth); a later "perceived picture" mode would draw from the command picture instead | — | a trainee-facing perspective needing it |
+| ✅ **O-1** *(approved)* | case A is busy close up — the MEN's cards (today's), not the symbols. Lean: split **Labels** into **Unit cards** and **Men's cards** (both on by default, so nothing changes until you untick one) — then "symbols in unit cards, no men's cards" is one click | leave it — case A stays as drawn | your call |
+| ⏳ **O-2** *(not now — the lean stands)* | a hostile unit is symbolised only as far as it is KNOWN to the viewing side? — lean: NOT now (the editor and the instructor see ground truth); a later "perceived picture" mode would draw from the command picture instead | — | a trainee-facing perspective needing it |
 
 The symbol itself (how it is composed, cached and rendered — the gizmo library, the parts atlas, the derivation from the unit's content) is
 [DESIGN_Stochastic_Unit_UI.md](../designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md) §6; this file only decides when and where a physical unit shows it.

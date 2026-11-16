@@ -49,7 +49,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | `terrain` *(added `2026-11-14` by coordinator; the dynamic terrain programme, CE-4604)* | **`CE-5000` – `CE-5999`** | `CE-5018` *(`CE-5017` bulk edit / one-step multi-delete; `CE-5016` the pick blind after a bake; `CE-5014` overlay pieces at altitude 0; `CE-5015` walls step with the slope; `CE-5006`…`CE-5012` CE-4594 slices S-1…S-7; `CE-5013` the toolbar revision; `CE-5005` the hint's glyphs; `CE-5004` D-4 versioned re-import; `CE-5003` the stale geo rail; `CE-5002` the cold first commit; `CE-5001` the contact cue across nodes; `CE-5000` the damage-record systems unified)* |
 > | `exp/agg-backend` *(added `2026-11-16` by coordinator, R-4276; experimental, the stochastic units CE-4616)* | **`CE-8000` – `CE-8299`** | `CE-8012` *(`CE-8000`…`CE-8011` Area AGG-B)* |
 > | `exp/agg-behaviors` *(added `2026-11-16`, R-4276)* | **`CE-8300` – `CE-8599`** | `CE-8300` |
-> | `exp/agg-ui` *(added `2026-11-16`, R-4276)* | **`CE-8600` – `CE-8999`** | `CE-8600` |
+> | `exp/agg-ui` *(added `2026-11-16`, R-4276)* | **`CE-8600` – `CE-8999`** | `CE-8616` *(`CE-8600`…`CE-8615` Area AGG-U)* |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
 > ⭐ Ids below `CE-1000` stay as they are (highest in use `CE-524`, measured `2026-10-02` at the `backend` merge). ⛔ **Never renumber.**
@@ -6661,3 +6661,22 @@ whenever the finding is "the sim did not do the impressive thing".**
   ✅✅ **LIVE, 4-process cluster, `hill-attack-close`** — CGF is the Brain, so a composition mistake shows here first: module order **verbatim** *(`…NedReplication, BehaviorDiagnostics, CgfLogicPack, CgfSimulation…`)* · `WeaponFireRequest` **8→5** · `WeaponFire` **5→5** · `EntityHitDamage` **5→5** · `EntityDamage` **9→9** to IG · hostile 1007 **`0/50`** · 8 engagements · 3 waves · ⛔ **zero errors on all three nodes**. ⚠ 1006 read `25/50` at the sample instant — **mid-fight, not a defect**; the run was cut at 75 s.
 
   📄 Design fold-back *(obligation ⑤)*: [`DESIGN_Subsystem_Composition_Unification.md` §4.1x](https://github.com/pjanec/HROT/blob/claude/reset-working-branch-qd1qpv/docs/DESIGN_Subsystem_Composition_Unification.md) carries the as-built `classDiagram` + `sequenceDiagram`; the STATUS block's item (a) *("CGF … UNTOUCHED")* is updated, and now names the editor and Stride as the only hosts left.
+
+## Area AGG-U — the stochastic unit's UI and the unit symbols *(lane `exp/agg-ui` CE-8600…, CE-4616; experimental — never merged back until the user says so)*
+
+- [x] **CE-8600** · DONE `2026-11-16` — the stochastic unit's UI design + mockup (R-4143). Design: [DESIGN_Stochastic_Unit_UI](https://github.com/pjanec/HROT/blob/exp/agg-ui/docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md) §1–§6, `agg-ui-visuals.svg`.
+- [x] **CE-8601** · DONE — the Unit tab's Strength / Ammunition for every unit through `UnitStrength` / `AmmoOf` (UI-3). Design: `UnitFacts`, rail in `TheUnitFormDrawsTests`.
+- [x] **CE-8602** · DONE — `UnitFootprint` geometry (rectangle, front arrow, column segment). Design: `UnitFootprintTests`.
+- [x] **CE-8603** · DONE — `StochasticUnitGizmo`: footprint / column band, frame, strength label, loss mark (UI-2, UI-5, UI-6); fidelity frame. Design: `StochasticUnitGizmoTests`, `StochasticUnitLookFrameRail`.
+- [x] **CE-8604** · DONE — NATO symbols for PHYSICAL units, per layer switch: design + mockup, APPROVED (R-8602). Design: [DESIGN_Unit_Symbols](https://github.com/pjanec/HROT/blob/exp/agg-ui/docs/UX/DESIGN_Unit_Symbols.md).
+- [ ] **CE-8605** · O-1 — split the Labels row into **Unit cards** and **Men's cards** (both on by default). Design: docs/UX/DESIGN_Unit_Symbols.md §4 O-1.
+- [ ] **CE-8606** · UI-10 — `FieldKind.Gauge` in the shared FormView; the Unit tab's Strength / Ammunition / Vehicles as gauges. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-10, mockup ①.
+- [ ] **CE-8607** · UI-11 / P-5 — the UNIT card: strength bar (row 10), ammo bar, name + ~, one info line with the worst alarm; physical units too; replaces the gizmo's label. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-11, mockup ⑥; docs/UX/DESIGN_Unit_Symbols.md P-5.
+- [ ] **CE-8608** · UI-12 S-5/S-6 — the symbol core in the gizmo library: `SymbolCode` + part geometry (GizmoMap.Contracts), the parts atlas + `SymbolRenderer` (GizmoMap.Presentation) replacing the `MilStd2525Renderer` stub; the `Icon` case in both renderers. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §6.
+- [ ] **CE-8609** · UI-12 S-1…S-3 — `UnitSymbolDeriver` (from the authored content) + the TKB `SymbolRole` per system type (derived when unset). Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §6.
+- [ ] **CE-8610** · P-2 / P-3 — the **NATO unit symbols** row: in the card's cell with Labels, alone at the unit's point without; one echelon by zoom + the selection's children. Design: docs/UX/DESIGN_Unit_Symbols.md §3, §4.
+- [ ] **CE-8611** · UI-13 — ORBAT icons by kind (unit ⇒ its symbol, man ⇒ role, vehicle ⇒ class) + a stochastic unit's slots as rows. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-13, mockup ⑨.
+- [ ] **CE-8612** · UI-7 — the Slots tab. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-7, mockup ②.
+- [ ] **CE-8613** · UI-8 — the detection-levels overlay. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-8, mockup ④.
+- [ ] **CE-8614** · UI-1 — the Resolution section ⏳ waits for agg-backend's attribute rows for `AggregateUnit` (a finding). Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §5.
+- [ ] **CE-8615** · UI-9 — the de- / re-aggregate request + progress ⏳ waits for ST-5. Design: docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-9, mockup ⑤.

@@ -29,7 +29,9 @@ reserved ids (`GlobalComponentIds.cs:1351-1356`) ⇒ every slice that draws the 
 **Lane decisions (for the user's review):** UI-1…UI-9 in the design §4 are the leans; the ones built here are UI-3 (one strength reader for every unit — R-8600)
 and UI-4's geometry (a column is a band along its path — R-8601). What would change each is in the design's table.
 
-**Ids allocated:** CE-8600, CE-8601, CE-8602, CE-8603 · R-8600, R-8601.
+**Ids allocated:** CE-8600…CE-8615 (Area AGG-U in the tracker) · R-8600, R-8601, R-8602 (the user's approval of DESIGN_Unit_Symbols + O-1).
+
+**Build order (approved `2026-11-16`):** CE-8605 split Labels → CE-8606 gauges → CE-8607 the unit card → CE-8608 symbol core → CE-8609 deriver + TKB → CE-8610 the NATO row → CE-8611 ORBAT icons → CE-8612 Slots tab → CE-8613 overlay. Each visual slice: its frame rendered and compared with the mockup before it is reported (R-4146).
 
 ## Gates *(rule 8 — the gate-report contract)*
 
