@@ -216,8 +216,14 @@ def build(name, v):
                                                         # R-2097 rev. 3 — the objective is the BLOCK (3–4 buildings within 35 m), not the
                                                         #   default 80 m (≈ 8): clearing every building first ran past the 1.5 × bypass (run 6)
                                                         "Radius": 35}}}]))
-    s.add(trigger("The end", F, {"$type": "Compound", "operator": "Or", "conditions": [achieved(hold), achieved(broken), at_time(900)]},
-                  [{"act": "EndExercise", "args": {"reason": "Objective 2 held, Red below 30 %, or 15 min"}}]))
+    # ⭐ R-2119 (lane decision, CE-2436 AU-6) — Red broken ends the exercise only once Blue HOLDS Objective 1 (≥ 4 men in the block, no enemy,
+    #   30 s): the end stops the clock, so ending on Red < 30 % alone cut the assault off before it took the objective (📌 #16 / #17: Red broken at
+    #   260 / 317 s with the assault still closing — R-2104's 180 s watch cannot run on a stopped clock)
+    took1 = s.add(objective("Blue holds Objective 1", F, "HoldArea", {"common": {"title": "Blue holds Objective 1", "subject": bco, "scored": False},
+                                                                     "area": circle(OBJ1, 35), "minMen": 4, "maxEnemy": 0, "holdSeconds": 30}))
+    s.add(trigger("The end", F, {"$type": "Compound", "operator": "Or", "conditions": [
+                      achieved(hold), {"$type": "Compound", "operator": "And", "conditions": [achieved(broken), achieved(took1)]}, at_time(900)]},
+                  [{"act": "EndExercise", "args": {"reason": "Objective 2 held, Red below 30 % with Objective 1 held, or 15 min"}}]))
     doc = {"$meta": {"docType": "Hrot.Scenario", "schemaVersion": 1},
            "header": {"subsystemType": "Hrot.Scenario", "schemaVersion": "1.0", "terrainName": "demo-city", "description": (
                f"What: CE-4615 (the command chain on a battalion slice, real squads, ~{sum(1 for e in s.ents.values() if e.get('Health'))} men) - on demo-city, "

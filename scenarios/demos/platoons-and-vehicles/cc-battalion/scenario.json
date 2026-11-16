@@ -3933,6 +3933,39 @@
   },
   "cc461500-0000-4000-8000-000000000124": {
    "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Blue holds Objective 1",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "HoldArea",
+    "Params": {
+     "common": {
+      "title": "Blue holds Objective 1",
+      "subject": "cc461500-0000-4000-8000-000000000002",
+      "scored": false
+     },
+     "area": {
+      "circle": {
+       "center": [
+        425.0,
+        425.0,
+        0
+       ],
+       "radius": 35
+      }
+     },
+     "minMen": 4,
+     "maxEnemy": 0,
+     "holdSeconds": 30
+    },
+    "Origin": "Superior"
+   }
+  },
+  "cc461500-0000-4000-8000-000000000125": {
+   "TkbIdentity": {
     "TkbType": 8861
    },
    "EntityInfo": {
@@ -3965,19 +3998,40 @@
         }
        },
        {
-        "$type": "OnEntity",
-        "ref": "cc461500-0000-4000-8000-000000000119",
-        "predicate": {
-         "$type": "PropertyMatch",
-         "componentType": "ObjectiveStatus",
-         "propertyPath": "State",
-         "operator": "Equals",
-         "predicate": {
-          "$type": "Numeric",
-          "minValue": 2,
-          "maxValue": 2
+        "$type": "Compound",
+        "operator": "And",
+        "conditions": [
+         {
+          "$type": "OnEntity",
+          "ref": "cc461500-0000-4000-8000-000000000119",
+          "predicate": {
+           "$type": "PropertyMatch",
+           "componentType": "ObjectiveStatus",
+           "propertyPath": "State",
+           "operator": "Equals",
+           "predicate": {
+            "$type": "Numeric",
+            "minValue": 2,
+            "maxValue": 2
+           }
+          }
+         },
+         {
+          "$type": "OnEntity",
+          "ref": "cc461500-0000-4000-8000-000000000124",
+          "predicate": {
+           "$type": "PropertyMatch",
+           "componentType": "ObjectiveStatus",
+           "propertyPath": "State",
+           "operator": "Equals",
+           "predicate": {
+            "$type": "Numeric",
+            "minValue": 2,
+            "maxValue": 2
+           }
+          }
          }
-        }
+        ]
        },
        {
         "$type": "ScenarioTime",
@@ -3989,7 +4043,7 @@
       {
        "act": "EndExercise",
        "args": {
-        "reason": "Objective 2 held, Red below 30 %, or 15 min"
+        "reason": "Objective 2 held, Red below 30 % with Objective 1 held, or 15 min"
        }
       }
      ]

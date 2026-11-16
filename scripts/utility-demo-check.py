@@ -5910,6 +5910,7 @@ def run_cc_battalion(c, timeout):
     end_wall = time.time() + window * 4 + 600
     last_dyn = -1e9
     last_t, stalled_since = None, time.time()
+    took1 = None   # ⭐ R-2119 — the sim time "Blue holds Objective 1" was first seen Achieved (Objective 1 TAKEN: held, no enemy, 30 s)
     while time.time() < end_wall:
         t = sim_time() or 0.0
         for n, nid in u.items():
@@ -5939,9 +5940,13 @@ def run_cc_battalion(c, timeout):
         for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
             seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}
-        for o in objs.get("objectives") or []:
-            if o.get("title") in ("Blue holds Objective 2", "Red below 30 %") and o.get("state") == "Achieved" and not ended:
-                ended = (o.get("title"), t)
+        states = {o.get("title"): o.get("state") for o in objs.get("objectives") or []}
+        if states.get("Blue holds Objective 1") == "Achieved":
+            took1 = took1 or t
+        # ⭐ R-2119 — the end is the scenario's own "The end" (Objective 2 held · Red < 30 % WITH Objective 1 held · 15 min); its cause named
+        if states.get("The end") == "Achieved" and not ended:
+            ended = ("Blue holds Objective 2" if states.get("Blue holds Objective 2") == "Achieved"
+                     else "Red below 30 % with Objective 1 held" if states.get("Red below 30 %") == "Achieved" and took1 else "15 min", t)
         # ⭐ R-2104 — the end (Red below 30 %, Objective 2 held) can come BEFORE the assault reports its objective taken: keep watching up to
         #   180 s more for the chain's last report (PhaseLine) rather than judging an arrow the run stopped too early to see (base run 9)
         pl_seen = any(r.get("kind") == "Progress" and r.get("subtype") == "PhaseLine" and r.get("from") in blue_ids for r in seen_reports.values())
@@ -6043,11 +6048,13 @@ def run_cc_battalion(c, timeout):
                    f"{[(blue_chain[r.get('from')], r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
     # ⑧ the end
     arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
+    # ⭐ CE-2436 AU-6 / R-2119 — the acceptance itself: Objective 1 TAKEN (Blue holds it: ≥ 4 men in the block, no enemy, 30 s)
+    arrows.append(("AU-6 Objective 1 TAKEN (held: ≥ 4 men, no enemy, 30 s)", took1, took1 is not None, f"held from {took1}"))
 
     print("   THE CHAIN (sim s):")
     for label, t, ok, ev in arrows:
         print(f"     {'✓' if ok else '·'} {label:<55} {t if t is None else round(t, 1)!s:>7}   {ev}")
-    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧"],
+    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧", "AU-6"],
                 "stall": ["②", "③", "⑦"],
                 "collapse": ["④", "⑤", "⑥"]}[variant]
     for label, t, ok, ev in arrows:
