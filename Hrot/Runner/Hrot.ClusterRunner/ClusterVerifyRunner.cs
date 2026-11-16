@@ -46,8 +46,7 @@ internal static class ClusterVerifyRunner
             cases.Add((s, code, started.Elapsed.TotalSeconds, item, log));
             if (code != 0) failed.Add(s);
             Console.WriteLine($"[Verify] {(code == 0 ? "PASS" : "FAIL")} {s} (cluster) — {started.Elapsed.TotalSeconds:0} s (log {log})");
-            CommandLineVerify.PrintItem(item, Console.Out, "    ");
-            foreach (var p in (item["problems"] as JsonArray ?? new JsonArray())) Console.WriteLine($"      PROBLEM {p}");
+            CommandLineVerify.PrintItem(item, Console.Out, "    ");   // prints the problems too
         }
         var summary = new JsonObject
         {
