@@ -19,9 +19,6 @@ namespace Fdp.Toolkit.Terrain.Tests
     /// </summary>
     public sealed class PlaceKnowledgeTests
     {
-        [ComponentId(GlobalComponentIds.EditablePolyline)]
-        private sealed record Outline : IAreaOutline { public IReadOnlyList<Vector2> Points { get; init; } = Array.Empty<Vector2>(); }
-
         private const int Blue = 1, Red = 2;
         private static readonly Guid FieldGuid = Guid.Parse("a7000000-0000-4000-8000-0000000000f1");
 
@@ -36,13 +33,13 @@ namespace Fdp.Toolkit.Terrain.Tests
             {
                 W.RegisterComponent<SimTransform>(); W.RegisterComponent<Health>(); W.RegisterComponent<EntityInfo>(); W.RegisterComponent<EntityGuid>();
                 W.RegisterComponent<Minefield>(); W.RegisterComponent<MinefieldKnowledge>(); W.RegisterComponent<MinefieldStrikes>(); W.RegisterComponent<NetworkAuthority>();
-                W.RegisterManagedComponent<Outline>();
+                W.RegisterManagedComponent<TestAreaOutline>();
                 W.RegisterEvent<MineStruck>(); W.RegisterEvent<MinefieldCellsSwept>(); W.RegisterEvent<MinefieldMarked>(); W.RegisterEvent<LaneCleared>();
                 Field = W.CreateEntity();
                 W.AddComponent(Field, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
                 W.AddComponent(Field, new Minefield { Type = MineType.AntiPersonnel, SpacingM = 5f, KnownAtStartSides = knownAtStart });
                 W.AddComponent(Field, new EntityGuid(FieldGuid));
-                W.SetManagedComponent(Field, new Outline { Points = new[] { new Vector2(-100, -100), new Vector2(100, -100), new Vector2(100, 100), new Vector2(-100, 100) } });
+                W.SetManagedComponent(Field, new TestAreaOutline { Points = new[] { new Vector2(-100, -100), new Vector2(100, -100), new Vector2(100, 100), new Vector2(-100, 100) } });
             }
 
             public Entity Man(int side, Vector2 at, float health = 100f)

@@ -48,13 +48,15 @@ namespace Fdp.Toolkit.Squad.DangerArea
             // ⭐ C6 — lease the graph for the whole plan + classify: a terrain commit may publish a new one meanwhile.
             using var lease = roads?.Borrow();
             var graph = lease?.Value ?? default;
-            if (!RoadGraphRouter.HasRoads(graph) && gasCount == 0) return 0;
+            var doorStates = Fdp.Toolkit.Terrain.DoorStates.Of(repo);
+            var knowledge = doorStates?.Knowledge ?? Fdp.Toolkit.Terrain.PlaceKnowledgeTable.Of(repo);   // ⭐ CE-4624 — with no terrain the view's table still answers
+            if (!RoadGraphRouter.HasRoads(graph) && gasCount == 0 && knowledge.RecordCount == 0 && knowledge.MarkedCount == 0) return 0;   // ⭐ CE-4624 — a known minefield is reason enough
 
             var navmesh = repo.HasSingletonManaged<INavmeshProvider>() ? repo.GetSingletonManaged<INavmeshProvider>() : null;
             var query = new RouteQuery(start, end, roadUse, NavigationBackend.Auto, EqsContext.SelfLayer(repo, carrier, sensor));
             Span<Vector3> route = stackalloc Vector3[RoutePlanner.MaxNavWaypoints * 3];
             int points;
-            if (planner.Plan(in query, in graph, navmesh, Fdp.Toolkit.Terrain.DoorStates.Of(repo), out _) != null)
+            if (planner.Plan(in query, in graph, navmesh, doorStates, out _) != null)
             {
                 var planned = planner.Points;
                 points = Math.Min(planned.Count, route.Length);
@@ -68,8 +70,59 @@ namespace Fdp.Toolkit.Squad.DangerArea
             var cover = repo.HasSingletonManaged<ICoverProvider>() ? repo.GetSingletonManaged<ICoverProvider>() : null;
             int count = DangerAlongRouteClassifier.Classify(route.Slice(0, points), in graph, terrain, cover, sensor.SearchRadius, areas,
                 gas.Slice(0, gasCount));
+            // ⭐ CE-4624 MS-T3 (MR-9, KG-7, KR-9) — a minefield the unit's SIDE knows (suspected or mined cells) on the route: NO-ENTER, derived from the side's knowledge (no store)
+            count += MinefieldAreas(repo, route.Slice(0, points), Fdp.Toolkit.Navigation.NavLayerSelection.SidePlus1Of(query.LayerMask), knowledge, areas.Slice(count));
             MarkSeenFrom(repo, carrier, terrain, areas.Slice(0, count));   // ⭐ CE-3272 (Q94 B)
             return count;
+        }
+
+        /// <summary>The step along a route at which minefield knowledge is sampled (m).</summary>
+        public const float MinefieldSampleMetres = 5f;
+
+        [ThreadStatic] private static System.Collections.Generic.List<Vector2>? t_outline;
+
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-9, KG-7) — one <see cref="DangerAreaKind.Minefield"/> area per field where <paramref name="route"/> first enters a cell
+        /// side <paramref name="sidePlus1"/> − 1 knows as suspected or mined: its centre the entry point, its near handle the last safe sample before it (where to halt and call
+        /// engineers). The planner prices such cells very high (KR-10), so a route here is one with no way round. Returns how many it wrote. Cold per solve (2 s).
+        /// </summary>
+        public static int MinefieldAreas(EntityRepository repo, ReadOnlySpan<Vector3> route, byte sidePlus1, Fdp.Toolkit.Terrain.PlaceKnowledgeTable knowledge, Span<DangerAreaDescriptor> into)
+        {
+            if (sidePlus1 == 0 || into.Length == 0 || route.Length < 2 || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) return 0;
+            int side = sidePlus1 - 1, n = 0;
+            var outline = t_outline ??= new System.Collections.Generic.List<Vector2>(16);
+            foreach (var field in repo.Query().With<Fdp.Toolkit.Terrain.Minefield>().With<Fdp.Core.SimTransform>().Build())
+            {
+                if (n >= into.Length) break;
+                if (!knowledge.KnowsAny(side, field) || !Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.TryOutline(repo, field, outline, out var anchor)) continue;
+                var grid = Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.Grid(repo.GetComponentRO<Fdp.Toolkit.Terrain.Minefield>(field), anchor, outline);
+                Vector3 safe = route[0];
+                bool found = false;
+                for (int i = 1; i < route.Length && !found; i++)
+                {
+                    var a = route[i - 1]; var b = route[i];
+                    int steps = Math.Max(1, (int)MathF.Ceiling(Vector3.Distance(a, b) / MinefieldSampleMetres));
+                    for (int k = 0; k <= steps; k++)
+                    {
+                        var p = Vector3.Lerp(a, b, k / (float)steps);
+                        var p2 = new Vector2(p.X, p.Y);
+                        if (Fdp.Toolkit.Terrain.MinePattern.Inside(outline, p2) && Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.CellOf(grid, p2, out int c, out int r)
+                            && knowledge.Knows(side, field, c, r) is Fdp.Toolkit.Terrain.MineCellKnowledge.Suspected or Fdp.Toolkit.Terrain.MineCellKnowledge.KnownMined)
+                        {
+                            into[n++] = new DangerAreaDescriptor
+                            {
+                                FeatureId = (uint)field.Index * 2654435761u, ThreatRating = 1f, Kind = DangerAreaKind.Minefield,
+                                Center = p, ExtentsXY = new Vector2(grid.Cell * grid.Cols, grid.Cell * grid.Rows) * 0.5f, AngleRad = grid.OrientationDeg * (MathF.PI / 180f),
+                                ZFloor = p.Z - 2f, ZCeiling = p.Z + 3f, NearSideHandle = safe, FarSideHandle = p,
+                            };
+                            found = true;
+                            break;
+                        }
+                        safe = p;
+                    }
+                }
+            }
+            return n;
         }
 
         /// <summary>
