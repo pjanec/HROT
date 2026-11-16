@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-16
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §11 behaviors as built · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -370,3 +370,11 @@ field's own rotated lattice).
 knowledge and the side through the shared pack; the record family (serial writer, stops in replay, recorded by bytes) fits; avoid vs cross-with-care
 and the shelled area kept apart agree with AQ101; observations as events respect R-4212. ⚠ TKB 7206 is free in production (a test-local constant
 in `EjectionSystemTests.cs:26` only).
+
+## 11. As built — behaviors, `2026-11-16` (CE-4624 MS-B1…MS-B4; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Behaviors_Minefields.md`)
+
+| slice | as built | deviation from §3 / §8 |
+|---|---|---|
+| MS-B1 | `MineStrikeReflexSystem` (CGF pack, before the brain tick): a `MineStruck` ⇒ the drill as a REACTION (urgency Hit), once per (unit, field) a minute — a struck VEHICLE itself; a struck MAN's live commander, else the man. `MineStrike` (Halts \| LeavesRoute): every live man of the unit ordered to hold (`PersonHold`), the unit stops (a vehicle's crew stays aboard); Success once the side has MARKED the field (`PlaceKnowledgeTable.Marked`) or after `Hold` (120 s). The report up the chain is the knowledge path itself | ⚠ R-2125: NO back-out along breadcrumbs (MR-5's per-mover record does not exist yet) — the unit holds in place; the followers of a struck vehicle do not reverse in its tracks (no convoy context) |
+
+**Rails:** `MineStrikeBehaviorTests` (a man's squad holds, once per field, the hold ends · a vehicle stops, its crew aboard · the conduct is Halts \| LeavesRoute, a Dash refuses it).

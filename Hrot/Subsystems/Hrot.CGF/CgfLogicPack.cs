@@ -262,6 +262,8 @@ namespace Hrot.CGF
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain
             //   tick — every man, under command or not (it is no SOP row).
             simList.Add(new Hrot.AI.Behaviors.Brains.GrenadeDangerSystem(gateOnAuthority));
+            // ⭐ CE-4624 MS-B1 — a mine set off by a man or a vehicle: the unit's MineStrike drill as a reaction, before the brain tick.
+            simList.Add(new Hrot.AI.Behaviors.Brains.MineStrikeReflexSystem(gateOnAuthority));
             // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));

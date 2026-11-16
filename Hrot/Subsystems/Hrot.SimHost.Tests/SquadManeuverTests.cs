@@ -1124,8 +1124,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Behavior.Conduct.None, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.SquadMarch)));
             Assert.Equal(Fdp.Toolkit.Behavior.Conduct.All, Hrot.AI.Behaviors.Orders.OrderConduct.Forbids(Hrot.AI.Behaviors.Orders.OrderKind.Dash));
             // ⭐ no current reaction declares LeavesRoute ⇒ a Defend / Hold order refuses no reaction (lane decision; HoldsFirm keeps its job)
+            //   ⭐ CE-4624 MS-B1 — the ONE ruled exception: MineStrike declares Halts | LeavesRoute (Minefields MR-6, R-4272) — a unit holding a
+            //   position that sets off a mine keeps holding (it is not moving through the field)
             foreach (var d in Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors)
-                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0, $"{d.Name} leaves the route: a Defend / Hold order would now refuse it");
+                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0 || d.Name == BehaviorNames.MineStrike,
+                    $"{d.Name} leaves the route: a Defend / Hold order would now refuse it");
         }
 
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;

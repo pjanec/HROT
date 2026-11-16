@@ -4,6 +4,7 @@ AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputByte
 AirPlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=24
 AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=296
 AllMustPass | hostedInput=- | inputBytes=144
+AnimalHsm | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
 AssembleAfterDrop | hostedInput=Hrot.Map.Definitions.Behavior.AssembleAfterDropParamsJsonDto | inputBytes=1232
 BTreeCuratedBindingDemo | hostedInput=- | inputBytes=0
@@ -92,6 +93,7 @@ LandPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputByt
 LoadCasualty | hostedInput=Hrot.Map.Definitions.Behavior.LoadCasualtyParamsJsonDto | inputBytes=80
 ManWeapon | hostedInput=Hrot.Map.Definitions.Behavior.ManWeaponParamsJsonDto | inputBytes=36
 MemberEvaluation | hostedInput=- | inputBytes=616
+MineStrike | hostedInput=Hrot.Map.Definitions.Behavior.MineStrikeParamsJsonDto | inputBytes=40
 MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto | inputBytes=20
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
