@@ -389,6 +389,9 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityGroundDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Ground damage (craters, ruts) (`dtGroundDamage`; row added at CE-4623 — it was missing) |
 | `Hrot.NED.Descriptors.EntityTreeDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Felled / broken trees (`dtTreeDamage`; row added at CE-4623 — it was missing) |
 | `Hrot.NED.Descriptors.EntityRadarEmission` | descriptor | yes: entity id | S | Hrot.Network.NED | A radar's emission (`dtRadarEmission`, CE-4617; row added at CE-4623 — it was missing) |
+| `Hrot.NED.Descriptors.EntityAggregateUnit` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's state (`dtAggregateUnit` 220, CE-8001 — exp/agg-backend) |
+| `Hrot.NED.Descriptors.EntityUnitSlotTable` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's slot table, the slots in use (`dtUnitSlotTable` 221, CE-8001) |
+| `Hrot.NED.Descriptors.EntityUnitHoldings` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's holdings (`dtUnitHoldings` 222, CE-8001) |
 | `Hrot.NED.Descriptors.EntityBladeCut` | descriptor | yes: entity id | S | Hrot.Network.NED | A bulldozer's blade-cut marker (`dtBladeCut`, CE-4601; row added at CE-4623 — it was missing and the protocol rail was red) |
 | `Hrot.NED.Descriptors.EntityAnimalState` | descriptor | yes: entity id | S | Hrot.Network.NED | An animal's mode, fear band, species and flags (`dtAnimalState`, CE-4623) |
 | `Hrot.NED.Descriptors.EntityFlockState` | descriptor | yes: entity id | S | Hrot.Network.NED | A bird flock's birds left, seed and flying / landed / perched (`dtFlockState`, CE-4623) |

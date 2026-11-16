@@ -162,11 +162,43 @@ the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play 
 | the plays (agg-behaviors) | read `AggregateUnit.SuppressedShare`, `UnitSlotTable` (health / stress / ammo — standing = up and stress < `StochasticCombat.BreakLevel`), `UnitHoldings.Operational` / `Immobile`; ⛔ never write them |
 | agg-ui | the same, plus `FireAllocation.Lines` (who fires at whom this step) |
 
+## 3d. Resolution — the seams for agg-behaviors and agg-ui *(ST-5, CE-8012)*
+
+| | |
+|---|---|
+| ⭐ the POLICY (agg-behaviors) | `new ResolutionManagerSystem(switch) { Policy = world => <your ResolutionPolicy as ResolutionBands> }` — ⚠ `ResolutionBands.Default`, never `new ResolutionBands()` (all zeros) |
+| ⭐ the posts (agg-behaviors, D-P3 / SV-5) | today the fallback posts (`UnitSplits.FallbackPosts`); a planned-posts component replaces them in Planning |
+| agg-ui | `AggregateUnit.Splitting` (the stage), `Resolution`, `Pin` (the instructor's request writes `Pin`); a split's children carry `AggregateChild { Unit, Slot, Held }` |
+| identities | `UnitSplits.ChildGuid(unitGuid, compositeSlot)` — the same children every split |
+
+## 3e. The unit form's attributes — for agg-ui *(CE-8015, the R-4278 follow-up)*
+
+⭐ `AggregateUnit`'s editable fields are in the attribute vocabulary (`AttributeVocabulary.All`), so the generic form shows them and a patch
+reaches the component AND the wire (the existing `dtAggregateUnit` ↔ `AggregateUnit` map — no new descriptor):
+
+| path | id | value |
+|---|---|---|
+| `Aggregate.Resolution` | 281 | `AggregateResolution` (0 Unset · 1 Physical · 2 Fusion · 3 Stochastic) — the AUTHORED resolution; ⚠ live, the instructor changes it through `Pin` |
+| `Aggregate.Pin` | 282 | `ResolutionPin` (0 none · 1 keep · 2 physical · 3 stochastic) |
+| `Aggregate.Echelon` | 283 | 0 squad · 1 platoon · 2 company |
+| `Aggregate.Formation` | 284 | `UnitFormation` |
+| `Aggregate.Posture` | 285 | `UnitPosture` |
+| `Aggregate.Prepared` | 286 | `PreparedLevel` |
+
+⛔ `Splitting` (the split stage) is READ-ONLY — show it from the component; the manager owns it. Values out of range are clamped.
+
+## 3f. The spawn-time fill — for agg-behaviors *(CE-8016, your F-9)*
+
+⭐ Author a stochastic unit as `AggregateUnit { Resolution = Stochastic }` + its TKB type; `StochasticUnitFillSystem` (in `CgfLogicPack`, the owner
+only, once) fills `UnitSlotTable` (one slot per man of the flattened composite: role from the designation, full health, his basic load,
+`CompositeSlot` = leaf index + 1) and `UnitHoldings` (vehicles / systems grouped by type, × count, mobility from the TKB), and the echelon if 0.
+A table you author yourself (Count > 0) is left alone. Platoon = 30 slots · company = 90 · tank platoon = one holding of 4 M1s.
+
 ## 4. Ids allocated by this commit
 
 | | |
 |---|---|
-| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) — 288–289 free |
+| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) · 288 `AggregateChild` (own, ST-5) — 289 free |
 | descriptors | 220 `dtAggregateUnit` · 221 `dtUnitSlotTable` · 222 `dtUnitHoldings` — 223–229 free |
 | tracker / rulings | `CE-8000` (the contract) · `R-8000`, `R-8001` (lane decisions, `STATUS_AggBackend.md`) |
 

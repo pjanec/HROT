@@ -53,14 +53,18 @@ namespace Fdp.Toolkit.Aggregate
         private EntityRepository? _queriesFor;
         private Entity[] _firers = new Entity[32];
         private SimInstant _last = (SimInstant)(-1.0);
+        private bool _loadTried;
 
         public StochasticFirePhase(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var table = KillerVictimTable.Current;
-            if (table == null || view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
                 || !repo.IsComponentTypeRegistered<FireAllocation>() || !repo.IsComponentTypeRegistered<UnitDetections>()) return;
+            // ⭐ CE-8008 — no table in force ⇒ build it ONCE from this world's TKB over the held types (KillerVictimTkb.LoadFor)
+            if (KillerVictimTable.Current == null && !_loadTried) { _loadTried = true; KillerVictimTable.Current = KillerVictimTkb.LoadFor(repo); }
+            var table = KillerVictimTable.Current;
+            if (table == null) return;
             SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
             if (!StochasticCombat.Due(now, _last)) return;
             _last = now;

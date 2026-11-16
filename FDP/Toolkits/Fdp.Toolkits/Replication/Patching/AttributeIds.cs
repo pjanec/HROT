@@ -261,4 +261,22 @@ public static class AttributeIds
     /// <summary>⭐ The mobility kill as one switch: non-zero raises every part of every Mobility zone to at least its wounded threshold, zero lowers them to 0
     /// (shares <see cref="DamagePart"/>'s value logic). A type with no Mobility zone is refused. <c>Int32</c> 1 / 0.</summary>
     public const ushort DamageMobilityKill = 86;
+
+    // ── ⭐ CE-8015 (exp/agg-backend; agg-ui's UI-1, the unit form's Resolution section) — a stochastic unit's AggregateUnit ───────────────
+    //   281–286 mirror the component's id (281), clear of the shared low range every lane grows (highest elsewhere: 86, measured 2026-11-16).
+    //   ⭐ Values are the enums' bytes (AggregateResolution, ResolutionPin, UnitFormation, UnitPosture, PreparedLevel; Echelon 0 squad …).
+    //   ⚠ A LIVE resolution change is the instructor's PIN (SV-14) — the manager runs the process; writing Resolution is for authoring.
+
+    /// <summary><c>Aggregate.Resolution</c> — 1 Physical · 2 Fusion · 3 Stochastic (0 unset = physical).</summary>
+    public const ushort AggregateResolution = 281;
+    /// <summary><c>Aggregate.Pin</c> — the instructor's pin: 0 none · 1 keep · 2 physical · 3 stochastic.</summary>
+    public const ushort AggregatePin = 282;
+    /// <summary><c>Aggregate.Echelon</c> — 0 squad · 1 platoon · 2 company.</summary>
+    public const ushort AggregateEchelon = 283;
+    /// <summary><c>Aggregate.Formation</c> — 0 none · 1 column · 2 line · 3 assault.</summary>
+    public const ushort AggregateFormation = 284;
+    /// <summary><c>Aggregate.Posture</c> — 0 dismounted · 1 mounted.</summary>
+    public const ushort AggregatePosture = 285;
+    /// <summary><c>Aggregate.Prepared</c> — 0 none · 1 hasty · 2 prepared · 3 fortified.</summary>
+    public const ushort AggregatePrepared = 286;
 }
