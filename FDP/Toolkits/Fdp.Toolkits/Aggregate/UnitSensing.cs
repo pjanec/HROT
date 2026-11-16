@@ -125,8 +125,11 @@ namespace Fdp.Toolkit.Aggregate
             else for (int i = 0; i < n; i++) job.Execute(_observers[i], i, null!);
         }
 
-        private struct SenseJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
+        private struct SenseJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads, Fdp.Core.Jobs.ICoarseJob
         {
+            /// <summary>A unit is a whole unit's work (CE-4517): 2 units a batch, so a battalion's 18 spread over the threads.</summary>
+            public int BatchSize => 2;
+
             public EntityRepository Repo;
             public Entity[] All;
             public int AllCount;

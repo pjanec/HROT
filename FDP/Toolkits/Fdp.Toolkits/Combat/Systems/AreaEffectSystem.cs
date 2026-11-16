@@ -278,6 +278,11 @@ namespace Fdp.Toolkit.Combat.Systems
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
             MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
             FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
+            // ⭐ CE-8010 (agg-backend ST-3, C-6, RV-8) — the STOCHASTIC units the burst reaches: a hidden UnitEntity was skipped above, so a
+            //   stochastic unit's footprint takes the burst here (casualties, suppression, stress) — serial, after the attrition phases
+            Fdp.Toolkit.Aggregate.StochasticAreaSink.Apply(repo, burst,
+                Fdp.Toolkit.Aggregate.StochasticAreaSink.LethalRadius(w.BlastLethalRadiusM, w.FragmentRadiusM), unchecked((uint)record.Seq),
+                repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero);
             log.Add(record);
         }
 
