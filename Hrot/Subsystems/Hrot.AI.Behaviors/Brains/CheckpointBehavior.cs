@@ -80,6 +80,20 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Run(ref CheckpointParams p, ref SquadPlayState ws, Entity self, EntityRepository world)
             => SquadManeuverRunner.Tick<CheckpointPlay, CheckpointParams>(ref p, ref ws, self, world);
 
+        private static readonly int s_hash = Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.Checkpoint);
+
+        /// <summary>
+        /// ⭐ <c>CE-4622</c> K-7 — <paramref name="unit"/>'s current order (running or paused) is a <c>Checkpoint</c>. The squad SOP spares it as it spares a
+        /// defence (<see cref="SquadDefendBehavior.NotDefending"/>): its watch and ladder ARE the answer to a vehicle coming in. 📐 Measured on
+        /// <c>cp-routine-car</c>: the default <c>BasicSquadSop</c>'s contact row paused the checkpoint for a fire-and-movement drill 6.5 s in, the watch froze
+        /// at "approaching", and nobody signalled or searched.
+        /// </summary>
+        public static bool Manning(EntityRepository world, Entity unit)
+        {
+            var o = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, unit);
+            return o.Exists && o.BehaviorHash == s_hash;
+        }
+
         [ThreadStatic] private static List<NavRouteWaypoint>? t_points;
         private static readonly Hrot.Map.Common.Components.HrotRouteSource s_routes = new();
 

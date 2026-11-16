@@ -4,13 +4,12 @@
  "golden": {
   "every": 10
  },
- "anchors": [
-  {
-   "name": "burst",
+ "anchors": {
+  "burst": {
    "on": "blast",
    "n": 1
   }
- ],
+ },
  "expect": [
   {
    "name": "the car reads routine",
