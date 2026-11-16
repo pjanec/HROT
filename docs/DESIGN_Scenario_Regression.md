@@ -900,10 +900,10 @@ classDiagram
     <<existing - a recording>>
   }
   class ClusterVerifyWorld {
-    <<new - the cluster's debug HTTP, every node>>
+    <<built RT-5 - one node's debug HTTP; also the IShotWorld>>
   }
   class ConditionBook {
-    <<existing - the checks evaluator>>
+    <<existing - grows StateHolds: state cues on DUMPED components, R-3094>>
   }
   class ScenarioGolden {
     <<existing - grows a VISIBLE-state mode, RT-3>>
@@ -912,13 +912,13 @@ classDiagram
     <<existing - Verify mode, stepped>>
   }
   class ClusterVerifyRunner {
-    <<new - load, unpause, sample in sim time, stop>>
+    <<built RT-5 - boot, load live, play, sample in sim time, stop>>
   }
   class ReplicationSanity {
-    <<new - sent vs received, swallowed exceptions>>
+    <<built RT-6 - sent vs received per topic, swallowed exceptions>>
   }
   class VerifyCommand {
-    <<existing - accepts mode all, RT-5>>
+    <<existing - its JUnit and PrintItem are shared; Program routes mode all>>
   }
   IVerifyWorld <|.. EditorVerifyWorld
   IVerifyWorld <|.. RecordedRunWorld
@@ -930,6 +930,7 @@ classDiagram
   ClusterVerifyRunner ..> ReplicationSanity
   VerifyCommand ..> DirectorRunner : mode editor
   VerifyCommand ..> ClusterVerifyRunner : mode all
+  ClusterVerifyRunner ..> VerifyCommand : JUnit, PrintItem
 ```
 *What it shows that prose hid: the cluster tier needs NO second evaluator — `ConditionBook` already reads the world only through `IVerifyWorld`,
 so the cluster is one more implementation of that seam; the 81 Python conditions retire into the same `checks.json` (RT-7).*
@@ -992,6 +993,8 @@ behaviour when the repository is quiet for weeks; DDS multicast on a GitHub runn
 
 | item | as built | deviation / note |
 |---|---|---|
+| **RT-5** the cluster tier | `--verify <s> --mode all` (`Program.cs` routes it to `ClusterVerifyRunner.Run`): per scenario ONE fresh `--mode all` child (its own debug port, `FDP_STAGING_ROOT`, DDS domain `120 + i`; under `xvfb-run -a` when Linux has no `DISPLAY`) → `/status canOperate` → `POST /scenario/load/live` → `OperatingLive` → `POST /perspective Scenario` → `POST /sim/play` → a poll loop: `simTime` from `/status`, `ApplyDue` + `Observe` at that SIM time, until `runFor` (wall limit 240 s + 6 s per sim second) → `Finish` → RT-6 → kill. The checks are read from the source tree; `GoldenEvery` is nulled (no golden in this tier). `ClusterVerifyWorld`: `/entities` (the cast, re-read each sample: `later` units appear), `/entities/{id}` (components; the running behaviour's hash → its start record's name for a `task` cue), `/combat/shots` · `/combat/detonations`, `POST /entities/{id}/component` for `do`. Report: `<s>.json` (the editor tier's item shape + `tier`, `replicationNotes`), `summary.json`, `junit.xml` (`scenario-regression-cluster`) | ⭐ **found building it:** `near / task / side / health / embark / gesture` cues were judged ONLY on an `EntityRepository` — a world without one read them all false. `ConditionBook.StateHolds` now judges them on the dumped components through AnchorBook's own value comparisons (R-3094; rail `ScenarioChecksTests.RT5_StateCues_HoldOnDumpedComponents_WhenTheWorldHasNoRepository`). ⚠ `NameOfEntityIndex` is null over HTTP (only a golden's `@index` used it). 📐 First run: `farm-under-fire` 8/8 and `ua-drone-shelter` 11/11 PASS in the cluster tier (105 s / 62 s wall) |
+| **RT-6** replication sanity | `ReplicationSanity.Judge` on the cluster's `/diagnostics/architecture` (every subsystem of the `--mode all` process): a topic some `Egress` / `Bidirectional` translator SENT that an `Ingress` / `Bidirectional` translator in the cluster subscribes to, with none RECEIVED ⇒ FAIL, named with both sides; a system with `errors > 0` or a module with `failureCount > 0` ⇒ FAIL; a topic no ingress in this cluster subscribes to ⇒ a NOTE (`replicationNotes`), never a fail; no architecture at all ⇒ FAIL. A child that exits mid-run (`FDP_FAIL_FAST` makes a module exception fatal) ⇒ FAIL with the log named | rail `ReplicationSanityTests.RT6_…` (a dropped ingress, an unsubscribed topic, a swallowed exception). 📐 First run: one note (`PathResponseBatch`: 98 sent, no ingress in the cluster), no problem |
 | **RT-3** the visible golden | each snapshot keeps `visible`: `VisibleState.Paths` (`EntityInfo.ForceId`, `IsEmbarkedTag`, `NavigationStatus.Phase`, `WeaponPosture`, `CivilianState.Mode`, `Demeanour`, `Custody`, `AnimalState`, `FlockState`) + every path the scenario's checks read (`ScenarioChecks.Paths()`). The verdict's comparison is `ScenarioGolden.CompareVisible`: anchor / expectation times, rounds, bursts, and per snapshot position, health, visible state. A difference or a missing golden is a WARNING (`VerifyResult.Warnings`, exit 0, `summary.json` `warned`, junit `system-out`); ONE command re-captures (`--verify-capture`). An old golden (no `visible`) is compared on what it has and says to re-capture. `ScenarioGolden.Compare` stays the FULL comparison the replay harness (H1–H5, R1) uses, now without the `visible` map | the components are still hashed into the golden (the harness and `golden.full` need them) — only the VERDICT reads the visible part |
 
 ## ⛔ HISTORY

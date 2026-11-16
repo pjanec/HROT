@@ -631,6 +631,10 @@ namespace Hrot.Map.Definitions.Tkb
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Exposed = true,
                                       X = -0.45f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,
                                       TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
+                        // ⭐ CE-4621 IM-2 (feature scenario ua-moto-parked-bomb, R-3088) — the PANNIER: one cargo station, stowed and concealed,
+                        //   appended after the seats as the car's boot (CE-3233 ST-9). ⛔ Without it a ParkedBomb's "cargo charge" could not ride the
+                        //   bike at all — the play's rail placed the charge by hand, so no rail saw the gap; the scenario did.
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false },
                     },
                 })
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto

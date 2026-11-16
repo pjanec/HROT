@@ -145,6 +145,47 @@ namespace Fdp.Toolkit.Perception.Tests
                 "Boost rate must be approximately 50 * deltaTime per second.");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3453</c> (found by the animal feature scenarios, `2026-11-16`) — a CALM animal and an animal AREA never enter the target memory;
+        /// a man and an ATTACKING animal (the guard dog, Dangerous) do. 🔴 Red-proof: drop the <c>NotAContact</c> skip ⇒ four entries. On a farm the
+        /// cows, the hens and the area entities used to fill the 16 slots and evict every enemy as fast as he entered: nobody fired.
+        /// </summary>
+        [Fact]
+        public unsafe void CE3453_ACalmAnimalAndAnAnimalArea_AreNoContact_AManAndADangerousDogAre()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalArea>()) world.RegisterComponent<Fdp.Toolkit.Animals.AnimalArea>();
+            var view = (ISimulationView)world;
+            var sys  = new ThreatEvaluationSystem();
+            var man = world.CreateEntity();
+            var cow = world.CreateEntity();
+            world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+            var area = world.CreateEntity();
+            world.AddComponent(area, new Fdp.Toolkit.Animals.AnimalArea { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Count = 8 });
+            var dog = world.CreateEntity();
+            world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog, Flags = Fdp.Toolkit.Animals.AnimalFlags.Dangerous });
+
+            var observer = world.CreateEntity();
+            world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            world.AddComponent(observer, new TargetMemory());
+            var tracks = new ActiveSensorTracks();
+            var seen = new[] { man, cow, area, dog };
+            for (int i = 0; i < seen.Length; i++) { tracks.EntityIds[i] = (long)seen[i].PackedValue; tracks.PositionsX[i] = 10f * (i + 1); }
+            tracks.Count = seen.Length;
+            world.AddComponent(observer, tracks);
+
+            sys.Execute(view, 1.0f);
+            FlushEcbAndSwap(view, world);
+
+            var mem = world.GetComponent<TargetMemory>(observer);
+            var held = new System.Collections.Generic.List<long>();
+            for (int i = 0; i < mem.Count; i++) held.Add(mem.EntityIds[i]);
+            Assert.Equal(2, mem.Count);
+            Assert.Contains((long)man.PackedValue, held);
+            Assert.Contains((long)dog.PackedValue, held);
+        }
+
         // ── Test 3: CE-3046 — a faded entry no sensor tracks is FORGOTTEN ───────────
 
         /// <summary>

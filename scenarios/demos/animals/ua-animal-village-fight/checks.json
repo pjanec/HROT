@@ -1,0 +1,70 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 a firefight among livestock, one row per Judge line. CivilianState.Mode by name.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Pasture 1",
+    "Pasture 2",
+    "Pasture 3",
+    "Pasture 4",
+    "Pasture 5",
+    "Pasture 6",
+    "Pasture 7",
+    "Pasture 8",
+    "Hens 1",
+    "Hens 2",
+    "Hens 3",
+    "Hens 4",
+    "Hens 5",
+    "Hens 6"
+  ],
+  "expect": [
+    {
+      "name": "the firefight starts",
+      "on": "shot",
+      "by": "*Blue"
+    },
+    {
+      "name": "the herd panics",
+      "on": "field",
+      "who": "*Pasture ",
+      "path": "AnimalState.FearBand",
+      "op": ">=",
+      "value": 3,
+      "quantifier": "atLeast:3",
+      "after": "the firefight starts"
+    },
+    {
+      "name": "the villagers panic",
+      "on": "field",
+      "who": "*Villager",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Panic",
+        "Shelter",
+        "Cower",
+        "Inside"
+      ],
+      "after": "the firefight starts"
+    },
+    {
+      "name": "no cow is ever targeted",
+      "never": {
+        "on": "shot",
+        "by": "*",
+        "at": "*Pasture "
+      }
+    },
+    {
+      "name": "no hen is ever targeted",
+      "never": {
+        "on": "shot",
+        "by": "*",
+        "at": "*Hens "
+      }
+    }
+  ]
+}

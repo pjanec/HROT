@@ -1,0 +1,189 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "farm",
+    "description": "What: the guard dog (CE-4623 AB-5; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain the 'Farm dog' area (a 12 x 8 m yard at (40, 108)) populates one dog ('Farm dog 1'). A three-man patrol ('Soldier 1'..'Soldier 3', Friend, default ROE) walks east along y \u2248 108 from x 0 straight through the dog's yard to x \u2248 85. The dog guards its ground: it barks at the first man inside its home + 15 m, attacks a man who comes close inside its home and bites him (8 damage), and while it attacks it is marked Dangerous \u2014 so the soldiers may fire at it in self-defence. Judge: (1) the dog barks (2) it bites a soldier (3) it is marked Dangerous (4) a soldier fires at it (self-defence) (5) no soldier fires before it is Dangerous. Check: scripts/scenario-regression.sh ua-animal-guard-dog"
+  },
+  "entities": {
+    "46230b01-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          40,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Farm dog",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -6,
+            "Y": -4
+          },
+          {
+            "X": 6,
+            "Y": -4
+          },
+          {
+            "X": 6,
+            "Y": 4
+          },
+          {
+            "X": -6,
+            "Y": 4
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Dog",
+        "Enclosed": 0,
+        "Count": 1,
+        "Seed": 4625
+      }
+    },
+    "46230b01-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Soldier 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            90,
+            108,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b01-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -6,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Soldier 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            84,
+            110,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b01-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -12,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Soldier 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            78,
+            112,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

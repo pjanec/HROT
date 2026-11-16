@@ -68,6 +68,75 @@ namespace Hrot.SimHost.Tests
             foreach (var e in repo.Bus.Read<DetonateChargeEvent>()) if (e.Charge == charge && e.By.IsNull) asks++;
             Assert.Equal(1, asks);                                       // asked by no one (the burst itself is ChargesTests' rail)
         }
+
+        /// <summary>
+        /// ⭐ R-3090 (found by the feature scenario <c>ua-moto-parked-bomb</c>) — the riders WALK AWAY: after the eject the play waits while they are still
+        /// aboard (no order to an embarked man), then orders each ONE <c>MoveToLocation</c> to the leave point — 80 m back along the heading when none
+        /// is authored — and only then succeeds; the charge (in the cargo station) is never ordered. 🔴 Red-proof: succeed at the eject (the old
+        /// end) ⇒ no walk order.
+        /// </summary>
+        [Fact]
+        public void CE4621_ParkedBomb_OnceTheRidersAreOff_OrdersThemToWalkClear_BackTheWayTheyCame()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<ChargeTimer>()) repo.RegisterComponent<ChargeTimer>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (!repo.Bus.IsRegistered<EjectPassengersCommand>()) repo.Bus.Register<EjectPassengersCommand>();
+            var seats = new TkbTemplate("Bike", 5620L);
+            seats.AddDescriptor(new CarrierDefDto
+            {
+                Exposure = PassengerExposure.Open,
+                Seats =
+                {
+                    new SeatDto { Role = SeatRole.Driver, Exposed = true },
+                    new SeatDto { Role = SeatRole.Passenger, Exposed = true },
+                    new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true },
+                },
+            });
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(repo, w.Man, seats);
+            var charge = repo.CreateEntity();
+            repo.AddComponent(charge, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            repo.AddComponent(charge, new WeaponState { Ammo = 1 });
+            var t = new TkbTemplate("Bike bomb", 5612L);
+            t.AddDescriptor(new WeaponSystemDto { MountKinds = MountKinds.Ground | MountKinds.Cargo, Portable = WeaponPortability.OneMan, Charge = true });
+            new WeaponSystemTkbTranslator().Inject(repo, charge, t);
+            repo.AddComponent(charge, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = ChargeNetId });
+            var rider = repo.CreateEntity();
+            var pillion = repo.CreateEntity();
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[0] = rider;
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[1] = pillion;
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[2] = charge;
+
+            w.Start(BehaviorNames.ParkedBomb, "{\"Charge\":" + ChargeNetId + ",\"Spot\":[50,0,0],\"Delay\":20}");
+            var walks = new System.Collections.Generic.Dictionary<Entity, string>();
+            void Tick()
+            {
+                w.Tick();
+                foreach (var e in repo.ReadManagedEvents<AssignBehaviorEvent>())
+                    if (e != null && e.BehaviorName == BehaviorNames.MoveToLocation) walks[e.Entity] = e.JsonParams;
+            }
+            for (int i = 0; i < 4; i++) Tick();
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(50f, 0f, 0f);       // at the spot, heading east (identity)
+            repo.GetComponentRW<LocomotionChannel>(w.Man).Status = NodeStatus.Success;
+            for (int i = 0; i < 3; i++) Tick();
+            Assert.True(ChargeTimers.IsArmed(repo, charge));
+            Assert.Null(w.Finished);                                     // the riders are still aboard: no order yet
+            Assert.Empty(walks);
+
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[0] = Entity.Null;           // the eject has put them out
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[1] = Entity.Null;
+            for (int i = 0; i < 3; i++) Tick();
+            Assert.Equal(NodeStatus.Success, w.Finished);
+            Assert.Equal(2, walks.Count);
+            Assert.False(walks.ContainsKey(charge));
+            foreach (var man in new[] { rider, pillion })
+            {
+                var to = System.Text.Json.JsonDocument.Parse(walks[man]).RootElement.GetProperty("target");
+                Assert.Equal(50f - Hrot.AI.Behaviors.Brains.ParkedBombBehavior.LeaveMetres, to[0].GetSingle(), 1);   // back the way it came
+                Assert.Equal(0f, to[1].GetSingle(), 1);
+            }
+        }
     }
 
     /// <summary>
@@ -135,6 +204,9 @@ namespace Hrot.SimHost.Tests
             repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(170f, 0f, 0f);   // inside the pass distance
             for (int i = 0; i < 6; i++) Tick();
             Assert.Equal(throws ? 0 : 1, bursts);
+            Assert.Equal(0, throwsOrdered);                                                    // ⭐ R-3093 — 30 m out: beyond a throw's reach, so not yet
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(180f, 0f, 0f);   // 20 m: within ThrowMetres
+            for (int i = 0; i < 3; i++) Tick();
             Assert.Equal(throws ? 1 : 0, throwsOrdered);                                       // ONE throw order, once per run
             if (throws)
             {
@@ -197,6 +269,31 @@ namespace Hrot.SimHost.Tests
             repo.GetComponentRW<LocomotionChannel>(w.Man).Status = NodeStatus.Success;          // got away
             for (int i = 0; i < 3; i++) Tick();
             Assert.Equal(NodeStatus.Success, w.Finished);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> IM-1 (R-3089; found by the feature scenario <c>ua-moto-drive-by</c>) — the pass goes ALONGSIDE: a post 14 m off the bike's line
+        /// ⇒ the pass point stays ON the bike's line, <see cref="Hrot.AI.Behaviors.Brains.DriveByBehavior.BeyondMetres"/> past the post's abeam point.
+        /// 🔴 Red-proof: the old aim (past the target along the bike→target bearing) ⇒ the point lands ~27 m off the line, toward the post.
+        /// </summary>
+        [Fact]
+        public void CE4621_DriveBy_PassesAlongside_OnItsOwnLine_NotUpToAPostOffTheRoad()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new SimTransform { Position = new Vector3(200f, 14f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(target, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = TargetNetId });
+            w.Start(BehaviorNames.DriveBy, "{\"Target\":" + TargetNetId + ",\"Escape\":[400,0,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(170f, 0f, 0f);   // heading east (identity), the post ahead and to the left
+            repo.GetComponentRW<SimTransform>(w.Man).Rotation = Quaternion.Identity;
+            for (int i = 0; i < 3; i++) w.Tick();
+            var pass = Move(repo, w.Man);
+            Assert.Equal(0f, pass.Destination.Y, 1);                                                          // on its own line
+            Assert.Equal(200f + Hrot.AI.Behaviors.Brains.DriveByBehavior.BeyondMetres, pass.Destination.X, 1); // past the post's abeam point
+            Assert.Equal(Hrot.AI.Behaviors.Brains.DriveByBehavior.DefaultPassSpeed, pass.Speed, 2);
         }
     }
 
@@ -295,6 +392,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Dash, Hrot.AI.Behaviors.Orders.OrderKinds.Of(H(BehaviorNames.DashRide)));
             Assert.Equal(Fdp.Toolkit.Behavior.Conduct.All, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.DashRide)));
             Assert.Equal(Fdp.Toolkit.Behavior.Conduct.All, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.GreyZoneDash)));
+            // ⭐ R-3096 (found by ua-moto-swarm-raid) — the swarm raid is a mounted rush too: no contact reaction displaces it
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Dash, Hrot.AI.Behaviors.Orders.OrderKinds.Of(H(BehaviorNames.SwarmRaid)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.All, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.SwarmRaid)));
         }
 
         /// <summary>⭐ MC-3 — the commander releases bike 0 at once as a <c>DashRide</c> on the legs, bike 1 only once bike 0 is 80 m off, bike 2

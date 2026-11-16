@@ -29,5 +29,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The ride in (m/s); 0 = 12.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+
+        /// <summary>⭐ R-3090 (found by the feature scenario <c>ua-moto-parked-bomb</c>) — where the riders WALK once they are out; unset (0, 0, 0) =
+        /// <c>ParkedBombBehavior.LeaveMetres</c> back along the vehicle's heading. ⛔ Before it the riders stood beside their own bomb.</summary>
+        [JsonPropertyName("Leave")]
+        public PointLink Leave;
     }
 }

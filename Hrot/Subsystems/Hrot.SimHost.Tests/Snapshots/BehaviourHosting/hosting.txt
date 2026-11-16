@@ -97,7 +97,7 @@ MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJ
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 PackUpWeapon | hostedInput=Hrot.Map.Definitions.Behavior.PackUpWeaponParamsJsonDto | inputBytes=104
-ParkedBomb | hostedInput=Hrot.Map.Definitions.Behavior.ParkedBombParamsJsonDto | inputBytes=28
+ParkedBomb | hostedInput=Hrot.Map.Definitions.Behavior.ParkedBombParamsJsonDto | inputBytes=68
 PersonAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=1544
 PersonHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=36
 PersonMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=20
