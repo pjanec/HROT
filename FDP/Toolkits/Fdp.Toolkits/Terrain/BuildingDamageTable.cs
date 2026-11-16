@@ -118,11 +118,9 @@ namespace Fdp.Toolkit.Terrain
             var breaches = new List<WallBreach>(_breaches.Length);
             foreach (var b in _breaches)
             {
-                int local = BuildingPanelIndex.ToLocal(from, b.Panel);
-                if (local < 0) continue;
+                if (BuildingPanelIndex.ToLocal(from, b.Panel) < 0) continue;
                 int nb = BuildingDamages.IndexOfKey(to, BuildingDamages.KeyOf(from, WallGroups.Of(from, b.Panel)));   // ⭐ CE-4599 — its wall group
-                int panel = nb >= 0 ? BuildingPanelIndex.ToGlobal(to, nb, local) : -1;
-                if (panel >= 0) breaches.Add(b with { Panel = panel });
+                if (BuildingPanelIndex.TryMapBreach(from, b, to, nb, out var m)) breaches.Add(m);   // ⭐ CE-5012 — the ONE rule (BuildingDamages.Remap's)
             }
             breaches.Sort(Order);
             var collapsed = new List<int>(_collapsed.Length);

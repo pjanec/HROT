@@ -117,6 +117,64 @@ namespace Fdp.Toolkit.Terrain
             var list = of[building];
             return local < list.Length ? list[local] : -1;
         }
+
+        /// <summary>
+        /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7; §8 R-5) — breach <paramref name="b"/> (written against <paramref name="from"/>) as <paramref name="to"/> numbers it in wall
+        /// group <paramref name="group"/>: the panel of the SAME rank when it still has the same ends (the common case — a re-sort, a re-load); else, for a free-wall LINE, the panel of
+        /// the new line that holds the breach's middle, with <c>From</c> / <c>To</c> re-measured from that panel's start and clipped to it — so a gate that ROTATES a closed wall's
+        /// start keeps every breach where it was, and a breach in the gate's gap is gone (covered by the gate); else (the wall moved, a building) the same rank, as before.
+        /// Content-derived from the two worlds, so every node maps it the same; allocation-free.
+        /// </summary>
+        public static bool TryMapBreach(TerrainWorld from, in WallBreach b, TerrainWorld to, int group, out WallBreach mapped)
+        {
+            mapped = default;
+            int local = ToLocal(from, b.Panel);
+            if (local < 0 || group < 0) return false;
+            int same = ToGlobal(to, group, local);
+            var op = from.Panels[b.Panel];
+            if (same >= 0)
+            {
+                var sp = to.Panels[same];
+                if (Vector2.DistanceSquared(sp.A, op.A) < 1e-4f && Vector2.DistanceSquared(sp.B, op.B) < 1e-4f) { mapped = b with { Panel = same }; return true; }
+            }
+            if (!WallGroups.IsBuilding(to, group))
+            {
+                var od = op.B - op.A;
+                float olen = od.Length();
+                if (olen > 1e-4f)
+                {
+                    var dir = od / olen;
+                    var mid = op.A + dir * ((b.From + b.To) * 0.5f);
+                    bool onLine = false;   // a panel of the new line lies on this panel's line: the geometry was kept (a gate), so a breach no panel holds is in the gap
+                    var list = TableOf(to).PanelsOf;
+                    if (group < list.Length)
+                        foreach (int g in list[group])
+                        {
+                            var np = to.Panels[g];
+                            var nd = np.B - np.A;
+                            float nlen = nd.Length();
+                            if (nlen < 1e-4f) continue;
+                            var ndir = nd / nlen;
+                            if (Vector2.Dot(ndir, dir) < 0.9999f || MathF.Abs(Cross(np.A - op.A, dir)) > 0.01f) continue;
+                            float s0 = Vector2.Dot(np.A - op.A, dir), s1 = s0 + nlen;
+                            if (s1 <= 0f || s0 >= olen) continue;
+                            onLine = true;
+                            float at = Vector2.Dot(mid - np.A, ndir);
+                            if (at < 0f || at > nlen) continue;
+                            float f = Math.Clamp(b.From - s0, 0f, nlen), t = Math.Clamp(b.To - s0, 0f, nlen);
+                            if (t - f < 1e-3f) return false;
+                            mapped = b with { Panel = g, From = f, To = t };
+                            return true;
+                        }
+                    if (onLine) return false;
+                }
+            }
+            if (same < 0) return false;
+            mapped = b with { Panel = same };
+            return true;
+        }
+
+        private static float Cross(Vector2 a, Vector2 b) => a.X * b.Y - a.Y * b.X;
     }
 
     /// <summary>
