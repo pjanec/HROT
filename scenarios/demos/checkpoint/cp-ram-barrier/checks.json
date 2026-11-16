@@ -1,0 +1,39 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-8 the ram through a barrier.",
+ "runFor": 45,
+ "golden": {
+  "every": 10
+ },
+ "expect": [
+  {
+   "name": "a threat",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Threats",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the car goes through the barrels",
+   "on": "field",
+   "who": "Rammer",
+   "path": "SimTransform.Position.0",
+   "op": ">",
+   "value": 400
+  },
+  {
+   "name": "the Gunner is struck",
+   "on": "field",
+   "who": "Gunner",
+   "path": "Health.Current",
+   "op": "<",
+   "value": 100
+  },
+  {
+   "name": "no shot (the ROE is Warn)",
+   "never": {
+    "on": "shot"
+   }
+  }
+ ]
+}
