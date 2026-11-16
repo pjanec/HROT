@@ -2773,7 +2773,7 @@ namespace CarKinem.Tests.Systems
 
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
-        private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures)
+        private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
         {
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
@@ -2783,7 +2783,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var t = new Fdp.Interfaces.TkbTemplate("Cattle", 700);
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks, FleeSpeed = 9f });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks, Jumps = jumps, FleeSpeed = 9f });
             db.Register(t);
             repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
@@ -2822,6 +2822,26 @@ namespace CarKinem.Tests.Systems
                 Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
             }
             else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-6 — a JUMPING animal (a horse: its temperament Jumps) walking into a FREE fence up to <c>JumpLinks.MaxHeightM</c> (1.2 m) CLEARS it — no hold,
+        /// no breach; a cow (Jumps false) is held at the same fence; a horse is held by a wall above 1.2 m and by a building's wall.
+        /// 🔴 Red-proof: drop the AB-6 jump arm from the barrier gate (CarKinematicsSystem) ⇒ the horse is held at the 1 m fence.
+        /// </summary>
+        [Theory]
+        [InlineData("fence-wood", 0.05f, 1.0f, true, true)]
+        [InlineData("fence-wood", 0.05f, 1.2f, true, true)]
+        [InlineData("fence-wood", 0.05f, 1.0f, false, false)]
+        [InlineData("brick", 0.3f, 2.0f, true, false)]
+        public void CE4623_AJumpingHorse_ClearsALowFence_ACowIsHeld_AHighWallHoldsBoth(string material, float thickness, float height, bool jumps, bool clears)
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15(material, thickness, height), jumps);
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Empty(breaches);   // it cleared the fence, it did not break it
+            if (clears) Assert.True(nose > 15f + 3f, $"it cleared the fence: nose x={nose:F2}");
+            else Assert.True(nose < 15f + 1.5f, $"held at the barrier: nose x={nose:F2}");
             repo.Dispose();
         }
 

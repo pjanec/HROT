@@ -94,5 +94,36 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.IsType<BirdFlightModel>(MotionModelTable.Model(LocomotionClass.Bird));
             Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(w, cow, 0u));   // an animal walks where a man walks
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-6 — a Quadruped whose temperament Jumps (a horse) plans on the infantry layer WITH the <see cref="NavLayerSelection.JumpModifier"/> bit
+        /// (the filter that opens the navmesh's jump links); a Quadruped that does not jump (a cow) and a Pedestrian get none. 🔴 Red-proof: drop the temperament test
+        /// from <c>NavLayerSelection.For</c> ⇒ the cow carries the bit.
+        /// </summary>
+        [Fact]
+        public void CE4623_OnlyAJumpingQuadruped_CarriesTheJumpModifier()
+        {
+            using var w = World();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var horseT = new Fdp.Interfaces.TkbTemplate("Horse", 701);
+            horseT.AddDescriptor(new AnimalTemperamentDto { Jumps = true });
+            var cowT = new Fdp.Interfaces.TkbTemplate("Cow", 700);
+            cowT.AddDescriptor(new AnimalTemperamentDto { Jumps = false });
+            db.Register(horseT); db.Register(cowT);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            Entity Make(VehicleClass cls, int tkb)
+            {
+                var e = w.CreateEntity();
+                w.AddComponent(e, new VehicleParams { Class = cls });
+                w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)tkb });
+                return e;
+            }
+            uint Mask(Entity e) => (uint)NavLayerSelection.For(w, e, 0u);
+            Assert.Equal((uint)NavLayerMask.Infantry | NavLayerSelection.JumpModifier, Mask(Make(VehicleClass.Quadruped, 701)));
+            Assert.Equal((uint)NavLayerMask.Infantry, Mask(Make(VehicleClass.Quadruped, 700)));
+            Assert.Equal((uint)NavLayerMask.Infantry, Mask(Make(VehicleClass.Pedestrian, 701)));   // even a person with a horse's type id
+        }
     }
 }

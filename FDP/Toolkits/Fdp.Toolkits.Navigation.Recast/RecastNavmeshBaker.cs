@@ -130,6 +130,13 @@ public sealed class RecastNavmeshBaker
     /// </summary>
     public const int BakeFormat = 1;
 
+    /// <summary>
+    /// ⭐ <c>CE-4623</c> AB-6 — the off-mesh JUMP LINKS to bake into the INFANTRY layer (<see cref="JumpLinks.For"/>; docs/designs/animals/DESIGN_Animals.md §9a): each goes to the
+    /// tile holding its START, and is part of that tile's cache key ONLY when it has one — so every tile without a link keeps the key it always had
+    /// (no <see cref="BakeFormat"/> bump: a bump would re-bake the whole world), and a tile with links can never be served from a cache baked without them.
+    /// </summary>
+    public IReadOnlyList<JumpLinks.Link>? JumpLinkList { get; init; }
+
     /// <summary>How far past a tile a fine area still makes it fine (m) — a door in a wall ON a tile edge is fine on both sides.</summary>
     public const float FineMarginMetres = 1f;
 
@@ -293,6 +300,18 @@ public sealed class RecastNavmeshBaker
             margin = Math.Max(margin, RcConfig.CalcBorder(p.AgentRadius, FineCellSize) * FineCellSize);
         }
         var volumes = doorways ?? Array.Empty<NavDoorways.Volume>();
+        // ⭐ CE-4623 AB-6 — the jump links FILED by the tile of their start (a connection is stored by the tile that holds its start)
+        Dictionary<long, List<JumpLinks.Link>>? linksByTile = null;
+        if (JumpLinkList is { Count: > 0 } jl)
+        {
+            linksByTile = new Dictionary<long, List<JumpLinks.Link>>();
+            foreach (var l in jl)
+            {
+                long key = ((long)(int)MathF.Floor(l.X0 / TileMetres) << 32) | (uint)(int)MathF.Floor(l.Z0 / TileMetres);
+                if (!linksByTile.TryGetValue(key, out var list)) linksByTile[key] = list = new List<JumpLinks.Link>();
+                list.Add(l);
+            }
+        }
         // ⭐ CE-4369 (L-7) — each volume's box once, and the volumes FILED BY TILE (in their own order, so a tile's list — and its hash — is
         //   the one the plain scan gave). 📐 scale-1 with its woods: ≈ 24 000 volumes × 106 260 tiles scanned per load made the WARM load's
         //   navmesh step 80 s (every tile from the cache).
@@ -409,11 +428,13 @@ public sealed class RecastNavmeshBaker
                 var p = GetParams(layer);
                 float cs = fine ? FineCellSize : CoarseCellSize;
                 TileYRange(tv, tidx, p, out float yMin, out float yMax);
+                List<JumpLinks.Link>? tileLinks = null;   // ⭐ CE-4623 AB-6 — the infantry layer only
+                if (layer == NavLayerMask.Infantry && linksByTile != null) linksByTile.TryGetValue(((long)ax << 32) | (uint)az, out tileLinks);
                 NavTileKey key = default;
                 if (Cache != null)
                 {
                     long h0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                    key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax));
+                    key = new NavTileKey(layer, ax, az, HashTile(tv, tidx, tileVolumes, layer, p, cs, ax, az, yMin, yMax, tileLinks));
                     Interlocked.Add(ref tHash, System.Diagnostics.Stopwatch.GetTimestamp() - h0);
                     ulong kh = 1469598103934665603UL ^ (ulong)(int)layer;   // ⭐ CE-4391 — the tile's identity for P3-a, folded over its layers (xor: order-free)
                     foreach (char ch in key.Hash) { kh ^= ch; kh *= 1099511628211UL; }
@@ -430,7 +451,7 @@ public sealed class RecastNavmeshBaker
                     geom = new RcSampleInputGeomProvider(tv, tidx);
                     foreach (var d in tileVolumes) geom.AddConvexVolume(d.Verts, d.MinY, d.MaxY, new RcAreaModification(d.Area));   // ⭐ CE-4369 — a door or a wood
                 }
-                var data = BakeTile(geom, p, cs, ax, az, yMin, yMax);
+                var data = BakeTile(geom, p, cs, ax, az, yMin, yMax, tileLinks);
                 baked[ti, li] = data;
                 Interlocked.Increment(ref nBaked);
                 if (Cache != null) Cache.Put(key, data);   // an EMPTY tile is cached too (null)
@@ -547,7 +568,7 @@ public sealed class RecastNavmeshBaker
     /// place and vertical extent, its triangles and the doorway volumes over it. Equal key ⇔ the same tile.
     /// </summary>
     private string HashTile(float[] v, int[] idx, List<NavDoorways.Volume> volumes, NavLayerMask layer, LayerParams p,
-        float cs, int ax, int az, float yMin, float yMax)
+        float cs, int ax, int az, float yMin, float yMax, List<JumpLinks.Link>? links = null)
     {
         // ⭐ CE-4366 — the same byte stream as before (so every cached tile keeps its key), built in one buffer and hashed ONCE: four bytes
         //   per interop call made hashing the warm load's biggest cost (scale-1: 105 800 tiles)
@@ -580,6 +601,12 @@ public sealed class RecastNavmeshBaker
             if (vx0 > x1 || vx1 < x0 || vz0 > z1 || vz1 < z0) continue;
             foreach (var f in vol.Verts) F(f);
             F(vol.MinY); F(vol.MaxY); I(new RcAreaModification(vol.Area).Value);   // as AddConvexVolume stored it
+        }
+        if (links != null)   // ⭐ CE-4623 AB-6 — only a tile WITH links carries them in its key (the stream above is unchanged for every other tile)
+        {
+            I(0x4B4E4C4A); I(links.Count);
+            foreach (var l in links) { F(l.X0); F(l.Y0); F(l.Z0); F(l.X1); F(l.Y1); F(l.Z1); I(l.UserId); }
+            F(JumpLinks.RadiusM);
         }
         return Convert.ToHexString(SHA256.HashData(bytes.AsSpan(0, at)), 0, 12);
     }
@@ -620,7 +647,7 @@ public sealed class RecastNavmeshBaker
     /// correctly-wound geometry; this baker does not alter winding.
     /// </para>
     /// </summary>
-    private DtMeshData? BakeTile(IRcInputGeomProvider geom, LayerParams p, float cs, int ax, int az, float yMin, float yMax)
+    private DtMeshData? BakeTile(IRcInputGeomProvider geom, LayerParams p, float cs, int ax, int az, float yMin, float yMax, List<JumpLinks.Link>? links = null)
     {
         int tileCells = (int)MathF.Round(TileMetres / cs);
         // ⭐ Region thresholds in SQUARE METRES (the pre-tiling bake's 2 / 10 cells at 0.3 m), so a fine tile drops the same
@@ -673,7 +700,23 @@ public sealed class RecastNavmeshBaker
         // Mark every polygon with flag 1 (walkable) so queries work out of the box.
         var flags = new int[polyMesh.npolys];
         Array.Fill(flags, 1);
-        @params.polyFlags = flags;
+        @params.polyFlags = flags;   // NavPolyFlags.Walk
+        if (links is { Count: > 0 })
+        {
+            // ⭐ CE-4623 AB-6 — the jump links whose start is in this tile: both ways, flag Jump (excluded by every filter but a jumper's)
+            int n = links.Count;
+            var verts = new float[n * 6]; var rad = new float[n]; var lf = new int[n]; var la = new int[n]; var ld = new int[n]; var lu = new int[n];
+            for (int i = 0; i < n; i++)
+            {
+                var l = links[i];
+                verts[i * 6 + 0] = l.X0; verts[i * 6 + 1] = l.Y0; verts[i * 6 + 2] = l.Z0;
+                verts[i * 6 + 3] = l.X1; verts[i * 6 + 4] = l.Y1; verts[i * 6 + 5] = l.Z1;
+                rad[i] = JumpLinks.RadiusM; lf[i] = NavPolyFlags.Jump; la[i] = 63;   // Recast's walkable area (RC_WALKABLE_AREA)
+                ld[i] = 1; lu[i] = l.UserId;
+            }
+            @params.offMeshConVerts = verts; @params.offMeshConRad = rad; @params.offMeshConFlags = lf; @params.offMeshConAreas = la;
+            @params.offMeshConDir = ld; @params.offMeshConUserID = lu; @params.offMeshConCount = n;
+        }
 
         // Detail mesh (used for height lookups).
         if (detailMesh != null)

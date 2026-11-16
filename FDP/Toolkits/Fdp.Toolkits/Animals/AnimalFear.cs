@@ -202,6 +202,18 @@ namespace Fdp.Toolkit.Animals
             return true;
         }
 
+        /// <summary>⭐ <c>CE-4623</c> AB-6 — may <paramref name="e"/> clear a free barrier <paramref name="barrierHeightM"/> high? Its type Jumps and the barrier is within <see cref="Fdp.Toolkit.Navigation.JumpLinks.MaxHeightM"/>.</summary>
+        public static bool MayJump(EntityRepository repo, Entity e, float barrierHeightM)
+            => Fdp.Toolkit.Navigation.JumpLinks.IsJumpable(barrierHeightM) && TemperamentOf(repo, e) is { Jumps: true };
+
+        /// <summary>⭐ <c>CE-4623</c> AB-6 — the kinematics' gate: the barrier <paramref name="hit"/> is a FREE wall / fence panel (never a building's) that <paramref name="e"/> may jump.</summary>
+        public static bool JumpsOver(EntityRepository repo, Entity e, Fdp.Toolkit.Terrain.TerrainWorld world, in global::CarKinem.Controllers.BarrierHit hit, float hereZ)
+        {
+            if (!global::CarKinem.Controllers.ContactBreach.Identify(world, in hit, hereZ, out _, out int panel, out _, out _) || panel < 0) return false;
+            var p = world.Panels[panel];
+            return p.Building < 0 && MayJump(repo, e, p.TopZ - p.BaseZ);
+        }
+
         /// <summary>
         /// ⭐ <c>CE-4623</c> AB-7 (AR-5) — the PANIC BREACH: a big animal of a species that breaks fences (<c>Breaks</c>), fleeing in PANIC (mode Flee,
         /// band 3), may break a SMALL barrier it runs into through the ONE contact rule (<c>ContactBreach</c>, its "panicked-animal" row) — never a wall.

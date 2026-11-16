@@ -824,6 +824,15 @@ namespace CarKinem.Systems
                     wall = HullClearance.StepBarrier(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
                                                      sized ? hull.Length : 0f, sized ? hull.Width : 0f, out barrier);
                 }
+                // ⭐ CE-4623 AB-6 — a JUMPER (a horse; a temperament that Jumps) clears a LOW FREE wall / fence (≤ JumpLinks.MaxHeightM) where it stands: not held, no break,
+                //   no speed lost (the arc is the presentation's). Any other animal, a building's wall and a taller one hold as before. Not in a replay (as the breach).
+                if (wall && !person && _terrainWorld != null && hull.Class == VehicleClass.Quadruped
+                    && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo)
+                    && Fdp.Toolkit.Animals.AnimalFear.JumpsOver(repo, entity, _terrainWorld, in barrier, tf.Position.Z))
+                {
+                    wall = false;
+                    if (barrier.Rise) z = MathF.Min(z, _terrain.GroundHeightAt(pos2D.X, pos2D.Y));   // the fence's top is not the ground it lands on
+                }
                 // ⭐⭐ CE-4600 (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.2) — a hull a PLAYER drives (the B-1 gate: the Manual branch, a live possession, no replay)
                 //   meets a barrier: the contact rule decides — a small one broken lets the step go on at a speed loss; a building's bump or a too strong one holds it
                 // ⭐ CE-4623 AB-7 (Animals AR-5) — and a PANICKED big animal (a herd in flight) through the same rule, its own row: a small fence, never a wall

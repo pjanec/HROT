@@ -38,6 +38,12 @@ namespace Fdp.Toolkit.Navigation
         public const uint WoodsFactorMask = 0xFu << WoodsFactorShift;
 
         /// <summary>The quantised forest factor (1…15) of <paramref name="forestFactor"/>, 0 when not authored.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-4623</c> AB-6 — a MODIFIER bit (13): the mover JUMPS low barriers, so its query filter includes the navmesh's off-mesh jump links
+        /// (<see cref="NavPolyFlags.Jump"/>); every other filter excludes them. Set only for a Quadruped whose temperament <c>Jumps</c>.
+        /// </summary>
+        public const uint JumpModifier = 1u << 13;
+
         public static uint WoodsFactorBits(float forestFactor)
             => forestFactor <= 0f ? 0u : (uint)Math.Clamp((int)MathF.Round(forestFactor * 15f, MidpointRounding.AwayFromZero), 1, 15) << WoodsFactorShift;
 
@@ -63,7 +69,9 @@ namespace Fdp.Toolkit.Navigation
                 if (cls == VehicleClass.Pedestrian) return NavLayerMask.Infantry;
                 // ⭐ CE-4623 AB-2 (L-A6) — an ANIMAL walks where a man walks (fields, woods, through gaps) and never prefers the road: the
                 //   infantry layer. ⛔ Not the vehicle layer (woods closed, roads preferred). A dedicated animal layer is filed for later.
-                if (cls == VehicleClass.Quadruped) return NavLayerMask.Infantry;
+                if (cls == VehicleClass.Quadruped)
+                    return Fdp.Toolkit.Animals.AnimalFear.TemperamentOf(repo, entity) is { Jumps: true }
+                        ? (NavLayerMask)((uint)NavLayerMask.Infantry | JumpModifier) : NavLayerMask.Infantry;   // ⭐ AB-6 — a jumper may use the jump links
                 uint woods = WoodsFactorBits(vp.OffRoadForest);   // ⭐ CE-4621 MC-2a — the type's own forest factor prices the woods
                 // ⭐ CE-4369 (R-4190 Q-T1 / Q-T2) — a TRACKED vehicle plans on the vehicle layer with the tracked modifier: woods open to
                 //   it at a high cost, closed to a wheeled one (the provider's per-mover filter). The ONE locomotion rule decides.
