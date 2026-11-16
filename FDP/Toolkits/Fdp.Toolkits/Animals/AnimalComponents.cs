@@ -58,6 +58,10 @@ namespace Fdp.Toolkit.Animals
         public double LastFrightAt;
         /// <summary>Sim seconds of the next flight-zone look (the zone is looked at ~5 times a second, not every frame).</summary>
         public double NextZoneLookAt;
+        /// <summary>⭐ AB-5 — a TERRITORIAL animal's intruder: the nearest person on its ground (the guard dog's bark and bite), Null = none.</summary>
+        public Entity Intruder;
+        /// <summary>⭐ AB-5 — a ridden horse bolts until this sim time (0 = not bolting).</summary>
+        public double BoltUntil;
         /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>
         public byte HasFrightFrom;
         /// <summary>1 when the last fright was the FLIGHT ZONE (a threat seen near), 0 when it was heard or felt.</summary>

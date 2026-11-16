@@ -131,7 +131,10 @@ namespace Fdp.Toolkit.Perception.Systems
                 .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
                 .Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>()
                 .Unmanaged<global::CarKinem.Core.VehicleParams>()
-                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
+                // ⭐ CE-4623 (found at AB-5) — is the target an aircraft (V8's air threat): its movement class, written at spawn only
+                .Unmanaged<Fdp.Toolkit.Motion.Locomotion>()
+                .Unmanaged<Fdp.Toolkit.Motion.Descent>();   // — and a man coming down a rope / under a canopy (Locomotions.Of reads it first)
             public ThreatEvaluationSystem Owner;
             public EntityRepository Repo;
             public float DeltaTime;

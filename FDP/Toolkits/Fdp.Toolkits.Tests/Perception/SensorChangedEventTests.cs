@@ -20,6 +20,9 @@ namespace Fdp.Toolkit.Perception.Tests
         private static List<SensorChangedEvent> Run(EntityRepository world, IEcsModuleSystem system, float dt = 0.1f)
         {
             var view = (ISimulationView)world;
+            // ⭐ the kernel's order (as CivilianHsmTests): under HROT_READ_CHECK a declared cross-entity read is served from the tick-start copy —
+            //   take it, so a side flipped between frames is seen next frame as in production
+            if (Fdp.Core.ParallelReadCheck.HasDeclarations) { world.Tick(); world.CaptureLastTick(); }
             system.Execute(view, dt);
             ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(world);
             world.Bus.SwapBuffers();

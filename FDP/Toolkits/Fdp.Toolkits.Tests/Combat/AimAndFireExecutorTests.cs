@@ -1356,7 +1356,9 @@ namespace Fdp.Toolkit.Combat.Tests
             foreach (Fdp.Toolkit.Behavior.Diagnostics.ActionReason r in System.Enum.GetValues(typeof(Fdp.Toolkit.Behavior.Diagnostics.ActionReason)))
             {
                 var kind = Fdp.Toolkit.Combat.WeaponPostureOf.For(r);
-                bool says = r is not (Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving);
+                // ⭐ CE-4623 AB-5 — Bolting is a LOCOMOTION reason (the ridden horse), like Moving: no weapon posture
+                bool says = r is not (Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving
+                                      or Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting);
                 Assert.True(says == kind.HasValue, $"{r}: {(kind?.ToString() ?? "none")}");
             }
             Assert.Equal(WeaponPostureKind.Aimed, Fdp.Toolkit.Combat.WeaponPostureOf.For(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.BlindFire));

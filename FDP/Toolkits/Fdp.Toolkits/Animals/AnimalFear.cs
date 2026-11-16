@@ -140,6 +140,81 @@ namespace Fdp.Toolkit.Animals
             public Vector3 Position;
             public Vector3 Velocity;
             public bool IsVehicle;
+            public Entity Entity;
+        }
+
+        // ── ⭐ AB-5 — the guard dog's ground, the ridden horse's bolt ─────────────────────────────────────────────────────────────────
+
+        /// <summary>A territorial animal notices a person this far beyond its home's edge (m) — it barks at him from inside.</summary>
+        public const float BarkBeyondHomeMetres = 15f;
+        /// <summary>A territorial animal with no home guards this far round itself (m).</summary>
+        public const float GuardMetres = 25f;
+        /// <summary>A bolt lasts this long (s) — then the rider has the horse again (unless it is still past its bolt line).</summary>
+        public const float BoltSeconds = 6f;
+
+        /// <summary>
+        /// The nearest PERSON (not a vehicle) a territorial animal guards against: inside its home plus <see cref="BarkBeyondHomeMetres"/>
+        /// (or within <see cref="GuardMetres"/> of it when it has no home). Null = none.
+        /// </summary>
+        public static Entity FindIntruder(Vector3 here, bool hasHome, in AnimalHome home, ReadOnlySpan<Threat> threats)
+        {
+            Entity best = Entity.Null;
+            float bestD2 = float.MaxValue;
+            for (int i = 0; i < threats.Length; i++)
+            {
+                ref readonly var th = ref threats[i];
+                if (th.IsVehicle) continue;
+                float reach;
+                Vector3 centre;
+                if (hasHome && home.Radius > 0f) { centre = home.Centre; reach = home.Radius + BarkBeyondHomeMetres; }
+                else { centre = here; reach = GuardMetres; }
+                float cx = th.Position.X - centre.X, cy = th.Position.Y - centre.Y;
+                if (cx * cx + cy * cy > reach * reach) continue;
+                float dx = th.Position.X - here.X, dy = th.Position.Y - here.Y;
+                float d2 = dx * dx + dy * dy;
+                if (d2 < bestD2) { bestD2 = d2; best = th.Entity; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐ AB-5 (AR-10) — a BOLTING horse ignores its rider: full gallop, turning away from what frightened it (a reversal by the full
+        /// steer, never backing — it has no reverse). Called by the manual drive (the kinematics) on its own entity; false when not bolting.
+        /// </summary>
+        public static bool BoltDrive(EntityRepository repo, Entity e, Vector2 pos, Vector2 fwd, ref Fdp.Toolkit.Navigation.ManualDrive drive)
+        {
+            if (!repo.IsComponentTypeRegistered<AnimalState>() || !repo.HasComponent<AnimalState>(e)) return false;
+            if ((repo.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Bolting) == 0) return false;
+            var f = repo.IsComponentTypeRegistered<Fear>() && repo.HasComponent<Fear>(e) ? repo.GetComponentRO<Fear>(e) : default;
+            Vector2 away = f.HasFrightFrom != 0 ? pos - new Vector2(f.FrightFrom.X, f.FrightFrom.Y) : fwd;
+            if (away.LengthSquared() < 1e-4f) away = fwd;
+            away = Vector2.Normalize(away);
+            float cross = fwd.X * away.Y - fwd.Y * away.X;   // + ⇒ away is to the left (ManualDrive.Steer + = left)
+            float steer = Vector2.Dot(fwd, away) < 0f ? (cross >= 0f ? 1f : -1f) : Math.Clamp(cross * 3f, -1f, 1f);
+            drive.Forward = 1f;
+            drive.Steer = steer;
+            drive.Lateral = 0f;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4623</c> AB-7 (AR-5) — the PANIC BREACH: a big animal of a species that breaks fences (<c>Breaks</c>), fleeing in PANIC (mode Flee,
+        /// band 3), may break a SMALL barrier it runs into through the ONE contact rule (<c>ContactBreach</c>, its "panicked-animal" row) — never a wall.
+        /// </summary>
+        public static bool PanicBreaks(EntityRepository repo, Entity e)
+        {
+            if (!repo.IsComponentTypeRegistered<AnimalState>() || !repo.HasComponent<AnimalState>(e)) return false;
+            var st = repo.GetComponentRO<AnimalState>(e);
+            if (st.Mode != AnimalMode.Flee || st.FearBand < 3) return false;
+            return TemperamentOf(repo, e) is { Breaks: true };
+        }
+
+        /// <summary>A horse that can bolt (<c>BoltFear</c> &gt; 0) bolts for <see cref="BoltSeconds"/> once its fear passes the line; true while it does.</summary>
+        public static bool UpdateBolt(ref Fear f, AnimalTemperamentDto t, double now)
+        {
+            if (t.BoltFear <= 0f) { f.BoltUntil = 0; return false; }
+            if (f.Value >= t.BoltFear && f.BoltUntil <= now) f.BoltUntil = now + BoltSeconds;
+            return f.BoltUntil > now;
         }
     }
 }

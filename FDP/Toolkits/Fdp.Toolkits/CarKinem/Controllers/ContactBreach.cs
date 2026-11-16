@@ -47,6 +47,8 @@ namespace Fdp.Toolkit.Terrain
         {
             /// <summary>⭐ CE-4603 (B-6) — this row fells a lone tree trunk by ram or push.</summary>
             public bool Trees { get; init; }
+            /// <summary>⭐ CE-4623 AB-7 (Animals AR-5) — a row for a PANICKED animal only; no vehicle takes it, and an animal takes no other.</summary>
+            public bool Animal { get; init; }
         }
 
         public IReadOnlyList<Row> Rows { get; init; } = Array.Empty<Row>();
@@ -74,7 +76,7 @@ namespace Fdp.Toolkit.Terrain
                 rows.Add(new Row(r.GetProperty("name").GetString() ?? "", r.GetProperty("tracked").GetBoolean(), r.GetProperty("minMassKg").GetSingle(),
                     r.GetProperty("smallMaxStrength").GetSingle(), r.GetProperty("building").GetBoolean(), r.GetProperty("minRamSpeedMs").GetSingle(),
                     r.GetProperty("pushSeconds").GetSingle(), r.GetProperty("speedKept").GetSingle(), r.GetProperty("costHealth").GetSingle())
-                    { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean() });
+                    { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean(), Animal = r.TryGetProperty("animal", out var a) && a.GetBoolean() });
             return new ContactBreachTable
             {
                 Rows = rows, CutMarginM = root.GetProperty("cutMarginM").GetSingle(), MinDriveThroughM = root.GetProperty("minDriveThroughM").GetSingle(),
@@ -83,9 +85,9 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>The first row a vehicle qualifies for, or null (it breaks nothing).</summary>
-        public Row? For(bool tracked, float massKg)
+        public Row? For(bool tracked, float massKg, bool animal = false)
         {
-            foreach (var r in Rows) if ((!r.Tracked || tracked) && massKg >= r.MinMassKg) return r;
+            foreach (var r in Rows) if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg) return r;
             return null;
         }
     }
@@ -158,7 +160,8 @@ namespace CarKinem.Controllers
             if (Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(repo, vehicle, out var template)
                 && template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>() is { } dto) massKg = dto.Mass;
             tracked = Fdp.Toolkit.Motion.Locomotions.Of(repo, vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked;
-            var row = table.For(tracked, massKg);
+            bool animal = Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, vehicle);   // ⭐ CE-4623 AB-7 — the panic breach: the animal row only
+            var row = table.For(tracked, massKg, animal);
             bool building = panel >= 0 && world.Panels[panel].Building >= 0;
             float into = MathF.Max(0f, -Vector2.Dot(velocity, hit.Normal));   // ⭐ B-D2 — only the speed INTO it
 

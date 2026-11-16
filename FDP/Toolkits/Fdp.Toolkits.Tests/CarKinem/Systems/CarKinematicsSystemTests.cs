@@ -2771,6 +2771,71 @@ namespace CarKinem.Tests.Systems
             ifv.Dispose();
         }
 
+        /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
+        /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
+        private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures)
+        {
+            CarKinem.Controllers.ContactBreach.Reset();
+            var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Mode = mode, FearBand = band });
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("Cattle", 700);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks });
+            db.Register(t);
+            repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" + geojsonFeatures + "]}"));
+            return (repo, e);
+        }
+
+        private static string FenceAtX15(string material, float thickness, float height)
+            => "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"f\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+               ",\"thickness\":" + thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-7 (Animals AR-5) — the PANIC BREACH: a panicked cow (a species that breaks fences, fleeing in panic) running into a wire
+        /// fence or a wooden one BREAKS it through the ONE contact rule (its "panicked-animal" row) and runs on through — a breach and a Broke cue (the break
+        /// sound); a brick garden wall or a hedge holds it; a CALM cow, or a panicked SHEEP (it does not break fences), is held at the wire.
+        /// 🔴 Red-proof: the animal arm dropped from the guard's gate ⇒ the panicked cow is held at the wire.
+        /// </summary>
+        [Theory]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData("fence-wood", 0.05f, 1.2f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData("brick", 0.3f, 1.0f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        [InlineData("hedge", 0.6f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Calm, (byte)0, false)]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, false, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        public void CE4623_APanickedHerd_BreaksASmallFence_NeverAWall(string material, float thickness, float height, bool species, Fdp.Toolkit.Animals.AnimalMode mode, byte band, bool breaks)
+        {
+            var (repo, e) = RunningAnimal(species, mode, band, FenceAtX15(material, thickness, height));
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            Assert.Equal(breaks, breaches.Count > 0);
+            if (breaks)
+            {
+                Assert.True(nose > 15f + 3f, $"it ran on through: nose x={nose:F2}");
+                Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
+            }
+            else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-7 — the animal row is for a panicked animal ONLY: a possessed CAR at full throttle into the same wire fence a
+        /// panicked cow breaks still breaks nothing (wheeled vehicles break nothing, B-3). 🔴 Red-proof: let any vehicle take an animal row ⇒ red.</summary>
+        [Fact]
+        public void CE4623_APossessedCar_StillBreaksNoWireFence()
+        {
+            var (repo, e) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, FenceAtX15("fence-chainlink", 0.01f, 1.5f));
+            var (_, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Empty(breaches);
+            repo.Dispose();
+        }
+
         /// <summary>
         /// ⭐ <c>CE-4600</c> (B-D3) — an IFV (25 t) breaks a hedge and a wooden fence but a brick garden wall is too strong for it (strength = resistance × thickness × height).
         /// </summary>

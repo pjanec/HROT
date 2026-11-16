@@ -146,6 +146,7 @@ namespace Fdp.Toolkit.Civilians
         private void StepAnimals(EntityRepository repo, double now, float dt)
         {
             int nThreats = -1;   // gathered lazily
+            bool homes = repo.IsComponentTypeRegistered<Animals.AnimalHome>();
             foreach (var a in repo.Query().With<Animals.Fear>().With<Animals.AnimalState>().Build())
             {
                 var t = Animals.AnimalFear.TemperamentOf(repo, a);
@@ -155,12 +156,31 @@ namespace Fdp.Toolkit.Civilians
                     f.NextZoneLookAt = now + Animals.AnimalFear.ZoneLookSeconds;
                     if (nThreats < 0) nThreats = GatherThreats(repo);
                     var here = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(a).Position;
-                    Animals.AnimalFear.LookRound(ref f, t, here, new ReadOnlySpan<Animals.AnimalFear.Threat>(_threats, 0, nThreats), now);
+                    var seen = new ReadOnlySpan<Animals.AnimalFear.Threat>(_threats, 0, nThreats);
+                    Animals.AnimalFear.LookRound(ref f, t, here, seen, now);
+                    if (t.Territorial)   // ⭐ AB-5 — the guard dog's ground
+                    {
+                        bool hasHome = homes && repo.HasComponent<Animals.AnimalHome>(a);
+                        var home = hasHome ? repo.GetComponentRO<Animals.AnimalHome>(a) : default;
+                        f.Intruder = Animals.AnimalFear.FindIntruder(here, hasHome, in home, seen);
+                    }
                 }
                 Animals.AnimalFear.Fade(ref f, t, now, dt);
                 byte band = Animals.AnimalFear.Band(f.Value);
-                if (repo.GetComponentRO<Animals.AnimalState>(a).FearBand != band)
-                    repo.GetComponentRW<Animals.AnimalState>(a).FearBand = band;
+                bool bolting = t != null && Animals.AnimalFear.UpdateBolt(ref f, t, now);   // ⭐ AB-5 — the ridden horse
+                ref readonly var st = ref repo.GetComponentRO<Animals.AnimalState>(a);
+                var flags = bolting ? st.Flags | Animals.AnimalFlags.Bolting : st.Flags & ~Animals.AnimalFlags.Bolting;
+                if (st.FearBand != band || st.Flags != flags)
+                {
+                    ref var w = ref repo.GetComponentRW<Animals.AnimalState>(a);
+                    w.FearBand = band;
+                    if (w.Flags != flags)
+                    {
+                        w.Flags = flags;   // ⭐ replicated: every node's HUD shows the bolt; the local action row says why the controls went
+                        if (bolting) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, a, 0, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting,
+                            0f, Animals.AnimalFear.BoltSeconds);
+                    }
+                }
             }
         }
 
@@ -182,6 +202,7 @@ namespace Fdp.Toolkit.Civilians
                     Position = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(e).Position,
                     Velocity = velocities && repo.HasComponent<SimVelocity>(e) ? repo.GetComponentRO<SimVelocity>(e).Linear : default,
                     IsVehicle = cls != global::CarKinem.Core.VehicleClass.Pedestrian,
+                    Entity = e,
                 };
             }
             return n;

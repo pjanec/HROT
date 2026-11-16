@@ -51,6 +51,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public float Walk, FleeSpeed, FleeMetres, RecoverySeconds, Cohesion;
             public byte Fearless;
+            /// <summary>⭐ AB-5 — guards its ground (the dog); a bird (a flock or a lone bird: perches, flies off).</summary>
+            public byte Territorial, Bird;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -85,6 +87,14 @@ namespace Hrot.AI.Behaviors.Brains
             public FleeState Flee;
             public FleeState MoveOff;
             public RecoverState Recover;
+            public GuardState Guard;
+        }
+
+        /// <summary>⭐ AB-5 — the guard dog's working memory: its next re-aim and its next bite.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct GuardState
+        {
+            public SimInstant NextAimAt, NextBiteAt;
         }
 
         /// <summary>The species' numbers from its temperament (the ONE table, AR-21); a type with none walks at 1 m/s and runs 30 m.</summary>
@@ -102,6 +112,8 @@ namespace Hrot.AI.Behaviors.Brains
                     RecoverySeconds = t is { RecoverySeconds: > 0f } ? t.RecoverySeconds : 30f,
                     Cohesion = t?.HerdCohesion ?? 0f,
                     Fearless = (byte)(t is { Fearless: true } ? 1 : 0),
+                    Territorial = (byte)(t is { Territorial: true } ? 1 : 0),
+                    Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird) ? 1 : 0),
                 },
             };
         }
@@ -125,6 +137,19 @@ namespace Hrot.AI.Behaviors.Brains
                 .Activity<AnimalBlackboard, AnimalParams, RecoverState>(bb => bb.Params, bb => bb.Recover, Recover);
             builder.State("Casualty")
                 .Activity<AnimalBlackboard, AnimalParams>(bb => bb.Params, Casualty);
+            // ⭐ AB-5 — the guard dog (territorial): bark at a person on its ground, bite one who comes close
+            var bark = builder.State("Bark")
+                .Activity<AnimalBlackboard, AnimalParams, GuardState>(bb => bb.Params, bb => bb.Guard, Bark);
+            var attack = builder.State("Attack")
+                .Activity<AnimalBlackboard, AnimalParams, GuardState>(bb => bb.Params, bb => bb.Guard, Attack);
+
+            foreach (var s in new[] { bark, attack })
+                s.On(0).GoTo("Casualty").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, Down).Polled().Priority(2);
+            foreach (var s in new[] { graze, rest })
+                s.On(0).GoTo("Bark").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, IntruderOnItsGround).Polled().Priority(1);
+            bark.On(0).GoTo("Attack").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, IntruderClose).Polled();
+            bark.On(0).GoTo("Graze").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, NoIntruder).Polled();
+            attack.On(0).GoTo("Bark").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, IntruderBackedOff).Polled();
 
             foreach (var s in new[] { graze, rest, alert, flee, recover })
                 s.On(0).GoTo("Casualty").Guard<AnimalBlackboard, AnimalParams>(bb => bb.Params, Down).Polled().Priority(2);
@@ -150,6 +175,7 @@ namespace Hrot.AI.Behaviors.Brains
             double now = world.SimulationTime;
             var here = Here(world, self);
             if (ws.HasOrigin == 0) { ws.Origin = here; ws.HasOrigin = 1; }
+            if (p.Bird != 0) { SetFlock(world, self, FlockMode.Perched); return NodeStatus.Running; }   // ⭐ AB-5 — a bird sits in its tree
             if (ws.Walking != 0)
             {
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
@@ -215,6 +241,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Flee(ref AnimalParams p, ref FleeState ws, Entity self, EntityRepository world)
         {
             SetMode(world, self, AnimalMode.Flee);
+            if (p.Bird != 0) SetFlock(world, self, FlockMode.Flying);   // ⭐ AB-5 — the flock flushes
             double now = world.SimulationTime;
             var fear = FearOf(world, self);
             bool fresh = fear.LastFrightAt > (double)ws.Since && fear.Value >= PanicAt && ws.Arrived != 0;
@@ -247,6 +274,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Recover(ref AnimalParams p, ref RecoverState ws, Entity self, EntityRepository world)
         {
             SetMode(world, self, AnimalMode.Recover);
+            if (p.Bird != 0) SetFlock(world, self, FlockMode.Landed);   // ⭐ AB-5 — it comes down where it flew to
             if (ws.Started == 0)
             {
                 ws.Started = 1;
@@ -265,6 +293,108 @@ namespace Hrot.AI.Behaviors.Brains
         {
             LocomotionMoveTo.Stop(world, self);
             return NodeStatus.Running;
+        }
+
+        /// <summary>A guard dog stands this far from the man it barks at (m).</summary>
+        public const float BarkStandOffMetres = 4f;
+        /// <summary>It goes for a man this close (m) who is on its ground.</summary>
+        public const float AttackMetres = 6f;
+        /// <summary>A bite: little damage, a short stagger — never the long knock-down of a blow (AR-6).</summary>
+        public const float BiteDamage = 8f, BiteKnockdownSeconds = 0.3f, BiteCooldownSeconds = 1.5f;
+        /// <summary>It re-aims its stand-off this often while barking (s).</summary>
+        public const float BarkAimSeconds = 1f;
+
+        /// <summary>⭐ AB-5 — BARK: it calls (the bark — <see cref="AnimalFlags.Calling"/>) and stands between the man and its ground, kept inside
+        /// its home and its chain.</summary>
+        [SharedAiAction]
+        public static NodeStatus Bark(ref AnimalParams p, ref GuardState ws, Entity self, EntityRepository world)
+        {
+            SetMode(world, self, AnimalMode.Guard);
+            SetFlags(world, self, AnimalFlags.Calling, AnimalFlags.Dangerous);
+            double now = world.SimulationTime;
+            var who = FearOf(world, self).Intruder;
+            if (now < (double)ws.NextAimAt || !Present(world, who)) return NodeStatus.Running;
+            ws.NextAimAt = (SimInstant)(now + BarkAimSeconds);
+            var here = Here(world, self);
+            var there = Here(world, who);
+            var off = here - there; off.Z = 0f;
+            var stand = there + (off.LengthSquared() > 1e-4f ? Vector3.Normalize(off) : Vector3.UnitX) * BarkStandOffMetres;
+            stand = KeepHome(world, self, stand);
+            if (Vector2.Distance(new Vector2(stand.X, stand.Y), new Vector2(here.X, here.Y)) > ArrivalMetres)
+                LocomotionMoveTo.Issue(world, self, stand, p.Walk * 2.5f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Attack);
+            else LocomotionMoveTo.Stop(world, self);
+            return NodeStatus.Running;
+        }
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.AnimalBehavior.Bark")]
+        public static void Deactivate_Bark(ref AnimalParams p, ref GuardState ws, Entity self, EntityRepository world)
+        {
+            LocomotionMoveTo.Stop(world, self);
+            SetFlags(world, self, 0, AnimalFlags.Calling | AnimalFlags.Dangerous);
+            ws = default;
+        }
+
+        /// <summary>⭐ AB-5 — ATTACK: it runs at the man and BITES when in reach (<see cref="Fdp.Toolkit.Combat.Melee"/>, a bite: little damage, a
+        /// short stagger), marked DANGEROUS while it does — self-defence covers firing at it (AR-6).</summary>
+        [SharedAiAction]
+        public static NodeStatus Attack(ref AnimalParams p, ref GuardState ws, Entity self, EntityRepository world)
+        {
+            SetMode(world, self, AnimalMode.Guard);
+            SetFlags(world, self, AnimalFlags.Calling | AnimalFlags.Dangerous, 0);
+            double now = world.SimulationTime;
+            var who = FearOf(world, self).Intruder;
+            if (!Present(world, who)) return NodeStatus.Running;
+            if (Fdp.Toolkit.Combat.Melee.InReach(world, self, who))
+            {
+                LocomotionMoveTo.Stop(world, self);
+                if (now >= (double)ws.NextBiteAt
+                    && Fdp.Toolkit.Combat.Melee.Strike(world, self, who, BiteDamage, BiteKnockdownSeconds, Fdp.Toolkit.Combat.MeleeWeapon.MeleeBite))
+                    ws.NextBiteAt = (SimInstant)(now + BiteCooldownSeconds);
+                return NodeStatus.Running;
+            }
+            if (now >= (double)ws.NextAimAt)
+            {
+                ws.NextAimAt = (SimInstant)(now + 0.25);
+                LocomotionMoveTo.Issue(world, self, KeepHome(world, self, Here(world, who)), p.FleeSpeed, 0.5f, MoveGait.Upright, onSurface: true, source: MoveSource.Attack);
+            }
+            return NodeStatus.Running;
+        }
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.AnimalBehavior.Attack")]
+        public static void Deactivate_Attack(ref AnimalParams p, ref GuardState ws, Entity self, EntityRepository world)
+        {
+            LocomotionMoveTo.Stop(world, self);
+            SetFlags(world, self, 0, AnimalFlags.Dangerous);
+            ws = default;
+        }
+
+        [SharedAiCondition]
+        public static bool IntruderOnItsGround(ref AnimalParams p, Entity self, EntityRepository world)
+            => p.Territorial != 0 && Present(world, FearOf(world, self).Intruder);
+
+        [SharedAiCondition]
+        public static bool NoIntruder(ref AnimalParams p, Entity self, EntityRepository world) => !Present(world, FearOf(world, self).Intruder);
+
+        /// <summary>The man is within <see cref="AttackMetres"/> AND on its ground (inside its home, when it has one).</summary>
+        [SharedAiCondition]
+        public static bool IntruderClose(ref AnimalParams p, Entity self, EntityRepository world)
+        {
+            var who = FearOf(world, self).Intruder;
+            if (!Present(world, who)) return false;
+            var there = Here(world, who);
+            if (Flat(there - Here(world, self)) > AttackMetres) return false;
+            return !TryHome(world, self, out var home) || Flat(there - home.Centre) <= home.Radius;
+        }
+
+        /// <summary>The man is gone, off its ground, or twice the attack distance away.</summary>
+        [SharedAiCondition]
+        public static bool IntruderBackedOff(ref AnimalParams p, Entity self, EntityRepository world)
+        {
+            var who = FearOf(world, self).Intruder;
+            if (!Present(world, who)) return true;
+            var there = Here(world, who);
+            if (Flat(there - Here(world, self)) > AttackMetres * 2f) return true;
+            return TryHome(world, self, out var home) && Flat(there - home.Centre) > home.Radius;
         }
 
         // ── guards ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -314,6 +444,46 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.IsComponentTypeRegistered<AnimalState>() || !world.HasComponent<AnimalState>(self)) return;
             if (world.GetComponentRO<AnimalState>(self).Mode != mode) world.GetComponentRW<AnimalState>(self).Mode = mode;
+        }
+
+        private static float Flat(Vector3 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
+
+        private static bool Present(EntityRepository world, Entity who) => !who.IsNull && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, who);
+
+        private static bool TryHome(EntityRepository world, Entity self, out AnimalHome home)
+        {
+            home = default;
+            if (!world.IsComponentTypeRegistered<AnimalHome>() || !world.HasComponent<AnimalHome>(self)) return false;
+            home = world.GetComponentRO<AnimalHome>(self);
+            return home.Radius > 0f || home.TetherMetres > 0f;
+        }
+
+        /// <summary>A point kept inside its home and on its chain (the tether, AB-5).</summary>
+        private static Vector3 KeepHome(EntityRepository world, Entity self, Vector3 p)
+        {
+            if (!TryHome(world, self, out var home)) return p;
+            float limit = home.TetherMetres > 0f ? (home.Radius > 0f ? MathF.Min(home.TetherMetres, home.Radius) : home.TetherMetres) : home.Radius;
+            var d = new Vector2(p.X - home.Centre.X, p.Y - home.Centre.Y);
+            float len = d.Length();
+            if (len <= limit || len < 1e-4f) return p;
+            d *= limit / len;
+            return new Vector3(home.Centre.X + d.X, home.Centre.Y + d.Y, p.Z);
+        }
+
+        /// <summary>Sets <paramref name="on"/> and clears <paramref name="off"/> on its own flags, writing only on a change.</summary>
+        private static void SetFlags(EntityRepository world, Entity self, AnimalFlags on, AnimalFlags off)
+        {
+            if (!world.IsComponentTypeRegistered<AnimalState>() || !world.HasComponent<AnimalState>(self)) return;
+            var f = world.GetComponentRO<AnimalState>(self).Flags;
+            var n = (f | on) & ~off;
+            if (n != f) world.GetComponentRW<AnimalState>(self).Flags = n;
+        }
+
+        /// <summary>⭐ AB-5 — a flock's (or a lone bird's) flying / landed / perched, on its own <see cref="FlockState"/>, on a change.</summary>
+        private static void SetFlock(EntityRepository world, Entity self, FlockMode mode)
+        {
+            if (!world.IsComponentTypeRegistered<FlockState>() || !world.HasComponent<FlockState>(self)) return;
+            if (world.GetComponentRO<FlockState>(self).Mode != mode) world.GetComponentRW<FlockState>(self).Mode = mode;
         }
 
         private static bool HerdOf(EntityRepository world, Entity self, out HerdState herd)

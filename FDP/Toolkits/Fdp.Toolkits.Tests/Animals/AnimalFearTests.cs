@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Animals.Tests
     /// </summary>
     public sealed class AnimalFearTests
     {
-        private const long CattleType = 700, DogType = 705;
+        private const long CattleType = 700, DogType = 705, HorseType = 703;
         private static readonly AnimalTemperamentDto Cattle = new()
         {
             Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f, RecoverySeconds = 60f,
@@ -46,6 +46,9 @@ namespace Fdp.Toolkit.Animals.Tests
             var dog = new TkbTemplate("Dog", DogType);
             dog.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, RecoverySeconds = 20f });
             db.Register(dog);
+            var horse = new TkbTemplate("HorseRiding", HorseType);
+            horse.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.HorseRiding, FlightZoneM = 15f, PanicZoneM = 6f, RecoverySeconds = 30f, BoltFear = 0.75f });
+            db.Register(horse);
             w.SetSingletonManaged<ITkbDatabase>(db);
             return w;
         }
@@ -218,6 +221,36 @@ namespace Fdp.Toolkit.Animals.Tests
                 sumAfraid += p.X;
             }
             Assert.True(sumAfraid / 20f > 20f, $"well east on average: {sumAfraid / 20f}");
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-5 (AR-10) — a RIDDEN horse BOLTS: past its bolt line it is marked Bolting (replicated) for
+        /// <see cref="AnimalFear.BoltSeconds"/>, and the rider's controls are overridden — full gallop, turning away from the fright (here a
+        /// rider holding it still and steering right, a shot from the east); after the bolt, with its fear down, he has it again. A cow never
+        /// bolts. 🔴 Red-proof: the bolt line ignored ⇒ no Bolting flag ⇒ red.</summary>
+        [Fact]
+        public void CE4623_ARiddenHorse_BoltsPastItsLine_OverridingTheRider_ForAWhile()
+        {
+            using var w = World();
+            var sys = new CivilianFearSystem();
+            var horse = Animal(w, HorseType, Vector3.Zero);
+            var cow = Animal(w, CattleType, new Vector3(50, 0, 0));
+            w.GetComponentRW<Fear>(horse) = new Fear { Value = 0.8f, FrightFrom = new Vector3(30, 0, 0), HasFrightFrom = 1 };
+            w.GetComponentRW<Fear>(cow) = new Fear { Value = 0.95f };
+            Frame(w, sys, 0.1f);
+            Assert.True((w.GetComponentRO<AnimalState>(horse).Flags & AnimalFlags.Bolting) != 0);
+            Assert.True((w.GetComponentRO<AnimalState>(cow).Flags & AnimalFlags.Bolting) == 0);
+
+            var rider = new Fdp.Toolkit.Navigation.ManualDrive { Forward = 0f, Steer = -1f };   // holding it, steering right
+            Assert.True(AnimalFear.BoltDrive(w, horse, Vector2.Zero, Vector2.UnitX, ref rider));   // facing the shot (east)
+            Assert.Equal(1f, rider.Forward);
+            Assert.Equal(1f, rider.Steer);                                // the fright is ahead: it wheels round at full lock
+            var calm = new Fdp.Toolkit.Navigation.ManualDrive { Forward = 0.3f, Steer = 0.2f };
+            Assert.False(AnimalFear.BoltDrive(w, cow, Vector2.Zero, Vector2.UnitX, ref calm));
+            Assert.Equal(0.3f, calm.Forward);
+
+            w.GetComponentRW<Fear>(horse).Value = 0.5f;
+            for (int i = 0; i < (int)(AnimalFear.BoltSeconds / 0.1f) + 2; i++) Frame(w, sys, 0.1f);
+            Assert.True((w.GetComponentRO<AnimalState>(horse).Flags & AnimalFlags.Bolting) == 0, "the bolt is over");
         }
 
         /// <summary>⭐ R-2084 — the steady frame of the animal pass allocates nothing (the threat buffer is reused).</summary>

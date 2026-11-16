@@ -32,11 +32,21 @@ namespace Hrot.SimHost.Tests
     [Collection("MeleeStrikes")]
     public sealed class AnimalHsmTests
     {
-        private const long CowType = 700;
+        private const long CowType = 700, DogType = 705, FlockType = 707;
         private static readonly AnimalTemperamentDto Cattle = new()
         {
             Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f,
             RecoverySeconds = 8f, HerdCohesion = 0.4f, WalkSpeed = 1f,
+        };
+        private static readonly AnimalTemperamentDto Dog = new()
+        {
+            Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, FleeSpeed = 10f,
+            FleeDistanceM = 30f, RecoverySeconds = 20f, WalkSpeed = 1.2f,
+        };
+        private static readonly AnimalTemperamentDto Flock = new()
+        {
+            Species = (byte)AnimalSpecies.BirdFlock, FlightZoneM = 40f, PanicZoneM = 15f, FleeSpeed = 12f, FleeDistanceM = 400f, RecoverySeconds = 8f,
+            HerdCohesion = 1f, WalkSpeed = 5f,
         };
 
         private sealed class World
@@ -62,6 +72,8 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSingletonManaged<IGeographicTransform>(UtmTransform.AtOrigin(0.0, 0.0, 0.0));
                 var db = new TkbDatabase();
                 var cow = new TkbTemplate("Cattle", CowType); cow.AddDescriptor(Cattle); db.Register(cow);
+                var dog = new TkbTemplate("Dog", DogType); dog.AddDescriptor(Dog); db.Register(dog);
+                var flock = new TkbTemplate("BirdFlock", FlockType); flock.AddDescriptor(Flock); db.Register(flock);
                 Repo.SetSingletonManaged<ITkbDatabase>(db);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);
@@ -73,6 +85,37 @@ namespace Hrot.SimHost.Tests
                 A = Cow(new Vector3(0, 0, 0));
                 B = Cow(new Vector3(8, 0, 0));
                 Tick();
+            }
+
+            public bool WithFear;
+            private readonly Fdp.Toolkit.Civilians.CivilianFearSystem _fear = new();
+
+            /// <summary>Any animal of <paramref name="type"/> (no herd).</summary>
+            public Entity Animal(long type, Vector3 at, AnimalSpecies species)
+            {
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                Repo.AddComponent(e, new BehaviorState());
+                Repo.AddComponent(e, new LocomotionChannel());
+                Repo.AddComponent(e, new Health { Current = 80f, Max = 80f });
+                Repo.AddComponent(e, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+                Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
+                Repo.AddComponent(e, new AnimalState { Species = species });
+                Repo.AddComponent(e, new Fear());
+                if (!Repo.IsComponentTypeRegistered<EntityInfo>()) Repo.RegisterComponent<EntityInfo>();
+                Repo.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });   // spawned neutral (AR-6)
+                return e;
+            }
+
+            /// <summary>A man on foot (what the flight zone and the dog see).</summary>
+            public Entity Man(Vector3 at)
+            {
+                var e = Repo.CreateEntity();
+                Repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                Repo.AddComponent(e, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.Pedestrian });
+                Repo.AddComponent(e, new Health { Current = 100f, Max = 100f });
+                Repo.AddComponent(e, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+                return e;
             }
 
             private void Reg<T>() where T : unmanaged { if (!Repo.IsComponentTypeRegistered<T>()) Repo.RegisterComponent<T>(); }
@@ -99,7 +142,8 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSimulationTime((float)_time);
                 if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.Tick();
                 Repo.Bus.SwapBuffers();
-                Herds.Execute(Repo, 0.05f);   // serial, before the brains (the CGF order)
+                if (WithFear) _fear.Execute(Repo, 0.05f);   // the CGF order: the fear system, the herds, then the brains
+                Herds.Execute(Repo, 0.05f);
                 if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();
                 _ingress.Execute(Repo, 0.05f);
                 _brain.Execute(Repo, 0.05f);
@@ -173,6 +217,84 @@ namespace Hrot.SimHost.Tests
             var home = new Vector2(0, 0);
             Assert.True(next.X > 0f, $"the next grazing spot is on the far side of the home from the fright (west): {next}");
             Assert.True(Vector2.Distance(new(next.X, next.Y), home) <= 60f, $"and inside the home: {next}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-5 (AN-5, AR-6) — the GUARD DOG: a man walks onto its ground ⇒ it BARKS (Guard, Calling) standing between him and
+        /// its home, never leaving it; he comes close inside its home ⇒ it ATTACKS and BITES (a blow of the bite kind), marked DANGEROUS — no
+        /// longer held as a neutral, and firing at it is self-defence; he backs off out of its home ⇒ it barks again (no longer dangerous); he
+        /// leaves ⇒ it settles. 🔴 Red-proofs: the intruder search skipped ⇒ no bark; the dangerous mark not honoured by IsNeutral ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4623_TheGuardDog_Barks_BitesOnItsGround_IsDangerousWhileItDoes_AndSettles()
+        {
+            var w = new World { WithFear = true };
+            if (!w.Repo.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) w.Repo.RegisterComponent<CarKinem.Core.VehicleParams>();
+            var dog = w.Animal(DogType, new Vector3(100, 0, 0), AnimalSpecies.Dog);
+            w.Repo.AddComponent(dog, new AnimalHome { Centre = new Vector3(100, 0, 0), Radius = 20f });
+            w.Start(dog);
+            var man = w.Man(new Vector3(100, 40, 0));                // outside its ground (home 20 m + 15 m)
+            w.Run(1.0);
+            Assert.Equal(AnimalMode.Calm, w.Mode(dog));
+
+            w.Repo.GetComponentRW<SimTransform>(man).Position = new Vector3(100, 30, 0);   // 10 m outside its fence: it barks from inside
+            w.Run(1.5);
+            Assert.Equal(AnimalMode.Guard, w.Mode(dog));
+            var flags = w.Repo.GetComponentRO<AnimalState>(dog).Flags;
+            Assert.True((flags & AnimalFlags.Calling) != 0);
+            Assert.True((flags & AnimalFlags.Dangerous) == 0);
+            Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(w.Repo, dog));   // a barking dog is still a neutral
+            var (to, _, moving) = w.Move(dog);
+            Assert.True(moving);
+            Assert.True(Vector2.Distance(new(to.X, to.Y), new(100, 0)) <= 20.01f, $"it stays inside its ground: {to}");
+
+            w.Repo.GetComponentRW<SimTransform>(man).Position = new Vector3(100, 15, 0);   // inside its home
+            w.Repo.GetComponentRW<SimTransform>(dog).Position = new Vector3(100, 11, 0);   // it stood its ground near him
+            int bites = Fdp.Toolkit.Combat.Melee.Strikes;
+            w.Run(1.0);
+            Assert.Equal(AnimalMode.Guard, w.Mode(dog));
+            Assert.True((w.Repo.GetComponentRO<AnimalState>(dog).Flags & AnimalFlags.Dangerous) != 0, "attacking: dangerous");
+            Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(w.Repo, dog));
+            Assert.True(Fdp.Toolkit.Combat.ForceLevels.SelfDefence(w.Repo, man, dog));
+            w.Repo.GetComponentRW<SimTransform>(dog).Position = new Vector3(100, 14, 0);   // it reached him
+            w.Run(0.5);
+            Assert.True(Fdp.Toolkit.Combat.Melee.Strikes > bites, "it bit him");
+
+            w.Repo.GetComponentRW<SimTransform>(man).Position = new Vector3(100, 30, 0);   // he backs out of its home
+            w.Run(1.0);
+            Assert.True((w.Repo.GetComponentRO<AnimalState>(dog).Flags & AnimalFlags.Dangerous) == 0, "no longer dangerous");
+            Assert.False(Fdp.Toolkit.Combat.ForceLevels.SelfDefence(w.Repo, man, dog));
+            w.Repo.GetComponentRW<SimTransform>(man).Position = new Vector3(100, 80, 0);   // he leaves
+            w.Run(1.0);
+            Assert.Equal(AnimalMode.Calm, w.Mode(dog));
+            Assert.True((w.Repo.GetComponentRO<AnimalState>(dog).Flags & AnimalFlags.Calling) == 0);
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-5 — a BIRD FLOCK sits perched; a fright flushes it (Flying) and it flies its flee distance away; it comes
+        /// down (Landed) and, calm, perches again.</summary>
+        [Fact]
+        public void CE4623_ABirdFlock_IsPerched_FlushesOnAFright_LandsAndPerchesAgain()
+        {
+            var w = new World();
+            var flock = w.Animal(FlockType, new Vector3(-100, 0, 10), AnimalSpecies.BirdFlock);
+            w.Repo.AddComponent(flock, new FlockState { Count = 40, InitialCount = 40, Mode = FlockMode.Landed });
+            w.Start(flock);
+            w.Run(0.5);
+            Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+            Assert.False(w.Move(flock).Moving);                                              // a perched flock does not wander
+            w.Repo.GetComponentRW<Fear>(flock) = new Fear { Value = 0.9f, FrightFrom = new Vector3(-150, 0, 0), HasFrightFrom = 1, LastFrightAt = w.Repo.SimulationTime };
+            w.Run(0.3);
+            Assert.Equal(FlockMode.Flying, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+            var (to, speed, _) = w.Move(flock);
+            Assert.True(to.X > 200f, $"it flies away from the shot: {to}");
+            Assert.Equal(Flock.FleeSpeed, speed);
+            w.Arrive(flock);
+            w.Repo.GetComponentRW<Fear>(flock).Value = 0.3f;
+            w.Run(0.3);
+            Assert.Equal(FlockMode.Landed, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+            w.Repo.GetComponentRW<Fear>(flock).Value = 0f;
+            w.Run(Flock.RecoverySeconds * AnimalBehavior.LookBackShare + 0.5);
+            Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
         }
 
         [Fact]

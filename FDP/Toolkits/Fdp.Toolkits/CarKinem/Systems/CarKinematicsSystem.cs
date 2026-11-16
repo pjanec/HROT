@@ -279,6 +279,8 @@ namespace CarKinem.Systems
                 bool hasDrive = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>()
                                 && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity);
                 var drive = hasDrive ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity) : default;
+                // ⭐ CE-4623 AB-5 (AR-10) — a BOLTING horse: its fear overrides the rider for a while (full gallop, away from the fright)
+                if (@params.Class == VehicleClass.Quadruped && Fdp.Toolkit.Animals.AnimalFear.BoltDrive(repo, entity, pos2D, fwd2D, ref drive)) hasDrive = true;
                 bool walker = @params.Class == VehicleClass.Pedestrian;
                 Vector2 planar;
                 float turnRate;
@@ -814,7 +816,10 @@ namespace CarKinem.Systems
                 }
                 // ⭐⭐ CE-4600 (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.2) — a hull a PLAYER drives (the B-1 gate: the Manual branch, a live possession, no replay)
                 //   meets a barrier: the contact rule decides — a small one broken lets the step go on at a speed loss; a building's bump or a too strong one holds it
-                if (wall && !person && _terrainWorld != null && HullClearance.HasHull(in hull) && HullBreakGate.MayBreak(repo, entity, in nav))
+                // ⭐ CE-4623 AB-7 (Animals AR-5) — and a PANICKED big animal (a herd in flight) through the same rule, its own row: a small fence, never a wall
+                if (wall && !person && _terrainWorld != null
+                    && ((HullClearance.HasHull(in hull) && HullBreakGate.MayBreak(repo, entity, in nav))
+                        || (hull.Class == VehicleClass.Quadruped && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo) && Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, entity))))
                 {
                     float throttle = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>() && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity)
                         ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward : 0f;

@@ -56,9 +56,12 @@ namespace Fdp.Toolkit.Perception
         public static bool ShowsHandsUp(ISimulationView view, Entity target)
             => !target.IsNull && Fdp.Toolkit.Combat.Gestures.Of(view, target) == Fdp.Toolkit.Combat.GestureKind.HandsUp;
 
+        /// <remarks>⭐ <c>CE-4623</c> AB-5 (AR-6) — an animal ATTACKING right now (<see cref="Fdp.Toolkit.Animals.AnimalFlags.Dangerous"/>, the
+        /// guard dog's bite) is not held as a neutral: it may be fired at (self-defence, <c>ForceLevels.SelfDefence</c>). It never changes side.</remarks>
         public static bool IsNeutral(ISimulationView view, Entity target)
             => !target.IsNull && view.IsAlive(target) && view.HasComponent<EntityInfo>(target)
-               && view.GetComponentRO<EntityInfo>(target).ForceId == ForceId.Neutral;
+               && view.GetComponentRO<EntityInfo>(target).ForceId == ForceId.Neutral
+               && !Fdp.Toolkit.Animals.Animals.IsDangerous(view, target);
 
         /// <summary>The floor of an ARMED target's danger to a vehicle: harmless to my armour, but still armed and still watched.</summary>
         public const float ArmedHarmless = 0.1f;

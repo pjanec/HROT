@@ -39,4 +39,9 @@ TKB 700–711 (+ 712 `AnimalArea`), DIS `3.1.0.200–208` / `3.2.0.205`, classes
 parents `LandAnimal` = `3.1.*.200-209`, `AirAnimal` = `3.2.*.205`; horse seats (703: 0 rider — fires WHILE riding, 1 second rider, a firing seat
 sides + rear; 704: 0); sounds 7800–7895 = `7800 + species·8 + line`.
 
-⚠ Replication of `AnimalState` / `FlockState` lands with AB-3 / AB-5; until then a single-node run has them locally.
+⭐ **Update (AB-3 … AB-5, backend):**
+- `AnimalState` / `FlockState` REPLICATE as `dtAnimalState` **189** / `dtFlockState` **190** (Brain group, sent on change) — every node has them.
+- `AirAnimal` is `3.2.*.205-209` (a range — `Bird` is exactly `3.2.*.205`, and the class table refuses two classes on one mask).
+- The HUD's bolt cue: read **`AnimalFlags.Bolting`** on the horse (replicated); the local `ActionStatus` locomotion row also says `Bolting`.
+- `MeleeWeapon` gains **`MeleeBite = 3`** (appended): the guard dog's bite arrives as a `StrikeNotification` like a blow — draw a snap, not a swing.
+- `AnimalMode.Guard` + `Calling` = the dog barking; `Guard` + `Dangerous` = attacking. A flock: `FlockState.Mode` `Perched` → `Flying` (flushed) → `Landed` → `Perched`.
