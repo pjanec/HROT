@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-16
 build-state: READY-TO-BUILD (2026-11-16) — decisions R-4266…R-4268, the review R-4269 (⭐ §8's AR rows SUPERSEDE the §4 AN rows they touch); ids §4a; UML §5 as folded; ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
-current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
+current-answer: §4 decisions (with §8's AR rows superseding) · §4a the fixed ids · §5 UML · ⭐ §6 the TASKS per lane and the shared contract (§6.1) · §8 the review
 stale-below: nothing
 known-rot: none
 known-conflict: none — AN-7 amends Breaching B-D1 (a panicked big animal breaks a SMALL fence), approved R-4266
@@ -269,19 +269,53 @@ graph TD
 run on.*
 
 
-## 6. Slices *(each gated by the review §8 before it is built)*
+## 6. Tasks — per lane, after the review *(coordinator, `2026-11-16`; replaces the first slices, which are in HISTORY)*
 
-| # | builds | lanes |
+🔒 User, `2026-11-16`: *"issue a handoff for the backend lane to implement all the animal stuff. Movements, the behavior … and the UI to implement
+their visuals, and they all need to know upfront the TKB and this entity type IDs so they can work independently."*
+
+### 6.1 The shared contract — fixed BEFORE either lane starts *(everything a lane needs from the other)*
+
+| what | fixed value | owner (declares it) | reader |
+|---|---|---|---|
+| the TKB types, DIS, species classes | §4a: **700–711** (+ **712** the area), DIS `3.1.0.200–208` / `3.2.0.205`, classes `Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird` `Poultry` `Pig` `Goat` | backend | ui keys its families on the CLASS names |
+| the parent classes | `LandAnimal` = `3.1.*.200-209` · `AirAnimal` = `3.2.*.205` | backend | both |
+| the movement classes | `LocomotionClass.Quadruped` · `LocomotionClass.Bird` | backend | ui (the gait / wing case keys on them) |
+| the 3-D families | `VisualFamily.Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird` `Poultry` `Pig` `Goat` | **ui** | — |
+| the replicated state the presentation reads | ⭐ **`AnimalState`** (unmanaged, replicated: `Mode` = Calm · Alert · Flee · Recover · Rest, a `Fear` band) · ⭐ **`FlockState`** (unmanaged, replicated: `Count`, `Seed`, `Mode` = Flying · Landed · Perched) · ⭐ **`HerdMember`** (`Herd` link) | backend (layouts and component ids, reported in its first note) | ui reads `AnimalState` (alarm pose, gait), `FlockState` (the N birds) |
+| the riding horse's seats | **703 riding**: seat **0** = rider (Driver, a FIRING seat that fires while riding, R-4269) · seat **1** = a second rider (passenger, a firing seat, arc sides and rear) · **704 war**: seat **0** only (the same rider seat) | backend | ui (the ride pose, first person) |
+| animal sounds | the block **7800–7895**: `7800 + species·8 + line` (species = TKB order 700…711; lines 0 call · 1 alarm · 2 special · 3 walk · 4 trot · 5 gallop · 6 wings · 7 flutter) | backend registers the TYPES and the closed-form call timing; ui the clips / placeholders and the mixer side | both |
+| the animal area | TKB **712** `AnimalArea`: species, count, seed, Enclosed on the area entity | backend (the entity, the populate) | ui (the drawing tool, the properties form) |
+
+⭐ Until the other lane's half lands, each builds against a STAND-IN with these exact names and values, then re-binds (the radar SAM and motorcycle precedent).
+
+### 6.2 backend — the simulation and all the behaviours
+
+| # | task | done when (a rail each, red-proved) |
 |---|---|---|
-| AN-S0 | the taxonomy and fixed ids (the entity classes `Animal` → `Cattle`, `Sheep`, `Horse`, `Dog`, `Bird`, `Cat`, DIS kind / category measured free on every lane); `AnimalTemperament`; the per-species fear table + flight zone; the grass class | backend |
-| AN-S1 | cattle and sheep herds: graze, flee, recover to grass | behaviors + ui (the kits, gaits) |
-| AN-S2 | birds: the flock entity and lone birds, the flight model, the presentation boids | backend + ui |
-| AN-S3 | the guard dog | behaviors + ui |
-| AN-S4 | horses: herd horses and the riding / war horse (seats, possession, gaits) | backend + ui |
-| AN-S5 | the fence breach (if AN-7 is approved) | backend |
-| AN-S6 | cats (included) | behaviors + ui |
-| AN-S8 | ⭐ sounds — the animal sound class and families, calls / alarms / movement / bark through the one sound path, the birdsong bed | backend (emission, hearing) + ui (the clips, the mixer) — each species' slice brings its own sounds |
-| AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
+| **AB-1** | the taxonomy: types 700–712, DIS, the species and parent classes, spawned NEUTRAL, a quadruped body profile (AR-19); every animal class resolves to an animal (never Person) | a rail per type; nothing counts an animal as a man (census, collateral, targeting) |
+| **AB-2** | ⭐ movement: `Quadruped` + `QuadrupedGait` (AR-1) with the ~40 `Pedestrian` sites audited one by one; `Bird` (not an aircraft) + the bird flight model with landing and perching (AR-2), the hen's flutter as a short hop; SUMO body rows (AR-17); an animal nav layer | a cow turns while moving and is no person to the hit band; radar never sees a bird; cars brake for a cow on the road |
+| **AB-3** | ⭐ fear: ONE shared `Fear` component and ONE fear system with per-species tables over civilians AND animals (civilians unchanged), the FLIGHT ZONE proximity rule, animals hear every force; crowds and their incidents civilian-only (AR-3, AR-4, AR-18); `AnimalState` replicated | a tank inside the flight zone frightens a herd silently; a busy road does not panic it for good; every civilian rail unchanged |
+| **AB-4** | ⭐ the brain: `AnimalHsm` + `AnimalTemperament` with a species table of numbers (AR-21); herds as `HerdMember` + a herd entity (AR-9); the grazing / perching area layer (OSM meadow / pasture / grass / farmland, orchard, park + authored — AR-15); recovery to grass; night (lie down / roost) | a herd grazes, flees, recovers to grass away from roads, regroups |
+| **AB-5** | the species plays: the guard DOG (home radius, optional tether, bark, bite without a long knock-down, the dangerous-animal mark + self-defence — AR-6); CATS (template sills, hop, indoors — AR-12); BIRDS (flock + lone, perch on lone trees / orchards / parks, a felled tree flushes them); HENS, PIGS, GOATS; the RIDING / WAR HORSE (seats §6.1, *Drive* / *Board*, fires while riding, the bolt as a timed override with a HUD reason, no reverse — AR-10) | one rail per species' behaviour; a player rides and fires; a frightened riding horse bolts |
+| **AB-6** | jump links baked at low fences, ditches and sills (off-mesh connections — AR-11); horses, goats and cats jump | a horse clears a 1 m fence; a cat reaches a sill |
+| **AB-7** | the PANIC-BREACH marker through `ContactBreach` (a big species, a small fence, a break sound — AR-5) | a panicked herd breaks a wire fence and runs through; never a wall |
+| **AB-8** | sounds, sim side: animal call kinds on the voice path with their ranges and an animal class (widen the field or free a value — your call), closed-form call timing, the alarm on an `AnimalState` change, hooves and wings as movement sounds, a per-herd throttle (AR-7) | a sentry hears a bark at its range; the operator and the AI hear the same call |
+| **AB-9** | the ANIMAL AREA: TKB 712's parameters; POPULATE through macro insertion at run start (transient, derived ids, a populated mark — AR-16); keep inside; Enclosed | animals appear once; a restore or replay never repopulates; an enclosed pen holds its pigs |
+| **AB-10** | ⭐ the demo `farm-under-fire`: a pasture area with a herd by a road, a dog at the house, hens, a pig pen, birds in an orchard; a tank passes ⇒ the herd flees through a small fence; shots ⇒ the birds flush and the birdsong stops | the named checks pass, three seeded runs; deterministic at 1 / 4 / 8 threads |
+
+### 6.3 ui — the bodies, the gaits, the drawing, the sound as heard
+
+| # | task | done when |
+|---|---|---|
+| **AU-1** | ⭐ the MOCKUP first (R-4143): the kits, the gait poses, the flock, the dead animal, the area tool and its form, the 2-D icons (AR-20) | committed as SVG beside the design |
+| **AU-2** | the families and kits for every species (§6.1), the 2-D icons and glyphs, the picker thumbnails; a rail that every animal class resolves to its family (never the man) | drawn in 2-D and 3-D; frame rails under `xvfb-run -a` |
+| **AU-3** | ⭐ the GAITS: a per-leg phase offset in the kits, walk / trot / canter / gallop by species speed bands (a visual descriptor), the jump's tucked legs, the birds' wingbeat, the hen's flutter (AR-13) | a horse's legs read walk → gallop as its speed rises (a rail on the phases) |
+| **AU-4** | the FLOCK: N birds as closed-form offsets (seed, index, sim time, the flock pose) through the keyed ambient-body path, dots in the far band, birds dropped when `FlockState.Count` falls (AR-14) | the same birds after a seek and on a late-joining node |
+| **AU-5** | the DEAD animal: lying on its side, no burning (AR-8) | a shot cow lies down, never a burning wreck |
+| **AU-6** | the RIDER: the ride pose on a horse, first person in the saddle, firing while riding, the bolt's HUD cue | a live check: ride, fire, be bolted |
+| **AU-7** | the ANIMAL AREA tool (the one area-authoring tool) and its properties form (species, count, seed, Enclosed), its drawing | draw a pen, fill it, see it populated at run start |
+| **AU-8** | the SOUND as heard: placeholders for 7800–7895, the mixer priority, the existing birdsong bed extended to orchards / parks, calls played at the closed-form times | a live check: the herd's calls, the alarm, the bark, birdsong silenced by shooting |
 
 ## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: behaviour realism, engine fit, visuals / horses / cats / sound; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-16` (R-4269); AR-10 CHANGED by the user: the rider FIRES WHILE RIDING
 
@@ -315,3 +349,21 @@ a "person" in this engine is its MOVEMENT CLASS (`VehicleClass.Pedestrian`), not
 ⭐ **Found sound:** the civilians' "flee away from the fright" shape; the shelter search for pigs; the HSM framework for a separate animal brain; the
 fear system is one serial pass; `Melee` crosses nodes; *Drive* / *Board*, the seat eye and the rider pose work for an animal carrier; window sill
 data exists on template buildings; the mixer degrades by priority; Kind 3 itself is mostly harmless (no civilian-class collision).
+
+## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
+
+## 6. Slices *(each gated by the review §8 before it is built)*
+
+| # | builds | lanes |
+|---|---|---|
+| AN-S0 | the taxonomy and fixed ids (the entity classes `Animal` → `Cattle`, `Sheep`, `Horse`, `Dog`, `Bird`, `Cat`, DIS kind / category measured free on every lane); `AnimalTemperament`; the per-species fear table + flight zone; the grass class | backend |
+| AN-S1 | cattle and sheep herds: graze, flee, recover to grass | behaviors + ui (the kits, gaits) |
+| AN-S2 | birds: the flock entity and lone birds, the flight model, the presentation boids | backend + ui |
+| AN-S3 | the guard dog | behaviors + ui |
+| AN-S4 | horses: herd horses and the riding / war horse (seats, possession, gaits) | backend + ui |
+| AN-S5 | the fence breach (if AN-7 is approved) | backend |
+| AN-S6 | cats (included) | behaviors + ui |
+| AN-S8 | ⭐ sounds — the animal sound class and families, calls / alarms / movement / bark through the one sound path, the birdsong bed | backend (emission, hearing) + ui (the clips, the mixer) — each species' slice brings its own sounds |
+| AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
+
+
