@@ -766,6 +766,33 @@ stochastic squad, which is the whole point of step ⑥.*
 | the seam | `Behavior/StochasticSopRouting.cs` · `BehaviorIngressSystem.ApplySopEvents` · `TacticalIntentResolutionSystem.SopFor` · `CgfLogicPack` ctor | translator → ingress (R-8311) |
 | rails | `SquadManeuverTests.AggregateMoves.cs` (11) + the ST-0 acceptance now runs the follower (its defence point is 75 m off) | — |
 
+**✅ R-8300 … R-8311 are APPROVED by the user** *(NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md)*.
+
+**✅ ST-3 BUILT** *(`2026-11-16`; lane decisions R-8312 … R-8318 "for the user's review")*
+
+| # | lane decision | would change it |
+|---|---|---|
+| **R-8312** | the assault distance of `StochasticUnitAttack` = 100 m: the line approach ends there (PhaseLine), the Assault formation closes from it | the C-8 ladder (the stand-off the combat model wants) |
+| **R-8313** | the default search radius round the objective = 75 m; `AttackOrder.SearchRadius` overrides | the user's radius |
+| **R-8314** | an ammunition colour for a stochastic unit = `UnitAmmunition.TryShare`, capacity = `StochasticAmmoWeight` (1000 rounds) × the share; the same Green / Amber thresholds as a roster; Unknown only when TryShare is false (closes finding F-1) | agg-backend giving the slot a real capacity |
+| **R-8315** | `CommandOrders.Route` gains a TWO-payload overload (kind, neutralJson, physicalPlay, physicalJson; revises R-8305): the physical path stays byte-identical where its JSON differs from the neutral one (SquadMarch, PlatoonSupportByFire); Defend / BreakContact keep the one-payload form. Flipped sites: CompanyDefend counter-attack, CompanyAttack arms, PlatoonAttack arms, SupportByFireBehavior squads, UrbanMovement SquadMarch (kind March, `MoveOrder` — closes F-6). Recover and the platform sites stay Assign | a site whose two payloads converge |
+| **R-8316** | `AttackOrder` gains `Position`, `SearchRadius`, `Speed`, `HoldBack`; "Target OR Position" is `[RequiredAnyOf]` (`OrderMenu.MissingIn` / `PickOf` extended; the map menu still picks the entity); `OrderKind.SupportByFire` added. The physical attack plays accept the new fields strictly and do not use them — the CE2079 rail lists them as accepted-unused for physical plays only | a physical play reading a position attack |
+| **R-8317** | the SOP's UNDER-FIRE row spares an Attack as it spares a Defend (`StochasticUnitSop.HoldsItsGround`): else every attacker breaks contact at the first round; the attack fails the order itself when the unit breaks | an attack that should be broken off by the SOP |
+| **R-8318** | success is judged only once AT the objective, with no STANDING stochastic enemy within the search radius among the ordered target and the unit's own REPORTED contacts; failure when the attacker itself is no longer standing | judging on the whole contact pool |
+
+**As built — ST-3**
+
+| what | where | deviation |
+|---|---|---|
+| `StochasticUnitAttack` (Params `AttackOrder`, Fulfils Attack; HoldBack = support by fire) | `Brains/StochasticUnitAttackBehavior.cs` | — |
+| line depth for Line / Assault steps | `Brains/StochasticUnitMovePlays.cs` `Step` | — |
+| the two-payload Route, `StillRoutedRunning`, `GaveRouted` | `Brains/CommandNodes.cs` | — |
+| neutral Attack DTO + `[RequiredAnyOf]` | `Orders/OrderDtos.cs`, `OrderAttribute.cs`, `Common/Orders/OrderMenu.cs`, the Editor debug API + schema extractor | — |
+| AmmoOf for a stochastic unit | `StaffSystems.cs` `StaffComposerSystem.Rounds` (+ `UnitHoldings` a declared stable read) | — |
+| SPOT of a wiped-out stochastic enemy | `Perception/ThreatDanger.cs` `IsOutOfTheFight` stochastic arm | found by building the rail |
+| F-8 | agg-backend's phase A fires every live system at every reported contact in range, moving or not: no base-of-fire share input, so "fires while approaching" is automatic and HoldBack changes only the movement | — |
+| acceptance | `SquadManeuverTests.AggregateAttack.cs`: a DIRECT order (not company-routed) from the commander over a stochastic defender; routing rails use the Company / Platoon fixtures | the company-routed acceptance is not built |
+
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 
 🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —

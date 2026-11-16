@@ -23,7 +23,8 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 | ST-0 (the whole slice) | ✅ done — except ⛔ the SITREP ammo colour (finding F-1) | | the acceptance rail, plain and `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | |
 | ST-1 (`StochasticUnitMove`, Defend's approach, R-8307/8308) | ✅ built | see git | `ST1_*` ×6 (acceptance: arrival within ±10 % of `PredictSeconds`) | §23.5 |
 | ST-2 (`StochasticUnitBreakContact`, `StochasticUnitSop`, `StochasticUnitHold`, the ingress seam; R-8309…8311) | ✅ built | see git | `ST2_*` ×5 (acceptance: under fire it breaks contact) | §23.5 |
-| ST-3 … ST-5 | ⏳ | | | |
+| ST-3 (`StochasticUnitAttack`, the two-payload Route + the flipped sites, `AttackOrder` Position, AmmoOf, SPOT; R-8312…8318) | ✅ built | see git | `ST3_*` ×16 (acceptance: approaches, PhaseLine, fights, outcome agrees with the slots; HoldBack; not secured while an enemy stands) · red-proofs: HoldBack ignored ⇒ 1 red · success ignoring the defender ⇒ 1 red · SOP not sparing Attack ⇒ 2 red · Route sending the neutral json to a physical member ⇒ 1 red | §23.5 |
+| ST-4 … ST-5 | ⏳ | | | |
 
 ## 2. Lane decisions (for the user's review)
 
@@ -47,9 +48,16 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 | `dotnet test Hrot.Editor.Tests` order / behaviour / picker | yes | 97 / 2 — `H5_…` pre-existing, `CE4350…` golden stale (F-3) |
 | `dotnet test Hrot.Presentation.Tests` menu / order / task | yes | 166 / 0 |
 
+| **ST-3** — `dotnet test Hrot.SimHost.Tests --filter SquadManeuverTests\|BehaviorParamsValidationTests\|Aggregate\|ResolutionRouting\|StochasticUnit\|TacticalIntent\|SopParamsRoundTrip\|CommanderNodes\|Staff\|BehaviorParamsSweep\|CgfBehaviorSetup` | yes (SimHost.Tests built) | 384 / 0 plain AND `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` |
+| ST-3 whole `Hrot.SimHost.Tests` | yes | 2876 / 22 plain: ours = `SopParamsRoundTripTests.CE2079` (fixed, green); `BehaviourHostingSnapshotTests.CE1431` ⛔ NOT regenerated — the diff holds `AnimalHsm` (CE-4623, another lane) besides our 6 StochasticUnit* rows; the rest pre-existing (OneBootstrap, EpisodeLoad ×5 / ReferencePreview ×11 / LoadPhaseChain pass alone, CE4208, UtmEverywhere) |
+| ST-3 `Hrot.Editor.Tests` | yes | 938 / 6, none ours: CE4350 golden (F-3, + `AirSense`), `LiveBlackboardValueProviderTests` CE1412 / CE1430, `E2_…Terrain`, `TheOneSpawnAdapterConstruction…`, `H5_…` — all fail on messages that do not name the Attack order; `OrderVocabularyTests` green |
+| ST-3 `Hrot.Core.Tests` | yes | 380 / 0 |
+| ST-3 `Fdp.Toolkits.Tests` | yes | 5191 / 8 — the S0 rails (bare Vector3 / NodeId / Seconds members of other types, none `AttackOrder`), `PredicateCompilerLevel…`, `MissionDirector…` — pre-existing (F-4); not re-proved at the base sha |
+| ST-3 `Hrot.Presentation.Tests` | yes | 1994 / 3 — `EntityTypeCatalogTests.CE4271` atlas, `Map3DTests` CE1309 / CE1086, unrelated to orders; menu goldens unchanged |
+
 ## 4. Ids allocated
 
-R-8300…R-8311 (R-8307 arrival radius / line depth; R-8308 retries; R-8309 break point; R-8310 the SOP rows; R-8311 the SOP seam; R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
+R-8300…R-8318 (R-8312 assault 100 m; R-8313 search radius 75 m; R-8314 the ammo share; R-8315 two-payload Route; R-8316 AttackOrder fields; R-8317 the SOP spares an attack; R-8318 success judged at the objective; R-8307 arrival radius / line depth; R-8308 retries; R-8309 break point; R-8310 the SOP rows; R-8311 the SOP seam; R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
 
 ## 5. Findings
 
@@ -61,4 +69,6 @@ R-8300…R-8311 (R-8307 arrival radius / line depth; R-8308 retries; R-8309 brea
 | F-4 | pre-existing reds, not touched: `TheTaskPickerTests.H5_…`, the `S0*RailTests` (Terrain / Orchestration / ReplayBrowser members), `BTreeHostsBTreeTests.U0_R5_…` + `MissionDirector…` + gizmo alloc rails (Toolkits); under the parallel env `HoldTheLine…CE2241`, `TacticsTrees…CE3170`, `StationWeapon…CE2238` ×2; `LoadPhaseChainTests.CE3345` flaky (green alone) | their lanes |
 | F-5 | ST-2: the SOP is substituted when the template SOP is ASSIGNED; a unit that becomes stochastic LATER (a merge, ST-5) keeps its physical SOP until something re-assigns it | ST-5 (the merge must publish the table's SOP) |
 | F-6 | `March` / `Dash` resolve to `StochasticUnitMove` but carry `SquadMarch`-shaped JSON, which the strict `MoveOrder` parse refuses (R-8303 increment 2: a neutral March DTO) | agg-behaviors increment 2 |
+| F-8 | agg-backend's phase A fires every live system at every reported contact in range, moving or not — no base-of-fire share input; HoldBack changes only the movement | agg-backend, if a share is wanted |
+| F-1, F-6 | RESOLVED in ST-3 (R-8314 ammo; R-8315 the March `MoveOrder`) | — |
 | F-7 | the staff also reports Set / TaskFailed when a commander's TASK ends, so a Move play's own Set duplicates it (same kind, newest wins) — harmless; the play reports explicitly so it holds without a staff | — |
