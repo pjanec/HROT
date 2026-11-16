@@ -8,7 +8,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: minefields, the BEHAVIOURS (CE-4624, slices MS-B1…MS-B4)
 
-**For:** the `behaviors` lane. **From:** coordinator. **Dispatched at `8b02d1a2a`, ⭐ RE-STAMPED at `<RESTAMP>`** *(rule 1a: amended before the lane started — §0a added)*; ⛔ scope FROZEN there — later documents are FYI; one that
+**For:** the `behaviors` lane. **From:** coordinator. **Dispatched at `8b02d1a2a`, ⭐ RE-STAMPED at `b0393bbbb`** *(rule 1a: amended before the lane started — §0a added)*; ⛔ scope FROZEN there — later documents are FYI; one that
 invalidates a slice ⇒ STOP that slice, do the rest (R-106).
 
 🔒 User, `2026-11-16`: *"approved both, fold it in and write the handoffs to the lanes that are free"* · decisions R-4270…R-4274.
