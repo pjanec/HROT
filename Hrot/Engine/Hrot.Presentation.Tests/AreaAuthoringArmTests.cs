@@ -527,4 +527,50 @@ public sealed class AreaAuthoringArmTests
             return (localPos.Y / 2.0, localPos.X / 2.0, localPos.Z);
         }
     }
+
+    // ── ⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — a terrain line / area stays armed after a finish ──────────────────────────────
+
+    /// <summary>A REPEATING request commits each shape, stays armed with the SAME gizmo, calls the repeat hook (a new seed) after each, and the first Esc
+    /// drops a half-drawn shape while the second disarms. 🔴 Red-proof (compiles): <c>PointSequenceGizmo.Resolve</c> ignoring <c>Repeat</c> ⇒ the second
+    /// commit never happens and the gizmo is gone.</summary>
+    [Fact]
+    public void TE2_ARepeatingRequest_CommitsEachShape_StaysArmed_RenewsPerShape_AndEscDropsTheShapeThenDisarms()
+    {
+        var manager = MakeManager();
+        var arm = new AreaAuthoringArm(manager);
+        int commits = 0, repeats = 0, disarmed = 0;
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainFeature), string.Empty, _ => commits++,
+            MinPoints: 2, OnDisarmed: () => disarmed++, Closed: false, Repeat: true, OnRepeated: () => repeats++));
+        var first = arm.ActiveGizmo;
+
+        Commit(arm, ThreePoints);
+        Commit(arm, ThreePoints);
+        Assert.Equal(2, commits);
+        Assert.Equal(2, repeats);
+        Assert.Same(first, arm.ActiveGizmo);          // the same tool, still armed
+        Assert.Equal(0, disarmed);
+
+        var g = arm.ActiveGizmo!;
+        g.OnDragUpdate(new Vector3(1f, 1f, 0f)); g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(1f, 1f, 0f));
+        g.OnKeyEvent(MapKeyboardKey.Escape, true);    // 1st Esc: the half-drawn shape goes, the tool stays
+        Assert.NotNull(arm.ActiveGizmo);
+        Assert.Equal(0, ((Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo)arm.ActiveGizmo!).Session.Points.Count);
+        Assert.Equal(0, disarmed);
+        arm.ActiveGizmo!.OnKeyEvent(MapKeyboardKey.Escape, true);   // 2nd Esc: the tool stops
+        Assert.Equal(1, disarmed);
+        Assert.Equal(2, commits);
+    }
+
+    /// <summary>The D11 tool is unchanged: without <c>Repeat</c> a finish ends it and one Esc cancels.</summary>
+    [Fact]
+    public void TE2_ANonRepeatingRequest_StillEndsOnFinish()
+    {
+        var manager = MakeManager();
+        var arm = new AreaAuthoringArm(manager);
+        int disarmed = 0;
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area), string.Empty, _ => { }, OnDisarmed: () => disarmed++));
+        Commit(arm, ThreePoints);
+        Assert.Equal(1, disarmed);
+        Assert.Null(arm.ActiveGizmo);
+    }
 }

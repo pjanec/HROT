@@ -44,6 +44,12 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// shape's tint of the height change). Null = nothing (every other tool). ⛔ It runs every frame — the callback must not allocate (R-2084).
     /// </summary>
     public Action<IDebugDrawBuilder, IReadOnlyList<Vector2>>? Underlay { get; set; }
+    /// <summary>⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — after a finish the tool stays armed for the next shape (a terrain line / area); Esc then drops the
+    /// shape in progress first (<see cref="ShapeEditSession.EscDropsShapeFirst"/>). False = the D11 tool: a finish ends it.</summary>
+    public bool Repeat { get => _repeat; set { _repeat = value; Session.EscDropsShapeFirst = value; } }
+    private bool _repeat;
+    /// <summary>⭐ TE-2 — called after each repeated finish (the host rolls a new seed for the next shape).</summary>
+    public Action? OnRepeat { get; set; }
 
     /// <inheritdoc/>
     public string? ToolMenuJson => Session.Menu?.Json;
@@ -170,7 +176,9 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
         if (outcome == ShapeOutcome.Finished)
         {
             _onFinish(Session.ToArray());
-            _onRemove();
+            // ⭐ CE-5006 TE-2 — a REPEATING tool stays armed: the next shape starts at once (the host renews what the next one is born with)
+            if (Repeat) { Session.Restart(); OnRepeat?.Invoke(); }
+            else _onRemove();
         }
         else if (outcome == ShapeOutcome.Cancelled)
         {

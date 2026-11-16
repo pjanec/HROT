@@ -247,6 +247,20 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 (the scatter's seeded in-polygon rejection sampling, extracted — `Scatter` and the Group both call it). A rail hashes every shipped block recipe (3 seeds) and a fixed-seed scatter, captured BEFORE the refactor: identical. Shipped `street-clutter` and `undergrowth` scatter recipes;
 deviation: `TerrainPickCatalog.Build` no longer lists a scatter-only recipe (no houses / woods / elements) as a Block tile — it is the scatter tool's — and the two picker rails that assumed "every recipe is a tile / no scatter shipped" were updated. The Row / Group authoring tools (the picks, S-2's UI half) are not built here.
 
+### As built — S-1 (CE-5006) *(terrain lane `2026-11-16`; the Sonnet worker built W1 / W2, the lane built W3 and TE-2, every piece reviewed)*
+
+| piece | as built | where |
+|---|---|---|
+| the shared strip | `ToolStripWindow` (a `ManagedWindow`): entries laid out by `ToolStripLayout.Compute` from its own client size — a COLUMN when taller than wide, else a ROW, wrapping; framed `glyph_toggle` tiles (≈ 30 × 26, lit = framed bright), a family = one tile with a ▾ mark opening a vertical list (glyph · label · ✓); no title-bar pin (`ManagedWindow.ShowPinButton`) | `Fdp.Presentation/ImGui/WindowManager/` |
+| the split widget | `SplitArrow` — ▾ + a ✓ list + trailing actions; the ▶ / ▾ preset picker now uses it (behaviour unchanged) | `Fdp.Presentation/ImGui/Icons/SplitArrow.cs` |
+| the toolbars | *Scenario tools* (Add Entity ▾ Friendly · Hostile · Neutral · Map graphic — the existing handlers 203-206; Measure 200), *Terrain* (Wood · Trees · Walls · Obstacles — obstacle ENTITIES, R-4264 · Earthworks · Water · Scatter); the old Editor Toolbar deleted | `Hrot.Editor/Windows/EditorToolStrips.cs` |
+| the main toolbar | the *Toolbars* split icon (95) and the *Tactical Map Layers* toggle (96, `LayerControlGizmo.IsEditing`); *Rebuild & Reload Behaviours* moved to a new AI menu | `EditorToolbarsSection` |
+| the key (TE-17 / 18) | `Fdp.Toolkit.Terrain.TerrainLock` — ONE predicate read by `EcsSelectionState.Write`, the hover, `MapMenuActions.JsonFor`, `TerrainBlockGizmo` and the entity symbol of a feature / block (a placed obstacle keeps its symbol); ONE writer per frame: `TerrainLock.SetOpen(world, terrainStrip.IsOpen && BelongsTo(current perspective))` | `TerrainLock.cs`, `EditorSubsystem` |
+| sticky tools (TE-2) | `AreaAuthoringRequest.Repeat` (terrain features only): `PointSequenceGizmo` restarts its session after a finish and calls `OnRepeated` (the draw options' `Reroll` — a new seed); `ShapeEditSession.EscDropsShapeFirst`: the first Esc drops the shape, the second disarms | `AreaAuthoringArm.cs`, `PointSequenceGizmo.cs`, `ShapeEditSession.cs` |
+| ⚠ deviations | a new top-level AI menu (the editor had none); the main-toolbar icons are plain glyph toggles, not tiles; the family list is unframed menu rows | — |
+
+Rails: `ToolStripLayoutTests`, `IconWidgetsTests` (SplitArrow), `EditorToolStripsTests`, `EditorToolbarsSectionTests`, `TerrainLockTests`, `AreaAuthoringArmTests.TE2_*`, `ShapeEditSessionTests.TE2_*` — each red-proved.
+
 ## 7. Acceptance
 
 1. Three hedges are drawn after ONE click on the row's *Walls*; each has its own seed; one Esc drops a half-drawn hedge, a second disarms; the row lights *Walls* while armed.

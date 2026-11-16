@@ -427,7 +427,10 @@ namespace Hrot.UI.Common.Adapters
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
-                OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; }));
+                OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; },
+                // ⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — a terrain line / area stays armed after a finish, with what the panel holds and a NEW seed each time
+                Repeat:     drawOptions is not null,
+                OnRepeated: drawOptions is null ? null : drawOptions.Reroll));
 
             _activeSequenceId = arm.ActiveGizmoId;
             _terrainDraw = drawOptions;   // ⭐ after the arm: arming first disarms the previous tool, whose OnDisarmed clears the field
