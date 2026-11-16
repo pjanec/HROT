@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — AN-1…AN-16 APPROVED with the user's changes (R-4266, R-4267); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: DESIGN — OPEN (the user is still adding): AN-1…AN-16 approved (R-4266, R-4267); AN-17 / AN-18 pigs, goats, enclosed areas (user request, the frightened behaviour a lean); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
 current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
 stale-below: nothing
 known-rot: none
@@ -54,6 +54,8 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | species | default | frightened by | when frightened | special |
 |---|---|---|---|---|
 | **hens** | peck and wander inside their area | people near, vehicles, any shot | run, or a short low flutter | AN-15 |
+| **pigs** | root and wander in their pen, lie in mud / shade | shots, blasts, vehicles, people entering the pen | SQUEAL (a sound), bunch together and crowd into the far corner of the pen or into its shed — they cannot breach the pen | AN-17 |
+| **goats** | browse, wander, climb onto anything raised (rocks, low walls, a shed roof) | the same | scatter (less cohesive than sheep), leap onto high ground inside the enclosure; in an OPEN area they jump low obstacles and flee | AN-17 |
 | **cattle** | graze slowly in a pasture, a loose herd | blasts, gunfire, heavy vehicles (the engine sound), people close | the herd runs AWAY, breaks a weak fence if in its way, stops when far enough, seeks grass away from roads, returns to grazing | big: AN-7 |
 | **sheep** | graze in a TIGHT herd, move as one | the same, more easily | flee as one tight mass | cohesion high |
 | **herd horses** | as cattle, faster, more skittish | the same | flee fast, far | — |
@@ -84,6 +86,8 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-14** | the cats' perches | sills and parapets of ground-floor windows from the building layout; a hop between sill and ground (the same jump link as AN-13, a small one) | shares the jump mechanism |
 | **AN-15** | hens (domestic poultry) | ⭐ a new species: pecking at the ground and wandering inside their area; frightened ⇒ RUN, or a very LOW, SHORT flutter-flight (a few metres, ~1 m up) where running is blocked; calm ⇒ back to pecking | 🔒 user: *"hens … picking something from the ground … a very low and short flight … or they simply try to run away"* |
 | **AN-16** | ⭐ the DOMESTIC ANIMAL AREA | ⭐ a CLOSED POLYLINE the author draws (a scenario area, like the checkpoint's lines) with a species and a count (cattle, horses, sheep, hens …, mixed allowed) and a seed: at scenario start it is POPULATED automatically — N animal entities placed inside by the seed, each with a stable key (`<area>/<n>`, the same identity rule as split-created soldiers) and the area as its HOME. They stay inside by behaviour (fence or not); frightened they may leave (and break a small fence, AN-7); calm again they return to their area. The area is also their grazing ground | 🔒 user: *"some zone which is populated automatically by those domestic animals … they will try to stay inside unless frightened … Defined by polyline, closed one"* · the save stores the AREA; the animals are made from it (and recorded once made) |
+| **AN-17** | pigs and goats | ⭐ two more domestic species for the animal area: **pigs** squeal (a sound others hear), bunch and crowd into the far corner or the shed when frightened; **goats** scatter and leap onto raised ground (the jump link, small), and in an open area jump low obstacles and flee | 🔒 user: *"Also add pigs and goats to the domestic animal area … pigs are in some close area that they cannot breach on their own, and the same for goats"* · ⚠ the frightened behaviour is a coordinator lean (the user was unsure) |
+| **AN-18** | an ENCLOSED area (a pen, a sty, a goat yard) | ⭐ the domestic animal area (AN-16) gets an option **Enclosed**: its animals NEVER leave it, frightened or not (AN-7's fence breaking does not apply to its boundary); frightened, they flee INSIDE it — to the part farthest from the threat, or into its shelter if it has one. Pigs' and goats' areas default to Enclosed; cattle, horses, sheep and hens default to open | 🔒 user: *"they cannot breach on their own"*; one option instead of per-species rules |
 | **AN-12** | destructible, neutral | every animal has Health, injury states, the dead figure; hit by fire, blasts, vehicles (RM-1); a NEUTRAL side — soldiers do not target animals unless attacked (the dog) or ordered | 🔒 user: *"destructible the same way"* |
 
 ## 4a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
@@ -101,6 +105,8 @@ categories ≥ 200 are used nowhere (people are `3.1.*.1–3`); no class named f
 | **705** | `Animal_Dog` | 3 · 1 · 0 · **203** · 1 | `"Dog"` = `3.1.*.203` | `VisualFamily.Dog` |
 | **706** | `Animal_Cat` | 3 · 1 · 0 · **204** · 1 | `"Cat"` = `3.1.*.204` | `VisualFamily.Cat` |
 | **709** | `Animal_Hen` | 3 · 1 · 0 · **206** · 1 | `"Poultry"` = `3.1.*.206` | `VisualFamily.Poultry` |
+| **710** | `Animal_Pig` | 3 · 1 · 0 · **207** · 1 | `"Pig"` = `3.1.*.207` | `VisualFamily.Pig` |
+| **711** | `Animal_Goat` | 3 · 1 · 0 · **208** · 1 | `"Goat"` = `3.1.*.208` | `VisualFamily.Goat` |
 | **707** | `Animal_BirdFlock` | 3 · **2 (air)** · 0 · **205** · 2 | `"Bird"` = `3.2.*.205` | `VisualFamily.Bird` (N birds) |
 | **708** | `Animal_Bird` | 3 · 2 · 0 · **205** · 1 | `"Bird"` | `VisualFamily.Bird` |
 
@@ -232,4 +238,4 @@ run on.*
 | AN-S4 | horses: herd horses and the riding / war horse (seats, possession, gaits) | backend + ui |
 | AN-S5 | the fence breach (if AN-7 is approved) | backend |
 | AN-S6 | cats (included) | behaviors + ui |
-| AN-S7 | hens + the domestic animal area (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
+| AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
