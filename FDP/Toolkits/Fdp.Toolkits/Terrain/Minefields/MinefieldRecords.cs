@@ -22,11 +22,17 @@ namespace Fdp.Toolkit.Terrain
         protected override Guid KeyOf(in StrikeItem item) => item.Field;
         protected override MinefieldStrikes NewRecord(in Guid key, int existing) => new() { Field = key, Chunk = (ushort)existing };
 
-        protected override void ReadItems(EntityRepository repo, List<StrikeItem> into)
+        protected override unsafe void ReadItems(EntityRepository repo, List<StrikeItem> into)
         {
-            if (!repo.Bus.IsRegistered<MineStruck>() || !repo.IsComponentTypeRegistered<EntityGuid>()) return;
-            foreach (ref readonly var s in repo.Bus.Read<MineStruck>())
-                if (MinefieldIds.TryGuid(repo, s.Field, out var g)) into.Add(new StrikeItem(g, s.Row, s.Col, MineGone.Struck));
+            if (!repo.IsComponentTypeRegistered<EntityGuid>()) return;
+            if (repo.Bus.IsRegistered<MineStruck>())
+                foreach (ref readonly var s in repo.Bus.Read<MineStruck>())
+                    if (MinefieldIds.TryGuid(repo, s.Field, out var g)) into.Add(new StrikeItem(g, s.Row, s.Col, MineGone.Struck));
+            // ⭐ CE-4624 MS-T4 (MR-15) — mines a plough / flail / line charge cleared: gone for everybody, taught to nobody
+            if (repo.Bus.IsRegistered<MinesCleared>())
+                foreach (ref readonly var c in repo.Bus.Read<MinesCleared>())
+                    if (MinefieldIds.TryGuid(repo, c.Field, out var g))
+                        for (int i = 0; i < c.Count && i < MinesCleared.MaxMines; i++) into.Add(new StrikeItem(g, c.Row[i], c.Col[i], MineGone.Cleared));
         }
 
         /// <summary>True when mine (<paramref name="row"/>, <paramref name="col"/>) of <paramref name="field"/> is in any node's strikes record (the union — a mine goes off once).</summary>

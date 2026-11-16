@@ -442,6 +442,7 @@ namespace Hrot.Core.Tkb
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
+                [TkbMineAntiPersonnel] = 10, [TkbMineAntiTank] = 60, [TkbLineCharge] = 400,           // ⭐ CE-4624 — the mines and the line charge (rule order: a mine a few small-arms rounds' worth, a charge in the hundreds)
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds

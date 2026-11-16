@@ -166,6 +166,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.LaneCleared>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinesCleared>();   // ⭐ CE-4624 MS-T4 (MR-15) — mines a plough / flail / line charge cleared (the strikes writer reads it as Cleared)
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();

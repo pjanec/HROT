@@ -67,6 +67,16 @@ bind. The behaviour of the read API arrives slice by slice (MS-T1 … MS-T4) —
 | ⭐ the `Minefield` danger area | `DangerAlongRouteSolve` reports ONE area per field the unit's side knows on its route: `Center` = the entry, `NearSideHandle` = the last safe point (halt there). Ask with `DangerAreaKinds.Minefield` | behaviors (MS-B4) |
 | writers | `PlaceKnowledgeSystem` on the SimHost AND the CGF node; raise `MinefieldCellsSwept` / `MinefieldMarked` from a brain through the batch buffer | behaviors (MS-B2) |
 
+## ⭐ Added with the muscle and the save (`2026-11-16`)
+
+| what | value / shape | for |
+|---|---|---|
+| event `MinesCleared` | **5109** — `Entity Field`, `byte Count`, ≤ 16 × (`short Row`, `short Col`) — a plough / flail / line charge cleared mines; recorded as `MineGone.Cleared`, teaches nobody | the strikes writer (terrain) |
+| the clearer's lane | one `LaneCleared { Lane = 255, SidePlus1 = ForceId + 1, A = entry, B = exit, Width }` per field the hull crossed (raised by the Muscle, not the brain) | ui (draw), the navmesh |
+| `MineClearing` at birth | TKB 116 carries NONE: the `ClearLane` brain adds it on its first order (the dozer's `BladeCut` pattern) | behaviors (MS-B3) |
+| scenario file | a top-level `Knowledge` section — `"<guid>\|<side+1>\|<kind>\|<chunk>"` cells, `"<guid>\|strikes"`, `"<guid>\|lanes"` | ui (a save is written for you) |
+| navmesh | areas 5 (field), **6** (field over a wood), **7** (field over a crater); the side's price is read at query time from `DoorStates.Knowledge` (×200 known-mined, ×20 suspected) | behaviors: nothing to do |
+
 ## What changes when
 
 MS-T1 the field type, trigger, strikes, bursts, armour bottom · MS-T2 the knowledge writer + the real `PlaceKnowledgeTable` (on `DoorStates`) +

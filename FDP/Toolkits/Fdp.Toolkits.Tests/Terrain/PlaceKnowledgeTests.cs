@@ -34,7 +34,7 @@ namespace Fdp.Toolkit.Terrain.Tests
                 W.RegisterComponent<SimTransform>(); W.RegisterComponent<Health>(); W.RegisterComponent<EntityInfo>(); W.RegisterComponent<EntityGuid>();
                 W.RegisterComponent<Minefield>(); W.RegisterComponent<MinefieldKnowledge>(); W.RegisterComponent<MinefieldStrikes>(); W.RegisterComponent<NetworkAuthority>();
                 W.RegisterManagedComponent<TestAreaOutline>();
-                W.RegisterEvent<MineStruck>(); W.RegisterEvent<MinefieldCellsSwept>(); W.RegisterEvent<MinefieldMarked>(); W.RegisterEvent<LaneCleared>();
+                W.RegisterEvent<MineStruck>(); W.RegisterEvent<MinefieldCellsSwept>(); W.RegisterEvent<MinefieldMarked>(); W.RegisterEvent<LaneCleared>(); W.RegisterEvent<MinesCleared>();
                 Field = W.CreateEntity();
                 W.AddComponent(Field, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
                 W.AddComponent(Field, new Minefield { Type = MineType.AntiPersonnel, SpacingM = 5f, KnownAtStartSides = knownAtStart });
@@ -258,6 +258,33 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(new Vector2(-100, 0), got[0].A);
             Assert.Equal(4.5f, got[0].Width);
             Assert.Equal(Blue + 1, got[0].SidePlus1);
+        }
+
+        /// <summary>
+        /// ⭐ MS-T4 (MR-15) — mines a plough / flail / line charge CLEARED are recorded as <c>Cleared</c> in the field's strikes (gone for every node and a fresh trigger) and TEACH NOBODY: no knowledge record, no suspected cell.
+        /// 🔴 Red-proof: read <c>MinesCleared</c> as a <c>MineStruck</c> (the strike path) ⇒ the knowledge table gains a record ⇒ red; drop the read ⇒ not recorded ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void AMinesCleared_IsRecordedAsCleared_AndTeachesNobody()
+        {
+            var rig = new Rig();
+            rig.Man(Blue, new Vector2(0, 0));   // a living witness right there: a STRIKE would teach him
+            var ev = new MinesCleared { Field = rig.Field, Count = 3 };
+            ev.Row[0] = 0; ev.Col[0] = 0; ev.Row[1] = 2; ev.Col[1] = -3; ev.Row[2] = -1; ev.Col[2] = 5;
+            rig.W.Bus.Publish(ev);
+            rig.Frame();
+            Assert.True(MinefieldStrikesSystem.IsGone(rig.W, FieldGuid, 0, 0));
+            Assert.True(MinefieldStrikesSystem.IsGone(rig.W, FieldGuid, 2, -3));
+            Assert.True(MinefieldStrikesSystem.IsGone(rig.W, FieldGuid, -1, 5));
+            Assert.False(MinefieldStrikesSystem.IsGone(rig.W, FieldGuid, 0, 1));
+            foreach (var e in rig.W.Query().With<MinefieldStrikes>().Build())
+            {
+                var s = rig.W.GetComponentRO<MinefieldStrikes>(e);
+                for (int i = 0; i < s.Count; i++) Assert.Equal(MineGone.Cleared, s.Get(i).How);
+            }
+            var t = PlaceKnowledgeTable.Of(rig.W);
+            Assert.Equal(0, t.RecordCount);
+            Assert.Equal(MineCellKnowledge.Unknown, rig.At(Blue, new Vector2(0, 0)));
         }
 }
 }

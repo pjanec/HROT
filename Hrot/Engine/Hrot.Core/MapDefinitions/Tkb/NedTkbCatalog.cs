@@ -844,6 +844,50 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 1 });
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4624</c> (minefields MS-T4, DESIGN_Minefields.md MF-9, §3a) — the MINE-CLEARING VEHICLE, TKB 116: an engineering tank (a heavier tracked utility vehicle than the dozer — a plough, a flail and a line-charge
+        /// launcher are hung on it), NO weapon. Class <c>MineClearer</c> 1.1.*.9.2 (beside the dozer's 1.1.*.9.1). The brain (<c>ClearLane</c>, behaviors' MS-B3) adds and drives its
+        /// <see cref="Fdp.Toolkit.Terrain.MineClearing"/> marker exactly as the dozer's brain adds <c>BladeCut</c> (the type carries none until its first order); the MUSCLE (<c>MineTriggerSystem</c>) clears. The kit (plough / flail
+        /// / launcher meshes, the loop sound) is ui's MS-U4.
+        /// <para>🛡 Heavier than the dozer (58 t against 49 t): 70 mm front, 50 sides and rear, 40 roof, health 1500; blast susceptibility 0.1 so a mine's burst under the hull stays survivable (the AT mine's 250 damage ×
+        /// 6 hits, not 1). Starter numbers — the engine decides nothing by them but the "heavier than the dozer" order and the armour law.</para>
+        /// </summary>
+        private static void DefineMineClearer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Engineer_MineClearer;
+            builder
+                .DefineVehicle(type, "Mine Clearer (engineer tank)")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPEVEM-------";   // 2525B ground equipment · vehicle · engineer · mine clearing
+                    v.ColorHex = "#8C7A3A";             // dull olive
+                    v.Scale = 1.2f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 58_000;
+                    p.Length = 9.0f;   // with the plough / flail boom
+                    p.Width = 4.4f;
+                    p.Height = 3.2f;
+                    p.MaxSpeed = 9.0f; p.MaxSpeedRev = 4.5f; p.Acceleration = 1.0f; p.TurnRate = 25f;   // it drives the lane at the tool's pace (the brain), not at this
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 70; c.ArmorSide = 50; c.ArmorRear = 50; c.ArmorTop = 40;
+                    c.MaxHealth = 1500;
+                    c.BlastSusceptibility = 0.1f;
+                    c.EyeHeight = 2.8f;
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 2 = the mine clearer (HROT, EntityClassTable "MineClearer")
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 2 });
+        }
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -1294,6 +1338,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   brain (nothing could release their flares), so they carry none yet.
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
+            DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
