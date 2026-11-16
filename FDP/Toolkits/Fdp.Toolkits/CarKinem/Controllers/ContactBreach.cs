@@ -51,7 +51,21 @@ namespace Fdp.Toolkit.Terrain
             public bool Animal { get; init; }
             /// <summary>⭐ CE-4629 — the row is taken only by a vehicle whose DIS type matches this pattern (<c>kind.domain.country.category.subcategory</c>, <c>*</c> any) — the
             /// bulldozer's own row (1.1.*.9.1). Null: any vehicle.</summary>
-            public string? Dis { get; init; }
+            public string? Dis { get => _dis; init { _dis = value; _disParts = ParseDis(value); } }
+            private readonly string? _dis;
+            private readonly int[]? _disParts;   // parsed once (−1 = any): the contact rule runs every frame a hull is held — never a Split per call (R-2084)
+
+            private static int[]? ParseDis(string? pattern)
+            {
+                if (string.IsNullOrEmpty(pattern)) return null;
+                var parts = pattern.Split('.');
+                var r = new int[parts.Length];
+                for (int i = 0; i < parts.Length; i++)
+                    r[i] = parts[i] == "*" ? -1
+                        : int.TryParse(parts[i], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int v) ? v
+                        : throw new FormatException($"contact-breach.json: '{pattern}' is not a DIS pattern (kind.domain.country.category.subcategory, * any).");
+                return r;
+            }
             /// <summary>⭐ CE-4629 — a BLADE: a building wall it bumps opens a passage of the blade's width (hull width + the cut margin each side) and the wall's full height,
             /// centred on the hull (never door-sized); the hull is still held outside (B-D4, R-3025).</summary>
             public bool Blade { get; init; }
@@ -59,11 +73,10 @@ namespace Fdp.Toolkit.Terrain
             /// <summary>True when <paramref name="dis"/> matches <see cref="Dis"/> (always when the row names none).</summary>
             public bool MatchesDis(Fdp.Core.DISEntityType dis)
             {
-                if (string.IsNullOrEmpty(Dis)) return true;
-                var parts = Dis.Split('.');
+                if (_disParts == null) return true;
                 Span<int> have = stackalloc int[] { dis.Kind, dis.Domain, dis.Country, dis.Category, dis.Subcategory, dis.Specific, dis.Extra };
-                for (int i = 0; i < parts.Length && i < have.Length; i++)
-                    if (parts[i] != "*" && (!int.TryParse(parts[i], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int v) || v != have[i])) return false;
+                for (int i = 0; i < _disParts.Length && i < have.Length; i++)
+                    if (_disParts[i] >= 0 && _disParts[i] != have[i]) return false;
                 return true;
             }
         }
@@ -108,7 +121,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ CE-4629 — the first row the vehicle qualifies for, its DIS type matched against a row's <see cref="Row.Dis"/> (the bulldozer's row).</summary>
         public Row? For(bool tracked, float massKg, bool animal, Fdp.Core.DISEntityType dis)
         {
-            foreach (var r in Rows) if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg && r.MatchesDis(dis)) return r;
+            // ⭐ R-2084 — an INDEX loop: called every frame a possessed hull is held at a barrier; a foreach over the IReadOnlyList interface boxed an enumerator (40 B a frame, measured)
+            var rows = Rows;
+            for (int i = 0; i < rows.Count; i++) { var r = rows[i]; if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg && r.MatchesDis(dis)) return r; }
             return null;
         }
     }

@@ -2854,6 +2854,31 @@ namespace CarKinem.Tests.Systems
             tank.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4629</c> (R-2084) — a bulldozer HELD at a building wall after its bump runs the contact rule every frame (its row matched by DIS type): steady frames
+        /// allocate 0 B — possessed or not, dozer row or tank row. 📐 It caught a pre-existing 40 B a frame: <c>ContactBreachTable.For</c>'s foreach over the <c>IReadOnlyList</c> interface (CE-4600). 🔴 Red-proof: that foreach again ⇒ 2400 B over 60 frames.
+        /// </summary>
+        [Theory]
+        [InlineData(true, true)]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        public void CE4629_ABulldozerHeldAtAWall_AllocatesNothing_PerSteadyFrame(bool dozer, bool possessed)
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);
+            ref var vp = ref repo.GetComponentRW<VehicleParams>(e); vp.Width = 4.3f; vp.Length = 8f;
+            if (dozer) repo.SetDisType(e, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            if (!possessed) repo.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(e);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < 8 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); repo.Bus.SwapBuffers(); }   // bumped, held, the grace run out
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++) kin.Execute(repo, 1f / 60f);
+            long bytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X + 4f <= 15f - 0.15f + 0.05f, "held at the wall");
+            Assert.Equal(0L, bytes);
+            repo.Dispose();
+        }
+
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
         private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
