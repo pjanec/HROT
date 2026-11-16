@@ -196,6 +196,27 @@ namespace Hrot.Editor.Tests.Adapters
 
         private sealed class FloatNear : IEqualityComparer<float> { public bool Equals(float a, float b) => Math.Abs(a - b) < 0.01f; public int GetHashCode(float f) => 0; }
 
+        /// <summary>
+        /// ⭐ CE-5011 B (TE-10) — a terrain LINE finished through the real adapter is remembered by the drawing ghost (it stays drawn until the live bake takes it), a tree Row's ghost is a dot per tree at the panel's spacing; the tool stays armed.
+        /// 🔴 Red-proof: not recording the commit (<c>Ghost.Committed</c> removed) ⇒ the pending count assert fails.
+        /// </summary>
+        [Fact]
+        public void CE5011_AFinishedTerrainLine_IsKeptByTheGhostUntilTheBake()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson("feature:2::Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            Assert.NotNull(gizmo.Underlay);                                         // the drawing ghost is on the tool
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(100f, 50f, 0f));
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(160f, 50f, 0f));
+            Assert.Equal(0, adapter.Ghost.PendingCount);
+            gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+            Assert.Equal(1, adapter.Ghost.PendingCount);                            // kept until the bake lists it
+            Assert.Equal(1, manager.ActiveCount);                                   // sticky
+        }
+
         [Fact]
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {

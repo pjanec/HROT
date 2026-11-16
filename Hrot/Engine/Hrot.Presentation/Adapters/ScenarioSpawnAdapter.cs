@@ -47,6 +47,9 @@ namespace Hrot.UI.Common.Adapters
         // ⭐ Terrain authoring follow-up 2 — what the user chose for the terrain feature being drawn (the drawing panel edits it, the commit reads it)
         private Hrot.UI.Common.AddEntity.TerrainDrawOptions? _terrainDraw;
         Hrot.UI.Common.AddEntity.TerrainDrawOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Options => _terrainDraw;
+        private Hrot.UI.Common.AddEntity.TerrainDrawGhost? _ghost;
+        /// <summary>⭐ CE-5011 B — the drawing ghost and the just-committed shapes waiting for the bake (this adapter's world).</summary>
+        public Hrot.UI.Common.AddEntity.TerrainDrawGhost Ghost => _ghost ??= new Hrot.UI.Common.AddEntity.TerrainDrawGhost(() => _creation.World);
         private Hrot.UI.Common.AddEntity.ObstacleRowOptions? _obstacleRow;   // ⭐ CE-5008 (TE-5) — the armed obstacle-row tool's options
         Hrot.UI.Common.AddEntity.ObstacleRowOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Row => _obstacleRow;
         IReadOnlyList<System.Numerics.Vector2> Hrot.UI.Common.AddEntity.ITerrainDrawSource.Points => (IReadOnlyList<System.Numerics.Vector2>?)_areaArm?.ActiveGizmo?.Session.Points ?? System.Array.Empty<System.Numerics.Vector2>();
@@ -442,13 +445,14 @@ namespace Hrot.UI.Common.Adapters
             var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
                 TkbType:    (Fdp.Core.TkbTypeId)(tkbType),
                 StyleJson:  feature is null ? _pendingStyleJson : styleJson ?? "",
-                OnCommit:   Request,
+                OnCommit:   drawOptions is null ? Request : cmd => { Request(cmd); if (Hrot.UI.Common.AddEntity.TerrainDrawGhost.Applies(drawOptions)) Ghost.Committed(drawOptions, cmd); },   // ⭐ CE-5011 B — the shape stays drawn until the bake takes it
                 MinPoints:  feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? 2 : 3,
                 Closed:     feature is not { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line },
                 // ⭐ the commit reads what the drawing panel holds (kind, height / width, recipe, density, seed): ONE object, so the panel and the entity cannot disagree
                 Born:       drawOptions is null ? null : drawOptions.Born,
                 // ⭐ CE-4592 (P-5 2b, mockup B) — a ground area / ditch tints the height CHANGE it makes under the shape while it is drawn (the ONE effect the panel's hint reads)
-                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke())) : null,
+                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke()))
+                          : drawOptions is not null && Hrot.UI.Common.AddEntity.TerrainDrawGhost.Applies(drawOptions) ? Ghost.UnderlayOf(drawOptions) : null,   // ⭐ CE-5011 B (TE-10) — the drawing ghost: a thick line · a dot per tree · the area tinted
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
