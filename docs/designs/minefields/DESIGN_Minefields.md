@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — MF-1…MF-12 APPROVED (R-4270; MF-10 one field with lanes cut out); ⏳ MF-13…MF-16 (how a side learns the field, where the knowledge lives, own fields, many fields) leans for the user; then ids, UML, the review
-current-answer: §1 inventory · §2 the proven pattern · §3 decisions (leans) · §4 slices
+build-state: DESIGN — COMPLETE: MF-1…MF-16 approved (R-4270, R-4271); ids §3a; UML §3b; ⏳ the review (§8) before READY-TO-BUILD
+current-answer: §3 decisions (approved) · §3a the fixed ids · §3b UML · §4 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -46,7 +46,7 @@ through a minefield, which will basically cut the zone into parts."*
 | **breaching**: a mine plough or flail vehicle clears a LANE (~4–5 m wide) at walking pace; a line charge (MICLIC) clears ~100 m × 8 m at once; infantry prodding is slow | doctrine | the user's clearing action; the lane is then MARKED |
 | one minefield = ONE object in constructive simulations; mines are its derived points | JCATS / OneSAF practice | thousands of mines must not be thousands of entities |
 
-## 3. Decisions *(✅ MF-1…MF-12 APPROVED `2026-11-16`, R-4270 — 🔒 user: *"minefields approved, one field with lanes cut out"*; MF-13 ⏳ a lean)*
+## 3. Decisions *(✅ MF-1…MF-12 APPROVED `2026-11-16`, R-4270 — 🔒 user: *"minefields approved, one field with lanes cut out"*; ✅ MF-13…MF-16 APPROVED, R-4271 — 🔒 user: *"Minefields approved. Please record design and run the review."*)*
 
 | # | question | ⭐ lean | why · blast radius |
 |---|---|---|---|
@@ -66,6 +66,132 @@ through a minefield, which will basically cut the zone into parts."*
 | **MF-15** | ⭐ **OWN minefields** (🔒 user: *"Own minefields should be also avoided by everyone who knows"*) | the field's per-side **known-at-start** flags (MF-1) create that side's record already **Marked** (known in full) — no grid needed until something changes; every unit of a side that knows a field avoids it exactly as an enemy field it has learned: **knowledge is per SIDE, not per field owner** (a field laid by Blue is known to Blue, and to Red only by what Red learns). ⭐ Knowledge is SHARED by the whole side (its common picture — reports travel the chain at once, a simplification) | one rule for own and enemy fields |
 | **MF-16** | ⭐ **MANY minefields** (🔒 user: *"what if there are multiple minefield entities? How the knowledge grid will be structured to cover that?"*) | ⭐ there is NO global grid: each field has its OWN records, one per side that knows anything about it (absent ⇒ that side knows nothing). Fields are independent — a strike near two fields marks suspected cells in each field's own grid; a recon team traces whichever field it is on. Avoidance asks every field: a route for a unit of side S is priced through a side-aware navmesh **query filter** (📐 the engine already has a custom filter — `DoorAwareQueryFilter`, `NavDoorways.cs:194` — that is the seam) over the minefield navmesh area: a polygon of field F is closed / costly for S where S's record of F says suspected or known-mined, open otherwise (an unknown field is walked into); the march's danger-area sensor shows known fields ahead per side | per-field state scales with the number of fields; the route filter is the one place sides differ |
 | **MF-12** | authoring and drawing | a Minefield tool (a closed polyline, type, spacing, orientation, seed, known-to sides); drawn as the tactical graphic (a hatched area, mine symbols) ONLY where the viewer's side knows it; the instructor sees all; lanes drawn as marked corridors; individual mines invisible except to the instructor | the user's map; per-side display |
+
+## 3a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
+
+| what | the value | note |
+|---|---|---|
+| the minefield entity | TKB **8830** `Minefield`, DIS **5 · 0 · 0 · 91** (cultural feature, HROT — beside the scenario macro's `5.0.*.90`), class **`"Minefield"`** = `5.0.*.91` | the authored field (polygon, type, spacing, orientation, seed, known-at-start per side, its lanes) |
+| the knowledge record | TKB **7206** `MinefieldKnowledgeRecord` (the record block 7201–7205: ground / tree damage …) | one per (field, side), transient, saved through the section (MF-14) |
+| the mines (rounds) | munitions **6051** `TkbMineAntiPersonnel` · **6052** `TkbMineAntiTank` · **6053** `TkbLineCharge` | 6047–6049 smoke, 6050 the radar SAM |
+| the mine-clearing vehicle | TKB **116** `Engineer_MineClearer`, DIS **1 · 1 · \* · 9 · 2** (large tracked utility, beside the bulldozer `1.1.*.9.1`), class **`"MineClearer"`** = `1.1.*.9.2` | plough / flail + a line charge mount |
+| the navmesh area | **`MinefieldArea = 5`** (door 2, woods 3, crater 4) | per-mover, priced per side by the query filter (MF-16) |
+| the danger kind | **`DangerAreaKind.Minefield = 8`** | ⚠ the kinds' bitmask is a SIGNED byte with every bit used (`Shelled` already sits on bit 0) — the review decides how to widen it |
+| the components | **`Minefield`** (on 8830; the parameters, a lanes list), **`MinefieldStrikes`** (the struck / cleared mine bitset, MF-3), **`MinefieldKnowledge`** (on 7206, MF-14) — unmanaged, recorded, replicated; ids allocated by backend at build | ⚠ the strike bitset of a big field may pass 1024 B — chunked like the knowledge |
+
+## 3b. UML
+
+```mermaid
+classDiagram
+  class Minefield {
+    <<new, unmanaged, on TKB 8830>>
+    Polygon
+    MineType
+    SpacingM
+    OrientationDeg
+    Seed
+    KnownAtStart
+    Lanes
+  }
+  class MinePattern {
+    <<new, derives the staggered rows, the same on every node>>
+    MinesIn()
+  }
+  class MinefieldStrikes {
+    <<new record, struck and cleared mines>>
+  }
+  class MinefieldKnowledge {
+    <<new record per field and side, TKB 7206>>
+    Grid2bit
+    Marked
+  }
+  class MineTriggerSystem {
+    <<new, serial, movers inside a field>>
+  }
+  class ArmorModel {
+    <<existing, grows a BOTTOM facing>>
+  }
+  class AreaEffectSystem {
+    <<existing, the AP burst>>
+  }
+  class ShelledAreaSystem {
+    <<existing, the precedent for suspected circles>>
+  }
+  class MinefieldKnowledgeSystem {
+    <<new, strikes and recon fill the grid>>
+  }
+  class SideAwareNavFilter {
+    <<new, beside DoorAwareQueryFilter>>
+  }
+  class MineStrikeReaction {
+    <<new behaviour: halt, care, back out, report>>
+  }
+  class ReconMinefield {
+    <<new behaviour: trace the edge, mark>>
+  }
+  class ClearLane {
+    <<new order on TKB 116: plough, flail, line charge>>
+  }
+  class TerrainObjectsSection {
+    <<existing save section, grows the knowledge>>
+  }
+  Minefield ..> MinePattern
+  MineTriggerSystem ..> MinePattern
+  MineTriggerSystem --> MinefieldStrikes : a mine goes off once
+  MineTriggerSystem ..> ArmorModel : AT under the hull
+  MineTriggerSystem ..> AreaEffectSystem : AP burst
+  MinefieldKnowledgeSystem ..> MineTriggerSystem : a strike
+  MinefieldKnowledgeSystem ..> ReconMinefield : cells the team sees
+  MinefieldKnowledgeSystem --> MinefieldKnowledge : writes
+  ShelledAreaSystem .. MinefieldKnowledgeSystem : the same shape, but recorded
+  SideAwareNavFilter ..> MinefieldKnowledge : per side
+  ClearLane --> Minefield : adds a lane
+  ClearLane --> MinefieldStrikes : clears the mines in it
+  TerrainObjectsSection ..> MinefieldKnowledge : saved per field and side
+  MineStrikeReaction ..> MinefieldKnowledgeSystem : reports
+```
+*What it shows that prose hid: the field's mines are never stored — they are DERIVED; the only runtime state is two records (what went off, what
+each side knows), both following the damage-record pattern, and the ONE place sides differ is the route filter.*
+
+```mermaid
+sequenceDiagram
+  participant P as Blue patrol
+  participant T as MineTriggerSystem
+  participant K as MinefieldKnowledgeSystem
+  participant E as Blue engineers
+  participant N as SideAwareNavFilter
+  participant C as Blue mine clearer
+  P->>T: a man steps on an AP mine
+  T->>P: the burst, a casualty
+  T->>K: a strike in field F
+  K->>K: Blue's grid of F, suspected cells within 50 m
+  P->>P: MineStrike, halt, back out, report
+  N->>N: Blue routes avoid the suspected cells
+  E->>K: ReconMinefield, cells within 5 m become mined or clear
+  K->>K: the edge traced, F marked for Blue
+  C->>T: ClearLane through F
+  T->>T: the lane's mines cleared
+  N->>N: Blue routes through the marked lane
+```
+*What it shows: knowledge grows in three steps — a strike, a recon, a mark — and every step is a write to ONE record that is recorded, replicated
+and saved; the lane then opens a passage for that side only.*
+
+```mermaid
+graph TD
+  SIM[SimHost - the ground integrator and the fire path] --> TR[MineTriggerSystem, serial, after the movers]
+  TR --> AE[AreaEffectSystem and the hull damage]
+  TR --> KS[MinefieldKnowledgeSystem]
+  CGF[CgfLogicPack - brains] --> BEH[MineStrikeReaction, ReconMinefield, ClearLane, the breach play]
+  BEH --> KS
+  NAV[the navmesh provider - the side-aware query filter] --> ROUTES[routes per side]
+  KS --> REC[the knowledge records - recorded, replicated, saved]
+  REC --> NAV
+  SAVE[ScenarioSerializer - the terrain objects section] --> REC
+  SCH[kernel scheduler every frame] --> SIM
+  SCH --> CGF
+```
+*What it shows: the trigger runs where the movers move, the decisions where the brains run, and the knowledge travels between them as a record —
+no node writes another node's entity.*
 
 ## 4. Slices *(lean — after the rulings: ids, UML, the review)*
 
