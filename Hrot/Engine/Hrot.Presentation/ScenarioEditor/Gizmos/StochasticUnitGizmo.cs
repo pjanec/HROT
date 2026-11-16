@@ -17,8 +17,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// ⭐ <c>CE-8603</c> (exp/agg-ui, ST-1 / ST-3; docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-2, UI-4, UI-5, UI-6) — a STOCHASTIC unit on the 2-D map:
 /// it has no members, so before this nothing drew it but its card. Its FOOTPRINT (width × depth × heading — <see cref="AggregateUnit"/>, §14 M-3): a side-coloured
 /// translucent fill with a DASHED edge (not physical) and a heading arrow; a march column with a known route (<see cref="UnitRoute"/>, on the owning node) is the
-/// band of its path from the tail to the head. A small FRAME at its centre with the echelon marks; one label row coloured by its strength (<c>name · present /
-/// authorized · ~</c>, ~ = not physical); a LOSS mark (<c>−n</c>, 4 s) when the present strength falls — derived, nothing new on the wire. ⛔ A physical or fusion
+/// band of its path from the tail to the head. A small FRAME at its centre with the echelon marks; the unit's text is its CARD (CE-8607); a LOSS mark (<c>−n</c>, 4 s) when the present strength falls — derived, nothing new on the wire. ⛔ A physical or fusion
 /// unit is unchanged (its men are the picture), and nothing here draws in 3-D (the unit is hidden). Layer 0 (Entities), as every unit's symbol. 0 B on a steady
 /// frame: label texts are cached per unit and rebuilt only when the numbers change.
 /// </summary>
@@ -38,8 +37,7 @@ public sealed class StochasticUnitGizmo : IStatelessGizmo
 
     private sealed class State
     {
-        public int Present = -1, Authorized = -1;
-        public FixedString32 Label;
+        public int Present = -1;
         public FixedString32 Echelon;
         public byte EchelonOf = 255;
         public int LastLoss;
@@ -77,21 +75,14 @@ public sealed class StochasticUnitGizmo : IStatelessGizmo
         if (st.EchelonOf != u.Echelon) { st.EchelonOf = u.Echelon; st.Echelon = new FixedString32(EchelonMarks(u.Echelon)); }
         draw.DrawText(centre.X, centre.Y, st.Echelon, Ink, fontSizePx: 14f, lineOffsetPx: -30f);   // above the frame (text starts at the point: the 2-D text has no x offset)
 
-        // ── the label row, coloured by strength; the loss mark ──
+        // ── the loss mark (the unit's text is its CARD's now — CE-8607, UI-11 supersedes UI-5's label) ──
         if (view.HasComponent<UnitSlotTable>(entity))
         {
             ref readonly var slots = ref view.GetComponentRO<UnitSlotTable>(entity);
-            int present = slots.Present(), authorized = slots.Authorized();
+            int present = slots.Present();
             double now = Now(view);
             if (st.Present >= 0 && present < st.Present) { st.LastLoss = st.Present - present; st.LossAt = now; st.LossText = new FixedString32("-" + st.LastLoss.ToString(CultureInfo.InvariantCulture)); }
-            if (present != st.Present || authorized != st.Authorized)
-            {
-                st.Present = present; st.Authorized = authorized;
-                st.Label = new FixedString32(Truncate($"{NameOf(view, entity)} · {present}/{authorized} · ~"));
-            }
-            float f = authorized > 0 ? (float)present / authorized : 0f;
-            var colour = present <= 0 ? Black : f >= 0.9f ? Green : f >= 0.7f ? Amber : Red;   // the SITREP thresholds (StaffComposerSystem.GreenFraction / AmberFraction)
-            draw.DrawText(centre.X, centre.Y, st.Label, colour, fontSizePx: 12f, lineOffsetPx: 14f, style: GizmoTextStyle.Backdrop);   // under the frame, on a backdrop (reads over any ground)
+            st.Present = present;
             if (now - st.LossAt <= LossMarkSeconds)
             {
                 var front = UnitFootprint.FrontArrow(centre, MathF.Max(1f, u.Depth), u.Heading.Degrees, 0f).Base;
@@ -150,8 +141,4 @@ public sealed class StochasticUnitGizmo : IStatelessGizmo
         };
     }
 
-    private static string NameOf(ISimulationView view, Entity e)
-        => view.HasComponent<EntityInfo>(e) && view.GetComponentRO<EntityInfo>(e).Name.ToString() is { Length: > 0 } n ? n : "unit";
-
-    private static string Truncate(string s) => s.Length <= 31 ? s : s[..31];
 }

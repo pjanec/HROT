@@ -23,6 +23,7 @@ reserved ids (`GlobalComponentIds.cs:1351-1356`) ⇒ every slice that draws the 
 | ST-0 strength / ammunition rows | CE-8601 | ✅ built | the Unit tab's Strength (men present / authorized + the SITREP colour, `UnitStrength`) and Ammunition (`RoundsOf` / `AmmoOf`) for EVERY unit — a stochastic unit shows once `UnitStrength` reads its slot table (behaviors), with no UI change |
 | ST-1 footprint geometry | CE-8602 | ✅ built | `UnitFootprint` (rectangle, front arrow, march-column segment) — pure, 0 B |
 | ST-1 / ST-3 the map gizmo (UI-2, UI-5, UI-6) | CE-8603 | ✅ built | `exp/agg-backend` merged (`64255766d`); `StochasticUnitGizmo` — footprint / column band, frame + echelon, strength label, loss mark; fidelity frame rendered and the mockup updated to the as-built (design §5) |
+| O-1 split cards · UI-10 gauges · UI-11 the unit card | CE-8605 · CE-8606 · CE-8607 | ✅ built | design §5 rows; frames compared with mockups ① and ⑥ (deviations folded into §5) |
 | ST-0 Resolution section (UI-1) | — | ⏳ **finding to agg-backend**: `AggregateUnit` fields need attribute-vocabulary rows (their component and wire) | |
 | ST-2 overlay (UI-8) · ST-3 Slots tab (UI-7) · ST-4 picture · ST-5 request + progress (UI-9) | — | ⏳ wait for their engine slices | |
 
@@ -44,4 +45,7 @@ and UI-4's geometry (a column is a band along its path — R-8601). What would c
 | build | both TEST projects built after `dotnet restore` (the coordinator merge — trap 3) | 0 errors |
 | Mermaid | `scripts/mermaid-check.mjs DESIGN_Stochastic_Unit_UI.md` | 3 / 3 parse |
 | the gizmo rails | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter StochasticUnit\|UnitFootprint\|CommandDisplayGizmoTests` | **12 / 0** (the neighbouring command-display gizmos included); red-proof: the resolution guard inverted ⇒ the 3 new rails red |
+| CE-8605 split cards | `DebugTraceGizmoTests` (+`CE8605_…`), SimHost `LayerControlGizmoTests` | **54 / 0** (with the gizmo rails) · **19 / 0**; red-proof: `CardLayerOf` → Labels ⇒ red |
+| CE-8606 gauges | `TheUnitFormDrawsTests` (+ pixels, + `CE8606_…`), `Fdp.Presentation.Tests` Forms | **20 / 0** · **7 / 0**; red-proof: the vehicle count summing Count ⇒ red |
+| CE-8607 unit card | `UnitCardGizmoTests` (2), `StochasticUnitLookFrameRail` (2, real frames), + Debug/Command/Map3D gizmo + `Map3DFrameRail` + shared-layers rails under `xvfb-run -a` | **127 / 2**: `CE4388` (the wire-sphere speed ratio — red earlier this session too) · `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` ("worst road vertex 1.13 m off the ground") — ⚠ deterministic, touches no file of this lane (terrain roads); ⛔ NOT proven at the base sha — a finding for the terrain owner. Red-proof: `WorstAlarm` ignoring broken men ⇒ red |
 | n/a | `HROT_PARALLEL_SIM` / `READ_CHECK` / `WORLD_GUARD`, `stepped-hash.py`, `BrainReads`, recorded-component size | no per-entity step, no new component, no sim read — UI only |

@@ -90,4 +90,77 @@ public sealed class StochasticUnitLookFrameRail
         }
         finally { Raylib.UnloadImage(image); }
     }
+
+    /// <summary>⭐ CE-8607 fidelity (R-4146; mockup ⑥) — the REAL unit CARDS through the REAL card pass: a stochastic platoon (amber strength, SUPP) and a physical
+    /// squad (green, its ammo bar). Measured: each card's strength bar in its SITREP colour. Frames <c>agg-cards.png</c> under <c>HROT_RAIL_SHOTS</c>.</summary>
+    [SkippableFact]
+    public void CE8607_TheUnitCards_DrawOnTheRealMap()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var frame = UiFrameHarness.Begin(W, H);
+        Fdp.Presentation.Fonts.GizmoFont.Load();
+        var canvas = new MapCanvas(input: null);
+        var camera = new MapCamera();
+        var target = new Vector2(View.X - W / 2f / Zoom, View.Y + H / 2f / Zoom);
+        camera.ApplyCameraView(new MapCameraView { Target = target, Zoom = Zoom, SmoothTarget = target, SmoothZoom = Zoom });
+        canvas.Camera = camera;
+        var buffer = new DebugPrimitiveBuffer();
+        var layer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, buffer, new FdpEventBus(), camera: camera);
+        canvas.AddLayer(layer);
+
+        using var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>(); w.RegisterComponent<EntityInfo>(); w.RegisterComponent<AggregateUnit>(); w.RegisterComponent<UnitSlotTable>();
+        w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>(); w.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>(); w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
+        w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
+        var plt = w.CreateEntity();
+        w.AddComponent(plt, new SimTransform { Position = new Vector3(120, 60, 0) }); w.AddComponent(plt, new NetworkIdentity(71));
+        w.AddComponent(plt, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend }); w.AddComponent(plt, new Fdp.Core.CommandHierarchy.UnitEntity());
+        w.AddComponent(plt, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Echelon = 1, Formation = UnitFormation.Line, Width = 200, Depth = 80, Heading = new Bearing(35), SuppressedShare = 0.35f });
+        var t = new UnitSlotTable { Count = 30 };
+        for (int i = 0; i < 30; i++) t.Slots[i] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)(i < 4 ? 0f : 25f) };
+        w.AddComponent(plt, t);
+        var sq = w.CreateEntity();
+        w.AddComponent(sq, new SimTransform { Position = new Vector3(330, 150, 0) }); w.AddComponent(sq, new NetworkIdentity(72));
+        w.AddComponent(sq, new EntityInfo { Name = new FixedString64("1 Sqn"), ForceId = ForceId.Friend }); w.AddComponent(sq, new Fdp.Core.CommandHierarchy.UnitEntity());
+        w.AddComponent(sq, new Fdp.Core.CommandHierarchy.UnitRoster());
+        for (int i = 0; i < 9; i++)
+        {
+            var m = w.CreateEntity();
+            w.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            w.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 90, Max0 = 120 });
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref w.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(sq), m);
+        }
+
+        buffer.DrawBox2D(View, new Vector2(3000f, 3000f), new Rgba32(Ground.R, Ground.G, Ground.B, 255), 0f, 0f, SizeMode.WorldMeters, fillColor: new Rgba32(Ground.R, Ground.G, Ground.B, 255));
+        new StochasticUnitGizmo().Draw(w, plt, buffer);
+        var cardGizmo = new Hrot.Common.Diagnostics.Gizmos.UnitCardGizmo();
+        foreach (var (e, net, at, doing) in new[] { (plt, 71, new Vector2(120, 60), "Defend"), (sq, 72, new Vector2(330, 150), "Hold") })
+        {
+            buffer.DrawSpatialAnchor(net, at.X, at.Y, 0f, 0f);
+            new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo().Draw(w, e, buffer);
+            new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo().Draw(w, e, buffer);
+            cardGizmo.Draw(w, e, buffer);
+            Hrot.Common.Diagnostics.Gizmos.UnitCardFacts.InfoRow(buffer.Card(net, DebugTraceLayers.Labels, unitCard: true), w, e, doing);
+        }
+        layer.Update(0.016f);
+        frame.StepN(3, canvas.Draw);
+        string dir = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-agg-look");
+        Directory.CreateDirectory(dir);
+        string png = Path.Combine(dir, "agg-cards.png");
+        frame.Screenshot(png);
+        var image = Raylib.LoadImage(png);
+        try
+        {
+            int Count(Func<Color, bool> pred)
+            {
+                int n = 0;
+                for (int y = 0; y < image.Height; y++) for (int x = 0; x < image.Width; x++) if (pred(Raylib.GetImageColor(image, x, y))) n++;
+                return n;
+            }
+            Assert.True(Count(c => Math.Abs(c.R - 242) < 12 && Math.Abs(c.G - 192) < 12 && Math.Abs(c.B - 51) < 12) > 60, "the platoon's AMBER strength bar is drawn");
+            Assert.True(Count(c => Math.Abs(c.R - 91) < 12 && Math.Abs(c.G - 208) < 12 && Math.Abs(c.B - 106) < 12) > 60, "the squad's GREEN strength bar is drawn");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
 }

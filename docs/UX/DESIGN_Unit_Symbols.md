@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-16` (P-1…P-5 + O-1; O-2 not now) — R-8602; tasks CE-8605, CE-8607…CE-8611
+build-state: BUILDING — ✅ APPROVED `2026-11-16` (P-1…P-5 + O-1; O-2 not now) — R-8602; ✅ BUILT: O-1 (CE-8605), P-5 the unit card (CE-8607); ⏳ the symbol (CE-8608…CE-8610)
 updated: 2026-11-16
 current-answer: the whole file
 stale-below: nothing

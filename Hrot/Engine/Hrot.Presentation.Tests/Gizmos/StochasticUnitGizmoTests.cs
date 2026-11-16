@@ -62,8 +62,7 @@ public sealed class StochasticUnitGizmoTests : IDisposable
         Assert.Single(f, p => p.Shape == DebugPrimitiveShape.Box2D && p.SizeMode == SizeMode.ScreenPixels && p.FillColor.Equals(StochasticUnitGizmo.FriendFrame));
         var texts = Texts();
         Assert.Contains("···", texts);                    // a platoon's echelon marks
-        Assert.Contains("2 Plt · 26/30 · ~", texts);      // 26 of 30 up — Amber (< 90 %)
-        Assert.Contains(f, p => p.Shape == DebugPrimitiveShape.Text && p.TextContent.ToString() == "2 Plt · 26/30 · ~" && p.Color.Equals(StochasticUnitGizmo.Amber));
+        Assert.DoesNotContain(texts, t => t.Contains("26/30", StringComparison.Ordinal));   // ⭐ CE-8607 — the strength is the CARD's (UnitCardGizmo), not loose map text
 
         _draw.Clear();
         var phys = Unit("1 Sqn", ForceId.Friend, AggregateResolution.Physical, men: 9, down: 0);
