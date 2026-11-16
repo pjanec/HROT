@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: LIVE — close-out done (§−2)
 updated: 2026-11-16
 current-answer: ⭐ §-1 THE MORNING SUMMARY · §0 the base variant · §1 decisions · §2 slices · §3 gates · §4 thresholds and ids
 stale-below: nothing
@@ -12,6 +12,19 @@ related-designs:
 # STATUS — `behaviors`, the assault under fire (CE-2436)
 
 Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da341`).
+
+## −2. ⭐⭐ CLOSE-OUT MORNING SUMMARY *(`2026-11-16`, handoff `HANDOFF_Coordinator_To_Behaviors_Assault_Closeout_And_Drones.md`, dispatched `7bea87df1`)*
+
+| item | result |
+|---|---|
+| 1 taken = PhaseLine OR hold (R-4265) | ✅ applied; #18–#20 re-judged 3 / 3; ⭐ **fresh base run #22 (`3a2502bb8`, cluster): TAKEN — held from 772 s**, every arrow ①②③⑤⑥⑧ ✓ |
+| 2 PL deadlines | ✅ 700 / 1000 s (R-2120); #22 met PL 1 |
+| 3 thresholds locked + the three variants | ✅ 0.45 / 90 locked; ⭐ **live: base PASS (53 % · 113.7/min) · stall PASS (taken, PL 642 s; ⑦ reserve committed; 55 % · 111.8) · collapse PASS (taken, PL 433 s; ④⑤⑥ ✓; 62 % · 100.3)** |
+| 4 CE-2440 (8-thread race) | ⚠ **NOT REPRODUCED**: 5 / 5 eight-thread runs STATE EQUAL (0 `BlueprintBlackboard1024` rows differ), 1 / 4 / 8 equal — kept open; no fix claimed |
+| 5 A-9 covered base of fire | ✅ built `b17473a96` (R-2121), rail + mutant; the base run #22 passed with it (⚠ which building it took is not logged) |
+| 6 AU-4 blind cannon fire | ✅ built `a72b7fe0d` (R-2124): an IFV that sees nothing fires 5-round bursts every 15 s on the reported posts, in the Support phase only (lifted at the assault); before, its support ENDED at once |
+| 7 CE-2437 / CE-2439 | ✅ both fixed `3a2502bb8` — CE-2439 a missing read declaration; ⭐ CE-2437's root cause was the TEST HARNESS (no `Repo.Tick()` ⇒ a stale last-tick view), which also explained backend's bike-play stale reads · new **CE-2441** (StationWeapon's cross-entity write, pre-existing) |
+| ⚠ for your review | lane decisions R-2120…R-2124 (§1) · the mortar lethality left alone, as ruled |
 
 ## −1. ⭐ THE MORNING SUMMARY *(`2026-11-16`)*
 
@@ -35,6 +48,7 @@ Battalion Test §5). **Re-judged from the recorded logs:** #18 ✅ (PhaseLine 60
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |
 |---|---|---|---|---|---|
+| ⭐ close-out live #22 (`3a2502bb8`: R-4265, PL 700 s, A-9, AU-4 blind fire) | ✅ **TAKEN — held from 772 s**; ended at 15 min | ✅ Set 129.1 s | ✅ 140.3 s | — | ①②③⑤⑥⑧ + AU-6 + PL 1 ✓; moved > 50 m 53 / 32 / 19 % · 113.7 contacts/min |
 | R-2119 live #20 | 🟡 **PL 1 BY a report at 517 s** — but no 30 s hold (the platoon moved on to Objective 2, as it should); ended at 15 min | ✅ Set 118.0 s | ✅ 128.8 s | — | ①②③⑤⑥ + PL ✓; AU-6 hold ⛔; PL deadlines ⛔; moved > 50 m 50 / 35 / 12 % · 102.1 contacts/min |
 | R-2119 live #21 | ⛔ neither — the assault platoon down to 2; ① the outpost killed before it withdrew | ✅ Set 113.8 s | ✅ 130.1 s | — | ②③⑤⑥ ✓; ① ⛔; PL ⛔; AU-6 ⛔; moved > 50 m 61 / 24 / 19 % · 111.2 contacts/min |
 | R-2119 live #18 (`0b261b9cd`) | ✅ **TAKEN** — Blue held Objective 1 (≥ 4 men, no enemy, 30 s) from 875 s; PL 1 BY a report at 606 s; Red's three platoons wiped out; ended by "Red below 30 % with Objective 1 held" | ✅ Set 113.1 s | ✅ 122.9 s (after the Set) | — | ⭐ **every required arrow ✓** (① SPOT 4.1 → withdraws 23.4 s · ② · ③ 16 bursts, 2 m · ⑤ · ⑥ · PL · ⑧ · AU-6); only the authored PL deadlines (420 / 720 s) ⛔; moved > 50 m 61 / 27 % · 109.1 contacts/min |
