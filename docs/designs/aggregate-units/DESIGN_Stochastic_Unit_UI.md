@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN (the leans UI-1…UI-9 for the user's review) · BUILT on exp/agg-ui: UI-3 (strength rows), UI-4 geometry, UI-2 / UI-5 / UI-6 the map gizmo (bound to exp/agg-backend's contract)
 updated: 2026-11-16
-current-answer: the whole file — §1 the picture, §2 inventory, §3 UML, §4 the decisions, §5 what is built / waiting
+current-answer: the whole file — §1 the picture, §2 inventory, §3 UML, §4 the decisions, §6 NATO symbols, §5 what is built / waiting
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -25,7 +25,7 @@ might look of the aggregation"*.
 ![the stochastic unit's look](agg-ui-visuals.svg)
 
 *The mockup (R-4143) is the acceptance spec: ① the Unit tab's Resolution section and the GAUGE rows (UI-10) · ② the Slots tab · ③ the 2-D footprint, its label rows, loss
-marks, a march column · ④ the detection-levels overlay and its layer row · ⑤ the right-click Resolution group and the split's progress · ⑥ the unit's CARD in its states (UI-11). Generator:
+marks, a march column · ④ the detection-levels overlay and its layer row · ⑤ the right-click Resolution group and the split's progress · ⑥ the unit's CARD in its states (UI-11) · ⑦ the NATO symbol vocabulary and the zoomed-out picture · ⑧ the symbol derived from the content (UI-12). Generator:
 `scripts/gen-agg-ui-mockup.py`. Scope (R-4151): only these; the Details frame, the other tabs, the map and the menu's other items are context.*
 
 ## 2. INVENTORY *(graph re-indexed `2026-11-16`; queries run, then grep to confirm)*
@@ -140,10 +140,74 @@ deliberate dead paths — a stochastic unit has no body and draws nothing in 3-D
 | **UI-5** ⛔ *superseded by UI-11 (the card)* | label rows under the frame: a strength bar (the SITREP colour) and `name · present/authorized · ≈` (≈ = not physical); ⛔ they drop when the unit is under 40 px wide (ST-4's zoomed-out picture: footprints and frames only) | the existing card rows — a card is per entity at a point; the footprint's rows belong to its frame · always-on labels — a battalion-vs-battalion picture becomes text | — |
 | **UI-10** *(user, `2026-11-16`: "the Details section might show more colored and visualized form of the strength and ammunition (not so ugly as basic imgui text field)")* | the Unit tab's Strength / Ammunition become GAUGE rows: a bar in the SITREP colour with the numbers ON it (`26 / 30 men`, `62 % · 1 860 rds`), ticks at the thresholds (strength 70 / 90 %, ammo 25 / 50 %), and the SITREP word as a chip with its glyph (never colour alone — Details forms §6.3); Vehicles as one coloured icon per system, a lost one red with ×. ⭐ ONE new generic form field kind, `FieldKind.Gauge` (a fraction, a colour, a text, a chip), in the shared `FormView` — a man's Health row can use it too | a custom ImGui panel for units only — a second drawing path beside the form system (the shared-and-unified rule) · bars without numbers — the instructor reads the exact count | — |
 | **UI-11** *(user, `2026-11-16`: "the Label/card of the aggregated unit should show it too (strength in place of usual health … 3 lines max — different colors, strength as a health bar")* | the unit's CARD (the one card per entity, Labels layer, 2-D and 3-D — §6am) carries: **line 1** the STRENGTH bar in ROW 10, where a man's health bar is (present / authorized, the SITREP colour, ticks at 70 / 90 %) with a thin AMMO bar under it (row 13); **line 2** the name (row 20, unchanged) + a violet `~` = not physical; **line 3** ONE info line (row 64): present / authorized in the strength colour · what it does (teal) · the prepared level (blue) — or ONE alarm, the worst first: `BROKEN n` (red, skull) > `supp nn%` (amber) > out of ammo > `split n/m`; nothing when quiet. ⛔ it REPLACES UI-5's label under the frame (one place for the unit's text) | a separate floating label — two texts about one unit (§6am already folded every free text into the card) · more lines — the user: 3 max, a quick overview; the details are the Slots tab | the card machinery not drawing in 3-D for a hidden unit (then 2-D only) |
+| **UI-12** *(user, `2026-11-16`: "we also do not have yet any true NATO symbols for aggregated units … let's design how to achieve that" · "best if these could be procedurally created - drawn as vectors from the actual content of the unit" · "if that requires extending tkb etc, so be it")* | a TRUE APP-6 / 2525 land-unit symbol, PROCEDURAL and VECTOR (§6): frame by side, icon by the unit's dominant ROLE, mobility indicator, one secondary mark, echelon marks — DERIVED from the unit's authored content; it is the card's LEFT CELL (part of the card, spanning its 3 lines), and the SAME symbol is drawn ALONE at the unit's point when no card shows (zoomed out, Labels off). ⭐ The TKB gains `SymbolRole` per system type | an image atlas (milsymbol-generated PNGs) — no images in git (R-4117 allows only thumbnails), and a combination per content would be a combinatorial atlas · a hand-picked SIDC per unit type — the user asked for it derived from the content; the TKB-authored SIDC stays only as an OVERRIDE · a symbol separate from the card — two things about one unit to place, declutter and hide (§6am: one card per unit) | the user wanting the symbol on PHYSICAL units too — the deriver works from a roster the same way; only the switch differs |
 | **UI-6** | LOSSES on the map: `−n` + a skull at the footprint's front edge for 4 s, derived from a FALL in present strength between frames (no new event on the wire) | a casualty marker per man — there are no men · a new replicated loss event — the strength fall already says it | the backend publishing losses as events anyway (then the mark reads them) |
 | **UI-7** | the Slots tab (live, read-only): the unit's suppressed share, morale, prepared level as bars, then one row per slot — the system's icon, health / ammo / stress bars, a flag (suppressed / broken / down / K-kill); a down slot stays listed | rows in the raw Components column — unreadable at 34 slots · editable slots — losses come only from combat (C-3); the instructor's tools are the existing live actions | — |
 | **UI-8** | DETECTION LEVELS: a debug layer row in Tactical Map Layers ▸ AI (2-D only, off by default, the gizmo family's "selected only" honoured): a line per observer → target pair, a 5-box level meter at its middle — green = contact reported, amber = accumulating, grey = fading; hover shows Pd, range, LOS samples, woods, posture, signature | always-on lines — O(n²) clutter at battalion scale · a separate panel — the level is spatial | N-5's level count differing from 5 (the meter takes the threshold from the table) |
 | **UI-9** | the de- / re-aggregate REQUEST: a `Resolution ▸` group in the unit's right-click menu (Make physical / fusion now, Aggregate now, Pin, Unpin — each disabled with its reason); the PROGRESS: a chip under the frame (stage glyph · leaves posted n/m) + a Resolution block in the Unit tab (Planning › Materialising › Handover, counts, deadline, Cancel); held men drawn as dashed rings | a modal dialog — an instructor acts on many units mid-run · progress only in a panel — the instructor watches the map | §16a's stages changing (the chip shows whatever stages the process records) |
+
+## 6. NATO symbols — procedural, from the unit's content *(UI-12)*
+
+```mermaid
+classDiagram
+  class TkbSystemType {
+    <<existing TKB platform / weapon type, EXTENDED>>
+    SymbolRole
+    Mobility
+  }
+  class UnitSymbolDeriver {
+    <<new, Hrot.Core>>
+    Of(view, unit) UnitSymbol
+  }
+  class UnitSymbol {
+    <<new, unmanaged, 8 B>>
+    Affiliation
+    Role
+    SecondaryRole
+    Mobility
+    Echelon
+    Override
+  }
+  class UnitSymbolGeometry {
+    <<new, pure, Fdp.Presentation>>
+    Build(symbol, sizePx, sink)
+  }
+  class EntityCardRenderer {
+    <<existing, EntityCardRenderer.cs>>
+    rows stacked
+    NEW left symbol cell
+  }
+  class StochasticUnitGizmo {
+    <<CE-8603>>
+    symbol alone when no card
+  }
+  class ImGuiSymbolSink {
+    <<new, ORBAT and Details>>
+  }
+  class MilStd2525Renderer {
+    <<existing stub, REPLACED>>
+  }
+  UnitSymbolDeriver ..> TkbSystemType : weighs roles
+  UnitSymbolDeriver ..> UnitHoldings : authored content
+  UnitSymbolDeriver --> UnitSymbol
+  UnitSymbolGeometry ..> UnitSymbol
+  EntityCardRenderer ..> UnitSymbolGeometry : raylib sink
+  StochasticUnitGizmo ..> UnitSymbolGeometry : raylib sink
+  ImGuiSymbolSink ..> UnitSymbolGeometry : ImGui draw list
+  MilStd2525Renderer ..> UnitSymbolGeometry : becomes a caller
+```
+*What it shows that prose hid: ONE geometry builder and THREE sinks (the card, the map, ImGui) — the symbol cannot look different in two places by
+construction; the stub disc renderer becomes a caller instead of a second implementation; the only TKB change is two fields on the system type.*
+
+| # | decision (lean) | why |
+|---|---|---|
+| **S-1** | **`SymbolRole` on the TKB system type** (infantry · infantry-carrier · armour · anti-armour · mortar · artillery · recon · HQ · support), **unset ⇒ derived** from what the TKB already says (a tank platform ⇒ armour, a rifle ⇒ infantry, a tracked APC ⇒ carrier); mobility from `UnitHolding.Mobility` | the content decides; authoring is needed only where the derivation is wrong |
+| **S-2** | **the rule**: weigh the AUTHORED content (`UnitHoldings` + slot roles; a physical unit's roster the same way) by role ⇒ the dominant role is the ICON; carriers with men ⇒ mechanised (tracked) / motorised (wheeled); a second role above a share (lean 20 %) ⇒ ONE secondary mark; echelon from `AggregateUnit.Echelon` (or the DIS type) | the four examples in the mockup ⑧ |
+| **S-3** | ⚠ **from what the unit WAS MADE OF, never what it has left** — losing its IFVs does not turn a mechanised platoon into infantry | a symbol is the unit's identity; the losses are the card's strength bar |
+| **S-4** | **`UnitSymbol`**: an 8 B unmanaged value, computed once per unit and cached (recomputed when the authored content changes), carried in the card primitive's payload (no string on the wire); the 2525C SIDC is an EXPORT for IG / DIS only | 0 B per frame; nothing new crosses the wire for the card |
+| **S-5** | **`UnitSymbolGeometry.Build`**: polylines, polygons and circles in a unit box, scaled to pixels by the sink — frames (friend rectangle, hostile diamond, neutral square, unknown quatrefoil), the icon vocabulary of ⑦, the mobility indicator, the echelon marks drawn as vectors (no font glyph — the gizmo font has no •) | the 2-D layer cannot draw a pixel-sized cross around a world point today (§5's deviation) — the card renderer CAN (it is screen space), so the symbol lives there |
+| **S-6** | in the CARD: a left cell spanning the rows (the card's rows shift right; the leader line drops from the cell); ALONE at the unit's point when the card is not shown (Labels layer off, zoomed out — ST-4) | one card per unit (§6am), and the symbol never disappears |
+| ⏳ | the build: S-1 needs the TKB lane (or this lane, stated) for the field + its derivation; S-2…S-6 are this lane's | — |
 
 ## 5. Built now / waiting *(as-built `2026-11-16`; `exp/agg-backend` merged at `64255766d` — its contract NOTE_AggBackend_To_Agg_Contract.md)*
 
