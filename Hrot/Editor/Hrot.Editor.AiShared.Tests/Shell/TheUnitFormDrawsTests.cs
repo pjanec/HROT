@@ -827,9 +827,32 @@ public sealed class TheUnitFormDrawsTests
             view.View.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
             ImGui.End();
         });
+        view.View.CaptureLayout = true;
         Draw(squad);
         Assert.Contains("Strength = 3 / 4 men  ·  Amber", view.View.Rows);
         Assert.Contains("Ammunition = 50 %  ·  Green", view.View.Rows);
+        // ⭐ CE-8606 (UI-10, mockup ①) — MEASURED, not eyeballed: the Strength row is a BAR in the SITREP colour (amber, 75 % full), the Ammunition bar green
+        int strength = -1, ammo = -1;
+        for (int k = 0; k < HrotForms.Unit.Fields.Count; k++)
+        {
+            if (HrotForms.Unit.Fields[k].Kind != FieldKind.Gauge) continue;
+            if (HrotForms.Unit.Fields[k].Label == "Strength") strength = k; else if (HrotForms.Unit.Fields[k].Label == "Ammunition") ammo = k;
+        }
+        Assert.True(strength >= 0 && ammo >= 0, "the Strength and Ammunition rows are gauges");
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            static bool Near(Raylib_cs.Color c, int r, int g, int b) => Math.Abs(c.R - r) < 30 && Math.Abs(c.G - g) < 30 && Math.Abs(c.B - b) < 30;
+            Raylib_cs.Color At(int field, float along, float down = 0.85f)
+            {
+                var (_, min, max) = view.View.ItemRects.First(r => r.Field == field);
+                return Raylib_cs.Raylib.GetImageColor(shot, (int)(min.X + (max.X - min.X) * along), (int)(min.Y + (max.Y - min.Y) * down));
+            }
+            var a = At(strength, 0.05f); Assert.True(Near(a, 242, 192, 51), $"strength bar at 5 %: {a.R},{a.G},{a.B} (amber)");
+            var e2 = At(strength, 0.66f); Assert.False(Near(e2, 242, 192, 51), $"strength bar past 75 %: {e2.R},{e2.G},{e2.B} is not filled");
+            var g = At(ammo, 0.05f); Assert.True(Near(g, 91, 208, 106), $"ammunition bar: {g.R},{g.G},{g.B} (green)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-strength.png"));
         Draw(man);
         Assert.DoesNotContain(view.View.Rows, r => r.StartsWith("Ammunition", StringComparison.Ordinal));
@@ -840,6 +863,29 @@ public sealed class TheUnitFormDrawsTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int k = 0; k < 10; k++) { UnitFacts.StrengthText(world, squad); UnitFacts.AmmoText(world, squad); }
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>⭐ CE-8606 (UI-10, mockup ①) — the Vehicles gauge of a unit that HOLDS vehicles (a stochastic unit's <c>UnitHoldings</c>): one icon per vehicle,
+    /// the operational ones counted, the row's text "3 / 4 operational"; none for a unit without vehicles. 🔴 Red-proof (compiles): <c>VehicleCount</c> summing
+    /// Count for both ⇒ "4 / 4" ⇒ red.</summary>
+    [Fact]
+    public void CE8606_AUnitWithVehicles_ShowsThemAsIcons_TheLostOnesCounted()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitHoldings>();
+        var plt = world.CreateEntity();
+        var h = new Fdp.Toolkit.Aggregate.UnitHoldings { Count = 2 };
+        h.Items[0] = new Fdp.Toolkit.Aggregate.UnitHolding { Kind = Fdp.Toolkit.Aggregate.HoldingKind.Vehicle, Count = 4, Operational = 3 };
+        h.Items[1] = new Fdp.Toolkit.Aggregate.UnitHolding { Kind = Fdp.Toolkit.Aggregate.HoldingKind.Weapon, Count = 2, Operational = 2 };
+        world.AddComponent(plt, h);
+        var none = world.CreateEntity();
+        world.AddComponent(none, new Fdp.Toolkit.Aggregate.UnitHoldings());
+        Assert.True(UnitFacts.HasVehicles(world, plt));
+        Assert.False(UnitFacts.HasVehicles(world, none));
+        Assert.Equal("3 / 4 operational", UnitFacts.VehiclesText(world, plt).ToString());
+        var g = UnitFacts.VehiclesGauge(world, plt);
+        Assert.Equal(4, g.Icons); Assert.Equal(3, g.IconsOk);
     }
 }
 

@@ -48,7 +48,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;   // a card is keyed by the network id
-            var card = draw.Card(net, DebugTraceLayers.Labels);
+            var card = draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity));   // ⭐ CE-8605 — Unit cards / Men's cards
 
             // ⛔ CE-1327 — the hit points row (30) is gone: the health bar at the top of the card (row 10) shows them (user, 2026-10-25:
             //   "we can remove the HP line as we are showing the health bar at the top of the card").

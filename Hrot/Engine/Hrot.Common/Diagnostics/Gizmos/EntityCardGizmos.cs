@@ -50,7 +50,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239 — no card for a rule / score / evaluation
-            draw.Card(net, DebugTraceLayers.Labels).Row(0).Frame(SidePalette.Of(view.GetComponentRO<EntityInfo>(entity).ForceId));
+            draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(0).Frame(SidePalette.Of(view.GetComponentRO<EntityInfo>(entity).ForceId));
         }
     }
 
@@ -69,7 +69,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239
             string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
-            draw.Card(net, DebugTraceLayers.Labels).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
+            draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
         }
     }
 

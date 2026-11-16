@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 30;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29
+        public const int FirstUntoggledLayer = 31;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -105,6 +105,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             var mask = new LayerMask256();
             if (Units.Entities) mask.SetBit(0);
             if (Units.Labels) mask.SetBit(DebugTraceLayers.Labels);
+            if (Units.UnitCards) mask.SetBit(DebugTraceLayers.UnitCards);   // ⭐ CE-8605
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
             if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
@@ -149,7 +150,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
     {
         [EditDisplayName("Entities"), EditDoc("Unit symbols and silhouettes (and what you click to select them).")]
         public bool Entities { get; set; } = true;
-        [EditDisplayName("Labels"), EditDoc("The unit cards: frame, name, health bar (CE-1033).")]
+        // ⭐ CE-8605 (DESIGN_Unit_Symbols O-1, R-8602) — the cards SPLIT: a unit's (squad, platoon, company) and a man's / vehicle's. The property
+        //   keeps its name (saved layer sets and the HTTP API's "Units.Labels" read the men's cards as before); only the row's words changed.
+        [EditDisplayName("Unit cards"), EditDoc("The cards of the UNITS - squads, platoons, companies: frame, name, strength (CE-8605).")]
+        public bool UnitCards { get; set; } = true;
+        [EditDisplayName("Men's cards"), EditDoc("The cards of the men and vehicles: frame, name, health bar (CE-1033).")]
         public bool Labels { get; set; } = true;
         [EditDisplayName("Hide labels behind terrain"), EditDoc("3-D: a unit's card, and text at a place, is hidden where the ground or a building stands in front of it (trees do not hide it); the selected unit's card always shows. Off: cards are drawn on top of everything. On by default (CE-4582).")]
         public bool HideLabelsBehindTerrain { get; set; } = true;

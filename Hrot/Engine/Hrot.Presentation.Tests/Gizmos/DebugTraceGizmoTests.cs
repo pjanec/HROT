@@ -334,6 +334,37 @@ public sealed class DebugTraceGizmoTests : IDisposable
         Assert.True(new DebugPrimitiveBuffer(16).Card(9, DebugTraceLayers.Actions).IsInert == false, "no mask known ⇒ drawn (a host with no layer panel)");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-8605</c> (docs/UX/DESIGN_Unit_Symbols.md O-1, R-8602) — the cards SPLIT: a UNIT's card lives on Unit cards, a man's on Men's cards
+    /// (Labels). With Men's cards off a squad's card and its SQUAD-phase row still draw and the man's card is gone; with Unit cards off the other way
+    /// round; the no-orphan rule follows each card's OWN layer. 🔴 Red-proof (compiles): <c>CardLayerOf</c> answering Labels for a unit ⇒ the squad's
+    /// card vanishes with Men's cards off ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE8605_UnitCardsAndMensCards_AreSeparateSwitches_EachCardKeepsItsOwnRows()
+    {
+        LayerMask256 Mask(params byte[] off) { var m = new LayerMask256(); for (int i = 0; i < 256; i++) if (Array.IndexOf(off, (byte)i) < 0) m.SetBit(i); return m; }
+        (byte Row, int Net)[] Emit(LayerMask256 mask)
+        {
+            var b = new DebugPrimitiveBuffer(1024);
+            b.SetActiveLayers(mask);
+            b.Card(7, DebugTraceLayers.Labels, unitCard: true).Row(20).Text("1 Sqn #7", new Rgba32(255, 255, 255, 255));          // the squad's name
+            b.Card(7, DebugTraceLayers.SquadCommand, unitCard: true).Row(EntityCardRows.SquadPhase).Text("SQUAD 9 ph2", new Rgba32(80, 200, 190, 255));
+            b.Card(9, DebugTraceLayers.Labels, unitCard: false).Row(20).Text("Pvt Novak #9", new Rgba32(255, 255, 255, 255));      // a man's name
+            b.Card(9, DebugTraceLayers.MindState, unitCard: false).Row(11).Bar(0.5f, new Rgba32(200, 120, 0, 255), new Rgba32(40, 40, 40, 255));
+            return b.GetFrame().ToArray().Where(p => p.Space == CoordinateSpace.EntityCard).Select(p => (p.ZIndex, p.AnchorIndex)).ToArray();
+        }
+
+        Assert.Equal(new byte[] { 20, EntityCardRows.SquadPhase, 20, 11, 11 }, Emit(Mask()).Select(x => x.Row).ToArray());           // everything on
+        var noMen = Emit(Mask(DebugTraceLayers.Labels));                                                                            // Men's cards off
+        Assert.All(noMen, x => Assert.Equal(7, x.Net));
+        Assert.Equal(new byte[] { 20, EntityCardRows.SquadPhase }, noMen.Select(x => x.Row).ToArray());
+        var noUnits = Emit(Mask(DebugTraceLayers.UnitCards));                                                                       // Unit cards off
+        Assert.All(noUnits, x => Assert.Equal(9, x.Net));
+        Assert.Equal(new byte[] { 20, 11, 11 }, noUnits.Select(x => x.Row).ToArray());
+        Assert.True(DebugTraceLayers.UnitCards < Hrot.Common.Diagnostics.Gizmos.LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+    }
+
     // ⭐ CE-3136 — the Actions family is a pinnable, scoped family like the others (layer panel + "Pin gizmos" menu).
     [Fact]
     public void CE3136_TheActionsFamily_IsListed_PinnableAndSelectedByDefault()

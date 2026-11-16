@@ -150,17 +150,27 @@ public static class HrotForms
             },
             // ⭐ CE-8601 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-3) — a UNIT's strength and ammunition: men present / authorized + the SITREP colour (UnitStrength,
             //   the ONE strength seam) and its rounds (the staff's RoundsOf / AmmoOf). Read-only, derived; a man keeps his Health row below.
+            //   ⭐ CE-8606 (UI-10) — drawn as GAUGES: the bar in the SITREP colour with the numbers on it, the thresholds as ticks, the word + glyph chip
             new FormField
             {
-                Label = "Strength", Kind = FieldKind.Text,
+                Label = "Strength", Kind = FieldKind.Gauge,
                 Has = UnitFacts.IsUnit,
                 ReadText = UnitFacts.StrengthText,
+                ReadGauge = UnitFacts.StrengthGauge,
             },
             new FormField
             {
-                Label = "Ammunition", Kind = FieldKind.Text,
+                Label = "Ammunition", Kind = FieldKind.Gauge,
                 Has = (w, e) => UnitFacts.IsUnit(w, e) && !UnitFacts.AmmoText(w, e).IsEmpty,
                 ReadText = UnitFacts.AmmoText,
+                ReadGauge = UnitFacts.AmmoGauge,
+            },
+            new FormField
+            {
+                Label = "Vehicles", Kind = FieldKind.Gauge,
+                Has = UnitFacts.HasVehicles,
+                ReadText = UnitFacts.VehiclesText,
+                ReadGauge = UnitFacts.VehiclesGauge,
             },
             new FormField
             {

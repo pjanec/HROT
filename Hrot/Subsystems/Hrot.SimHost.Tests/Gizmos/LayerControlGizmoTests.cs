@@ -177,6 +177,11 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(all.IsSet(DebugTraceLayers.Labels));
             Assert.False(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-8605 (DESIGN_Unit_Symbols O-1) — the UNITS' cards have their own toggle, ON by default, independent of the men's
+            Assert.True(all.IsSet(DebugTraceLayers.UnitCards));
+            Assert.False(new LayerControlDto { Units = { UnitCards = false } }.ToMask().IsSet(DebugTraceLayers.UnitCards));
+            Assert.True(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.UnitCards));
+            Assert.True(DebugTraceLayers.UnitCards < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
             foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid, DebugTraceLayers.Concealed })   // ⭐ CE-1169 — the ExCon layer too
             {

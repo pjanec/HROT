@@ -7,7 +7,29 @@ using Fdp.Toolkit.Replication.Patching;
 namespace Fdp.Presentation.Forms;
 
 /// <summary>How a field's value is read, shown and edited.</summary>
-public enum FieldKind : byte { Number, Text, Choice, Toggle, Pick }
+public enum FieldKind : byte { Number, Text, Choice, Toggle, Pick, Gauge }
+
+/// <summary>
+/// ⭐ <c>CE-8606</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-10) — what a <see cref="FieldKind.Gauge"/> row draws (read-only): a BAR
+/// <see cref="Fraction"/> full in <see cref="Fill"/> with <see cref="Text"/> on it and up to two threshold ticks, then a CHIP — the status word
+/// (<see cref="Chip"/>) with its glyph, in <see cref="ChipColour"/> (never colour alone, Details forms §6.3). Or, with <see cref="Icons"/> &gt; 0, a row of
+/// <see cref="IconGlyph"/> icons — the first <see cref="IconsOk"/> in <see cref="Fill"/>, the rest lost (red, crossed) — then <see cref="Text"/>.
+/// A struct of fixed strings and numbers: built per frame, 0 B.
+/// </summary>
+public struct FormGauge
+{
+    public float Fraction;
+    public System.Numerics.Vector4 Fill;
+    /// <summary>Threshold ticks as fractions of the bar; NaN = none.</summary>
+    public float TickA, TickB;
+    public FixedString64 Text;
+    public FixedString32 Chip;
+    public System.Numerics.Vector4 ChipColour;
+    /// <summary>The chip's glyph (a FontAwesome code point string from <c>IconsFontAwesome6</c>); null = none.</summary>
+    public string? ChipGlyph;
+    public int Icons, IconsOk;
+    public string? IconGlyph;
+}
 
 /// <summary>
 /// ⭐ U-12 / D1 (docs/UX/DESIGN_Details_Forms.md §2.1 — the design's <i>FormRow</i>; named <c>FormField</c> here because D0's row DRAWER already owns the name
@@ -25,6 +47,8 @@ public sealed class FormField
     public Func<EntityRepository, Entity, double>? ReadNumber { get; init; }
     /// <summary>A text field's value as a fixed string (a struct — comparing it allocates nothing). ⭐ R-2: null on a field with an <see cref="Attribute"/> = the reader's text.</summary>
     public Func<EntityRepository, Entity, FixedString64>? ReadText { get; init; }
+    /// <summary>⭐ <c>CE-8606</c> — a <see cref="FieldKind.Gauge"/> row's picture (read-only); the row's text (<see cref="ReadText"/>) is what the form's rows and tests read.</summary>
+    public Func<EntityRepository, Entity, FormGauge>? ReadGauge { get; init; }
     /// <summary>Whether this entity has the value at all (a component missing ⇒ the row is not drawn for it); null = always — ⭐ R-2: a field read through its attribute is drawn only where the reader has a value.</summary>
     public Func<EntityRepository, Entity, bool>? Has { get; init; }
     /// <summary>The unit the number is written in (<c>s</c>, <c>m</c>, <c>%</c> …). ⭐ R-2 (AR-7): when the field sets none, a plain number takes its attribute's own unit

@@ -27,6 +27,23 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// INERT (its rows emit nothing) — one rule here, so no gizmo can forget it.</summary>
         public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer = 0)
             => new(draw, networkId, layer, inert: layer != LabelsLayer && !draw.IsLayerActive(LabelsLayer));
+
+        /// <summary>⭐ <c>CE-8605</c> (docs/UX/DESIGN_Unit_Symbols.md O-1, R-8602) — the layer of a UNIT's card (a squad, platoon, company): the map's
+        /// "Unit cards" row, split from "Men's cards" (<see cref="LabelsLayer"/>) so a commander's overview needs no men's cards.</summary>
+        public const byte UnitCardsLayer = 30;
+
+        /// <summary>⭐ <c>CE-8605</c> — the layer a card of this kind lives on: <see cref="UnitCardsLayer"/> for a unit, else <see cref="LabelsLayer"/>.</summary>
+        public static byte CardLayerOf(bool unitCard) => unitCard ? UnitCardsLayer : LabelsLayer;
+
+        /// <summary>⭐ <c>CE-8605</c> — the card of a UNIT (<paramref name="unitCard"/> true) or of a man / vehicle: a row asked on
+        /// <see cref="LabelsLayer"/> lands on the card's OWN layer (<see cref="CardLayerOf"/>), and the no-orphan rule follows that layer — a unit's
+        /// squad-phase row is drawn while Unit cards is on even with Men's cards off, and the other way round.</summary>
+        public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer, bool unitCard)
+        {
+            byte own = CardLayerOf(unitCard);
+            byte effective = layer == LabelsLayer ? own : layer;
+            return new(draw, networkId, effective, inert: effective != own && !draw.IsLayerActive(own));
+        }
     }
 
     /// <summary>An entity's card (see <see cref="EntityCards"/>).</summary>
