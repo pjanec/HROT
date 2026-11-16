@@ -63,6 +63,11 @@ namespace Hrot.Core.Animals
             bool herding = row != null && row.Temperament.HerdCohesion > 0f;
             Guid parent = repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(area) ? repo.GetComponentRO<EntityGuid>(area).Value : Guid.Empty;
             int count = flock ? (a.Count > 0 ? 1 : 0) : Math.Min((int)a.Count, MaxPerArea);
+            // ⭐ AB-10 — each animal is NAMED after its area ("Pasture 3"; a flock carries the area's name): EntityInfo is a per-spawn value
+            //   (EntityInfo.cs — the TKB stamps only a placeholder), and a scenario's checks, the entity list and the film find units by name
+            string areaName = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(area)
+                ? repo.GetComponentRO<EntityInfo>(area).Name.ToString() : string.Empty;
+            if (areaName.Length == 0) areaName = row?.Name ?? "Animal";
             var rng = SimRng.FromSim(unchecked((int)a.Seed), 0x4629, 0f);
             for (int i = 0; i < count; i++)
             {
@@ -73,6 +78,7 @@ namespace Hrot.Core.Animals
                     new SimTransform { Position = at, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, heading * MathF.PI / 180f) },
                     new EntityGuid(EntityGuidDerivation.Derive(parent, parent == Guid.Empty ? $"animal:{area.Index}:{i}" : $"animal:{i}")),
                     home,
+                    new EntityInfo { Name = new FixedString64(flock ? areaName : $"{areaName} {i + 1}"), ForceId = ForceId.Neutral },
                 };
                 if (flock)
                     components.Add(new FlockState { Count = a.Count, InitialCount = a.Count, Seed = a.Seed, Mode = FlockMode.Perched });
