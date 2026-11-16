@@ -16,12 +16,15 @@ Declared on `backend` (`FDP/Toolkits/Fdp.Toolkits/Animals/AnimalComponents.cs`, 
 
 | component | id | layout (unmanaged, sequential) | who writes · who reads |
 |---|---|---|---|
-| `Fear` | **500** | (backend's fear system — AB-3; ui does not need it) | backend |
-| ⭐ `AnimalState` | **501** | `AnimalMode Mode` (byte) · `byte FearBand` (0 calm · 1 uneasy · 2 frightened · 3 panic) · `AnimalSpecies Species` (byte) · `AnimalFlags Flags` (byte) — **4 B**, replicated | backend writes on the brain node · ui reads (pose, gait, the alarm look) |
-| ⭐ `FlockState` | **502** | `ushort Count` · `ushort InitialCount` · `uint Seed` · `FlockMode Mode` (byte) · 3 B pad — **12 B**, replicated | backend · ui draws `Count` birds from `Seed` in closed form (drop the highest indices first when `Count` falls) |
-| ⭐ `HerdMember` | **503** | `Entity Herd` — **8 B** | backend · ui does not need it |
-| `AnimalHome` | **504** | `Vector3 Centre` · `float Radius` · `float TetherMetres` (0 = none) · `Entity Area` · `byte Enclosed` · 3 B pad | backend · ui may draw a tethered dog's chain from `Centre` |
-| `HerdState` | **505** | `Vector3 Centre` · `Vector3 NextGrazing` · `Entity Lead` · `AnimalMode Mode` · `AnimalSpecies Species` · 2 B pad | backend |
+
+⚠ **`2026-11-16`, AB-10: the component ids MOVED 500–507 → 130–137** — 500–511 is R-44's test-only range (a test's own id collided in one test process) and the terrain lane took 500 for `PlacementGroup`. ⭐ Code that uses `GlobalComponentIds.<Name>` needs nothing; a literal number does.
+
+| `Fear` | **130** | (backend's fear system — AB-3; ui does not need it) | backend |
+| ⭐ `AnimalState` | **131** | `AnimalMode Mode` (byte) · `byte FearBand` (0 calm · 1 uneasy · 2 frightened · 3 panic) · `AnimalSpecies Species` (byte) · `AnimalFlags Flags` (byte) — **4 B**, replicated | backend writes on the brain node · ui reads (pose, gait, the alarm look) |
+| ⭐ `FlockState` | **132** | `ushort Count` · `ushort InitialCount` · `uint Seed` · `FlockMode Mode` (byte) · 3 B pad — **12 B**, replicated | backend · ui draws `Count` birds from `Seed` in closed form (drop the highest indices first when `Count` falls) |
+| ⭐ `HerdMember` | **133** | `Entity Herd` — **8 B** | backend · ui does not need it |
+| `AnimalHome` | **134** | `Vector3 Centre` · `float Radius` · `float TetherMetres` (0 = none) · `Entity Area` · `byte Enclosed` · 3 B pad | backend · ui may draw a tethered dog's chain from `Centre` |
+| `HerdState` | **135** | `Vector3 Centre` · `Vector3 NextGrazing` · `Entity Lead` · `AnimalMode Mode` · `AnimalSpecies Species` · 2 B pad | backend |
 
 ## Enums
 

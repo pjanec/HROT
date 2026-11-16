@@ -33,6 +33,8 @@ namespace Hrot.AI.Behaviors.Brains
             public float PassSpeed;
             public float Speed;
             public float PassMetres;
+            /// <summary>⭐ IM-1 — 1: the pillion throws one grenade at the pass instead of firing a burst.</summary>
+            public byte Throw;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -61,6 +63,7 @@ namespace Hrot.AI.Behaviors.Brains
                 PassSpeed = authored.PassSpeed > 0f ? authored.PassSpeed : DefaultPassSpeed,
                 Speed = authored.Speed > 0f ? authored.Speed : DefaultSpeed,
                 PassMetres = authored.PassMetres > 0f ? authored.PassMetres : DefaultPassMetres,
+                Throw = authored.Throw ? (byte)1 : (byte)0,
             };
             block.State = default;
         }
@@ -103,7 +106,7 @@ namespace Hrot.AI.Behaviors.Brains
                     dir = dir.LengthSquared() > 1e-4f ? Vector2.Normalize(dir) : Vector2.UnitX;
                     var beyond = new Vector3(at.X + dir.X * BeyondMetres, at.Y + dir.Y * BeyondMetres, at.Z);
                     if (!LocomotionMoveTo.Issue(world, self, beyond, p.PassSpeed, ArrivalRadius, MoveGait.Keep, source: source)) return NodeStatus.Failure;
-                    OrderThePillion(world, self, p.Target);
+                    OrderThePillion(world, self, p.Target, p.Throw != 0 ? (Vector3?)at : null);
                     s.Phase = Passing;
                     return NodeStatus.Running;
                 }
@@ -137,10 +140,26 @@ namespace Hrot.AI.Behaviors.Brains
             return Entity.Null;
         }
 
-        private static void OrderThePillion(EntityRepository world, Entity bike, int targetNetId)
+        /// <summary>
+        /// The pillion's order. ⭐ IM-1: with <paramref name="throwAt"/> (the authored <c>Throw</c>) the order is the library <c>FireAtPoint</c> — ONE round, mount −1 =
+        /// "the pillion's own throwable" (resolved by <c>FireAtPointBehavior.Resolve</c> on HIS entity, so this brain reads and writes nothing of his) — at the target's
+        /// position at the pass; else the burst, <c>FireAtTarget</c>. One assignment event per run either way.
+        /// </summary>
+        private static void OrderThePillion(EntityRepository world, Entity bike, int targetNetId, Vector3? throwAt = null)
         {
             var pillion = PillionOf(world, bike);
             if (pillion.IsNull || !world.Bus.IsRegisteredManaged<AssignBehaviorEvent>()) return;
+            if (throwAt is { } at)
+            {
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                world.Bus.PublishManaged(new AssignBehaviorEvent
+                {
+                    Entity = pillion, BehaviorName = BehaviorNames.FireAtPoint,
+                    JsonParams = "{\"x\":" + at.X.ToString("R", inv) + ",\"y\":" + at.Y.ToString("R", inv) + ",\"z\":" + at.Z.ToString("R", inv) + ",\"mount\":-1,\"rounds\":1}",
+                    Origin = BehaviorOrigin.Superior,
+                });
+                return;
+            }
             world.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity = pillion, BehaviorName = BehaviorNames.FireAtTarget,

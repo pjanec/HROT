@@ -38,6 +38,15 @@ namespace Fdp.Toolkit.Terrain
         public readonly int Side => SidePlus1 == 0 ? -1 : SidePlus1 - 1;
     }
 
+    /// <summary>The key of a side's knowledge of a field: the field's stable id and the side + 1.</summary>
+    public readonly record struct KnowledgeKey(Guid Field, byte SidePlus1);
+
+    /// <summary>One learned cell (or, with <see cref="Col"/> = <see cref="MarkOnly"/>, the field marked) — the knowledge writer's item.</summary>
+    public readonly record struct KnowledgeItem(KnowledgeKey Key, byte Col, byte Row, MineCellKnowledge Level, byte Marked, KnowledgeSource Source, SimInstant At)
+    {
+        public const byte MarkOnly = 255;
+    }
+
     /// <summary>A cell of a side's knowledge of a field (2 bits; the lattice order unknown &lt; suspected &lt; known-clear &lt; known-mined — MR-2).</summary>
     public enum MineCellKnowledge : byte { Unknown = 0, Suspected = 1, KnownClear = 2, KnownMined = 3 }
 
@@ -50,8 +59,29 @@ namespace Fdp.Toolkit.Terrain
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.MinefieldKnowledge)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct MinefieldKnowledge
+    public unsafe struct MinefieldKnowledge : IKeyedRecord<KnowledgeKey, KnowledgeItem>
     {
+        KnowledgeKey IKeyedRecord<KnowledgeKey, KnowledgeItem>.RecordKey
+        {
+            readonly get => new(Header.Subject, Header.SidePlus1);
+            set { Header.Subject = value.Field; Header.SidePlus1 = value.SidePlus1; Header.SubjectKind = SubjectKind.Entity; Header.Kind = PlaceKnowledgeKind.Minefield; Header.ObjectIndex = -1; }
+        }
+        public readonly bool IsFull => false;   // one record covers the whole grid
+        public readonly bool Holds(in KnowledgeItem item)
+        {
+            if (item.Marked != 0 && Header.Marked == 0) return false;
+            if (item.Col == KnowledgeItem.MarkOnly) return true;
+            return Get(item.Col, item.Row) >= item.Level;
+        }
+        public bool TryAdd(in KnowledgeItem item)
+        {
+            if (item.Marked != 0) Header.Marked = 1;
+            if (item.Col != KnowledgeItem.MarkOnly) Raise(item.Col, item.Row, item.Level);
+            if (item.At > Header.LearnedAt) Header.LearnedAt = item.At;
+            Header.Source = item.Source;
+            return true;
+        }
+
         public const int MaxCols = 60, MaxRows = 64;
         public const int CellBytes = MaxCols * MaxRows / 4;
         /// <summary>⭐ TKB 7206 <c>MinefieldKnowledgeRecord</c> (the record block 7201–7205).</summary>

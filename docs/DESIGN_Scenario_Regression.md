@@ -988,6 +988,12 @@ fresh virtual machine, up to 20 at a time; the result is the Actions view and it
 ⚠ **Unverified, to measure on the first night:** a standard runner's cores / memory against `--mode all` + Xvfb; a scheduled workflow's
 behaviour when the repository is quiet for weeks; DDS multicast on a GitHub runner (the multi-process row may need loopback-only settings).
 
+### 11.5 As built — backend *(R-4279; `STATUS_Backend_Regression_Suite.md`)*
+
+| item | as built | deviation / note |
+|---|---|---|
+| **RT-3** the visible golden | each snapshot keeps `visible`: `VisibleState.Paths` (`EntityInfo.ForceId`, `IsEmbarkedTag`, `NavigationStatus.Phase`, `WeaponPosture`, `CivilianState.Mode`, `Demeanour`, `Custody`, `AnimalState`, `FlockState`) + every path the scenario's checks read (`ScenarioChecks.Paths()`). The verdict's comparison is `ScenarioGolden.CompareVisible`: anchor / expectation times, rounds, bursts, and per snapshot position, health, visible state. A difference or a missing golden is a WARNING (`VerifyResult.Warnings`, exit 0, `summary.json` `warned`, junit `system-out`); ONE command re-captures (`--verify-capture`). An old golden (no `visible`) is compared on what it has and says to re-capture. `ScenarioGolden.Compare` stays the FULL comparison the replay harness (H1–H5, R1) uses, now without the `visible` map | the components are still hashed into the golden (the harness and `golden.full` need them) — only the VERDICT reads the visible part |
+
 ## ⛔ HISTORY
 
 - **First version (2026-10-22, R-4065):** a Python runner over HTTP (`scripts/scenario-check.py`) as phase 1, the engine as phase 2. ⛔

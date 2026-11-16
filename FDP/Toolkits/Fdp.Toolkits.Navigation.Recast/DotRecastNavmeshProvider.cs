@@ -108,12 +108,18 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         /// else the tracked rule; else the shared filter. Allocation-free after each factor's first ask.</summary>
         public DoorAwareQueryFilter FilterFor(DoorStates? doors, uint layerMask)
         {
+            // ⭐ CE-4624 MS-T3 — the mover's SIDE rides in the mask (NavLayerSelection.SideBits): every working copy is judged by the doors AND that side's minefield knowledge
+            byte side = NavLayerSelection.SidePlus1Of(layerMask);
             // ⭐ CE-4623 AB-6 — a JUMPER (always on the infantry layer, never tracked, no woods factor): the filter that includes the jump links
-            if ((layerMask & NavLayerSelection.JumpModifier) != 0) return doors == null ? JumpFilter : _workingJump.Value!.JudgeBy(doors);
+            if ((layerMask & NavLayerSelection.JumpModifier) != 0) return doors == null ? JumpFilter : _workingJump.Value!.JudgeBy(doors, side);
             uint q = (layerMask & NavLayerSelection.WoodsFactorMask) >> NavLayerSelection.WoodsFactorShift;
-            if (q == 0) return FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);
+            if (q == 0)
+            {
+                if (doors == null) return (layerMask & NavLayerSelection.TrackedModifier) != 0 ? TrackedFilter : Filter;
+                return ((layerMask & NavLayerSelection.TrackedModifier) != 0 ? _workingTracked : _working).Value!.JudgeBy(doors, side);
+            }
             var shared = Volatile.Read(ref _byWoodsFactor[q]) ?? MakeWoodsFactorFilter(q, layerMask);
-            return doors == null ? shared : _workingByWoodsFactor[q]!.Value!.JudgeBy(doors);
+            return doors == null ? shared : _workingByWoodsFactor[q]!.Value!.JudgeBy(doors, side);
         }
 
         // ⚠ its own method: a lambda capturing a local of FilterFor would allocate its closure on EVERY call (C# hoists it to the method scope) —
@@ -229,6 +235,15 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
     /// <summary>The published snapshot — read it ONCE per query.</summary>
     private Snapshot Current => Volatile.Read(ref _snapshot);
 
+    /// <summary>⭐ CE-4624 (rails, diagnostics) — the filter a query of <paramref name="layerMask"/> judged by <paramref name="doors"/> uses on the first layer the mask names; null when no such layer.</summary>
+    public DoorAwareQueryFilter? FilterFor(DoorStates? doors, uint layerMask)
+    {
+        var s = Current;
+        for (int i = 0; i < s.Masks.Length; i++)
+            if (((uint)s.Masks[i] & layerMask) != 0) return s.States[i].FilterFor(doors, layerMask);
+        return null;
+    }
+
     // ── Construction ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -264,12 +279,19 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
             layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
-                NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry));
+                NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry,
+                NavDoorways.MinefieldPolys(kv.Value, world)));   // ⭐ CE-4624 MS-T3 — the minefield polygons → (field, cells, lane), priced per side
         return layers;
     }
 
     /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
     public int DoorPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
+
+    /// <summary>⭐ CE-4624 MS-T3 — how many polygons of <paramref name="layer"/> belong to a minefield (a rail reads it).</summary>
+    public int MinefieldPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.MinefieldPolyCount : 0;
+
+    /// <summary>⭐ CE-4624 MS-T3 — the minefield polygon map of <paramref name="layer"/> (a rail reads it), or null.</summary>
+    public MinefieldPolyMap? MinefieldPolys(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.Minefields : null;
 
     // ── ⭐ CE-3133 — debug geometry for the map's Navmesh layer (docs/DESIGN_Terrain_Combat_Tuning.md §5c) ──────────
 

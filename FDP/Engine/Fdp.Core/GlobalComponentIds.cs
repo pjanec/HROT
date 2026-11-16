@@ -1337,6 +1337,15 @@ namespace Fdp.Core
         /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
         public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
 
+        /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
+        /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
+        /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
+        public const int MinefieldLanes = 324, MineClearing = 325;
+
+        /// <summary>⭐ CE-4624 MS-T2 (MR-5, R-5049) — <c>MineBreadcrumbs</c>: a unit's own recent track near a minefield (the back-out path), written by its brain node, recorded,
+        /// not replicated. ⚠ 326 measured free on every lane 2026-11-16.</summary>
+        public const int MineBreadcrumbs = 326;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
@@ -1371,20 +1380,20 @@ namespace Fdp.Core
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
         /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
-        public const int Fear = 500;
+        public const int Fear = 130;   // ⭐ CE-4623 AB-10 (2026-11-16): the animals' ids MOVED 500–507 → 130–137 — 500–511 is R-44's TEST-ONLY range (a test's own [ComponentId(503)] collided with HerdMember in one test process) and the terrain lane took 500 for PlacementGroup the same day; 130–137 measured free on backend, behaviors, ui and coordinator in every *ComponentIds*.cs and every literal ComponentId(n)
         /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
-        public const int AnimalState = 501;
+        public const int AnimalState = 131;
         /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
-        public const int FlockState = 502;
+        public const int FlockState = 132;
         /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
-        public const int HerdMember = 503;
+        public const int HerdMember = 133;
         /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
-        public const int AnimalHome = 504;
+        public const int AnimalHome = 134;
         /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
-        public const int HerdState = 505;
+        public const int HerdState = 135;
         /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
-        public const int AnimalArea = 506;
+        public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
-        public const int AnimalAreaPopulated = 507;
+        public const int AnimalAreaPopulated = 137;
     }
 }

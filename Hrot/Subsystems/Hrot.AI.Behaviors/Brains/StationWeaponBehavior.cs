@@ -96,18 +96,19 @@ namespace Hrot.AI.Behaviors.Brains
             return IsWeapon(world, thing) ? thing : Entity.Null;
         }
 
-        /// <summary>Move (or ask to move) the first weapon he carries that the station takes. False when none can go there.</summary>
+        /// <summary>Ask to move the first weapon he carries that the station takes. False when none can go there.</summary>
         private static bool Place(EntityRepository world, Entity man, int seat, ref StationWeaponState ws)
         {
             if (!world.HasComponent<PassengerBuffer>(man)) return false;
-            bool owns = Embarkation.OwnsVehicle(world, man);
-            if (!owns && ws.Asked != 0) return true;
+            // ⭐⭐ CE-2441 — ALWAYS ask (RestationEvent, applied by the serial CarryStationSystem next frame): a direct CarryStations.Move here
+            //   boarded the WEAPON (another entity's IsEmbarkedTag) from the parallel brain phase — a cross-entity write (§18). One path, the
+            //   same in serial and parallel, a frame later than before.
+            if (ws.Asked != 0) return true;
             var buffer = world.GetComponentRO<PassengerBuffer>(man);
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
             {
                 var thing = buffer.Passengers[i];
                 if (i == seat || !IsWeapon(world, thing)) continue;
-                if (owns) { if (CarryStations.Move(world, man, thing, seat)) return true; continue; }
                 if (CarryStations.Ask(world, man, thing, seat)) { ws.Asked = 1; return true; }
             }
             return false;

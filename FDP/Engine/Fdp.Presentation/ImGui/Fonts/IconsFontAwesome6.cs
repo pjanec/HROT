@@ -156,6 +156,7 @@ public static class IconsFontAwesome6
     public const string WheatAwn            = "\ue2cd"; // hay bales, hedgerow fields
     public const string Mound               = "\ue52d"; // sandbags
     public const string Road                = "\uf018"; // roads
+    public const string LandMineOn          = "\ue51b"; // ⭐ CE-4624 — a minefield (the Minefield form's header, minefield/field)
     public const string Bridge              = "\ue4c8"; // a bridge
     public const string ChevronLeft         = "\uf053"; // back
     public const string ChevronRight        = "\uf054"; // next

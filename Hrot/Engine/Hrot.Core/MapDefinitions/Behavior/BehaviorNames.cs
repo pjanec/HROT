@@ -272,6 +272,18 @@ namespace Hrot.Map.Definitions.Behavior
         public const string GreyZoneDash = "GreyZoneDash";
         /// <summary>⭐ CE-4621 M-4 (MC-3, MC-4) — a bike's own dash: the legs at speed, the lookout's break across a diving drone, riders out at the end.</summary>
         public const string DashRide = "DashRide";
+        /// <summary>⭐ CE-4624 MS-B1 — a unit or vehicle that set off a mine: halt, care in place, hold for the engineers (Halts | LeavesRoute).</summary>
+        public const string MineStrike = "MineStrike";
+        /// <summary>⭐ CE-4624 MS-B2 — an engineer sweeps toward a suspected point and traces the minefield's edge on swept-clear cells; marks it.</summary>
+        public const string ReconMinefield = "ReconMinefield";
+        /// <summary>⭐ CE-4624 MS-B3 — the mine clearer drives a lane with its plough / flail on (the engine clears the swath).</summary>
+        public const string ClearLane = "ClearLane";
+        /// <summary>⭐ CE-4624 MS-B3 — a squad crosses a cleared lane in single file along its axis.</summary>
+        public const string CrossLane = "CrossLane";
+        /// <summary>⭐ CE-4624 MS-B3 — a commander's breach: fire on the far side, smoke, the clearer cuts the lane, the assault crosses.</summary>
+        public const string Breach = "Breach";
+        /// <summary>⭐ CE-4624 MS-B4 — a squad whose route reaches a minefield halts short of it and calls the engineers.</summary>
+        public const string MinefieldAhead = "MinefieldAhead";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";

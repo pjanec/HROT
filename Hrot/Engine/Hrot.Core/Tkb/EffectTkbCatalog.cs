@@ -178,6 +178,11 @@ namespace Hrot.Core.Tkb
             Set(tkb, MunitionTkbCatalog.TkbChaff, new MunitionEffectsDto { Release = ChaffCloud });
             // ⭐ CE-4618 (radar SAM U-2) — the SAM's launch: a booster flash at the mouth; it bursts in the air as a medium fragmentation burst (the proximity fuze)
             Set(tkb, MunitionTkbCatalog.TkbRadarSamMissile, new MunitionEffectsDto { MuzzleFlash = MissileLaunchFlash, Explosion = ExplosionMedium, Decal = DecalMedium });
+            // ⭐ CE-4624 (minefields MS-U4, MR-17; the mockup's 3-D panel) — the mines' bursts: an AP mine a medium dust burst at the foot, an AT mine and the line
+            //   charge the huge dark column (several kg of explosive); each scorches the ground under it.
+            Set(tkb, MunitionTkbCatalog.TkbMineAntiPersonnel, new MunitionEffectsDto { Explosion = ExplosionMedium, Decal = DecalSmall });
+            Set(tkb, MunitionTkbCatalog.TkbMineAntiTank, new MunitionEffectsDto { Explosion = ExplosionHuge, Decal = DecalLarge });
+            Set(tkb, MunitionTkbCatalog.TkbLineCharge, new MunitionEffectsDto { Explosion = ExplosionHuge, Decal = DecalLarge });
         }
 
         private static void Set(ITkbDatabase tkb, long ammoType, MunitionEffectsDto set)

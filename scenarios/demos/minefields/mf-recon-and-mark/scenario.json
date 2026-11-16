@@ -1,0 +1,29 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: an enemy anti-personnel minefield 'Field A' (20 x 20 m, mines every 4 m) lies on test-town's open ground at (120-140, 70-90); Friend does not know it. A Friend 'Engineer' 25 m west at (95, 80) is ordered to ReconMinefield toward the field's centre (130, 80) at detector pace (0.3 m/s). He probes one 10 m cell at a time; the first mined cell starts a left-hand trace round the field on cells he has swept clear, and closing it MARKS the field for Friend (CE-4624 MS-B2, Minefields MF-13, MR-7). Judge: (1) the Engineer runs ReconMinefield; (2) Friend knows the field's mined cells; (3) Friend has the field MARKED; (4) he never steps into the field (never within 10 m of its centre); (5) no mine goes off and he is never hurt. Fail: a blast, a hurt engineer, or no mark by the end. Check: scripts/scenario-regression.sh mf-recon-and-mark"
+  },
+  "entities": {
+    "a4624f00-0000-4000-8000-0000000000f1": {
+      "SimTransform": { "Position": [120, 70, 0], "Rotation": [0, 0, 0, 1] },
+      "TkbIdentity": { "TkbType": 8830 },
+      "EntityInfo": { "Name": "Field A", "ForceId": "Hostile" },
+      "Minefield": { "Type": "AntiPersonnel", "SpacingM": 4, "OrientationDeg": 0, "Seed": 1 },
+      "EditablePolyline": { "Points": [{ "X": 0, "Y": 0 }, { "X": 20, "Y": 0 }, { "X": 20, "Y": 20 }, { "X": 0, "Y": 20 }], "Version": 0 }
+    },
+    "a4624f00-0000-4000-8000-000000000001": {
+      "SimTransform": { "Position": [95, 80, 0], "Rotation": [0, 0, 0, 1] },
+      "Health": { "Current": 100, "Max": 100 },
+      "TkbIdentity": { "TkbType": 2002 },
+      "EntityInfo": { "Name": "Engineer", "ForceId": "Friend" },
+      "TargetMemory": { "Entries": [] },
+      "Behavior": { "Name": "ReconMinefield", "Params": { "Field": "a4624f00-0000-4000-8000-0000000000f1", "At": [130, 80, 0], "Pace": 0.3 }, "Origin": "Superior" }
+    }
+  }
+}

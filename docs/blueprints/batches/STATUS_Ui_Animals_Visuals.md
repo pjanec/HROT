@@ -18,7 +18,7 @@ related-designs:
 | AU-4 flock | built | `AnimalModelRail.TheFlock_*` + the frame rail (60 birds, 40 after the count falls, the same picture after a seek) |
 | AU-5 dead animal | built | frame rail: `DeadAnimalsDrawn`, no wreck colour; `Burns()` excludes animals |
 | AU-6 rider | built (live drive waits for backend's type 703 + possession); ⭐ review fix: the mounted legs SPLAY over the ±0.35 m barrel to the stirrups (`BlockFigure.MountLeg`) — the first legs went straight down inside the horse's body; the seat height was right (the rail measures it against the back) | `TheMountedRider_*`, `TheRider_IsDrawnInTheSaddle_*` (fires from the saddle), the bolt cue `IsBolted` (0 B) |
-| AU-7 area tool + form | built against a TEMPORARY stand-in component (id 511) | `AnimalAreaDetailsViewTests`, `TheAnimalArea_*`; arming the tool needs backend's TKB 712 |
+| AU-7 area tool + form | ✅ BOUND to backend's `AnimalArea` (TKB 712; the stand-in `AnimalAreaDef` / id 511 deleted) | `AnimalAreaDetailsViewTests`, `TheAnimalArea_*`; arming the tool needs backend's TKB 712 |
 | AU-8 sound as heard | built | `AudioTests.CE4623_*` (4) |
 
 ## Binds to backend
@@ -26,7 +26,7 @@ related-designs:
 |---|---|
 | `AnimalState` (501), `FlockState` (502), `AnimalMode`, `FlockMode`, `AnimalFlags.Bolting`, `LocomotionClass.Quadruped / Bird`, `HerdMember` (503) | merged `origin/backend@3fb384efa`; the stand-in structs deleted, `AnimalReader` reads backend's components |
 | classes `Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird` `Poultry` `Pig` `Goat` -> `FamilyOfClass`; types 700-711 from `AnimalTkbCatalog` (the rails draw the REAL types; the size is scaled to the TKB length; the horse's rider seat is backend's 703 seat) | merged `origin/backend@5c797b66e` (AB-1, AB-2); the DIS stand-in `AnimalOfDis` deleted; the 2-D outline reads the family; the CE2138 DIS-names golden gained backend's animal classes |
-| still stand-ins | the area component `AnimalAreaDef` (temporary id 511) until backend declares TKB 712's component |
+| area component | `Fdp.Toolkit.Animals.AnimalArea` (506, registered in `HrotSharedComponentRegistry`): `AnimalAreaOps`, `AnimalAreaDetailsView`, `AreaAuthoringArm.BornWith` read and write it — no stand-ins left |
 | finding for backend | the 703 / 704 rider seat x 0.15 is over the withers of a nose-to-tail box; honest value about -0.15 (the kit is drawn `OriginAhead` = 0.30 m forward of its box so the rider sits on the saddle) |
 
 ## Lane decisions - for the user's review
@@ -44,7 +44,7 @@ related-designs:
 | L-8 | a saddled (riding / war) horse stands head-up — it does not graze with a rider on it | backend sets Guard / Alert itself |
 | L-9 | a flock changing mode (perched -> flying) snaps between layouts (no blend): the flock entity itself moves away at once | the take-off looks wrong live (a 0.4 s blend is one line in `DrawFlock`) |
 | L-10 | no saddle drawn on the horse kit (a herd horse would wear one) | a "tack" flag on the riding type |
-| L-11 | the area form's temporary component id is 511 (506-511 unallocated; ui's block 460-475 is exhausted) | backend declares the real one: delete `AnimalAreaDef`, rebind `AnimalAreaOps` |
+| L-11 | the area form's temporary component id is 511 (506-511 unallocated; ui's block 460-475 is exhausted) | ✅ DONE `2026-11-16` — backend declared `AnimalArea`; `AnimalAreaDef` deleted, `AnimalAreaOps` rebound |
 
 ## Gate report (rule 8)
 | gate | command | result | base |

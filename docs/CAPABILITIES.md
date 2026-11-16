@@ -355,13 +355,14 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - 🚧 **A minefield is one object:** an outline, a mine type (anti-personnel, anti-tank or mixed), a spacing and a row direction. Thousands of
   mines are worked out from it, the same on every computer, never stored one by one.
 - 🚧 **Stepping on a mine:** a man sets off an anti-personnel mine; an anti-tank mine needs a vehicle's weight and hits it from below. A mine
-  goes off once.
+  goes off once. ▶ `mf-strike-and-halt` ✅ (a patrol strikes an unknown field: one blast, a man hurt, the patrol halts, the cells round it suspected — ⏳ backing out on its own track waits on the breadcrumb record) · `mf-at-vs-vehicle` ❌ (a man crosses an AT field unharmed and a tank sets one off and stops — but the burst does not hurt the tank and hurts the man 35 m off: the AT mine's effects, terrain)
 - 🚧 **Each side knows only what it has learned:** a strike makes the area round it SUSPECTED; engineers sweep it slowly and mark the cells
   clear or mined; a marked field is known to everyone who sees it; your own fields are known from the start. The knowledge is saved, replayed
-  and shared by the whole side.
+  and shared by the whole side. ▶ `mf-recon-and-mark` ✅ (an engineer traces an unknown field on swept-clear cells only and marks it) · ⏳ `mf-side-knowledge-replay` (waits on the knowledge save entry)
 - 🚧 **Routes avoid what the side knows,** and go through only when there is no other way — then the squad halts and calls the engineers.
+  ▶ `mf-no-way-round` ✅ (a march halts short of a known field, never crosses it, calls the engineers) · ⏳ `mf-route-around` (waits on route pricing)
 - 🚧 **Clearing a lane:** a mine-clearing tank with a plough or flail, or a line charge, cuts a marked lane; the company's breach play covers
-  it with fire and smoke, and the squads cross in single file.
+  it with fire and smoke, and the squads cross in single file. ▶ ⏳ `mf-clear-lane-and-cross` (waits on the swath clear)
 
 ## 10. Drones, aircraft and air defence
 

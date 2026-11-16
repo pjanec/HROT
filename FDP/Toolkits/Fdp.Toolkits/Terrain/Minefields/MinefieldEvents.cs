@@ -44,13 +44,31 @@ namespace Fdp.Toolkit.Terrain
         public Entity By;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T4 (MR-15, MR-17) — a mine clearer (a plough, a flail, a line charge) CLEARED mines of <see cref="Field"/>: up to <see cref="MaxMines"/> lattice (row, col) per event. Raised by the serial
+    /// trigger (the deciding node), read by <see cref="MinefieldStrikesSystem"/> as <see cref="MineGone.Cleared"/> — a cleared mine goes off for nobody, teaches nobody (no knowledge, no burst of its own).
+    /// </summary>
+    [EventId(TerrainEventIds.MinesCleared)]
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct MinesCleared
+    {
+        public const int MaxMines = 16;
+        public Entity Field;
+        public byte Count;
+        public fixed short Row[MaxMines];
+        public fixed short Col[MaxMines];
+    }
+
     /// <summary>⭐ <c>CE-4624</c> (§6.1) — a lane through a field was cleared (MS-T4): its mines are gone for every side; the lane is known to the clearing side.</summary>
     [EventId(TerrainEventIds.LaneCleared)]
     [StructLayout(LayoutKind.Sequential)]
     public struct LaneCleared
     {
         public Entity Field;
+        /// <summary>The authored lane's index when an authored lane was cleared, else 255 (a new runtime lane: the geometry below).</summary>
         public byte Lane;
         public byte SidePlus1;
+        // ⭐ MS-T4 (MR-18) — the runtime lane's straight segment and width (world metres); additive to the §6.1 shape
+        public float Ax, Ay, Bx, By, Width;
     }
 }

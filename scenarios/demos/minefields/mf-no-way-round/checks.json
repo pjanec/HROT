@@ -1,0 +1,69 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Minefields MR-19 / R-4277: a march whose way is a known minefield halts short of it and calls the engineers (MS-B4). From the header's Judge (1)-(5).",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the squad marches",
+      "on": "task",
+      "who": "Squad",
+      "is": "SquadMarch"
+    },
+    {
+      "name": "the squad reacts MinefieldAhead",
+      "on": "task",
+      "who": "Squad",
+      "is": "MinefieldAhead"
+    },
+    {
+      "name": "it halts SHORT of the field, not at the start (the leader ends at x >= 90)",
+      "on": "field",
+      "who": "Man Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 90,
+      "atEnd": true
+    },
+    {
+      "name": "never the crossing drill",
+      "never": {
+        "on": "task",
+        "who": "Squad",
+        "is": "SquadDangerCrossing"
+      }
+    },
+    {
+      "name": "nobody enters the field",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 130
+      }
+    },
+    {
+      "name": "no mine goes off",
+      "never": {
+        "on": "blast"
+      }
+    },
+    {
+      "name": "nobody is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "still halted at the end",
+      "on": "task",
+      "who": "Squad",
+      "is": "MinefieldAhead",
+      "atEnd": true
+    }
+  ]
+}

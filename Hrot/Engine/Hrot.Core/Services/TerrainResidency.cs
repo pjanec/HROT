@@ -543,6 +543,7 @@ public sealed class TerrainResidency
         internal IReadOnlyList<OverlayPart> Parts = System.Array.Empty<OverlayPart>();
         internal CraterTable? Craters;   // ⭐ CE-4591 — the craters this bake laid into the ground
         internal FelledTrees? Trees;     // ⭐ CE-4603 — the trunks this bake left out
+        internal MinefieldSet? Minefields;   // ⭐ CE-4624 MS-T3 — the minefields (and lanes) this bake stamped into its navmesh
         /// <summary>
         /// ⭐ O-7 B (B-5) — where this bake differs from the last one committed on the same base (obstacle prisms, building damage, live-overlay parts): the rectangles a 3-D chunk rebuild must redo.
         /// Null = unknown (the first bake after a base change, or another bake in between) = everything. Set on every bake, whether or not this node bakes a navmesh.
@@ -590,8 +591,15 @@ public sealed class TerrainResidency
 
     /// <summary>⭐ <c>CE-4603</c> (B-6) — and the view's FELLED lone trunks left out (every node: the drawing hides them; the navmesh opens where they stood), their boxes dirty.</summary>
     public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees)
+        => BakeObstacles(obstacles, damage, overlay, craters, trees, null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-3) — and the world's MINEFIELDS (with their lanes) laid into <see cref="TerrainWorld.Minefields"/> for the navmesh to stamp as composite areas. Like building damage,
+    /// only a node that does world queries (<see cref="BakesDamage"/>) bakes them; the dirty region gains the box of every field added, removed, edited or laned (old and new): only the tiles under it rebake.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
     {
-        if (!BakesDamage) damage = null;
+        if (!BakesDamage) { damage = null; minefields = null; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var baseWorld = overlay?.Base ?? _baseWorld;
         int baseVersion = overlay?.BaseVersion ?? BaseVersion;
@@ -603,10 +611,10 @@ public sealed class TerrainResidency
         if (overlay != null && damage != null) damage = damage.RemapTo(terrain);
         var damageNow = DamageHashes(terrain, damage);
         var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
-        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); }   // ⭐ CE-4591 (V-4), CE-4603
-        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters; bake.Trees = trees;
+        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); MinefieldDirt(minefields, dirty); }   // ⭐ CE-4591 (V-4), CE-4603, CE-4624
+        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters; bake.Trees = trees; bake.Minefields = minefields;
         bake.Dirty = diffed ? dirty : null;
-        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees, minefields));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
         {
             // ⭐ CE-4427 R-6 — the factory checks "its last bake is the one I committed" UNDER its own lock and hands back THIS bake's serial
@@ -637,7 +645,7 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
-        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastMinefields = bake.Minefields; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         // ⭐ CE-4427 R-4 — a world that numbers its buildings / panels differently replaces the old one: every BuildingDamage entity is re-keyed to it BEFORE it is published (main thread, here)
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
@@ -671,6 +679,32 @@ public sealed class TerrainResidency
     private int _lastBakeBase = int.MinValue;
     private CraterTable? _lastCraters;
     private FelledTrees? _lastTrees;
+    private MinefieldSet? _lastMinefields;
+
+    /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T3 (MR-3) — adds to <paramref name="rects"/> the box (grown 3 m: the tile hash reaches 3 m) of every minefield that is new, gone or changed (its outline, its orientation, a lane added or lost in a
+    /// seek — compared by <see cref="TerrainMinefield.Hash"/>) since the last committed bake, old place and new: only the navmesh tiles under them rebake.
+    /// </summary>
+    internal void MinefieldDirt(MinefieldSet? now, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)
+    {
+        MinefieldSet? was;
+        lock (_dirtyGate) was = _lastMinefields;
+        if (ReferenceEquals(was, now)) return;
+        var before = new Dictionary<Guid, TerrainMinefield>();
+        if (was != null) foreach (var f in was.Fields) before[f.Field] = f;
+        var grow = new System.Numerics.Vector2(3f);
+        if (now != null)
+            foreach (var f in now.Fields)
+            {
+                if (before.Remove(f.Field, out var old))
+                {
+                    if (old.Hash == f.Hash) continue;
+                    if (old.Min != f.Min || old.Max != f.Max) rects.Add((old.Min - grow, old.Max + grow));   // moved or reshaped: where it was too (the same box once)
+                }
+                rects.Add((f.Min - grow, f.Max + grow));
+            }
+        foreach (var f in before.Values) rects.Add((f.Min - grow, f.Max + grow));   // gone
+    }
 
     /// <summary>⭐ <c>CE-4603</c> — the box of every trunk felled since the last committed bake, or standing again (a seek back).</summary>
     internal void TreeDirt(FelledTrees? now, TerrainWorld terrain, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)

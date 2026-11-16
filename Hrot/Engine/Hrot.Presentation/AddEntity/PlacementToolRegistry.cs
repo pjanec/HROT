@@ -52,6 +52,7 @@ public static class PlacementToolRegistry
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.StoneSource),         "Stone Source", PlacementToolKind.Area, "_area"),
         // ⭐ Player Join S2-b (D-11) — an area born as a Spawn Area (8814); the arm gives it SpawnArea { Friend, 0° }.
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.SpawnArea),           "Spawn Area",   PlacementToolKind.Area, "_area"),
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(Fdp.Toolkit.Terrain.Minefields.TkbType), "Minefield",  PlacementToolKind.Area, "_area"),   // ⭐ CE-4624 MS-U3 — the ONE area tool; born with a Minefield, never the generic overlay (MR-8)
         // ⭐ Player Join S2-a (D-10) — a Deploy Role (8815): placed with the point tool, born with DeployRole (GameplayBirth); its position means nothing.
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.DeployRole),          "Deploy Role",  PlacementToolKind.Point, "_area"),
         // ⭐ U-25 / S4 (DESIGN_Initial_State §3) — a named Point (8816): placed with the point tool, drawn by NamedPointGizmo; pickers resolve it to its position (PointLink, SR-130)

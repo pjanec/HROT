@@ -124,15 +124,21 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         // ⭐ CE-4591 (P-4, G-10) — the craters: a crater across a road is a blocker like a roadblock (the view's table: the same instance while unchanged)
         var craters = repo.IsComponentTypeRegistered<GroundDamage>() ? DoorStates.Of(repo, terrain).Craters : null;
         if (!ReferenceEquals(craters, _craters)) { _craters = craters; changed = true; }
+        // ⭐ CE-4624 MS-T3 (MR-16) — the minefields: a MARKED field (or one known at start) across a road closes it like a roadblock (the view's table: the same instance while unchanged)
+        var knowledge = DoorStates.Of(repo, terrain).Knowledge;
+        if (!ReferenceEquals(knowledge, _knowledge)) { _knowledge = knowledge; changed = true; }
 
         if (!changed) return;
         Recompute(repo, holder);
     }
 
+    private PlaceKnowledgeTable? _knowledge;
+
     private void Recompute(EntityRepository repo, RoadNetworkHolder? holder)
     {
         RoadBlockage.Blockers(repo, _blockers);
         RoadBlockage.AddCraters(_craters, _blockers);   // ⭐ CE-4591 — the craters' bowls
+        RoadBlockage.AddMinefields(repo, _knowledge, _blockers);   // ⭐ CE-4624 — the marked minefields' outlines
 
         // the set of base segments to drop now
         _scratch.Clear();

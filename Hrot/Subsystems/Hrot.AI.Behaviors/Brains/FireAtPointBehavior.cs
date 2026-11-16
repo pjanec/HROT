@@ -31,7 +31,10 @@ namespace Hrot.AI.Behaviors.Brains
                 Point = new Vector3(authored.X, authored.Y, authored.Z),
                 CooldownSeconds = authored.CooldownSeconds,
                 Rounds = authored.Rounds,
-                Mount = (byte)authored.Mount,
+                // ⭐ IM-1 — mount −1 = "my own throwable" (the drive-by's pillion): resolved HERE, on his own entity; none carried ⇒ one round of mount 0
+                Mount = authored.Mount < 0
+                    ? (Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(world, self, out _, out int throwIndex, out _, out _) ? (byte)throwIndex : (byte)0)
+                    : (byte)authored.Mount,
                 FireAt = (SimInstant)authored.FireAt,                                                  // ⭐ IF-2 (FM-4)
                 Arc = authored.Arc is >= 0 and <= 2 ? (ArcPreference)authored.Arc : ArcPreference.Auto,   // ⭐ IF-2 (IF-C)
                 Round = authored.Round is 0 or 1 ? (byte)authored.Round : (byte)0,                    // ⭐ CE-7025 (IF-5)

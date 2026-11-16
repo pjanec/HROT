@@ -86,6 +86,65 @@ namespace Hrot.SimHost.Tests
             return *(Fdp.Toolkit.Navigation.MoveToParams*)ch.Params;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> IM-1 — <c>"Throw":true</c>: at the pass the pillion is ordered ONE <c>FireAtPoint</c> (mount −1 = his own throwable, one round, at the target's position)
+        /// and NO <c>FireAtTarget</c>; without it, the burst as before (one <c>FireAtTarget</c>, no <c>FireAtPoint</c>). One order per run either way. 🔴 Red-proof: ignore the
+        /// authored Throw in the resolver ⇒ the throw run orders a burst.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE4621_DriveBy_ThePillionThrowsAGrenadeAtThePass_WhenAuthored_ElseFiresTheBurst(bool throws)
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var seats = new TkbTemplate("Bike", 5620L);
+            seats.AddDescriptor(new CarrierDefDto
+            {
+                Exposure = PassengerExposure.Open,
+                Seats =
+                {
+                    new SeatDto { Role = SeatRole.Driver, Exposed = true, TraverseMinDeg = -120f, TraverseMaxDeg = 120f, FiresStoppedOnly = true },
+                    new SeatDto { Role = SeatRole.Passenger, Exposed = true, X = -0.45f, Z = 0.85f, TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
+                },
+            });
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(repo, w.Man, seats);
+            var rider = repo.CreateEntity();
+            var pillion = repo.CreateEntity();
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[0] = rider;
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[1] = pillion;
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new SimTransform { Position = new Vector3(200f, 0f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(target, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = TargetNetId });
+
+            w.Start(BehaviorNames.DriveBy, "{\"Target\":" + TargetNetId + ",\"Escape\":[-300,0,0]" + (throws ? ",\"Throw\":true" : "") + "}");
+            int bursts = 0, throwsOrdered = 0; string? throwJson = null;
+            void Tick()
+            {
+                w.Tick();
+                foreach (var e in repo.ReadManagedEvents<AssignBehaviorEvent>())
+                {
+                    if (e == null || e.Entity != pillion) continue;
+                    if (e.BehaviorName == BehaviorNames.FireAtTarget) bursts++;
+                    if (e.BehaviorName == BehaviorNames.FireAtPoint) { throwsOrdered++; throwJson = e.JsonParams; }
+                }
+            }
+            for (int i = 0; i < 4; i++) Tick();
+            Assert.Equal(0, bursts + throwsOrdered);
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(170f, 0f, 0f);   // inside the pass distance
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.Equal(throws ? 0 : 1, bursts);
+            Assert.Equal(throws ? 1 : 0, throwsOrdered);                                       // ONE throw order, once per run
+            if (throws)
+            {
+                var order = System.Text.Json.JsonDocument.Parse(throwJson!).RootElement;
+                Assert.Equal(200f, order.GetProperty("x").GetSingle(), 1);                    // at the target's position
+                Assert.Equal(-1, order.GetProperty("mount").GetInt32());                      // his own throwable
+                Assert.Equal(1, order.GetProperty("rounds").GetInt32());
+            }
+        }
+
         [Fact]
         public void CE4621_DriveBy_RidesUp_PassesSlowlyWhileThePillionIsOrderedToFire_ThenEscapesAtSpeed()
         {
