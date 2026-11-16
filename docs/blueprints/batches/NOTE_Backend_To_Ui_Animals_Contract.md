@@ -1,0 +1,42 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-16
+current-answer: the whole file
+related-designs:
+  - ../../designs/animals/DESIGN_Animals.md — §6.1 the shared contract this note fills in (component ids, layouts, enum values)
+  - HANDOFF_Coordinator_To_Backend_Animals.md — the dispatch (this note is its first required commit)
+-->
+
+# NOTE — backend → ui: the animals' contract, bound (CE-4623)
+
+Declared on `backend` (`FDP/Toolkits/Fdp.Toolkits/Animals/AnimalComponents.cs`, `GlobalComponentIds.cs`, `LocomotionDto.cs`, `ActionStatus.cs`).
+⭐ Fixed — bind to these now; the values never change (ids measured free on backend, behaviors, ui and coordinator `2026-11-16`).
+
+## Component ids (namespace `Fdp.Toolkit.Animals`)
+
+| component | id | layout (unmanaged, sequential) | who writes · who reads |
+|---|---|---|---|
+| `Fear` | **500** | (backend's fear system — AB-3; ui does not need it) | backend |
+| ⭐ `AnimalState` | **501** | `AnimalMode Mode` (byte) · `byte FearBand` (0 calm · 1 uneasy · 2 frightened · 3 panic) · `AnimalSpecies Species` (byte) · `AnimalFlags Flags` (byte) — **4 B**, replicated | backend writes on the brain node · ui reads (pose, gait, the alarm look) |
+| ⭐ `FlockState` | **502** | `ushort Count` · `ushort InitialCount` · `uint Seed` · `FlockMode Mode` (byte) · 3 B pad — **12 B**, replicated | backend · ui draws `Count` birds from `Seed` in closed form (drop the highest indices first when `Count` falls) |
+| ⭐ `HerdMember` | **503** | `Entity Herd` — **8 B** | backend · ui does not need it |
+| `AnimalHome` | **504** | `Vector3 Centre` · `float Radius` · `float TetherMetres` (0 = none) · `Entity Area` · `byte Enclosed` · 3 B pad | backend · ui may draw a tethered dog's chain from `Centre` |
+| `HerdState` | **505** | `Vector3 Centre` · `Vector3 NextGrazing` · `Entity Lead` · `AnimalMode Mode` · `AnimalSpecies Species` · 2 B pad | backend |
+
+## Enums
+
+| enum | values |
+|---|---|
+| `AnimalSpecies : byte` | `Cattle 0` · `Sheep 1` · `HorseHerd 2` · `HorseRiding 3` · `HorseWar 4` · `Dog 5` · `Cat 6` · `BirdFlock 7` · `Bird 8` · `Hen 9` · `Pig 10` · `Goat 11` (= TKB 700…711, the sound block's `s`) |
+| `AnimalMode : byte` | `Calm 0` · `Alert 1` · `Flee 2` · `Recover 3` · `Rest 4` (lying / roosting) · `Guard 5` (a dog barking / attacking) |
+| `AnimalFlags : byte` (flags) | `Bolting 1` (a ridden horse bolting) · `Dangerous 2` (attacking now) · `Calling 4` (mouth open) |
+| `FlockMode : byte` | `Flying 0` · `Landed 1` · `Perched 2` |
+| `LocomotionClass` (Fdp.Toolkit.Tkb.Domain) | ⭐ **`Quadruped = 10`** (ground) · ⭐ **`Bird = 11`** (air, never an aircraft) |
+| `ActionReason` (the HUD reason) | ⭐ **`Bolting`** (appended after `Overheated`), text *"the horse bolts"* — the ridden-horse bolt (AR-10) through the same `WeaponPostureOf` / possession reason channel |
+
+## Already fixed by the design (§4a / §6.1), restated
+TKB 700–711 (+ 712 `AnimalArea`), DIS `3.1.0.200–208` / `3.2.0.205`, classes `Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird` `Poultry` `Pig` `Goat`,
+parents `LandAnimal` = `3.1.*.200-209`, `AirAnimal` = `3.2.*.205`; horse seats (703: 0 rider — fires WHILE riding, 1 second rider, a firing seat
+sides + rear; 704: 0); sounds 7800–7895 = `7800 + species·8 + line`.
+
+⚠ Replication of `AnimalState` / `FlockState` lands with AB-3 / AB-5; until then a single-node run has them locally.
