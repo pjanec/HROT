@@ -240,33 +240,45 @@ def agg_route_dropped():
 
 
 # ───────────────────────────────────────────── ST-2 ─────────────────────────────────────────────
-OBSERVER = {"SquadCognitiveState": {}}   # the contact pool N-2 writes into (nothing provisions it for a memberless unit - finding F-9c)
+OBSERVER = {"SquadCognitiveState": {}}   # the contact pool N-2 writes into - authored before CE-8021 provisioned it (F-11); agg-break-contact keeps it (redundant now, golden unchanged)
 
 
-def steps_to_contact(range_m, men=10):
-    """N-1 off the page: the level adds P(r) = 0.9 * 2^-(r/R50)^2 each 1 s step, R50 = 400 m (the eye) * sqrt(men/9) for a target standing still; contact at level 1."""
-    r50 = 400.0 * math.sqrt(men / 9.0)
+OPTICS = {"Count": 1, "Items": [{"Type": 0, "Count": 1, "Operational": 1, "Ammo": 0, "Kind": "Sensor", "Mobility": "NoMobility", "Sensor": "Optics", "Immobile": 0}]}
+
+
+def steps_to_contact(range_m, men=10, r50=400.0):
+    """N-1 off the page: the level adds P(r) = 0.9 * 2^-(r/R50)^2 each 1 s step, R50 = the sensor's (eye 400 m, optics 1200 m) * sqrt(men/9) for a target standing still; contact at level 1."""
+    r50 = r50 * math.sqrt(men / 9.0)
     p = 0.9 * 2 ** (-((range_m / r50) ** 2))
     return math.ceil(1.0 / p) if p > 1e-9 else None
 
 
 def agg_detect_by_range():
     s = Scn("agg-detect-by-range", "a9000007")
-    pairs = [("near", 150, 200), ("mid", 700, 7200), ("far", 2500, 14200)]   # 7 km apart: beyond MaxRange 6000, so each observer sees only its own target
+    # (tag, range, y, the observer's sensor): 7 km apart - beyond MaxRange 6000, so each observer sees only its own target.
+    # R-8331: the naked eye stops at the soldiers' TKB VisionRange (agg-backend R-8006, 150 m for a rifle squad's men), so the curve is read
+    # INSIDE it by eye (100 m) and at mid range through OPTICS (R50 1200 m, not capped): 2100 m; the far eye-only pair is beyond any reach.
+    pairs = [("near", 100, 200, "eye"), ("mid", 2100, 7200, "optics"), ("far", 2500, 14200, "eye")]
     rows = []
-    for tag, rng, y in pairs:
-        s.unit(f"Blue Observer {tag}", BLUE, (1000, y), SQUAD, aggregate={}, extra=OBSERVER)
-        s.unit(f"Red Target {tag}", RED, (1000 + rng, y), SQUAD, aggregate={})
-        n = steps_to_contact(rng)
+    for tag, rng, y, sensor in pairs:
+        # both DEFEND in place: the near pair fights at 100 m and, order-less, each SOP would break contact - a mover whose position repeated only to
+        # ~2 cm between fresh runs (the F-13 start-frame jitter, re-seen 2026-11-16), so the golden would not be SAME
+        dfd = lambda x: ("StochasticUnitDefend", {"Position": pt((x, y)), "SearchRadius": 30})
+        s.unit(f"Blue Observer {tag}", BLUE, (1000, y), SQUAD, aggregate={}, extra={"UnitHoldings": OPTICS} if sensor == "optics" else None, behavior=dfd(1000))
+        s.unit(f"Red Target {tag}", RED, (1000 + rng, y), SQUAD, aggregate={}, behavior=dfd(1000 + rng))
+        n = steps_to_contact(rng, r50=1200.0 if sensor == "optics" else 400.0) if not (sensor == "eye" and rng > 150) else None
         if n is not None and n <= 60:
-            rows.append(field(f"a contact on the {tag} target ({rng} m) appears inside N-1's window ({n} steps +- 3 s)", f"Blue Observer {tag}", "UnitDetections.Pairs.0.Reported", "==", 1, after=max(0, n - 3), before=n + 4))
+            rows.append(field(f"a contact on the {tag} target ({rng} m, {sensor}) appears inside N-1's window ({n} steps +- 3 s)", f"Blue Observer {tag}", "UnitDetections.Pairs.0.Reported", "==", 1, after=max(0, n - 3), before=n + 4))
+            rows.append(field(f"  ... the {tag} contact lands in the observer's own contact pool (N-2; no authored pool, CE-8021)", f"Blue Observer {tag}", "SquadCognitiveState.Contacts.Count", ">", 0, after=max(0, n - 3), before=n + 4))
         else:
-            rows.append(never(f"no contact on the {tag} target ({rng} m) - beyond the sensors' reach", {"on": "field", "who": f"Blue Observer {tag}", "path": "UnitDetections.Pairs.0.Reported", "op": "==", "value": 1}))
-    desc = ("What: on berlin three pairs of stochastic squads, 7 km apart (beyond any sensor), each a BLUE observer (4+ men, eyes only) and a RED target standing still in the open: 150 m, 700 m and 2500 m. "
-            "Judge: N-1's curve P(r) = 0.9 * 2^-(r / (400 m * sqrt(men / 9)))^2 per second accumulates into a level; at level 1 a contact is reported. The 150 m and 700 m contacts appear inside the window "
-            "the curve predicts (the step counts are in the row names), the 2500 m target is never contacted. Fail: a contact far out of the window, or beyond the eye's reach. Check: scripts/scenario-regression.sh agg-detect-by-range")
-    checks = {"$doc": "§23.6 ST-2. Windows computed offline from UnitDetection.StepChance (PMax 0.9, EyeR50 400 m, Signature sqrt(men/9), a target standing still): steps = ceil(1/P(r)). Read from "
-                      "UnitDetections.Pairs.0.Reported (the observer's own level book); the contact-pool write (SquadCognitiveState.Contacts) is the same moment but needs SquadCognitiveState on the observer.",
+            rows.append(never(f"no contact on the {tag} target ({rng} m, {sensor}) - beyond the sensors' reach", {"on": "field", "who": f"Blue Observer {tag}", "path": "UnitDetections.Pairs.0.Reported", "op": "==", "value": 1}))
+    desc = ("What: on berlin three pairs of stochastic squads, 7 km apart (beyond any sensor), each a BLUE observer and a RED target standing still in the open: 100 m (eyes only), "
+            "2100 m (the observer carries OPTICS) and 2500 m (eyes only). Judge: N-1's curve P(r) = 0.9 * 2^-(r / (R50 * sqrt(men / 9)))^2 per second (R50: eye 400 m, optics 1200 m) accumulates into a level; "
+            "at level 1 a contact is reported into the observer's own contact pool. The 100 m and 2100 m contacts appear inside the window the curve predicts (the step counts are in the row names); "
+            "the 2500 m target, beyond the naked eye's reach (the soldiers' own vision range), is never contacted. Fail: a contact far out of the window, or beyond the eye's reach. Check: scripts/scenario-regression.sh agg-detect-by-range")
+    checks = {"$doc": "§23.6 ST-2. Windows computed offline from UnitDetection.StepChance (PMax 0.9, EyeR50 400 m / OpticsR50 1200 m, Signature sqrt(men/9), a target standing still): steps = ceil(1/P(r)). "
+                      "R-8331: the naked eye is capped at the soldiers' TKB VisionRange (agg-backend R-8006, CE-8009) - 150 m for these men - so the mid range is read through an authored Optics holding (not capped); "
+                      "the pool row reads SquadCognitiveState, which the spawn fill now provisions (CE-8021) - the observers author none.",
               "runFor": 90, "golden": {"every": 15}, "expect": rows}
     write(s, "berlin", desc, checks)
 
@@ -274,17 +286,26 @@ def agg_detect_by_range():
 def agg_sees_physical():
     s = Scn("agg-sees-physical", "a9000008")
     co = s.unit("Blue Platoon", BLUE, (300, 100), PLATOON)
-    s.unit("Blue Stochastic Squad", BLUE, (300, 140), SQUAD, co, aggregate={}, extra=OBSERVER)
-    s.physical_squad("Red Squad", RED, (300, 390), None)
-    desc = ("What: on basic-desert a 'Blue Stochastic Squad' (memberless) under a physical 'Blue Platoon' commander watches a PHYSICAL 'Red Squad' (four men) standing 250 m north. "
-            "Judge: (1) the stochastic observer detects the physical squad (its level book holds a reported contact); (2) it reports SPOT up the chain - the platoon commander hears it; "
-            "(3) the physical squad never contacts the stochastic unit (it has no body to see). Fail: no contact, no SPOT, or the Red squad's contact pool ever holds the Blue unit. Check: scripts/scenario-regression.sh agg-sees-physical")
-    checks = {"runFor": 60, "golden": {"every": 15}, "expect": [
+    # R-8334: OPTICS at 700 m, on flat berlin. The naked eye now stops at the soldiers' VisionRange (150 m, R-8006) while the resolution manager
+    # splits a stochastic unit with a physical enemy inside 600 m (400 m band + 200 m lead; forced at 300 m, C-7) - so an eye-only observer is
+    # physical before any body is in its sight (finding F-20). On basic-desert the unit's line runs into the ground (finding F-19).
+    s.unit("Blue Stochastic Squad", BLUE, (300, 140), SQUAD, co, aggregate={}, extra={"UnitHoldings": OPTICS})
+    s.physical_squad("Red Squad", RED, (300, 840), None)
+    desc = ("What: on berlin (flat) a 'Blue Stochastic Squad' (memberless, carrying OPTICS) under a physical 'Blue Platoon' commander watches a PHYSICAL 'Red Squad' (four men) standing 700 m north - "
+            "outside the 600 m band in which the resolution manager would split the observer. Judge: (1) the stochastic observer detects the physical squad (its level book holds a reported contact, "
+            "and its own contact pool holds it); (2) it reports SPOT up the chain - the platoon commander hears it; (3) the physical squad never contacts the stochastic unit (it has no body to see); "
+            "(4) the observer stays stochastic. Fail: no contact, no SPOT, the Red squad's contact pool ever holds the Blue unit, or the observer splits. Check: scripts/scenario-regression.sh agg-sees-physical")
+    checks = {"$doc": "§23.6 ST-2 (N-3, agg-backend CE-8018). Optics R50 1200 m x one man's signature sqrt(1/9) = 400 m: P(700 m) = 0.9 x 2^-(1.75^2) = 0.11 a step, about 10 steps to contact "
+                      "(measured: reported at 9.25 s, the SPOT at 12.25 s). R-8334: optics at 700 m on berlin - the eye-only / 250 m / basic-desert version cannot pass after agg-backend's merge "
+                      "(F-19: the unit's line from z + 2 m runs into basic-desert's ground; F-20: an eye-only observer is split before it can see a body). No authored contact pool (CE-8021 provisions it).",
+              "runFor": 60, "golden": {"every": 15}, "expect": [
         field("the stochastic observer holds a reported contact on the physical squad", "Blue Stochastic Squad", "UnitDetections.Pairs.0.Reported", "==", 1, before=30),
+        field("  ... in its own contact pool (N-2)", "Blue Stochastic Squad", "SquadCognitiveState.Contacts.Count", ">", 0, before=30),
         field("the platoon commander hears a SPOT", "Blue Platoon", "CommandReportHistory.Items.0.Report.Kind", "==", "Spot", before=50),
         never("the physical squad never contacts the stochastic unit", {"on": "field", "who": "Red Squad", "path": "SquadCognitiveState.Contacts.Count", "op": ">", "value": 0}),
+        never("the observer stays stochastic (700 m: outside the split band)", {"on": "field", "who": "Blue Stochastic Squad", "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}),
     ]}
-    write(s, "basic-desert", desc, checks)
+    write(s, "berlin", desc, checks)
 
 
 def agg_break_contact():
@@ -386,13 +407,16 @@ def agg_out_of_ammo():
     s = Scn("agg-out-of-ammo", "a9000013")
     co = s.unit("Blue Company", BLUE, (1000, 100), COMPANY, behavior=("CompanyAttack", {"Objective1": pt((1000, 500)), "Objective2": pt((1000, 560)), "DeadlineSeconds": 300.0, "Radius": 40}))
     s.unit("Blue Stochastic Squad", BLUE, (1000, 200), SQUAD, co, aggregate={"Echelon": 0}, extra={"UnitSlotTable": slot_table(8, 12), "UnitHoldings": {"Count": 0, "Items": []}})
-    s.unit("Red Unarmed Platoon", RED, (1000, 500), PLATOON, aggregate={"Echelon": 1, "Prepared": "Fortified"}, extra={"UnitSlotTable": slot_table(30, 0), "UnitHoldings": {"Count": 0, "Items": []}})
+    # R-8333: the target DEFENDS (StochasticUnitDefend in place): with its own contact pool (CE-8021) an order-less unit under fire is sent back by its SOP
+    # (BreakContact, ~300 m), out of the riflemen's reach, and the squad stops with rounds left - measured; a defender is what the SOP spares
+    s.unit("Red Unarmed Platoon", RED, (1000, 500), PLATOON, aggregate={"Echelon": 1, "Prepared": "Fortified"}, extra={"UnitSlotTable": slot_table(30, 0), "UnitHoldings": {"Count": 0, "Items": []}},
+           behavior=("StochasticUnitDefend", {"Position": pt((1000, 500)), "SearchRadius": 30}))
     s.unit("Red Spare Squad", RED, (1000, 9000), SQUAD, aggregate={})   # a FILLED unit: the fill is what teaches the engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers)
     desc = ("What: on berlin a BLUE stochastic squad (8 riflemen, 12 rounds each - an authored slot table, so the spawn fill leaves it) under a physical 'Blue Company' fires at a RED stochastic platoon 300 m "
-            "north (30 men, Fortified, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its "
+            "north (30 men, Fortified, DEFENDING in place, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its "
             "ammunition Black (StaffComposerSystem.AmmoOf over UnitAmmunition.TryShare). Check: scripts/scenario-regression.sh agg-out-of-ammo")
     checks = {"$doc": "§23.6 ST-3. The squad's slot table is AUTHORED (8 riflemen, Ammo 12: 96 rounds) because a TKB basic load lasts too long to spend in a scenario; a spare, filled stochastic squad far away is what teaches the "
-                      "engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers is filled by the first spawn fill). The Red platoon is authored with 0 rounds, so it cannot fire back, and the company attacks it (CompanyAttack asks "
+                      "engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers is filled by the first spawn fill). The Red platoon is authored with 0 rounds, so it cannot fire back, and DEFENDS in place (R-8333: an order-less one breaks contact under fire now that it has a contact pool, CE-8021); the company attacks it (CompanyAttack asks "
                       "the squad for SITREPs). Measured: the first round goes at 1.25 s, every slot is empty at 6.25 s, the SITREP ammunition reads Red at 3.25 s and Black at 18.25 s (the report's delay).",
               "runFor": 60, "golden": {"every": 10}, "expect": [
         field("it fires: rounds leave the slots", "Blue Stochastic Squad", "UnitSlotTable.Slots.*.Ammo", "<", 12, before=5, where=LIVE),
@@ -441,7 +465,7 @@ def agg_battalion_fight(rows=None):
     desc = ("What: on berlin a BLUE battalion HQ (a physical unit, no body: CompanyAttack on (700,500)) over THREE stochastic companies (90 men each, from the TKB composite) attacks a RED battalion HQ (CompanyDefend on (700,500), facing west) "
             "over three stochastic companies, the two lines 600 m apart. Judge: (1) every company is ordered by KIND - Red's three run the generic Defend, the assault company the generic Attack; no stochastic company is given a physical play; "
             "(2) the census agrees with the slot tables: a HoldArea objective round each HQ's three companies (300 m) needs 270 men = 3 x 90 slot-table men present, and reads Achieved; (3) each company's SITREP colour agrees with its slot table "
-            "(the assault company wiped out reads Black at its HQ, the ones with no loss Green); (4) the fight runs to an end: the assault company is lost (PROGRESS TaskFailed at its HQ) and the others hold. "
+            "(the assault company wiped out reads Black at its HQ; each Red company's colour lands in the band its slot table gives - Green under 10 of 90 down, Amber under 28); (4) the fight runs to an end: the assault company is lost (PROGRESS TaskFailed at its HQ) and the others hold. "
             "Fail: a physical play on a stochastic unit, a census that does not equal the slot tables, a colour that disagrees with them, or no end. Check: scripts/scenario-regression.sh agg-battalion-fight")
     expect = [
         task("the Blue HQ runs CompanyAttack", "Blue Battalion HQ", "CompanyAttack", before=10),
@@ -454,14 +478,21 @@ def agg_battalion_fight(rows=None):
         field("... and its SITREP colour at the HQ is Black", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Black", atEnd=True),
         field("the base-of-fire company has lost nobody: its SITREP colour is Green", "Blue Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
         never("... and its slot table agrees (no slot down)", {"on": "field", "who": "Blue Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE}),
-        field("Red's SITREP colours: company 1 Green", "Red Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
-        field("Red's SITREP colours: company 3 Green", "Red Battalion HQ", "CommandPicture.Subordinates.2.Strength", "==", "Green", atEnd=True),
-        never("... and company 1's slot table agrees (fewer than 5 down)", {"on": "field", "who": "Red Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 5}),
-        never("... and company 3's slot table agrees (fewer than 5 down)", {"on": "field", "who": "Red Company 3", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 5}),
+        # R-8332: Red's three rows are judged by the colour BANDS (Green >= 90 % present = fewer than 10 of 90 down; Amber >= 70 % = fewer than 28 down) - the
+        # SITREP and the slot table must land in the SAME band. The HQ's roster lists the companies 3, 2, 1 (measured: the only Green row, Subordinates.0, is the
+        # only company with fewer than 10 down - company 3).
+        field("Red's SITREP colours: company 3, untouched by the assault, reads Green", "Red Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
+        never("... and its slot table agrees (fewer than 10 of 90 down: >= 90 % present)", {"on": "field", "who": "Red Company 3", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 10}),
+        field("Red's SITREP colours: company 2, in the assault's path, reads Amber", "Red Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Amber", atEnd=True),
+        field("Red's SITREP colours: company 1 reads Amber", "Red Battalion HQ", "CommandPicture.Subordinates.2.Strength", "==", "Amber", atEnd=True),
+        field("... and company 2's slot table agrees (at least 10 down)", "Red Company 2", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=10),
+        field("... and company 1's slot table agrees (at least 10 down)", "Red Company 1", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=10),
+        never("... neither falls below Amber (28 down: < 70 % present) - company 1", {"on": "field", "who": "Red Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 28}),
+        never("... neither falls below Amber - company 2", {"on": "field", "who": "Red Company 2", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 28}),
     ] + [never(f"no physical play on {c}", {"on": "task", "who": c, "is": ["PlatoonAttack", "PlatoonDefend", "CompanyAttack", "CompanyDefend", "PlatoonSupportByFire"]})
          for c in ("Blue Company 1", "Blue Company 2", "Blue Company 3", "Red Company 1", "Red Company 2", "Red Company 3")]
     checks = {"$doc": "§23.6 ST-4. 'A side broken' is the measured end: the Blue assault company (Blue Company 2) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), "
-                      "its HQ hears TaskFailed and reads it Black; the base-of-fire company (1) Sets and the reserve (3) never engage. The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+                      "its HQ hears TaskFailed and reads it Black; the base-of-fire company (1) Sets and the reserve (3) never engage. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
               "runFor": 450, "golden": {"every": 50}, "expect": expect}
     write(s, "berlin", desc, checks)
 

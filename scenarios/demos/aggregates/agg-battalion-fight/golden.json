@@ -10,9 +10,12 @@
     "the census: the Blue HQ's three companies hold 270 slot-table men in the area": 1.5,
     "the census: the Red HQ's three companies hold 270 slot-table men in the area": 1.75,
     "the HQ hears the assault company is lost (PROGRESS TaskFailed): the fight has run to an end": 331.25,
+    "... and company 1's slot table agrees (at least 10 down)": 450,
+    "... and company 2's slot table agrees (at least 10 down)": 450,
     "... and its SITREP colour at the HQ is Black": 450,
-    "Red's SITREP colours: company 1 Green": 450,
-    "Red's SITREP colours: company 3 Green": 450,
+    "Red's SITREP colours: company 1 reads Amber": 450,
+    "Red's SITREP colours: company 2, in the assault's path, reads Amber": 450,
+    "Red's SITREP colours: company 3, untouched by the assault, reads Green": 450,
     "the assault company's slot table agrees: every slot is down": 450,
     "the base-of-fire company has lost nobody: its SITREP colour is Green": 450
   },
@@ -25,6 +28,21 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -59,6 +77,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -109,6 +142,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -150,6 +198,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -191,6 +254,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -228,6 +306,21 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -262,6 +355,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -312,6 +420,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -353,6 +476,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -394,6 +532,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -436,6 +589,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -477,6 +646,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -533,6 +720,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -564,8 +766,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "847a1d0c7a08169c",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -583,6 +786,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -619,8 +837,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "ce448a4d3f0d36b3",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "847a1d0c7a08169c",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
@@ -639,6 +858,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -675,8 +909,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2b5b4d497ac6ef1d",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "847a1d0c7a08169c",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -691,6 +926,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -732,6 +983,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -788,6 +1058,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -824,8 +1109,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "3a787a0734108154",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "657c2ba7ca9d1d26",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -844,6 +1130,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -880,8 +1181,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "ac836526687d2f86",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "657c2ba7ca9d1d26",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -900,6 +1202,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -936,8 +1253,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7c2d6bccaa50effe",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "657c2ba7ca9d1d26",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -957,6 +1275,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -998,6 +1332,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1054,6 +1406,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1085,8 +1452,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "13d720e446149281",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -1104,6 +1472,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1140,8 +1523,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "606f0b14aadd594b",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "13d720e446149281",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
@@ -1160,6 +1544,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1196,8 +1595,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "f437613b78362e3c",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "13d720e446149281",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -1212,6 +1612,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -1253,6 +1669,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1309,6 +1744,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1345,8 +1795,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "5a5acbed2ad692ef",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -1365,6 +1816,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1401,8 +1867,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "5a5acbed2ad692ef",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -1421,6 +1888,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1457,8 +1939,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "08cb390aa8759430",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "5a5acbed2ad692ef",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -1478,6 +1961,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -1519,6 +2018,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1531,8 +2048,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "6e6b8a2b67e4ddf1",
-            "CommandReportHistory": "0af923e833da7ea9",
+            "CommandPicture": "5c81a75b953b5984",
+            "CommandReportHistory": "b69a4be4da6dbd78",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -1548,7 +2065,7 @@
             "NetworkIdentity": "498d873e8ef64c47",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "f3a1fa160cd919ca",
+            "RecentSenses": "d75c4ae4c5fe8422",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -1575,6 +2092,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1606,8 +2138,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "a1f1633e3e77863a",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -1625,6 +2158,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1654,15 +2202,16 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "1de0c234af8a21a2",
+            "ReportOutbox": "07d3a653f28cb3b8",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "32457c6deea2b0d4",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "a1f1633e3e77863a",
+            "UnitDetections": "954f8ff86365e411",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
@@ -1681,6 +2230,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1710,15 +2274,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "1de0c234af8a21a2",
+            "ReportOutbox": "621b6fac5880a43d",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "57d9cddacff5f266",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "ca6d004855436541",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "a1f1633e3e77863a",
+            "UnitDetections": "bb2d86a50bf5416c",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -1733,6 +2298,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -1774,6 +2355,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1786,8 +2386,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "f273d54033448886",
-            "CommandReportHistory": "6e5cc45d7caf5f02",
+            "CommandPicture": "5a3f48bab36e9a5f",
+            "CommandReportHistory": "23c7b91c2eb7d3b0",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -1803,7 +2403,7 @@
             "NetworkIdentity": "49918b3e8efa3bea",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "79b3a4f401a70753",
+            "RecentSenses": "662fc6458293b0c3",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -1830,6 +2430,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1859,15 +2474,16 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "754f9efc33bbc52d",
+            "ReportOutbox": "c5f1893853cf15c0",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "ca6d004855436541",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ccb00214e6676a08",
+            "UnitDetections": "418e2978244d030a",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -1886,6 +2502,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1915,15 +2546,16 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "754f9efc33bbc52d",
+            "ReportOutbox": "6ce518ed291d5560",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ccb00214e6676a08",
+            "UnitDetections": "a8e9859bde6ff2f1",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -1942,6 +2574,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1978,8 +2625,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "4013cbb83cfe7241",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ccb00214e6676a08",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -1999,6 +2647,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -2040,6 +2704,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2052,8 +2734,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "287e0fe0880e0975",
-            "CommandReportHistory": "21418a87b2a98f3e",
+            "CommandPicture": "ca858079274dc132",
+            "CommandReportHistory": "099b152070051265",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -2096,6 +2778,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2127,8 +2824,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "58435118192ce136",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -2146,6 +2844,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2175,13 +2888,14 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "29ceb6171382cca7",
+            "ReportOutbox": "23c9810d62d62323",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "81648216ccf6ee60",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "58435118192ce136",
             "UnitEntity": "e2edc70959f27784",
@@ -2202,6 +2916,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2231,15 +2960,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "29ceb6171382cca7",
+            "ReportOutbox": "a4d45c5de81eea0d",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "8c88c0b4312f4899",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "58435118192ce136",
+            "UnitDetections": "4524af915717a9bd",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -2254,6 +2984,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -2295,6 +3041,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2307,8 +3072,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "42c22090de1e76f4",
-            "CommandReportHistory": "fe432ec3f296c42b",
+            "CommandPicture": "aae878e7b61e2182",
+            "CommandReportHistory": "4e232f26dd423f86",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -2351,6 +3116,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2380,15 +3160,16 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "745aa13f73565090",
+            "ReportOutbox": "e17d30a7ee48f1fa",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ac6cb23d5f5070ac",
+            "UnitDetections": "d54cefe9d281f2f1",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -2407,6 +3188,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2436,15 +3232,16 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "745aa13f73565090",
+            "ReportOutbox": "c1beb0bf188c83d8",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ac6cb23d5f5070ac",
+            "UnitDetections": "d54cefe9d281f2f1",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -2463,6 +3260,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2492,15 +3304,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "a293b7d5f7fd84f4",
+            "ReportOutbox": "9c89463789562893",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "ca6d004855436541",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ac6cb23d5f5070ac",
+            "UnitDetections": "fc2029021c875e26",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -2520,6 +3333,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -2561,6 +3390,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2573,8 +3420,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "27fe9281ba9ffbb5",
-            "CommandReportHistory": "cb34a3a55f00eef5",
+            "CommandPicture": "b777bf5b7dfcdb1a",
+            "CommandReportHistory": "3d3f3b113ccf1dfd",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -2617,6 +3464,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2648,8 +3510,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "e05cff6733f6f2f9",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -2667,6 +3530,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2696,13 +3574,14 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "cde6969c83646737",
+            "ReportOutbox": "18823a793b7187c1",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "53714c7b829ab9bf",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "e05cff6733f6f2f9",
             "UnitEntity": "e2edc70959f27784",
@@ -2723,6 +3602,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2752,15 +3646,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "cde6969c83646737",
+            "ReportOutbox": "7c03763dafd523d5",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2059aead0017165c",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "e05cff6733f6f2f9",
+            "UnitDetections": "ac436c35ac4d68c1",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -2775,6 +3670,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -2816,6 +3727,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2828,8 +3758,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "1e17fc0257f74868",
-            "CommandReportHistory": "91c294064ff86fd9",
+            "CommandPicture": "a50e7914c2cc3dd2",
+            "CommandReportHistory": "424e075a1b02b330",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -2872,6 +3802,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2901,15 +3846,16 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "263d6d52cb75c580",
+            "ReportOutbox": "119f7456ec8acbb0",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "bf9956546fda6883",
+            "UnitDetections": "6635dafed8edbe5b",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -2928,6 +3874,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2957,15 +3918,16 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "263d6d52cb75c580",
+            "ReportOutbox": "9e1c650882bbbd31",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "bf9956546fda6883",
+            "UnitDetections": "6635dafed8edbe5b",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -2984,6 +3946,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3013,15 +3990,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "263d6d52cb75c580",
+            "ReportOutbox": "d46127fe7f3cb05c",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "bf9956546fda6883",
+            "UnitDetections": "6635dafed8edbe5b",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -3041,6 +4019,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -3082,6 +4076,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "NoProgress",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3094,8 +4106,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "e107221e5fcabe3d",
-            "CommandReportHistory": "2c1db5f7b8ac3be7",
+            "CommandPicture": "7cad0e0bce3a4f61",
+            "CommandReportHistory": "73de0936fa1b901d",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -3111,7 +4123,7 @@
             "NetworkIdentity": "498d873e8ef64c47",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "33e6401559c8d9ab",
+            "RecentSenses": "fcbcc3a9568e9039",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -3138,6 +4150,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3169,8 +4196,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "148af42c5de63f1d",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -3188,6 +4216,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3217,13 +4260,14 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "7c0e1cbf73d614d3",
+            "ReportOutbox": "5f5506a62a6fae48",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "74d44f3f494ed731",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "148af42c5de63f1d",
             "UnitEntity": "e2edc70959f27784",
@@ -3244,6 +4288,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3273,15 +4332,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "f175696d44f2d596",
+            "ReportOutbox": "c1e54a6e70203509",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "31ead187de10c60f",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "148af42c5de63f1d",
+            "UnitDetections": "a3792d214fce0879",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -3296,6 +4356,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -3337,6 +4413,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Green",
+            "CommandPicture.Subordinates.2.Strength": "Green",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3349,8 +4444,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "e45dc0dfcc0b2922",
-            "CommandReportHistory": "31fe827f201744c6",
+            "CommandPicture": "7274d8135d9a587f",
+            "CommandReportHistory": "98adfcd6c3756c8e",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -3366,7 +4461,7 @@
             "NetworkIdentity": "49918b3e8efa3bea",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "946877527d3ec31a",
+            "RecentSenses": "0a30a1e477c271f8",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -3393,6 +4488,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3422,15 +4532,16 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "f175696d44f2d596",
+            "ReportOutbox": "29425f081d8e2988",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1c87e120e6d1e67b",
+            "UnitDetections": "992ba7bb27f50c9d",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
@@ -3449,6 +4560,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3478,15 +4604,16 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "f175696d44f2d596",
+            "ReportOutbox": "beb98bae2239808b",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1c87e120e6d1e67b",
+            "UnitDetections": "992ba7bb27f50c9d",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
@@ -3505,6 +4632,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3534,15 +4676,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "f175696d44f2d596",
+            "ReportOutbox": "d5e076234a4181e7",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1c87e120e6d1e67b",
+            "UnitDetections": "992ba7bb27f50c9d",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -3562,6 +4705,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -3603,6 +4762,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "TaskFailed",
+            "CommandPicture.Subordinates.1.Strength": "Black",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3615,8 +4792,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "d4baa3650ee65ab7",
-            "CommandReportHistory": "434826f6f70d5636",
+            "CommandPicture": "0969ef31e20302a4",
+            "CommandReportHistory": "c1411ba2cfcd2d55",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -3659,6 +4836,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3690,8 +4882,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "bd69cc35902806e9",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -3709,10 +4902,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "e086276891693175",
+            "AggregateUnit": "09ad558e836e7211",
             "BehaviorState": "1f14878cf6e56881",
             "BlueprintAssignments": "09612b07b5ecb5a5",
             "BlueprintBlackboard256": "0c16d397bf19f430",
@@ -3725,7 +4933,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "7f4aac80c1bc481e",
             "EntityInfo": "21a8b8625061e0a7",
-            "FireAllocation": "2e028d8fb566ef5b",
+            "FireAllocation": "e969e3b5314d478f",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -3736,19 +4944,20 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "dd29cc7c6d095f1e",
+            "ReportOutbox": "a7e0f71781c71f27",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "bbd1657f58b06bd2",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "0021c86e49de6cf2",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
-            "UnitSlotTable": "102a8027c37665fe",
+            "UnitSlotTable": "581429bad5133480",
             "UnitSubordinate": "63fc93a1bf925207",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -3763,6 +4972,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3792,15 +5016,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "76c82ecacab95db7",
+            "ReportOutbox": "7784a42c1bfda001",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "31ead187de10c60f",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "bd69cc35902806e9",
+            "UnitDetections": "ca6f309ef2fdcb09",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -3815,6 +5040,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -3856,6 +5097,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Amber",
+            "CommandPicture.Subordinates.2.Strength": "Amber",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3868,8 +5128,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "1af68c8723780a78",
-            "CommandReportHistory": "79cbc8b59ef0b73f",
+            "CommandPicture": "4e12bc7b0548b016",
+            "CommandReportHistory": "d6f4dcf89b9fd35b",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -3912,10 +5172,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "1c27f6da1fe41e10",
+            "AggregateUnit": "ffe4572711344844",
             "Behavior": "d422b32815d0f32c",
             "BehaviorStartRecord": "ac0caa541570d09f",
             "BehaviorState": "3f8c137a65d712b0",
@@ -3930,7 +5205,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "5ca40880ae1b14ca",
             "EntityInfo": "a2c490ad2e390ec1",
-            "FireAllocation": "44fa32f93a130e92",
+            "FireAllocation": "cde7cdd57c1600c5",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -3941,19 +5216,20 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "76c82ecacab95db7",
+            "ReportOutbox": "def8960a7c8f7220",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ce956e3e3de2c070",
+            "UnitDetections": "e24fd1e8f7d2a82e",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
-            "UnitSlotTable": "50ae205e9b15d9fa",
+            "UnitSlotTable": "b7695ee4e8d357f8",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -3968,10 +5244,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "92c13148e50f6eae",
+            "AggregateUnit": "45c7539aee8eecb2",
             "Behavior": "697092cf56afea48",
             "BehaviorStartRecord": "018fe91273008e30",
             "BehaviorState": "3f8c137a65d712b0",
@@ -3986,7 +5277,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "87f3d180c6a3b4a7",
             "EntityInfo": "b93e33f81f683f68",
-            "FireAllocation": "1ea0775317c960d3",
+            "FireAllocation": "72aef34baf3476b6",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -3997,19 +5288,20 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "76c82ecacab95db7",
+            "ReportOutbox": "def8960a7c8f7220",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ce956e3e3de2c070",
+            "UnitDetections": "e24fd1e8f7d2a82e",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
-            "UnitSlotTable": "edf5a0293368bee2",
+            "UnitSlotTable": "a88e867228547c38",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -4024,6 +5316,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4053,15 +5360,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "76c82ecacab95db7",
+            "ReportOutbox": "7a01ca95d9610160",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "ce956e3e3de2c070",
+            "UnitDetections": "e24fd1e8f7d2a82e",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -4081,6 +5389,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -4122,6 +5446,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "TaskFailed",
+            "CommandPicture.Subordinates.1.Strength": "Black",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4134,8 +5476,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "6f097185260ccad9",
-            "CommandReportHistory": "cc40dde7b09782fe",
+            "CommandPicture": "68a7e69f21b66a5a",
+            "CommandReportHistory": "8ca180c5e68d52cd",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -4178,6 +5520,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4209,8 +5566,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1a4d4b57219f27c4",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -4228,10 +5586,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "c8f05ebb73ea279e",
+            "AggregateUnit": "e2ad0bf3bfcdaa0a",
             "BehaviorState": "1f14878cf6e56881",
             "BlueprintAssignments": "09612b07b5ecb5a5",
             "BlueprintBlackboard256": "0c16d397bf19f430",
@@ -4244,7 +5617,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "7f4aac80c1bc481e",
             "EntityInfo": "21a8b8625061e0a7",
-            "FireAllocation": "9eb5a6d636755e1a",
+            "FireAllocation": "08170c00073edb7e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -4255,19 +5628,20 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "9bdecc3f9721c78f",
+            "ReportOutbox": "6ef8016b19ba725f",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "bbd1657f58b06bd2",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "0021c86e49de6cf2",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
-            "UnitSlotTable": "102a8027c37665fe",
+            "UnitSlotTable": "581429bad5133480",
             "UnitSubordinate": "63fc93a1bf925207",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -4282,6 +5656,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4311,15 +5700,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4607d262faaad900",
+            "ReportOutbox": "b927d73f68323a6e",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "31ead187de10c60f",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1a4d4b57219f27c4",
+            "UnitDetections": "9229702ea66741e4",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -4334,6 +5724,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -4375,6 +5781,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Amber",
+            "CommandPicture.Subordinates.2.Strength": "Amber",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4387,8 +5812,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "facf72566e68136b",
-            "CommandReportHistory": "8211f0cfbf10a81d",
+            "CommandPicture": "a34e2fb586e9dab7",
+            "CommandReportHistory": "b4b32338e57dc131",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -4404,7 +5829,7 @@
             "NetworkIdentity": "49918b3e8efa3bea",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "d758c09ba7477928",
+            "RecentSenses": "d326b7720cbae2cf",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -4431,10 +5856,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "aabaff77179a7fb3",
+            "AggregateUnit": "2623621eefd16d17",
             "Behavior": "d422b32815d0f32c",
             "BehaviorStartRecord": "ac0caa541570d09f",
             "BehaviorState": "3f8c137a65d712b0",
@@ -4449,7 +5889,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "5ca40880ae1b14ca",
             "EntityInfo": "a2c490ad2e390ec1",
-            "FireAllocation": "a49bbed5b16098b5",
+            "FireAllocation": "74da6755bc2aae08",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -4460,19 +5900,20 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4607d262faaad900",
+            "ReportOutbox": "e66a5a4978d3184e",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "568719a9ff3fc154",
+            "UnitDetections": "07ce2d9ad62cf3eb",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
-            "UnitSlotTable": "50ae205e9b15d9fa",
+            "UnitSlotTable": "a0c01220c4a9c6aa",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -4487,10 +5928,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "d220b7baf607a94d",
+            "AggregateUnit": "3171fa6e22198ae1",
             "Behavior": "697092cf56afea48",
             "BehaviorStartRecord": "018fe91273008e30",
             "BehaviorState": "3f8c137a65d712b0",
@@ -4505,7 +5961,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "87f3d180c6a3b4a7",
             "EntityInfo": "b93e33f81f683f68",
-            "FireAllocation": "bda056de4db4c0da",
+            "FireAllocation": "c009fa0d899b2a0b",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -4516,19 +5972,20 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4607d262faaad900",
+            "ReportOutbox": "e66a5a4978d3184e",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "568719a9ff3fc154",
+            "UnitDetections": "07ce2d9ad62cf3eb",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
-            "UnitSlotTable": "edf5a0293368bee2",
+            "UnitSlotTable": "867984ac8daf7e65",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -4543,6 +6000,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4572,15 +6044,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4607d262faaad900",
+            "ReportOutbox": "186c8962dd100e2b",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "568719a9ff3fc154",
+            "UnitDetections": "07ce2d9ad62cf3eb",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -4600,6 +6073,22 @@
         "Blue Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -4641,6 +6130,24 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "TaskFailed",
+            "CommandPicture.Subordinates.1.Strength": "Black",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4653,8 +6160,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f130479d745fc3f1",
             "CommandOrderHistory": "954054e4e8e29563",
-            "CommandPicture": "a5b5f99616836863",
-            "CommandReportHistory": "4f12bfe7a00952a5",
+            "CommandPicture": "01d471e887e8040a",
+            "CommandReportHistory": "467fbd54ae0cc69c",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -4670,7 +6177,7 @@
             "NetworkIdentity": "498d873e8ef64c47",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "55a5fbc97d22ee00",
+            "RecentSenses": "7b2fd0c614ef77b1",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -4697,6 +6204,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4728,8 +6250,9 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2ad9a29d5e8ffc80",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "040509c079cc2031",
+            "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitSlotTable": "9a85d7186febfe4a",
@@ -4747,10 +6270,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "934ce076fda6cf8d",
+            "AggregateUnit": "fd36a18424453461",
             "BehaviorState": "1f14878cf6e56881",
             "BlueprintAssignments": "09612b07b5ecb5a5",
             "BlueprintBlackboard256": "0c16d397bf19f430",
@@ -4763,7 +6301,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "7f4aac80c1bc481e",
             "EntityInfo": "21a8b8625061e0a7",
-            "FireAllocation": "d610334261ff870f",
+            "FireAllocation": "e7485d13a3c0a723",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -4774,19 +6312,20 @@
             "NetworkIdentity": "49a28b3e8f08af1d",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "c13ebfa8e7c0bd8b",
+            "ReportOutbox": "5da64466814c32e7",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "bbd1657f58b06bd2",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
             "UnitDetections": "0021c86e49de6cf2",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "e951bc85159e3e6d",
-            "UnitSlotTable": "102a8027c37665fe",
+            "UnitSlotTable": "581429bad5133480",
             "UnitSubordinate": "63fc93a1bf925207",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -4801,6 +6340,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4830,15 +6384,16 @@
             "NetworkIdentity": "49a5873e8f0ade28",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4bc3241cefc5d010",
+            "ReportOutbox": "dbaddeb5c0620a24",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "31ead187de10c60f",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c1b262e9394a4d7b",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "040509c079cc2031",
+            "UnitDetections": "13f8656e8012aff1",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "07bcad1887bf80a4",
@@ -4853,6 +6408,22 @@
         "Red Battalion Census": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -4894,6 +6465,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "CommandPicture.Subordinates.1.Progress": "Set",
+            "CommandPicture.Subordinates.1.Strength": "Amber",
+            "CommandPicture.Subordinates.2.Strength": "Amber",
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4906,8 +6496,8 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "504a2eff18534314",
             "CommandOrderHistory": "a5f1a5558d5b5bdd",
-            "CommandPicture": "9ca15c3aa904aa53",
-            "CommandReportHistory": "73ff0e5cc1c9f010",
+            "CommandPicture": "1484e4bcb83db56a",
+            "CommandReportHistory": "a74a6f242a52de6f",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e888fdb795896512",
             "EntityAppearance": "8ccdf5982a42d55e",
@@ -4923,7 +6513,7 @@
             "NetworkIdentity": "49918b3e8efa3bea",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "0697e8afa7b71657",
+            "RecentSenses": "e7977680bd08c0dd",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
@@ -4950,10 +6540,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "cc5b3912008e4d2c",
+            "AggregateUnit": "04a6973e12af9e88",
             "Behavior": "d422b32815d0f32c",
             "BehaviorStartRecord": "ac0caa541570d09f",
             "BehaviorState": "3f8c137a65d712b0",
@@ -4968,7 +6573,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "5ca40880ae1b14ca",
             "EntityInfo": "a2c490ad2e390ec1",
-            "FireAllocation": "b6326c5debda1b66",
+            "FireAllocation": "08608879c813d141",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -4979,19 +6584,20 @@
             "NetworkIdentity": "49948b3e8efc71c1",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4bc3241cefc5d010",
+            "ReportOutbox": "095d958efd1fb671",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "7838385458f2f105",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1191218457803094",
+            "UnitDetections": "32e330da6e77bbbe",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "faf8b983b235ff25",
-            "UnitSlotTable": "50ae205e9b15d9fa",
+            "UnitSlotTable": "a0c01220c4a9c6aa",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -5006,10 +6612,25 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "c58535c6cf7120a2",
+            "AggregateUnit": "08339be8839bf8fe",
             "Behavior": "697092cf56afea48",
             "BehaviorStartRecord": "018fe91273008e30",
             "BehaviorState": "3f8c137a65d712b0",
@@ -5024,7 +6645,7 @@
             "EntityAppearance": "8ccdf5982a42d55e",
             "EntityGuid": "87f3d180c6a3b4a7",
             "EntityInfo": "b93e33f81f683f68",
-            "FireAllocation": "e7816284cd772f7f",
+            "FireAllocation": "278312571bb1622a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "ccfa2677ba8bb11f",
@@ -5035,19 +6656,20 @@
             "NetworkIdentity": "4997873e8efea0cc",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4bc3241cefc5d010",
+            "ReportOutbox": "095d958efd1fb671",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "59dd000ae741f167",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1191218457803094",
+            "UnitDetections": "32e330da6e77bbbe",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "fdf3629b67ba35d6",
-            "UnitSlotTable": "edf5a0293368bee2",
+            "UnitSlotTable": "867984ac8daf7e65",
             "UnitSubordinate": "8fb3e02abf9e20d4",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "eb67c273ec9cebfb",
@@ -5062,6 +6684,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -5091,15 +6728,16 @@
             "NetworkIdentity": "499b873e8f0289a3",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "ReportOutbox": "4bc3241cefc5d010",
+            "ReportOutbox": "5c79c7231d689ffc",
             "ReportingRequirements": "f9be359368b35634",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "339b80e43f46bc47",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "bd8db7873235dcf4",
             "TkbIdentity": "c0a206f3159c16ef",
-            "UnitDetections": "1191218457803094",
+            "UnitDetections": "32e330da6e77bbbe",
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "557829e7b3153560",
@@ -5125,10 +6763,14 @@
     "... and its SITREP colour at the HQ is Black": 450,
     "the base-of-fire company has lost nobody: its SITREP colour is Green": 450,
     "... and its slot table agrees (no slot down)": null,
-    "Red's SITREP colours: company 1 Green": 450,
-    "Red's SITREP colours: company 3 Green": 450,
-    "... and company 1's slot table agrees (fewer than 5 down)": null,
-    "... and company 3's slot table agrees (fewer than 5 down)": null,
+    "Red's SITREP colours: company 3, untouched by the assault, reads Green": 450,
+    "... and its slot table agrees (fewer than 10 of 90 down: >= 90 % present)": null,
+    "Red's SITREP colours: company 2, in the assault's path, reads Amber": 450,
+    "Red's SITREP colours: company 1 reads Amber": 450,
+    "... and company 2's slot table agrees (at least 10 down)": 450,
+    "... and company 1's slot table agrees (at least 10 down)": 450,
+    "... neither falls below Amber (28 down: < 70 % present) - company 1": null,
+    "... neither falls below Amber - company 2": null,
     "no physical play on Blue Company 1": null,
     "no physical play on Blue Company 2": null,
     "no physical play on Blue Company 3": null,

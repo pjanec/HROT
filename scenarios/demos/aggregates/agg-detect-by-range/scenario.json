@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: on berlin three pairs of stochastic squads, 7 km apart (beyond any sensor), each a BLUE observer (4+ men, eyes only) and a RED target standing still in the open: 150 m, 700 m and 2500 m. Judge: N-1's curve P(r) = 0.9 * 2^-(r / (400 m * sqrt(men / 9)))^2 per second accumulates into a level; at level 1 a contact is reported. The 150 m and 700 m contacts appear inside the window the curve predicts (the step counts are in the row names), the 2500 m target is never contacted. Fail: a contact far out of the window, or beyond the eye's reach. Check: scripts/scenario-regression.sh agg-detect-by-range"
+    "description": "What: on berlin three pairs of stochastic squads, 7 km apart (beyond any sensor), each a BLUE observer and a RED target standing still in the open: 100 m (eyes only), 2100 m (the observer carries OPTICS) and 2500 m (eyes only). Judge: N-1's curve P(r) = 0.9 * 2^-(r / (R50 * sqrt(men / 9)))^2 per second (R50: eye 400 m, optics 1200 m) accumulates into a level; at level 1 a contact is reported into the observer's own contact pool. The 100 m and 2100 m contacts appear inside the window the curve predicts (the step counts are in the row names); the 2500 m target, beyond the naked eye's reach (the soldiers' own vision range), is never contacted. Fail: a contact far out of the window, or beyond the eye's reach. Check: scripts/scenario-regression.sh agg-detect-by-range"
   },
   "entities": {
     "a9000007-0000-4000-8000-000000000001": {
@@ -34,12 +34,23 @@
       "AggregateUnit": {
         "Resolution": "Stochastic"
       },
-      "SquadCognitiveState": {}
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      }
     },
     "a9000007-0000-4000-8000-000000000002": {
       "SimTransform": {
         "Position": [
-          1150,
+          1100,
           200,
           0
         ],
@@ -59,6 +70,18 @@
       },
       "AggregateUnit": {
         "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1100,
+            200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
       }
     },
     "a9000007-0000-4000-8000-000000000003": {
@@ -85,12 +108,38 @@
       "AggregateUnit": {
         "Resolution": "Stochastic"
       },
-      "SquadCognitiveState": {}
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            7200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      },
+      "UnitHoldings": {
+        "Count": 1,
+        "Items": [
+          {
+            "Type": 0,
+            "Count": 1,
+            "Operational": 1,
+            "Ammo": 0,
+            "Kind": "Sensor",
+            "Mobility": "NoMobility",
+            "Sensor": "Optics",
+            "Immobile": 0
+          }
+        ]
+      }
     },
     "a9000007-0000-4000-8000-000000000004": {
       "SimTransform": {
         "Position": [
-          1700,
+          3100,
           7200,
           0
         ],
@@ -110,6 +159,18 @@
       },
       "AggregateUnit": {
         "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            3100,
+            7200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
       }
     },
     "a9000007-0000-4000-8000-000000000005": {
@@ -136,7 +197,18 @@
       "AggregateUnit": {
         "Resolution": "Stochastic"
       },
-      "SquadCognitiveState": {}
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            14200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      }
     },
     "a9000007-0000-4000-8000-000000000006": {
       "SimTransform": {
@@ -161,6 +233,18 @@
       },
       "AggregateUnit": {
         "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            3500,
+            14200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
       }
     }
   }

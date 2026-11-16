@@ -1,12 +1,12 @@
 {
-  "$doc": "\u00a723.6 ST-2. Windows computed offline from UnitDetection.StepChance (PMax 0.9, EyeR50 400 m, Signature sqrt(men/9), a target standing still): steps = ceil(1/P(r)). Read from UnitDetections.Pairs.0.Reported (the observer's own level book); the contact-pool write (SquadCognitiveState.Contacts) is the same moment but needs SquadCognitiveState on the observer.",
+  "$doc": "\u00a723.6 ST-2. Windows computed offline from UnitDetection.StepChance (PMax 0.9, EyeR50 400 m / OpticsR50 1200 m, Signature sqrt(men/9), a target standing still): steps = ceil(1/P(r)). R-8331: the naked eye is capped at the soldiers' TKB VisionRange (agg-backend R-8006, CE-8009) - 150 m for these men - so the mid range is read through an authored Optics holding (not capped); the pool row reads SquadCognitiveState, which the spawn fill now provisions (CE-8021) - the observers author none.",
   "runFor": 90,
   "golden": {
     "every": 15
   },
   "expect": [
     {
-      "name": "a contact on the near target (150 m) appears inside N-1's window (2 steps +- 3 s)",
+      "name": "a contact on the near target (100 m, eye) appears inside N-1's window (2 steps +- 3 s)",
       "on": "field",
       "who": "Blue Observer near",
       "path": "UnitDetections.Pairs.0.Reported",
@@ -16,7 +16,17 @@
       "before": 6
     },
     {
-      "name": "a contact on the mid target (700 m) appears inside N-1's window (8 steps +- 3 s)",
+      "name": "  ... the near contact lands in the observer's own contact pool (N-2; no authored pool, CE-8021)",
+      "on": "field",
+      "who": "Blue Observer near",
+      "path": "SquadCognitiveState.Contacts.Count",
+      "op": ">",
+      "value": 0,
+      "after": 0,
+      "before": 6
+    },
+    {
+      "name": "a contact on the mid target (2100 m, optics) appears inside N-1's window (8 steps +- 3 s)",
       "on": "field",
       "who": "Blue Observer mid",
       "path": "UnitDetections.Pairs.0.Reported",
@@ -26,7 +36,17 @@
       "before": 12
     },
     {
-      "name": "no contact on the far target (2500 m) - beyond the sensors' reach",
+      "name": "  ... the mid contact lands in the observer's own contact pool (N-2; no authored pool, CE-8021)",
+      "on": "field",
+      "who": "Blue Observer mid",
+      "path": "SquadCognitiveState.Contacts.Count",
+      "op": ">",
+      "value": 0,
+      "after": 5,
+      "before": 12
+    },
+    {
+      "name": "no contact on the far target (2500 m, eye) - beyond the sensors' reach",
       "never": {
         "on": "field",
         "who": "Blue Observer far",

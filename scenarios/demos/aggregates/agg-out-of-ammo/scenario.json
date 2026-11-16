@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: on berlin a BLUE stochastic squad (8 riflemen, 12 rounds each - an authored slot table, so the spawn fill leaves it) under a physical 'Blue Company' fires at a RED stochastic platoon 300 m north (30 men, Fortified, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its ammunition Black (StaffComposerSystem.AmmoOf over UnitAmmunition.TryShare). Check: scripts/scenario-regression.sh agg-out-of-ammo"
+    "description": "What: on berlin a BLUE stochastic squad (8 riflemen, 12 rounds each - an authored slot table, so the spawn fill leaves it) under a physical 'Blue Company' fires at a RED stochastic platoon 300 m north (30 men, Fortified, DEFENDING in place, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its ammunition Black (StaffComposerSystem.AmmoOf over UnitAmmunition.TryShare). Check: scripts/scenario-regression.sh agg-out-of-ammo"
   },
   "entities": {
     "a9000013-0000-4000-8000-000000000001": {
@@ -171,6 +171,18 @@
         "Resolution": "Stochastic",
         "Echelon": 1,
         "Prepared": "Fortified"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            500,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
       },
       "UnitSlotTable": {
         "Count": 30,

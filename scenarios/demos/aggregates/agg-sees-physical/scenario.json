@@ -6,8 +6,8 @@
   "header": {
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
-    "terrainName": "basic-desert",
-    "description": "What: on basic-desert a 'Blue Stochastic Squad' (memberless) under a physical 'Blue Platoon' commander watches a PHYSICAL 'Red Squad' (four men) standing 250 m north. Judge: (1) the stochastic observer detects the physical squad (its level book holds a reported contact); (2) it reports SPOT up the chain - the platoon commander hears it; (3) the physical squad never contacts the stochastic unit (it has no body to see). Fail: no contact, no SPOT, or the Red squad's contact pool ever holds the Blue unit. Check: scripts/scenario-regression.sh agg-sees-physical"
+    "terrainName": "berlin",
+    "description": "What: on berlin (flat) a 'Blue Stochastic Squad' (memberless, carrying OPTICS) under a physical 'Blue Platoon' commander watches a PHYSICAL 'Red Squad' (four men) standing 700 m north - outside the 600 m band in which the resolution manager would split the observer. Judge: (1) the stochastic observer detects the physical squad (its level book holds a reported contact, and its own contact pool holds it); (2) it reports SPOT up the chain - the platoon commander hears it; (3) the physical squad never contacts the stochastic unit (it has no body to see); (4) the observer stays stochastic. Fail: no contact, no SPOT, the Red squad's contact pool ever holds the Blue unit, or the observer splits. Check: scripts/scenario-regression.sh agg-sees-physical"
   },
   "entities": {
     "a9000008-0000-4000-8000-000000000001": {
@@ -60,13 +60,27 @@
         "CommanderGuid": "a9000008-0000-4000-8000-000000000001",
         "Designation": "Wingman"
       },
-      "SquadCognitiveState": {}
+      "UnitHoldings": {
+        "Count": 1,
+        "Items": [
+          {
+            "Type": 0,
+            "Count": 1,
+            "Operational": 1,
+            "Ammo": 0,
+            "Kind": "Sensor",
+            "Mobility": "NoMobility",
+            "Sensor": "Optics",
+            "Immobile": 0
+          }
+        ]
+      }
     },
     "a9000008-0000-4000-8000-000000000003": {
       "SimTransform": {
         "Position": [
           300,
-          390,
+          840,
           0
         ],
         "Rotation": [
@@ -88,7 +102,7 @@
       "SimTransform": {
         "Position": [
           297,
-          388,
+          838,
           0
         ],
         "Rotation": [
@@ -121,7 +135,7 @@
       "SimTransform": {
         "Position": [
           299,
-          388,
+          838,
           0
         ],
         "Rotation": [
@@ -154,7 +168,7 @@
       "SimTransform": {
         "Position": [
           301,
-          388,
+          838,
           0
         ],
         "Rotation": [
@@ -187,7 +201,7 @@
       "SimTransform": {
         "Position": [
           303,
-          388,
+          838,
           0
         ],
         "Rotation": [
