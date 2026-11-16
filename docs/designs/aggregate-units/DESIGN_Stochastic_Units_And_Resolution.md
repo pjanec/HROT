@@ -581,6 +581,10 @@ planner.*
 | ST-2's sensing writes the observer's OWN squad pool directly (N-2) and `SquadPerceptionMergeSystem` skips a stochastic unit | the merge recomputes the pool from members; a memberless unit's would be wiped every dwell | — |
 | ST-2's draw is the step's EXPECTED chance accumulated (no dice) | N-5 accumulates; deterministic at any thread count without a seed | — |
 | ⏳ N-3 (a stochastic observer seeing PHYSICAL entities) not in the first increment | stochastic targets only | — |
+| ST-3: phase A writes ONLY `FireAllocation`; phase B spends the firer's own ammunition from its own lines (`FireLine.Source`, the former pad byte) | A then reads the targets as stable reads and writes one component; B writes only itself | — |
+| ST-3: phase B reads the enemy lines of THIS step (A ran first in the same frame), not last step's | the same determinism; one step less of delay | — |
+| ST-3: the run seed reaches the draw from the world's `RunSeed` singleton, else the process seed — passed explicitly | a phase never writes the static (and tests run in parallel) | R-8003 |
+| ⛔ ST-3: no host loads the killer–victim table yet; the C-8 ladder needs the physical runs | the TKB adapter + the measured rows are a separate job | CE-8008, CE-8009 |
 | ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
 
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22

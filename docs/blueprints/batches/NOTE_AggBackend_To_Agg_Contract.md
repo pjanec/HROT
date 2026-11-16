@@ -154,6 +154,14 @@ the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play 
 | agg-ui's detection overlay | `UnitDetections.Pairs[i]` (`Target`, `Level` 0..2 — a contact at ≥ 1, `Reported`, `LastSeenAt`) on the observer |
 | tuning | `UnitDetection.StepChance(range, r50, transmittance)` — N-1's curve; `UnitDetection.Signature`, `SensorR50` |
 
+## 3c. Attrition — what changed in the contract, and what reads it *(ST-3, CE-8007)*
+
+| | |
+|---|---|
+| ⭐ `FireLine.Source` | the former private pad byte, now public (the layout is unchanged): `FireAllocation.PersonalSource` (0) = the slots' personal weapons, else 1 + the firer's holding index |
+| the plays (agg-behaviors) | read `AggregateUnit.SuppressedShare`, `UnitSlotTable` (health / stress / ammo — standing = up and stress < `StochasticCombat.BreakLevel`), `UnitHoldings.Operational` / `Immobile`; ⛔ never write them |
+| agg-ui | the same, plus `FireAllocation.Lines` (who fires at whom this step) |
+
 ## 4. Ids allocated by this commit
 
 | | |
