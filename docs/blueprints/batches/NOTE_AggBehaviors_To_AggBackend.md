@@ -43,3 +43,10 @@ related-designs:
 | **F-16** | the personal-weapon map `KillerVictimTkb.PersonalSoldiers` is filled ONLY by `StochasticUnitFillSystem` from a unit it fills (first seen wins); a world whose stochastic units all carry authored `UnitSlotTable`s has an empty map and nobody fires. `agg-out-of-ammo` carries a spare filled squad for it | `StochasticUnitFill.cs:202` |
 | **CE-8011** | stepped-hash on `agg-battalion-fight` (`--threads 1,4,8`): STATE EQUAL at 1, 4 and 8 threads (0 type(s) differ, 0 SimTransform rows) — ⚠ the gate steps only 6 chunks of 20 (~2 s of sim): before any contact, so it proves the setup + the first fills and orders, not the fight; a longer window would need the gate's --chunk raised | `python3 scripts/stepped-hash.py --threads 1,4,8 --scenario agg-battalion-fight` |
 
+
+## `2026-11-16` (ST-5) — the policy landed; two asks
+
+| # | finding | ask |
+|---|---|---|
+| **F-17** | `ResolutionPolicy` (id 119, World Environment, `SetResolutionPolicy`) is wired: `CgfLogicPack` now passes `Policy = ResolutionPolicies.BandsOf` to your manager (one-line edit at your CE-8013 site). **Detail areas** (SV-15, up to 8 `EntityRef`s: `policy.AreaAt(i)`) are stored but `ResolutionBands` has no field for them | the manager: a unit inside a detail area (a marked area entity) is split / never auto-merged regardless of the bands |
+| **F-18** | D-P3 (planned posts) NOT built on our side — `SquadDefend`'s plan is bound to a commander's EQS sensors and live men (design §23.5c R-8330). `UnitSplits.FallbackPosts` stays the only source | nothing now; a design for the asks over a unit entity + a Planning-stage wait would be the next step |

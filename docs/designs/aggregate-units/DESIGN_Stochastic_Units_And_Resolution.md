@@ -807,6 +807,25 @@ stochastic squad, which is the whole point of step ⑥.*
 | F-8 | agg-backend's phase A fires every live system at every reported contact in range, moving or not: no base-of-fire share input, so "fires while approaching" is automatic and HoldBack changes only the movement | — |
 | acceptance | `SquadManeuverTests.AggregateAttack.cs`: a DIRECT order (not company-routed) from the commander over a stochastic defender; routing rails use the Company / Platoon fixtures | the company-routed acceptance is not built |
 
+### 23.5c agg-behaviors — ST-5 as built: the policy (§16b), F-5, and D-P3 STOPPED *(`2026-11-16`; lane decisions R-8326…R-8330 "for the user's review")*
+
+| what | where | deviation |
+|---|---|---|
+| `ResolutionPolicy` (id **119**, unmanaged, default data policy = saved + recorded, 56 B + 8 `EntityRef`) on the World Environment: the six `ResolutionBands` numbers, `FrameBudgetMs` (SV-8, dormant), up to 8 detail areas (SV-15) | `Fdp.Toolkits/Aggregate/ResolutionPolicy.cs`, registered in `HrotSharedComponentRegistry` | — |
+| `ResolutionPolicies.BandsOf(repo)` = the component's bands, else `ResolutionBands.Default` | same file | — |
+| `SetResolutionPolicy` verb (`[SharedAiAction]`, partial: a number left 0 keeps the rest; `area` adds, `clearAreas` forgets; serial write on the LIVE component via `RuleAfterPhase`) | `Brains/Objectives/Verbs/ResolutionVerbs.cs` | — |
+| the manager's `Policy = ResolutionPolicies.BandsOf` | `CgfLogicPack.cs` (⭐ cross-lane one-liner, agg-backend's constructor site) | said in the commit |
+| F-5: `UnitSopResolutionSystem` — a stateless 1 Hz check; a unit whose SOP is still the TEMPLATE's (origin Sop) is re-assigned the routing table's `Sop` row when stochastic, its template `DefaultSop` when physical | `Hrot.CGF/Systems/UnitSopResolutionSystem.cs`, registered after the manager | behaviors-side owner, no agg-backend change (R-8327) |
+| **C (D-P3 plan / assign split) — STOPPED, R-8330** | — | see below |
+
+| id | decision | would change it |
+|---|---|---|
+| **R-8326** | a policy field <= 0 means the SV-9 default (an authored file with only some numbers is complete; "none" = a tiny positive value); the verb's 0 = keep. Detail areas are stored but the manager does not read them yet (`ResolutionBands` has no field): a note to agg-backend | the manager reading `AreaAt(i)` |
+| **R-8327** | F-5 is a behaviors-side stateless system, not a hook in the manager: §16b says the manager never knows SOPs, and the desired SOP is a pure function of the resolution, so nothing to record or replay | a manager event the SOP owner could subscribe to |
+| **R-8328** | `ResolutionPolicies.BandsOf` allocates one query per manager step (1 Hz), not per frame | a per-frame caller |
+| **R-8329** | component id **138** (`PlannedPosts`) stays reserved, unused; 139 free | — |
+| **R-8330** | D-P3 NOT built: `SquadDefendBehavior.Plan` is an async state machine over a commander's child EQS sensors (`SquadManeuverRunner.AskTerrainAll` hangs the ask on `ctx.Commander`, measured FROM `FirstLive` man) with the roster-driven `AnyWithoutPost` / `PickAll` interleaved after each ask (windows, frames, roof, cover, fan, coverage — 1137 lines). A memberless stochastic unit has no roster, no commander cognitive state and no body to measure from, and the manager's Planning stage is one synchronous step with no wait. A split without changing the physical defence needs the asks re-parameterised over (count, origin, area) AND a manager wait for the plan — a design of its own | a design for the asks over a unit entity + a manager Planning wait; then PlannedPosts (138) and `UnitSplits.FallbackPosts` preference |
+
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 
 🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —
