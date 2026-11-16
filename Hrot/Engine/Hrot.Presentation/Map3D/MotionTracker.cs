@@ -1,5 +1,6 @@
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Animals;
 using Fdp.Toolkit.Animation;
 
 namespace Hrot.UI.Common.Map3D;
@@ -61,6 +62,7 @@ public sealed class MotionTracker
         public float Swing, Lean, Stride, Moving; public bool HasGait;   // ⭐ CE-1064 — the last gait, kept over a frame with no sim time
         public float RotorRate, RotorAngle; public double LastMoved; public bool HasMoved;   // ⭐ CE-1093 — the rotor's spool and its angle
         public float Yaw, Bank; public bool HasYaw;   // ⭐ CE-4621 — a motorcycle's heading and how far it leans into a turn
+        public float AnimalSpeed; public float LastZ; public bool HasZ;   // ⭐ CE-4623 — an animal's smoothed speed (m/s) and its last height
         public double Wall; public bool HasWall; public float Pace;   // ⭐ CE-1353 — the frame clock and the sim's smoothed pace on it
     }
 
@@ -80,10 +82,10 @@ public sealed class MotionTracker
     /// <summary>The pose of <paramref name="e"/>'s moving parts this frame. <paramref name="simTime"/> is the simulation clock
     /// (seconds); <paramref name="moving"/> spins a rotor (airborne or under way).</summary>
     public MotionPose Advance(Entity e, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
-                              bool rotorTurning, double? wallTime = null)
+                              bool rotorTurning, double? wallTime = null, AnimalMode mode = AnimalMode.Calm, float height = 0f)
     {
         _states.TryGetValue(e, out var st);
-        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning, wallTime);
+        var pose = Step(ref st, position, rotation, family, size, simTime, rotorTurning, wallTime, mode, height, (uint)e.Index);
         _states[e] = st;
         return pose;
     }
@@ -101,7 +103,7 @@ public sealed class MotionTracker
     }
 
     private static MotionPose Step(ref State st, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime,
-                                   bool rotorTurning, double? wallTime = null)
+                                   bool rotorTurning, double? wallTime = null, AnimalMode mode = AnimalMode.Calm, float height = 0f, uint seed = 0)
     {
         if (!st.Seen)
             st = new State { Last = position, SimTime = simTime, Seen = true, RotorRate = rotorTurning ? 1f : 0f };   // first seen flying: at speed
@@ -129,7 +131,8 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f, bank = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f, bank = 0f, wing = 0f, head = 0f, tuck = 0f;
+        var gaitKind = QuadGait.Stand;
         switch (family)
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
@@ -155,6 +158,40 @@ public sealed class MotionTracker
                 moving = Math.Clamp((speed - 0.05f) / MovingSpeed, 0f, 1f);   // ⭐ WL-6d — how much he is moving at all (the crawl)
                 st.Crawl = Wrap(st.Crawl + planar / CrawlMetres * MathF.PI * 2f);
                 st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
+                break;
+            }
+            case VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Pig or VisualFamily.Goat:
+            {
+                // ⭐ CE-4623 (AU-3) — a quadruped: the speed (smoothed over 0.12 s) picks the gait, the distance walked advances ITS cycle (feet do not slide), each leg has its own phase
+                //   (QuadrupedGaits.LegAngle); a paused clock (dt 0) keeps the speed and the phase, freezing it mid-stride; a jump (height above the ground) tucks the legs
+                if (dt > 1e-4) st.AnimalSpeed += ((float)(planar / dt) - st.AnimalSpeed) * (1f - MathF.Exp(-(float)dt / 0.12f));
+                var bands = QuadrupedGaits.BandsOf(family);
+                gaitKind = QuadrupedGaits.Classify(st.AnimalSpeed, bands);
+                if (gaitKind != QuadGait.Stand) st.Gait = Wrap(st.Gait + planar / QuadrupedGaits.Stride(gaitKind, bands) * MathF.PI * 2f);
+                swing = QuadrupedGaits.Amplitude(gaitKind);
+                moving = Math.Clamp(st.AnimalSpeed / MovingSpeed, 0f, 1f);
+                head = AnimalPoses.HeadPitch(family, mode, st.AnimalSpeed, simTime, seed);
+                tuck = Math.Clamp((height - 0.12f) / 0.3f, 0f, 1f);
+                break;
+            }
+            case VisualFamily.Poultry:
+            {
+                // ⭐ CE-4623 — a hen: two legs that step (the man's leg roles), the head that pecks when calm and still, the wings that flutter when it runs frightened or hops
+                if (dt > 1e-4) st.AnimalSpeed += ((float)(planar / dt) - st.AnimalSpeed) * (1f - MathF.Exp(-(float)dt / 0.12f));
+                st.Gait = Wrap(st.Gait + planar / 0.28f * MathF.PI * 2f);
+                swing = st.AnimalSpeed > QuadrupedGaits.StandBelow ? 0.75f * MathF.Sin(st.Gait) : 0f;
+                head = st.AnimalSpeed < 0.3f && mode is AnimalMode.Calm or AnimalMode.Recover ? AnimalPoses.Peck(simTime, seed) : 0f;
+                wing = height > 0.1f || (mode == AnimalMode.Flee && st.AnimalSpeed > 1.5f) ? AnimalPoses.Flutter(simTime, seed) : 0f;
+                break;
+            }
+            case VisualFamily.Bird:
+            {
+                // ⭐ CE-4623 — a lone bird: flapping while it moves or climbs / drops, folded wings (another kit) perched
+                if (dt > 1e-4) st.AnimalSpeed += ((float)(planar / dt) - st.AnimalSpeed) * (1f - MathF.Exp(-(float)dt / 0.12f));
+                float vz = st.HasZ && dt > 1e-4 ? MathF.Abs(position.Z - st.LastZ) / (float)dt : 0f;
+                st.LastZ = position.Z; st.HasZ = true;
+                wing = st.AnimalSpeed > 1.2f || vz > 0.6f ? AnimalPoses.Flap(simTime, seed) : 0f;
+                moving = wing != 0f ? 1f : 0f;
                 break;
             }
             case VisualFamily.Motorcycle:
@@ -208,7 +245,7 @@ public sealed class MotionTracker
 
         st.Last = position;
         st.SimTime = simTime;
-        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna, Bank: bank);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna, Bank: bank, Wing: wing, Head: head, Tuck: tuck, Gait: gaitKind);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>

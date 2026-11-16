@@ -296,8 +296,7 @@ namespace Fdp.Toolkit.Terrain
                 {
                     var a = EV(line["from"], default); var b = EV(line["to"], default);
                     int n = ECount(st, line, "count", 1);
-                    var d = b - a; float deg = MathF.Atan2(d.Y, d.X) * 180f / MathF.PI + (facing == "across" ? 90f : 0f);
-                    for (int i = 0; i < n; i++) places.Add((a + d * ((i + 0.5f) / n), deg));
+                    foreach (var (p, deg) in LinePlacesEven(new[] { a, b }, n)) places.Add((p, deg + (facing == "across" ? 90f : 0f)));   // ⭐ CE-5007 — the ONE line placement
                 }
                 else if (it["area"] is JsonObject area)
                 {

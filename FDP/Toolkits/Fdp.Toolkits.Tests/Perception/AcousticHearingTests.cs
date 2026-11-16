@@ -88,6 +88,28 @@ namespace Fdp.Toolkit.Tests.Perception
             return Solve(w, ear) == 1;
         }
 
+        /// <summary>⭐⭐ <c>CE-4621</c> MC-4 (Motorcycle MV-7, R-2123) — riding masks hearing: a man on a vehicle moving at 10 m/s hears a quarter as
+        /// far (his engine, the wind); stopped on it, or walking at the same speed unmounted, he hears all of it. ✅ Red-proof: the riding factor
+        /// left out of <c>TryEars</c> ⇒ the rider hears 100 m ⇒ red.</summary>
+        [Theory]
+        [InlineData(true, 10f, 0.25f)]
+        [InlineData(true, 2f, 1f)]
+        [InlineData(false, 10f, 1f)]
+        public void CE4621_MC4_ARiderOnAMovingVehicle_HearsAQuarterAsFar_StoppedOrUnmountedAll(bool embarked, float speed, float factor)
+        {
+            using var w = World(false);
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            if (!w.IsComponentTypeRegistered<SimVelocity>()) w.RegisterComponent<SimVelocity>();
+            var unit = Man(w, Vector3.Zero, ForceId.Friend);
+            w.AddComponent(unit, new SimVelocity { Linear = new Vector3(speed, 0f, 0f) });
+            if (embarked) w.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 1 });
+            var s = w.CreateEntity();
+            var entry = new SensorEntryDto { Acoustic = new AcousticSensorDto { Range = 100f } };
+            w.SetManagedComponent(s, new SensorCapability { Default = entry, Current = entry });
+            Assert.True(AcousticSensorGenerator.TryEars(w, s, unit, out var ears));
+            Assert.Equal(100f * factor, ears.Range, 2);
+        }
+
         /// <summary>⭐ AQ104 E ② — footsteps inside the house, 13 m from a man outside its west wall: a 20 m carry is heard in the open,
         /// not through the wall (halved to 10 m); a 30 m one still is (15 m — a halving, not a wall of silence). ✅ Red-proof: the wall
         /// line removed from <c>AcousticSensorGenerator.Hear</c> ⇒ the 20 m steps heard through the wall ⇒ red.</summary>

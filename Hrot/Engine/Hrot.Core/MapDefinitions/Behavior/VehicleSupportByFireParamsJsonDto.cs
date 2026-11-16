@@ -25,5 +25,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>How far round the stand-off point the hide query looks (m); 0 = the cycle's default.</summary>
         [JsonPropertyName("SearchRadius")]
         public float SearchRadius;
+
+        /// <summary>⭐ <c>CE-2436</c> AU-4 (A-4, blind fire) — the REPORTED posts' centre (world m): while its own sensors find nothing, the vehicle
+        /// fires cannon bursts at it; (0, 0, 0) = none (the cycle alone).</summary>
+        [JsonPropertyName("Posts")]
+        public Vector3 Posts;
     }
 }

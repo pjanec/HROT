@@ -53,7 +53,6 @@
   "editor_shared_orbat",
   "editor_spawner",
   "editor_system_profiler",
-  "editor_toolbar",
   "editor_waypoint_editor",
   "editor_wire_entities",
   "editor_zone_editor",
@@ -61,5 +60,7 @@
   "global_menu",
   "main_toolbar",
   "orchestrator_diagnostics",
-  "scenario_details"
+  "scenario_details",
+  "scenario_tools",
+  "terrain_tools"
 ]

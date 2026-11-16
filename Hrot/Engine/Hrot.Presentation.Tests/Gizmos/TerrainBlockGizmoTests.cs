@@ -25,7 +25,8 @@ namespace Hrot.Presentation.Tests.Gizmos;
 /// </summary>
 public sealed class TerrainBlockGizmoTests : IDisposable
 {
-    private readonly EntityRepository _repo = new();
+    private readonly EntityRepository _repo = Open(new());
+    private static EntityRepository Open(EntityRepository w) { Fdp.Toolkit.Terrain.TerrainLock.SetOpen(w, true); return w; }   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
     private static readonly Guid GuidA = Guid.Parse("a1000000-0000-4000-8000-000000000001");
 
     public TerrainBlockGizmoTests()

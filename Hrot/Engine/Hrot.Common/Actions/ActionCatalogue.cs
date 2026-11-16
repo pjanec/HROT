@@ -168,6 +168,13 @@ namespace Hrot.Common.Actions
         /// <summary>Every declaration, in declaration order.</summary>
         public IReadOnlyList<ActionDecl> All => _all;
 
+        /// <summary>⭐ CE-5017 — the label of action <paramref name="id"/>'s first declaration (the undo step's name), or "Action".</summary>
+        public string LabelOf(int id)
+        {
+            for (int i = 0; i < _all.Count; i++) if (_all[i].Id == id) return _all[i].Label;
+            return "Action";
+        }
+
         /// <summary>⭐ A4 — whether action <paramref name="id"/> runs once per selected entity (any declaration of it says so). An undeclared id runs once.</summary>
         public bool RunsPerEntity(int id)
         {

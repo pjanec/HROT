@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-11-15) — every decision RULED: S-1…S-9, X-1…X-5, SV-1…SV-15, M / N / P / D-P / R groups, C-1…C-8, B-1…B-9, the slices and the §21 review RV-1…RV-17 (R-4248…R-4250, R-4252, R-4255…R-4257); UML §22; build order §20 (ST-0 first); the FusionSquad is NOT a prerequisite (R-4253)
+build-state: READY-TO-BUILD → DISPATCHED 2026-11-16 to exp/agg-backend, exp/agg-behaviors, exp/agg-ui (§23, R-4276) (2026-11-15) — every decision RULED: S-1…S-9, X-1…X-5, SV-1…SV-15, M / N / P / D-P / R groups, C-1…C-8, B-1…B-9, the slices and the §21 review RV-1…RV-17 (R-4248…R-4250, R-4252, R-4255…R-4257); UML §22; build order §20 (ST-0 first); the FusionSquad is NOT a prerequisite (R-4253)
 updated: 2026-11-15 (the §21 review folded, READY-TO-BUILD — coordinator)
-current-answer: the whole file above HISTORY — §10 scope · §12 vehicles · §13 de-aggregation · §14 movement · §15 sensors · §16 placing the men · §16a the de-aggregation process · §16b who decides the resolution · §17 the first review · §18 combat · §19 orders · §20 slices · §21 the second review · §22 UML
+current-answer: §23 the dispatch, ids and contract · the whole file above HISTORY — §10 scope · §12 vehicles · §13 de-aggregation · §14 movement · §15 sensors · §16 placing the men · §16a the de-aggregation process · §16b who decides the resolution · §17 the first review · §18 combat · §19 orders · §20 slices · §21 the second review · §22 UML
 stale-below: § HISTORY at the bottom (§18–§20 as first approved); §16 P-1 / P-2 (superseded by §16a, marked inline)
 known-rot: §10's table row "`StochasticInfantrySquad<Order>`" and §13 X-1's string-keyed `<Resolution><Class><Order>` names are superseded by SV-2 (a (class, resolution, order) TABLE, no name concatenation); §10 S-5's "the FusionSquad calibrates" is superseded by C-8 (R-4253); §13 X-2's "keeps its order (name + params)" is DERIVED, not stored (§19)
 known-conflict: none
@@ -467,6 +467,72 @@ graph TD
 ```
 *What it shows: both phases ride the module that already runs the stress phase on every CGF node (so every host that simulates soldiers runs
 them by construction); the red edge is today's dead path — the area effect never reaches a unit until ST-3's sink.*
+
+## 23. Dispatch — three EXPERIMENTAL lanes, the contract fixed upfront *(✅ R-4276, `2026-11-16`)*
+
+🔒 User, verbatim: *"approved, write the handoffs for the three exp lanes"* — on the coordinator's lean: three branches `exp/agg-backend`,
+`exp/agg-behaviors`, `exp/agg-ui` off `coordinator`, working beside the animals and minefield lanes, ⛔ never merged back until the user says so.
+
+### 23.1 The id blocks *(measured free on every lane, `2026-11-16`)*
+
+| space | agg-backend | agg-behaviors | agg-ui |
+|---|---|---|---|
+| tracker `CE-` / rulings `R-` | `CE-8000`…`CE-8299` · `R-8000`…`R-8299` | `CE-8300`…`CE-8599` · `R-8300`…`R-8599` | `CE-8600`…`CE-8999` · `R-8600`…`R-8999` |
+| component ids | the contract 281–284 + 285–289 | 324–326 | 327–329 |
+| DDS descriptor ordinals | the contract 220–222 + 223–229 | 230–234 | 235–239 |
+
+### 23.2 The contract every agg lane builds against *(agg-backend DECLARES; its FIRST commit publishes the layouts in `NOTE_AggBackend_To_Agg_Contract.md`)*
+
+| name | id / ordinal | shape (§22) |
+|---|---|---|
+| `AggregateUnit` | 281 / `dtAggregateUnit` 220 | `Resolution` (byte: 1 Physical, 2 Fusion, 3 Stochastic) · `Echelon` · formation (`Width`, `Depth`, `Heading`) · `SuppressedShare` · `Splitting` · `Prepared` — EVERY recorded field of §14–§19 declared now (SV-12) |
+| `UnitSlotTable` | 282 / `dtUnitSlotTable` 221 | a header (unit, chunk) + fixed slots (health, ammo, stress, class) — ≤ 1024 B, chunked (RV-11) |
+| `UnitHoldings` | 283 / `dtUnitHoldings` 222 | systems per TKB platform type (count, operational) |
+| `FireAllocation` | 284 / — (node-local, recorded) | per target: expected hits per class (phase A → phase B) |
+| the routing table | — | (class, resolution, order) → behaviour (SV-2, B-1), the SOP row included |
+| readers | — | `UnitStrength.Of`, `CombatEffective.IsInTheFight` / `IsStanding`, the staff's `AmmoOf`, `ObjectiveCensus` answer an `AggregateUnit` from its slot table (RV-5) |
+
+### 23.3 The slices per lane *(the §20 order; a lane may run ahead on stand-ins with the §23.2 names)*
+
+| slice | agg-backend (engine) | agg-behaviors | agg-ui |
+|---|---|---|---|
+| **ST-0** | ② the components + ③ descriptors / translators (the shared pack) + ④ the routing table + ⑤ refused order ⇒ TaskFailed + ⑥ the run seed in `SimRng` | ① the four readers' slot-table branch + ⑦ CE-4612 step ⑥ (the commanders' orders ROUTED: re-inventory the `Assign` sites, one neutral params DTO per kind FIRST) | the mockup (R-4143); a unit's RESOLUTION in the unit form; the SITREP / strength / ammo rows read a stochastic unit |
+| **ST-1** | M-1…M-4: plan with the existing planner from the holdings, the speed model, the unit's deterministic path follower | `StochasticUnitMove` (B-2): orders → the follower; a dropped route re-requested | the 2-D FOOTPRINT (width × depth × heading, the unit symbol) — ⛔ no 3-D, the unit is hidden |
+| **ST-2** | N-1…N-5: the spatial grid, LOS between footprint samples (the Muscle), Pd, accumulating levels, the contact pool write | `StochasticUnitSop` (break contact under fire) | the detection levels as a debug overlay |
+| **ST-3** ⚠ after minefield MS-T1 merges into `coordinator` (the armour BOTTOM facing) | the killer–victim table GENERATOR (from `ArmorModel` / `HitModel`), the two phases (per-entity A and B), the `AreaEffectSystem` sink | Defend / Attack / BreakContact plays, B-8, the reports | slot-table health / suppression / morale in the unit's details; losses on the 2-D map |
+| **ST-4** | determinism at 1 / 4 / 8 threads | the battalion-vs-battalion scenario, its named checks | the scenario's map picture |
+| **ST-5** | the resolution manager, de-aggregation (children from the TKB composite, stable `<unit>/<slot>` keys), re-aggregation, the Held participant, C-7's forced handover | the policy (§16b), the planners' plan / assign split (D-P3) | the user's de- / re-aggregate request and the process's progress |
+
+### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
+
+🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —
+📐 measured: NOT covered. The three `exp/agg-*` branches hold no aggregate scenario; §23.3 asked for ONE (ST-4's battalion fight).
+
+⭐ Each is a regression test (R-4277): a What / Judge `description`, `checks.json` expect rows, a golden (editor tier); the nightly cluster tier
+runs the same rows. ⭐ **Lean: agg-behaviors authors them** (it owns ST-4's scenario and the plays); a red that is an engine defect goes to
+agg-backend. ⭐ A slice is DONE when ITS rows pass.
+
+| slice | scenario (`scenarios/demos/aggregates/…`) | the Judge lines (each an `expect` row) |
+|---|---|---|
+| ST-0 | `agg-platoon-under-company` | a stochastic platoon under a physical company reads Green in the company's SITREP · counts in the objective's census · a Defend order resolves to its play |
+| ST-0 | `agg-refused-order` | an order the table has no row for (Strike) reaches the commander as TaskFailed, and nothing else happens |
+| ST-0 | `agg-recorded` | a run recorded and replayed shows the same slot table at every keyframe |
+| ST-1 | `agg-march-open` | a dismounted platoon marches 2 km as a column; arrives within ± 10 % of M-2's predicted time |
+| ST-1 | `agg-march-mounted` | a mounted company keeps to roads, never enters a wood, arrives in its window |
+| ST-1 | `agg-route-dropped` | the route is cut mid-march: re-requested at most 3 times, then TaskFailed |
+| ST-2 | `agg-detect-by-range` | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
+| ST-2 | `agg-sees-physical` | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
+| ST-2 | `agg-break-contact` | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
+| ST-3 | `agg-platoon-duel` | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
+| ST-3 | `agg-shelled-unit` | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
+| ST-3 | `agg-prepared-defence` | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
+| ST-3 | `agg-out-of-ammo` | a unit fires until its derived ammunition is spent, then stops firing and reports it |
+| ST-4 | `agg-battalion-fight` | a battalion against a battalion runs to an end; the census and every SITREP agree with the slot tables |
+| ST-5 | `agg-split-on-contact` | a physical patrol closes in: the unit de-aggregates into soldiers and vehicles with stable `<unit>/<slot>` keys, in sensible positions |
+| ST-5 | `agg-squad-holds-house` | a squad holding a house splits into men at its window and door posts (§16) |
+| ST-5 | `agg-merge-back` | after contact ends the men merge back; the slot table keeps every loss and every identity |
+| ST-5 | `agg-forced-handover` | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
+| mixed | `agg-mixed-company-attack` | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
 
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
 

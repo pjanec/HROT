@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE
+state: LIVE — close-out done (§−2)
 updated: 2026-11-16
 current-answer: ⭐ §-1 THE MORNING SUMMARY · §0 the base variant · §1 decisions · §2 slices · §3 gates · §4 thresholds and ids
 stale-below: nothing
@@ -13,6 +13,19 @@ related-designs:
 
 Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da341`).
 
+## −2. ⭐⭐ CLOSE-OUT MORNING SUMMARY *(`2026-11-16`, handoff `HANDOFF_Coordinator_To_Behaviors_Assault_Closeout_And_Drones.md`, dispatched `7bea87df1`)*
+
+| item | result |
+|---|---|
+| 1 taken = PhaseLine OR hold (R-4265) | ✅ applied; #18–#20 re-judged 3 / 3; ⭐ **fresh base run #22 (`3a2502bb8`, cluster): TAKEN — held from 772 s**, every arrow ①②③⑤⑥⑧ ✓ |
+| 2 PL deadlines | ✅ 700 / 1000 s (R-2120); #22 met PL 1 |
+| 3 thresholds locked + the three variants | ✅ 0.45 / 90 locked; ⭐ **live: base PASS (53 % · 113.7/min) · stall PASS (taken, PL 642 s; ⑦ reserve committed; 55 % · 111.8) · collapse PASS (taken, PL 433 s; ④⑤⑥ ✓; 62 % · 100.3)** |
+| 4 CE-2440 (8-thread race) | ⚠ **NOT REPRODUCED**: 5 / 5 eight-thread runs STATE EQUAL (0 `BlueprintBlackboard1024` rows differ), 1 / 4 / 8 equal — kept open; no fix claimed |
+| 5 A-9 covered base of fire | ✅ built `b17473a96` (R-2121), rail + mutant; the base run #22 passed with it (⚠ which building it took is not logged) |
+| 6 AU-4 blind cannon fire | ✅ built `a72b7fe0d` (R-2124): an IFV that sees nothing fires 5-round bursts every 15 s on the reported posts, in the Support phase only (lifted at the assault); before, its support ENDED at once |
+| 7 CE-2437 / CE-2439 | ✅ both fixed `3a2502bb8` — CE-2439 a missing read declaration; ⭐ CE-2437's root cause was the TEST HARNESS (no `Repo.Tick()` ⇒ a stale last-tick view), which also explained backend's bike-play stale reads · new **CE-2441** (StationWeapon's cross-entity write, pre-existing) |
+| ⚠ for your review | lane decisions R-2120…R-2124 (§1) · the mortar lethality left alone, as ruled |
+
 ## −1. ⭐ THE MORNING SUMMARY *(`2026-11-16`)*
 
 | | |
@@ -25,10 +38,17 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 | **the loop itself** | the editor host + run-to is wired (`--host editor`, RUNBOOK §9.0) and repeats exactly on `cc-battalion`; ⛔ NOT on `pc-defend-house` (**CE-2438**, parked cars suspected) |
 | **next** | your call on ② (then 3 / 3 is met as #18–#20) · CE-2440 (catch the 8-thread race) · lock X / Y (§4 proposal) · A-9 covered position · AU-4's blind cannon fire |
 
+### −1a. Close-out (handoff `HANDOFF_Coordinator_To_Behaviors_Assault_Closeout_And_Drones.md`, dispatched `7bea87df1`) — item 1 ✅
+
+R-4265 applied (`utility-demo-check.py`: one `AU-6 Objective 1 TAKEN` arrow = PhaseLine report OR the 30 s hold; designs: Assault Under Fire §7,
+Battalion Test §5). **Re-judged from the recorded logs:** #18 ✅ (PhaseLine 606 s) · #19 ✅ (held 608 s) · #20 ✅ (PhaseLine 517 s) · #21 ⛔ (neither;
+① ⛔) ⇒ ⭐ **#18–#20: three consecutive passes — AU-6's 3 / 3 met.**
+
 ## 0. The base variant (`cc-battalion`)
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |
 |---|---|---|---|---|---|
+| ⭐ close-out live #22 (`3a2502bb8`: R-4265, PL 700 s, A-9, AU-4 blind fire) | ✅ **TAKEN — held from 772 s**; ended at 15 min | ✅ Set 129.1 s | ✅ 140.3 s | — | ①②③⑤⑥⑧ + AU-6 + PL 1 ✓; moved > 50 m 53 / 32 / 19 % · 113.7 contacts/min |
 | R-2119 live #20 | 🟡 **PL 1 BY a report at 517 s** — but no 30 s hold (the platoon moved on to Objective 2, as it should); ended at 15 min | ✅ Set 118.0 s | ✅ 128.8 s | — | ①②③⑤⑥ + PL ✓; AU-6 hold ⛔; PL deadlines ⛔; moved > 50 m 50 / 35 / 12 % · 102.1 contacts/min |
 | R-2119 live #21 | ⛔ neither — the assault platoon down to 2; ① the outpost killed before it withdrew | ✅ Set 113.8 s | ✅ 130.1 s | — | ②③⑤⑥ ✓; ① ⛔; PL ⛔; AU-6 ⛔; moved > 50 m 61 / 24 / 19 % · 111.2 contacts/min |
 | R-2119 live #18 (`0b261b9cd`) | ✅ **TAKEN** — Blue held Objective 1 (≥ 4 men, no enemy, 30 s) from 875 s; PL 1 BY a report at 606 s; Red's three platoons wiped out; ended by "Red below 30 % with Objective 1 held" | ✅ Set 113.1 s | ✅ 122.9 s (after the Set) | — | ⭐ **every required arrow ✓** (① SPOT 4.1 → withdraws 23.4 s · ② · ③ 16 bursts, 2 m · ⑤ · ⑥ · PL · ⑧ · AU-6); only the authored PL deadlines (420 / 720 s) ⛔; moved > 50 m 61 / 27 % · 109.1 contacts/min |
@@ -87,6 +107,9 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 | id | decision | would change it |
 |---|---|---|
+| R-2124 | close-out item 6 (AU-4 blind fire): an IFV supporting by fire that sees nothing fires 5-round cannon bursts every 15 s on the reported posts' centre and keeps supporting (before: its support ended at once with nothing in sight) | a live run where the bursts land on the own assault (then: lift the blind fire at the assault, as the shift does) |
+| R-2121 | close-out item 5 (A-9 as built): the company's base of fire moves into the enterable building nearest the fixed 250 m point, 120–450 m from the objective, inside the ±30° arc of the line of fire (a world survey, 5 s bound; none ⇒ the fixed point) | a live run where the chosen building has no line of sight to the posts (then: a LOS test from its near face) |
+| R-2120 | close-out item 2: the PL deadlines re-timed to the suppression-first attack — PL 1 by 700 s (≈ 15 % over the slowest passing run's 608 s), PL 2 by 1000 s (the authored 300 s after PL 1; past the 900 s end, so never judged) | a run that passes AU-6 yet misses PL 1 at 700 s · a longer run window that would judge PL 2 |
 | R-2119 | AU-6 (the scenario's end): Red broken ends the exercise only once Blue HOLDS Objective 1 (≥ 4 men in the 35 m block, no enemy, 30 s); Objective 2 held or 15 min end it as before; the check keys on the scenario's own "The end" and judges AU-6 by that hold | a run where Red survivors scattered in the block keep the end away for good (then: maxEnemy 1, or the block radius) |
 | R-2118 | AU-6 (Indirect Fire IF-1, cross-lane): an indirect round aimed at a point under a roof is aimed at the ROOF (the top surface over the point, `FireSolution.OnTop`) — it bursts there; the arc is no longer refused as masked by the target's own building. Points in the open are unchanged | a live run where roof bursts do no harm to the defenders inside (then: the building's damage / the burst through the roof) |
 | R-2117 | AU-6 (Building Clearing CB-55): Entering gets a bound — 20 s after every entry man is released, a man short of his point covers from where he stands; the room then clears on the 3 s quiet as before | a live run where the bound clears a room with a defender hidden where the short man would have looked |
@@ -109,7 +132,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | hygiene | ✅ R-2093…R-2105 in `RULINGS.md` with probes (674 / 674 verify) | — | — |
 | AU-1 | ✅ `883f9d6df` — A-2 the M249 / PKM in every squad; A-1 `SupportByFire`; A-3 the SHIFT at the assault, the LIFT at the foothold (AT-6 superseded) | `CE2436_SupportByFire_…` (new), `CE2277_AnOpenObjective_…` (shift), `CE2277_AnAreaWithABuilding…` (lift), 3 updated; six mutants red | Assault Under Fire §9.1 · Defend & Attack AT-6 marked superseded |
 | AU-2 | ✅ A-7 fire and movement in contact (bounding before), the crossing smoke (BreakContact's rule); A-8 SET = suppression established (time + rounds spent) — ⚠ the drone half of A-8 waits for AU-5 | `CE2436_SupportByFire_SuppressionIsEstablished_…`, `CE2436_FireAndMovement_OneCoveringManThrowsCrossingSmoke…`, `CE2436_PlatoonAttack_BeforeContact…`; CE2277 ×3, CE2346, CE2284 updated; five mutants red | Assault Under Fire §9.2 |
-| AU-3 | ✅ A-5 sustained mission (Count → Rounds), the screen on the crossing, the shift beyond; A-1 at the company (`PlatoonSupportByFire`) · ⛔ **A-9 not built** (covered position — next) | `CE2436_CompanyAttack_Sustained…`, `CE2436_ASustainedRequest…`, `CE2436_PlatoonSupportByFire…`; CE7023 ×2, CE7005 updated; six mutants red | Assault Under Fire §9.3 |
+| AU-3 | ✅ A-5 sustained mission (Count → Rounds), the screen on the crossing, the shift beyond; A-1 at the company (`PlatoonSupportByFire`) · ✅ **A-9 built `2026-11-16`** (R-2121, `CoverChoice.Pick`) | `CE2436_CompanyAttack_Sustained…`, `CE2436_ASustainedRequest…`, `CE2436_PlatoonSupportByFire…`; CE7023 ×2, CE7005 updated; six mutants red | Assault Under Fire §9.3 |
 | AU-4 | ✅ `VehicleSupportByFire`; the company's `Vehicle` role; IFVs under the company · 🔴 **defect fixed**: the SOPs paused a base of fire (`Supporting` in both `NotDefending` guards) · ⚠ no blind cannon fire on reported points | `CE2436_CompanyAttack_AVehicleSupportsByFire…`, `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` | Assault Under Fire §9.4 |
 | AU-5 | ✅ A-6 the company's DRONE TEAM (`Drones` role → `DroneTeam`: the recon drone circles the objective, the operator flies the bombers at the posts); the unjammable rule (AU-4's commit); a Blue drone team in `cc-battalion` | `CE2436_AU5_…` (two), `CE7014_…` | §9.6 |
 | AU-7 | ✅ A-10a the SHOTGUN (`Pellets` on the mount: N ordinary rounds over a 2-D pattern, spent past the range; types 212 / 213, one a squad); A-10 fire at the air spread in height and widened by speed (R-2110); A-10b `CanEngageDrone` + the shelter's gate; A-10c the drone gunners engage | `CE2436_AU7_…` ×3 (`AirDefenceNodesTests`), `CE2436_ARifleman_…` (`ShelterFromAirNodesTests`), `CE2436_AShotgun_…` (`FireProcessingSystemTests`), `CE2436_APellet_…` (`BallisticsSystemTests`), `CE2436_AU7_UnderADrone_…` | §9.5 |
@@ -151,15 +174,24 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | R-2114 red-proof (`mutate10.py`) | — | the re-order guard never dirties ⇒ 2 / 2 RED; restored, the tree clean |
 | R-2112 + `FlightGround`: FDP `--filter Motion\|Perception\|Combat` · SimHost touched suites plain · PAR + checks | ✓ | 807 / 807 · 518 / 518 · 514 / 518 (the four pre-existing `BasicInfantrySopTests`) |
 | R-2112 + `FlightGround` red-proofs (`mutate8.py`, `mutate9.py`) | — | the base of fire not considered · the reserve judged on colour alone (the rail-found defect, `SlotLost`) · the ground test dropped from `IsAir` ⇒ each RED; restored 40 / 40 + 57 / 57 |
+| A-9: the rail `CE2436_A9_TheBaseOfFire_…` · SimHost `Company` + `SquadManeuverTests` + `BehaviourHostingSnapshot` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 1 / 1 · 284 / 285 → 285 / 285 after re-recording the hosting golden (ONE moved line: `CompanyAttack` 192 → 208, the plan's cover fields) · 282 / 282 |
+| A-9 red-proof (`mutate16.py`) | — | `CoverChoice.Pick` never finds ⇒ 1 / 1 RED; restored, the tree clean |
+| AU-4 blind fire: `--filter SquadManeuverTests\|VehicleFightFromCover\|BasicVehicleSop\|HillAttack\|CE1431\|SopParamsRoundTrip\|ShippedTreesAreCSharp` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 419 / 419 · 413 / 419 — the 6 reds are ALL `HillAttackIntegrationTests`, one cause: an undeclared `NavigationStatus` read = **CE-2439** (filed earlier; fixed next) · company + AU-4 rerun after the Support-only guard: 37 / 37 |
+| AU-4 hosting golden | ✓ | ONE moved line: `VehicleSupportByFire` 328 → 408 (the posts + the burst state) |
+| AU-4 red-proofs (`mutate19.py`) | — | the blind branch dropped · the 15 s interval dropped ⇒ each RED; restored, the tree clean |
+| ⭐ stepped hash `HROT_PARALLEL_SIM=1 stepped-hash.py --threads 1,4,8 --scenario cc-battalion` (Release, after MC-4a + the dash + A-9) | — | **STATE EQUAL** at 1 / 4 / 8 (972 entities) |
+| ⭐ **CE-2440** (item 4): `--threads 1,8,8,8,8,8 --rows BlueprintBlackboard1024 --bytes` | — | **5 / 5 eight-thread runs STATE EQUAL**, 0 rows differ — ⚠ NOT REPRODUCED (no change targeted it); kept open with the measurement |
+| **CE-2439** (item 7): `NavigationStatus` declared a last-tick brain read · `HillAttackIntegrationTests` PAR + READ_CHECK | — | 7 / 7 (was 1 / 7); red-proof: the declaration dropped ⇒ 6 / 7 red |
+| **CE-2437** (item 7): ROOT CAUSE the test harness (no `Repo.Tick()` ⇒ the last-tick view stayed the first frame's) — `Repo.Tick()` per harness frame in `GrenadeReflexTests.World` and `StationWeaponBehaviorTests.World` | — | grenade + hill attack + `GreyZoneDash` + `SwarmRaid` + `DriveBy` + `ParkedBomb` + AU-4 under PAR + READ_CHECK + WORLD_GUARD: green except **CE-2441** (2 `StationWeapon` rails: a real cross-entity `IsEmbarkedTag` write — red the same at `a72b7fe0d`, filed) |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids
 
-⛔ **NOT LOCKED** — the handoff locks X / Y from THREE clean runs, and there is one (#18). 📐 Measured over the twelve live runs since R-2112
+⭐ **LOCKED `2026-11-16` (close-out item 3): `CC_MOVED_MIN = 0.45` (the FIRST window only), `CC_CONTACTS_MIN = 90`** — three passes exist since R-4265 (#18–#20). ⛔ SUPERSEDED: *"NOT LOCKED — there is one (#18)"*. 📐 Measured over the twelve live runs since R-2112
 (#6…#21): moved > 50 m in the first 300 s window **47–64 %** (min 47, #7) · contacts **99–123 / min** (min 99.1, #15). ⭐ **Proposal:
 `CC_MOVED_MIN = 0.45`, `CC_CONTACTS_MIN = 90`** (≈ 5 % / 10 % under the worst run) — to lock with 3 / 3. ⚠ The later windows (300–600 s:
 12–43 %) fall as the attack goes firm on the objective — judge the first window only.
 
 **Ids allocated this batch:** tracker `CE-2437` (the read check on a round born this tick) · `CE-2438` (the editor run does not repeat on
 pc-defend-house) · `CE-2439` (NavigationStatus read undeclared, hill attack) · `CE-2440` (the blueprint blackboard races at 8 threads) ·
-rulings `R-2106`…`R-2119` (all LANE DECISIONS for your review, §1).
+rulings `R-2106`…`R-2121`, `R-2124` · tracker `CE-2441` (StationWeapon's cross-entity write) (all LANE DECISIONS for your review, §1).

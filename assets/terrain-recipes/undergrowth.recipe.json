@@ -1,0 +1,14 @@
+{
+ "id": "undergrowth",
+ "scatter": {
+  "density": 2,
+  "items": [
+   { "kind": "bush", "weight": 6 },
+   { "kind": "tree", "weight": 1 }
+  ]
+ },
+ "ui": {
+  "group": "Vegetation",
+  "line": "bushes with a few young trees scattered in an area"
+ }
+}

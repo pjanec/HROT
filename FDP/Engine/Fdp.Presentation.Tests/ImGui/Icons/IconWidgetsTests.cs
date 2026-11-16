@@ -696,4 +696,35 @@ public class IconWidgetsTests
         ImGuiApi.End();
         fixture.Render();
     }
+
+    // ─── ⭐ CE-5006 W1: SplitArrow ─────────────────────────────────────────────
+
+    /// <summary>The click decision: a slot of the choices or the trailing actions answers itself when enabled, −1 when disabled, out of range or negative. 🔴 Mutation: drop the <c>Enabled</c> test on the trailing branch ⇒ the disabled trailing slot answers.</summary>
+    [Fact]
+    public void SplitArrow_Resolve_AnswersTheEnabledSlot_AndMinusOneOtherwise()
+    {
+        var items = new[] { new SplitItem("Default", true), new SplitItem("Easy"), new SplitItem("Off", Enabled: false) };
+        var trailing = new[] { new SplitItem("Edit…", Enabled: false), new SplitItem("More…") };
+        Assert.Equal(0, SplitArrow.Resolve(items, trailing, 0));
+        Assert.Equal(1, SplitArrow.Resolve(items, trailing, 1));
+        Assert.Equal(-1, SplitArrow.Resolve(items, trailing, 2));    // a disabled choice
+        Assert.Equal(-1, SplitArrow.Resolve(items, trailing, 3));    // a disabled trailing action
+        Assert.Equal(4, SplitArrow.Resolve(items, trailing, 4));     // the trailing slots follow the choices
+        Assert.Equal(-1, SplitArrow.Resolve(items, trailing, 5));
+        Assert.Equal(-1, SplitArrow.Resolve(items, null, 3));
+        Assert.Equal(-1, SplitArrow.Resolve(items, trailing, -1));
+    }
+
+    /// <summary>The arrow draws headless without a click: it answers −1, leaves the popup closed, and the list form does not throw with trailing items.</summary>
+    [Fact]
+    public void SplitArrow_Draw_WithoutAClick_AnswersMinusOne()
+    {
+        using var fixture = new ImGuiTestFixture();
+        fixture.NewFrame();
+        ImGuiApi.Begin("test_window");
+        ImGuiApi.Button("face");
+        int r = SplitArrow.Draw("##arrow", "##arrow_menu", "tip", new[] { new SplitItem("A", true), new SplitItem("B") }, new[] { new SplitItem("Edit…") });
+        ImGuiApi.End();
+        Assert.Equal(-1, r);
+    }
 }

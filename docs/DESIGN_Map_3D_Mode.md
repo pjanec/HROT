@@ -3518,7 +3518,7 @@ classDiagram
   class TerrainLayer3D { <<existing>> the old whole-mesh path for a plain source · a TerrainChunks3D for a chunked one }
   class TerrainChunks3D { <<NEW>> per chunk: ground mesh per LOD + objects mesh · LOD choice · frustum cull · build queue · GPU budget }
   class TerrainPicker { <<existing>> the old grid for a plain source · ChunkPickGrids for a chunked one }
-  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid }
+  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid · CE-5016: a re-bake keeps each chunk's previous grid until its new one lands }
   class BackgroundMeshBuild~T~ { <<existing>> one per chunk mesh }
   class PickGrid { <<existing>> one per chunk }
   ITerrainRenderGeometry <|-- ITerrainChunkedGeometry
@@ -3530,6 +3530,8 @@ classDiagram
   TerrainPicker *-- "0..1" ChunkPickGrids
   ChunkPickGrids *-- "many" PickGrid
 ```
+
+⭐ **CE-5016 (`2026-11-16`, terrain lane; user finding *"drawn fences are almost always shifted"*)** — a live bake gives the terrain a new identity, and `ChunkPickGrids.Bind` used to DROP every chunk grid: until the chunks under the ray were rebuilt on a worker a click MISSED the ground and fell to the look-at plane — 📐 measured 6.8 m (basic-desert) / 12.9 m (city-battle) off in XY, for 1–3 frames (`TerrainEditorFrameRail.A3`). Now a re-bake with the SAME chunk layout keeps each chunk's previous grid (and the outside's) as the answer until its replacement lands. A different layout (another terrain) starts clean, and the plain-source picker (no layout to compare) keeps R-1046's rule: blind while building, never the old terrain's triangles.
 *What the picture shows that prose hid: the soup's three consumers (3-D, picker, navmesh) now all take the terrain BY REGION from the same builders; a source that is not chunked
 (a test double) keeps the old whole-mesh path, so nothing else changes.*
 
@@ -4367,6 +4369,22 @@ classDiagram
 | 2, 3 | `DebugTraceGizmoTests.CE4582_LabelsOff_NoOrphanCard_AndARowsOwnLayerOff_RemovesTheRowNotTheCard`; the moved rows on the right card in `CE3121_TheUtilityGizmo…`, `CE3136_TheActionsGizmo…`, `CE3121_TheSquadGizmo…` (the member's E/R on the member's card), `EntityRotationGizmoTests.SC_GZ021_ROT_2…` | `inert: false` ⇒ the Actions row survives Labels off; the utility line back to free text ⇒ red |
 | 4 | `EveryMapHostAttachesTheSharedLayersTests.CE4582_TheSharedAttach_WiresTheEntitiesRow_TheOcclusionSwitch_AndTheSelection` (the forwarding rail: the three switches wired on the constructed objects, read from the buffer) | the wiring line dropped ⇒ null |
 | 7 | the frame rail's tail: the overlay pass allocates no more with the scope than without (R-2084); `SC_GZ021_ROT_2b` keeps the heading at 0 B; the moved rows format with the invariant culture (R-4221) | — |
+
+### 6al.3 CE-4623 AU-1 … AU-8 — the animals: nine kits, the gaits, the flock, the dead animal, the rider *(ui, `2026-11-16`; build-state: BUILDING — see STATUS_Ui_Animals_Visuals.md for what is bound and what waits)*
+
+Owner of the TYPES and the behaviour: [DESIGN_Animals.md](designs/animals/DESIGN_Animals.md) §4a / §6.1 (the contract), §6.3 (these tasks), §8 AR-7 / AR-8 / AR-13 / AR-14 / AR-20. Mockup (house style, R-4143): [`animals-visuals.svg`](designs/animals/animals-visuals.svg) (`scripts/gen-animals-mockup.py`; `--icons` writes the picker glyph sources).
+
+| what | as built |
+|---|---|
+| families | `VisualFamily.Cattle … Goat` (appended); `VisualFamilies.AnimalOfDis` — a DIS Kind-3 animal (cat. 200–208; air 205) resolves to its family BEFORE the class walk (a missing class would fall up to `Person`, AR-19) — ⚠ a stand-in for backend's classes, folded into `FamilyOfClass` at the re-bind |
+| kits | `AnimalKits` (METRES, `MetreKit`): seven quadrupeds from ONE builder over a `QuadSpec` table (torso, neck, head, four legs + hooves, tail, species extras), the hen, the bird (flying / perched); each kit's box is MEASURED from its parts; a resting animal has its own LYING kit (belly down, legs folded) in the standing box |
+| gaits (AU-3, AR-13) | roles `QuadFrontLeft…QuadHindRight` swing about the hip by `QuadrupedGaits.LegAngle` = `amplitude · sin(phase + 2π · offset(gait, leg))` — a walk's four beats, a trot's diagonals, a canter's three beats, a gallop's pairs; gait by SMOOTHED speed on per-species bands (`GaitBands`), the phase advances by DISTANCE (no sliding feet), a paused clock freezes it; a jump (height above ground) tucks the legs; `AnimalHead` pitches the neck about the withers (+ the head counter-tilts) — grazing in a seeded ~9–15 s cycle when calm and still, up when alert; wings `WingLeft/Right` beat (a bird, a hen's flutter); a hen pecks |
+| flock (AU-4, AR-14) | ONE entity (`FlockState`), N birds as closed-form offsets of (seed, index, sim time, mode) in the flock frame — never integrated; dropping birds takes the highest indices (the layer asks with `InitialCount`); dots below 3 px per bird, hidden below the flock's 1.5 px |
+| dead (AU-5, AR-8) | `deadAnimal`: the body rolls onto its side over `DeathFall.Seconds` (0.6 s of sim time), legs stiff, the coat as in life; `Burns()` excludes animals (no flames, no smoke), never the near-black wreck |
+| rider (AU-6) | `BlockFigure.Mounted` / `MountedAiming`: the same parts as `Seated`, thighs SPLAYED over the ±0.35 m barrel (knee at ±0.46 m, 0.25 m below the hips against the flank), shins down the flank to the stirrups 0.72 m below the hips (`MountLeg`; ⛔ SUPERSEDED: legs straight down from ±0.12 m, which drew inside the horse); the horse rider FIRES while riding (`FiringAimed(driverFires: true)`, R-4269 — unlike the motorcycle's driver); the bolt cue under the crosshair (`PossessionStation.IsBolted`, backend's `AnimalFlags.Bolting`) |
+| 2-D | an animal is a top-down BODY outline (`EntityClassShapeLibrary.AnimalQuadruped / AnimalBird / AnimalFlock`), never the man's line; the picker glyphs `_cattle …` (`assets/icons/src`, rendered by `render-entity-icons.py`) |
+| area (AU-7) | `AnimalAreaOps` + `AnimalAreaDetailsView` (Details tab beside Block): species, count, seed (dice), Enclosed (on for pigs and goats); `AreaAuthoringArm.BornWith(712)` |
+| sound (AU-8) | `AnimalSoundCatalog` 7800–7895, `SoundSynthesizer.Animal` placeholders, `SoundSources.Animals` (rest calls by the closed-form `CallsMade`, alarms, barks, a flock's take-off wings; per-herd throttle; silent after shooting), hooves / wings as movers by `LocomotionClass.Quadruped / Bird`, the birdsong bed lifted by perched birds |
 
 ## 7. NOT VERIFIED — say so before it is built on
 

@@ -84,7 +84,22 @@ public sealed class ShapeEditSession
     public ShapeMenu? Menu { get; set; }
 
     /// <summary>The keys, as the hint line says them — the minimum and the finish, undo and cancel keys.</summary>
-    public string KeysHint => $"click: add point · Enter / Done: finish ({MinPoints}+) · Backspace: undo point · Esc: cancel";
+    public string KeysHint => EscDropsShapeFirst
+        ? $"click: add point · Enter / Done: finish ({MinPoints}+) · Backspace: undo point · Esc: drop this shape, Esc again: stop"
+        : $"click: add point · Enter / Done: finish ({MinPoints}+) · Backspace: undo point · Esc: cancel";
+
+    /// <summary>⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — a REPEATING tool's Esc: the first drops the shape in progress (the tool stays armed),
+    /// the second, with no point placed, cancels. Off for every other tool (D11 unchanged).</summary>
+    public bool EscDropsShapeFirst { get; set; }
+
+    /// <summary>⭐ CE-5006 TE-2 — after a finish, a REPEATING tool starts the next shape: no points, no reason, open again.</summary>
+    public void Restart()
+    {
+        _points.Clear(); _heights.Clear();
+        Selected = -1;
+        Reason = null;
+        Outcome = ShapeOutcome.None;
+    }
 
     // ── editing the points ──────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -308,6 +323,7 @@ public sealed class ShapeEditSession
     public ShapeOutcome Cancel()
     {
         if (Ended) return Outcome;
+        if (EscDropsShapeFirst && _points.Count > 0) { _points.Clear(); _heights.Clear(); Selected = -1; Reason = null; return ShapeOutcome.None; }   // ⭐ TE-2 — the first Esc
         Outcome = ShapeOutcome.Cancelled;
         return Outcome;
     }

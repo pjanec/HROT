@@ -82,7 +82,7 @@ public static class TerrainBake
             var features = worldJson["features"] as JsonArray ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' has no features array.");
             foreach (var f in (JsonArray)overlayJson["features"]!) features.Add(f!.DeepClone());
             var overlayBase = TerrainFolderWorld.ReadWorld(baseDef, definition, baseName)!;
-            var merged = TerrainWorldMerge.Merge(overlayBase, TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder)).World);
+            var merged = TerrainWorldMerge.Merge(overlayBase, TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder), overlayBase.Height).World);   // ⭐ CE-5014 — on the base's relief
             var hrot = worldJson["hrot"] as JsonObject ?? (JsonObject)(worldJson["hrot"] = new JsonObject { ["schemaVersion"] = 1 });
             hrot["bounds"] = new JsonArray(merged.BoundsMin.X, merged.BoundsMin.Y, merged.BoundsMax.X, merged.BoundsMax.Y);
             // the overlay's own templates (a block's generated houses) resolve in memory, as they will from the saved folder's buildings/
@@ -154,7 +154,7 @@ public static class TerrainBake
             TerrainWorld? overlayWorld = null;
             if (compiled.Wrote)
             {
-                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder));
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder), baseWorld.Height);   // ⭐ CE-5014
                 overlayWorld = overlay.World;
                 var merged = TerrainWorldMerge.Merge(baseWorld, overlayWorld);
                 string worldPath = Path.Combine(part, definition.World);

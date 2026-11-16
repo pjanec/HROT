@@ -148,6 +148,7 @@ public static class HrotSharedComponentRegistry
         // ⭐ O-4 (CE-4415, §18c) — authored terrain blocks / features: saved with the scenario, expanded into the overlay at save (never at load)
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainBlock>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.PlacementGroup>();   // ⭐ CE-5008 (R-5041) — a placed obstacle row's group id, saved with each member
         world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
         // ⭐ CE-4591 (P-4, G-7) — the craters of one ground cell (dtGroundDamage): a runtime entity its deciding node owns, replicated, read by every view's

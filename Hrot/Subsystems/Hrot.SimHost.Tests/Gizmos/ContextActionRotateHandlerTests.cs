@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System;
 using Fdp.Core;
@@ -5,6 +6,7 @@ using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Constants;
 using Hrot.Common.Events;
 using Hrot.Common.Systems;
+using Hrot.Common.Interactions;
 using Xunit;
 
 namespace Hrot.SimHost.Tests.Gizmos
@@ -150,6 +152,47 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(new[] { a, b }, Click(8, GlobalActionIds.Delete));            // in the selection ⇒ every selected one
             Assert.Equal(new[] { c }, Click(9, GlobalActionIds.Delete));               // outside it ⇒ that one
             Assert.Equal(new[] { b }, Click(8, GlobalActionIds.CenterOnEntity));       // a Selection action ⇒ once, the clicked one
+        }
+
+        private sealed class StepLog : Fdp.Toolkit.Replication.Edits.IEditStepRecorder
+        {
+            public readonly List<string> Log = new();
+            public void Begin(EntityRepository repo, string label) => Log.Add("begin " + label);
+            public void End(EntityRepository repo) => Log.Add("end");
+            public void Cancel(EntityRepository repo) => Log.Add("cancel");
+        }
+
+        /// <summary>
+        /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — a per-entity action fanned out over the selection (A4) is ONE user gesture ⇒ ONE undo step: the dispatcher brackets the
+        /// run of the same per-entity action (the menu's Delete over a selected row of obstacles); one target, or a Selection action, needs no bracket. 🔴 Red-proof: no bracket ⇒ the log is empty.
+        /// </summary>
+        [Fact]
+        public void CE5017_APerEntityActionOverTheSelection_IsOneUndoStep()
+        {
+            var log = new StepLog();
+            Fdp.Toolkit.Replication.Edits.EditSteps.Install(_repo, log);
+            var bus = new FdpEventBus();
+            bus.Register<GlobalActionRequestedEvent>();
+            var registry = new GlobalActionRegistry();
+            var ran = new List<Entity>();
+            registry.Register(GlobalActionIds.Delete, (v, t) => ran.Add(t));
+            registry.Register(GlobalActionIds.CenterOnEntity, (v, t) => ran.Add(t));
+            var dispatch = new GlobalActionDispatchSystem(registry, bus);
+            Entity a = _repo.CreateEntity(), b = _repo.CreateEntity(), c = _repo.CreateEntity();
+            void Frame(int action, params Entity[] targets)
+            {
+                foreach (var t in targets) bus.Publish(new GlobalActionRequestedEvent { ActionId = action, Target = t });
+                bus.SwapBuffers();
+                dispatch.Execute(_repo, 0f);
+            }
+
+            Frame(GlobalActionIds.Delete, a, b, c);
+            Assert.Equal(new[] { a, b, c }, ran);
+            Assert.Equal(new[] { "begin Delete", "end" }, log.Log);
+            log.Log.Clear();
+            Frame(GlobalActionIds.Delete, a);                                         // one target: no bracket (the handler's own step)
+            Frame(GlobalActionIds.CenterOnEntity, a);                                 // not per-entity: never bracketed
+            Assert.Empty(log.Log);
         }
 
         /// <summary>⭐ CE-3178 — a click relayed from another node (the gizmo topic's ContextActionTriggered) keeps that mark into

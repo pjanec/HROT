@@ -53,6 +53,35 @@ namespace Hrot.SimHost.Tests
         private static bool Near(Vector3 a, Vector3 b, float m = 1f) => Vector2.Distance(new Vector2(a.X, a.Y), new Vector2(b.X, b.Y)) <= m;
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> A-9 — the company's base of fire takes a COVERED position: the survey round the fixed 250 m point finds an enterable
+        /// building on the line at 230 m, another 50° off the line, and a SOLID one at the fixed point itself ⇒ the base of fire is re-ordered onto
+        /// the one on the line (its squads then man its windows). 🔴 Red-proof: <c>CoverChoice.Pick</c> never finds ⇒ it stays at the fixed point.
+        /// </summary>
+        [Fact]
+        public void CE2436_A9_TheBaseOfFire_TakesTheCoveredBuildingOnTheLine_NotTheOneOffIt_NorASolidOne()
+        {
+            var c = new Company();
+            Vector3 o1 = new(0f, 600f, 0f);
+            var start = StaffComposerSystem.CentreOf(c.S.Repo, c.S.Commander);
+            var dir = Vector2.Normalize(new Vector2(start.X - o1.X, start.Y - o1.Y));
+            var side = new Vector2(-dir.Y, dir.X);
+            var onLine = new Vector2(o1.X, o1.Y) + dir * 230f + side * 8f;
+            float a = 50f * MathF.PI / 180f;
+            var offDir = new Vector2(dir.X * MathF.Cos(a) - dir.Y * MathF.Sin(a), dir.X * MathF.Sin(a) + dir.Y * MathF.Cos(a));
+            var offLine = new Vector2(o1.X, o1.Y) + offDir * 250f;
+            var fixedAt = new Vector2(o1.X, o1.Y) + dir * CompanyAttackBehavior.SupportStandOffMetres;
+            var survey = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };
+            survey.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 1, CentreX = offLine.X, CentreY = offLine.Y });
+            survey.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 2, CentreX = fixedAt.X, CentreY = fixedAt.Y, Solid = true });
+            survey.Buildings.Add(new Fdp.Toolkit.Perception.Survey.SurveyBuilding { Building = 3, CentreX = onLine.X, CentreY = onLine.Y });
+            c.S.Surveys[CompanyAttackBehavior.CoverSite] = survey;
+            CompanyAttack(c, 0f, o1);
+            c.Ticks(10);
+            var support = c.Last<PlatoonSupportByFireParamsJsonDto>(c.Second, BehaviorNames.PlatoonSupportByFire);
+            Assert.True(Near(support.Position, new Vector3(onLine, 0f)), $"the base of fire on the covered building on the line: {support.Position} (want {onLine})");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-7023</c> (C-1b) — two objectives in order: the BASE OF FIRE (slot 1) defends 250 m short of objective 1 with its arc on it,
         /// the RESERVE (slot 2) 400 m short, the ASSAULT (slot 0) waits; the base of fire's Set ⇒ the assault platoon attacks objective 1
         /// (<c>PlatoonAttack</c> on its area); its Set ⇒ objective 2 — the base of fire moves up (250 m short of objective 2, on the line from 1);

@@ -46,6 +46,7 @@ public sealed class TerrainBlockMenuFrameRail
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var repo = new EntityRepository();
+        Fdp.Toolkit.Terrain.TerrainLock.SetOpen(repo, true);   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
         repo.RegisterComponent<SimTransform>(); repo.RegisterComponent<NetworkIdentity>(); repo.RegisterComponent<TerrainBlock>(); repo.RegisterComponent<EntityGuid>(); repo.RegisterComponent<SelectionState>();
         var e = repo.CreateEntity();
         repo.AddComponent(e, new SimTransform { Position = new Vector3(100, 100, 0), Rotation = Quaternion.Identity });

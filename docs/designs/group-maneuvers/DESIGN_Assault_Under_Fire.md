@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT but A-9 (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT incl. A-9 (§9, R-2121)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -137,6 +137,9 @@ mechanism; the drones are tasked through the operator that already exists.*
 1. A rail per new play: `SupportByFire` puts rounds within 3 m of a reported post it cannot see; it shifts on order; `VehicleSupportByFire` fires from cover and relocates.
 2. The assault moves only after "suppression established" is recorded, and the base of fire is STILL firing (shifted) when the assault reaches the PhaseLine.
 3. `cc-battalion` base: Objective 1 taken in three runs out of three; the platoon's SITREP better than today's RED from 153 s (measured in the report).
+   ⭐ **"Taken" (R-4265, user `2026-11-16`):** the assault platoon's PROGRESS PhaseLine report **OR** Blue holding Objective 1 for 30 s (≥ 4 men in the
+   35 m block, no enemy — R-2119). 📌 Met by live runs #18, #19, #20 (`STATUS_Behaviors_Assault_Under_Fire.md` §0); #19 held without a report (the
+   office still being cleared), #20 reported and moved on to Objective 2 (no hold).
 4. The parallel checks (`HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1`), the stepped hash on `cc-battalion`, 0 B per steady frame.
 
 ## 8. Design docs checked
@@ -210,22 +213,23 @@ grenade does not cover the crossing.
 | A-5 the screen | the half-deadline smoke (CE-7025) lands **50 m from the objective toward where the company came from** — on the crossing, ⛔ never on the objective (📌 it blinded the own base of fire) | `ScreenPoint` |
 | A-5 shift beyond | objective k taken (`NextObjective`) ⇒ a sustained HE request on objective k + 1; the last one taken asks nothing | `NextObjective` |
 | A-1 company | the company's base of fire is `PlatoonSupportByFire`: every squad `SupportByFire` on the company's posts (≤ 4 fresh elements near the objective), spread 20 m across the line of fire; the platoon reports SET once every live squad has (= each squad's suppression established) | `PlatoonSupportByFireBehavior`, `CompanyAttack.SupportByFire` |
-| ⛔ A-9 covered position | **NOT BUILT** — the base of fire still stands at the fixed 250 m; a cover query for the company (a world survey round the support point, the near face of a building on the line of fire) is the next step | — |
+| ⭐ A-9 covered position *(as built `2026-11-16`, R-2121)* | during Support the company asks a world survey (`WorldSurveyChildSensor`, 100 m round the fixed 250 m point); `CoverChoice.Pick` takes the ENTERABLE building 120–450 m from the objective inside the ±30° arc of the objective→fixed-point line, nearest the fixed point, and moves the base of fire there (its slot re-ordered). No building, no reply in 5 s ⇒ the fixed point stands. ⚠ Distance bounds stay the weapon's effective range (450 m), not a cover-to-posts line-of-sight test — that is the next refinement if a live run puts the base of fire behind a wall it cannot shoot through | `CompanyBehaviors.Cover` (:282), `CoverChoice.Pick` (:1005) |
+| ⛔ HISTORY (A-9 row before `2026-11-16`) | *NOT BUILT — the base of fire still stands at the fixed 250 m* | — |
 
 **Rails:** `CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond` · `CE2436_ASustainedRequest_IsFiredAsASustainedMission`
-· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red.
+· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red. · A-9: `CE2436_A9_TheBaseOfFire_TakesTheCoveredBuildingOnTheLine_NotTheOneOffIt_NorASolidOne` (mutant: never finds ⇒ red).
 
 ### 9.4 AU-4 — the vehicles support by fire; the SOPs spare a base of fire; A-6's unjammable rule *(R-2109, lane decision — for the user's review)*
 
 | piece | as built | where |
 |---|---|---|
-| A-4 the play | `VehicleSupportByFire` (MilitaryApc) = a sequence: drive to the stand-off point (`MoveToLocation`, 8 m), then the exposure cycle `VehicleFightFromCover` with **Scoot, one exposure a position** — hide, out front-first, fire, RELOCATE to a new hide after every engagement. ⚠ the cycle fights what the vehicle's own sensors find from its firing points; blind cannon fire on REPORTED points is not built | `VehicleFightFromCoverBehavior.cs` (`VehicleSupportByFireBehavior`) |
+| A-4 the play | `VehicleSupportByFire` (MilitaryApc) = a sequence: drive to the stand-off point (`MoveToLocation`, 8 m), then the exposure cycle `VehicleFightFromCover` with **Scoot, one exposure a position** — hide, out front-first, fire, RELOCATE to a new hide after every engagement. ⭐ **BLIND FIRE as built `2026-11-16` (R-2124):** while its own sensors give it no threat (`EqsTacticsNodes.TopAim` false) and the company gave it the REPORTED posts' centre (`VehicleSupportByFireParamsJsonDto.Posts`, from `CompanyBehaviors.PostsOf`, ⭐ given ONLY in the Support phase — from the assault on, our own men are on them: lifted, as the base of fire lifts), it fires a 5-round cannon burst (`FireAtPoint`, mount 0) on them every 15 s and keeps supporting; a threat of its own hands the gun back to the cycle (a burst always ends first). 📌 Before, the cycle with nothing in sight returned Success at once and the IFV's support ENDED. ⛔ HISTORY: *"blind cannon fire on REPORTED points is not built"* | `VehicleFightFromCoverBehavior.cs` (`VehicleSupportByFireBehavior.FightOrBlindFire`) |
 | A-4 the company | a subordinate that is a VEHICLE (`Locomotions.IsVehicle`, the one rule) gets the role `Vehicle`, never assault / support / reserve (the platoons take those in order); it is ordered `VehicleSupportByFire` **35 m to the side of the base of fire's point**, on its line, never toward the objective — and stays back at the consolidation and the abort; `AllSet` does not wait for a vehicle's Set | `CompanyBehaviors` (`PlanAttack`, `VehicleSupport`, `AllSet`) |
 | A-4 data | `cc-battalion`'s IFVs are the company's (they had no commander — R-2096 — and did nothing for the attack) | `scripts/gen-chain-scenarios.py` |
 | 🔴 defect found live | the SOPs spared a DEFENCE but not a BASE OF FIRE: the platoon SOP's `PlatoonHold` paused the company's `PlatoonSupportByFire` 16 s after it began, ordered its squads to hold, and it never fired again (probe). ⭐ `PlatoonDefendBehavior.NotDefending` / `SquadDefendBehavior.NotDefending` now also answer false while the unit's current order (running or paused) is `SupportByFire` / `PlatoonSupportByFire` (`SupportByFireBehavior.Supporting`) — its fire IS the answer to the contact | `SupportByFireBehavior.Supporting` |
 | A-6 unjammable | `DroneJamming.DronesUnjammable = true` (FDP lane, said): `Jammed` answers false — no jammer downs a drone (the user's ruling); the jammer bubbles stay built and read (⛔ no removal); `CE7014` keeps proving the jammer with the switch off and adds the unjammable case | `Motion/DroneJamming.cs` |
 
-**Rails:** `CE2436_CompanyAttack_AVehicleSupportsByFireFromTheBaseOfFiresLine_NeverAssaults` · `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` ·
+**Rails:** `CE2436_CompanyAttack_AVehicleSupportsByFireFromTheBaseOfFiresLine_NeverAssaults` · `CE2436_AU4_AVehicleThatSeesNothing_FiresBurstsOnTheReportedPosts` (posts / none) · `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` ·
 `CE7014_…` (three cases). **R-2109:** the vehicles 35 m beside the base of fire, scoot after every exposure; a base of fire spared by the SOPs as
 a defence is — would change with a live run where 35 m puts the IFVs in the open, or where a base of fire should break off on a contact.
 

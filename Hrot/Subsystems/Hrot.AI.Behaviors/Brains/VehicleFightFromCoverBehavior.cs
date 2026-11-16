@@ -1,3 +1,6 @@
+using System.Numerics;
+using Fbt.Kernel;
+using Fdp.Toolkit.Combat;
 using System.Runtime.InteropServices;
 using Fbt;
 using Fbt.Compiler;
@@ -70,12 +73,35 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class VehicleSupportByFireBehavior
     {
+        /// <summary>⭐ AU-4 blind fire — a burst's rounds, and the pause between bursts (s).</summary>
+        public const int BlindRounds = 5;
+        public const float BlindIntervalSeconds = 15f;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SupportParams
+        {
+            public VehicleFightFromCoverParams Fight;
+            /// <summary>The reported posts' centre; zero = none.</summary>
+            public Vector3 Posts;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SupportState
+        {
+            public VehicleFightFromCoverState Fight;
+            public FireAtPointNodeParams Blind;
+            public SimInstant NextBurst;
+            public byte Firing;
+            /// <summary>Blind bursts fired so far.</summary>
+            public byte Bursts;
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         public struct VehicleSupportByFireBlackboard
         {
             public CgfNodes.MoveToLocationParams Move;
-            public VehicleFightFromCoverParams Fight;
-            public VehicleFightFromCoverState FightState;
+            public SupportParams Support;
+            public SupportState State;
         }
 
         [BehaviorResolver(BehaviorNames.VehicleSupportByFire)]
@@ -83,18 +109,56 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block = default;
             block.Move = new CgfNodes.MoveToLocationParams { X = authored.Position.X, Y = authored.Position.Y, Speed = authored.Speed, ArrivalRadius = 8f };
-            block.Fight.WithdrawMode = WithdrawMode.Scoot;      // relocate after each engagement
-            block.Fight.ExposuresPerPosition = 1;
-            block.Fight.SearchRadius = authored.SearchRadius;
+            block.Support.Fight.WithdrawMode = WithdrawMode.Scoot;      // relocate after each engagement
+            block.Support.Fight.ExposuresPerPosition = 1;
+            block.Support.Fight.SearchRadius = authored.SearchRadius;
+            block.Support.Posts = authored.Posts;
         }
 
         [Behavior(BehaviorNames.VehicleSupportByFire, Params = typeof(VehicleSupportByFireParamsJsonDto), Categories = BehaviorCategory.MilitaryApc,
-                  Description = "Supports an attack by fire from a stand-off point: fights from cover and relocates after each engagement.")]
+                  Description = "Supports an attack by fire from a stand-off point: fights from cover and relocates after each engagement; fires on the reported posts it cannot see.")]
         [BTreeDefinition(BehaviorNames.VehicleSupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(VehicleSupportByFireBlackboard))]
         public static BTreeBuilder<VehicleSupportByFireBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<VehicleSupportByFireBlackboard, BTreeContext>()
                 .Sequence(both => both
                     .Action(bb => bb.Move, CgfNodes.Action_WriteMoveToChannel)
-                    .StatefulAction(bb => bb.Fight, bb => bb.FightState, VehicleFightFromCoverNodes.VehicleFightFromCover));
+                    .StatefulAction(bb => bb.Support, bb => bb.State, FightOrBlindFire));
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-4 (A-4 as designed; 📄 DESIGN_Assault_Under_Fire §9.4) — the exposure cycle while the vehicle's own sensors give it a
+        /// threat; while they give it NONE and the company reported posts, BLIND FIRE: a <see cref="BlindRounds"/>-round cannon burst
+        /// (<see cref="FireAtPointNodes.FireAtPoint"/>, mount 0) on the posts' centre every <see cref="BlindIntervalSeconds"/> — a burst always ends
+        /// before the cycle takes the gun again. 📌 Before, the cycle with nothing in sight returned Success at once and the IFV's support ended.
+        /// Without posts, the cycle alone, as before.
+        /// </summary>
+        public static NodeStatus FightOrBlindFire(ref SupportParams p, ref SupportState s, Entity self, EntityRepository world)
+        {
+            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : world.SimulationTime;
+            if (s.Firing != 0)
+            {
+                if (FireAtPointNodes.FireAtPoint(ref s.Blind, self, world) == NodeStatus.Running) return NodeStatus.Running;
+                s.Firing = 0;
+                s.NextBurst = (SimInstant)(now + BlindIntervalSeconds);
+            }
+            bool blind = p.Posts != Vector3.Zero
+                && !EqsTacticsNodes.TopAim(world, self, new ThreatAim(s.Fight.Threat, s.Fight.HeardId, s.Fight.HeardPoint), out _);
+            if (!blind)
+            {
+                var r = VehicleFightFromCoverNodes.VehicleFightFromCover(ref p.Fight, ref s.Fight, self, world);
+                return p.Posts != Vector3.Zero && r == NodeStatus.Success ? NodeStatus.Running : r;   // with posts, the support goes on
+            }
+            if (VehicleFightFromCoverNodes.Disarmed(world, self)) return NodeStatus.Running;
+            if (now < (double)s.NextBurst) return NodeStatus.Running;
+            s.Blind = new FireAtPointNodeParams { Point = p.Posts, Rounds = BlindRounds, Mount = 0 };
+            s.Firing = 1;
+            if (s.Bursts < byte.MaxValue) s.Bursts++;
+            FireAtPointNodes.FireAtPoint(ref s.Blind, self, world);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>Leaving: the cycle's sensors, fire, tracking and move stop (as its own deactivator does).</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.VehicleSupportByFireBehavior.FightOrBlindFire")]
+        public static void Deactivate_FightOrBlindFire(ref SupportParams p, ref SupportState s, Entity self, EntityRepository world)
+            => VehicleFightFromCoverNodes.Deactivate_VehicleFightFromCover(ref p.Fight, ref s.Fight, self, world);
     }
 }

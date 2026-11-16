@@ -39,7 +39,10 @@ public sealed class TerrainDrawOptions
     /// <summary>Scatter only: the recipes that can be scattered, (id, name, items per 100 m²) — filled by the host from the recipes that carry a <c>scatter</c> section.</summary>
     public IReadOnlyList<(string Id, string Name, float Density)> ScatterRecipes { get; set; } = Array.Empty<(string, string, float)>();
 
-    public bool IsLine => Shape == TerrainShape.Line && Kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge;
+    /// <summary>A wall / fence / hedge — drawn as a line, or (⭐ CE-5012, TE-7) round a plot as an area and born as a CLOSED line (<see cref="IsClosedWall"/>).</summary>
+    public bool IsLine => Kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge;
+    /// <summary>⭐ CE-5012 (TE-7) — <i>Wall around a plot</i>: a wall drawn as an area, stored as a closed line (the first point repeated).</summary>
+    public bool IsClosedWall => IsLine && Shape == TerrainShape.Area;
     public bool IsBridge => Kind == TerrainFeature.Bridge;
     public bool IsScatter => Kind == TerrainFeature.Scatter;
     /// <summary>⭐ CE-4592 (P-5 2b, mockup B) — a ground AREA (Level / Raise / Lower).</summary>
@@ -47,12 +50,29 @@ public sealed class TerrainDrawOptions
     /// <summary>⭐ CE-4593 (P-6, mockup D) — a ditch LINE (Ditch / Anti-tank ditch).</summary>
     public bool IsDitch => Kind == TerrainFeature.Ground && Shape == TerrainShape.Line;
     /// <summary>Whether a panel has anything to ask: the line kinds, the bridge, the scatter, a ground area, a ditch. A wood, scrub or water area is just drawn.</summary>
-    public bool HasPanel => IsLine || IsBridge || IsScatter || IsGround || IsDitch;
+    public bool HasPanel => IsLine || IsBridge || IsScatter || IsGround || IsDitch || IsTreeRow || IsTreeGroup;
+
+    /// <summary>⭐ CE-5008 (TE-3, mockup B) — a ROW of lone trees along a line.</summary>
+    public bool IsTreeRow => Kind == TerrainFeature.Row;
+    /// <summary>⭐ CE-5008 (TE-3) — a GROUP of lone trees in an area.</summary>
+    public bool IsTreeGroup => Kind == TerrainFeature.Group;
+    /// <summary>⭐ CE-5009 (TE-6, R-5033) — snapping of a terrain LINE (road edges, house walls, line ends): ON by default; Ctrl on the map frees one click.</summary>
+    public bool Snap { get; set; } = true;
+    /// <summary>⭐ CE-5009 — how far outside a road's edge a snapped line runs, metres (0…10; default 1).</summary>
+    public float RoadOffset { get; set; } = 1f;
+    /// <summary>A row's spacing in metres (0 = the default 8 m).</summary>
+    public float Spacing { get; set; }
+    public float SpacingShown => Spacing > 0f ? Spacing : FeatureExpander.DefaultRowSpacing;
+    /// <summary>A group's tree count (0 = the default 10).</summary>
+    public int Count { get; set; }
+    public int CountShown => Count > 0 ? Count : FeatureExpander.DefaultGroupCount;
+    /// <summary>⭐ How many trees the row makes along <paramref name="points"/> — by the SAME placement routine the expander uses, so the panel and the entity cannot disagree.</summary>
+    public int TreesAlong(IReadOnlyList<Vector2> points) => points.Count < 2 ? 0 : FeatureExpander.CountAlong(points, SpacingShown);
 
     /// <summary>⭐ CE-4592 — the ground area's Mode row (the template), as the mockup's draw panel: Level · Raise · Lower.</summary>
     public static readonly (string Mode, string Name)[] GroundModes = { ("level", "Level"), ("raise", "Raise"), ("lower", "Lower") };
     /// <summary>⭐ CE-4593 — the ditch's Preset row: Ditch · Anti-tank ditch (the Foxhole is a click, not a line).</summary>
-    public static readonly (string Mode, string Name)[] DitchModes = { ("ditch", "Ditch"), ("at-ditch", "Anti-tank ditch") };
+    public static readonly (string Mode, string Name)[] DitchModes = { ("ditch", "Ditch"), ("at-ditch", "Anti-tank ditch"), ("berm", "Berm") };   // ⭐ CE-5012 (TE-12) — the berm raises
 
     /// <summary>⭐ CE-4592 / CE-4593 — the value typed in the panel (a raise / lower dZ, a level Z, a ditch depth); null = the mode's default.</summary>
     public float? GroundValue { get; set; }
@@ -69,7 +89,7 @@ public sealed class TerrainDrawOptions
     };
 
     /// <summary>The value row's label: <c>Raise by</c> · <c>Lower by</c> · <c>Level to</c> · <c>Depth</c>.</summary>
-    public string ValueLabel => Template switch { "raise" => "Raise by", "lower" => "Lower by", "level" => "Level to", _ => "Depth" };
+    public string ValueLabel => Template switch { "raise" => "Raise by", "lower" => "Lower by", "level" => "Level to", "berm" => "Height", _ => "Depth" };
 
     /// <summary>Switches a ground area's mode / a ditch's preset; the typed value goes back to the new mode's default.</summary>
     public void SetMode(string mode) { if (mode != Template) { Template = mode; GroundValue = null; } }
@@ -134,7 +154,7 @@ public sealed class TerrainDrawOptions
             //   ⛔ Was: Pad = the line height (0) and Seed = a random seed, so a drawn Raise rose by nothing and its order was random.
             f.Pad = IsDitch && GroundValue is null ? 0f : GroundValueShown;   // a ditch with no typed depth keeps 0 = its preset's
         }
-        else { f.Seed = Seed; f.Pad = IsScatter ? ItemsPer100m2 : Height; }
+        else { f.Seed = Seed; f.Pad = IsScatter ? ItemsPer100m2 : IsTreeRow ? SpacingShown : IsTreeGroup ? CountShown : Height; }   // ⭐ CE-5008 — a row's Pad is its spacing, a group's its count
         comps[i] = f;
         int n = comps.FindIndex(c => c is EntityInfo);
         if (n >= 0) { var info = (EntityInfo)comps[n]; info.Name = new FixedString64(TerrainBirth.FeatureName((Kind, Template, Shape))); comps[n] = info; }
@@ -165,6 +185,8 @@ public sealed class TerrainDrawOptions
 public interface ITerrainDrawSource
 {
     TerrainDrawOptions? Options { get; }
+    /// <summary>⭐ CE-5008 (TE-5, mockup D) — the options of the OBSTACLE ROW tool while it is armed (a line that becomes N obstacle entities); null otherwise.</summary>
+    ObstacleRowOptions? Row => null;
     IReadOnlyList<Vector2> Points { get; }
     /// <summary>⭐ CE-4592 — the base world, its roads and assets the ground read-outs measure on (the same context the placing ghost uses); null = no terrain, no read-out.</summary>
     TerrainGhostContext? Context { get; }
@@ -198,19 +220,20 @@ public sealed class TerrainDrawPanel
     {
         var src = _source();
         var o = src?.Options;
-        if (src is null || o is null || !o.HasPanel) { Rects.Clear(); return; }
+        var row = src?.Row;
+        if (src is null || (row is null && (o is null || !o.HasPanel))) { Rects.Clear(); return; }
         var vp = ImGui.GetMainViewport();
         float s = ImGui.GetFontSize() / 14f;
         ImGui.SetNextWindowPos(new Vector2(vp.WorkPos.X + 24f * s, vp.WorkPos.Y + vp.WorkSize.Y - 40f * s), ImGuiCond.Always, new Vector2(0f, 1f));
         ImGui.SetNextWindowSize(new Vector2(260f * s, 0f), ImGuiCond.Always);
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, POPUP with { W = 0.96f }); ImGui.PushStyleColor(ImGuiCol.Border, o.IsScatter ? AMBER : ACC);
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, POPUP with { W = 0.96f }); ImGui.PushStyleColor(ImGuiCol.Border, o is { IsScatter: true } ? AMBER : ACC);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 4f * s); ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1f); ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(12f, 10f) * s);
         bool open = ImGui.Begin(WindowId, ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoCollapse);
         if (open)
         {
             Rects.Clear(); Glyphs.Clear(); Lines.Clear();
             Rects["panel"] = (ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize());
-            if (o.IsLine) Line(src, o, s); else if (o.IsBridge) Bridge(src, o, s); else if (o.IsGround || o.IsDitch) Ground(src, o, s); else Scatter(src, o, s);
+            if (row is not null) ObstacleRow(src, row, s); else if (o!.IsTreeRow) TreeRow(src, o, s); else if (o.IsTreeGroup) TreeGroup(src, o, s); else if (o.IsLine) Line(src, o, s); else if (o.IsBridge) Bridge(src, o, s); else if (o.IsGround || o.IsDitch) Ground(src, o, s); else Scatter(src, o, s);
         }
         ImGui.End();
         ImGui.PopStyleVar(3); ImGui.PopStyleColor(2);
@@ -261,6 +284,109 @@ public sealed class TerrainDrawPanel
         ImGui.SameLine(x0 + 70f * s); ImGui.AlignTextToFramePadding();
         string tail = (pts.Count > 1 ? Len(pts) + " · " : "") + "Enter ends";
         ImGui.TextColored(NOTE, tail); Lines.Add(tail);
+        // ⭐ CE-5009 (TE-6) — Snap: on by default; the road offset beside it (a closed wall round a plot does not snap, so it has neither)
+        if (!o.IsClosedWall)
+        {
+            ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Snap");
+            ImGui.SameLine(x0); bool snap = o.Snap;
+            if (ImGui.Checkbox("##snap", ref snap)) o.Snap = snap;
+            Rects["snap"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            ImGui.SameLine(); ImGui.TextColored(NOTE, "roads · walls · ends");
+            ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Road offset");
+            ImGui.SameLine(x0 + 24f * s); ImGui.SetNextItemWidth(70f * s);
+            ImGui.BeginDisabled(!o.Snap);
+            float off = o.RoadOffset;
+            if (ImGui.DragFloat("##roadoffset", ref off, 0.1f, 0f, 10f, "%.1f m")) o.RoadOffset = Math.Clamp(off, 0f, 10f);
+            ImGui.EndDisabled();
+            Rects["offset"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+    }
+
+    // ── ⭐ CE-5008 (TE-3 / TE-5; mockups B and D) ─────────────────────────────────────────────────────────────────
+
+    private string _treesText = ""; private int _treesKey = -1; private string _rowText = ""; private int _rowKey = -1;
+
+    /// <summary>A row of lone trees: <i>Tree row — click to add a point</i>, the Spacing field, <i>16 trees · 124 m · Enter ends</i> (the count by the expander's own placement).</summary>
+    private void TreeRow(ITerrainDrawSource src, TerrainDrawOptions o, float s)
+    {
+        var pts = src.Points;
+        Title("terrain/vegetation", "Tree row — " + (pts.Count == 0 ? "click to start" : "click to add a point"));
+        ImGui.Spacing();
+        float x0 = 66f * s;
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Spacing");
+        ImGui.SameLine(x0); ImGui.SetNextItemWidth(70f * s);
+        float v = o.SpacingShown;
+        if (ImGui.InputFloat("##spacing", ref v, 0f, 0f, "%.1f m") && v >= 0.5f && v <= 100f) o.Spacing = v;
+        Rects["spacing"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        int key = (int)Math.Round(TerrainDrawOptions.Length(pts)) * 4096 + pts.Count * 64 + (int)Math.Round(o.SpacingShown * 2f);
+        if (key != _treesKey) { _treesKey = key; _treesText = pts.Count > 1 ? $"{o.TreesAlong(pts)} trees · {TerrainDrawOptions.Length(pts):0} m · Enter ends" : "Enter ends"; }
+        string text = _treesText;
+        ImGui.TextColored(NOTE, text); Lines.Add(text);
+    }
+
+    /// <summary>A group of lone trees: <i>Tree group — click the corners</i>, the Count field, the seed and the dice.</summary>
+    private void TreeGroup(ITerrainDrawSource src, TerrainDrawOptions o, float s)
+    {
+        var pts = src.Points;
+        Title("terrain/vegetation", "Tree group — " + (pts.Count == 0 ? "click to start" : "click to add a corner"));
+        ImGui.Spacing();
+        float x0 = 66f * s;
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Count");
+        ImGui.SameLine(x0); ImGui.SetNextItemWidth(70f * s);
+        int n = o.CountShown;
+        if (ImGui.InputInt("##count", ref n, 0, 0) && n >= 1 && n <= FeatureExpander.MaxScatterItems) o.Count = n;
+        Rects["count"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        int key = (int)(o.Seed % 100000);
+        if (key != _treesKey) { _treesKey = key; _treesText = $"seed {o.Seed}"; }
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Seed"); ImGui.SameLine(x0); ImGui.TextColored(NOTE, _treesText); Lines.Add(_treesText);
+        ImGui.SameLine(x0 + 90f * s);
+        var dice = Icons.Get("terrain/reroll");
+        ImGui.PushStyleColor(ImGuiCol.Text, dice.Color);
+        if (ImGui.Button(dice.Glyph + "##dice", new Vector2(30f * s, 22f * s))) o.Reroll();
+        ImGui.PopStyleColor();
+        Rects["dice"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); Glyphs["dice"] = (dice.Glyph, dice.Color);
+        ImGui.TextColored(NOTE, "Enter ends"); Lines.Add("Enter ends");
+    }
+
+    /// <summary>The obstacle row (mockup D): <i>Obstacles — drag a line for a row</i>, the Item list with its glyphs, the Gap field, Facing Along · Across, <i>4 concrete blocks · 1.5 m gaps · Enter ends</i>.</summary>
+    private void ObstacleRow(ITerrainDrawSource src, ObstacleRowOptions row, float s)
+    {
+        var pts = src.Points;
+        Title("terrain/roadblock", "Obstacles — drag a line for a row");
+        ImGui.Spacing();
+        float x0 = 56f * s;
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Item");
+        ImGui.SameLine(x0); ImGui.NewLine();
+        foreach (var t in ObstacleRowOptions.Types)
+        {
+            bool sel = row.TkbType == t.Type;
+            var icon = Icons.Get(t.IconKey);
+            ImGui.PushStyleColor(ImGuiCol.Header, BTNSEL);
+            ImGui.TextColored(icon.Color, icon.Glyph); ImGui.SameLine(34f * s);
+            if (ImGui.Selectable(t.Name + "##obs_" + t.Type, sel, ImGuiSelectableFlags.None, new Vector2(200f * s, 0f))) row.SetType(t.Type);
+            ImGui.PopStyleColor();
+            Rects["item:" + t.Name] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); Glyphs["item:" + t.Name] = (icon.Glyph, icon.Color);
+        }
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Gap");
+        ImGui.SameLine(x0); ImGui.SetNextItemWidth(70f * s);
+        float g = row.Gap;
+        if (ImGui.InputFloat("##gap", ref g, 0f, 0f, "%.1f m") && g >= 0f && g <= 50f) row.Gap = g;
+        Rects["gap"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Facing");
+        for (int i = 0; i < 2; i++)
+        {
+            ImGui.SameLine(x0 + i * 66f * s);
+            var f = i == 0 ? RowFacing.Along : RowFacing.Across;
+            bool sel = row.Facing == f;
+            ImGui.PushStyleColor(ImGuiCol.Button, sel ? BTNSEL : BTN);
+            if (ImGui.Button(f + "##facing_" + f, new Vector2(62f * s, 22f * s))) row.Facing = f;
+            ImGui.PopStyleColor();
+            Rects["facing:" + f] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+        int key = row.CountOf(pts) * 4096 + (int)Math.Round(row.Gap * 10f) * 8 + (int)row.Facing + (int)(row.TkbType % 16) * 1000000 + pts.Count * 100000000;
+        if (key != _rowKey) { _rowKey = key; _rowText = pts.Count > 1 ? row.Summary(pts) : "Enter ends"; }
+        string text = _rowText;
+        ImGui.TextColored(NOTE, text); Lines.Add(text);
     }
 
     /// <summary>
@@ -275,7 +401,7 @@ public sealed class TerrainDrawPanel
         var ctx = src.Context;
         if (o.IsGround && o.LevelDefault is null && pts.Count > 0 && ctx?.Base.Height is { } grid) o.LevelDefault = MathF.Round(grid.Sample(pts[0].X, pts[0].Y) * 10f) / 10f;
         string title = $"{o.KindName} — " + (pts.Count == 0 ? "click to start" : "click to add a point");
-        Title(o.IsDitch ? "earth/dig" : "earth/mound", title);
+        Title(o.IsDitch && o.Template != "berm" ? "earth/dig" : "earth/mound", title);
         ImGui.Spacing();
         float x0 = 66f * s;
         var modes = o.IsDitch ? TerrainDrawOptions.DitchModes : TerrainDrawOptions.GroundModes;

@@ -30,7 +30,8 @@ public sealed class BlockOperationsTests : IDisposable
     private static readonly Guid BlockGuid = Guid.Parse("11111111-2222-4333-8444-555555555555");
 
     private readonly string _staging = Path.Combine(Path.GetTempPath(), "t4-" + Guid.NewGuid().ToString("N")[..10]);
-    private readonly EntityRepository _world = new();
+    private readonly EntityRepository _world = Open(new());
+    private static EntityRepository Open(EntityRepository w) { Fdp.Toolkit.Terrain.TerrainLock.SetOpen(w, true); return w; }   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
     private readonly EditHistory _history = new();
     private readonly WorldUndoRecorder _recorder;
     private readonly BlockExpansionContext _ctx;

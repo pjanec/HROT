@@ -243,5 +243,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(block, at.Obstacle);
             Assert.Equal(BladeCutTarget.None, at.Target);
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-4594 item 3 (docs/DESIGN_Terrain_Editor_UX.md §7) — an OBSTACLE ROW is a line of ordinary single obstacles: four 2 × 1 × 1 m concrete blocks
+        /// (the planner's <c>LinePlacesSpaced</c> layout, centres 2 m apart along y, the group marker is irrelevant to the dozer) are built here with the same components the
+        /// translator adds. A point order beside the THIRD member names THAT member; the dozer pushes it out and the other three stand untouched.
+        /// 🔴 Red-proof: have the resolver pick the first obstacle instead of the nearest ⇒ the wrong member is named ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4594_APointByOneMemberOfAConcreteRow_ClearsThatMember_TheOthersStand()
+        {
+            var row = new Entity[4];
+            for (int i = 0; i < 4; i++)
+            {
+                var e = _w.CreateEntity();
+                _w.AddComponent(e, new SimTransform { Position = new Vector3(0f, 1f + 2f * i, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, System.MathF.PI / 2f) });
+                _w.AddComponent(e, new StaticObstacle { Material = new FixedString32("concrete") });
+                _w.AddComponent(e, new ObstacleShape { Length = 2f, Width = 1f, Height = 1f });
+                _w.AddComponent(e, new Health { Current = ConcreteHp, Max = ConcreteHp });
+                row[i] = e;
+            }
+            var p = PointOrder(new Vector3(0.9f, 5.1f, 0f));
+            Assert.Equal(row[2], p.Obstacle);
+
+            NodeStatus status = NodeStatus.Running;
+            for (int i = 0; i < 300 && status == NodeStatus.Running; i++) status = Step(ref p);
+            Assert.Equal(NodeStatus.Success, status);
+            Assert.False(_w.IsAlive(row[2]));
+            foreach (var k in new[] { 0, 1, 3 })
+            {
+                Assert.True(_w.IsAlive(row[k]));
+                Assert.Equal(ConcreteHp, _w.GetComponentRO<Health>(row[k]).Current);
+            }
+        }
     }
 }

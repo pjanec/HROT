@@ -14,7 +14,18 @@ public enum PartAxis : byte { X, Y, Z }
 
 /// <summary>Which colour a part takes: the entity's colour, or a fixed material shade. ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-1) —
 /// <see cref="Skin"/>: a figure's head. ⭐ CE-1104 — <see cref="Canvas"/>: a stretcher's.</summary>
-public enum ColourRole : byte { Body, Dark, Glass, Metal, Skin, Canvas }
+public enum ColourRole : byte
+{
+    Body, Dark, Glass, Metal, Skin, Canvas,
+    /// <summary>⭐ CE-4623 (animals, DESIGN_Animals §6.3 AU-2) — the body colour LIGHTENED (a belly, a blaze, a sheep's face-wool, a pale muzzle).</summary>
+    Light,
+    /// <summary>⭐ CE-4623 — horn, hoof-horn and tooth: a fixed bone white.</summary>
+    Bone,
+    /// <summary>⭐ CE-4623 — a hen's comb and wattle: a fixed red.</summary>
+    Red,
+    /// <summary>⭐ CE-4623 — a bird's beak and feet: a fixed amber.</summary>
+    Amber,
+}
 
 /// <summary>
 /// ⭐ CE-1097 (docs/DESIGN_Map_3D_Mode.md §6o F-4) — which side of a block figure's HEAD box is his face (the face is drawn on it):
@@ -63,6 +74,13 @@ public enum PartRole : byte
     /// <summary>⭐ CE-4618 (DESIGN_Radar_SAM §5 U-1) — a search radar's antenna: spins about the vertical axis through its <see cref="KitPart.SwingPivot"/> (the
     /// mast; else its own centre) by <see cref="MotionPose.Antenna"/> while the radar radiates, still when it is off.</summary>
     RadarAntenna,
+    /// <summary>⭐ CE-4623 (animals, AU-3) — the four legs of a QUADRUPED, in this order (the order is the rail's: <c>Role - QuadFrontLeft</c> is the leg index): each swings about
+    /// its hip by <see cref="QuadrupedGaits.LegAngle"/> — its OWN phase of the gait's cycle (a walk's four beats, a trot's two diagonals, a gallop's two pairs) plus the jump's tuck.</summary>
+    QuadFrontLeft, QuadFrontRight, QuadHindLeft, QuadHindRight,
+    /// <summary>⭐ CE-4623 — a bird's wing: flaps about its root (<see cref="KitPart.SwingPivot"/>) by <see cref="MotionPose.Wing"/> (the left tip up, the right tip up with the SAME sign — the part mirrors itself).</summary>
+    WingLeft, WingRight,
+    /// <summary>⭐ CE-4623 — an animal's neck, head, ears, horns and mane: pitch about the withers (<see cref="KitPart.SwingPivot"/>) by <see cref="MotionPose.Head"/> (+ = the nose DOWN: grazing).</summary>
+    AnimalHead,
 }
 
 /// <summary>
@@ -80,9 +98,13 @@ public enum PartRole : byte
 /// <para>⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5) — <paramref name="HeadTurn"/>: the HEAD (the <see cref="FaceOn.Front"/> part)
 /// turns about its own vertical axis by this much off the torso (radians, counter-clockwise), before the torso's <paramref name="Twist"/>
 /// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
+/// <para>⭐ CE-4623 (animals, AU-3) — <paramref name="Gait"/> + <paramref name="GaitPhase"/> + <paramref name="Swing"/> (the amplitude) give each quadruped leg its own swing
+/// (<see cref="QuadrupedGaits.LegAngle"/>); <paramref name="Tuck"/> (0..1) draws the legs folded up in a jump; <paramref name="Wing"/> is a bird's wing angle (radians);
+/// <paramref name="Head"/> an animal's head pitch about its withers (+ = down).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
                                          float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f)
+                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f,
+                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand)
 {
     public static readonly MotionPose Still = default;
 }
@@ -171,6 +193,35 @@ public readonly record struct KitPart(
                 // ⭐ CE-4618 — about the mast's vertical axis (SwingPivot, a fraction like every pivot), so a panel off the axis ORBITS it
                 var axis = SwingPivot is { } mast ? new Vector3(mast.X * size.X, mast.Y * size.Y, 0f) : new Vector3(centre.X, centre.Y, 0f);
                 m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Antenna) * Matrix4x4.CreateTranslation(axis);
+                break;
+            }
+            case PartRole.QuadFrontLeft or PartRole.QuadFrontRight or PartRole.QuadHindLeft or PartRole.QuadHindRight
+                when motion.Swing != 0f || motion.Tuck != 0f:
+            {
+                // ⭐ CE-4623 (AU-3) — a leg swings about its hip by ITS phase of the gait; + angle = the foot toward +x
+                float angle = QuadrupedGaits.LegAngle(motion, Role - PartRole.QuadFrontLeft);
+                var hip = SwingPivot is { } hp ? hp * size : centre + new Vector3(0f, 0f, Extent.Z * size.Z / 2f);
+                m *= Matrix4x4.CreateTranslation(-hip) * Matrix4x4.CreateRotationY(-angle) * Matrix4x4.CreateTranslation(hip);
+                break;
+            }
+            case PartRole.WingLeft or PartRole.WingRight when motion.Wing != 0f:
+            {
+                // ⭐ CE-4623 — a wing flaps about its root; the left one (y > 0) lifts its tip by + , the right one mirrors it
+                var root = SwingPivot is { } wp ? wp * size : centre;
+                m *= Matrix4x4.CreateTranslation(-root) * Matrix4x4.CreateRotationX(Role == PartRole.WingLeft ? motion.Wing : -motion.Wing) * Matrix4x4.CreateTranslation(root);
+                break;
+            }
+            case PartRole.AnimalHead when motion.Head != 0f:
+            {
+                // ⭐ CE-4623 — the neck and head pitch about the withers: + = the nose down (CreateRotationY turns +x toward -z)
+                // the HEAD (a part with a second pivot, the neck's end) first tilts back against the neck by HeadCounter, so a grazing animal's muzzle points down, not backwards
+                if (KneePivot is { } neckEnd)
+                {
+                    var ne = neckEnd * size;
+                    m *= Matrix4x4.CreateTranslation(-ne) * Matrix4x4.CreateRotationY(-QuadrupedGaits.HeadCounter * motion.Head) * Matrix4x4.CreateTranslation(ne);
+                }
+                var withers = SwingPivot is { } wv ? wv * size : centre;
+                m *= Matrix4x4.CreateTranslation(-withers) * Matrix4x4.CreateRotationY(motion.Head) * Matrix4x4.CreateTranslation(withers);
                 break;
             }
             case PartRole.WheelSpoke when motion.WheelRoll != 0f:
@@ -705,6 +756,8 @@ public static class ShapeKits
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
+        VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
+            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat => AnimalKits.For(family),   // ⭐ CE-4623
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -727,6 +780,8 @@ public static class ShapeKits
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
+        VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
+            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat => AnimalKits.SizeOf(family),   // ⭐ CE-4623 — the kit's own metres (the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }

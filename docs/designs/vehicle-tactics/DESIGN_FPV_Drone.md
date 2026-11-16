@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-14
-build-state: BUILT — the Muscle half (§6, backend B11; owned by MuscleGround, R-3005) and the Brain half as AirAttack's Dive profile (Air Operations §9i, 2026-10-16)
+updated: 2026-11-16
+build-state: BUILT — the Muscle half (§6, backend B11; owned by MuscleGround, R-3005) and the Brain half as AirAttack's Dive profile (Air Operations §9i, 2026-10-16); realistic terminal guidance §5e (MC-4a, 2026-11-16)
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none (the first draft's PointMassFlightSystem and Stride registration are in §HISTORY).
@@ -11,6 +11,7 @@ related-designs:
   - docs/DESIGN_Map_3D_Mode.md — §6n draws the drone in the 3-D map: a quadcopter sized from its flight body, four rotors spinning
   - docs/designs/air-attack/DESIGN_Air_Operations.md — OWNS the drone's ATTACK now: AirAttack's Dive profile (B5, R-2015) replaces §2's FpvAttackNodes; this file keeps the Muscle half
   - docs/designs/motion-models/DESIGN_Motion_Domains.md — OWNS how the drone moves: RotorcraftModel in the AirMotionModule (on the MuscleGround node, R-3005), autonomous AND manual (FPS possession)
+  - docs/designs/vehicle-tactics/DESIGN_Motorcycle.md — OWNS the bike's break against the drone (MC-4) and the dash (MC-3); its MV-1 asked for §5e
   - docs/designs/vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — the PROGRAMME (item M7, decision D-E)
   - docs/DESIGN_Operations_Behaviour_Catalogue.md — OWNS R-263 D2 ("point-mass flight + acoustic signature + battery … follow a planned 3d path and … attack autonomously") and AIR-1…AIR-4; this file is AIR-2's first slice (FPV: search, select, pursue, dive)
   - docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md — the drone detonates through that chain; its dive arrives from above ⇒ the Top face
@@ -231,6 +232,53 @@ pass to time, so it drops when the round would land within `HoverToleranceM` 2 m
 ⇒ Success. ⭐ `DroneOperator` (§5b) now also counts a drone that ENDS its order alive as done (once it was seen running it), and sends it again while its
 known type's rounds (`TemplateArms.Rounds`) exceed its sorties — two grenades, two sorties. ⚠ The munition is the M67 (a time-fuzed hand grenade; the
 ballistics burst it on the ground) — an impact-fuzed VOG-class round is not built. ⚠ It does not land: it hovers at home until sent again.
+
+## 5e. Realistic terminal guidance — as built `2026-11-16` (behaviors, CE-4621 MC-4a, R-2122 — obligation ⑤)
+
+⭐ The drone used to re-aim every 0.2 s at the target's TRUE position and velocity — no break turn could beat it (Motorcycle MV-1: escape
+~0.16 m). Now it flies the way its operator does:
+
+```mermaid
+sequenceDiagram
+  participant C as camera (Run keeps p.Point on the target)
+  participant T as AirAttackState track (Seen0..3)
+  participant D as Dive
+  participant L as LocomotionMoveTo
+  loop every 0.2 s
+    C->>T: See(position, t) — a sighting, no velocity
+  end
+  loop every tick in Pursue / Dive
+    D->>T: Perceived(t): newest sighting at least 0.4 s old, velocity from it and the one before
+    D->>D: lead twice (time to go to the LED point at top speed)
+    alt time to go > 0.7 s
+      D->>L: a look-ahead point down the 60 degree dive line (every 0.2 s)
+    else commit
+      D->>L: ONE line from the drone through the led target, 5 m into the ground
+      Note over D: Committed = 1, nothing is re-aimed after it
+    end
+  end
+```
+*What the picture shows that prose hid: the drone NEVER reads the target's velocity, and everything it does inside the last
+commit + delay = 1.1 s was decided from what it saw before that window.*
+
+| piece | as built |
+|---|---|
+| the track | `AirAttackState.Seen0..Seen3` (xyz + seconds since the attack began), `SeenCount`, `NextSeen`; `AirAttackNodes.See` / `Perceived` |
+| the delay | `OperatorDelaySeconds` 0.4 (the design's 0.3–0.5) |
+| the commit | `CommitSeconds` 0.7 — checked every tick in the dive; the line is carried `CommitPastGroundM` 5 m under the ground (the drone never brakes short; a miss bursts on the ground through `DroneImpactSystem`) |
+| the lead | iterated once: the time to go measured to the LED point (📐 one pass over-led a crossing 20 m/s bike by ~2 m) |
+| the dive line | the point flown is a LOOK-AHEAD one commit's flight down the 60° line, not the point over the target at the drone's own height (📐 that made it fly level and curl down; the turn at the commit cost ~2 m) |
+
+⭐⭐ **The expected miss of a break.** A target that accelerates sideways at *a* after the last sighting the drone acts on is missed by
+**½·a·(commit + delay)² = ½·a·1.1²**: a bike on a road (~8 m/s²) **≈ 4.8 m**, off-road (0.45 g ≈ 4.4 m/s²) **≈ 2.7 m**; an instant swerve
+of Δv misses by up to Δv·1.1. Against the warhead (PG-7 class: ~2 m lethal, ~5 m casualty, MV-1) a road break is at the casualty edge
+and an off-road one inside it — the dash's survival is a SHARE, measured in Motorcycle M-4, never a certainty.
+
+**Rails:** `AirAttackNodesTests.CE4621_MC4a_TheDrone_CommitsOnWhatItSawLate_ALateBreakIsMissed_AnEarlyOneIsHit` (no break: hit · a break
+3 s out: hit · a break at time-to-go 1 s: missed by more than half the expected). Reconciled, not loosened: `S6e_AnFpvDrone_…` (every order
+before the commit is on the dive line; the committed one runs into the ground) · `S6e_ADroneDivesOnAnEvadingTank_…` (a swerve seen before
+the window is still hit < 1.5 m; one inside it misses by at most Δv·(commit + delay); at least 3 of the 6 hit). Mutants: no commit · no
+delay ⇒ red.
 
 ## 6. As-built `2026-10-14` (backend, handoff B11 — the Muscle half)
 

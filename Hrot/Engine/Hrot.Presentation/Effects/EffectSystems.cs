@@ -488,7 +488,7 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
     {
         if (_burns.TryGetValue(type, out bool burns)) return burns;
         var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
-        return _burns[type] = family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
+        return _burns[type] = !Hrot.UI.Common.Map3D.VisualFamilies.IsAnimal(family) && family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
                                              or Hrot.UI.Common.Map3D.VisualFamily.Unknown or Hrot.UI.Common.Map3D.VisualFamily.WeaponSystem);
     }
 

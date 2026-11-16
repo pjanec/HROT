@@ -9,6 +9,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Squad.Command;
 using Fhsm.Compiler;
 using Fhsm.Compiler.Graph;
@@ -58,6 +59,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// none ⇒ the objective); <see cref="Posts"/> of them.</summary>
         public Vector3 Post0, Post1, Post2, Post3;
         public int Posts;
+        /// <summary>⭐ <c>CE-2436</c> A-9 — the covered position's survey for the current objective: asked · when · settled (moved, or none found).</summary>
+        public byte CoverAsked, CoverDone;
+        public SimInstant CoverAskedAt;
 
         public Vector3 Objective(int i) => new(OX[i], OY[i], OZ[i]);
 
@@ -204,6 +208,7 @@ namespace Hrot.AI.Behaviors.Brains
             CompanyPosts(ref p, world, self);   // ⭐ CE-2436 AU-3 (A-1) — the base of fire's targets
             p.ObjectiveSince = (SimInstant)CommandPictureOps.Now(world);
             p.Escalation = 0;
+            p.CoverAsked = 0; p.CoverDone = 0;   // ⭐ A-9 — each objective's base of fire looks for its own cover
             SetPhase(ref p, CompanyAttackPlan.PhaseSupport);
             return NodeStatus.Success;
         }
@@ -262,6 +267,43 @@ namespace Hrot.AI.Behaviors.Brains
             for (int s = 0; s < CompanyAttackPlan.Capacity; s++) if (p.Role[s] != CompanyAttackPlan.NoRole) p.Dirty[s] = 1;
         }
 
+        /// <summary>⭐ <c>CE-2436</c> A-9 — the cover survey's site, its radius round the fixed support point (m), how long it is waited for (s), and
+        /// the nearest a covered position may be to the objective (m).</summary>
+        public const int CoverSite = 0x24360009;
+        public const float CoverSearchMetres = 100f, CoverTimeoutSeconds = 5f, CoverMinMetres = 120f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> A-9 (Assault Under Fire A-9, R-4254) — the company's base of fire takes a COVERED position: one world survey round the
+        /// fixed support point (<see cref="SupportStandOffMetres"/>), and the enterable building there chosen by <see cref="CoverChoice.Pick"/> becomes
+        /// the support point (its squads man its windows — <c>SquadDefend</c>'s post search). Asked BESIDE the plan, never waited for: until the
+        /// answer the base of fire moves to the fixed point; with no building, or no answer in <see cref="CoverTimeoutSeconds"/>, it stays there.
+        /// Only while the base of fire is still going up (the support phase).
+        /// </summary>
+        private static unsafe void Cover(ref CompanyAttackPlan p, Entity self, EntityRepository world)
+        {
+            if (p.Phase != CompanyAttackPlan.PhaseSupport || p.CoverDone != 0) return;
+            double now = CommandPictureOps.Now(world);
+            if (p.CoverAsked == 0)
+            {
+                WorldSurveyChildSensor.Ensure(world, self, CoverSite, WorldSurveyRequest.OfArea(new Vector2(p.SupportAt.X, p.SupportAt.Y), CoverSearchMetres));
+                p.CoverAsked = 1;
+                p.CoverAskedAt = (SimInstant)now;
+                return;
+            }
+            var child = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, self, CoverSite);
+            var read = WorldSurveyChildSensor.Read(world, child, now);
+            bool ready = read.Ready && !read.Stale && read.Payload != null;
+            if (!ready && now - p.CoverAskedAt < CoverTimeoutSeconds) return;
+            p.CoverDone = 1;
+            if (!child.IsNull) WorldSurveyChildSensor.Release(world, child);
+            if (!ready) return;
+            var o = p.Objective(p.Current);
+            if (!CoverChoice.Pick(read.Payload!, p.SupportAt, o, CoverMinMetres, SupportRangeMetres, SupportArcHalfDegrees, out var at)) return;
+            p.SupportAt = new Vector3(at.X, at.Y, p.SupportAt.Z);
+            int s = p.SlotOf(CompanyAttackPlan.Support, CompanyAttackPlan.Capacity);
+            if (s >= 0) p.Dirty[s] = 1;   // re-ordered onto the cover
+        }
+
         /// <summary>The base of fire stands <see cref="SupportStandOffMetres"/> short of the objective on the line from where the company came
         /// from (the start, then the objective before it); the reserve <see cref="ReserveStandOffMetres"/> short.</summary>
         private static void Points(ref CompanyAttackPlan p)
@@ -311,7 +353,9 @@ namespace Hrot.AI.Behaviors.Brains
             var dir = toObj.LengthSquared() > 1e-4f ? Vector2.Normalize(toObj) : Vector2.UnitY;
             var across = new Vector2(-dir.Y, dir.X) * ((slot & 1) == 0 ? VehicleSpreadMetres : -VehicleSpreadMetres);
             behaviour = BehaviorNames.VehicleSupportByFire;
-            order = JsonSerializer.Serialize(new VehicleSupportByFireParamsJsonDto { Position = p.SupportAt + new Vector3(across, 0f) }, json);
+            // ⭐ AU-4 blind fire (R-2124) — the reported posts the vehicle fires on while it sees nothing itself; ONLY while the base of fire
+            //   works (Support): from the assault on our own men are on them — lifted, as the base of fire lifts
+            order = JsonSerializer.Serialize(new VehicleSupportByFireParamsJsonDto { Position = p.SupportAt + new Vector3(across, 0f), Posts = p.Posts > 0 && p.Phase == CompanyAttackPlan.PhaseSupport ? PostsOf(ref p, o) : Vector3.Zero }, json);
             return true;
         }
 
@@ -383,6 +427,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.Made == 0) return NodeStatus.Running;
             Tempo(ref p, ref ws, self, world);
+            Cover(ref p, self, world);   // ⭐ CE-2436 A-9 — the base of fire onto a covered position (asked beside, never waited for)
             int n = Math.Min(RosterCount(world, self), CompanyAttackPlan.Capacity);
             var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
             for (int slot = 0; slot < n; slot++)
@@ -951,6 +996,38 @@ namespace Hrot.AI.Behaviors.Brains
             if (progress == ProgressKind.TaskFailed) return true;   // ⭐ CE-4610 — FallingBack retired: a fall-back's end is Set (DA E-3a), a failure TaskFailed
             var colour = new SubordinateColourParams { Slot = slot, AtLeast = StatusColour.Black };
             return PictureConditions.SubordinateColour(ref colour, self, world);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2436</c> A-9 — pure: the covered position for a base of fire — among the surveyed ENTERABLE buildings, those between
+    /// <c>min</c> and <c>max</c> metres of the objective and within <c>arcHalfDegrees</c> of the line from the objective to the fixed support point
+    /// (the side the company came from), the one nearest that fixed point; its centre. False when none qualifies.
+    /// </summary>
+    public static class CoverChoice
+    {
+        public static bool Pick(Fdp.Toolkit.Perception.Survey.WorldSurveyPayload answer, Vector3 fixedPoint, Vector3 objective, float min, float max,
+                                float arcHalfDegrees, out Vector3 at)
+        {
+            at = fixedPoint;
+            var line = new Vector2(fixedPoint.X - objective.X, fixedPoint.Y - objective.Y);
+            if (line.LengthSquared() < 1e-4f) return false;
+            line = Vector2.Normalize(line);
+            float cosArc = MathF.Cos(arcHalfDegrees * MathF.PI / 180f), best = float.MaxValue;
+            bool found = false;
+            for (int i = 0; i < answer.Buildings.Count; i++)
+            {
+                var b = answer.Buildings[i];
+                if (b.Solid) continue;
+                var c = new Vector2(b.CentreX, b.CentreY);
+                var fromObj = c - new Vector2(objective.X, objective.Y);
+                float d = fromObj.Length();
+                if (d < min || d > max) continue;
+                if (Vector2.Dot(fromObj / d, line) < cosArc) continue;
+                float toFixed = Vector2.Distance(c, new Vector2(fixedPoint.X, fixedPoint.Y));
+                if (toFixed < best) { best = toFixed; at = new Vector3(c, 0f); found = true; }
+            }
+            return found;
         }
     }
 }

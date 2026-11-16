@@ -30,6 +30,20 @@ namespace Fdp.Toolkit.Perception.Sensors
         public const float MinRadius = 2f;
 
         /// <summary>The flag bits an answer's <see cref="SoundKind"/> is written in (bits 8–9; the low bits belong to EQS tests).</summary>
+        /// <summary>⭐ <c>CE-4621</c> MC-4 (Motorcycle MV-7, R-2123) — a listener riding a vehicle that moves faster than
+        /// <see cref="RidingMinSpeedMps"/> hears × <see cref="RidingHearingFactor"/> (its engine and the wind): the reported weakness of a bike's
+        /// riders, who must WATCH for a drone. ⚠ Any vehicle, as the design rules ("a listener on a moving vehicle").</summary>
+        public const float RidingHearingFactor = 0.25f, RidingMinSpeedMps = 5f;
+
+        /// <summary>⭐ MC-4 — the riding factor for <paramref name="unit"/>: <see cref="RidingHearingFactor"/> while it rides (its own embark tag) at
+        /// more than <see cref="RidingMinSpeedMps"/> (its own velocity — a rider's follows his vehicle), else 1. Reads only the listener.</summary>
+        public static float RidingFactor(ISimulationView view, Entity unit)
+        {
+            if (!view.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(unit) || !view.HasComponent<SimVelocity>(unit)) return 1f;
+            var v = view.GetComponentRO<SimVelocity>(unit).Linear;
+            return v.X * v.X + v.Y * v.Y > RidingMinSpeedMps * RidingMinSpeedMps ? RidingHearingFactor : 1f;
+        }
+
         public const short KindShift = 8, KindMask = 0x3 << 8;
 
         /// <summary>⭐ <c>CE-3063</c> — the flag bits an answer's <c>SoundSourceClass</c> is written in (bits 10–12).</summary>
@@ -267,6 +281,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             if (!AcousticPerception.Ears(view, sensorEntity, out float range, out float perMeter)) return false;
             // ⭐ CE-3216 S2-4 (R-3017) — wind and rain mask the listener (none without a clock)
             float masking = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.HearingFactor(in weather) : 1f;
+            masking *= AcousticPerception.RidingFactor(view, unit);   // ⭐ CE-4621 MC-4 — engine and wind mask a rider on a moving vehicle
             range *= masking;
             var ear = view.GetComponentRO<SimTransform>(unit).Position;
             ears = new Ears(ear, range, masking, perMeter, unit.PackedValue, PerceptionClock.Now(view),   // ⭐ CE-3292 — the seed: the step

@@ -3654,7 +3654,7 @@
      "common": {
       "title": "Blue reaches PL 1",
       "subject": "cc461500-0000-4000-8000-000000000002",
-      "deadlineSeconds": 420
+      "deadlineSeconds": 700
      },
      "area": {
       "circle": {
@@ -3685,7 +3685,7 @@
      "common": {
       "title": "Blue reaches PL 2",
       "subject": "cc461500-0000-4000-8000-000000000002",
-      "deadlineSeconds": 720
+      "deadlineSeconds": 1000
      },
      "area": {
       "circle": {

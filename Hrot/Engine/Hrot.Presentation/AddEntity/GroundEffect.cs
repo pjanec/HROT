@@ -69,7 +69,7 @@ public sealed class GroundEffect
         var pts = new Vector2[points.Count];
         for (int i = 0; i < pts.Length; i++) pts[i] = points[i];
         var features = FeatureExpander.OfKind(TerrainFeature.Ground, "preview", mode, 0f, value, uint.MaxValue, Vector2.Zero, pts, @base, assets, Array.Empty<string?>());
-        var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(@base, features, roads).ToJsonString(), @base.Name + "/preview", assets);
+        var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(@base, features, roads).ToJsonString(), @base.Name + "/preview", assets, @base.Height);   // ⭐ CE-5014
         var merged = TerrainWorldMerge.Merge(@base, overlay);
         if (merged.Height == null || overlay.GroundShapes.Count == 0) return None;
 

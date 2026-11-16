@@ -700,6 +700,9 @@ public sealed class EntityTypeCatalogTests
         8817 Terrain Block | dis - | family Unknown | folder Other | icon -
         8818 Terrain Feature | dis - | family Unknown | folder Other | icon -
         8819 Wreck | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8820 Barrel | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8821 Jersey barrier | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -
@@ -754,7 +757,16 @@ public sealed class EntityTypeCatalogTests
         3.1.*.1 Infantry (HROT)
         3.1.*.2 Civilian (HROT)
         3.1.*.3 Security Force (HROT)
+        3.1.*.200 Cattle (HROT)
+        3.1.*.201 Sheep (HROT)
+        3.1.*.202 Horse (HROT)
+        3.1.*.203 Dog (HROT)
+        3.1.*.204 Cat (HROT)
+        3.1.*.206 Poultry (HROT)
+        3.1.*.207 Pig (HROT)
+        3.1.*.208 Goat (HROT)
         3.2 Air
+        3.2.*.205 Bird (HROT)
         3.3 Surface
         3.4 Subsurface
         4 Environmental

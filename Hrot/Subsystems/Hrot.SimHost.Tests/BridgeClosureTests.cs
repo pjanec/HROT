@@ -325,5 +325,107 @@ public sealed class BridgeClosureTests : IDisposable
         Assert.InRange(bodies.Min(b => b.Y), -2.6, -2.4); Assert.InRange(bodies.Max(b => b.Y), 2.4, 2.6);   // along its length, ACROSS the road
     }
 
+    /// <summary>
+    /// ⭐ CE-5008 / CE-4594 item 3 — a ROW of obstacle ENTITIES laid out like the editor's obstacle row, each given the components the TKB gives its type (<see cref="ObstacleTkbTranslator.Inject"/> over the concrete block's template — the translator the spawn path runs) and one
+    /// <see cref="PlacementGroup"/>. ⚠ The row planner (<c>ObstacleRowOptions.Places</c>, in Hrot.Presentation) is not referenced by this project, so the places come from <c>FeatureExpander.LinePlacesSpaced</c> — the routine the planner calls — at the row's own spacing
+    /// (a concrete block's length 2 m + the gap), facing ALONG the line (the line runs across the road).
+    /// </summary>
+    private static List<Entity> Row(World w, Vector2 from, Vector2 to, float gap, uint group)
+    {
+        Registered(w.Repo);
+        if (!w.Repo.IsComponentTypeRegistered<SimTransform>()) w.Repo.RegisterComponent<SimTransform>();
+        if (!w.Repo.IsComponentTypeRegistered<PlacementGroup>()) w.Repo.RegisterComponent<PlacementGroup>();
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterObstacles(db);
+        var template = db.GetByType(Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock)!;
+        var box = ClutterTypes.ConcreteBlock;
+        var members = new List<Entity>();
+        foreach (var (p, deg) in FeatureExpander.LinePlacesSpaced(new[] { from, to }, box.Length + gap, FeatureExpander.MaxScatterItems))
+        {
+            var e = w.Repo.CreateEntity();
+            w.Repo.AddComponent(e, new SimTransform { Position = new Vector3(p, 0f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, deg * (MathF.PI / 180f)) });
+            w.Repo.AddComponent(e, new PlacementGroup { Id = group });
+            new ObstacleTkbTranslator().Inject(w.Repo, e, template);
+            members.Add(e);
+        }
+        return members;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4594</c> item 3 (P-2) — FOUR concrete blocks end to end ACROSS the east road (an 8 m row over a 3.5 m road, one <c>PlacementGroup</c>) close it exactly as one barrier does: the road graph's <c>Blocked</c> = 1 and SUMO's two-lane edge is closed; deleting EVERY member (what
+    /// deleting the group does) re-opens both. MEASURED, one member out of the tight row: a MIDDLE block gone leaves a 2 m hole inside the 3.5 m road ⇒ the road is OPEN again (a gap a car fits through re-opens it — closure needs the full width covered); an OUTER block gone (it stood
+    /// beyond the kerb) leaves it CLOSED. And the planner's default 1.5 m gap row (3.5 m spacing) leaves holes: OPEN. 🔴 Red-proof: close on any covered point ⇒ the one-member and the gapped rows stay closed ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4594_ARowOfConcreteBlocksAcrossARoad_ClosesIt_TheWholeGroupGoneReOpensIt_OneMemberDependsOnWhich()
+    {
+        using var w = Build();
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        system.Execute(w.Repo, 0.1f);
+        var from = new Vector2(245, 200); var to = new Vector2(295, 200);
+        var row = Row(w, new Vector2(270, 196), new Vector2(270, 204), gap: 0f, group: 77u);
+        Assert.Equal(4, row.Count);
+        Assert.All(row, e => { Assert.Equal(77u, w.Repo.GetComponentRO<PlacementGroup>(e).Id); Assert.Equal("concrete", w.Repo.GetComponentRO<StaticObstacle>(e).Material.ToString()); Assert.Equal(2f, w.Repo.GetComponentRO<ObstacleShape>(e).Length); });
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked);
+        Assert.True(RoadMetres(w.Holder, from, to) > 1000f, "the row cuts the road");
+
+        // an OUTER block gone (it stood beyond the kerb): still closed
+        w.Repo.DestroyEntity(row[3]); system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked);
+        // a MIDDLE block gone: a 2 m hole in the 3.5 m road — open
+        w.Repo.DestroyEntity(row[1]); system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+        // the rest of the group gone: open (nothing changes), the net is the base's
+        w.Repo.DestroyEntity(row[0]); w.Repo.DestroyEntity(row[2]); system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked); Assert.Equal(5, w.Holder.Current.Segments.Length);
+
+        // the whole group at once: closed, then every member deleted ⇒ re-opened
+        var again = Row(w, new Vector2(270, 196), new Vector2(270, 204), 0f, 78u);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Blocked); Assert.Equal(4, w.Holder.Current.Segments.Length);
+        foreach (var e in again) w.Repo.DestroyEntity(e);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(0, system.Blocked); Assert.Equal(5, w.Holder.Current.Segments.Length);
+        Assert.InRange(RoadMetres(w.Holder, from, to), 40f, 60f);
+
+        // the planner's default gap (1.5 m): 3.5 m spacing across 8 m — blocks with holes between them: the road stays open
+        var gapped = Row(w, new Vector2(270, 196), new Vector2(270, 204), 1.5f, 79u);
+        system.Execute(w.Repo, 0.1f);
+        Assert.True(gapped.Count >= 2);
+        Assert.Equal(0, system.Blocked);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4594</c> item 3 (V-18) — SUMO's side of the same row: four tight concrete blocks across a two-lane edge close it (<c>ClosedEdges</c>, the footprints from <c>RoadBlockage.Blockers</c> over the entities); one MIDDLE member gone leaves one lane's width of hole ⇒ open.
+    /// 🔴 Red-proof: <c>Blockers</c> ignoring <c>StaticObstacle</c> ⇒ the row closes nothing ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4594_ARowAcrossASumoEdge_ClosesIt_AndAMissingMiddleMemberReOpensIt()
+    {
+        var net = Sim.Ingest.NetworkParser.ParseXml("""
+            <net version="1.20"><location netOffset="0.00,0.00" convBoundary="0,0,200,10" origBoundary="0,0,200,10" projParameter="!"/>
+            <edge id="e" from="a" to="b"><lane id="e_0" index="0" speed="13.9" length="200" width="3.2" shape="0,-1.6 200,-1.6"/><lane id="e_1" index="1" speed="13.9" length="200" width="3.2" shape="0,1.6 200,1.6"/></edge>
+            <junction id="a" type="dead_end" x="0" y="0" incLanes="" intLanes="" shape="0,-3.2 0,3.2"/><junction id="b" type="dead_end" x="200" y="0" incLanes="e_0 e_1" intLanes="" shape="200,-3.2 200,3.2"/>
+            </net>
+            """);
+        (double, double) Local(double x, double y) => (x, y);
+        using var w = new World();
+        var row = Row(w, new Vector2(100, -4), new Vector2(100, 4), 0f, 80u);
+        Assert.Equal(4, row.Count);
+        var closed = new List<string>(); var footprints = new List<Vector2[]>();
+        RoadBlockage.Blockers(w.Repo, footprints);
+        Assert.Equal(4, footprints.Count);
+        RoadBlockage.ClosedEdges(net, Local, footprints, closed);
+        Assert.Equal(new[] { "e" }, closed);
+
+        w.Repo.DestroyEntity(row[1]);
+        RoadBlockage.Blockers(w.Repo, footprints);
+        Assert.Equal(3, footprints.Count);
+        RoadBlockage.ClosedEdges(net, Local, footprints, closed);
+        Assert.Empty(closed);
+    }
+
     public void Dispose() { try { Directory.Delete(_root, true); } catch { } }
 }

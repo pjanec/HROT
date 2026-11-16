@@ -20,6 +20,7 @@ public sealed class TerrainDrawPanelFrameRail
     private sealed class Source : ITerrainDrawSource
     {
         public TerrainDrawOptions? Options { get; set; }
+        public ObstacleRowOptions? Row { get; set; }
         public List<Vector2> PlacedPoints { get; } = new();
         public IReadOnlyList<Vector2> Points => PlacedPoints;
         public TerrainGhostContext? Context { get; set; }
@@ -64,6 +65,15 @@ public sealed class TerrainDrawPanelFrameRail
         Assert.True(r["height"].Min.Y > r["kind:Hedge"].Max.Y, "the Height row is under the Kind row");
         Assert.Equal(r["height"].Min.X, r["kind:Hedge"].Min.X, 2f);
         Assert.True(r["panel"].Min.X < r["kind:Hedge"].Min.X && r["panel"].Max.X > r["kind:Fence"].Max.X, "the buttons are inside the panel");
+
+        // ⭐ CE-5009 (TE-6) — the Snap row: a toggle (ON by default) and the road-offset field under the Height row; a click flips Snap and greys the offset
+        Assert.True(src.Options!.Snap && r.ContainsKey("snap") && r.ContainsKey("offset"));
+        Assert.True(r["snap"].Min.Y > r["height"].Max.Y && r["offset"].Min.Y > r["snap"].Max.Y, $"Height, then Snap, then the offset: {r["height"]} {r["snap"]} {r["offset"]}");
+        Click(frame, panel, Mid(r["snap"]));
+        Assert.False(src.Options!.Snap);
+        Click(frame, panel, Mid(panel.Rects["snap"]));
+        Assert.True(src.Options!.Snap);
+        r = panel.Rects;
 
         // a click on Wall: the options the commit reads now say Wall
         Click(frame, panel, Mid(r["kind:Wall"]));
@@ -175,5 +185,60 @@ public sealed class TerrainDrawPanelFrameRail
         Click(frame, panel, Mid(r["mode:Anti-tank ditch"]));
         Assert.Equal("at-ditch", src.Options!.Template);
         Assert.Equal(2f, src.Options.GroundValueShown);                               // the anti-tank preset's depth
+    }
+
+    /// <summary>
+    /// ⭐ CE-5008 (TE-3 / TE-5; mockups B and D) in REAL frames: the tree Row's panel reads <i>16 trees · 124 m · Enter ends</i> (the count by the expander's own placement) beside a Spacing field; the Group's has a Count field, the seed and the dice
+    /// (a click re-rolls); the obstacle row's panel lists the four types with their glyphs, the Gap, Facing Along · Across and <i>6 concrete blocks · 1.5 m gaps · Enter ends</i> — a click on Across / on Crate changes what the commit reads and the line.
+    /// 🔴 Mutation: the Facing button not setting <c>Facing</c> ⇒ the click assert fails.
+    /// </summary>
+    [SkippableFact]
+    public void CE5008_TheTreeRowGroupAndObstacleRowPanels_HaveTheMockupsRowsAndWords()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string? shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        using var frame = UiFrameHarness.Begin(900, 520);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        var src = new Source { Options = TerrainDrawOptions.From("feature:14:tree:Line") };   // Tree row
+        src.PlacedPoints.AddRange(new[] { new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.4f) });
+        var panel = new TerrainDrawPanel(() => src);
+        for (int i = 0; i < 6; i++) frame.Step(panel.Draw);
+        if (shots is { Length: > 0 }) { Directory.CreateDirectory(shots); frame.Screenshot(Path.Combine(shots, "ce5008-panel-tree-row.png")); }
+        Assert.Equal("Tree row — click to add a point", panel.Lines[0]);
+        Assert.Equal("16 trees · 124 m · Enter ends", panel.Lines[1]);
+        Assert.True(panel.Rects.ContainsKey("spacing"));
+
+        // the Group: a Count field, the seed, the dice
+        var group = TerrainDrawOptions.From("feature:15:tree:Area")!;
+        src.Options = group; src.PlacedPoints.Clear();
+        src.PlacedPoints.AddRange(new[] { new Vector2(0, 0), new Vector2(60, 0), new Vector2(60, 40), new Vector2(0, 40) });
+        for (int i = 0; i < 4; i++) frame.Step(panel.Draw);
+        if (shots is { Length: > 0 }) frame.Screenshot(Path.Combine(shots, "ce5008-panel-tree-group.png"));
+        Assert.Equal("Tree group — click to add a corner", panel.Lines[0]);
+        Assert.Contains(panel.Lines, l => l == $"seed {group.Seed}");
+        Assert.True(panel.Rects.ContainsKey("count") && panel.Rects.ContainsKey("dice"));
+        uint seed = group.Seed;
+        for (int attempt = 0; attempt < 5 && group.Seed == seed; attempt++) { Click(frame, panel, Mid(panel.Rects["dice"])); for (int i = 0; i < 3; i++) frame.Step(panel.Draw); }
+        Assert.NotEqual(seed, group.Seed);
+
+        // the obstacle row (mockup D)
+        var row = ObstacleRowOptions.From(ObstacleRowOptions.Spec)!;
+        src.Options = null; src.Row = row; src.PlacedPoints.Clear();
+        src.PlacedPoints.AddRange(new[] { new Vector2(0, 0), new Vector2(20, 0) });
+        for (int i = 0; i < 6; i++) frame.Step(panel.Draw);
+        if (shots is { Length: > 0 }) frame.Screenshot(Path.Combine(shots, "ce5008-panel-obstacle-row.png"));
+        var r = panel.Rects;
+        Assert.Equal("Obstacles — drag a line for a row", panel.Lines[0]);
+        Assert.Equal("6 concrete blocks · 1.5 m gaps · Enter ends", panel.Lines[^1]);
+        foreach (var n in new[] { "Car", "Sandbag wall", "Concrete block", "Crate" }) Assert.True(r.ContainsKey("item:" + n) && panel.Glyphs["item:" + n].Glyph.Length > 0, n);
+        Assert.True(r["item:Car"].Min.Y < r["item:Crate"].Min.Y && r["gap"].Min.Y > r["item:Crate"].Max.Y && r["facing:Along"].Min.Y > r["gap"].Min.Y, "Item list, then Gap, then Facing");
+        Assert.Equal(r["facing:Along"].Min.Y, r["facing:Across"].Min.Y, 1f);
+
+        Click(frame, panel, Mid(r["facing:Across"]));
+        Assert.Equal(RowFacing.Across, row.Facing);
+        for (int i = 0; i < 3; i++) frame.Step(panel.Draw);
+        Assert.Equal("8 concrete blocks · 1.5 m gaps · Enter ends", panel.Lines[^1]);   // across: width 1 m + the gap = 2.5 m
+        Click(frame, panel, Mid(panel.Rects["item:Crate"]));
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Obstacle_Crate, row.TkbType);
     }
 }

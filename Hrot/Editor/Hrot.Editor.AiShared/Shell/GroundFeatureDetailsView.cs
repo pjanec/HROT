@@ -198,7 +198,14 @@ public sealed class GroundFeatureDetailsView : IDetailsViewInstance
         // ⭐ G-37 — the honest limit, first: on a coarse grid the ditch / foxhole does not form
         if (_keyCtx?.Base.Height is { } grid && GroundEffect.CoarseGridWarning(grid.CellSize) is { } coarse) _effect.Add(("form/warning", coarse, null, true));
         string stance = depth >= 1.5f ? "stand" : depth >= 0.9f ? "crouch" : depth >= 0.45f ? "prone" : "none";
-        if (mode == "foxhole")
+        if (p.Raise)
+        {
+            // ⭐ CE-5012 (TE-12) — a berm is RAISED ground: what it does is the height grid's (sight, slopes), no ditch area, no cover points of its own
+            _effect.Add(("earth/mound", $"raised {depth:0.0} m · {p.Width:0.0} m wide", null, false));
+            _effect.Add(("earth/vehicle", "vehicles: by its slopes (the navmesh reads the ground)", null, false));
+            _effect.Add(("earth/cover", "sight: the raised ground hides what is behind it", "(no cover points of its own)", false));
+        }
+        else if (mode == "foxhole")
         {
             _effect.Add(("earth/cover", $"cover: 4 points all round · {stance}", "(the defence takes them — V-29)", false));
             _effect.Add(("earth/vehicle", "vehicles: not closed (a dip)", null, false));

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-15
-build-state: BUILDING (2026-11-15; backend M-1/M-2/M-3 built, §9) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
-current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3, M-5, M-6)
+updated: 2026-11-16
+build-state: BUILDING (2026-11-15; backend M-1/M-2/M-3 built, §9; behaviors M-4 built 2026-11-16, §9a) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
+current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3, M-5, M-6) · §9a as built (behaviors M-4)
 stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the review record, folded into §2–§6
 known-rot: none
 known-conflict: none
@@ -255,7 +255,7 @@ where it owns the charge), the masking where perception solves, the gate where t
 | **M-2** | backend | PF-1…PF-4 the firing seat (the generalised arc, seat placement, the capability paths) | a pillion fires inside his arc, not ahead; the arc wraps through ±180°; the rider never fires moving; a pickup-bed rifleman fires too |
 | **M-2p** | ui + backend | PL-1…PL-3 the player: drive, and ride pillion firing in first person | possess → Drive → the bike drives and is slowed off-road; possess → Board pillion → fire inside the arc only, the HUD's *out of arc* outside it — ✅ **ui half AS-BUILT `2026-11-15`:** measured WIRING (the seat's eye and free look already existed — `SeatSwitch.TryEye`, CE-1210); built the crosshair cue `PossessionStation.OutsideSeatArc` ("OUT OF ARC - this seat cannot fire there"); the fire path for an embarked man is backend's M-2 (`Embarkation.StrippedOn`); the live checks wait for type 115 |
 | **M-3** | behaviors | CD-1…CD-6 conduct + the gate | a squad on a `Dash` under fire does not dismount and its bike does not shelter; the next row runs; a disabled bike's men dismount; the journal shows `ForbiddenByOrder` |
-| **M-4** | behaviors (+ the FPV design) | MC-4a the realistic FPV guidance; MC-3…MC-7 the dash; the hearing mask | seeded runs on open ground vs two FPV operators: the riders are UNHURT (miss beyond the casualty radius) in a measured share; existing drone scenarios re-run and their rails reconciled |
+| **M-4** | behaviors (+ the FPV design) | MC-4a the realistic FPV guidance; MC-3…MC-7 the dash; the hearing mask | seeded runs on open ground vs two FPV operators: ⚠ *(reworded `2026-11-16`, R-4275: "riders UNHURT in a measured share" measured 0 % — a break at commit 0.7 s + delay 0.4 s misses by ≤ 4.84 m < the 5 m casualty radius)* a break turn makes the dive miss beyond the LETHAL radius in a measured share (road ~100 %, off-road ~47 %): a kill becomes wounded riders; existing drone scenarios re-run and their rails reconciled |
 | **M-5** | behaviors | `DriveBy`, `ParkedBomb`, `ChargeTimer` | the drive-by fires from the pillion and escapes; the parked bomb goes off on its timer after the rider has left |
 | **M-6** | behaviors | `SwarmRaid` + dispersal | N bikes converge, fight, disperse to a rally point |
 
@@ -367,6 +367,70 @@ classDiagram
 | IM-1 `DriveBy` | run by the BIKE: ride up at speed → within the pass distance order the pillion (`PillionOf`: the firing seat) `FireAtTarget` and pass 30 m beyond at 2–5 m/s → escape to the pre-chosen point at speed | ⚠ the traffic handover before the act and the re-blend after it are not built (L-14) |
 | IM-5 `SwarmRaid` | a COMMANDER's play over bikes: approach ring (bearing 2π·i/N) → converge → fight (held, stopped — the rider fires too) → out on divergent bearings → rally; each phase waits for every live bike (or 180 s) | ⚠ mounted fight only: no dismount, no casualty pick-up, no night rule (L-15) |
 | `UnderFireMove` | ⚠ not gated — it is a component + reflex system, never a behaviour, so it has no conduct | a dash bike's under-fire reflex is the behaviors lane's (M-4) |
+
+## 9a. As built — behaviors, `2026-11-16` (CE-4621 M-4: MC-4a, MC-3…MC-7, the hearing mask; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Behaviors_Realistic_FPV_And_Dash.md`)
+
+```mermaid
+classDiagram
+  class GreyZoneDashBehavior {
+    <<new, commander play, Fulfils Dash>>
+    Tick() releases bike i when bike i-1 is Spacing off
+  }
+  class DashRideBehavior {
+    <<new, the bike, Fulfils Dash>>
+    Tick() legs at speed, break, riders out
+    Diving() riders' memory, time-to-go from two sightings
+  }
+  class DashLegs {
+    <<new, unmanaged, shared by both>>
+  }
+  class OrderConduct {
+    <<existing, backend M-3>>
+    Dash forbids All
+  }
+  class BehaviorIngressSystem {
+    <<existing, THE ONE GATE>>
+  }
+  class AcousticPerception {
+    <<existing, grows RidingFactor>>
+  }
+  class AirAttackNodes {
+    <<existing, Dive grows MC-4a, FPV design 5e>>
+  }
+  class CommandOrders {
+    <<existing>>
+    Assign()
+  }
+  class EjectPassengersCommand {
+    <<existing event>>
+  }
+  class AiBrainReads {
+    <<existing, declares TargetMemory>>
+  }
+  GreyZoneDashBehavior --> CommandOrders : DashRide per bike
+  GreyZoneDashBehavior ..> DashLegs
+  DashRideBehavior ..> DashLegs
+  DashRideBehavior ..> EjectPassengersCommand : at the edge
+  DashRideBehavior ..> AiBrainReads : crew memory, last tick
+  BehaviorIngressSystem ..> OrderConduct : both are Dash
+  DashRideBehavior .. AirAttackNodes : breaks at its commit + 0.3 s
+```
+*What it shows that prose hid: nothing new decides whether a reaction may run — both plays only DECLARE the kind `Dash`, and backend's gate
+does the refusing; the lookout's only new reach is one declared last-tick read of the crew's memory.*
+
+| piece | as built | deviation from §2 / §4 |
+|---|---|---|
+| MC-4a | the FPV's realistic terminal guidance — `DESIGN_FPV_Drone.md` §5e (R-2122) | — |
+| MC-3 | `GreyZoneDash` (commander over a roster of bikes, as `SwarmRaid`): bike i gets a `DashRide` once bike i − 1 is `Spacing` (80 m) off; Success once no live bike still runs a `Dash` (a 2 s grace after the last release; a 900 s limit) | ⚠ spacing by a staggered RELEASE, not `PlatoonConvoy`'s gap (no gap mechanism exists there to reuse — measured: no spacing constant in `PlatoonConvoyBehavior`) |
+| MC-4 lookout | `DashRide.Diving`: the riders' `TargetMemory` (declared last-tick read, `AiBrainReads`); the nearest identified contact ≥ 4 m over the ground within 250 m; time-to-go = range / closing speed from two sightings; ≤ 1.0 s (the FPV's commit 0.7 + 0.3) ⇒ the break | — |
+| MC-4 break | a HARD TURN off the bike's own heading, AWAY from the drone (40 m to the side, 15 m ahead, full speed) for 2.5 s, then the leg again | ⚠ not "across the approach bearing": a drone from the side would send the bike straight on, where it cannot accelerate (📐 the rail); for a drone chasing from behind the two are the same |
+| MC-4 hearing | `AcousticPerception.RidingFactor`: an embarked listener moving faster than 5 m/s hears × 0.25 (his own tag and velocity — a rider's follows his vehicle) | ⚠ **backend had NOT built it** (handoff said so) — measured absent, built here (R-2123). Any vehicle, as §2 rules |
+| MC-5 | nothing to build: no halt is ordered, the gate refuses the halting reactions | — |
+| MC-6 | `DashRide` at the last leg's end: `LocomotionMoveTo.Stop` + `EjectPassengersCommand` ⇒ Success, the order is no longer a Dash | ⚠ the riders' own SOP takes over on foot (no `SquadDismount`: the roster is bikes, not a squad of men) |
+| MC-7 | the existing `DroneOperator` / `DroneTeam` and `DroneTargets.Score` — unchanged | — |
+
+**Rails:** `GreyZoneDashBehaviorTests` (the kinds · the release at 80 m · the lookout's break at time-to-go ≤ 1 s, not 3 s · riders out at
+the edge) · `AcousticHearingTests.CE4621_MC4_ARiderOnAMovingVehicle_…` · `AirAttackNodesTests.CE4621_M4_SeededDashes_…` (the measured share).
 
 ## ⛔ HISTORY — §2–§6 as first written (R-4261), before the review and the conduct categories — ⛔ do not quote
 

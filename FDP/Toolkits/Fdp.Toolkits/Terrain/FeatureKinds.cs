@@ -16,6 +16,8 @@ namespace Fdp.Toolkit.Terrain
         public const float DefaultWallHeight = 2.0f, DefaultFenceHeight = 1.6f, DefaultHedgeHeight = 1.5f, HedgeThickness = 0.8f;
         public const float DefaultBridgeWidth = 4.0f, BridgeDeckHeight = 1.5f, BridgeRampLength = 6.0f;
         public const int MaxScatterItems = 2000;
+        public const float DefaultRowSpacing = 8f;
+        public const int DefaultGroupCount = 10;
 
         /// <summary>
         /// The parts of ONE feature of <paramref name="kind"/>. <paramref name="points"/> are WORLD coordinates (the entity's position plus its polyline's relative vertices) for the line and area kinds; <paramref name="at"/> is the
@@ -51,6 +53,10 @@ namespace Fdp.Toolkit.Terrain
                     return Bridge(key, points, pad > 0 ? pad : DefaultBridgeWidth, where);
                 case TerrainFeature.Scatter:
                     return Scatter(key, TerrainRecipe.Find(template, recipeRoots), seed, pad, points, baseWorld, where);
+                case TerrainFeature.Row:
+                    return Row(key, points, pad > 0f ? pad : DefaultRowSpacing, baseWorld, where);
+                case TerrainFeature.Group:
+                    return Group(key, points, pad > 0f ? (int)pad : DefaultGroupCount, seed, baseWorld, where);
                 case TerrainFeature.Ground when DitchPresets.Of(template) is { } preset:
                     return new[] { Ditch(key + "/0", template, pad > 0f ? pad : preset.Depth, preset.Width, seed, at, headingDeg, points, where) };   // ⭐ CE-4593 (P-6)
                 case TerrainFeature.Ground:
@@ -62,10 +68,10 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>True for the kinds that carry a shape (a polyline beside the component): they are the line and area kinds.</summary>
         public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water or TerrainFeature.Lane
-                                                       or TerrainFeature.Bridge or TerrainFeature.Scatter or TerrainFeature.Ground;
+                                                       or TerrainFeature.Bridge or TerrainFeature.Scatter or TerrainFeature.Ground or TerrainFeature.Row or TerrainFeature.Group;
 
         /// <summary>True when <paramref name="kind"/> is one this expander knows (the others are ignored by a caller, as before).</summary>
-        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Ground;
+        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Group;
 
         // ── lines ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -176,6 +182,33 @@ namespace Fdp.Toolkit.Terrain
             return new[] { deck, rampA, rampB };
         }
 
+        // ── row and group of lone trees (CE-5007) ─────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ CE-5007 — lone trees every <paramref name="spacing"/> metres along the polyline (<see cref="LinePlacesSpaced"/>), the first half a spacing in; labels <c>&lt;key&gt;/&lt;i&gt;</c>.</summary>
+        private static IReadOnlyList<JsonObject> Row(string key, IReadOnlyList<Vector2> points, float spacing, TerrainWorld baseWorld, string where)
+        {
+            if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a row needs a line of at least two points.");
+            var parts = new List<JsonObject>();
+            foreach (var (p, _) in LinePlacesSpaced(points, spacing, MaxScatterItems))
+            {
+                var at = new Vector2(Round(p.X), Round(p.Y));
+                if (!InWater(baseWorld, at, new[] { at })) parts.Add(Tree($"{key}/{parts.Count}", at));   // out of the base's water, like the scatter and the group
+            }
+            return parts;
+        }
+
+        /// <summary>⭐ CE-5007 — <paramref name="count"/> lone trees inside the polygon, out of the base's water, from <paramref name="seed"/> (the scatter's <see cref="AreaSampler"/>); a place not found is skipped.</summary>
+        private static IReadOnlyList<JsonObject> Group(string key, IReadOnlyList<Vector2> points, int count, uint seed, TerrainWorld baseWorld, string where)
+        {
+            if (points.Count < 3) throw new ArgumentException($"[Terrain] {where}: a group needs an area of at least three points.");
+            var sampler = new AreaSampler(points);
+            var rng = new Rng(seed);
+            var parts = new List<JsonObject>();
+            for (int n = 0, want = Math.Min(count, MaxScatterItems); n < want; n++)
+                if (sampler.Next(ref rng, baseWorld) is Vector2 at) parts.Add(Tree($"{key}/{parts.Count}", at));
+            return parts;
+        }
+
         // ── scatter ───────────────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -186,10 +219,8 @@ namespace Fdp.Toolkit.Terrain
         {
             if (recipe.Scatter.Count == 0) throw new ArgumentException($"[Terrain] {where}: recipe '{recipe.Id}' has no 'scatter' section.");
             if (points.Count < 3) throw new ArgumentException($"[Terrain] {where}: a scatter needs an area of at least three points.");
-            var poly = points.ToList();
-            if (poly.Count > 1 && poly[0] == poly[^1]) poly.RemoveAt(poly.Count - 1);
-            var (min, max) = Box(poly);
-            float area = MathF.Abs(PolygonMath.SignedArea2(poly)) / 2f;
+            var sampler = new AreaSampler(points);
+            float area = sampler.Area;
             float density = pad > 0f ? pad : recipe.ScatterDensity;
             int want = (int)MathF.Min(MaxScatterItems, MathF.Round(area / 100f * density));
             float total = recipe.Scatter.Sum(i => i.Weight);
@@ -201,12 +232,7 @@ namespace Fdp.Toolkit.Terrain
                 var item = recipe.Scatter[^1];
                 foreach (var it in recipe.Scatter) { if ((t -= it.Weight) < 0f) { item = it; break; } }
                 // a place inside the area and out of the water; the draws are made whether or not it is found, so the sequence does not depend on the base
-                Vector2? place = null;
-                for (int a = 0; a < Attempts; a++)
-                {
-                    var p = new Vector2(Round(min.X + rng.NextFloat() * (max.X - min.X)), Round(min.Y + rng.NextFloat() * (max.Y - min.Y)));
-                    if (place == null && PolygonMath.Contains(poly, p) && !InWater(baseWorld, p, new[] { p })) place = p;
-                }
+                Vector2? place = sampler.Next(ref rng, baseWorld);
                 float heading = Round(rng.NextFloat() * 360f), bush = 0.6f + rng.NextFloat() * 0.6f;
                 if (place is not Vector2 at) continue;
                 string label = $"{key}/{features.Count}";

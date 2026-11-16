@@ -34,7 +34,10 @@ namespace Fdp.Toolkit.Terrain
         /// SAME <see cref="TerrainWorldParser"/> as a terrain's world. A building template resolves from the overlay's own <c>buildings/</c>, then from
         /// <paramref name="sharedBuildingsRoot"/> (the base terrain's shared <c>assets/buildings</c> — <see cref="TerrainAssets.RecipesSibling"/> of the base folder).
         /// </summary>
-        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot = null)
+        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot = null) => ReadOverlay(overlayFolder, terrainName, sharedBuildingsRoot, groundOf: null);
+
+        /// <summary>⭐ CE-5014 — as above, its pieces standing on <paramref name="groundOf"/> (the base's relief the overlay is merged onto). ⭐ A caller that HAS the base passes it.</summary>
+        public static TerrainOverlay ReadOverlay(string overlayFolder, string? terrainName, string? sharedBuildingsRoot, TerrainHeightGrid? groundOf)
         {
             string folder = Path.GetFullPath(overlayFolder);
             string headerPath = Path.Combine(folder, TerrainOverlayHeader.FileName);
@@ -44,7 +47,7 @@ namespace Fdp.Toolkit.Terrain
             string worldPath = Path.GetFullPath(Path.Combine(folder, header.World));
             if (!File.Exists(worldPath))
                 throw new FileNotFoundException($"[Terrain] Overlay '{folder}' declares world '{header.World}', which does not exist at '{worldPath}'.", worldPath);
-            var world = TerrainWorldParser.Parse(Fdp.Core.ProgressStream.ReadAllText(worldPath), terrainName, TerrainAssets.ForFolder(folder, sharedBuildingsRoot));
+            var world = TerrainWorldParser.Parse(Fdp.Core.ProgressStream.ReadAllText(worldPath), terrainName, TerrainAssets.ForFolder(folder, sharedBuildingsRoot), groundOf);
             return new TerrainOverlay(header, world, folder);
         }
     }

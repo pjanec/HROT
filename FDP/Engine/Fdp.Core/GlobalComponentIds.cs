@@ -24,6 +24,9 @@ namespace Fdp.Core
     /// <para><b>⭐ R-2056 (2026-10-19) — NEW ids come from the LANE's block</b> (existing ids are never renumbered):
     /// behaviors 418–433 · backend 434–449 · traffic 450–459 (reserved) · ui 460–475 · coordinator / a new lane 476–495 ·
     /// 496–511 held back (the 512-bit mask). 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</para>
+    /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
+    /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
+    /// agg-behaviors 324–326, agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -1324,6 +1327,16 @@ namespace Fdp.Core
         /// bearing), DERIVED on the aircraft's brain node from the emitters' replicated <c>RadarEmission</c> (<c>RadarWarningReceiverSystem</c>).</summary>
         public const int RadarWarning = 499;
 
+        /// <summary><c>PlacementGroup</c> — ⭐ CE-5008 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-5041): the group a placed ROW of obstacle entities belongs to (one <c>uint</c> id on every member); selecting one member selects the group.
+        /// Unmanaged, authored, recorded and saved (<c>DataPolicy.Default</c>). ⚠ MOVED 500 → 309 (CE-4624, 2026-11-16): the animals' <c>Fear</c> took 500 on coordinator the same day — two types on one id. 309 is in the terrain block (300–319), free on every lane.</summary>
+        public const int PlacementGroup = 309;
+
+        /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, §6.1) — <c>Minefield</c> (on TKB 8830: the parameters and lanes; the outline is its <c>EditablePolyline</c>),
+        /// <c>MinefieldStrikes</c> (the per-field record of struck / cleared mines), <c>MinefieldKnowledge</c> (one side's knowledge of one field, TKB 7206). Replicated as
+        /// <c>dtMinefield</c> 191 · <c>dtMinefieldStrikes</c> 192 · <c>dtMinefieldKnowledge</c> 193. ⚠ 318 / 319 / 323: the terrain block's free ids, measured free on every lane 2026-11-16
+        /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
+        public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
@@ -1332,6 +1345,17 @@ namespace Fdp.Core
         /// <summary><c>ChargeTimer</c> — ⭐ CE-4621 M-5 (MV-9): a charge's timer (<c>SimInstant DetonateAt</c>), recorded; ticked by <c>ChargeSystem</c>.
         /// ⚠ The backend block (434–449) is full; 486 measured free in backend, behaviors, ui and coordinator 2026-11-15.</summary>
         public const int ChargeTimer = 486;
+
+        // ⭐ R-4276 / CE-4616 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23) — the stochastic unit's
+        //   contract, fixed by coordinator 2026-11-16 for the three exp/agg lanes; measured free on every lane (no constant, no [ComponentId]).
+        /// <summary><c>AggregateUnit</c> — a unit's resolution, echelon, formation and state (§22). Reserved for exp/agg-backend.</summary>
+        public const int AggregateUnit = 281;
+        /// <summary><c>UnitSlotTable</c> — the unit's member slots: health, ammo, stress (chunked ≤ 1024 B). Reserved for exp/agg-backend.</summary>
+        public const int UnitSlotTable = 282;
+        /// <summary><c>UnitHoldings</c> — the systems a unit holds, per type. Reserved for exp/agg-backend.</summary>
+        public const int UnitHoldings = 283;
+        /// <summary><c>FireAllocation</c> — a firer's allocation of expected hits per target (phase A → phase B). Reserved for exp/agg-backend.</summary>
+        public const int FireAllocation = 284;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).

@@ -103,6 +103,8 @@ namespace Fdp.Toolkit.Vis3D
             if (geometry == null) return null;
             _build.Request(geometry.Identity, () => PickGrid.Build(geometry));
             _build.Pump(g => _grid = g);
+            // ⛔ a plain source cannot tell a re-bake from ANOTHER terrain (only an identity), so it stays blind while building (R-1046: never the old terrain's triangles);
+            //   the CHUNKED picker keeps the previous grids across a re-bake of the same layout (CE-5016)
             return _build.IsBuiltFor(geometry.Identity) ? _grid : null;
         }
 
@@ -289,6 +291,9 @@ namespace Fdp.Toolkit.Vis3D
         private TerrainChunkLayout _layout = new(default, 1f, 1f, 0, 0, 1, 0f, 0f);
         private BackgroundMeshBuild<PickGrid>[] _builds = Array.Empty<BackgroundMeshBuild<PickGrid>>();
         private PickGrid?[] _grids = Array.Empty<PickGrid?>();
+        // ⭐ CE-5016 — a re-baked terrain (a new identity, the same chunk layout): each chunk's PREVIOUS grid answers until its new one lands, so a pick is never blind after a bake
+        private PickGrid?[]? _stale;
+        private PickGrid? _staleOutside;
         private long[] _used = Array.Empty<long>();
         private readonly BackgroundMeshBuild<PickGrid> _outsideBuild = new();
         private PickGrid? _outside;
@@ -305,8 +310,21 @@ namespace Fdp.Toolkit.Vis3D
         public void Bind(ITerrainChunkedGeometry geometry)
         {
             if (Equals(_identity, geometry.Identity)) { _geometry = geometry; return; }   // the same terrain (a new query object per call is the same identity)
+            var next = geometry.Chunks;
+            // a RE-BAKE of the same terrain (its name and chunk layout unchanged) — never another terrain, whose old triangles must not answer (R-1046)
+            bool sameLayout = _identity != null && next.Nx == _layout.Nx && next.Ny == _layout.Ny && next.ChunkSize == _layout.ChunkSize && next.Origin == _layout.Origin
+                              && _identity is Fdp.Toolkit.Terrain.TerrainWorld was && geometry.Identity is Fdp.Toolkit.Terrain.TerrainWorld now
+                              && !string.IsNullOrEmpty(was.Name) && string.Equals(was.Name, now.Name, StringComparison.Ordinal);
+            if (sameLayout)
+            {
+                // the same terrain re-baked: keep what answered so far (a built grid, else the stale one it replaced) until each new grid lands
+                var keep = _stale ?? new PickGrid?[_grids.Length];
+                for (int k = 0; k < _grids.Length; k++) if (_grids[k] != null) keep[k] = _grids[k];
+                _stale = keep; _staleOutside = _outside ?? _staleOutside;
+            }
+            else { _stale = null; _staleOutside = null; }
             _geometry = geometry; _identity = geometry.Identity;
-            _layout = geometry.Chunks;
+            _layout = next;
             int n = _layout.Nx * _layout.Ny;
             _builds = new BackgroundMeshBuild<PickGrid>[n];
             for (int i = 0; i < n; i++) _builds[i] = new BackgroundMeshBuild<PickGrid>();
@@ -319,11 +337,11 @@ namespace Fdp.Toolkit.Vis3D
 
         private void Pump()
         {
-            _outsideBuild.Pump(grid => _outside = grid);
+            _outsideBuild.Pump(grid => { _outside = grid; _staleOutside = null; });
             for (int f = 0; f < _inFlight; f++)
             {
                 int k = _flight[f];
-                bool done = _builds[k].Pump(grid => { _grids[k] = grid; _resident++; });
+                bool done = _builds[k].Pump(grid => { _grids[k] = grid; _resident++; if (_stale != null) _stale[k] = null; });
                 if (done || _builds[k].State == MeshBuildState.Failed) { _flight[f] = _flight[--_inFlight]; f--; }
             }
             while (_resident > MaxResident) Evict();
@@ -371,7 +389,7 @@ namespace Fdp.Toolkit.Vis3D
             Pump();
             _tick++;
             best = float.PositiveInfinity;
-            if (_outside != null && _outside.Raycast(origin, direction, maxDistance, out float to)) best = to;
+            if ((_outside ?? _staleOutside) is { } outside && outside.Raycast(origin, direction, maxDistance, out float to)) best = to;
             if (_layout.Nx == 0) return !float.IsPositiveInfinity(best);
 
             // clip to the terrain's height slab, then walk the CHUNK grid over that XY segment
@@ -404,7 +422,11 @@ namespace Fdp.Toolkit.Vis3D
                         _used[k] = _tick;
                         if (g.Raycast(origin, direction, MathF.Min(maxDistance, best), out float t) && t < best) best = t;
                     }
-                    else Ask(k);
+                    else
+                    {
+                        Ask(k);
+                        if (_stale?[k] is { } old && old.Raycast(origin, direction, MathF.Min(maxDistance, best), out float ts) && ts < best) best = ts;   // ⭐ CE-5016 — the previous bake's ground meanwhile
+                    }
                 }
                 float exit = MathF.Min(tMaxX, tMaxY);
                 if (best < float.PositiveInfinity && t0 + exit * (t1 - t0) >= best) break;

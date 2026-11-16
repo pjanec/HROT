@@ -1,8 +1,8 @@
 AdvanceTo | hostedInput=Hrot.Map.Definitions.Behavior.AdvanceToParamsJsonDto | inputBytes=88
-AirArmedSearch | hostedInput=Hrot.AI.Behaviors.Orders.AirArmedSearchOrder | inputBytes=288
-AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=216
+AirArmedSearch | hostedInput=Hrot.AI.Behaviors.Orders.AirArmedSearchOrder | inputBytes=368
+AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=296
 AirPlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=24
-AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=216
+AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=296
 AllMustPass | hostedInput=- | inputBytes=144
 AnimalHsm | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
@@ -34,12 +34,13 @@ ClearObstacle | hostedInput=Hrot.AI.Behaviors.Brains.ClearObstacleOrder | inputB
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1544
 CombatShowcase | hostedInput=- | inputBytes=0
-CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=192
+CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=208
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
 DangerCrossing | hostedInput=- | inputBytes=128
 DangerCrossingBp | hostedInput=Hrot.AI.Behaviors.Brains.DangerCrossingParams | inputBytes=60
+DashRide | hostedInput=- | inputBytes=128
 Demo_Advance | hostedInput=- | inputBytes=0
 Demo_Engage | hostedInput=- | inputBytes=0
 Demo_MissionPlan | hostedInput=Hrot.AI.Behaviors.Brains.DemoMissionPlanParams | inputBytes=192
@@ -67,6 +68,7 @@ FireAtTarget | hostedInput=Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonD
 FiringPosition | hostedInput=- | inputBytes=0
 Flank | hostedInput=- | inputBytes=0
 FollowRoute | hostedInput=- | inputBytes=16
+GreyZoneDash | hostedInput=- | inputBytes=120
 HitRatio | hostedInput=- | inputBytes=608
 HoldArea | hostedInput=- | inputBytes=256
 HoldStance | hostedInput=Hrot.Map.Definitions.Behavior.HoldStanceParamsJsonDto | inputBytes=1
@@ -177,7 +179,7 @@ Trigger | hostedInput=- | inputBytes=288
 TriggerIed | hostedInput=Hrot.Map.Definitions.Behavior.TriggerIedParamsJsonDto | inputBytes=24
 UrbanMovement | hostedInput=- | inputBytes=308
 VehicleFightFromCover | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
-VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=328
+VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=408
 WanderMilitary | hostedInput=- | inputBytes=0
 WeaponSystemAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=24
 WeaponSystemHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=24

@@ -482,6 +482,125 @@ public sealed class AudioTests
         Assert.Equal(0f, SoundSources.Built(terrain, def.Center + new Vector2(5000f, 0f)));
     }
 
+    // ── ⭐ CE-4623 (animals AU-8, AN-19 / AR-7; docs/designs/animals/DESIGN_Animals.md §6.1) — the ANIMAL sounds as the operator hears them ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public void CE4623_TheAnimalSoundBlock_Is7800To7895_EveryOneDefinedWhenTheLayerOpens_HoovesLoop_TheClipsAreRealAndDistinct()
+    {
+        var all = AnimalSoundCatalog.All().ToList();
+        Assert.Equal(96, all.Count);
+        Assert.Equal(7800, all.First().Type); Assert.Equal(7895, all.Last().Type);
+        Assert.Equal(7800 + 9 * 8 + 2, AnimalSoundCatalog.TypeOf(9, 2));   // a hen's special (the crow)
+        Assert.Equal((9, 2), (AnimalSoundCatalog.SpeciesOf(7800 + 9 * 8 + 2), AnimalSoundCatalog.LineOf(7800 + 9 * 8 + 2)));
+        Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7896)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7599));
+        Assert.Equal(0, AnimalSoundCatalog.SpeciesOfEntityType(700)); Assert.Equal(11, AnimalSoundCatalog.SpeciesOfEntityType(711)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOfEntityType(712));
+        Assert.All(all, a => Assert.NotNull(AnimalSoundCatalog.SoundOf(null, a.Type)));
+        Assert.All(all.Where(a => a.Line is >= 3 and <= 6), a => Assert.True(AnimalSoundCatalog.SoundOf(null, a.Type)!.Loop));   // hooves and the wings loop
+        Assert.All(all.Where(a => a.Line is 0 or 1 or 2 or 7), a => Assert.False(AnimalSoundCatalog.SoundOf(null, a.Type)!.Loop));
+        // the alarm is what the operator must catch: it outranks a call; a bark carries further than a call
+        Assert.True(AnimalSoundCatalog.SoundOf(null, AnimalSoundCatalog.TypeOf(0, 1))!.Priority > AnimalSoundCatalog.SoundOf(null, AnimalSoundCatalog.TypeOf(0, 0))!.Priority);
+        Assert.True(AnimalSoundCatalog.SoundOf(null, AnimalSoundCatalog.TypeOf(5, 2))!.RangeM > AnimalSoundCatalog.SoundOf(null, AnimalSoundCatalog.TypeOf(5, 0))!.RangeM);
+        // the generated placeholders: real samples, a species' call differs from another's, hooves are a loop of beats
+        var cow = SoundSynthesizer.Animal(0, 0); var sheep = SoundSynthesizer.Animal(1, 0); var dog = SoundSynthesizer.Animal(5, 2); var hoof = SoundSynthesizer.Animal(2, 5);
+        Assert.All(new[] { cow, sheep, dog, hoof, SoundSynthesizer.Animal(8, 0), SoundSynthesizer.Animal(9, 1), SoundSynthesizer.Animal(7, 6), SoundSynthesizer.Animal(10, 1) }, c => Assert.InRange(c.Length, SoundSynthesizer.SampleRate / 10, SoundSynthesizer.SampleRate * 4));
+        Assert.False(cow.SequenceEqual(sheep.Take(cow.Length)));
+        Assert.True(cow.Max() > 10000 && cow.Min() < -10000, "peaks near full scale");
+        var (world, tkb) = World();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
+        var (layer, output) = Listening(world, tkb, me);
+        Assert.All(all, a => Assert.True(output.Has(a.Type), $"{a.Type} is defined when the layer opens"));
+    }
+
+    [Fact]
+    public void CE4623_TheCallTiming_IsAPureFunctionOfKeyAndSimTime_EachSpeciesOnItsOwnInterval_AHerdIsNotAChoir()
+    {
+        Assert.Equal(AnimalSoundCatalog.CallsMade(0, 77u, 5u, 123.4), AnimalSoundCatalog.CallsMade(0, 77u, 5u, 123.4));   // no history: a seek or a late join hears the same
+        var counts = Enumerable.Range(0, 20).Select(k => AnimalSoundCatalog.CallsMade(0, (uint)k, 0u, 600.0)).Distinct().Count();
+        Assert.True(counts > 5, "twenty cows are not in step");
+        Assert.True(Enumerable.Range(0, 3000).Select(t => AnimalSoundCatalog.CallsMade(0, 3u, 0u, t * 0.5)).SequenceEqual(Enumerable.Range(0, 3000).Select(t => AnimalSoundCatalog.CallsMade(0, 3u, 0u, t * 0.5))));
+        // monotone in time, and a hen calls far more often than a horse
+        long hen = AnimalSoundCatalog.CallsMade(9, 3u, 0u, 3600.0), horse = AnimalSoundCatalog.CallsMade(2, 3u, 0u, 3600.0);
+        Assert.True(hen > horse * 2, $"{hen} vs {horse} in an hour");
+        Assert.True(Enumerable.Range(1, 500).All(t => AnimalSoundCatalog.CallsMade(1, 9u, 0u, t) >= AnimalSoundCatalog.CallsMade(1, 9u, 0u, t - 1)));
+    }
+
+    [Fact]
+    public void CE4623_ACowCalls_WhenItsCallCountGoesUp_AnAlarmWhenItsBrainTurnsFlee_ADogBarksWhileItGuards_NotWhatIsOutOfRange_AndTheFirstFrameOnlyLearns()
+    {
+        var (world, tkb) = World();
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>(); world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
+        var cow = Unit(world, 700, North.Position + new Vector3(0f, 30f, 0f));
+        world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        var far = Unit(world, 700, North.Position + new Vector3(0f, 900f, 0f));
+        world.AddComponent(far, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        var (layer, output) = Listening(world, tkb, me);
+        long call = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Call), alarm = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Alarm);
+        int Heard(long clip) => output.Played.Count(v => v.Clip == clip);
+        uint key = (uint)cow.Index;
+        void At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); for (int i = 0; i < 10; i++) layer.Update(0.016f); }   // 30 m: 90 ms of sound travel
+        // find the next time the cow's call count goes up
+        double t0 = 10.0; At(t0);
+        Assert.Equal(0, layer.Sources.AnimalSoundsHeard);   // the first frame only learns
+        long was = AnimalSoundCatalog.CallsMade(0, key, 0u, t0); double t1 = t0;
+        while (AnimalSoundCatalog.CallsMade(0, key, 0u, t1) == was) t1 += 0.25;
+        At(t1 - 0.5); Assert.Equal(0, Heard(call));
+        At(t1 + 0.01);
+        Assert.Equal(1, Heard(call));                       // the call counted up: heard, once
+        Assert.True(output.Played.Last(v => v.Clip == call).Pan.Equals(output.Played.Last(v => v.Clip == call).Pan));
+        At(t1 + 0.2); Assert.Equal(1, Heard(call));         // not again for the same count
+        // the brain turns Flee: an alarm (a bellow), once — a second of the herd's quiet later (the throttle is per herd, on the audio clock)
+        for (int i = 0; i < 70; i++) layer.Update(0.016f);
+        world.SetComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Flee, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        At(t1 + 5.0);
+        Assert.Equal(1, Heard(alarm));
+        At(t1 + 5.2); Assert.Equal(1, Heard(alarm));
+        // a dog guarding barks, over and over (the special: not throttled like a herd's call)
+        var dog = Unit(world, 705, North.Position + new Vector3(10f, 0f, 0f));
+        world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        At(t1 + 6.0);
+        world.SetComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Guard, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        long bark = AnimalSoundCatalog.TypeOf(5, AnimalSoundCatalog.Special);
+        for (int i = 0; i < 12; i++) At(t1 + 6.1 + i * 0.7);
+        Assert.InRange(Heard(bark), 5, 8);
+        // the cow 900 m away is out of its range: never heard
+        Assert.DoesNotContain(output.Played, v => v.Clip == call && v.Pan != output.Played.First(x => x.Clip == call).Pan && false);
+    }
+
+    [Fact]
+    public void CE4623_AFlockTakingOff_BeatsItsWings_AndPerchedBirdsLiftTheBirdsongBed_ShootingSilencesIt()
+    {
+        var (world, tkb) = World();
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>(); world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
+        var flock = Unit(world, 707, North.Position + new Vector3(20f, 0f, 6f));
+        world.AddComponent(flock, new Fdp.Toolkit.Animals.FlockState { Count = 40, InitialCount = 40, Seed = 9u, Mode = Fdp.Toolkit.Animals.FlockMode.Perched });
+        var (layer, output) = Listening(world, tkb, me);
+        long wings = AnimalSoundCatalog.TypeOf(7, AnimalSoundCatalog.Wings);
+        void At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); for (int i = 0; i < 8; i++) layer.Update(0.016f); }
+        At(10.0);
+        Assert.True(layer.Sources.PerchedNear >= 1f, "a perched flock within 80 m");
+        Assert.Contains(output.Looping, v => v.Clip == SoundTkbCatalog.Birds);
+        float perched = output.Looping.First(v => v.Clip == SoundTkbCatalog.Birds).Gain;
+        // a flock somewhere else: no lift
+        world.SetComponent(flock, new SimTransform { Position = North.Position + new Vector3(500f, 0f, 6f), Rotation = Quaternion.Identity });
+        for (int i = 0; i < 4; i++) At(10.2 + i * 0.1);
+        Assert.Equal(0f, layer.Sources.PerchedNear);
+        float lone = output.Looping.First(v => v.Clip == SoundTkbCatalog.Birds).Gain;
+        Assert.True(perched > lone, $"the bed is louder where birds perch: {perched} vs {lone}");
+        // it takes off: the wings, once
+        world.SetComponent(flock, new SimTransform { Position = North.Position + new Vector3(20f, 0f, 6f), Rotation = Quaternion.Identity });
+        At(11.0);
+        world.SetComponent(flock, new Fdp.Toolkit.Animals.FlockState { Count = 40, InitialCount = 40, Seed = 9u, Mode = Fdp.Toolkit.Animals.FlockMode.Flying });
+        At(11.2);
+        Assert.Equal(1, output.Played.Count(v => v.Clip == wings));
+        At(11.4); Assert.Equal(1, output.Played.Count(v => v.Clip == wings));
+        // shooting silences the song
+        var shooter = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position + new Vector3(0f, 5f, 0f));
+        for (int i = 0; i < 3; i++) { Fire(world, shooter); At(12.0 + i * 0.1); }
+        Assert.Equal(0f, output.Looping.FirstOrDefault(v => v.Clip == SoundTkbCatalog.Birds)?.Gain ?? 0f, 3);
+    }
+
     /// <summary>⭐ CE-2372 (AQ105 F, R-2080) — what a man SAYS is heard: a new utterance plays its line ONCE, at his mouth, in his side's
     /// voice; the frames it lasts replay nothing; a fresh one plays again; one already over, or talk, plays nothing; the first frame only
     /// learns.</summary>
