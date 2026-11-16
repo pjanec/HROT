@@ -69,5 +69,31 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0.5f, ArmorModel.BlastSusceptibility(new CombatPlatformDefDto { ArmorSide = 20 }, 2f), 4);
             Assert.Equal(0f, ArmorModel.BlastSusceptibility(new CombatPlatformDefDto { ArmorSide = 60 }, 2f));
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4624</c> (MR-10; minefields) — the BOTTOM facing: a round travelling UP ≥ 45° (a mine's burst under the hull) strikes it — where it used to read a horizontal side;
+        /// 40° up is still the side; straight up is the bottom; a descending round is still the Top. The belly armour is <c>ArmorBottom</c>, 0 ⇒ the REAR (like the top), its shaped-charge
+        /// column <c>ArmorBottomCe</c>, 0 ⇒ the belly's kinetic value. 🔴 Red-proof: drop the ascending branch in <c>FacingOfArrival</c> ⇒ an upward round reads a side ⇒ red; read <c>ArmorTop</c> for
+        /// the bottom ⇒ the numbers differ ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4624_TheBottomFacing_ARoundTravellingUp_AndTheBellyArmour()
+        {
+            float rad50 = 50f * MathF.PI / 180f, rad40 = 40f * MathF.PI / 180f;
+            Assert.Equal(Facing.Bottom, ArmorModel.FacingOfArrival(East, new Vector3(0, 0, 5)));
+            Assert.Equal(Facing.Bottom, ArmorModel.FacingOfArrival(East, new Vector3(0, -MathF.Cos(rad50), MathF.Sin(rad50))));
+            Assert.Equal(Facing.Side,   ArmorModel.FacingOfArrival(East, new Vector3(0, -MathF.Cos(rad40), MathF.Sin(rad40))));
+            Assert.Equal(Facing.Top,    ArmorModel.FacingOfArrival(East, new Vector3(0, 0, -5)));
+            // a burst under the hull's middle (the area-effect path: FacingOf from the burst point) meets the belly
+            Assert.Equal(Facing.Bottom, ArmorModel.FacingOf(East, new Vector3(0.3f, 0, -0.1f), aimHeight: 1.0f));
+
+            var p = new CombatPlatformDefDto { ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 40, ArmorBottom = 60, ArmorBottomCe = 90 };
+            Assert.Equal(60f, ArmorModel.ArmourFor(p, Facing.Bottom));
+            Assert.Equal(90f, ArmorModel.ArmourFor(p, Facing.Bottom, Penetrator.ShapedCharge));
+            var bare = new CombatPlatformDefDto { ArmorFront = 500, ArmorSide = 250, ArmorRear = 150, ArmorTop = 40 };
+            Assert.Equal(150f, ArmorModel.ArmourFor(bare, Facing.Bottom));                          // no ArmorBottom ⇒ the rear, never the top's 40
+            Assert.Equal(150f, ArmorModel.ArmourFor(bare, Facing.Bottom, Penetrator.ShapedCharge));
+            Assert.Equal(0f, ArmorModel.ArmourFor(null, Facing.Bottom));
+        }
     }
 }

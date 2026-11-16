@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
     {
         public string Name { get; init; } = "";
         public uint PartMask { get; init; }
-        public float[] Armour { get; } = new float[4];
+        public float[] Armour { get; } = new float[5];   // ⭐ CE-4624 MR-10 — front, side, rear, top, BOTTOM (the Facing order)
         public float Multiplier { get; set; } = 1f;
         public WoundEffect Effect { get; set; }
         public int WoundedAt { get; set; } = 255;
@@ -30,7 +30,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
 
         /// <summary>The zone's armour on <paramref name="face"/>; ⭐ <c>CE-3211</c> (S2-7) — NaN when the zone INHERITS the platform's armour
         /// (a vehicle zone with no number of its own): the damage step then keeps <c>ArmorModel</c>'s, the CE armour included.</summary>
-        public float ArmourOn(Facing face) => Armour[System.Math.Clamp((int)face, 0, 3)];
+        public float ArmourOn(Facing face) => Armour[System.Math.Clamp((int)face, 0, 4)];
         public bool Has(byte part) => part < 32 && (PartMask & (1u << part)) != 0;
     }
 
@@ -132,6 +132,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 Set(z, "Armour.Side", b.ArmourSide, v => z.Armour[1] = v, prov, source, unstated, unstatedSource);
                 Set(z, "Armour.Rear", b.ArmourRear, v => z.Armour[2] = v, prov, source, unstated, unstatedSource);
                 Set(z, "Armour.Top", b.ArmourTop, v => z.Armour[3] = v, prov, source, unstated, unstatedSource);
+                if (b.ArmourBottom is { } ab) { z.Armour[4] = ab; z.Sources["Armour.Bottom"] = (prov, source); }
                 Set(z, "Multiplier", b.Multiplier, v => z.Multiplier = v, prov, source, 1f, $"none in {source}");
                 z.Effect = b.Effect ?? WoundEffect.None;
                 z.WoundedAt = b.WoundedAt ?? 255;
@@ -144,6 +145,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                     Explicit(z, "Armour.Side", platform.ArmorSide, 1, "Combat.PlatformDef.ArmorSide");
                     Explicit(z, "Armour.Rear", platform.ArmorRear, 2, "Combat.PlatformDef.ArmorRear");
                     Explicit(z, "Armour.Top", platform.ArmorTop, 3, "Combat.PlatformDef.ArmorTop");
+                    Explicit(z, "Armour.Bottom", platform.ArmorBottom, 4, "Combat.PlatformDef.ArmorBottom");
                 }
                 // ① the type's sparse override, field by field
                 if (own != null)
@@ -154,10 +156,13 @@ namespace Fdp.Toolkit.Physics.BodyParts
                         if (o.ArmourSide is { } asd) { z.Armour[1] = asd; z.Sources["Armour.Side"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
                         if (o.ArmourRear is { } ar) { z.Armour[2] = ar; z.Sources["Armour.Rear"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
                         if (o.ArmourTop is { } at) { z.Armour[3] = at; z.Sources["Armour.Top"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
+                        if (o.ArmourBottom is { } abm) { z.Armour[4] = abm; z.Sources["Armour.Bottom"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
                         if (o.Multiplier is { } m) { z.Multiplier = m; z.Sources["Multiplier"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
                         if (o.Effect is { } e) { z.Effect = e; z.Sources["Effect"] = (ParameterProvenance.Explicit, "Combat.BodyZones"); }
                         if (o.WoundedAt is { } w) z.WoundedAt = w;
                     }
+                // ⭐ CE-4624 MR-10 — a belly with no number of its own takes the zone's REAR (the thinnest declared face, as the top does)
+                if (!z.Sources.ContainsKey("Armour.Bottom")) { z.Armour[4] = z.Armour[2]; z.Sources["Armour.Bottom"] = (ParameterProvenance.EngineFallback, "the zone's Armour.Rear"); }
                 zones.Add(z);
             }
             return new ResolvedBody { Plan = plan, Profile = source, ProfileProvenance = prov, Zones = zones, Kit = profile?.Kit,
@@ -185,14 +190,14 @@ namespace Fdp.Toolkit.Physics.BodyParts
             var platform = template.GetDescriptor<CombatPlatformDefDto>();
             foreach (var z in body.Zones)
             {
-                string[] faces = { "Armour.Front", "Armour.Side", "Armour.Rear", "Armour.Top" };
-                for (int i = 0; i < 4; i++)
+                string[] faces = { "Armour.Front", "Armour.Side", "Armour.Rear", "Armour.Top", "Armour.Bottom" };
+                for (int i = 0; i < 5; i++)
                 {
                     var (p, s) = z.Sources.TryGetValue(faces[i], out var v) ? v : (ParameterProvenance.EngineFallback, "engine");
                     float value = z.Armour[i];
                     if (float.IsNaN(value))   // ⭐ CE-3211 — an inherited face reports the platform's number (KE; ArmorModel picks CE for a HEAT round)
                     {
-                        value = platform == null ? 0f : i switch { 0 => platform.ArmorFront, 1 => platform.ArmorSide, 2 => platform.ArmorRear, _ => platform.ArmorTop };
+                        value = platform == null ? 0f : i switch { 0 => platform.ArmorFront, 1 => platform.ArmorSide, 2 => platform.ArmorRear, 3 => platform.ArmorTop, _ => platform.ArmorBottom > 0f ? platform.ArmorBottom : platform.ArmorRear };
                         (p, s) = (ParameterProvenance.Explicit, $"inherited: Combat.PlatformDef.Armor{faces[i].Substring(7)}");
                     }
                     yield return new ResolvedParameter($"Body.{z.Name}.{faces[i]}", value, p, s);
@@ -272,7 +277,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                     {
                         Zone = z["zone"]!.GetValue<string>(),
                         Parts = parts,
-                        ArmourFront = F(a?["front"]), ArmourSide = F(a?["side"]), ArmourRear = F(a?["rear"]), ArmourTop = F(a?["top"]),
+                        ArmourFront = F(a?["front"]), ArmourSide = F(a?["side"]), ArmourRear = F(a?["rear"]), ArmourTop = F(a?["top"]), ArmourBottom = F(a?["bottom"]),
                         Multiplier = F(z["multiplier"]),
                         Effect = z["effect"] is { } e ? Enum.Parse<WoundEffect>(e.GetValue<string>(), ignoreCase: true) : null,
                         WoundedAt = z["woundedAt"] is { } w ? w.GetValue<int>() : null,
