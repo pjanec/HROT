@@ -180,6 +180,7 @@ namespace Fdp.Toolkit.Combat
             {
                 var theirs = world.GetComponentRO<EntityInfo>(e).ForceId;
                 if (theirs != force && !(neutralsToo && theirs == ForceId.Neutral)) continue;
+                if (theirs == ForceId.Neutral && Fdp.Toolkit.Animals.Animals.IsAnimal(world, e)) continue;   // ⭐ CE-4623 (AR-6): a herd is no collateral veto
                 if (!CombatLife.IsAlive(world, e)) continue;
                 var p = world.GetComponentRO<SimTransform>(e).Position;
                 if (new Vector2(p.X - point.X, p.Y - point.Y).LengthSquared() < r2) return true;

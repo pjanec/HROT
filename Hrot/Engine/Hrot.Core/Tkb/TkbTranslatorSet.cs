@@ -95,6 +95,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Motion.LocomotionTkbTranslator(),
             new Fdp.Toolkit.Motion.FlightTkbTranslator(),
             new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator(),
+            // ⭐ CE-4623 AB-1 — an animal type's state (species, mode) and a flock's (AnimalState / FlockState), on every node.
+            new Fdp.Toolkit.Animals.AnimalTkbTranslator(),
             // ⭐ CE-2151 (R-2009) — a carrier type's seats and passenger list; a type without Gen.Carrier carries nobody.
             new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator(),
             new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator(),

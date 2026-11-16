@@ -236,7 +236,7 @@ namespace Fdp.Toolkit.Civilians
             _incidentOf.Clear();
             if (repo.IsComponentTypeRegistered<Health>() && repo.IsComponentTypeRegistered<InjuryThresholds>())
                 foreach (var e in repo.Query().With<Health>().With<InjuryThresholds>().With<SimTransform>().Build())
-                    if (Injury.StateOf(repo, e) != InjuryState.Ok)
+                    if (Injury.StateOf(repo, e) != InjuryState.Ok && !Fdp.Toolkit.Animals.Animals.IsAnimal(repo, e))   // ⭐ CE-4623 (AR-18): a shot cow draws no crowd
                     {
                         _incidents.Add(repo.GetComponentRO<SimTransform>(e).Position);
                         _incidentOf.Add(e);
