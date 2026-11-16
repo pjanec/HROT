@@ -181,9 +181,19 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public void OnDragUpdate(Vector3 worldPos)
     {
-        if (Snap == null && !_angleStep) { _currentPos = worldPos; return; }
+        if (Snap == null && !_angleStep) { _currentPos = CursorAt(worldPos); return; }
         var p = SnapPoint(new Vector2(worldPos.X, worldPos.Y));   // ⭐ CE-5009 — the cursor shows where the click will land
-        _currentPos = new Vector3(p.X, p.Y, worldPos.Z);
+        _currentPos = CursorAt(new Vector3(p.X, p.Y, worldPos.Z));
+    }
+
+    /// <summary>
+    /// ⭐ CE-4594 (the 3-D acceptance rail) — the cursor's height the way a CLICK keeps it: a point on a ROOF keeps the roof's height, one on the ground keeps 0 (the 3-D drawer drapes a z = 0 shape on the relief). 🔴 The cursor used to carry the terrain pick's own height while the placed points
+    /// had 0, so the rubber band from the last point to the cursor was a slanted line from z = 0 up to the ground height — it cut through the hill and was not drawn on a slope (measured: 9.8 m under the relief, the "next segment" invisible).
+    /// </summary>
+    private Vector3 CursorAt(Vector3 worldPos)
+    {
+        bool onLevel = worldPos.Z != 0f && _world != null && Fdp.Toolkit.World.Levels.LevelOf(_world, worldPos) >= 1;
+        return onLevel ? worldPos : new Vector3(worldPos.X, worldPos.Y, 0f);
     }
 
     /// <inheritdoc/>
