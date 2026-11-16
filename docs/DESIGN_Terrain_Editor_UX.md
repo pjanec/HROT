@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-11-16 (R-5034: every lean of §5, + TE-15); ruled earlier: TE-1 (R-5032), TE-5 (R-4264), TE-6 (R-5033); nothing built
+build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-11-16 (R-5034 … R-5038: every decision of §5 TE-1…TE-19); slices filed CE-5006…CE-5012; the toolbar CONTENT revision is separate (CE-5013); ruled earlier: TE-1 (R-5032), TE-5 (R-4264), TE-6 (R-5033); nothing built
 updated: 2026-11-16 (TE-19 RULED R-5038: split toolbars on one shared strip; ONE Toolbars split icon (a shared widget) + the Layers toggle; the Terrain toolbar is the key) · 2026-11-16 (R-5037: the key is the Editor Toolbar window, no auto-close, two main-toolbar icons; TE-18 the map with it closed / open) · 2026-11-16 (TE-17 RULED R-5036: placed terrain is not selectable unless the Terrain tools are open; placing stays free) · 2026-11-16 (TE-16: 3-D is the PRIMARY view, R-5035) · 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
 current-answer: §5 the decisions (revised) · §3 the diagrams · §7 acceptance · §8 the review they answer · §2 the friction measured
 stale-below: ## ⛔ HISTORY (the first version's §3 / §5 / §6 / §7 — superseded by the review, kept for the reasoning; ⛔ not to be built)
@@ -234,13 +234,13 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 
 | slice | builds | lane |
 |---|---|---|
-| S-1 | TE-19 the shared tool strip + the shared split widget (the preset picker moved onto it) + the two toolbars + the main-toolbar icons; TE-1 the Terrain toolbar's families (families, wrap, lit from the armed pick) + TE-2 repeat, new seed, two-stage Esc + TE-17 / TE-18 the key (the two main-toolbar icons, the selection-write refusal, the pick filter, the marks on / off) | ui |
-| S-2 | TE-4 `LinePlaces` extracted from the `group` element; kinds Row / Group; TE-13 the two recipes | backend (terrain) |
-| S-3 | TE-5 the obstacle row (entities, one bracket, the group — `MacroInstance` measured first) + the three missing obstacle types | ui + backend |
-| S-4 | TE-6 snapping + the modifier rows | ui + backend |
-| S-5 | TE-8 the Terrain Details tab | ui |
-| S-6 | TE-9 (measure the generic symbol, then the gizmo — with its 3-D volume pick, TE-16 ①) + TE-10 the ghost and its stay-until-baked | ui |
-| S-7 | TE-7 the closed wall and the gate rotation; TE-12 the berm | backend + ui |
+| S-1 [CE-5006](blueprints/Blueprint_Issues_Tracker.md) | TE-19 the shared tool strip + the shared split widget (the preset picker moved onto it) + the two toolbars + the main-toolbar icons; TE-1 the Terrain toolbar's families (families, wrap, lit from the armed pick) + TE-2 repeat, new seed, two-stage Esc + TE-17 / TE-18 the key (the two main-toolbar icons, the selection-write refusal, the pick filter, the marks on / off) | ui |
+| S-2 [CE-5007](blueprints/Blueprint_Issues_Tracker.md) | TE-4 `LinePlaces` extracted from the `group` element; kinds Row / Group; TE-13 the two recipes | backend (terrain) |
+| S-3 [CE-5008](blueprints/Blueprint_Issues_Tracker.md) | TE-5 the obstacle row (entities, one bracket, the group — `MacroInstance` measured first) + the three missing obstacle types | ui + backend |
+| S-4 [CE-5009](blueprints/Blueprint_Issues_Tracker.md) | TE-6 snapping + the modifier rows | ui + backend |
+| S-5 [CE-5010](blueprints/Blueprint_Issues_Tracker.md) | TE-8 the Terrain Details tab | ui |
+| S-6 [CE-5011](blueprints/Blueprint_Issues_Tracker.md) | TE-9 (measure the generic symbol, then the gizmo — with its 3-D volume pick, TE-16 ①) + TE-10 the ghost and its stay-until-baked | ui |
+| S-7 [CE-5012](blueprints/Blueprint_Issues_Tracker.md) | TE-7 the closed wall and the gate rotation; TE-12 the berm | backend + ui |
 
 ## 7. Acceptance
 
