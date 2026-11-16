@@ -117,6 +117,7 @@ namespace Hrot.SimHost.Tests
 
             public void Tick()
             {
+                Repo.Tick();   // ⭐ CE-2437 — a new frame, as the kernel starts one: the parallel phase's last-tick view is taken afresh (it was the FIRST frame's for good)
                 _time += 0.016;
                 Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
                 Repo.SetSimulationTime((float)_time);

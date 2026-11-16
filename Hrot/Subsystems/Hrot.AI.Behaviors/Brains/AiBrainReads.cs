@@ -35,6 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.EntityGuid>();                 // MemberEvaluation — a member's guid
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // InsertMacro — the expansion's state
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.RefKey>();                     // MemberEvaluation.Names — a member's key
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Navigation.NavigationStatus>();      // ⭐ CE-2439 — a commander reads a member's route state (hill attack); nobody writes it in the phase
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Components.TargetMemory>();  // ⭐ CE-4621 MC-4 — a dash bike's lookout reads its riders' memory (last tick)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();        // SetSkillAmplifier — the verdict's read of the amplifier
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan

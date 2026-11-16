@@ -166,6 +166,9 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | AU-4 hosting golden | ✓ | ONE moved line: `VehicleSupportByFire` 328 → 408 (the posts + the burst state) |
 | AU-4 red-proofs (`mutate19.py`) | — | the blind branch dropped · the 15 s interval dropped ⇒ each RED; restored, the tree clean |
 | ⭐ stepped hash `HROT_PARALLEL_SIM=1 stepped-hash.py --threads 1,4,8 --scenario cc-battalion` (Release, after MC-4a + the dash + A-9) | — | **STATE EQUAL** at 1 / 4 / 8 (972 entities) |
+| ⭐ **CE-2440** (item 4): `--threads 1,8,8,8,8,8 --rows BlueprintBlackboard1024 --bytes` | — | **5 / 5 eight-thread runs STATE EQUAL**, 0 rows differ — ⚠ NOT REPRODUCED (no change targeted it); kept open with the measurement |
+| **CE-2439** (item 7): `NavigationStatus` declared a last-tick brain read · `HillAttackIntegrationTests` PAR + READ_CHECK | — | 7 / 7 (was 1 / 7); red-proof: the declaration dropped ⇒ 6 / 7 red |
+| **CE-2437** (item 7): ROOT CAUSE the test harness (no `Repo.Tick()` ⇒ the last-tick view stayed the first frame's) — `Repo.Tick()` per harness frame in `GrenadeReflexTests.World` and `StationWeaponBehaviorTests.World` | — | grenade + hill attack + `GreyZoneDash` + `SwarmRaid` + `DriveBy` + `ParkedBomb` + AU-4 under PAR + READ_CHECK + WORLD_GUARD: green except **CE-2441** (2 `StationWeapon` rails: a real cross-entity `IsEmbarkedTag` write — red the same at `a72b7fe0d`, filed) |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids
@@ -177,4 +180,4 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 **Ids allocated this batch:** tracker `CE-2437` (the read check on a round born this tick) · `CE-2438` (the editor run does not repeat on
 pc-defend-house) · `CE-2439` (NavigationStatus read undeclared, hill attack) · `CE-2440` (the blueprint blackboard races at 8 threads) ·
-rulings `R-2106`…`R-2121`, `R-2124` (all LANE DECISIONS for your review, §1).
+rulings `R-2106`…`R-2121`, `R-2124` · tracker `CE-2441` (StationWeapon's cross-entity write) (all LANE DECISIONS for your review, §1).
