@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — OPEN (the user is still adding): AN-1…AN-16 approved (R-4266, R-4267); AN-17 / AN-18 pigs, goats, enclosed areas (user request, the frightened behaviour a lean); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: DESIGN — OPEN (the user is still adding): AN-1…AN-16 approved (R-4266, R-4267); AN-17 / AN-18 pigs, goats, enclosed areas, AN-19 sounds (user requests; leans); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
 current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
 stale-below: nothing
 known-rot: none
@@ -12,7 +12,8 @@ related-designs:
   - ../vehicle-tactics/DESIGN_Motorcycle.md — OWNS the firing seat and the Drive / Board possession the riding horse reuses
   - ../vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — RM-1: a vehicle hurts what it hits — animals included
   - ../../DESIGN_Map_3D_Mode.md — OWNS the shape kits and `MotionTracker` (limb swing by the gait rule) the gaits extend
-  - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing and sound classes (what frightens; the dog's bark as a sound)
+  - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS hearing and sound classes (what frightens; every animal sound as a sound source the AI hears, AN-19)
+  - ../audio/DESIGN_FPS_Audio.md — OWNS what the operator hears (`SoundSources`, `SoundMixer`, the ambient beds) — the animals' calls, alarms, hooves and wings play through it (AN-19)
   - ../../DESIGN_Terrain_Import_UTM.md — the OSM import whose area rules map woods / water today and would map pasture
 -->
 
@@ -88,6 +89,7 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-16** | ⭐ the DOMESTIC ANIMAL AREA | ⭐ a CLOSED POLYLINE the author draws (a scenario area, like the checkpoint's lines) with a species and a count (cattle, horses, sheep, hens …, mixed allowed) and a seed: at scenario start it is POPULATED automatically — N animal entities placed inside by the seed, each with a stable key (`<area>/<n>`, the same identity rule as split-created soldiers) and the area as its HOME. They stay inside by behaviour (fence or not); frightened they may leave (and break a small fence, AN-7); calm again they return to their area. The area is also their grazing ground | 🔒 user: *"some zone which is populated automatically by those domestic animals … they will try to stay inside unless frightened … Defined by polyline, closed one"* · the save stores the AREA; the animals are made from it (and recorded once made) |
 | **AN-17** | pigs and goats | ⭐ two more domestic species for the animal area: **pigs** squeal (a sound others hear), bunch and crowd into the far corner or the shed when frightened; **goats** scatter and leap onto raised ground (the jump link, small), and in an open area jump low obstacles and flee | 🔒 user: *"Also add pigs and goats to the domestic animal area … pigs are in some close area that they cannot breach on their own, and the same for goats"* · ⚠ the frightened behaviour is a coordinator lean (the user was unsure) |
 | **AN-18** | an ENCLOSED area (a pen, a sty, a goat yard) | ⭐ the domestic animal area (AN-16) gets an option **Enclosed**: its animals NEVER leave it, frightened or not (AN-7's fence breaking does not apply to its boundary); frightened, they flee INSIDE it — to the part farthest from the threat, or into its shelter if it has one. Pigs' and goats' areas default to Enclosed; cattle, horses, sheep and hens default to open | 🔒 user: *"they cannot breach on their own"*; one option instead of per-species rules |
+| **AN-19** | ⭐ **ANIMAL SOUNDS — an important part of the scene** | ⭐ every animal is a SOUND SOURCE through the ONE existing sound path — `SoundEmissionSystem` (the AI hears it within its acoustic range) and the presentation's `SoundSources` → `SoundMixer` (the operator hears what the AI hears, FPS Audio AU-4 / AU-5 / AU-10), a new `SoundSourceClass.Animal` with a `SoundFamily` per species. Four kinds: ① **calls at rest** — moo, baa, neigh, bark, cluck, oink, bleat, meow, birdsong — at a seeded random interval per species (a herd is not a choir); ② **alarm calls** when frightened — a bellow, a squeal, a hen's cackle, a whinny, a flock's alarm; ③ **movement** — hooves by gait (walk / trot / gallop louder and faster), a flock's WINGS at take-off, a hen's flutter; ④ the **dog's bark** — loud, far-carrying. ⭐ **A tactical cue**: a bark, a herd's alarm or BIRDS FLUSHING from a tree are heard by soldiers' ears — the classic sign that someone is moving out there; an ambient BIRDSONG bed in parks / orchards while calm that falls SILENT after shooting | 🔒 user: *"the sounds that animals are making. This is the important part of the scene, so please don't forget to include it"* · one sound path for everything (ruling 9); clips are data |
 | **AN-12** | destructible, neutral | every animal has Health, injury states, the dead figure; hit by fire, blasts, vehicles (RM-1); a NEUTRAL side — soldiers do not target animals unless attacked (the dog) or ordered | 🔒 user: *"destructible the same way"* |
 
 ## 4a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
@@ -238,4 +240,5 @@ run on.*
 | AN-S4 | horses: herd horses and the riding / war horse (seats, possession, gaits) | backend + ui |
 | AN-S5 | the fence breach (if AN-7 is approved) | backend |
 | AN-S6 | cats (included) | behaviors + ui |
+| AN-S8 | ⭐ sounds — the animal sound class and families, calls / alarms / movement / bark through the one sound path, the birdsong bed | backend (emission, hearing) + ui (the clips, the mixer) — each species' slice brings its own sounds |
 | AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
