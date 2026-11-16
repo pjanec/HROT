@@ -124,6 +124,54 @@ public sealed class TerrainSnap
         return SnapHit.None;
     }
 
+    /// <summary>
+    /// ⭐ CE-5009 — the snap the draw panel's options ask for: nothing when its <see cref="TerrainDrawOptions.Snap"/> is off (the click lands raw), else the index re-prepared with the panel's
+    /// <see cref="TerrainDrawOptions.RoadOffset"/> (the road-edge lines move to <c>HalfWidth + offset</c>) and queried at <paramref name="p"/>.
+    /// </summary>
+    public SnapHit SnapWith(TerrainDrawOptions? options, TerrainGhostContext? context, EntityRepository? world, Vector2 p, float reach)
+        => SnapWith(options, context?.Base, context?.Roads?.Corridors, world, p, reach);
+
+    /// <summary>The same from the base terrain and road corridors directly (a rail builds them by hand).</summary>
+    public SnapHit SnapWith(TerrainDrawOptions? options, TerrainWorld? baseWorld, IReadOnlyList<RoadCorridor>? corridors, EntityRepository? world, Vector2 p, float reach)
+    {
+        if (options is { Snap: false }) return SnapHit.None;
+        if (options is not null) RoadOffset = options.RoadOffset;
+        Prepare(baseWorld, corridors);
+        PrepareEnds(world);
+        return Snap(p, reach);
+    }
+
+    /// <summary>
+    /// ⭐ CE-5009 — the hint line of a snap kind with the road offset in it ("snapped: road edge +1 m · Ctrl: free"); the strings are built by <see cref="HintTracker"/> only when the kind or the offset changes.
+    /// </summary>
+    public static string Hint(SnapKind kind, float roadOffset)
+        => kind == SnapKind.RoadEdge ? "snapped: road edge +" + roadOffset.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " m · Ctrl: free" : Hint(kind);
+
+    /// <summary>
+    /// ⭐ CE-5009 — puts the snap hint on the tool's hint line ONLY when it changes: <see cref="Update"/> every frame is a compare (no string work, 0 B — R-2084) and reports a new text when the kind (or, for a road edge, the offset) moved,
+    /// or <c>null</c> through <paramref name="text"/> with true when it went back to no snap (the host restores the tool's own hint).
+    /// </summary>
+    public sealed class HintTracker
+    {
+        private SnapKind _kind; private float _offset = float.NaN;
+
+        /// <summary>The current kind shown (None = the tool's own hint).</summary>
+        public SnapKind Kind => _kind;
+
+        /// <summary>Forgets what was shown (the tool was re-armed or disarmed).</summary>
+        public void Reset() { _kind = SnapKind.None; _offset = float.NaN; }
+
+        /// <summary>True when the line must change: <paramref name="text"/> is the new hint, or null to restore the tool's own.</summary>
+        public bool Update(SnapKind kind, float roadOffset, out string? text)
+        {
+            text = null;
+            if (kind == _kind && (kind != SnapKind.RoadEdge || roadOffset == _offset)) return false;
+            _kind = kind; _offset = roadOffset;
+            text = kind == SnapKind.None ? null : Hint(kind, roadOffset);
+            return true;
+        }
+    }
+
     /// <summary>The hint line for <paramref name="hit"/> (a fixed string per kind — no allocation).</summary>
     public static string Hint(SnapKind kind) => kind switch
     {

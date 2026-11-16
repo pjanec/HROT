@@ -603,4 +603,26 @@ public sealed class AreaAuthoringArmTests
         Assert.Equal(0f, f.Session.Points[1].Y, 3);
         Assert.Equal(MathF.Sqrt(101f), f.Session.Points[1].X, 3);
     }
+
+    /// <summary>
+    /// ⭐ CE-5009 (TE-6) — through the arm: with the panel's Snap OFF a click lands RAW even where a road edge is in reach; ON, it snaps onto the edge at HalfWidth + the panel's offset (3 m ⇒ y = 6). 🔴 Red-proof (compiles): <c>SnapWith</c> ignoring <c>Snap</c> ⇒ the raw assert fails.
+    /// </summary>
+    [Fact]
+    public void TE6_TheSnapToggleAndTheRoadOffset_DecideWhereTheClickLands()
+    {
+        var snap = new Hrot.UI.Common.AddEntity.TerrainSnap();
+        var road = new[] { new Fdp.Toolkit.Terrain.RoadCorridor(new[] { new Vector2(0, 0), new Vector2(100, 0) }, 3f, 0f, 0f) };
+        var options = Hrot.UI.Common.AddEntity.TerrainDrawOptions.From("feature:2::Line")!;
+        var arm = new AreaAuthoringArm(MakeManager());
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainFeature), string.Empty, _ => { }, MinPoints: 2, Closed: false,
+            Snap: (p, r) => snap.SnapWith(options, null, road, null, p, r)));
+        var g = arm.ActiveGizmo!;
+        void Click(float x, float y) => g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(x, y, 0f));
+
+        Click(10f, 5.5f); Assert.Equal(new Vector2(10f, 4f), g.Session.Points[0]);            // ON, offset 1 m: the edge at y = 4
+        options.RoadOffset = 3f;
+        Click(20f, 7.5f); Assert.Equal(new Vector2(20f, 6f), g.Session.Points[1]);            // the 3 m offset: HalfWidth 3 + 3 = 6
+        options.Snap = false;
+        Click(30f, 5.9f); Assert.Equal(new Vector2(30f, 5.9f), g.Session.Points[2]);          // OFF: the click lands raw
+    }
 }

@@ -452,16 +452,17 @@ namespace Hrot.UI.Common.Adapters
                 Born:       drawOptions is null ? null : drawOptions.Born,
                 // ⭐ CE-4592 (P-5 2b, mockup B) — a ground area / ditch tints the height CHANGE it makes under the shape while it is drawn (the ONE effect the panel's hint reads)
                 Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke()))
-                          : drawOptions is not null && Hrot.UI.Common.AddEntity.TerrainDrawGhost.Applies(drawOptions) ? Ghost.UnderlayOf(drawOptions) : null,   // ⭐ CE-5011 B (TE-10) — the drawing ghost: a thick line · a dot per tree · the area tinted
+                          : drawOptions is not null && Hrot.UI.Common.AddEntity.TerrainDrawGhost.Applies(drawOptions)
+                              ? WithSnapHint(Ghost.UnderlayOf(drawOptions), feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? drawOptions : null) : null,   // ⭐ CE-5011 B (TE-10) — the drawing ghost: a thick line · a dot per tree · the area tinted
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
                 //   prior inline `onRemove` did. ⛔ Dropping it would leave `_activeSequenceId` stale and
                 //   make the next arm unregister a gizmo that is already gone.
-                OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; },
+                OnDisarmed: () => { _activeSequenceId = null; _snapHint.Reset(); if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; },
                 // ⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — a terrain line / area stays armed after a finish, with what the panel holds and a NEW seed each time
                 Repeat:     drawOptions is not null,
                 OnRepeated: drawOptions is null ? null : drawOptions.Reroll,
                 // ⭐ CE-5009 TE-6 (R-5033) — a terrain LINE snaps by default: road edges (+ an offset), house walls, the ends of placed lines; areas do not
-                Snap:       feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? SnapTerrain : null));
+                Snap:       feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? (p, reach) => SnapTerrain(drawOptions, p, reach) : null));
 
             _activeSequenceId = arm.ActiveGizmoId;
             _terrainDraw = drawOptions;   // ⭐ after the arm: arming first disarms the previous tool, whose OnDisarmed clears the field
@@ -488,11 +489,19 @@ namespace Hrot.UI.Common.Adapters
         private readonly Hrot.UI.Common.AddEntity.TerrainSnap _terrainSnap = new();
         /// <summary>⭐ CE-5009 — the snap index (the draw panel's offset field writes <see cref="Hrot.UI.Common.AddEntity.TerrainSnap.RoadOffset"/>).</summary>
         public Hrot.UI.Common.AddEntity.TerrainSnap TerrainSnap => _terrainSnap;
-        private Fdp.Toolkit.Vis2D.Gizmos.SnapHit SnapTerrain(System.Numerics.Vector2 p, float reach)
+        // ⭐ CE-5009 — the panel's options decide: Snap off ⇒ the click lands raw; the road offset re-indexes the road-edge lines (TerrainSnap.SnapWith)
+        private Fdp.Toolkit.Vis2D.Gizmos.SnapHit SnapTerrain(Hrot.UI.Common.AddEntity.TerrainDrawOptions? options, System.Numerics.Vector2 p, float reach)
+            => _terrainSnap.SnapWith(options, TerrainContext?.Invoke(), _creation.World, p, reach);
+
+        private Action<Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder, IReadOnlyList<System.Numerics.Vector2>> WithSnapHint(Action<Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder, IReadOnlyList<System.Numerics.Vector2>> inner, Hrot.UI.Common.AddEntity.TerrainDrawOptions? lineOptions)
+            => lineOptions is null ? inner : (draw, pts) => { inner(draw, pts); UpdateSnapHint(lineOptions); };
+
+        // ⭐ CE-5009 — the snap kind on the tool's hint line, only when it changes (the tool's own hint comes back with no snap)
+        private readonly Hrot.UI.Common.AddEntity.TerrainSnap.HintTracker _snapHint = new();
+        private void UpdateSnapHint(Hrot.UI.Common.AddEntity.TerrainDrawOptions options)
         {
-            _terrainSnap.Prepare(TerrainContext?.Invoke());
-            _terrainSnap.PrepareEnds(_creation.World);
-            return _terrainSnap.Snap(p, reach);
+            var kind = _areaArm?.ActiveGizmo?.LastSnap.Kind ?? Fdp.Toolkit.Vis2D.Gizmos.SnapKind.None;
+            if (_snapHint.Update(kind, options.RoadOffset, out var text)) _tools?.SetHint(text);
         }
 
         /// <inheritdoc/>

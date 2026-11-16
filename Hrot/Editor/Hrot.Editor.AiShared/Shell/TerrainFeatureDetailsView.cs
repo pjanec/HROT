@@ -32,6 +32,8 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
     public Dictionary<string, (Vector2 Min, Vector2 Max)> Rects { get; } = new();
     /// <summary>The Contents line the last frame showed.</summary>
     public string ContentsText { get; private set; } = "";
+    /// <summary>The gate line of a closed wall the last frame showed, or "".</summary>
+    public string GateText { get; private set; } = "";
     /// <summary>The hint beside the Height field the last frame showed ("the kind's default: 2.0 m"), or "".</summary>
     public string HeightHint { get; private set; } = "";
 
@@ -52,7 +54,7 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
         string len = $"{TerrainDrawOptions.Length(pts):0} m", area = TerrainDrawPanel.Hectares(TerrainDrawOptions.Area(pts));
         return f.Kind switch
         {
-            TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge => $"{len} · stops every vehicle; a heavy tank breaks it (B-3); blasts breach it (B-2)",
+            TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge => $"{len} · stops every vehicle; a heavy tank breaks it (B-3); blasts breach it (B-2)",   // (+ GateLineOf: a closed one says how to add a gate)
             TerrainFeature.Wood => $"{area} · blocks sight inside",
             TerrainFeature.Scrub => $"{area} · conceals those inside",
             TerrainFeature.Row => $"{FeatureExpander.CountAlong(pts, f.Pad > 0f ? f.Pad : FeatureExpander.DefaultRowSpacing)} lone trees — they fell, burn and block like any lone tree",
@@ -66,6 +68,15 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
             TerrainFeature.Lane => $"{area} · open ground",
             _ => "",
         };
+    }
+
+    /// <summary>⭐ CE-5009 (TE-7) — the second Contents line of a CLOSED wall / fence / hedge ("a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)"); empty for an open line and every other kind.</summary>
+    public static string GateLineOf(EntityRepository world, Entity e)
+    {
+        var f = world.GetComponentRO<TerrainFeature>(e);
+        if (f.Kind is not (TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge)) return "";
+        var pts = PointsOf(world, e);
+        return WallGate.IsClosed(pts) ? "a closed wall — Edit Shape, right-click a side ▸ Add gate here (" + WallGate.Width.ToString("0", CultureInfo.InvariantCulture) + " m)" : "";
     }
 
     /// <summary>The "the kind's default: 2.0 m" hint of a Height field showing the default (empty when a height was set).</summary>
@@ -149,6 +160,8 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
         ContentsText = ContentsOf(world, e);
         ImGui.TextUnformatted(ContentsText);
         Rects["contents"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        GateText = GateLineOf(world, e);
+        if (GateText.Length > 0) { ImGui.TextDisabled(GateText); Rects["gate"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); }
         ImGui.PopID(); ImGui.PopID();
     }
 

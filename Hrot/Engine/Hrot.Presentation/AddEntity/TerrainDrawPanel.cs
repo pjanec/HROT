@@ -56,6 +56,10 @@ public sealed class TerrainDrawOptions
     public bool IsTreeRow => Kind == TerrainFeature.Row;
     /// <summary>⭐ CE-5008 (TE-3) — a GROUP of lone trees in an area.</summary>
     public bool IsTreeGroup => Kind == TerrainFeature.Group;
+    /// <summary>⭐ CE-5009 (TE-6, R-5033) — snapping of a terrain LINE (road edges, house walls, line ends): ON by default; Ctrl on the map frees one click.</summary>
+    public bool Snap { get; set; } = true;
+    /// <summary>⭐ CE-5009 — how far outside a road's edge a snapped line runs, metres (0…10; default 1).</summary>
+    public float RoadOffset { get; set; } = 1f;
     /// <summary>A row's spacing in metres (0 = the default 8 m).</summary>
     public float Spacing { get; set; }
     public float SpacingShown => Spacing > 0f ? Spacing : FeatureExpander.DefaultRowSpacing;
@@ -280,6 +284,22 @@ public sealed class TerrainDrawPanel
         ImGui.SameLine(x0 + 70f * s); ImGui.AlignTextToFramePadding();
         string tail = (pts.Count > 1 ? Len(pts) + " · " : "") + "Enter ends";
         ImGui.TextColored(NOTE, tail); Lines.Add(tail);
+        // ⭐ CE-5009 (TE-6) — Snap: on by default; the road offset beside it (a closed wall round a plot does not snap, so it has neither)
+        if (!o.IsClosedWall)
+        {
+            ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Snap");
+            ImGui.SameLine(x0); bool snap = o.Snap;
+            if (ImGui.Checkbox("##snap", ref snap)) o.Snap = snap;
+            Rects["snap"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            ImGui.SameLine(); ImGui.TextColored(NOTE, "roads · walls · ends");
+            ImGui.AlignTextToFramePadding(); ImGui.TextColored(SUB, "Road offset");
+            ImGui.SameLine(x0 + 24f * s); ImGui.SetNextItemWidth(70f * s);
+            ImGui.BeginDisabled(!o.Snap);
+            float off = o.RoadOffset;
+            if (ImGui.DragFloat("##roadoffset", ref off, 0.1f, 0f, 10f, "%.1f m")) o.RoadOffset = Math.Clamp(off, 0f, 10f);
+            ImGui.EndDisabled();
+            Rects["offset"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
     }
 
     // ── ⭐ CE-5008 (TE-3 / TE-5; mockups B and D) ─────────────────────────────────────────────────────────────────

@@ -217,6 +217,37 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, manager.ActiveCount);                                   // sticky
         }
 
+        /// <summary>
+        /// ⭐ CE-5009 (TE-6) — the snap kind on the tool's HINT LINE: moving the cursor onto the end of a placed hedge puts "snapped: the end of a line · Ctrl: free" on the active tool's hint, leaving it restores the tool's own hint, the panel's Snap OFF means
+        /// nothing snaps (railed in TerrainSnapTests / AreaAuthoringArmTests). 🔴 Red-proof: <c>UpdateSnapHint</c> never calling <c>SetHint</c> ⇒ the first assert fails.
+        /// </summary>
+        [Fact]
+        public void CE5009_TheSnapKindIsOnTheToolsHintLine_OnlyWhileSnapped()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>()) _world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainFeature { Kind = Fdp.Toolkit.Terrain.TerrainFeature.Hedge });
+            _world.SetManagedComponent(e, new Hrot.Map.Common.Components.EditablePolyline { Points = new[] { new Vector2(0, 0), new Vector2(60, 0) }, Version = 1 });
+            _world.Tick();
+
+            var manager = MakeManager();
+            var controller = MakeController(manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager, tools: controller);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson("feature:4::Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            var draw = new DebugPrimitiveBuffer();
+            string own = controller.ActiveHint!;
+
+            gizmo.OnDragUpdate(new Vector3(100.5f, 50.3f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal("snapped: the end of a line · Ctrl: free", controller.ActiveHint);       // on the end of the placed hedge
+            gizmo.OnDragUpdate(new Vector3(130f, 80f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal(own, controller.ActiveHint);                                             // free again: the tool's own hint is back
+        }
+
         [Fact]
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {

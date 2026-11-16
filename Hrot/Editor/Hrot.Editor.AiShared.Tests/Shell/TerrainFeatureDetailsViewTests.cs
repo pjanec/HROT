@@ -169,6 +169,24 @@ public sealed class TerrainFeatureDetailsViewTests
         Assert.Contains("blocks sight inside", TerrainFeatureDetailsView.ContentsOf(w, wood));
     }
 
+    /// <summary>
+    /// ⭐ CE-5009 (TE-7) — a CLOSED wall / fence / hedge (its first point repeated at the end) adds the Contents line "a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)"; an open one, and every other kind, adds nothing; shown in a real frame under <c>xvfb-run -a</c>.
+    /// 🔴 Red-proof: <c>GateLineOf</c> always empty ⇒ red.
+    /// </summary>
+    [Fact]
+    public void AClosedWall_SaysHowToAddAGate_AnOpenOneAndOtherKindsDoNot()
+    {
+        var w = World();
+        var closed = Feature(w, TerrainFeature.Wall, "", 0f, 0, "Wall", new Vector2(0, 0), new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0));
+        var hedge = Feature(w, TerrainFeature.Hedge, "", 0f, 0, "Hedge", new Vector2(0, 0), new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0));
+        var open = Wall(w);
+        var wood = Feature(w, TerrainFeature.Wood, "", 0f, 3, "Wood", Vector2.Zero, new Vector2(0, 0), new Vector2(30, 0), new Vector2(30, 30), new Vector2(0, 0));
+        Assert.Equal("a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)", TerrainFeatureDetailsView.GateLineOf(w, closed));
+        Assert.Equal("a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)", TerrainFeatureDetailsView.GateLineOf(w, hedge));
+        Assert.Equal("", TerrainFeatureDetailsView.GateLineOf(w, open));
+        Assert.Equal("", TerrainFeatureDetailsView.GateLineOf(w, wood));                         // a closed ring of another kind: no gate
+    }
+
     private static void Pos(float x, float y) { ImGui.GetIO().AddMousePosEvent(x, y); Raylib.SetMousePosition((int)Math.Round(x), (int)Math.Round(y)); }
 
     private static void Click(UiFrameSession frame, Action draw, Vector2 at)
@@ -217,6 +235,12 @@ public sealed class TerrainFeatureDetailsViewTests
         Click(frame, Draw, (r["kind:Hedge"].Min + r["kind:Hedge"].Max) * 0.5f);
         Assert.Equal(TerrainFeature.Hedge, w.GetComponentRO<TerrainFeature>(wall).Kind);
         Assert.Equal(2, rec.Log.Count);
+
+        var closedWall = Feature(w, TerrainFeature.Wall, "", 0f, 0, "Wall", new Vector2(0, 0), new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0));
+        shown = closedWall; frame.StepN(5, Draw);
+        Assert.Equal("a closed wall — Edit Shape, right-click a side ▸ Add gate here (3 m)", view.GateText);        // ⭐ CE-5009 (TE-7)
+        Assert.True(view.Rects["gate"].Min.Y > view.Rects["contents"].Max.Y, "the gate line is under the Contents line");
+        shown = wall; frame.StepN(3, Draw);
 
         var row = Feature(w, TerrainFeature.Row, "tree", 0f, 0, "Tree row", new Vector2(0, 50), new Vector2(0, 0), new Vector2(60, 0));
         shown = row; frame.StepN(5, Draw);

@@ -73,4 +73,49 @@ public sealed class TerrainSnapTests
     }
 
     private static readonly TerrainWorld House2 = House();
+
+    /// <summary>
+    /// ⭐ CE-5009 (TE-6) — the panel's options decide: Snap OFF ⇒ nothing snaps (the click lands raw); the road OFFSET of 3 m moves the road-edge snap to HalfWidth + 3 (y = 6, no longer 4) and the index follows the next change. 🔴 Red-proof: <c>SnapWith</c> ignoring <c>Snap</c> ⇒ the off assert
+    /// fails; not copying <c>RoadOffset</c> ⇒ the y = 6 assert fails.
+    /// </summary>
+    [Fact]
+    public void TE6_ThePanelsSnapToggleAndRoadOffset_DecideWhatASnapIs()
+    {
+        var s = new TerrainSnap(); var house = House();
+        var o = TerrainDrawOptions.From("feature:2::Line")!;
+        Assert.True(o.Snap); Assert.Equal(1f, o.RoadOffset);                                    // on by default, 1 m
+        Assert.Equal(4f, s.SnapWith(o, house, Road, null, new Vector2(20f, 5.5f), 3f).Point.Y, 3);
+
+        o.RoadOffset = 3f;
+        var hit = s.SnapWith(o, house, Road, null, new Vector2(20f, 7.5f), 3f);
+        Assert.Equal(SnapKind.RoadEdge, hit.Kind); Assert.Equal(6f, hit.Point.Y, 3);          // HalfWidth 3 + the offset 3
+        Assert.False(s.SnapWith(o, house, Road, null, new Vector2(20f, 4f), 0.5f).Hit);          // the old 4 m edge is gone
+
+        o.Snap = false;
+        Assert.False(s.SnapWith(o, house, Road, null, new Vector2(20f, 6f), 3f).Hit);            // off: nothing, even exactly on the edge
+        Assert.False(s.SnapWith(o, house, Road, null, new Vector2(45f, 10.2f), 3f).Hit);         // …walls too
+    }
+
+    /// <summary>
+    /// ⭐ CE-5009 — the hint line: a road edge says its offset ("snapped: road edge +1 m · Ctrl: free", +3 m after the panel changes it); the text is built ONLY when the kind or the offset changes (the same kind again is no change, the very same string), going back to no snap
+    /// asks the host to restore the tool's own hint; a steady frame allocates nothing. 🔴 Red-proof: the tracker reporting a change every call ⇒ the no-change assert fails (and bytes).
+    /// </summary>
+    [Fact]
+    public void TE6_TheHint_SaysTheOffset_ChangesOnlyOnAChange_AndAllocatesNothingWhenSteady()
+    {
+        var t = new TerrainSnap.HintTracker();
+        Assert.False(t.Update(SnapKind.None, 1f, out _));                                       // nothing to say yet
+        Assert.True(t.Update(SnapKind.RoadEdge, 1f, out var road));
+        Assert.Equal("snapped: road edge +1 m · Ctrl: free", road);
+        Assert.False(t.Update(SnapKind.RoadEdge, 1f, out _));                                   // the same: no change
+        Assert.True(t.Update(SnapKind.RoadEdge, 3f, out var road3)); Assert.Equal("snapped: road edge +3 m · Ctrl: free", road3);
+        Assert.True(t.Update(SnapKind.Wall, 3f, out var wall)); Assert.Equal("snapped: a house wall · Ctrl: free", wall);
+        Assert.False(t.Update(SnapKind.Wall, 5f, out _));                                       // a wall does not care about the offset
+        Assert.True(t.Update(SnapKind.None, 3f, out var none)); Assert.Null(none);              // back to free: the tool's own hint returns
+
+        t.Update(SnapKind.RoadEdge, 1f, out _);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 1000; i++) t.Update(SnapKind.RoadEdge, 1f, out _);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
 }

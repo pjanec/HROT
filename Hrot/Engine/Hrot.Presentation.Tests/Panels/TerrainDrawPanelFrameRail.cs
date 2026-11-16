@@ -66,6 +66,15 @@ public sealed class TerrainDrawPanelFrameRail
         Assert.Equal(r["height"].Min.X, r["kind:Hedge"].Min.X, 2f);
         Assert.True(r["panel"].Min.X < r["kind:Hedge"].Min.X && r["panel"].Max.X > r["kind:Fence"].Max.X, "the buttons are inside the panel");
 
+        // ⭐ CE-5009 (TE-6) — the Snap row: a toggle (ON by default) and the road-offset field under the Height row; a click flips Snap and greys the offset
+        Assert.True(src.Options!.Snap && r.ContainsKey("snap") && r.ContainsKey("offset"));
+        Assert.True(r["snap"].Min.Y > r["height"].Max.Y && r["offset"].Min.Y > r["snap"].Max.Y, $"Height, then Snap, then the offset: {r["height"]} {r["snap"]} {r["offset"]}");
+        Click(frame, panel, Mid(r["snap"]));
+        Assert.False(src.Options!.Snap);
+        Click(frame, panel, Mid(panel.Rects["snap"]));
+        Assert.True(src.Options!.Snap);
+        r = panel.Rects;
+
         // a click on Wall: the options the commit reads now say Wall
         Click(frame, panel, Mid(r["kind:Wall"]));
         Assert.Equal(TerrainFeature.Wall, src.Options!.Kind);

@@ -91,7 +91,7 @@ public sealed class EditorToolStripsTests : IDisposable
         Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());
         Assert.Equal(new[] { "Wood", "Scrub" }, Names("wood"));
         Assert.Equal(new[] { "Tree", "Tree row", "Tree group" }, Names("trees"));   // ⭐ CE-5008 (TE-3): One · Row · Group
-        Assert.Equal(new[] { "Wall", "Fence", "Hedge" }, Names("walls"));
+        Assert.Equal(new[] { "Wall", "Wall around a plot", "Fence", "Hedge" }, Names("walls"));   // ⭐ CE-5012 (TE-7) added the closed-wall pick
         Assert.Equal(new[] { "Car", "Sandbag wall", "Concrete block", "Crate", "Barrel", "Jersey barrier", "Guard booth", "Row of obstacles…" }, Names("obstacles"));   // ⭐ CE-5008 (TE-5): the row tool is the fifth member
         Assert.Contains("Level", Names("earthworks")); Assert.DoesNotContain("Crater", Names("earthworks"));   // the disabled pick is not offered
         Assert.Equal(new[] { "Water", "Bridge" }, Names("water"));
