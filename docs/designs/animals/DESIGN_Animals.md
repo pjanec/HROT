@@ -317,6 +317,19 @@ their visuals, and they all need to know upfront the TKB and this entity type ID
 | **AU-7** | the ANIMAL AREA tool (the one area-authoring tool) and its properties form (species, count, seed, Enclosed), its drawing | draw a pen, fill it, see it populated at run start |
 | **AU-8** | the SOUND as heard: placeholders for 7800–7895, the mixer priority, the existing birdsong bed extended to orchards / parks, calls played at the closed-form times | a live check: the herd's calls, the alarm, the bark, birdsong silenced by shooting |
 
+### 6.3a ui as-built *(CE-4623, `2026-11-16`; ⭐ AS-BUILT folded here — obligation ⑤; the detail is in [`DESIGN_Map_3D_Mode.md` §6al.3](../../DESIGN_Map_3D_Mode.md))*
+
+| §6.3 task | as built — and where it deviates from the table above |
+|---|---|
+| AU-1 | [`animals-visuals.svg`](animals-visuals.svg) — drawn from the kit's own metres (the species table is shared by `scripts/gen-animals-mockup.py` and `AnimalKits.cs`) |
+| AU-2 | families keyed by the §4a DIS ids ahead of the class walk until backend's classes exist (`VisualFamilies.AnimalOfDis`); the 2-D map draws a top-down body outline (`EntityClassShapeLibrary`) — not the man's line; picker glyph sources + PNGs; ⏳ the picker thumbnails need backend's types 700-711 in the TKB |
+| AU-3 | `QuadrupedGaits` (per-leg phase offsets, per-species `GaitBands`), the jump tuck, `AnimalPoses` (head by mode, a hen's peck, wings) |
+| AU-4 | `FlockBirds` closed form; a flock's radius comes from `InitialCount`, so dropping birds moves none of the others (⚠ the design said "`Count`") |
+| AU-5 | the dead animal rolls onto its side over the 0.6 s fall; no burning |
+| AU-6 | `BlockFigure.Mounted / MountedAiming`; the horse rider FIRES while riding — `FiringAimed(driverFires: true)`; the motorcycle's driver stays on the bars (LD-9) — the two seats differ on purpose (R-4269 vs PF-4); the bolt cue `PossessionStation.IsBolted` |
+| AU-7 | `AnimalAreaOps` / `AnimalAreaDetailsView`; one species per area (a mixed pen = several areas — ⚠ the design's "mixed allowed"); ⏳ re-bind to backend's TKB 712 component |
+| AU-8 | `AnimalSoundCatalog` 7800-7895 in the Ambient category; calls by the closed-form `CallsMade`; hooves / wings as movers by `LocomotionClass`; ⏳ backend's AB-8 shares the SAME timing rule — until then the operator's side owns the function |
+
 ## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: behaviour realism, engine fit, visuals / horses / cats / sound; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-16` (R-4269); AR-10 CHANGED by the user: the rider FIRES WHILE RIDING
 
 ⭐ 41 raw findings merged into 21. The design is NOT buildable as drawn until AR-1…AR-8 are ruled. ⭐ The biggest correction: **what makes an entity
