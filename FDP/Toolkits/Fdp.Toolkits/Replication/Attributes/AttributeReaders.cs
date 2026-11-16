@@ -309,6 +309,9 @@ public static class AttributeReaders
         I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateFormation, static c => (int)c.Formation);
         I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregatePosture, static c => (int)c.Posture);
         I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregatePrepared, static c => (int)c.Prepared);
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateWidth, static c => c.Width);       // ⭐ CE-8022 ①
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateDepth, static c => c.Depth);
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateHeading, static c => c.Heading.Degrees);
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherPrecipitationMmPerHour, static c => c.PrecipitationMmPerHour);
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherFeatherM, static c => c.FeatherM);
 
