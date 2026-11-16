@@ -27,7 +27,7 @@ reserved ids (`GlobalComponentIds.cs:1351-1356`) ⇒ every slice that draws the 
 | ST-0 Resolution section (UI-1) | — | ⏳ **finding to agg-backend**: `AggregateUnit` fields need attribute-vocabulary rows (their component and wire) | |
 | ST-2 overlay (UI-8) · ST-3 Slots tab (UI-7) · ST-4 picture · ST-5 request + progress (UI-9) | — | ⏳ wait for their engine slices | |
 
-**Lane decisions (for the user's review):** UI-1…UI-9 in the design §4 are the leans; the ones built here are UI-3 (one strength reader for every unit — R-8600)
+**Lane decisions:** ✅ UI-1…UI-9 APPROVED `2026-11-16` (R-4278 — [NOTE_Coordinator_To_All_Lanes_Decisions_Approved](NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md)); ⭐ the NATO symbols (UI-12…UI-14, CE-8608…CE-8611) go in SELF-CONTAINED commits — the symbol geometry, the `MilStd2525Renderer` route, the ORBAT icon — so `ui` can take them on their own when the user says; the leans were the ones built here are UI-3 (one strength reader for every unit — R-8600)
 and UI-4's geometry (a column is a band along its path — R-8601). What would change each is in the design's table.
 
 **Ids allocated:** CE-8600…CE-8615 (Area AGG-U in the tracker) · R-8600, R-8601, R-8602 (the user's approval of DESIGN_Unit_Symbols + O-1).

@@ -130,7 +130,7 @@ graph TD
 *What it shows: both gizmos ride the ONE gizmo pass every map host already runs, so every host draws them by construction; the red edges are
 deliberate dead paths — a stochastic unit has no body and draws nothing in 3-D (§23.3 ST-1).*
 
-## 4. The decisions *(lane leans, `R-8600`…, for the user's review — built where marked)*
+## 4. The decisions *(✅ UI-1…UI-9 APPROVED `2026-11-16` — R-4278; UI-10, UI-11 asked for by the user; UI-12…UI-14 approved with DESIGN_Unit_Symbols — R-8602)*
 
 | # | decision (lean) | rejected — one line each | would change it |
 |---|---|---|---|
