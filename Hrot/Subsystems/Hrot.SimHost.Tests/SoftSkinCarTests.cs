@@ -25,6 +25,7 @@ namespace Hrot.SimHost.Tests
         {
             var db = new TkbDatabase();
             Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
             Assert.True(db.TryGetByType(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbCivilianCar, out var car));
             var body = BodyZones.Of(car);
             Assert.NotNull(body);
