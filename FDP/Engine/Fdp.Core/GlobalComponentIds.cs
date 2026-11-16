@@ -358,6 +358,10 @@ namespace Fdp.Core
         /// ⚠ 126 fixed by the coordinator (127, 128 held for this feature).</summary>
         public const int RamOrder                = 126;
 
+        /// <summary><c>CheckpointWatch</c> — ⭐ CE-4622 K-4 (DESIGN_Checkpoint_And_Ramming.md CP-2, §5a held 127): a checkpoint commander's watch on its approach — the
+        /// vehicle that matters most, its verdict and seconds to the stand-off. Brain-local, unmanaged, never saved.</summary>
+        public const int CheckpointWatch         = 127;
+
         // IDs 124â€“139 are reserved for future IG components.
 
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -25,6 +25,7 @@ BreakContact | hostedInput=Hrot.Map.Definitions.Behavior.BreakContactParamsJsonD
 CarryCasualty | hostedInput=Hrot.Map.Definitions.Behavior.CarryCasualtyParamsJsonDto | inputBytes=56
 CarryWeapon | hostedInput=Hrot.Map.Definitions.Behavior.CarryWeaponParamsJsonDto | inputBytes=104
 CasualtyCare | hostedInput=Hrot.Map.Definitions.Behavior.CasualtyCareParamsJsonDto | inputBytes=1264
+Checkpoint | hostedInput=Hrot.Map.Definitions.Behavior.CheckpointParamsJsonDto | inputBytes=1312
 CivilianHsm | hostedInput=Hrot.Map.Definitions.Behavior.CivilianParamsJsonDto | inputBytes=312
 CivilianReact | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 CivilianSop | hostedInput=- | inputBytes=0
