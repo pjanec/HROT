@@ -57,6 +57,17 @@ namespace Hrot.AI.Behaviors.Brains
                 a: (int)id, b: BehaviorHash.FromName(behaviour));
         }
 
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2084: 0 B per steady frame) — <paramref name="member"/>'s entry in the held orders, by INDEX: a
+        /// <c>foreach</c> over the <c>IReadOnlyList</c> boxed an enumerator on every call, and the order writers ask every slot every frame.</summary>
+        private static bool FindOrder(SubordinateOrders held, Entity member, out SubordinateOrders.Entry e)
+        {
+            var orders = held.Orders;
+            for (int i = 0; i < orders.Count; i++)
+                if (orders[i].Member.Equals(member)) { e = orders[i]; return true; }
+            e = default;
+            return false;
+        }
+
         /// <summary>⭐ <c>CE-2294</c> CC-D — the order the commander's TICKING run gave <paramref name="member"/> still stands: nothing
         /// else (a reaction's order, released when it ended, or an operator's) replaced it since. A run resumed after a reaction finds
         /// its orders gone and gives them again.</summary>
@@ -65,8 +76,7 @@ namespace Hrot.AI.Behaviors.Brains
             uint run = BehaviorOwnedParts.OwnerOf(world, commander);
             var held = SubordinateOrders.Of(world, commander);
             if (run == 0 || held == null) return false;
-            foreach (var e in held.Orders)
-                if (e.Member.Equals(member)) return e.Run == run;
+            if (FindOrder(held, member, out var e)) return e.Run == run;
             return false;
         }
 
@@ -80,8 +90,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
             ref readonly var bs = ref world.GetComponentRO<BehaviorState>(member);
             if (bs.Origin != BehaviorOrigin.Superior || bs.ActiveBehaviorHash == BehaviorIds.None) return false;
-            foreach (var e in held.Orders)
-                if (e.Member.Equals(member)) return e.Run == run;
+            if (FindOrder(held, member, out var e)) return e.Run == run;
             return false;
         }
 
@@ -107,8 +116,7 @@ namespace Hrot.AI.Behaviors.Brains
             uint run = BehaviorOwnedParts.OwnerOf(world, commander);
             var held = SubordinateOrders.Of(world, commander);
             if (run == 0 || held == null) return false;
-            foreach (var e in held.Orders)
-                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
+            if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json;
             return false;
         }
 
@@ -124,8 +132,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐⭐ CE-4612 (R-D11 ④) — HIS order, by id: he runs (not paused) the very order this run gave him. ⛔ Not his behaviour's name.
             var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, member);
             if (!current.Exists || current.Paused || current.Origin != BehaviorOrigin.Superior) return false;
-            foreach (var e in held.Orders)
-                if (e.Member.Equals(member)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
+            if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
             return false;
         }
 

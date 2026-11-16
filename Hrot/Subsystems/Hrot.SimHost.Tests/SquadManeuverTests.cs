@@ -3937,7 +3937,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ <c>CE-2436</c> AU-6 (the handoff's gate: 0 B per steady frame, R-2084) — a platoon attack in its STEADY approach (orders
-        /// standing, the relief / abort / re-order guards read every frame — R-2112, R-2114) allocates nothing per frame.</summary>
+        /// standing, the relief / abort / re-order guards read every frame — R-2112, R-2114) allocates nothing per frame beyond the harness's own.</summary>
         [Fact]
         public void CE2436_ThePlatoonAttack_InItsSteadyApproach_AllocatesNothingPerFrame()
         {
@@ -3953,7 +3953,15 @@ namespace Hrot.SimHost.Tests
             long before = GC.GetAllocatedBytesForCurrentThread();
             p.Ticks(10);
             long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.Equal(0L, bytes);
+            // the harness itself allocates per tick (📐 measured: 256 B a frame with no attack at all) ⇒ the attack must add NOTHING to it.
+            //   📌 it added 96 B a frame: CommandOrders.Stands / Busy / Gave / StillRunning foreach'd the IReadOnlyList (a boxed enumerator per
+            //   call, every slot, every frame). 🔴 Red-proof: FindOrder back to a foreach ⇒ attack > idle.
+            var idle = new Platoon(squads: 3);
+            idle.Ticks(30);
+            long b0 = GC.GetAllocatedBytesForCurrentThread();
+            idle.Ticks(10);
+            long idleBytes = GC.GetAllocatedBytesForCurrentThread() - b0;
+            Assert.Equal(idleBytes, bytes);
         }
 
         /// <summary>⭐⭐ <c>CE-2436</c> AU-6 (R-2114) — the assault's APPROACH FAILS (its fire and movement lost a half: TaskFailed) while the squad
