@@ -116,13 +116,15 @@ namespace Hrot.SimHost.Tests
         private static TerrainPrism Car(float x) => TerrainObstacles.PrismOf(new Vector3(x, 40f, 0f), 0f, new ObstacleShape { Length = 4.5f, Width = 1.8f, Height = 1.5f }, TerrainMaterialLibrary.Shared.Get("concrete", "t"), "obstacle:1");
 
         /// <summary>A node whose residency committed the baseline load bake of the house terrain by the SAME factory (its serial recorded, as <c>Prepare</c> does).</summary>
-        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode()
+        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode() => IncrementalNode(_house);
+
+        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode(TerrainWorld terrain)
         {
             var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
             var factory = Recast();
-            var baseline = factory.Build(_house);
+            var baseline = factory.Build(terrain);
             residency.AttachNavmesh(factory, _node);
-            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = _house, TerrainName = "range", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = terrain, TerrainName = "range", Navmesh = baseline, BakeSerial = factory.BakeSerial });
             return (residency, factory);
         }
 
@@ -279,6 +281,32 @@ namespace Hrot.SimHost.Tests
             RunUntilBaked(sys, 1);
             Assert.True(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "a man walks through both gaps");
             Assert.NotEmpty(_world.GetSingletonManaged<TerrainWorld>()!.BakedPassages);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4629</c> (found by the feature scenario <c>tt-dozer-breach</c>) — on an INCREMENTAL node (the load's bake is the baseline, as every live node runs) a cut in a FREE WALL re-bakes the
+        /// tiles under that wall line: the far field is reached through the gap. 📐 Live: the dozer's cuts in a fence and two garden walls left the navmesh closed ("180 reused, 0 baked")
+        /// — the dirty region had a box for a building's damage only, never for a free-wall line's group (CE-4599). 🔴 Red-proof: skip non-building groups in
+        /// <c>TerrainResidency.DirtyRegions</c> again ⇒ no tile rebakes and the far field stays out of reach.
+        /// </summary>
+        [Fact]
+        public void CE4629_AFreeWallCut_IsReBaked_OnAnIncrementalNode()
+        {
+            var garden = TerrainWorldParser.Parse(Garden, "range");
+            var (_, factory) = IncrementalNode(garden);
+            var sys = Sys();
+            Vector3 near = new(30f, 20f, 0f), far = new(30f, 40f, 0f);
+            Assert.False(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "the garden wall closes the far field");
+            int wall = BuildingPanelIndex.ToGlobal(garden, 0, 0);
+            var p = garden.Panels[wall];
+            var d = new BuildingDamage { Building = 0 };
+            BuildingDamages.Add(ref d, new WallBreach(wall, 33f, 38.3f, p.BaseZ, p.TopZ, BreachKind.Passage), garden);
+            var e = _world.CreateEntity(); _world.AddComponent(e, d); _world.SetManagedComponent(e, new TerrainObjectKey { Key = "range/wall:Garden" });
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6;
+            RunUntilBaked(sys, 1);
+            Assert.True(factory.LastStats.Baked > 0, $"no tile was re-baked ({factory.LastStats.Reused} reused)");
+            Assert.True(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "a man walks through the cut");
         }
 
         /// <summary>
