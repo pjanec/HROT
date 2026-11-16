@@ -181,6 +181,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
+  ⚠ scenario `tt-dozer-breach` (R-4277): a house wall opens, but a FREE wall (a garden wall, a fence row) is not yet opened for infantry by the ordered cut in a live run — red, engine defect filed in its `$doc`
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;
