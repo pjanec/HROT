@@ -189,11 +189,12 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         var craters = NavDoorways.Craters(world);   // ⭐ CE-4591 (D-2) — after the woods (a crater in a wood is a crater), before the doorways
         var ditches = NavDoorways.Ditches(world);   // ⭐ CE-4593 (G-28) — a ditch is the same area
         if (ditches.Count > 0) { var both = new List<NavDoorways.Volume>(craters.Count + ditches.Count); both.AddRange(craters); both.AddRange(ditches); craters = both; }
+        var mines = NavDoorways.Minefields(world, woods, craters);   // ⭐ CE-4624 MS-T3 (MR-3) — AFTER the woods and craters (composites keep their rules), before the doorways
         IReadOnlyList<NavDoorways.Volume> volumes = doorways;
-        if (woods.Count > 0 || craters.Count > 0)
+        if (woods.Count > 0 || craters.Count > 0 || mines.Count > 0)
         {
-            var all = new List<NavDoorways.Volume>(woods.Count + craters.Count + doorways.Count);
-            all.AddRange(woods); all.AddRange(craters); all.AddRange(doorways);
+            var all = new List<NavDoorways.Volume>(woods.Count + craters.Count + mines.Count + doorways.Count);
+            all.AddRange(woods); all.AddRange(craters); all.AddRange(mines); all.AddRange(doorways);
             volumes = all;
         }
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));

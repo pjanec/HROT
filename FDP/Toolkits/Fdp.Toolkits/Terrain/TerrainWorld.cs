@@ -222,6 +222,10 @@ namespace Fdp.Toolkit.Terrain
         /// navmesh bakes FINE cells, so a 0.8–1 m gap in a garden wall is resolved (CE-3111 measured a 0.8–0.9 m opening failing at the coarse cell). Empty on a content world.</summary>
         public IReadOnlyList<(Vector2 Min, Vector2 Max)> BakedPassages { get; init; } = Array.Empty<(Vector2, Vector2)>();
 
+        /// <summary>⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-3) — the minefields of the world this bake was made for (a derived world from <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?, CraterTable?, FelledTrees?, MinefieldSet?)"/>):
+        /// each with its outline and lanes. The navmesh bake stamps them as composite areas (<c>NavDoorways.Minefields</c>); who may USE a polygon is the query filter's job, by what the mover's side knows. Empty on a content world.</summary>
+        public IReadOnlyList<TerrainMinefield> Minefields { get; init; } = Array.Empty<TerrainMinefield>();
+
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 

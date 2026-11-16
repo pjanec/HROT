@@ -182,10 +182,12 @@ namespace Fdp.Toolkit.Terrain
 
         private readonly Dictionary<KnowledgeKey, Entry> _entries;
         private readonly Dictionary<Entity, (Guid Guid, ushort KnownAtStart)> _fields;
+        private readonly Dictionary<Guid, ushort> _knownAtStartByGuid = new();
 
         private PlaceKnowledgeTable(Dictionary<KnowledgeKey, Entry> entries, Dictionary<Entity, (Guid, ushort)> fields)
         {
             _entries = entries; _fields = fields;
+            foreach (var f in fields.Values) if (f.Item1 != Guid.Empty) _knownAtStartByGuid[f.Item1] = f.Item2;
             foreach (var e in entries.Values) if (e.Marked) MarkedCount++;
             foreach (var f in fields.Values) if (f.Item2 != 0) MarkedCount++;
         }
@@ -258,10 +260,16 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>What side <paramref name="side"/> (<c>ForceId</c>) knows of cell (<paramref name="col"/>, <paramref name="row"/>) of <paramref name="field"/>: a marked field —
         /// or one known at start — is known-mined everywhere (its lanes open through the route filter, MS-T4).</summary>
         public MineCellKnowledge Knows(int side, Entity field, int col, int row)
+            => side >= 0 && _fields.TryGetValue(field, out var f) ? Knows(side, f.Guid, f.KnownAtStart, col, row) : MineCellKnowledge.Unknown;
+
+        /// <summary>⭐ <c>CE-4624</c> MS-T3 — the same by the field's STABLE id (the navmesh's polygon map holds guids, never entities); a guid the table has not seen reads Unknown.</summary>
+        public MineCellKnowledge Knows(int side, Guid field, int col, int row)
+            => side >= 0 && _knownAtStartByGuid.TryGetValue(field, out var ks) ? Knows(side, field, ks, col, row) : MineCellKnowledge.Unknown;
+
+        private MineCellKnowledge Knows(int side, Guid guid, ushort knownAtStart, int col, int row)
         {
-            if (side < 0 || !_fields.TryGetValue(field, out var f)) return MineCellKnowledge.Unknown;
-            if (side < 16 && (f.KnownAtStart & (1 << side)) != 0) return MineCellKnowledge.KnownMined;
-            if (!_entries.TryGetValue(new KnowledgeKey(f.Guid, (byte)(side + 1)), out var e)) return MineCellKnowledge.Unknown;
+            if (side < 16 && (knownAtStart & (1 << side)) != 0) return MineCellKnowledge.KnownMined;
+            if (!_entries.TryGetValue(new KnowledgeKey(guid, (byte)(side + 1)), out var e)) return MineCellKnowledge.Unknown;
             if (e.Marked) return MineCellKnowledge.KnownMined;
             if ((uint)col >= MinefieldKnowledge.MaxCols || (uint)row >= MinefieldKnowledge.MaxRows) return MineCellKnowledge.Unknown;
             int i = row * MinefieldKnowledge.MaxCols + col;

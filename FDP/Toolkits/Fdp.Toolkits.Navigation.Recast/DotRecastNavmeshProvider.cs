@@ -279,12 +279,19 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         var layers = new Dictionary<NavLayerMask, LayerState>();
         foreach (var kv in meshes)
             layers[kv.Key] = new LayerState(kv.Value, new DoorAwareQueryFilter(
-                NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry));
+                NavDoorways.DoorPolys(kv.Value, doorways), DoorStates.Authored(world), canOpenDoors: kv.Key == NavLayerMask.Infantry,
+                NavDoorways.MinefieldPolys(kv.Value, world)));   // ⭐ CE-4624 MS-T3 — the minefield polygons → (field, cells, lane), priced per side
         return layers;
     }
 
     /// <summary>⭐ Stage 5c — how many polygons of <paramref name="layer"/> are doorway polygons (a rail reads it).</summary>
     public int DoorPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.DoorPolyCount : 0;
+
+    /// <summary>⭐ CE-4624 MS-T3 — how many polygons of <paramref name="layer"/> belong to a minefield (a rail reads it).</summary>
+    public int MinefieldPolyCount(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.MinefieldPolyCount : 0;
+
+    /// <summary>⭐ CE-4624 MS-T3 — the minefield polygon map of <paramref name="layer"/> (a rail reads it), or null.</summary>
+    public MinefieldPolyMap? MinefieldPolys(NavLayerMask layer) => Current.Layers.TryGetValue(layer, out var ls) ? ls.Filter.Minefields : null;
 
     // ── ⭐ CE-3133 — debug geometry for the map's Navmesh layer (docs/DESIGN_Terrain_Combat_Tuning.md §5c) ──────────
 

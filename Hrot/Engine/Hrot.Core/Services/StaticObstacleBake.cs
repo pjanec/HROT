@@ -160,7 +160,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         _liveOverlay?.PollFiles(_wallSeconds());   // ⭐ CE-4427 R-7 — a recipe / template edit (a stat per file, once a second)
         ulong signature = SignatureNow(world, bakery, obstacleSig, out var damage, out var craters, out var trees, out bool hasOverlay);
-        ulong navHash = (damage?.NavHash ?? 0UL) | (craters != null ? 1UL : 0UL) | (trees != null ? 1UL : 0UL);
+        ulong navHash = (damage?.NavHash ?? 0UL) | (craters != null ? 1UL : 0UL) | (trees != null ? 1UL : 0UL) | (bakery.Residency.BakesDamage && MinefieldSet.SignatureOf(world) != 0UL ? 1UL : 0UL);
         bool changed = signature != _bakedSignature || ((hasObstacles || navHash != 0 || hasOverlay) && bakery.BaseVersion != _bakedBase);
         if (!changed)
         {
@@ -177,7 +177,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         else if (!overdue && now - _seenAt < DebounceSeconds) return;
 
         _changedSince = double.NaN;
-        StartBake(world, bakery.Residency, damage, signature, hasOverlay, craters, trees);
+        StartBake(world, bakery.Residency, damage, signature, hasOverlay, craters, trees, bakery.Residency.BakesDamage ? MinefieldSet.Of(world) : null);
     }
 
     /// <summary>
@@ -196,6 +196,8 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         if (craters != null) navHash = navHash == 0 ? craters.Hash : (navHash ^ craters.Hash) * 1099511628211UL;
         trees = TreesOf(world);   // ⭐ CE-4603 (B-6) — the felled trunks, on every node (the drawing hides them everywhere)
         if (trees != null) navHash = navHash == 0 ? trees.Hash : (navHash ^ trees.Hash) * 1099511628211UL;
+        // ⭐ CE-4624 MS-T3 (MR-3) — the minefields (outlines, lanes — a lane record gone in a seek too) join the input hash, on a node that does world queries ONLY (the navmesh is what stamps them); allocation-free
+        if (bakery.Residency.BakesDamage && MinefieldSet.SignatureOf(world) is var mineSig && mineSig != 0UL) navHash = navHash == 0 ? mineSig : (navHash ^ mineSig) * 1099511628211UL;
         ulong signature = obstacleSig;
         if (navHash != 0) { signature ^= navHash; signature *= 1099511628211UL; }
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
@@ -209,7 +211,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// ⭐ ONE bake for everything that has gathered — a whole scenario's obstacles arrive within the quiet period. ⚠ CE-3436: its OWN method on purpose — the task's lambda captures locals, and a lambda in
     /// <c>Execute</c> made the compiler allocate its closure object at the top of EVERY frame (measured: 56 B per steady frame).
     /// </summary>
-    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay, CraterTable? craters, FelledTrees? trees)
+    private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
     {
         CollectPrisms(world, _prisms);   // ⭐ CE-3436 — only now (a bake is starting), never per frame
         var prisms = new List<TerrainPrism>(_prisms);
@@ -227,7 +229,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
                 var (@base, version, folder) = residency.ExpansionBase();
                 expanded = overlay.Expand(sources, @base, version, folder);
             }
-            return residency.BakeObstacles(prisms, damage, expanded, craters, trees);
+            return residency.BakeObstacles(prisms, damage, expanded, craters, trees, minefields);
         });
     }
 
