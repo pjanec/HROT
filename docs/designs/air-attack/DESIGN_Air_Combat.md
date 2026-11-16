@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — decisions AC-1…AC-14 carry leans and are NOT approved; ⛔ no handoff until the user approves them and calls the design complete (then the independent review)
+build-state: DESIGN — decisions AC-1…AC-15 carry leans and are NOT approved; ⛔ no handoff until the user approves them and calls the design complete (then the independent review)
 current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -92,7 +92,8 @@ inside ~2 s, when it cannot follow), with flares / chaff.
 | **AC-11** | **show rules on the arena**: `MaxShotRangeM` (default 6 km) — no missile beyond it; `MinFightAltitude` / ceiling | keeps every shot within view | real BVR ranges (the fight is over before it is visible) |
 | **AC-12** | **lapses** — each pilot has a `Skill` (Rookie / Veteran / Ace); the arena counts **stalemate seconds** (no hit by anyone in it); past `StalemateSeconds` (default 90 s) each pilot draws a lapse per second with a chance rising with the stalemate and falling with skill (per-entity `SimRng`, deterministic): **Fixation** (on a gun track it holds the pull-out until GCAS at a third of the floor — may hit the ground), **LateWarning** (reacts to a missile 2 s late), **EnergyBleed** (stays in a slow turn under corner speed 10 s), **GLoc** (after > 8 g for 5 s, no control for 3 s, wings level). ⛔ the gun jam is a MALFUNCTION — CE-4644's, not a lapse | the user: *"'too immersed in combat' or other auxiliary induced failures … if the combat turns to be too equal"*; skill makes it unequal by design, lapses break the rest | a director that writes another pilot's state (breaks the per-entity rule) · random deaths (nothing to watch) |
 | **AC-13** | **the behaviour** `AirCombat` (one library behaviour, stateful): pick the target (nearest hostile aircraft seen or radar-tracked inside the arena), pick the manoeuvre each 0.5 s from the geometry (aspect, range, energy, threat), pick the weapon (AC-8), call `MissileDefence` (AC-9), apply lapses (AC-12). Orders: **CAP** (patrol a point, engage what enters) and **Intercept** (a named target); a fighter's SOP reacts to an air contact with `AirCombat` | the brain decides, the motion node flies (AC-2); one behaviour, the existing order and SOP machinery | one behaviour per manoeuvre (the transitions ARE the fight) |
-| **AC-14** | **who builds** — one new `air` lane (CE / R block 10000–10999) builds all of it, cross-lane into motion, combat, catalogue, behaviours and visuals, said in each commit; ⚠ if no air lane: backend (AC-1…AC-4, AC-6, AC-7 catalogue), behaviors (AC-5 picking, AC-8…AC-13), ui (AC-7 looks, missile trails, afterburner) | one owner keeps the pilot and the behaviour in step (they share the manoeuvre enum) | three lanes on one loop (three handoffs, three merges for one feature) |
+| **AC-14** | **who builds** — one new `air` lane (CE / R block 10000–10999) builds the motion, the missiles, the catalogue rows and the behaviour, cross-lane into motion, combat, catalogue and behaviours, said in each commit; ⭐ **the looks go to ui as usual (AC-15)**; ⚠ if no air lane: backend (AC-1…AC-4, AC-6, AC-7 catalogue), behaviors (AC-5 picking, AC-8…AC-13) | one owner keeps the pilot and the behaviour in step (they share the manoeuvre enum) | three lanes on one loop (three handoffs, three merges for one feature) |
+| **AC-15** | ⭐ **the visuals are ui's** (as with the radar SAM, RS-9): the air lane declares the ids and placeholder rows (the MiG's TKB type and DIS class, a placeholder `MunitionVisualDto` per new munition); ui builds what §4d lists | ui owns `ShapeKit`, the effects and the mockup-fidelity rule (R-4138); the 3-D map is keyed by the class name, so the two halves meet on ONE key and never on a model path | the air lane building the looks (a second lane in `ShapeKit` / effects; the mockup and fidelity discipline lives in ui) |
 
 ## 4. UML
 
@@ -191,6 +192,19 @@ sequenceDiagram
   D->>B: warning cleared ⇒ resume
 ```
 
+### 4d. The looks — what exists, what ui adds *(measured `2026-11-16`)*
+
+| piece | today | ui adds (AC-15) |
+|---|---|---|
+| the F-16 body | ✅ `ShapeKits.Jet` (`ShapeKit.cs:401`) — F-16 proportions: fuselage, nose, canopy, swept wings, tailplanes, ONE swept fin, nozzle, gear; the F-16's DIS 1.2.*.1 maps to `VisualFamily.Jet` (`VisualFamily.cs:102`, class `Fighter` `EntityClassTable.cs:203`) | nothing for the body |
+| the MiG-29 body (409) | ⛔ would draw as the same F-16 shape | a twin-fin variant (two canted fins, two nozzles, intakes under the wings), keyed by a class `TwinEngineFighter` (more specific than `Fighter`, the `AttackAircraft` precedent `VisualFamily.cs:108`) — so the sides look different |
+| missiles and the gun pod on the jet | ⛔ none on the jet; ✅ the precedent: the A-10's bombs on pylons, shown by rounds left (`EntityBodyLayer3D.cs:483,1534`) | wingtip and underwing rails with the missiles still carried (IR outboard, radar inboard), one disappears per shot — the same rounds-left rule |
+| the missile in flight | ✅ `MunitionShape.Missile` + smoke trail (Stinger, radar SAM) | the four AAM look rows; the trail only while the motor burns (`BurnSeconds`, AC-6) — a missile that coasts is seen to coast |
+| afterburner, contrails, gun | ⛔ none (no `afterburner` / `contrail` in `Hrot.Presentation`) | an afterburner flame at full throttle (from the replicated speed rising / the steer's throttle), wingtip vortex trails above 6 g, the cannon's muzzle flash and tracers (tracer rows exist for the GAU-8) |
+| flares | ✅ decoys drawn (CE-2188) | nothing |
+
+*Why ui and not the air lane: the body is chosen by the class chain, so the air lane's only visual act is naming the class — exactly the radar SAM's split (§2a there).*
+
 ## 5. The numbers *(public figures, rounded; the builder records each as a lane decision)*
 
 | | F-16C (401) | MiG-29 class (409) | IR missile (AIM-9X / R-73) | radar missile (AIM-120 / R-77) | radar SAM (6050) · Stinger · Igla |
@@ -235,12 +249,14 @@ it chase until it falls under 300 m/s. ⇒ the outcome depends on WHEN the pilot
 
 ## 8. Slices *(the order; each ends with its scenarios passing)*
 
+⭐ **ui, in parallel from S3** (AC-15, §4d): the MiG twin-fin body, the carried missiles, the AAM looks, the afterburner, vortex trails and the gun flash — its own handoff, keyed on the ids in §7; the frame rails render each next to its mockup (R-4138, R-4146).
+
 | slice | items | scenarios |
 |---|---|---|
 | **S1 the autopilot** | AC-1 (leg altitude), AC-3 (3-D steer + energy), AC-4 (GCAS in every AI mode), F-16 flight numbers | `ac-cruise-altitude`, `ac-gcas-ridge` |
 | **S2 missiles that can be beaten** | AC-6 (motor, g, drag, defeat) on every SAM and AAM; AC-9 `MissileDefence` extracted, transit reacts | `ac-ir-defeated`, `ac-ir-hits-late`, `ac-sam-dodge`, `ac-attack-evades` |
 | **S3 the fighters** | AC-2 mode 8 + `AirCombatSteer`, AC-5 manoeuvres, AC-7 jets, AC-8 weapons, AC-13 behaviour + CAP / Intercept | `ac-guns-drone`, `ac-dogfight-1v1` |
-| **S4 the show** | AC-10 arena, AC-11 show rules, AC-12 skill + lapses; the looks (afterburner, contrails at altitude, missile smoke) | `ac-dogfight-2v2`, `ac-stalemate-lapse` |
+| **S4 the show** | AC-10 arena, AC-11 show rules, AC-12 skill + lapses | `ac-dogfight-2v2`, `ac-stalemate-lapse` |
 
 Machine checks on every behaviour slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (the pilot reads the target's and the missile's position —
 declared tick-start reads), the world guard, and `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` (parallel safety, not the verdict).
