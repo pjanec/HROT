@@ -98,7 +98,7 @@ public sealed class BehaviorParamsValidationTests
                 Assert.True(problems.Count == 0, $"{play} (fulfils {order.Name}) refuses the neutral {neutral.Name}: " + string.Join("; ", problems) + "  JSON=" + json);
             }
         }
-        Assert.Equal(3, perKind["Defend"]);          // SquadDefend, PlatoonDefend, CompanyDefend
+        Assert.Equal(4, perKind["Defend"]);          // SquadDefend, PlatoonDefend, CompanyDefend + the stochastic unit's StochasticUnitDefend
         Assert.Equal(1, perKind["BreakContact"]);
         Assert.True(perKind["Move"] >= 4 && perKind["Attack"] >= 4 && perKind["Hold"] >= 4, "the walk finds the plays (not vacuous)");
     }

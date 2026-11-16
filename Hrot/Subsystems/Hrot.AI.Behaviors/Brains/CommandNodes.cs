@@ -47,6 +47,26 @@ namespace Hrot.AI.Behaviors.Brains
             Journal(world, commander, member, OrderAttribute.IntentFor(orderName));
         }
 
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>R-8305</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5) — the ONE place a commander CHOOSES how
+        /// to order a subordinate whose resolution it does not know: a STOCHASTIC member (<see cref="Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic"/>) is ordered by
+        /// KIND (<see cref="Order"/> — <c>Order.&lt;kind&gt;</c>, which the routing table resolves to its generic play, recorded as such, R-8301); any other is
+        /// <see cref="Assign"/>ed <paramref name="physicalPlay"/> with the SAME <paramref name="neutralJson"/> (the neutral DTO — R-8300's rail proves every physical
+        /// play reads it strictly). <paramref name="kind"/> 0 = this order has no neutral DTO yet ⇒ always <see cref="Assign"/>.
+        /// </summary>
+        public static void Route(EntityRepository world, Entity commander, Entity member, OrderKind kind, string physicalPlay, string neutralJson, bool newOrder = false)
+        {
+            if (kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member))
+                Order(world, commander, member, kind.ToString(), neutralJson, newOrder);
+            else
+                Assign(world, commander, member, physicalPlay, neutralJson, newOrder);
+        }
+
+        /// <summary>⭐ <c>R-8305</c> — the key <see cref="Route"/> records for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> for a stochastic one, else the play), for the
+        /// sites' <see cref="StillRunning"/> / <see cref="Gave"/> calls: an unchanged re-send is recognised whichever way it was routed.</summary>
+        public static string KeyFor(EntityRepository world, Entity member, OrderKind kind, string physicalPlay)
+            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member) ? OrderAttribute.IntentFor(kind.ToString()) : physicalPlay;
+
         /// <summary>⭐ <c>CE-1250</c> (Brain View BV-10) — the commander's brain journal records the order: A = the member's network id (0
         /// when it has none), B = the behaviour (or order) hash. Every command node gives its orders through here, so every commander writes it.</summary>
         private static void Journal(EntityRepository world, Entity commander, Entity member, string behaviour)

@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -438,8 +439,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
-                if (CommandOrders.StillRunning(world, self, platoon, behaviour, order)) continue;
-                CommandOrders.Assign(world, self, platoon, behaviour, order, newOrder: true);
+                // ⭐ agg-behaviors R-8305 — the Defend arm carries the neutral DTO and is routed by kind; the other arms keep Assign (kind 0) until their increment
+                var kind = behaviour == BehaviorNames.PlatoonDefend ? OrderKind.Defend : 0;
+                if (CommandOrders.StillRunning(world, self, platoon, CommandOrders.KeyFor(world, platoon, kind, behaviour), order)) continue;
+                CommandOrders.Route(world, self, platoon, kind, behaviour, order, newOrder: true);
                 CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — the colour the relief / LOST guards read
                 ws.Orders++;
             }
@@ -531,13 +534,14 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool Defend(Vector3 at, Vector3 toward, float halfArc, float range, float speed, JsonSerializerOptions json, out string behaviour, out string order)
         {
             behaviour = BehaviorNames.PlatoonDefend;
-            var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = speed };
+            // ⭐ agg-behaviors R-8300 — the NEUTRAL Defend order. ⚠ <paramref name="halfArc"/> is 0 at every caller today, so the arc (and its MaxRange,
+            //   which the neutral DTO does not hold) is never written: a non-zero arc would need MaxRange added to DefendOrder first
+            var dto = new DefendOrder { Position = at, Speed = speed };
             if (halfArc > 0f)
             {
                 float bearing = SectorSplit.Norm(MathF.Atan2(toward.X - at.X, toward.Y - at.Y) * (180f / MathF.PI));
                 dto.Left = (Bearing)SectorSplit.Norm(bearing - halfArc);
                 dto.Right = (Bearing)SectorSplit.Norm(bearing + halfArc);
-                dto.MaxRange = range;
             }
             order = JsonSerializer.Serialize(dto, json);
             return true;
@@ -886,8 +890,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 var at = p.Point(slot);
-                var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f),
-                                                          ShootAndMoveSeconds = Math.Max(0f, p.ShootAndMove) };
+                // ⭐ agg-behaviors R-8300/R-8305 — the NEUTRAL Defend order (a physical PlatoonDefend reads it strictly; a stochastic platoon is routed by kind)
+                var dto = new DefendOrder { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f),
+                                           ShootAndMoveSeconds = Math.Max(0f, p.ShootAndMove) };
                 if (p.Role[slot] == CompanyDefencePlan.Line || p.ReserveTo >= 0)
                 {
                     float bearing = SectorSplit.Norm(MathF.Atan2(p.Toward.X, p.Toward.Y) * (180f / MathF.PI));
@@ -905,8 +910,8 @@ namespace Hrot.AI.Behaviors.Brains
                     continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
-                if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonDefend, order)) continue;
-                CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonDefend, order, newOrder: true);
+                if (CommandOrders.StillRunning(world, self, platoon, CommandOrders.KeyFor(world, platoon, OrderKind.Defend, BehaviorNames.PlatoonDefend), order)) continue;
+                CommandOrders.Route(world, self, platoon, OrderKind.Defend, BehaviorNames.PlatoonDefend, order, newOrder: true);
                 CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — a block's colour: Black ⇒ LOST ⇒ the counter-attack (CE-7004)
                 ws.Orders++;
             }

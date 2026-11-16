@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -580,8 +581,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
                 // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
-                if (CommandOrders.StillRunning(world, self, squad, behaviour, order)) continue;
-                CommandOrders.Assign(world, self, squad, behaviour, order, newOrder: true);
+                // ⭐ agg-behaviors R-8305 — Defend and BreakContact carry their neutral DTOs and are routed by kind; the other arms keep Assign (kind 0)
+                var kind = behaviour == BehaviorNames.SquadDefend ? OrderKind.Defend : behaviour == BehaviorNames.BreakContact ? OrderKind.BreakContact : 0;
+                if (CommandOrders.StillRunning(world, self, squad, CommandOrders.KeyFor(world, squad, kind, behaviour), order)) continue;
+                CommandOrders.Route(world, self, squad, kind, behaviour, order, newOrder: true);
                 if (behaviour == BehaviorNames.SquadDefend || behaviour == BehaviorNames.SupportByFire) Sector(ref p, slot, world, squad);   // AU-1: the base of fire keeps its sector (DA-27)
                 ws.Orders++;
             }
@@ -634,7 +637,7 @@ namespace Hrot.AI.Behaviors.Brains
                     return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order);
                 case PlatoonAttackPlan.PhaseAbort:
                     behaviour = BehaviorNames.BreakContact;
-                    order = JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.Start, Speed = p.Speed }, json);
+                    order = JsonSerializer.Serialize(new BreakContactOrder { To = p.Start, Speed = p.Speed }, json);
                     return true;
                 default:
                     return false;
@@ -665,7 +668,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool Defend(Vector3 at, float radius, float speed, JsonSerializerOptions json, out string behaviour, out string order)
         {
             behaviour = BehaviorNames.SquadDefend;
-            order = JsonSerializer.Serialize(new SquadDefendParamsJsonDto { Position = at, SearchRadius = radius, Speed = speed }, json);
+            order = JsonSerializer.Serialize(new DefendOrder { Position = at, SearchRadius = radius, Speed = speed }, json);   // ⭐ R-8300 — the neutral Defend order
             return true;
         }
 
