@@ -618,6 +618,8 @@ planner.*
 | **R-8302** | the physical rows of agg-backend's routing table, proposed (a NOTE, never built here): (InfantrySquad, Physical, Defend) → `SquadDefend` · (InfantryPlatoon, Physical, Defend) → `PlatoonDefend` · (InfantryCompany, Physical, Defend) → `CompanyDefend` · (InfantrySquad, Physical, BreakContact) → `BreakContact` — i.e. each concrete play's `Fulfils` IS its row; the table can be BUILT from `Fulfils` + the play's echelon class, never hand-listed | agg-backend's table shape |
 | **R-8303** | ⏳ increment 2 (after the table lands): Attack on a POSITION (`AttackOrder` gains an optional `Position` — Target OR Position required), March, Recover, Bound, FireAndMovement, ClearBuilding, Embark, and a new `OrderKind.SupportByFire` (B-8 names it) | the user preferring a separate "AttackPosition" kind |
 | **R-8304** | ⭐ a site FLIPS from `Assign(<play>)` to `Order(<K>)` only once the table resolves K for every class it sends to — until then increment 1 ships the DTOs and the rail (the plays accept the neutral DTOs; the commanders already SERIALISE them) and the flip is one line per site | the table landing with a different resolve API |
+| **R-8305** | ⭐ the commander chooses in ONE place: `CommandOrders.Route(world, commander, member, OrderKind kind, physicalPlay, neutralJson, newOrder)` — the member is stochastic (`AggregateUnits.IsStochastic`) ⇒ `Order(kind)` (recorded `Order.<K>`, R-8301); else `Assign(physicalPlay)` with the SAME neutral json (R-8300 proves the physical plays read it). `CommandOrders.KeyFor(world, member, kind, physicalPlay)` answers the matching record key for the sites' `StillRunning` / `Gave`. A site whose order has no neutral DTO yet keeps `Assign` (kind 0) | a site needing a play-specific field the neutral DTO lacks |
+| **R-8306** | ⭐ `StochasticUnitDefend` raises `AggregateUnit.Prepared` with time in position (P-5): Hasty at once, Prepared after 10 min, Fortified after 60 min of SIM time; `PreparedSince` stamped at occupation. A lane decision for the user's review — the numbers are the doctrine's rough times for a hasty / prepared / fortified position | the user's own times |
 
 **✅ INCREMENT 1 BUILT** *(`2026-11-16`, R-8300 + R-8301 only — no site flipped, R-8304 stands)* — the UML below is as built, with these as-built rows:
 
@@ -630,6 +632,19 @@ planner.*
 | R-8301: `CommandOrders.Order` records `Order.<K>` + json; `Release` unnamed for an `Order.` entry; `SubordinateOrders.OrderIntentPrefix` (= `OrderAttribute.IntentPrefix`, pinned by the rail) | `CommandNodes.cs:41` · `SubordinateOrders.cs:50, :98` · `SquadManeuverTests.R8301_…` (+ the existing `CE2141_AMemberThatIsAUnit…` now exercises the release path) |
 | ⭐ the order MENU does not offer them yet: `OrderMenu.OfferedFor` keeps only orders the `<Class><Order>` name rule resolves (`OrderMenu.cs:274`), and no `InfantrySquadDefend` / `…BreakContact` exists — they appear when the routing table resolves them | `OrderMenu.cs:267-275` |
 | ⚠ side effects of the two `[Order]` DTOs (they join `OrderMenu.Orders`): `OrderMenu` action ids are by NAME order, so every order sorting after `BreakContact` (Hold 401→403, Move 402→404, …) moved — the two menu goldens (`Goldens/menus.golden.txt`, `menus.station.golden.txt`) regenerated, 8 lines each, ids only · `MapMenuActions.OrderShortcuts` declares letters `D` (Defend) / `B` (BreakContact) (rail `K2_OrderLettersAreDeclaredAndDistinct` demands one per order) | `OrderMenu.cs:111-124` · `MapMenuActions.cs:217-222` |
+
+**✅ THE FLIP + THE PLAY BUILT** *(`2026-11-16`, R-8305, R-8306, ST-0 ③ — agg-backend's routing table is merged)*
+
+| what | where |
+|---|---|
+| `CommandOrders.Route` / `KeyFor` (R-8305) | `CommandNodes.cs:57` · `:67` |
+| sites flipped to `Route` (the neutral DTO built; the physical play reads it — R-8300's rail) | `CompanyBehaviors.cs:913-914` (CompanyDefend → PlatoonDefend) · `:444-445` (CompanyAttack `OrderFor`, the Defend arm) · `PlatoonDefendBehavior.cs:414, :421` (BreakContact), `:428` (SquadDefend) · `PlatoonAttackBehavior.cs:586-587` (`OrderFor`: Defend, BreakContact) · `SupportCommandBehavior.cs:141` (`ReinforceOrder`: all three echelons) · `PlatoonConvoyBehavior.cs:318-321` (the secure arm) |
+| ⚠ physical behaviour unchanged: the same fields and values; the JSON is `DefendOrder`-shaped (zero fields now written, e.g. `MinRange` / `Squads` omitted — each play's zero = its default). The company-attack `Defend` helper's arc (`halfArc`, `MaxRange`) is 0 at every caller, so `MaxRange` — which `DefendOrder` does not hold — is never lost | rails: the CE2304 re-send rail, CompanyDefend / PlatoonDefend / PlatoonAttack / CompanyAttack / SupportCommand / Convoy suites green |
+| `StochasticUnitDefend` — the generic Defend play (occupies at once, **movement is ST-1**; reports Set; Prepared Hasty → Prepared 600 s → Fortified 3600 s of sim time; never ends) | `StochasticUnitDefendBehavior.cs` (registered by its attribute; the routing row `(Unit, Stochastic, Defend)` resolves it) |
+| ⭐ **D-2 (deviation, found by the acceptance rail):** the staff composer served only units WITH a `UnitRoster` (query and `Sends`), so a roster-less stochastic unit never flushed its outbox — no SITREP, no PROGRESS Set, and agg-backend's refusal `TaskFailed` queued but never sent. `StaffComposerSystem` now also walks `AggregateUnit` units without a roster (`_stochastic`, `Sends`), its casevac compose skips a roster-less unit, and it declares `AggregateUnit` / `UnitSlotTable` as stable reads | `StaffSystems.cs:111-132, :185` |
+| the brain phase declares `AggregateUnit` / `UnitSlotTable` as stable reads (a commander's strength readers read a stochastic member's) | `AiBrainReads.cs:Declare` |
+| **R-8306** (Prepared times) is a lane decision for the user's review | §23.5 table |
+| ⛔ **Finding to agg-backend:** `UnitSlot` has no ammo capacity (`Ammo` a count; `UnitHoldings.Ammo` a pool) ⇒ a stochastic unit's SITREP ammo colour stays UNKNOWN; a capacity field (or a per-echelon basic load constant) is needed | STATUS_AggBehaviors §5 |
 
 ```mermaid
 classDiagram
@@ -714,6 +729,60 @@ sequenceDiagram
 ```
 *What it shows: the receiver's RESOLUTION enters at exactly one point (the table) — the commander's code is the same for a physical and a
 stochastic squad, which is the whole point of step ⑥.*
+
+### 23.6 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
+
+**INVENTORY** *(graph: `search_graph name_pattern ".*(UnitStrength|CombatEffective|ObjectiveCensus|AmmoOf).*"` + grep — the four readers RV-5 names, each a roster walk)*
+
+| reader | where | today, for a unit with NO roster | the branch (checked BEFORE the roster walk) |
+|---|---|---|---|
+| `UnitStrength.Of` | `FDP/Toolkits/Fdp.Toolkits/Squad/UnitStrength.cs` | ⛔ `default` (Unknown) — and inside a PARENT's `Sum` a roster-less unit member counts as **1 present man** | ⭐ stochastic ⇒ Present = live slots (standing: live AND not broken), Authorized = the slot count, Known; ⭐ the parent's `Sum` takes the same numbers for a stochastic member (a stochastic platoon under a physical company adds its men, not 1) |
+| `CombatEffective.IsInTheFight` / `IsStanding` / `FightingMembers` / `StandingMembers` | `FDP/Toolkits/Fdp.Toolkits/Squad/CombatEffective.cs` | ⛔ `true` ("composition unknown") — a wiped-out stochastic unit stays in the fight | ⭐ stochastic ⇒ live (standing) slots ≥ `MinEffective(slot count)` — the SAME rule as a roster |
+| `StaffComposerSystem.AmmoOf` / `RoundsOf` (and `StrengthOf`'s roster guard) | `FDP/Toolkits/Fdp.Toolkits/Squad/Command/StaffSystems.cs` | ⛔ Unknown (no `WeaponAmmo` bodies); `StrengthOf` returned Unknown for a roster-less unit | ⭐ `StrengthOf` lets a stochastic unit through to `UnitStrength`; ⛔ **`AmmoOf` stays UNKNOWN for a stochastic unit: the contract has no per-slot ammo capacity** (`UnitSlot.Ammo` is a count, `UnitHoldings.Ammo` a pool) — a finding to agg-backend, nothing invented |
+| `ObjectiveCensus.MenInside` | `Hrot/Subsystems/Hrot.AI.Behaviors/Brains/Objectives/ObjectiveCensus.cs` | ⛔ 0 (no bodies) | ⭐ stochastic ⇒ its Present men count when the unit's position (its footprint centre, `SimTransform`) is inside the area — also for a stochastic unit under a physical subject's roster; the footprint ∩ area share is ST-3's |
+
+```mermaid
+classDiagram
+  class AggregateUnits {
+    <<NEW static, Fdp.Toolkit.Aggregate>>
+    IsStochastic(view, e)
+    Slots(view, e, standing, live, total, ammo)
+    LiveMen(view, e, standing)
+    InTheFight(view, e, standing)
+    BrokenAt
+  }
+  class UnitSlotTable {
+    <<existing contract>>
+  }
+  class UnitStrength {
+    <<existing Fdp.Toolkits/Squad>>
+    Of NEW stochastic branch
+    Sum NEW stochastic member
+  }
+  class CombatEffective {
+    <<existing>>
+    IsInTheFight NEW branch
+    Fighting NEW branch
+  }
+  class StaffComposerSystem {
+    <<existing>>
+    StrengthOf guard NEW
+    Rounds NEW: stochastic adds nothing
+  }
+  class ObjectiveCensus {
+    <<existing Hrot.AI.Behaviors>>
+    MenInside NEW StochasticMenInside
+  }
+  AggregateUnits ..> UnitSlotTable : reads by ref
+  UnitStrength ..> AggregateUnits
+  CombatEffective ..> AggregateUnits
+  StaffComposerSystem ..> AggregateUnits
+  ObjectiveCensus ..> AggregateUnits
+  UnitStrength ..> CombatEffective : colour needs the fight
+```
+*What it shows: ONE predicate and ONE slot walk; the four readers never touch the table themselves, and nothing else changes — the roster walks stay for physical units.*
+
+⭐ **As built** — `AggregateUnits` lives in `Fdp.Toolkit.Aggregate` (not `Squad`, as first drawn): it reads only the contract's components, and `Squad` already depends on this namespace — one direction. `BrokenAt` = `max(TemperamentOf.TrainedNerve, Stresses.BreakFloor)` (0.75): the physical rule's break level for a man of the default nerve (a slot has no per-man nerve) — not a new number. Rails: `SquadManeuverTests.ST0_*` (strength, colour, fight, standing, roster sum, ammo unknown, 0 B) and `ScenarioRulesTests.ST0_TheCensus_…`.
 
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
 
