@@ -47,7 +47,7 @@ sides + rear; 704: 0); sounds 7800–7895 = `7800 + species·8 + line`.
 - `AnimalMode.Guard` + `Calling` = the dog barking; `Guard` + `Dangerous` = attacking. A flock: `FlockState.Mode` `Perched` → `Flying` (flushed) → `Landed` → `Perched`.
 - ⭐ **AB-8 — the calls:** `UtteranceKind` **`AnimalCall = 26` · `AnimalAlarm = 27` · `Bark = 28`** on the animal's replicated `Utterance` (the one voice
   path) — play the species' line for it (`AnimalState.Species`, your 7800 + species·8 + line block). `SoundSourceClass` gains **`Animal = 8`** (an alarm / a
-  bark as heard). The calm-call SCHEDULE is closed form — `Fdp.Toolkit.Animals.AnimalCalls.CallDue(entityIndex, simTime, CallIntervalSeconds, herdMembers)`
+  bark as heard). The calm-call SCHEDULE is closed form — `Fdp.Toolkit.Animals.AnimalCalls.CallDue(entityIndex, simTime, CallInterval, herdMembers)` (`AnimalTemperamentDto.CallInterval`, a `SimDuration` since `095c21673` — was `CallIntervalSeconds`)
   — but the sim already sends each call as an `Utterance`, so ui needs only to play what arrives.
 - `HerdState`'s last 2 bytes are now `ushort Members` (was padding) — backend's; ui does not read it.
 - ⭐ **AB-9 — the animal area:** TKB **712** is registered (defaults `AnimalAreaDto`: species 0, count 12). An area entity = the one area tool's

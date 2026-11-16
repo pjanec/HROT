@@ -136,7 +136,7 @@ classDiagram
     PanicZoneM
     FleeSpeed
     FleeDistanceM
-    RecoverySeconds
+    Recovery (SimDuration)
     HerdCohesion
     Fearless
   }
