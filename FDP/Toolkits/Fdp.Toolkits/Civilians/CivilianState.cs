@@ -97,21 +97,34 @@ namespace Fdp.Toolkit.Civilians
         {
             if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<CivilianState>()) return false;
             if (repo.HasComponent<CivilianState>(unit)) return true;
+            repo.AddComponent(unit, NewState(repo, unit));
+            return true;
+        }
+
+        /// <summary>A fresh state: its home is where it stands now.</summary>
+        private static CivilianState NewState(EntityRepository repo, Entity unit)
+        {
             var state = new CivilianState();
             if (repo.HasComponent<SimTransform>(unit))
             {
                 state.Home = repo.GetComponentRO<SimTransform>(unit).Position;
                 state.HasHome = 1;
             }
-            repo.AddComponent(unit, state);
-            return true;
+            return state;
         }
 
         /// <summary>Records the mode the HSM is in (adds the state when missing).</summary>
         public static void SetMode(EntityRepository repo, Entity unit, CivilianMode mode)
         {
-            if (!Ensure(repo, unit)) return;
-            repo.GetComponentRW<CivilianState>(unit).Mode = mode;
+            if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<CivilianState>()) return;
+            if (repo.HasComponent<CivilianState>(unit)) { repo.GetComponentRW<CivilianState>(unit).Mode = mode; return; }
+            // ⭐ CE-4623 (found by the backend's regression re-run, cross-lane) — a civilian with no state yet gets it WITH its mode: inside the
+            //   parallel brain phase an add is DEFERRED (it lands next tick), so "add, then write" threw "missing CivilianState" and took the node
+            //   down on the first tick of any scenario whose civilians were calm (📐 ua-civ-contagion exit 134 at c24f127cb too). The parallel
+            //   rule: add a component WITH its final value (CLAUDE.md, "BEHAVIOUR CODE RUNS IN PARALLEL", D-31)
+            var state = NewState(repo, unit);
+            state.Mode = mode;
+            repo.AddComponent(unit, state);
         }
 
         /// <summary>His fear on this node; 0 when he has no <see cref="CivilianState"/>.</summary>
