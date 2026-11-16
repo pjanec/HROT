@@ -439,6 +439,12 @@ query's own loop with two switches, not a second geometry walk.*
 | the break gate | `HullBreakGate.MayBreak` — Manual branch, `PossessedBy.Mode == Fps` on the hull, `ReplayState` not active | V-4, V-14 |
 | walkers unchanged | a bent walker's step still traces `Fire` (a man shoved at a garden wall is not stopped by it — the navmesh keeps him off it) | ⛔ searched §7, none — out of B-1's scope |
 
+⭐ **CE-4630 measured (`2026-11-16`, terrain lane) — a bump hole IS walkable in the editor:** an ordered and a possessed rifleman both entered House A
+(bt-doors) through a possessed bulldozer's 1.2 × 2.2 m bump hole; the navmesh bakes a door-sized passage (the house's fine area) and the possessed walker's
+navmesh clamp (`ManualMotion.KeepOnNavmesh`) carries him through (rails `BuildingDamageBakeTests.CE4630_*`). ⚠ Two neighbours found, filed: CE-5018 (in
+`--mode all` the bump never breaches) and CE-5019 (a charge's crater at the wall's foot leaves a pit deeper than the infantry step). ⚠ And B-D4's bump hole
+is centred on the hull's CONTACT POINT (a corner when the hull meets the wall square), not its centreline — CE-4629 ① centres it.
+
 ⭐ **Lane decisions (for the user's review):** [R-5000](blueprints/RULINGS.md) the hull band = the probe height (any panel whose top is above the
 wheels meets the hull) — ⛔ *its kerb half SUPERSEDED by R-4280: a panel under 0.25 m is rolled over (row above)*; [R-5001](blueprints/RULINGS.md) a free-wall breach opens for a hull only
 when open from the wall's base (a raised hole never), with no per-trace width test — the cut's size is B-3's (V-9); [R-5002](blueprints/RULINGS.md)

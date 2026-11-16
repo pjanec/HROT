@@ -191,6 +191,50 @@ namespace Hrot.SimHost.Tests
             Assert.False(_world.GetSingletonManaged<TerrainWorld>()!.SegmentBlocked(new Vector3(25f, 15f, 1f), new Vector3(25f, 25f, 1f)));   // the resident world has the gap
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4630</c> — a DOOR-SIZED passage (a hull's bump, 1.2 m) is walkable after the bake, as a wider one is: the navmesh's erosion by the infantry radius leaves a
+        /// way through. 🔴 Red-proof: keep a breached panel whole in the bake (<c>TerrainObstacles</c>' re-expansion skipped) ⇒ 6 of 6 red.
+        /// </summary>
+        [Theory]
+        [InlineData(1.2f)] [InlineData(1.6f)] [InlineData(2.2f)]
+        public void CE4630_ADoorSizedPassage_IsWalkableAfterTheBake(float width)
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            Damage(new WallBreach(South(), 4f, 4f + width, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            Assert.True(_node.PathExists(Outside, Inside, (uint)NavLayerMask.Infantry), $"no path through a {width} m passage");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4630</c> (the possession rail) — a POSSESSED walker's steps, clamped to the node's navmesh exactly as <c>CarKinematicsSystem</c>'s manual branch clamps them
+        /// (<c>ManualMotion.KeepOnNavmesh</c>), carry him through a bumped 1.2 m hole into the house once the bake has committed — never slid back out. 📐 Measured live too
+        /// (`2026-11-16`, the editor, bt-doors): a possessed rifleman walked a possessed bulldozer's bump hole into House A. 🔴 Red-proof: as above ⇒ he stops at the wall.
+        /// </summary>
+        [Theory]
+        [InlineData(1.2f, 24.6f)] [InlineData(2.2f, 25.1f)] [InlineData(1.2f, 24.3f)]
+        public void CE4630_APossessedWalker_WalksThroughABumpedHole(float width, float x)
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            Damage(new WallBreach(South(), 4f, 4f + width, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            var pos = new Vector2(x, 14f);
+            var log = new System.Text.StringBuilder();
+            for (int i = 0; i < 600; i++)
+            {
+                var before = pos;
+                pos += new Vector2(0f, 1.4f / 60f);
+                bool changed = CarKinem.Controllers.ManualMotion.KeepOnNavmesh(_node, (uint)NavLayerMask.Infantry, before, ref pos, 0f);
+                if (changed && log.Length < 600) log.Append($"[{i}: {before.X:F2},{before.Y:F2} -> {pos.X:F2},{pos.Y:F2}] ");
+            }
+            Assert.True(pos.Y > 22f, $"stuck at {pos}: {log}");
+        }
+
         /// <summary>A field cut in two by a 1 m brick garden wall along y = 30 (beyond the bounds both ways — no way round), and a 1.5 m hedge-high wall along y = 45.</summary>
         private const string Garden = """
             { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 60, 60], "groundZ": 0 }, "features": [
