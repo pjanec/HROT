@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "origin": { "lat": 49.75, "lon": 15.5, "alt": 0.0 },
+  "name": "farm",
+  "world": "farm.world.geojson"
+}

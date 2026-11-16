@@ -487,6 +487,16 @@ namespace CarKinem.Systems
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
             if ((@params.Class == VehicleClass.Pedestrian || @params.Class == VehicleClass.Quadruped) && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;   // ⭐ CE-4623: a stunned animal stands too
+            // ⭐ CE-4623 AB-10 (AR-5) — a STAMPEDE: a panicked fence-breaker runs straight away from the fright, not round its path (the fence it
+            //   meets is the panic breach's, below); its path and progress are kept for when the panic ends
+            else if (@params.Class == VehicleClass.Quadruped && !wreck && !down && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo)
+                     && Fdp.Toolkit.Animals.AnimalFear.Stampede(repo, entity, pos2D, out var stampede, out float stampedeSpeed))
+            {
+                targetPos = pos2D + stampede * 10f;
+                targetHeading = stampede;
+                targetSpeed = MathF.Min(stampedeSpeed, @params.MaxSpeedFwd);
+                progressTangent = null;
+            }
 
             // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person (his weapon brain's replicated WeaponPosture)
             //   turns his body to the aim — snapping beyond his twist, smoothly inside it — and moves along his way independently of

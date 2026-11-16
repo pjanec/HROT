@@ -2783,7 +2783,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var t = new Fdp.Interfaces.TkbTemplate("Cattle", 700);
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks, FleeSpeed = 9f });
             db.Register(t);
             repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
@@ -2822,6 +2822,36 @@ namespace CarKinem.Tests.Systems
                 Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
             }
             else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-10 (AR-5) — the STAMPEDE: an AI-driven cow whose planned flight goes NORTH (round the fence, as the navmesh plans it),
+        /// frightened from the WEST, in panic, runs STRAIGHT east away from the fright — into the wooden fence at x = 15, breaking it and running on;
+        /// the same cow calm follows its path north and never comes near the fence. 🔴 Red-proof: no stampede arm in the autonomous drive ⇒ the
+        /// panicked cow follows its path north, no breach.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData(Fdp.Toolkit.Animals.AnimalMode.Calm, (byte)0, false)]
+        public void CE4623_APanickedAiCow_StampedesStraightAway_ThroughTheFence_ACalmOneFollowsItsPath(Fdp.Toolkit.Animals.AnimalMode mode, byte band, bool stampedes)
+        {
+            var (repo, e) = RunningAnimal(true, mode, band, FenceAtX15("fence-wood", 0.05f, 1.2f));
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 40f, 0f), TargetSpeed = 3f, ArrivalRadius = 3f });
+            repo.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 });
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            if (stampedes)
+            {
+                Assert.NotEmpty(breaches);
+                Assert.True(nose > 15f + 3f, $"it ran east through the fence: nose x={nose:F2}");
+            }
+            else
+            {
+                Assert.Empty(breaches);
+                Assert.True(nose < 5f && at.Y > 20f, $"it followed its path north: at ({at.X:F1}, {at.Y:F1})");
+            }
             repo.Dispose();
         }
 

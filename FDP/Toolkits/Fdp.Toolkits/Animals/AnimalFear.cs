@@ -214,6 +214,27 @@ namespace Fdp.Toolkit.Animals
             return TemperamentOf(repo, e) is { Breaks: true };
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4623</c> AB-10 (AR-5) — the STAMPEDE: an animal that may panic-breach (<see cref="PanicBreaks"/>) runs STRAIGHT away from what
+        /// frightened it, at its flee speed, instead of along its planned path. 📐 Measured: an animal plans on the infantry navmesh, where every
+        /// fence is cut (<c>NavLayerSelection</c>: Quadruped ⇒ Infantry), so a planned flight goes ROUND the fence and the panic breach never
+        /// happens. A blind run is what panic is; it ends with the panic (band below 3) and the brain's flight re-plans from wherever it got to.
+        /// Called by the kinematics' autonomous drive on its own entity; false when it is not stampeding.
+        /// </summary>
+        public static bool Stampede(EntityRepository repo, Entity e, Vector2 pos, out Vector2 away, out float speed)
+        {
+            away = default; speed = 0f;
+            if (!PanicBreaks(repo, e) || !repo.IsComponentTypeRegistered<Fear>() || !repo.HasComponent<Fear>(e)) return false;
+            ref readonly var f = ref repo.GetComponentRO<Fear>(e);
+            if (f.HasFrightFrom == 0) return false;
+            away = pos - new Vector2(f.FrightFrom.X, f.FrightFrom.Y);
+            if (away.LengthSquared() < 1e-4f) return false;
+            away = Vector2.Normalize(away);
+            var t = TemperamentOf(repo, e);
+            speed = t is { FleeSpeed: > 0f } ? t.FleeSpeed : 4f;
+            return true;
+        }
+
         /// <summary>A horse that can bolt (<c>BoltFear</c> &gt; 0) bolts for <see cref="BoltSeconds"/> once its fear passes the line; true while it does.</summary>
         public static bool UpdateBolt(ref Fear f, AnimalTemperamentDto t, double now)
         {

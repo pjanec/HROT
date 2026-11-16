@@ -41,6 +41,8 @@ namespace Hrot.SimHost.Tests
             w.AddComponent(area, new SimTransform { Position = new Vector3(100, 0, 0), Rotation = Quaternion.Identity });
             w.AddComponent(area, new AnimalArea { Species = species, Count = count, Seed = 42 });
             w.AddComponent(area, new EntityGuid(AreaGuid));
+            w.RegisterComponent<EntityInfo>();
+            w.AddComponent(area, new EntityInfo { Name = new FixedString64("Pasture"), ForceId = ForceId.Neutral });
             // a 40 × 20 m field, relative to the area's anchor
             w.SetManagedComponent(area, new EditablePolyline { Points = new[] { new Vector2(-20, -10), new Vector2(20, -10), new Vector2(20, 10), new Vector2(-20, 10) } });
             if (populated) w.AddComponent(area, new AnimalAreaPopulated { At = (SimInstant)0.5 });
@@ -71,6 +73,9 @@ namespace Hrot.SimHost.Tests
                 var home = r.InitialComponents.OfType<AnimalHome>().Single();
                 Assert.Equal(new Vector3(100, 0, 0), (Vector3)home.Centre);
             }
+            // ⭐ AB-10 — each named after its area, neutral (the checks and the entity list find them by name)
+            Assert.Equal(Enumerable.Range(1, 6).Select(n => $"Pasture {n}"), asked.Select(r => r.InitialComponents.OfType<EntityInfo>().Single().Name.ToString()));
+            Assert.All(asked, r => Assert.Equal(ForceId.Neutral, r.InitialComponents.OfType<EntityInfo>().Single().ForceId));
             var ids = asked.Select(r => r.InitialComponents.OfType<EntityGuid>().Single().Value).ToArray();
             Assert.Equal(6, ids.Distinct().Count());
             Assert.True(w.HasComponent<AnimalAreaPopulated>(area));
