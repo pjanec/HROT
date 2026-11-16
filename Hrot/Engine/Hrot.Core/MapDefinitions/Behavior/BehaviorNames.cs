@@ -314,6 +314,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ <c>CE-2347</c> (R-2069, Defend &amp; Attack §11a) — the platoon rides a route: the squads in their vehicles, a halt on
         /// contact, secure when it is quiet, remount and carry on.</summary>
         public const string PlatoonConvoy = "PlatoonConvoy";
+        /// <summary>⭐ <c>CE-9004</c> (C-9, DESIGN_Road_Convoy) — a vehicle in a road convoy: the lead drives to the destination, the rest drive its path, never split.</summary>
+        public const string PlatformConvoy = "PlatformConvoy";
         /// <summary>⭐ <c>CE-2284</c> (DA-17) — a platoon moves through town on foot along legs (Defend and Attack §11b).</summary>
         public const string UrbanMovement = "UrbanMovement";
         /// <summary>⭐ <c>CE-2284</c> U-2 (UM-12) — the platoon SOP's answer to fire from a building on the move: the attack play, preset 2.</summary>

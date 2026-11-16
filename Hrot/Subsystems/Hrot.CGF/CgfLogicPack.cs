@@ -281,6 +281,8 @@ namespace Hrot.CGF
             // ⭐ CE-2319 / CE-2320 (AQ96 §2c) — a soldier's move under fire: AFTER the dispatchers, so a move issued this frame already has its
             //   intent when the reflex halts or re-paces it.
             simList.Add(new Hrot.AI.Behaviors.Brains.UnderFireMoveSystem(gateOnAuthority));
+            // ⭐ CE-9004 (C-10, DESIGN_Road_Convoy) — a vehicle no longer running PlatformConvoy (contact, a new order) leaves its column at once
+            simList.Add(new Hrot.AI.Behaviors.Brains.ConvoyMembershipSystem(gateOnAuthority));
             // ⭐ CE-2368 (AQ103 §3.3) — idle life: a stationary person shifts a little — after the reflex over a MOVE, so a man on one is its
             simList.Add(new Hrot.AI.Behaviors.Brains.RestlessSystem(gateOnAuthority));
             // ⭐ CE-2375 (AQ104 A-1, R-2081) — a lone man's area order: once the squad asked for him exists here, assign him and give it the play.

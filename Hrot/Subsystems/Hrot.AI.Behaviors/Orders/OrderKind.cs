@@ -40,6 +40,9 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>⭐ <c>CE-4621</c> M-3 (CD-2, R-4263) — cross an exposed zone at all costs: never halt, dismount, leave the route or
         /// seek cover (<see cref="OrderConduct"/>) until the unit cannot comply (<c>BehaviorConduct.CannotComply</c>).</summary>
         Dash = 14,
+        /// <summary>⭐ <c>CE-9004</c> (C-9, R-9008; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — drive in a road CONVOY: the lead to the destination,
+        /// the rest on its path, never split (<see cref="ConvoyOrder"/>, <c>PlatformConvoy</c>).</summary>
+        Convoy = 15,
     }
 
     /// <summary>

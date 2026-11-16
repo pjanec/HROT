@@ -26,9 +26,9 @@ namespace CarKinem.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>()) return;
-            if (!repo.IsComponentTypeRegistered<ConvoyTrail>()) repo.RegisterComponent<ConvoyTrail>();
-            if (!repo.IsComponentTypeRegistered<ConvoyProgress>()) repo.RegisterComponent<ConvoyProgress>();
+            // registered with the kinematic components (KinematicComponentRegistry) — never lazily mid-tick (D-26)
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<ConvoyTrail>()
+                || !repo.IsComponentTypeRegistered<ConvoyProgress>()) return;
             _members ??= repo.Query().With<ConvoyMember>().With<SimTransform>().Build();
 
             foreach (var lead in _members)
@@ -102,8 +102,8 @@ namespace CarKinem.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<ConvoyProgress>()) return;
-            if (!repo.IsComponentTypeRegistered<FormationTarget>()) repo.RegisterComponent<FormationTarget>();
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<ConvoyProgress>()
+                || !repo.IsComponentTypeRegistered<ConvoyTrail>() || !repo.IsComponentTypeRegistered<FormationTarget>()) return;
 
             // a vehicle whose membership ended (its behaviour removed ConvoyMember): back to no mode, its place forgotten
             _progress ??= repo.Query().With<ConvoyProgress>().Build();
