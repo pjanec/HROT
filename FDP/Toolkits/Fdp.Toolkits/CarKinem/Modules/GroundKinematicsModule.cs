@@ -90,6 +90,8 @@ namespace Fdp.Toolkit.CarKinem.Modules
                 new TrajectoryRestoreSystem(TrajectoryPool),   // ⭐ R-3039 S2 §7c — first: a restored mover's path is back before anything drives it
                 new SpatialHashSystem(),
                 new FormationTargetSystem(FormationTemplates, TrajectoryPool),
+                new ConvoyLeadSystem(),     // ⭐ CE-9001 (C-4, C-6) — the convoy lead's trail and speed cap, then …
+                new ConvoyFollowSystem(),   // … each follower's point and speed on it (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §4.4)
                 new VehicleCommandSystem(),
                 new NavigationExecutionSystem(TrajectoryPool),   // ⭐ CE-4391 S-3 — with the pool: it replans a path whose navmesh tiles a rebake changed
                 // ⭐ Buildings 5d-3 — stops at a closed door on the path, opens it, walks on; replans round a locked one

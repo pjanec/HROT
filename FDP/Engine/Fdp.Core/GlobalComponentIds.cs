@@ -301,6 +301,14 @@ namespace Fdp.Core
 
         // IDs 84â€“109 are reserved for future Vis2D toolkit components.
 
+        /// <summary><c>ConvoyMember</c> — ⭐ CE-9001 (convoy lane, R-4282; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md C-4/C-8): this vehicle's place in a road
+        /// convoy (lead, rank, gap). Written by the vehicle's own behaviour; on the wire (descriptor 198). Unmanaged, recorded.</summary>
+        public const int ConvoyMember = 108;
+
+        /// <summary><c>ConvoyTrail</c> — ⭐ CE-9001 (C-4/C-6): the convoy lead's actual path (a 256-point ring) + the column's ranks and the lead's speed cap.
+        /// Local to the kinematic owner, recorded, never on the wire.</summary>
+        public const int ConvoyTrail = 109;
+
         // â”€â”€ IG (110â€“139) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Image Generator ECS components used for rendering and interaction.
 
@@ -393,6 +401,9 @@ namespace Fdp.Core
 
         // ⚠ IDs 154–156 are taken by BehaviorApplicationComponentIds (BehaviorStartRecord, BehaviorOwnedPart,
         // BehaviorFaultLatch). 157–158 are free. Enumerate real [ComponentId] usage before taking one.
+
+        /// <summary><c>ConvoyProgress</c> — ⭐ CE-9001 (C-4): a convoy follower's place on its lead's trail. Local to the kinematic owner, recorded.</summary>
+        public const int ConvoyProgress = 157;
 
         /// <summary><c>OutgoingGrantsPending</c> — creator-local: the descriptors this node granted away at creation
         /// whose takeover it has not seen confirmed yet (the F7 window). The record recompute leaves them alone.

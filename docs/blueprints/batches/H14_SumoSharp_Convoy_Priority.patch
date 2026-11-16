@@ -1,0 +1,130 @@
+diff -ruN a/Sim.Core/Engine.cs b/Sim.Core/Engine.cs
+--- a/Sim.Core/Engine.cs	2026-11-16 22:38:07.218879654 +0000
++++ b/Sim.Core/Engine.cs	2026-11-16 22:38:07.243339073 +0000
+@@ -2854,7 +2854,10 @@
+             CarFollowModel: p.CarFollowModel,
+             MaxSpeedLat: p.MaxSpeedLat, LatAlignment: p.LatAlignment, MinGapLat: p.MinGapLat,
+             // docs/HROT-INTEGRATION-DESIGN.md H9: an optional body width (null = the vClass default, unchanged).
+-            Width: p.Width);
++            Width: p.Width,
++            // H14: the junction-model privileges (null = SUMO's default, unchanged).
++            JmDriveAfterRedTime: p.JmDriveAfterRedTime, JmIgnoreFoeProb: p.JmIgnoreFoeProb,
++            JmIgnoreFoeSpeed: p.JmIgnoreFoeSpeed, JmIgnoreJunctionFoeProb: p.JmIgnoreJunctionFoeProb);
+ 
+         var existing = _vTypeIds.IndexOf(typeId);
+         _vTypesById[typeId] = raw;
+@@ -2867,6 +2870,34 @@
+         return new VTypeHandle(_vTypeIds.Count - 1);
+     }
+ 
++    // H14 (HROT road convoy): the PRIORITY TWIN of a registered vType -- the same type with SUMO's emergency-vehicle privileges: a blue
++    // light (vehicles ahead on its edge give way, Rung ER3-ER5), red lights ignored (jmDriveAfterRedTime, Rung A3) and approaching junction foes
++    // ignored (jmIgnoreFoeProb / jmIgnoreJunctionFoeProb). Registered once as "<id>@priority" and reused. Requires a loaded network.
++    public VTypeHandle PriorityTwin(VTypeHandle of)
++    {
++        if (_network is null)
++        {
++            throw new InvalidOperationException("LoadScenario/LoadNetwork must be called before PriorityTwin.");
++        }
++
++        var baseId = _vTypeIds[of.Index];
++        var twinId = baseId + "@priority";
++        var existing = _vTypeIds.IndexOf(twinId);
++        if (existing >= 0)
++        {
++            return new VTypeHandle(existing);
++        }
++
++        var raw = _vTypesById[baseId];
++        _vTypesById[twinId] = raw with
++        {
++            Id = twinId, HasBluelight = true, JmDriveAfterRedTime = 1e9, JmIgnoreFoeProb = 1.0, JmIgnoreFoeSpeed = 1e9,
++            JmIgnoreJunctionFoeProb = 1.0,
++        };
++        _vTypeIds.Add(twinId);
++        return new VTypeHandle(_vTypeIds.Count - 1);
++    }
++
+     // The auto-registered SUMO default passenger type (available after any load).
+     public VTypeHandle DefaultVType => new(_vTypeIds.IndexOf(DefaultVTypeId));
+ 
+@@ -7345,6 +7376,14 @@
+         {
+             return double.PositiveInfinity;
+         }
++
++        // H14 (HROT road convoy, CE-9000): a vehicle giving way to a blue-light vehicle IN ITS OWN LANE (Rung ER4's flag, set last step) may
++        // enter on red to clear the way -- real escorts do this; junction yield, keep-clear and every leader still bind. Inert without a
++        // blue-light vehicle in the scenario (GiveWaySide stays 0), so every parity golden is unchanged.
++        if (v.GiveWaySide != 0 && v.GiveWayEvSameLane)
++        {
++            return double.PositiveInfinity;
++        }
+ 
+         var seen = lane.Length - v.Kinematics.Pos;
+ 
+diff -ruN a/Sim.Core/VTypeParams.cs b/Sim.Core/VTypeParams.cs
+--- a/Sim.Core/VTypeParams.cs	2026-11-16 22:38:07.212873057 +0000
++++ b/Sim.Core/VTypeParams.cs	2026-11-16 22:38:07.236826517 +0000
+@@ -31,6 +31,13 @@
+     public string? CarFollowModel { get; init; }
+ 
+     public bool? HasBluelight { get; init; }
++
++    // H14 (HROT road convoy, CE-9000): the junction-model privileges a runtime vType may carry, exactly as a rou.xml <vType> can
++    // (DemandParser) -- null leaves SUMO's default (-1 / 0) in place, so every existing caller is byte-identical.
++    public double? JmDriveAfterRedTime { get; init; }
++    public double? JmIgnoreFoeProb { get; init; }
++    public double? JmIgnoreFoeSpeed { get; init; }
++    public double? JmIgnoreJunctionFoeProb { get; init; }
+     public bool? LcOpposite { get; init; }
+ 
+     // Sublane lateral attributes (folded in at the laneless merge -- issue #4). Each is an optional
+diff -ruN a/Sim.LiveCity/LiveCitySim.cs b/Sim.LiveCity/LiveCitySim.cs
+--- a/Sim.LiveCity/LiveCitySim.cs	2026-11-16 22:38:07.225422208 +0000
++++ b/Sim.LiveCity/LiveCitySim.cs	2026-11-16 22:38:07.245352745 +0000
+@@ -1503,7 +1503,12 @@
+     // vehicle + lifecycle wire under its own name; car demand neither counts it toward CarTargetConcurrent nor
+     // counts its arrival in ArrivedTotal, and VehicleIdProvider is never called for it. Call between Step() calls.
+     public bool SpawnExternalVehicle(string id, double x, double y, double heading, double speed,
+-        double destX, double destY, string? vTypeId = null)
++        double destX, double destY, string? vTypeId = null) => SpawnExternalVehicle(id, x, y, heading, speed, destX, destY, vTypeId, priority: false);
++
++    // H14 (HROT road convoy, CE-9000): as above; `priority` spawns the vType's PRIORITY TWIN (Engine.PriorityTwin -- blue light, red ignored,
++    // junction foes ignored): the escort of a convoy, with its beacon and siren on.
++    public bool SpawnExternalVehicle(string id, double x, double y, double heading, double speed,
++        double destX, double destY, string? vTypeId, bool priority)
+     {
+         if (string.IsNullOrEmpty(id))
+         {
+@@ -1525,6 +1530,11 @@
+             return false;
+         }
+ 
++        if (priority)
++        {
++            vtype = _engine.PriorityTwin(vtype);
++        }
++
+         var start = NearestVehicleLane(x, y, Math.Cos(heading), Math.Sin(heading), useHeading: true);
+         var dest = NearestVehicleLane(destX, destY, 0.0, 0.0, useHeading: false);
+         if (start is not { } s || dest is not { } d)
+@@ -1733,6 +1743,18 @@
+ 
+     // H13: did shadow `id` ARRIVE at its destination (as opposed to being despawned or still driving)? Stays true
+     // until the id is spawned again.
++    // H14 (HROT road convoy, CE-9000): scales a live external vehicle's desired speed (SUMO's speedFactor: lane limit x factor) -- a convoy's
++    // escort slows while its column is stretched. 1 restores the type's own factor; false when the id is not a live external vehicle.
++    public bool SetExternalVehicleSpeedFactor(string id, double factor)
++    {
++        if (_externalVehicles is null || !_externalVehicles.TryGetValue(id, out var handle))
++        {
++            return false;
++        }
++
++        return _engine.SetVehicleParams(handle, new VehicleParamOverride { SpeedFactor = Math.Clamp(factor, 0.0, 2.0) });
++    }
++
+     public bool ExternalVehicleArrived(string id) => _externalArrived is not null && _externalArrived.Contains(id);
+ 
+     // H13: is `id` a live shadow (spawned, not yet arrived or despawned)?

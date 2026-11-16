@@ -78,6 +78,7 @@ namespace CarKinem.Systems
             _recovery = repo.IsComponentTypeRegistered<FrustrationTicks>();
             // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
             _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
+            _convoy = repo.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>();   // ⭐ CE-9001 (C-6)
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -192,6 +193,7 @@ namespace CarKinem.Systems
         private bool _clampFlags;
         private bool _recovery;
         private bool _health;
+        private bool _convoy;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity) => IsClamped(repo, entity, _clampFlags);
@@ -426,6 +428,18 @@ namespace CarKinem.Systems
                     }
                     break;
                     
+                case KinematicsMode.Column:
+                    // ⭐ CE-9001 (C-4) — a road-convoy follower: ConvoyFollowSystem put a point ON the lead's trail a lookahead ahead and the speed
+                    //   (the gap controller's, 0 at the minimum gap). Steer to the point at exactly that speed — no catch-up boost (Formation's).
+                    {
+                        var (colPos, colDir, colSpeed) = GetFormationTarget(repo, entity);
+                        targetPos = colPos;
+                        var toPoint = colPos - pos2D;
+                        targetHeading = toPoint.LengthSquared() > 0.04f ? Vector2.Normalize(toPoint) : (colDir.LengthSquared() > 1e-6f ? Vector2.Normalize(colDir) : fwd2D);
+                        targetSpeed = MathF.Min(colSpeed, @params.MaxSpeedFwd);
+                    }
+                    break;
+
                 case KinematicsMode.Direct:
                 case KinematicsMode.None:
                 default:
@@ -483,6 +497,12 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
+            // ⭐ CE-9001 (C-6) — a road-convoy LEAD under our own driving slows while its column is stretched (ConvoyLeadSystem's cap); string stability
+            if (_convoy && nav.Mode != KinematicsMode.Column && repo.HasComponent<CarKinem.Convoy.ConvoyTrail>(entity))
+            {
+                float cap = repo.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(entity).SpeedCapFactor;
+                if (cap < 1f) targetSpeed = MathF.Min(targetSpeed, cap * @params.MaxSpeedFwd);
+            }
             if (wreck || down) targetSpeed = 0f;   // ⭐ CE-3287 / CE-2321 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
