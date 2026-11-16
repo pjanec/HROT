@@ -62,7 +62,7 @@ public sealed class BehaviorParamsValidationTests
     }
 
     /// <summary>
-    /// ⭐⭐ agg-behaviors <c>R-8300</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.4) — THE CONTRACT RAIL: for EVERY registered play whose order kind
+    /// ⭐⭐ agg-behaviors <c>R-8300</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.5) — THE CONTRACT RAIL: for EVERY registered play whose order kind
     /// has a neutral <c>[Order(K)]</c> DTO (its <c>Fulfils</c>, else its params DTO's <c>[Order]</c> — <c>ParamsDtoRegistry.OrderNameOf</c>), a FULLY
     /// populated neutral DTO (every float / bool / int / enum / bearing / point field non-default; entity-link fields stay default — an entity ref has no
     /// literal) validates STRICTLY against that play's params ⇒ no problems. So the receiver resolving <c>Order.K</c> to ANY fulfilling play reads every

@@ -1693,7 +1693,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.CombatPosture, s.Clears.First(c => c.Entity.Equals(s.Members[0])).IntentId);
         }
 
-        /// <summary>⭐⭐ agg-behaviors <c>R-8301</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.4) — a routed ORDER records its intent and its json on the
+        /// <summary>⭐⭐ agg-behaviors <c>R-8301</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.5) — a routed ORDER records its intent and its json on the
         /// commander's entry, so an unchanged re-send is recognised (<c>CommandOrders.Gave</c> by <c>Order.&lt;K&gt;</c>), and its release is still the
         /// UNNAMED clear — while a concrete <c>Assign</c> releases NAMED. ✅ Red-proofs: <c>Order</c> recording "" again ⇒ ① red · the <c>Order.</c> test dropped
         /// from <c>SubordinateOrders.Release</c> ⇒ ② red (the clear names <c>Order.Defend</c>) · every release made unnamed ⇒ ③ red.</summary>

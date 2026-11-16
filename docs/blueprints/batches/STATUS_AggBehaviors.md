@@ -5,7 +5,7 @@ current-answer: §1 slices · §2 decisions · §3 gates · §4 ids
 stale-below: nothing
 related-designs:
   - HANDOFF_Coordinator_To_AggBehaviors.md — the batch (dispatched at 3f33c0ee3)
-  - ../../designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md — the design; §23.4 is this lane's ST-0 ⑦ design
+  - ../../designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md — the design; §23.5 is this lane's ST-0 ⑦ design
 -->
 
 # STATUS — `exp/agg-behaviors`, the stochastic unit's behaviours and the chain (CE-4616)
@@ -16,8 +16,8 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 
 | slice | state | sha | rails | design folded |
 |---|---|---|---|---|
-| ST-0 ⑦ design | ✅ §23.4 — inventory (23 sites), R-8300…R-8304, UML | — | — | §23.4 |
-| ST-0 ⑦ increment 1 (neutral DTOs Defend / BreakContact, the contract rail, the routed record) | ✅ built — no site flipped (R-8304) | `dbdc6b9de` | `BehaviorParamsValidationTests.R8300_…` (all 7 kinds / 26 plays) · `SquadManeuverTests.R8301_…` · red-proofs: a play DTO field removed ⇒ R8300 red; `Order` recording "" ⇒ R8301 red; `Release` not unnaming ⇒ R8301 + `CE2141_AMemberThatIsAUnit…` red | §23.4 (as-built table; D-1 `Left`/`Right` are `Bearing`) |
+| ST-0 ⑦ design | ✅ §23.5 — inventory (23 sites), R-8300…R-8304, UML | — | — | §23.5 |
+| ST-0 ⑦ increment 1 (neutral DTOs Defend / BreakContact, the contract rail, the routed record) | ✅ built — no site flipped (R-8304) | `dbdc6b9de` | `BehaviorParamsValidationTests.R8300_…` (all 7 kinds / 26 plays) · `SquadManeuverTests.R8301_…` · red-proofs: a play DTO field removed ⇒ R8300 red; `Order` recording "" ⇒ R8301 red; `Release` not unnaming ⇒ R8301 + `CE2141_AMemberThatIsAUnit…` red | §23.5 (as-built table; D-1 `Left`/`Right` are `Bearing`) |
 | ST-0 ⑦ the flip (sites → `Order(K)`) | ⏳ waits agg-backend's routing table (R-8304) | | | |
 | ST-0 ① the four readers' slot-table branch | ⏳ waits agg-backend's `AggregateUnit` / `UnitSlotTable` | | | |
 | ST-1 … ST-5 | ⏳ | | | |
@@ -26,7 +26,7 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 
 | id | decision | would change it |
 |---|---|---|
-| R-8300…R-8304 | see the design §23.4 | — |
+| R-8300…R-8304 | see the design §23.5 | — |
 
 ## 3. Gates
 

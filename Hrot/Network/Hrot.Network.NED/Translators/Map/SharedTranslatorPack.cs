@@ -151,6 +151,13 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (Brain → every node): the radar sensor, the warning receiver, the direction finding read it.
             yield return new EntityRadarEmissionEgressTranslator(participant);
             yield return new EntityRadarEmissionIngressTranslator(participant, entityMap);
+            // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10) — a stochastic unit's state, slot table and holdings, the brain owner → every node
+            yield return new EntityAggregateUnitEgressTranslator(participant);
+            yield return new EntityAggregateUnitIngressTranslator(participant, entityMap);
+            yield return new EntityUnitSlotTableEgressTranslator(participant);
+            yield return new EntityUnitSlotTableIngressTranslator(participant, entityMap);
+            yield return new EntityUnitHoldingsEgressTranslator(participant);
+            yield return new EntityUnitHoldingsIngressTranslator(participant, entityMap);
             // ⭐ CE-3256 (BR-4) — a man in custody (Brain → every node).
             yield return new Hrot.Map.Common.Replication.Egress.EntityCustodyEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityCustodyIngressTranslator(participant, entityMap);

@@ -127,7 +127,7 @@ namespace Hrot.AI.Behaviors.Orders
     }
 
     /// <summary>
-    /// ⭐ agg-behaviors R-8300 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.4) — the DEFEND order: hold
+    /// ⭐ agg-behaviors R-8300 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5) — the DEFEND order: hold
     /// <see cref="Position"/> (the engagement area's origin). The ONE neutral DTO of the kind — the union of what the commanders send;
     /// ⭐ every play that fulfils Defend (<c>SquadDefend</c>, <c>PlatoonDefend</c>, <c>CompanyDefend</c>) accepts every field strictly (a
     /// rail walks the pairs), a field its echelon does not use is accepted and documented as unused there. A zero field keeps the
