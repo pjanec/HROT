@@ -12,13 +12,15 @@ namespace Hrot.Core.Tkb
     public static class MinefieldRecordTkb
     {
         public const long KnowledgeType = Fdp.Toolkit.Terrain.MinefieldKnowledge.TkbType, StrikesType = Fdp.Toolkit.Terrain.MinefieldStrikes.TkbType;
-        public const string KnowledgeName = "Minefield knowledge", StrikesName = "Minefield strikes";
+        public const string KnowledgeName = "Minefield knowledge", StrikesName = "Minefield strikes", LanesName = "Minefield lanes";
+        public const long LanesType = Fdp.Toolkit.Terrain.MinefieldLanes.TkbType;
 
         public static void RegisterAll(ITkbDatabase tkb)
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
             Add(tkb, KnowledgeName, KnowledgeType);
             Add(tkb, StrikesName, StrikesType);
+            Add(tkb, LanesName, LanesType);   // ⭐ MS-T4
         }
 
         private static void Add(ITkbDatabase tkb, string name, long type)
