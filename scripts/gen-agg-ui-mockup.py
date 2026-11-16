@@ -11,7 +11,7 @@ import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, text_width, render
 
-W, H = 1660, 2800
+W, H = 1660, 3300
 s = Svg(W, H, "Stochastic unit - the look (exp/agg-ui, CE-8600)",
         "Grey annotations are not drawn by the app. Scope: Resolution section, Slots tab, 2-D footprint + label rows, loss marks, detection overlay, Resolution menu + progress. Everything else is context, unchanged.")
 
@@ -184,6 +184,7 @@ def nato(cx, cy, aff, arm, ech, w=34, h=22, sw=1.4):
     if arm == "recon": s.line(cx - bx, cy + by, cx + bx, cy - by, k, sw)
     if arm == "arty": s.raw(f"<circle cx='{cx}' cy='{cy}' r='{by * 0.38}' fill='{k}'/>")
     top = cy - (h * 0.8 if aff == "H" else h / 2 + (2 if aff == "N" else 0) if aff != "U" else h * 0.72)
+    if h < 15: return   # a row-sized symbol (the ORBAT): no echelon marks - the tree's depth says it
     marks = {"team": "Ø", "squad": "•", "section": "••", "platoon": "•••", "company": "|", "battalion": "||"}[ech]
     s.text(cx, top - 2, marks, "#000" if aff != "H" else "#000", 11 if ech not in ("company", "battalion") else 12, "middle", "bold")
 
@@ -456,6 +457,69 @@ s.note(mx + 20, my + 300, [
     "above a share ⇒ the secondary MARK; echelon from AggregateUnit.Echelon / the DIS type. ⚠ From what the unit WAS MADE OF, not what it has left - losing its",
     "IFVs does not turn a mechanised platoon into infantry (identity is stable; the losses are the card's). The same deriver serves a physical unit from its roster.",
 ], C.SUB, 12)
+
+# ───────────────────────── ⑨ the ORBAT and the layer panel ─────────────────────────
+Y9 = 2790
+panel_title(X0, Y9, "⑨", "ORBAT rows by WHAT the entity is (UI-13) · the layer panel's NATO row (UI-14)")
+ox, oy = X0, Y9 + 12
+s.window(ox, oy, 560, 470, "ORBAT")
+for i, (g, c) in enumerate([(FA.SITEMAP, C.TEAL), (FA.CUBES, C.ORANGE), (FA.PUZZLE, C.VIOLET)]): s.glyph_toggle(ox + 10 + i * 34, oy + 28, g, c, i == 0)
+s.text(ox + 120, oy + 46, "Command  (context: the relation switch, unchanged)", C.DIS, 11)
+
+
+def sym_icon(x, y, aff, arm, ech):
+    nato(x + 11, y + 10, aff, arm, ech, w=20, h=13, sw=1.1)
+
+
+rows = [  # depth, chevron, icon-kind, label, sub, dim
+    (0, True, ("sym", "F", "mech", "company"), "B Coy", "physical", False),
+    (1, True, ("sym", "F", "mech", "platoon"), "2 Plt / B Coy", "~ stochastic · 26/30", False),
+    (2, None, ("glyph", FA.CROWN, C.AMBER), "slot 1 · Plt leader", "Rifle", False),
+    (2, None, ("glyph", FA.PERSON_RIFLE, C.BLUE), "slot 2 · 1 Sqn / MG", "MG", False),
+    (2, None, ("glyph", FA.PERSON_RIFLE, C.BLUE), "slot 3 · 1 Sqn / AT", "ATGM", False),
+    (2, None, ("glyph", FA.SKULL, C.RED), "slot 4 · 1 Sqn / rifle", "down", True),
+    (2, None, ("glyph", FA.VAN, C.TEAL), "slot 6 · IFV 1", "25 mm", False),
+    (2, None, ("glyph", FA.VAN, C.RED), "slot 7 · IFV 2", "K-kill", True),
+    (1, True, ("sym", "F", "inf", "platoon"), "1 Plt / B Coy", "physical · 28/30", False),
+    (2, True, ("sym", "F", "inf", "squad"), "1 Sqn", "9/9", False),
+    (3, None, ("glyph", FA.CROWN, C.AMBER), "Sgt Dvorak", "leader", False),
+    (3, None, ("glyph", FA.PERSON_RIFLE, C.BLUE), "Cpl Novak", "MG", False),
+    (3, None, ("glyph", FA.PERSON_RIFLE, C.BLUE), "Pvt Svoboda", "rifle", False),
+    (2, None, ("glyph", FA.VAN, C.TEAL), "BVP-2 #1", "IFV", False),
+]
+y = oy + 66
+for depth, chev, ic, lab, sub, dim in rows:
+    cx = ox + 12 + depth * 18
+    if chev is not None: s.chevron(cx, y + 5, chev)
+    if ic[0] == "sym": sym_icon(cx + 14, y, ic[1], ic[2], ic[3])
+    else: s.glyph(ic[1], cx + 17, y + 3, ic[2], 12.5, op=0.55 if dim else 1)
+    s.text(cx + 40, y + 15, lab, C.DIS if dim else C.TXT, 12.5)
+    s.text(ox + 548, y + 15, sub, C.DIS, 11.5, "end")
+    y += 24
+s.callout(ox + 560, oy + 80, ox + 580, oy + 70, ["a UNIT: its NATO symbol (the SAME geometry, the ImGui sink) -", "physical and stochastic alike"])
+s.callout(ox + 560, oy + 130, ox + 580, oy + 120, ["a stochastic unit's SLOTS as read-only rows (it has no child", "entities) - the Slots tab's icon per role, a down one dimmed"])
+s.callout(ox + 560, oy + 330, ox + 580, oy + 330, ["a MAN: by his role - leader crown (amber), the rest the", "rifleman (blue); a VEHICLE: by its class (van / truck / tank -", "Colour Icons §2); destroyed: dimmed + the red skull / fire"])
+
+lx, ly = ox + 980, oy
+s.window(lx, ly, 600, 300, "Tactical Map Layers")
+s.header(lx + 6, ly + 26, 588, "Units", FA.USERS, C.BLUE)
+items = [("Entities", True, "unit symbols and silhouettes (unchanged)"), ("Labels", True, "the cards"),
+         ("NATO unit symbols", True, "NEW - a unit's APP-6 symbol: in its card's cell, or alone at its point"),
+         ("Unit details", False, ""), ("Rounds", True, "")]
+yy = ly + 54
+for name, on, doc in items:
+    new = name.startswith("NATO")
+    if new: s.rect(lx + 8, yy - 3, 584, 25, "none", stroke=C.TEAL, rx=3, dash="4 3")
+    s.checkbox(lx + 14, yy, on)
+    if new: s.glyph(FA.FLAG, lx + 40, yy + 3, C.BLUE, 12)
+    s.text(lx + (60 if new else 40), yy + 14, name, C.TXT)
+    if doc: s.text(lx + 220, yy + 14, doc, C.DIS, 11)
+    yy += 28
+s.note(lx + 10, ly + 210, ["NATO on + Labels on  ⇒ the symbol in the CARD's cell (no second one at the point)",
+                           "NATO on + Labels off ⇒ the symbol ALONE at the unit's point (the zoomed-out picture)",
+                           "NATO off            ⇒ none: a unit is its card, as today",
+                           "Men and vehicles keep their silhouettes ('Entities'); NATO EQUIPMENT symbols for them",
+                           "are a separate, later switch (Symbology §3.8's selectable path) - not this row"], C.SUB, 11.5)
 
 s.save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"))
 if len(sys.argv) > 1: render(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"), sys.argv[1], W, H)
