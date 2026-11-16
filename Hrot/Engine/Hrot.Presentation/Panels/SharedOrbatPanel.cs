@@ -172,7 +172,9 @@ public sealed class SharedOrbatPanel
             // ⭐ CE-4213 ⑥ — a Scenario-view GROUP row (Saved / Transient) has no entity: a label with its arrow, no select, drag, drop or menu
             if (node.IsGroup)
             {
+                if (node.IsDestroyed) ImGui.PushStyleColor(ImGuiCol.Text, DestroyedColour);   // ⭐ CE-8611 — a stochastic unit's down slot (a read-only row)
                 NodeEditor.Core.Widgets.TreeRow.Draw(RowId(node.EntityId), node.Name, RowIconOf(node), node.Depth, node.HasChildren, ref open, false);
+                if (node.IsDestroyed) ImGui.PopStyleColor();
                 if (node.HasChildren && open != wasOpen) ToggleNode(node.EntityId, open, ctrl);
                 _drawn.Add(new(node.Name, node.Depth, true, node.HasChildren ? open : null, ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), node.IconKey));
                 continue;

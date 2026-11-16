@@ -360,6 +360,41 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>⭐ CE-8611 (UI-13, agg-ui-visuals.svg ⑨) — a STOCHASTIC unit has no child entities, so its SLOTS are its rows: expanded, one read-only row per
+    /// slot (<c>slot 2 · MG</c>) with the role's icon, a down man named so with the skull and the row dimmed; collapsed, none; the rows carry negative ids
+    /// (no entity — selecting one selects nothing). A PHYSICAL unit lists no slot rows. 🔴 Red-proof (compiles): <c>SlotCountOf</c> answering 0 ⇒ no slot rows ⇒ red.</summary>
+    [Fact]
+    public void CE8611_AStochasticUnitsSlots_AreItsReadOnlyRows()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityInfo>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        w.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(); w.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); w.RegisterComponent<NetworkIdentity>();
+        w.CreateEntity();
+        var unit = w.CreateEntity();
+        w.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt") });
+        w.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        w.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 4 };
+        var roles = new[] { Fdp.Toolkit.Aggregate.SlotRole.Leader, Fdp.Toolkit.Aggregate.SlotRole.MachineGunner, Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Fdp.Toolkit.Aggregate.SlotRole.Medic };
+        for (int i = 0; i < 4; i++) t.Slots[i] = new Fdp.Toolkit.Aggregate.UnitSlot { Role = roles[i], Health = (Half)(i == 2 ? 0f : 25f) };
+        w.AddComponent(unit, t);
+        var adapter = new ScenarioOrbatAdapter(w, w.Bus, _spawn.Object);
+
+        var collapsed = adapter.GetVisibleNodes("", new HashSet<int>());
+        var unitRow = Assert.Single(collapsed);
+        Assert.True(unitRow.HasChildren, "a stochastic unit can be opened: it has slots");
+
+        var rows = adapter.GetVisibleNodes("", new HashSet<int> { unit.Index });
+        Assert.Equal(new[] { "2 Plt", "slot 1 · Leader", "slot 2 · MG", "slot 3 · Rifleman (down)", "slot 4 · Medic" }, rows.Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "orbat/leader", "orbat/soldier", "orbat/down", "orbat/medic" }, rows.Skip(1).Select(r => r.IconKey).ToArray());
+        Assert.All(rows.Skip(1), r => { Assert.True(r.IsGroup, "read-only: no entity behind it"); Assert.True(r.EntityId < -2); Assert.Equal(1, r.Depth); });
+        Assert.True(rows[3].IsDestroyed, "the down slot is dimmed");
+        adapter.SelectEntity(rows[2].EntityId);   // nothing to select, nothing thrown
+
+        w.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Physical, Echelon = 1 });
+        Assert.Single(adapter.GetVisibleNodes("", new HashSet<int> { unit.Index }));   // a physical unit: its men are entities, no slot rows
+    }
+
     /// <summary>⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — the ORBAT row's icon by WHAT the entity is: a UNIT its derived NATO symbol
     /// (<c>symbol/SFGPUCI----D---</c> for a friend infantry platoon), a MAN his role (leader crown, rifleman), a VEHICLE its class (a tank, a truck); and the
     /// real panel paints the unit's symbol as an IMAGE wider than a glyph, in the 2525 friend fill. 🔴 Red-proof (compiles): the adapter's unit branch

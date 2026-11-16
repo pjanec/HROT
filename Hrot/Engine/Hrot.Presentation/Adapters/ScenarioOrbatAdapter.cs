@@ -160,7 +160,8 @@ namespace Hrot.UI.Common.Adapters
                 bool passesFilter = string.IsNullOrEmpty(filterText)
                     || name.Contains(filterText, System.StringComparison.OrdinalIgnoreCase);
 
-                bool hasChildren = children.ContainsKey(idx) && children[idx].Count > 0;
+                int slots = SlotCountOf(entity);   // ⭐ CE-8611 — a stochastic unit's slots are its (read-only) rows: it has no child entities
+                bool hasChildren = (children.ContainsKey(idx) && children[idx].Count > 0) || slots > 0;
 
                 if (passesFilter)
                 {
@@ -183,8 +184,10 @@ namespace Hrot.UI.Common.Adapters
                 bool expanded = expandedNodes.Contains(idx) || !passesFilter;
                 if (expanded && hasChildren)
                 {
-                    foreach (var child in children[idx])
-                        CollectNodes(child, depth + 1);
+                    if (children.TryGetValue(idx, out var kids))
+                        foreach (var child in kids)
+                            CollectNodes(child, depth + 1);
+                    if (passesFilter) AddSlotRows(result, entity, idx, slots, depth + 1);
                 }
             }
 
@@ -193,6 +196,47 @@ namespace Hrot.UI.Common.Adapters
 
             return result;
         }
+
+        /// <summary>⭐ CE-8611 — how many slot rows a unit lists: a STOCHASTIC unit's slot table (UI-13); 0 for anything else.</summary>
+        private int SlotCountOf(Entity entity)
+            => _world.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.UnitSlotTable>() && _world.HasComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(entity)
+               && Hrot.Common.Diagnostics.Gizmos.UnitCardFacts.IsStochastic(_world, entity)
+                ? _world.GetComponentRO<Fdp.Toolkit.Aggregate.UnitSlotTable>(entity).Count : 0;
+
+        /// <summary>The row id of slot <paramref name="slot"/> of the unit at entity index <paramref name="unitIndex"/> — negative (no entity), clear of the group rows.</summary>
+        public static int SlotRowId(int unitIndex, int slot) => -(1000 + unitIndex * 128 + slot);
+
+        /// <summary>
+        /// ⭐ <c>CE-8611</c> (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — a stochastic unit's SLOTS as read-only rows under it (it has no child
+        /// entities): <c>slot 3 · MG</c> with the role's icon (leader crown, medic, rifleman), a man who is down named so and drawn with the skull. Rows with
+        /// no entity (negative ids, like the Scenario view's groups): no select, drag or menu.
+        /// </summary>
+        private void AddSlotRows(List<OrbatNodeViewModel> result, Entity unit, int unitIndex, int count, int depth)
+        {
+            if (count <= 0) return;
+            ref readonly var table = ref _world.GetComponentRO<Fdp.Toolkit.Aggregate.UnitSlotTable>(unit);
+            for (int i = 0; i < count; i++)
+            {
+                var role = table.Slots[i].Role;
+                bool up = table.IsUp(i);
+                string name = $"slot {i + 1} · {SlotRoleName(role)}{(up ? "" : " (down)")}";
+                string icon = !up ? "orbat/down" : role switch
+                {
+                    Fdp.Toolkit.Aggregate.SlotRole.Leader => "orbat/leader",
+                    Fdp.Toolkit.Aggregate.SlotRole.Medic => "orbat/medic",
+                    _ => "orbat/soldier",
+                };
+                result.Add(new OrbatNodeViewModel(SlotRowId(unitIndex, i), name, depth, HasChildren: false, IsPendingDelete: false, CanAcceptSubordinates: false,
+                    IsGroup: true, IsDestroyed: !up, IconKey: icon));
+            }
+        }
+
+        private static string SlotRoleName(Fdp.Toolkit.Aggregate.SlotRole r) => r switch
+        {
+            Fdp.Toolkit.Aggregate.SlotRole.Leader => "Leader", Fdp.Toolkit.Aggregate.SlotRole.MachineGunner => "MG", Fdp.Toolkit.Aggregate.SlotRole.AntiTank => "AT",
+            Fdp.Toolkit.Aggregate.SlotRole.Grenadier => "Grenadier", Fdp.Toolkit.Aggregate.SlotRole.Marksman => "Marksman", Fdp.Toolkit.Aggregate.SlotRole.Medic => "Medic",
+            Fdp.Toolkit.Aggregate.SlotRole.Crew => "Crew", Fdp.Toolkit.Aggregate.SlotRole.Radio => "Radio", Fdp.Toolkit.Aggregate.SlotRole.Rifleman => "Rifleman", _ => "empty",
+        };
 
         /// <summary>The row text: the entity's own name; a part with none is named from its parent plus the part kind.</summary>
         private string NameOf(Entity entity, IHierarchyAdapter adapter)
