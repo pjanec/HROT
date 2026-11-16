@@ -165,6 +165,9 @@ engine is new except the prerequisites (CE-4589, CE-4610, CE-4614, CE-7033).*
 
 1. Each variant's live check PASSES on three runs, every chain arrow of §3.2 found in order, each CAUSED by its predecessor (the report precedes the
    order it triggers; the fire mission lands on a REPORTED point; a phase line reached BY a report).
+   ⭐ **As amended by R-4265 (user `2026-11-16`) for the base variant:** the objective TAKEN = the PhaseLine report OR Blue holding Objective 1 for
+   30 s (R-2119) — one arrow (`AU-6 Objective 1 TAKEN`) in place of the PhaseLine arrow alone; the fire arrow counts only the mortars' bursts /
+   smoke within 60 m (was any cloud within 120 m).
 2. The dynamism measure on the base run: thresholds X (moved > 50 m per 5 min) and Y (contacts per minute) set from the first three runs and then
    locked; a later run below them is a red row.
 3. `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` on the scenario's rails; `stepped-hash.py --threads 1,4,8` equal on the base scenario (once CE-7037

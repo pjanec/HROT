@@ -137,6 +137,9 @@ mechanism; the drones are tasked through the operator that already exists.*
 1. A rail per new play: `SupportByFire` puts rounds within 3 m of a reported post it cannot see; it shifts on order; `VehicleSupportByFire` fires from cover and relocates.
 2. The assault moves only after "suppression established" is recorded, and the base of fire is STILL firing (shifted) when the assault reaches the PhaseLine.
 3. `cc-battalion` base: Objective 1 taken in three runs out of three; the platoon's SITREP better than today's RED from 153 s (measured in the report).
+   ⭐ **"Taken" (R-4265, user `2026-11-16`):** the assault platoon's PROGRESS PhaseLine report **OR** Blue holding Objective 1 for 30 s (≥ 4 men in the
+   35 m block, no enemy — R-2119). 📌 Met by live runs #18, #19, #20 (`STATUS_Behaviors_Assault_Under_Fire.md` §0); #19 held without a report (the
+   office still being cleared), #20 reported and moved on to Objective 2 (no hold).
 4. The parallel checks (`HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1`), the stepped hash on `cc-battalion`, 0 B per steady frame.
 
 ## 8. Design docs checked

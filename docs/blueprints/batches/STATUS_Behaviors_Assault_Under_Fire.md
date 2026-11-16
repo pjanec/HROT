@@ -25,6 +25,12 @@ Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da3
 | **the loop itself** | the editor host + run-to is wired (`--host editor`, RUNBOOK §9.0) and repeats exactly on `cc-battalion`; ⛔ NOT on `pc-defend-house` (**CE-2438**, parked cars suspected) |
 | **next** | your call on ② (then 3 / 3 is met as #18–#20) · CE-2440 (catch the 8-thread race) · lock X / Y (§4 proposal) · A-9 covered position · AU-4's blind cannon fire |
 
+### −1a. Close-out (handoff `HANDOFF_Coordinator_To_Behaviors_Assault_Closeout_And_Drones.md`, dispatched `7bea87df1`) — item 1 ✅
+
+R-4265 applied (`utility-demo-check.py`: one `AU-6 Objective 1 TAKEN` arrow = PhaseLine report OR the 30 s hold; designs: Assault Under Fire §7,
+Battalion Test §5). **Re-judged from the recorded logs:** #18 ✅ (PhaseLine 606 s) · #19 ✅ (held 608 s) · #20 ✅ (PhaseLine 517 s) · #21 ⛔ (neither;
+① ⛔) ⇒ ⭐ **#18–#20: three consecutive passes — AU-6's 3 / 3 met.**
+
 ## 0. The base variant (`cc-battalion`)
 
 | run | Objective 1 | suppression established | the assault moved | SITREP colour over time | chain arrows |

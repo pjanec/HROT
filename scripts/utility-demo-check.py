@@ -6048,13 +6048,18 @@ def run_cc_battalion(c, timeout):
                    f"{[(blue_chain[r.get('from')], r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
     # ⑧ the end
     arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
-    # ⭐ CE-2436 AU-6 / R-2119 — the acceptance itself: Objective 1 TAKEN (Blue holds it: ≥ 4 men in the block, no enemy, 30 s)
-    arrows.append(("AU-6 Objective 1 TAKEN (held: ≥ 4 men, no enemy, 30 s)", took1, took1 is not None, f"held from {took1}"))
+    # ⭐ CE-2436 AU-6 — the acceptance itself. ⭐ R-4265 (user, 2026-11-16: "approved your leans"): Objective 1 TAKEN = the platoon's PhaseLine
+    #   report (its assault done) OR the 30 s hold (R-2119: ≥ 4 men in the block, no enemy) — the report comes only once the office is cleared,
+    #   and the hold breaks when the attack rightly moves on, so each alone missed a taken objective (#19 held, #20 reported)
+    t_pl = pls[0]["seenAt"] if pls else None
+    t_taken = min([x for x in (t_pl, took1) if x is not None], default=None)
+    arrows.append(("AU-6 Objective 1 TAKEN (PhaseLine report OR held 30 s)", t_taken, t_taken is not None,
+                   f"PhaseLine {t_pl}, held from {took1}"))
 
     print("   THE CHAIN (sim s):")
     for label, t, ok, ev in arrows:
         print(f"     {'✓' if ok else '·'} {label:<55} {t if t is None else round(t, 1)!s:>7}   {ev}")
-    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧", "AU-6"],
+    required = {"base": ["①", "②", "③", "⑤", "⑥", "⑧", "AU-6"],   # R-4265: the PhaseLine alone no longer — inside AU-6 (report OR hold)
                 "stall": ["②", "③", "⑦"],
                 "collapse": ["④", "⑤", "⑥"]}[variant]
     for label, t, ok, ev in arrows:
