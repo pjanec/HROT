@@ -159,6 +159,119 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(1, manager.ActiveCount);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-5008 (TE-5, R-4264, R-5041) — the obstacle ROW through the real adapter: arming the row spec and finishing a 20 m line sends SIX creation requests of the concrete-block TKB type (not one polyline entity), at the line's places,
+        /// every one born with the SAME non-zero <c>PlacementGroup</c> and a name; the tool stays armed (TE-2). 🔴 Red-proof: commit the drawn polyline entity instead ⇒ one request ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5008_TheObstacleRowTool_CommitsNEntities_InOneGroup()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson(Hrot.UI.Common.AddEntity.ObstacleRowOptions.Spec));
+            var source = (Hrot.UI.Common.AddEntity.ITerrainDrawSource)adapter;
+            Assert.NotNull(source.Row); Assert.Null(source.Options);
+
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(100f, 50f, 0f));
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(120f, 50f, 0f));
+            Assert.Equal(2, source.Points.Count);
+            Assert.Equal(6, source.Row!.CountOf(source.Points));   // the panel's count
+            gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+            _world.Bus.SwapBuffers();
+
+            var requests = _world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToList();
+            Assert.Equal(6, requests.Count);
+            Assert.All(requests, r => Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Obstacle_ConcreteBlock, (long)r.TkbType));
+            var ids = requests.Select(r => r.InitialComponents!.OfType<Fdp.Toolkit.Terrain.PlacementGroup>().Single().Id).Distinct().ToList();
+            Assert.Single(ids); Assert.NotEqual(0u, ids[0]);
+            Assert.Equal(Enumerable.Range(0, 6).Select(i => 101.75f + 3.5f * i).ToArray(), requests.Select(r => r.InitialComponents!.OfType<SimTransform>().Single().Position.X).OrderBy(x => x).ToArray(), new FloatNear());
+            Assert.All(requests, r => Assert.Equal(50f, r.InitialComponents!.OfType<SimTransform>().Single().Position.Y, 2));
+            var names = requests.Select(r => r.InitialComponents!.OfType<EntityInfo>().Single().Name.ToString()).ToList();
+            Assert.Equal(6, names.Distinct().Count());   // numbered like any placed unit
+            Assert.All(names, n => Assert.False(string.IsNullOrWhiteSpace(n)));
+            Assert.Equal(1, manager.ActiveCount);                // sticky: ready for the next row
+        }
+
+        private sealed class FloatNear : IEqualityComparer<float> { public bool Equals(float a, float b) => Math.Abs(a - b) < 0.01f; public int GetHashCode(float f) => 0; }
+
+        /// <summary>
+        /// ⭐ CE-5011 B (TE-10) — a terrain LINE finished through the real adapter is remembered by the drawing ghost (it stays drawn until the live bake takes it), a tree Row's ghost is a dot per tree at the panel's spacing; the tool stays armed.
+        /// 🔴 Red-proof: not recording the commit (<c>Ghost.Committed</c> removed) ⇒ the pending count assert fails.
+        /// </summary>
+        [Fact]
+        public void CE5011_AFinishedTerrainLine_IsKeptByTheGhostUntilTheBake()
+        {
+            var manager = MakeManager();
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson("feature:2::Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            Assert.NotNull(gizmo.Underlay);                                         // the drawing ghost is on the tool
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(100f, 50f, 0f));
+            gizmo.OnMouseEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left, false, new Vector3(160f, 50f, 0f));
+            Assert.Equal(0, adapter.Ghost.PendingCount);
+            gizmo.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
+            Assert.Equal(1, adapter.Ghost.PendingCount);                            // kept until the bake lists it
+            Assert.Equal(1, manager.ActiveCount);                                   // sticky
+        }
+
+        /// <summary>
+        /// ⭐ CE-5009 (TE-6) — the snap kind on the tool's HINT LINE: moving the cursor onto the end of a placed hedge puts "snapped: the end of a line · Ctrl: free" on the active tool's hint, leaving it restores the tool's own hint, the panel's Snap OFF means
+        /// nothing snaps (railed in TerrainSnapTests / AreaAuthoringArmTests). 🔴 Red-proof: <c>UpdateSnapHint</c> never calling <c>SetHint</c> ⇒ the first assert fails.
+        /// </summary>
+        [Fact]
+        public void CE5009_TheSnapKindIsOnTheToolsHintLine_OnlyWhileSnapped()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>()) _world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainFeature { Kind = Fdp.Toolkit.Terrain.TerrainFeature.Hedge });
+            _world.SetManagedComponent(e, new Hrot.Map.Common.Components.EditablePolyline { Points = new[] { new Vector2(0, 0), new Vector2(60, 0) }, Version = 1 });
+            _world.Tick();
+
+            var manager = MakeManager();
+            var controller = MakeController(manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager, tools: controller);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson("feature:4::Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            var draw = new DebugPrimitiveBuffer();
+            string own = controller.ActiveHint!;
+
+            gizmo.OnDragUpdate(new Vector3(100.5f, 50.3f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal("snapped: the end of a line · Ctrl: free", controller.ActiveHint);       // on the end of the placed hedge
+            gizmo.OnDragUpdate(new Vector3(130f, 80f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal(own, controller.ActiveHint);                                             // free again: the tool's own hint is back
+        }
+
+        /// <summary>⭐ CE-5009 — a DITCH line (the ground tint underlay, not the ghost) snaps AND says so on the hint line. 🔴 Red-proof: the tint underlay not wrapped by <c>WithSnapHint</c> ⇒ the hint stays the tool's own.</summary>
+        [Fact]
+        public void CE5009_ADitchLinesSnap_IsOnTheHintLineToo()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>()) _world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainFeature { Kind = Fdp.Toolkit.Terrain.TerrainFeature.Hedge });
+            _world.SetManagedComponent(e, new Hrot.Map.Common.Components.EditablePolyline { Points = new[] { new Vector2(0, 0), new Vector2(60, 0) }, Version = 1 });
+            _world.Tick();
+
+            var manager = MakeManager();
+            var controller = MakeController(manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager, tools: controller);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson($"feature:{Fdp.Toolkit.Terrain.TerrainFeature.Ground}:ditch:Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            var draw = new DebugPrimitiveBuffer();
+            gizmo.OnDragUpdate(new Vector3(100.5f, 50.3f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal("snapped: the end of a line · Ctrl: free", controller.ActiveHint);
+        }
+
         [Fact]
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {

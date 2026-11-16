@@ -45,6 +45,7 @@ public sealed class TerrainBlockDetailsViewTests
     private static (EntityRepository World, Entity Block) World(byte fit = TerrainBlock.FitAll)
     {
         var w = new EntityRepository();
+        Fdp.Toolkit.Terrain.TerrainLock.SetOpen(w, true);   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
         w.RegisterComponent<SimTransform>(); w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<TerrainBlock>(); w.RegisterComponent<EntityGuid>(); w.RegisterComponent<SelectionState>();
         var e = w.CreateEntity();
         w.AddComponent(e, new SimTransform { Position = new Vector3(100, 100, 0), Rotation = Quaternion.Identity });

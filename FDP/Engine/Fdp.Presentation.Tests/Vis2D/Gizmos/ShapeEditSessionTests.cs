@@ -248,4 +248,26 @@ public class ShapeEditSessionTests
         Assert.True(s.IsDeleteKey((MapKeyboardKey)88, false));   // 'X' (GLFW 88)
         Assert.Equal("Delete the selected point", Fdp.Toolkit.Input.Keymap.Process.LabelOf(action));
     }
+
+    /// <summary>⭐ CE-5006 TE-2 — a repeating tool's Esc drops the shape in progress first (open again), cancels only when no point is placed; Restart reopens a
+    /// finished session empty. 🔴 Red-proof (compiles): drop the EscDropsShapeFirst branch in <c>Cancel</c> ⇒ the first Esc cancels ⇒ red.</summary>
+    [Fact]
+    public void TE2_EscDropsTheShapeFirst_ThenCancels_AndRestartReopensAFinishedSession()
+    {
+        var s = new ShapeEditSession(2, closed: false, noun: "a line") { EscDropsShapeFirst = true };
+        s.Add(new System.Numerics.Vector2(0, 0)); s.Add(new System.Numerics.Vector2(5, 0));
+        Assert.Equal(ShapeOutcome.None, s.OnKey(MapKeyboardKey.Escape, true));
+        Assert.Empty(s.Points);
+        Assert.False(s.Ended);
+        Assert.Equal(ShapeOutcome.Cancelled, s.OnKey(MapKeyboardKey.Escape, true));
+
+        var f = new ShapeEditSession(2, closed: false, noun: "a line");
+        f.Add(new System.Numerics.Vector2(0, 0)); f.Add(new System.Numerics.Vector2(5, 0));
+        Assert.Equal(ShapeOutcome.Finished, f.Finish());
+        f.Restart();
+        Assert.False(f.Ended);
+        Assert.Empty(f.Points);
+        Assert.Contains("Esc: cancel", f.KeysHint);
+        Assert.Contains("Esc again: stop", new ShapeEditSession(2, closed: false) { EscDropsShapeFirst = true }.KeysHint);
+    }
 }

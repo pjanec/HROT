@@ -88,7 +88,13 @@ public sealed class EcsSelectionState : ISelectionState
     }
 
     /// <inheritdoc/>
-    public Entity? HoveredEntity { get; set; }
+    public Entity? HoveredEntity
+    {
+        get => _hovered;
+        // ⭐ CE-5006 (TE-17, R-5036) — a placed terrain thing is not hovered while terrain authoring is closed
+        set => _hovered = value is { } e && Fdp.Toolkit.Terrain.TerrainLock.IsLocked(_world, e) ? null : value;
+    }
+    private Entity? _hovered;
 
     /// <inheritdoc/>
     public bool IsSelected(Entity entity)
@@ -204,6 +210,9 @@ public sealed class EcsSelectionState : ISelectionState
     /// <summary>⭐ <c>CE-4049</c> — THE write: the store (when the entity has a network id) and its component copy, together.</summary>
     public static void Write(EntityRepository world, Entity entity, bool selected, bool primary)
     {
+        // ⭐ CE-5006 (docs/DESIGN_Terrain_Editor_UX.md TE-17, R-5036) — THE place every selection passes (the map click, band select, the Outliner, select-all):
+        //   a placed terrain thing is not SELECTED while terrain authoring is closed — so nothing can move, reshape, rotate, delete or edit it. Deselecting always goes.
+        if ((selected || primary) && Fdp.Toolkit.Terrain.TerrainLock.IsLocked(world, entity)) return;
         int net = NetOf(world, entity);
         if (net > 0) SelectionStore.Of(world).Set(net, selected, primary);
         if (!world.HasComponent<SelectionStateComponent>(entity))

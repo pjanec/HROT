@@ -463,6 +463,59 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
     
         /// <summary>
+        /// ⭐ CE-5014 (user finding `2026-11-16`: "fences or ditches … are shown under the terrain, probably at zero altitude") — an overlay's pieces stand on the BASE's
+        /// relief: a fence and a lone tree drawn on a 50 m slope have their base on the ground under them (the LOWEST along / under, TH-C), not at the overlay's flat
+        /// groundZ; the overlay keeps no height of its own. 📐 Measured before the fix: base 0, top 1.6 on 50 m ground. 🔴 Red-proof: drop <c>groundOf</c> in the parser ⇒ base 0.
+        /// </summary>
+        /// <remarks>⭐ CE-5015 (user: "the wall should follow the slope") — and steps with it; a flat world's wall stays one panel per segment. 🔴 Red-proof: one piece per segment ⇒ 1 panel, the high end buried.</remarks>
+        [Fact]
+        public void CE5014_AnOverlaysFenceAndTree_StandOnTheBasesRelief_NotAtZero()
+        {
+            var flatWall = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(FlatBase(), FeatureExpander.OfKind(TerrainFeature.Wall, "w", "", 0f, 0f, 1, Vector2.Zero, new[] { new Vector2(-20, 0), new Vector2(20, 0), new Vector2(20, 20) }, FlatBase(), new TerrainAssets(), Array.Empty<string?>())).ToJsonString(), "flat", new TerrainAssets(), FlatBase().Height);
+            Assert.Equal(2, flatWall.Panels.Count);                                         // flat ground: a panel per segment, as before
+            int n = 201; var h = new float[n * n];
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++) h[y * n + x] = 50f + 0.2f * (x - 100);   // a slope: 50 m at x = 0, rising east
+            var hill = new TerrainWorld { Name = "hill", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), Height = new TerrainHeightGrid(new Vector2(-100f), 1f, n, n, h) };
+            var parts = FeatureExpander.OfKind(TerrainFeature.Fence, "f", "", 0f, 0f, 1, Vector2.Zero, new[] { new Vector2(-20, 5), new Vector2(20, 5) }, hill, new TerrainAssets(), Array.Empty<string?>())
+                .Concat(FeatureExpander.OfKind(TerrainFeature.Tree, "t", "", 0f, 0f, 2, new Vector2(30f, 30f), Array.Empty<Vector2>(), hill, new TerrainAssets(), Array.Empty<string?>())).ToList();
+            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(hill, parts).ToJsonString(), "hill", new TerrainAssets(), hill.Height);
+            Assert.Null(overlay.Height);                                                   // the overlay keeps no relief of its own: the merge keeps the base's
+            var merged = TerrainWorldMerge.Merge(hill, overlay);
+            var fence = merged.Panels.Where(p => p.Label == "f/0").ToList();
+            Assert.Equal(new Vector2(-20, 5), fence[0].A);                                 // where it was drawn, end to end
+            Assert.Equal(new Vector2(20, 5), fence[^1].B);
+            Assert.InRange(fence[0].BaseZ, 45f, 47f);                                      // on the ground at its low end (46 m) …
+            // ⭐ CE-5015 — … and it FOLLOWS the slope: 2 m steps, each on the lowest ground under it, joined end to end
+            Assert.Equal(20, fence.Count);
+            for (int i = 0; i < fence.Count; i++)
+            {
+                Assert.Equal(hill.Height!.LowestAlong(new[] { fence[i].A, fence[i].B }), fence[i].BaseZ, 3);
+                Assert.Equal(1.6f, fence[i].TopZ - fence[i].BaseZ, 3);
+                if (i > 0) Assert.Equal(fence[i - 1].B, fence[i].A);
+            }
+            Assert.InRange(fence[^1].BaseZ, 53f, 54f);                                     // the high end stands 8 m higher, not buried
+            var tree = merged.Prisms.Single(p => p.Kind == TerrainPrismKind.Tree);
+            Assert.InRange(tree.BaseZ, 55.5f, 56.5f);                                      // 50 + 0.2 × 30, less the trunk's lowest corner
+        }
+
+        /// <summary>
+        /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-12; §8 R-11) — a BERM drawn along a line raises a 3 m strip 1.5 m (its own height overrides), blended out by a skirt,
+        /// and is no obstacle area (a terrain-class line). 🔴 Red-proof: map "berm" to the ditch mode ⇒ the strip is LOWERED.
+        /// </summary>
+        [Fact]
+        public void CE5012_ABerm_IsARaisedStrip_NotAnObstacle()
+        {
+            var merged = TerrainWorldMerge.Merge(FlatBase(), ShapeOverlay(
+                Ditch("b", "berm", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ditch("h", "berm", 3f, 2, Vector2.Zero, 0f, new Vector2(-20f, 40f), new Vector2(20f, 40f))));
+            Assert.Equal(1.5f, merged.GroundHeightAt(0f, 0f), 3);          // the crest
+            Assert.Equal(1.5f, merged.GroundHeightAt(5f, 0.5f), 2);        // still the crest across its 3 m
+            Assert.Equal(0f, merged.GroundHeightAt(0f, 12f), 3);           // past the skirt: untouched
+            Assert.Equal(3f, merged.GroundHeightAt(0f, 40f), 3);           // its own height
+            Assert.DoesNotContain(merged.GroundShapes, g => g.Obstacle);
+        }
+
+        /// <summary>
         /// ⭐ G-27 / G-36 / V-29 / V-30 — cover: a 1 m ditch 40 m long gives crouch points along BOTH banks, each facing its bank, on the ditch's floor; a foxhole gives four
         /// all-round points. 🔴 Red-proof: drop <c>AddGroundCover</c> from the build ⇒ none.
         /// </summary>

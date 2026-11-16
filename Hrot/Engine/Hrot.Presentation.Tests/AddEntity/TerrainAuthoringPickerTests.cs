@@ -41,7 +41,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     public void U1_TheCatalogue_ListsEveryShippedRecipeAsABlock_AndEveryBuildingTemplateAsAHouse()
     {
         var picks = Shipped();
-        var recipes = Directory.EnumerateFiles(ContentLayout.TerrainRecipeAssets(_src), "*.recipe.json").Select(f => Path.GetFileName(f)[..^".recipe.json".Length]).OrderBy(x => x).ToArray();
+        var recipes = Directory.EnumerateFiles(ContentLayout.TerrainRecipeAssets(_src), "*.recipe.json").Select(f => Path.GetFileName(f)[..^".recipe.json".Length]).Where(id => id is not ("street-clutter" or "undergrowth")).OrderBy(x => x).ToArray();   // ⭐ CE-5007: the scatter-only recipes are the scatter tool's, not Block tiles
         var templates = Directory.EnumerateFiles(ContentLayout.BuildingAssets(_src), "*.building.json").Select(f => Path.GetFileName(f)[..^".building.json".Length]).OrderBy(x => x).ToArray();
         Assert.NotEmpty(recipes);
         Assert.Equal(recipes, picks.Where(p => p.Kind == TerrainPickKind.Block).Select(p => p.Id).OrderBy(x => x).ToArray());
@@ -341,7 +341,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     {
         var spawn = new RecordingSpawn();
         var picks = TerrainPickCatalog.FeaturePicks();
-        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Wall)));
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Wall && p.Shape == TerrainShape.Line)));
         Assert.True(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Tree)));
         Assert.False(PlacementToolRegistry.ArmTerrain(spawn, picks.Single(p => p.FeatureKind == TerrainFeature.Scatter)));
         Assert.Equal($"area-{TkbEntityTypes.TerrainFeature}-{{\"$terrain\":\"feature:2::Line\"}}", spawn.Calls[0]);
@@ -411,6 +411,45 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-5008 (TE-3, mockup B) — the Trees family gains <i>Tree row</i> (a LINE, Pad = the spacing, default 8 m) and <i>Tree group</i> (an AREA, Pad = the count, default 10): both are drawn through the area tool, are lone trunks (never a Wood),
+    /// and the panel's tree count is the expander's own. 🔴 Red-proof: <c>Born</c> writing <c>Pad = Height</c> for a row ⇒ the spacing assert fails.
+    /// </summary>
+    [Fact]
+    public void CE5008_TheTreeRowAndGroupPicks_AreBornWithTheirSpacingAndCount()
+    {
+        var picks = TerrainPickCatalog.FeaturePicks();
+        var row = picks.Single(p => p.Name == "Tree row"); var group = picks.Single(p => p.Name == "Tree group");
+        Assert.Equal((TerrainFeature.Row, TerrainShape.Line, "tree", TerrainPickCatalog.Vegetation), (row.FeatureKind, row.Shape, row.Template, row.Group));
+        Assert.Equal((TerrainFeature.Group, TerrainShape.Area, "tree", TerrainPickCatalog.Vegetation), (group.FeatureKind, group.Shape, group.Template, group.Group));
+        Assert.Equal("lone trees along a line, every 8 m", row.Line); Assert.Equal("lone trees in an area", group.Line);
+
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, row)); Assert.True(PlacementToolRegistry.ArmTerrain(spawn, group));
+        Assert.Equal(2, spawn.Calls.Count(c => c.StartsWith("area-")));   // both are DRAWN, not one click
+
+        var r = TerrainDrawOptions.From(row.Spec)!;
+        Assert.True(r.IsTreeRow && r.HasPanel);
+        var born = new List<object>(); r.Born(born);
+        Assert.Equal((TerrainFeature.Row, 8f), (born.OfType<TerrainFeature>().Single().Kind, born.OfType<TerrainFeature>().Single().Pad));   // the default spacing
+        r.Spacing = 5f; born.Clear(); r.Born(born);
+        Assert.Equal(5f, born.OfType<TerrainFeature>().Single().Pad);
+
+        var g = TerrainDrawOptions.From(group.Spec)!;
+        Assert.True(g.IsTreeGroup && g.HasPanel);
+        born.Clear(); g.Born(born);
+        Assert.Equal((TerrainFeature.Group, 10f, g.Seed), (born.OfType<TerrainFeature>().Single().Kind, born.OfType<TerrainFeature>().Single().Pad, born.OfType<TerrainFeature>().Single().Seed));   // the default count; the seed the panel shows
+        g.Count = 11; born.Clear(); g.Born(born);
+        Assert.Equal(11f, born.OfType<TerrainFeature>().Single().Pad);
+
+        // the panel's "16 trees" is the expander's own placement
+        var line = new[] { new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.5f) };
+        r.Spacing = 8f;
+        Assert.Equal(16, r.TreesAlong(line));
+        Assert.Equal(Fdp.Toolkit.Terrain.FeatureExpander.CountAlong(line, 8f), r.TreesAlong(line));
+        Assert.Equal(0, r.TreesAlong(new[] { new Vector2(1, 1) }));
+    }
+
+    /// <summary>
     /// ⭐ Gap C (mockup 3, the Clutter tiles) — every clutter type has its OWN glyph key from the shared icon table (a car, a barrel, a crate, a block, a barrier, sandbags, a booth), none the generic one; walls, woods, bridges and water have theirs; blocks and houses (pictures) have none.
     /// 🔴 Mutation: <c>TerrainPick.GlyphKey</c> returning null ⇒ red.
     /// </summary>
@@ -434,7 +473,11 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     [Fact]
     public void U7_TheScatterPickLights_WhenARecipeCarriesAScatterSection()
     {
-        Assert.Contains("T-3", Shipped().Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        // ⭐ CE-5007 — street-clutter and undergrowth now SHIP: the pick is lit on the shipped set, and neither is a Block tile
+        var shipped = Shipped();
+        Assert.Null(shipped.Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        Assert.DoesNotContain(shipped, p => p.Kind == TerrainPickKind.Block && p.Id is "street-clutter" or "undergrowth");
+        Assert.Equal(new[] { "street-clutter", "undergrowth" }, TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }).Select(r => r.Id).OrderBy(x => x).ToArray());
         Directory.CreateDirectory(_tmp);
         File.WriteAllText(Path.Combine(_tmp, "street-clutter.recipe.json"), """{ "id": "street-clutter", "radius": 40, "scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 2 } ] } }""");
         var picks = TerrainPickCatalog.Build(new[] { _tmp, ContentLayout.TerrainRecipeAssets(_src) }, new[] { ContentLayout.BuildingAssets(_src) });
@@ -442,7 +485,6 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Null(scatter.Disabled);
         Assert.Equal("feature:11:street-clutter:Area", scatter.Spec);
         Assert.Equal(("street-clutter", 3f), (TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Id, TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Density));
-        Assert.Empty(TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }));
     }
 
     /// <summary>
@@ -455,7 +497,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     {
         Assert.Equal(TerrainPickCatalog.Earthworks, TerrainPickCatalog.Groups[^1]);
         var earth = TerrainPickCatalog.FeaturePicks().Where(p => p.Group == TerrainPickCatalog.Earthworks).ToList();
-        Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Foxhole" }, earth.Select(p => p.Name).ToArray());
+        Assert.Equal(new[] { "Level", "Raise", "Lower", "Crater", "Ditch", "Anti-tank ditch", "Berm", "Foxhole" }, earth.Select(p => p.Name).ToArray());
         Assert.All(earth.Take(3), p => { Assert.Null(p.Disabled); Assert.Equal(TerrainShape.Area, p.Shape); Assert.Equal(TerrainFeature.Ground, p.FeatureKind); Assert.Equal("terrain/source", p.GlyphKey); });
         Assert.Contains("V-14", earth.Single(p => p.Name == "Crater").Disabled);
         // ⭐ CE-4593 (P-6) — the ditches are line tools, the foxhole a point tool
@@ -475,5 +517,29 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Equal(7.5f, l.Pad);
         Assert.True(l.Seed > r.Seed, "the shape drawn later has the higher draw order");
         Assert.Equal("Level ground", level.OfType<EntityInfo>().Single().Name.ToString());
+    }
+
+    /// <summary>
+    /// ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7, TE-12) — <i>Wall around a plot</i> is an AREA tool born as a CLOSED wall line (its first point repeated, once); the
+    /// <i>Berm</i> is a line tool among the ditches, a preset that raises. 🔴 Red-proof: drop <c>CloseRing</c> from <c>BornWith</c> ⇒ the wall is open.
+    /// </summary>
+    [Fact]
+    public void CE5012_AWallAroundAPlot_IsBornClosed_AndTheBermIsARaisingLineTool()
+    {
+        var plot = TerrainPickCatalog.FeaturePicks().Single(p => p.Name == "Wall around a plot");
+        Assert.Equal(TerrainShape.Area, plot.Shape);
+        Assert.Equal(TerrainFeature.Wall, plot.FeatureKind);
+        var corners = new List<System.Numerics.Vector2> { new(0, 0), new(20, 0), new(20, 20), new(0, 20) };
+        var born = new List<object> { new Hrot.Map.Common.Components.EditablePolyline { Points = corners } };
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, plot.Spec, System.Numerics.Quaternion.Identity, born);
+        TerrainBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, plot.Spec, System.Numerics.Quaternion.Identity, born);   // idempotent
+        var pts = born.OfType<Hrot.Map.Common.Components.EditablePolyline>().Single().Points;
+        Assert.Equal(5, pts.Count);
+        Assert.True(Fdp.Toolkit.Terrain.WallGate.IsClosed(pts));
+        Assert.Equal(TerrainFeature.Wall, born.OfType<TerrainFeature>().Single().Kind);
+
+        var berm = TerrainPickCatalog.FeaturePicks().Single(p => p.Name == "Berm");
+        Assert.Equal(TerrainShape.Line, berm.Shape);
+        Assert.True(Fdp.Toolkit.Terrain.DitchPresets.Of("berm")!.Value.Raise);
     }
 }

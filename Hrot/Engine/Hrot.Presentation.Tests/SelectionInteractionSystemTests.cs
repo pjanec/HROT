@@ -542,6 +542,39 @@ public class SelectionInteractionSystemTests
             commands[0].NetworkId);
     }
 
+    private sealed class StepLog : Fdp.Toolkit.Replication.Edits.IEditStepRecorder
+    {
+        public readonly List<string> Log = new();
+        public void Begin(EntityRepository repo, string label) => Log.Add("begin " + label);
+        public void End(EntityRepository repo) => Log.Add("end");
+        public void Cancel(EntityRepository repo) => Log.Add("cancel");
+    }
+
+    /// <summary>
+    /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — the Delete key over SEVERAL selected entities (a row of obstacles, ten trees) is ONE undo step: one bracket round
+    /// every delete; a single delete needs none. 🔴 Red-proof: drop the bracket ⇒ no "begin Delete".
+    /// </summary>
+    [Fact]
+    public void CE5017_DeletingSeveral_IsOneUndoStep()
+    {
+        var log = new StepLog();
+        Fdp.Toolkit.Replication.Edits.EditSteps.Install(_world, log);
+        var a = CreateSelectableEntity(); var b = CreateSelectableEntity(); var c = CreateSelectableEntity();
+        _world.SetComponent(a, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        _world.SetComponent(b, new SelectionState { IsSelected = true });
+        _world.SetComponent(c, new SelectionState { IsSelected = true });
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        int deletes = 0; foreach (var _ in _world.Bus.ReadManaged<DestroyEntityCommand>()) deletes++;
+        Assert.Equal(3, deletes);
+        // one OUTER bracket round the three deletes (each delete's own step nests inside: WorldUndoRecorder makes the outer pair the one undo step)
+        Assert.Equal(8, log.Log.Count);
+        Assert.Equal("begin Delete", log.Log[0]);
+        Assert.Equal("end", log.Log[^1]);
+        Assert.Equal(4, log.Log.Count(l => l.StartsWith("begin", StringComparison.Ordinal)));   // the outer one + one per delete
+    }
+
     // SIS-005: GizmoKeyEvent(Delete, isPressed=true) is ignored.
     [Fact]
     public void GizmoKeyEvent_Delete_Pressed_IsIgnored()
@@ -969,5 +1002,58 @@ public class SelectionInteractionSystemTests
         _world.Bus.SwapBuffers(); _system.Tick(0f);
         Release();
         Assert.True(Sel(a) && Sel(b) && Sel(c));        // dragged: the whole selection stays for the group move
+    }
+
+    // ── ⭐ CE-5008 (TE-5, R-5041) — a placed obstacle row selects as ONE group ────────────────────────────────────────────
+
+    private List<Entity> Row(uint id, params float[] xs)
+    {
+        var l = new List<Entity>();
+        foreach (var x in xs) { var e = UnitAt(x, 0); _world.AddComponent(e, new Fdp.Toolkit.Terrain.PlacementGroup { Id = id }); l.Add(e); }
+        return l;
+    }
+
+    /// <summary>
+    /// A click on ONE member of a placed row selects every live member of its <c>PlacementGroup</c> (and nothing else); Shift adds the whole group, Ctrl toggles it whole; ⭐ Alt-click still picks the single unit (cycling is per unit, P5).
+    /// 🔴 Red-proof: <c>GroupOf</c> returning null ⇒ only the clicked member is selected ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE5008_AClickOnOneMemberOfARow_SelectsTheWholeGroup_AltClickPicksOne()
+    {
+        var row = Row(9, 0, 4, 8, 12);
+        var other = Row(10, 100, 104);
+        var lone = UnitAt(50, 0);
+
+        Click(row[1], MapMouseButton.Left);
+        Assert.All(row, e => Assert.True(Sel(e)));
+        Assert.False(Sel(other[0]) || Sel(other[1]) || Sel(lone));
+
+        Click(lone, MapMouseButton.Left);
+        Assert.True(Sel(lone)); Assert.All(row, e => Assert.False(Sel(e)));
+
+        Click(other[0], ShiftLeft);                                   // Shift adds the whole group
+        Assert.True(Sel(lone) && Sel(other[0]) && Sel(other[1]));
+
+        Click(other[1], CtrlLeft);                                    // Ctrl toggles it whole: both leave
+        Assert.True(Sel(lone)); Assert.False(Sel(other[0]) || Sel(other[1]));
+
+        Click(row[2], AltLeft, new Vector3(8, 0, 0));                 // Alt: the single unit
+        Assert.Equal(1, row.Count(Sel));
+    }
+
+    /// <summary>A member that is no longer alive is not selected with the group; a group of one (or id 0) selects itself alone.</summary>
+    [Fact]
+    public void CE5008_ADeadMemberIsSkipped_AndAGroupOfOneSelectsItself()
+    {
+        var row = Row(21, 0, 4, 8);
+        _world.DestroyEntity(row[2]); _world.Tick();
+        Click(row[0], MapMouseButton.Left);
+        Assert.True(Sel(row[0]) && Sel(row[1]));
+        var single = Row(22, 200)[0];
+        Click(single, MapMouseButton.Left);
+        Assert.True(Sel(single)); Assert.False(Sel(row[0]));
+        var zero = Row(0, 300, 304);
+        Click(zero[0], MapMouseButton.Left);
+        Assert.True(Sel(zero[0])); Assert.False(Sel(zero[1]));        // id 0 = no group
     }
 }

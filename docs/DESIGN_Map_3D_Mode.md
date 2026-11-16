@@ -3518,7 +3518,7 @@ classDiagram
   class TerrainLayer3D { <<existing>> the old whole-mesh path for a plain source · a TerrainChunks3D for a chunked one }
   class TerrainChunks3D { <<NEW>> per chunk: ground mesh per LOD + objects mesh · LOD choice · frustum cull · build queue · GPU budget }
   class TerrainPicker { <<existing>> the old grid for a plain source · ChunkPickGrids for a chunked one }
-  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid }
+  class ChunkPickGrids { <<NEW>> a PickGrid per chunk (LOD 0 + objects), built on demand on a worker · the ray walks the chunk grid · CE-5016: a re-bake keeps each chunk's previous grid until its new one lands }
   class BackgroundMeshBuild~T~ { <<existing>> one per chunk mesh }
   class PickGrid { <<existing>> one per chunk }
   ITerrainRenderGeometry <|-- ITerrainChunkedGeometry
@@ -3530,6 +3530,8 @@ classDiagram
   TerrainPicker *-- "0..1" ChunkPickGrids
   ChunkPickGrids *-- "many" PickGrid
 ```
+
+⭐ **CE-5016 (`2026-11-16`, terrain lane; user finding *"drawn fences are almost always shifted"*)** — a live bake gives the terrain a new identity, and `ChunkPickGrids.Bind` used to DROP every chunk grid: until the chunks under the ray were rebuilt on a worker a click MISSED the ground and fell to the look-at plane — 📐 measured 6.8 m (basic-desert) / 12.9 m (city-battle) off in XY, for 1–3 frames (`TerrainEditorFrameRail.A3`). Now a re-bake with the SAME chunk layout keeps each chunk's previous grid (and the outside's) as the answer until its replacement lands. A different layout (another terrain) starts clean, and the plain-source picker (no layout to compare) keeps R-1046's rule: blind while building, never the old terrain's triangles.
 *What the picture shows that prose hid: the soup's three consumers (3-D, picker, navmesh) now all take the terrain BY REGION from the same builders; a source that is not chunked
 (a test double) keeps the old whole-mesh path, so nothing else changes.*
 

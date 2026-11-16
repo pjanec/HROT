@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-15
+updated: 2026-11-16
 current-answer: §1 — the task in flight, the last green sha, what is next
 stale-below: §3 is the dated log (history)
 related-designs:
@@ -32,6 +32,7 @@ See [STATUS_Terrain.md](STATUS_Terrain.md) §1 — the list is kept there, once.
 
 ## 3. Log
 
+- `2026-11-16` — ⭐ **CE-4594 terrain editor UX BUILT** (all seven slices, [DESIGN_Terrain_Editor_UX.md](../DESIGN_Terrain_Editor_UX.md) §6 as-built notes): CE-5006 toolbars + the Terrain lock · CE-5007 tree Row / Group · CE-5008 obstacle rows · CE-5009 snapping (+ panel toggle, road offset, hint `d899e0248`) · CE-5010 the Terrain Details tab + obstacle types 8820–8822 · CE-5011 feature gizmo, ghost, 3-D tree pick (`e6033cbff`) · CE-5012 plot wall, Add gate here, berm, breach remap by geometry (`78a2b2a0b`, `5145f9cea`). CE-5013 toolbar content decided (R-5039/5040). Open: a ditch / berm line snaps but shows no hint text (the hint rides the ghost underlay); `Map3DFrameRail.CE4582` red only in a wide run (green alone); `EntityTypeCatalog` CE2138 golden updated for 8820–8822.
 - `2026-11-15` — **close-out** ([STATUS_Terrain_Closeout.md](batches/STATUS_Terrain_Closeout.md)): CE-4403 / 4592 / 4593 / 4600 / 4604 closed, the plan BUILT; CE-4588's three rails and the geo rail (CE-5003) re-pointed — stale rails, no defect; CE-5004 (D-4, awaits AQ112) and CE-5005 (ui: the hint's glyphs) filed. ⭐ + CE-4594 DESIGNED ([DESIGN_Terrain_Editor_UX.md](../DESIGN_Terrain_Editor_UX.md), leans TE-1…TE-12 await the user). Next: the user's answers on TE-1…TE-12 and AQ112, CE-5002 part 2.
 - `2026-11-15` — the batch gate: two of mine found and fixed (icons not in the font; CE-5000 part 3 reverted), every other red pre-existing (measured at `3c9c991d`). CE-5002 part 1 (the load warms the view tables).
 - `2026-11-14` (night) — the visual pass (`da1f877b`: crater soot drew as grass, the 2-D map drew no ditches / craters — both fixed), CE-5001 the contact cue across nodes (`437e529c`), V-29 handed to behaviors (R-5031), CE-5000 closed (`42aed17b`), V-15 bridges / tunnels (`a89b6220`), AQ112 for D-4, the barrage measured on city-battle + a bake latency defect fixed (`c086ce191`), CE-5002 filed.

@@ -165,7 +165,7 @@ public static class OverlayCompiler
                 if (sumoNetName == null && File.Exists(Path.Combine(terrainFolder, sumo.File))) File.Copy(Path.Combine(terrainFolder, sumo.File), netPath, overwrite: true);
                 if (File.Exists(netPath))
                 {
-                    var merged = TerrainWorldMerge.Merge(baseWorld, TerrainWorldParser.Parse(world.ToJsonString(), terrainName + "/overlay", assets));
+                    var merged = TerrainWorldMerge.Merge(baseWorld, TerrainWorldParser.Parse(world.ToJsonString(), terrainName + "/overlay", assets, baseWorld.Height));   // ⭐ CE-5014
                     if (merged.Height is { } shaped && !ReferenceEquals(shaped, baseWorld.Height))
                     {
                         reElevateNet(netPath, (x, y) => shaped.Sample((float)(x - sumo.AnchorX), (float)(y - sumo.AnchorY)));
@@ -191,7 +191,7 @@ public static class OverlayCompiler
             if (bakeNavtiles)
             {
                 // the merged world as a node will load it; the prefill cache writes only the tiles neither the base's seed nor the part already holds
-                var overlay = TerrainFolderWorld.ReadOverlay(partDir, terrainName, TerrainAssets.RecipesSibling(terrainFolder));
+                var overlay = TerrainFolderWorld.ReadOverlay(partDir, terrainName, TerrainAssets.RecipesSibling(terrainFolder), baseWorld.Height);   // ⭐ CE-5014
                 var merged = TerrainWorldMerge.Merge(baseWorld, overlay.World);
                 var factory = new RecastNavmeshFactory { TileCache = NavTileCache.ForPrefill(Path.Combine(partDir, NavTileCache.TerrainFolderName)), SeedPrefill = true };
                 factory.Build(merged);

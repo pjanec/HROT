@@ -64,7 +64,6 @@ using Hrot.UI.Common.Adapters;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
-using Hrot.Editor.UI;
 using Hrot.Player.Systems;
 using Hrot.Player.Modules;
 using Hrot.Map.Common;

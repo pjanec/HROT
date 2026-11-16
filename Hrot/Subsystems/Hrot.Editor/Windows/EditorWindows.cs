@@ -2,7 +2,6 @@ using System.Numerics;
 using Fdp.Diagnostics.Contracts.Panels;
 using Fdp.Presentation.WindowManager;
 using Hrot.Editor;
-using Hrot.Editor.UI;
 using Hrot.UI.Common.Facades;
 using Hrot.UI.Common.Panels;
 
@@ -28,42 +27,6 @@ internal static class EditorWindowColor
 {
     internal static readonly Vector4 TitleBar = new(0.15f, 0.22f, 0.48f, 1f);
 }
-
-/// <summary>Editor toolbar panel as a perspective-bound managed window.
-/// ⭐⭐⭐ U-obs-5 — the HOST registers. ⚠ No sibling host: single host, kind stays a local literal.</summary>
-internal sealed class EditorToolbarWindow : ManagedWindow
-{
-    internal const string Kind = "editor-toolbar";
-
-    private readonly EditorToolbarPanel _panel;
-    private readonly IEditorLogic       _logic;
-
-    public EditorToolbarWindow(EditorToolbarPanel panel, IEditorLogic logic)
-        : base("editor_toolbar", "Editor Toolbar", "Scenario", WindowScope.PerspectiveBound)
-    {
-        _panel = panel;
-        _logic = logic;
-        IsOpen        = true;
-        TitleBarColor = EditorWindowColor.TitleBar;
-        PanelSnapshot.DeclareInstrumented(Id);
-    }
-
-    private EditorToolbarPanelViewModel BuildAndPublish()
-    {
-        var vm = _panel.BuildViewModel(_logic, Id, Kind);
-        if (PanelSnapshot.CaptureEnabled) PanelSnapshot.Register(vm);
-        return vm;
-    }
-
-    internal EditorToolbarPanelViewModel SimulateDrawClientArea() => BuildAndPublish();
-
-    protected override void DrawClientArea()
-    {
-        BuildAndPublish();
-        _panel.DrawContent(_logic);
-    }
-}
-
 
 /// <summary>Preview/Edit mode toggle panel as a perspective-bound managed window.
 /// ⭐⭐⭐ U-obs-5 — the HOST registers; the KIND is <see cref="PanelIds.Preview"/>, shared with the

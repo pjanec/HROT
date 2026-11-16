@@ -45,7 +45,14 @@ namespace Fdp.Toolkit.Terrain
         /// (<see cref="TerrainAssets.ForFolder"/> for a terrain folder). <c>null</c> ⇒ the shared materials and no templates
         /// (a world that places a template then fails loudly, naming it).
         /// </summary>
-        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets)
+        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets) => Parse(geojson, name, assets, groundOf: null);
+
+        /// <summary>
+        /// ⭐ CE-5014 — as above, for an OVERLAY: a document that names no height grid of its own stands its pieces (a wall, a fence, a tree, a prism, a slab's
+        /// vertices) on <paramref name="groundOf"/> — the BASE terrain's relief it is merged onto — instead of the flat <c>groundZ</c>. 📐 Measured: without it a fence
+        /// drawn on a 50 m hill baked at base 0, under the ground. The result's <see cref="TerrainWorld.Height"/> stays the document's own (null): the merge keeps the base's.
+        /// </summary>
+        public static TerrainWorld Parse(string geojson, string? name, TerrainAssets? assets, TerrainHeightGrid? groundOf)
         {
             assets ??= TerrainAssets.None;
             var materials = assets.Materials;
@@ -91,8 +98,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             }
             // ⭐ TH-C — a piece with no explicit baseZ stands on the LOWEST ground under it (no gap on the downhill side)
-            float GroundUnder(IReadOnlyList<Vector2> polygon) => grid?.LowestUnder(polygon) ?? groundZ;
-            float GroundAlong(IReadOnlyList<Vector2> line) => grid?.LowestAlong(line) ?? groundZ;
+            var ground = grid ?? groundOf;   // ⭐ CE-5014 — an overlay stands on its base's relief
+            float GroundUnder(IReadOnlyList<Vector2> polygon) => ground?.LowestUnder(polygon) ?? groundZ;
+            float GroundAlong(IReadOnlyList<Vector2> line) => ground?.LowestAlong(line) ?? groundZ;
 
             List<string>? warnings = null;
             var sink = new TerrainBuildingExpander.Sink();
@@ -199,13 +207,41 @@ namespace Fdp.Toolkit.Terrain
                         var material = materials.Get((string?)props["material"]
                             ?? (kind == "fence" ? TerrainMaterialLibrary.DefaultFenceMaterial : TerrainMaterialLibrary.DefaultMaterial), where);
                         var line = ReadPositions(geometry["coordinates"], where);
-                        float baseZ = explicitWallBase ?? GroundAlong(line.Select(p => new Vector2(p.X, p.Y)).ToList());
                         var openings = props["openings"] as JsonArray;
                         if (openings != null && line.Count != 2)
                             throw new ArgumentException($"Terrain world {where}: openings need a single-segment {kind} (got {line.Count - 1} segments).");
+                        if (explicitWallBase is { } fixedBase || ground is null || openings != null)
+                        {
+                            // an explicit base, a flat world, or a wall with openings (an opening is placed along ONE panel): one panel per segment on one base
+                            float baseZ = explicitWallBase ?? GroundAlong(line.Select(p => new Vector2(p.X, p.Y)).ToList());
+                            for (int i = 0; i + 1 < line.Count; i++)
+                                TerrainBuildingExpander.AddPanel(sink, new Vector2(line[i].X, line[i].Y), new Vector2(line[i + 1].X, line[i + 1].Y),
+                                    thickness, baseZ, baseZ + height, material, openings, -1, -1, label, name, null, where);
+                            break;
+                        }
+                        // ⭐ CE-5015 (user, `2026-11-16`: "the wall should follow the slope") — on relief a wall STEPS with the ground, as a garden wall on a hill is built: a segment
+                        //   whose ground varies more than WallStepTolerance is cut into pieces of at most WallStepLength, each standing on the LOWEST ground under it (TH-C, no gap
+                        //   downhill), its top the wall's height above that. A flat segment stays ONE panel. The pieces join end to end with one label: one wall line
+                        //   (BuildingPanelIndex), its breaches mapped by geometry (TryMapBreach).
                         for (int i = 0; i + 1 < line.Count; i++)
-                            TerrainBuildingExpander.AddPanel(sink, new Vector2(line[i].X, line[i].Y), new Vector2(line[i + 1].X, line[i + 1].Y),
-                                thickness, baseZ, baseZ + height, material, openings, -1, -1, label, name, null, where);
+                        {
+                            var a = new Vector2(line[i].X, line[i].Y); var c = new Vector2(line[i + 1].X, line[i + 1].Y);
+                            float len = Vector2.Distance(a, c);
+                            int pieces = 1;
+                            if (len > WallStepLength)
+                            {
+                                float lo = float.PositiveInfinity, hi = float.NegativeInfinity;
+                                int samples = Math.Max(2, (int)MathF.Ceiling(len / ground.CellSize) + 1);
+                                for (int k = 0; k < samples; k++) { var q = Vector2.Lerp(a, c, k / (float)(samples - 1)); float z = ground.Sample(q.X, q.Y); lo = MathF.Min(lo, z); hi = MathF.Max(hi, z); }
+                                if (hi - lo > WallStepTolerance) pieces = (int)MathF.Ceiling(len / WallStepLength);
+                            }
+                            for (int k = 0; k < pieces; k++)
+                            {
+                                var p0 = Vector2.Lerp(a, c, k / (float)pieces); var p1 = Vector2.Lerp(a, c, (k + 1) / (float)pieces);
+                                float pieceBase = ground.LowestAlong(new[] { p0, p1 });
+                                TerrainBuildingExpander.AddPanel(sink, p0, p1, thickness, pieceBase, pieceBase + height, material, null, -1, -1, label, name, null, where);
+                            }
+                        }
                         break;
                     }
                     case "tree":
@@ -271,8 +307,8 @@ namespace Fdp.Toolkit.Terrain
                                     //   top surface is max(ground, ramp), joined along their intersection whatever the grid's
                                     //   triangulation — continuous for the navmesh's step and for SurfaceZ by construction.
                                     if (walkableKind == TerrainWalkableKind.Ramp && above <= RampFootTolerance) above = -RampFootSink;
-                                    float ground = grid?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
-                                    ring[i] = new Vector3(ring[i].X, ring[i].Y, ground + above);
+                                    float under = ground?.Sample(ring[i].X, ring[i].Y) ?? groundZ;
+                                    ring[i] = new Vector3(ring[i].X, ring[i].Y, under + above);
                                 }
                             var walkable = MakeWalkable(walkableKind, ring, relative ? null : flatZ, where);
                             if (walkableKind == TerrainWalkableKind.Ramp && MaxSlopeDegrees(walkable) > VehicleRampMaxSlopeDegrees)
@@ -447,6 +483,9 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ CE-4369 — a lone tree's trunk: radius (m), height (m) and material when the world file names none.</summary>
         public const float TreeTrunkRadius = 0.3f, TreeTrunkHeight = 10f;
+
+        /// <summary>⭐ CE-5015 — the longest piece a wall on a slope is cut into (m), and how much the ground under a segment must vary before it is cut (m).</summary>
+        public const float WallStepLength = 2f, WallStepTolerance = 0.25f;
         public const string TreeTrunkMaterial = "tree-trunk";
 
         internal static TerrainPrism MakePrismForExpander(TerrainPrismKind kind, Vector2[] footprint, float baseZ, float topZ,

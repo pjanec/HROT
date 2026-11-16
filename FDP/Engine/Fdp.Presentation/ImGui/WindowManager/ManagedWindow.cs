@@ -146,6 +146,9 @@ public abstract class ManagedWindow
 
     /// <summary>⭐ <c>CE-4096</c> — extra <c>Gui.Begin</c> flags (the start surface is a bare full-screen page: no title bar, no move, no dock).
     /// Default none, so every existing window is unchanged.</summary>
+    /// <summary>⭐ CE-5006 W2 — whether the title bar carries the pin button (a narrow tool strip has no room for it beside its title). Default: yes.</summary>
+    protected virtual bool ShowPinButton => true;
+
     protected virtual ImGuiWindowFlags ExtraFlags => ImGuiWindowFlags.None;
 
     /// <summary>⭐ <c>CE-4096</c> — a hook run just before <c>Gui.Begin</c> (the place for <c>SetNextWindowPos/Size</c>). Default: nothing.</summary>
@@ -245,7 +248,7 @@ public abstract class ManagedWindow
 
         // Step 7 — pin button in the actual title bar (PerspectiveBound windows only).
         //          Drawn using absolute screen coordinates so it occupies no client-area height.
-        if (Scope == WindowScope.PerspectiveBound && !flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
+        if (ShowPinButton && Scope == WindowScope.PerspectiveBound && !flags.HasFlag(ImGuiWindowFlags.NoTitleBar))
             DrawTitleBarPinButton(perspectiveActive);
 
         // Step 7b — ⭐ CE-4325 (E7): a window's own icons in the title bar, to the LEFT of the pin (the Event Timeline's ⚑ and S / W). Nothing by default.

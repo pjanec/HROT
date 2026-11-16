@@ -608,6 +608,8 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityBoxPicker(worldProvider, tkb, bodies, p => 1f / viewSwitch.Camera3D.ZoomAt(p)));   // ⭐ U-9 (CE-4340) — the drawn box + a pixel margin
             // ⭐ CE-1126 (DESIGN_Entity_Control §8g F-4) — the FPS crosshair's: the parts a round meets (PickFilter.EntityParts)
             viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.EntityPartPicker(worldProvider, tkb, bodies));
+            // ⭐ CE-5011 C (TE-16 ①) — a placed tree picked by its canopy along the ray (only while terrain authoring is open, R-5036)
+            viewSwitch.Camera3D.Pickers.Add(new Hrot.UI.Common.Map3D.TerrainFeaturePicker3D(worldProvider));
             canvas.AddLayer(terrain);
             // ⭐ CE-1384 (DESIGN_Director_Timeline_Editor §11t "CE-1380 / CE-1379 as built") — the gizmos AFTER the 3-D terrain: their ground fills draw
             //   with depth writes off (CE-1196 CA-4), so drawn before the terrain they were painted over — no tactical area, no filled disc showed

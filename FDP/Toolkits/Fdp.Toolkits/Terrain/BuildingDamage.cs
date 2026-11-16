@@ -142,9 +142,7 @@ namespace Fdp.Toolkit.Terrain
                 for (int i = 0; i < d.Count; i++)
                 {
                     var b = d.Get(i);
-                    int local = BuildingPanelIndex.ToLocal(from, b.Panel);
-                    int panel = local >= 0 ? BuildingPanelIndex.ToGlobal(to, nb, local) : -1;
-                    if (panel >= 0) n.Set(k++, b with { Panel = panel });
+                    if (BuildingPanelIndex.TryMapBreach(from, b, to, nb, out var m)) n.Set(k++, m);   // ⭐ CE-5012 — by rank, or by geometry for a re-drawn line (a gate)
                 }
                 n.Count = (byte)k;
             }

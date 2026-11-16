@@ -67,8 +67,9 @@ public sealed class Map3DPickingTests
         Assert.True(picker.IsBuilt);
         Assert.InRange(result.Point.Z, roofZ - 0.05f, roofZ + 0.05f);
 
-        // another terrain (a new geometry identity): a miss until ITS grid is built — never a hit on the old terrain's triangles
-        var other = Map3DTests.WorldWith(Map3DTests.TestTown());
+        // another terrain (a new geometry identity, ANOTHER name): a miss until ITS grid is built — never a hit on the old terrain's triangles
+        var townFile = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "test-town", "test-town.world.geojson");
+        var other = Map3DTests.WorldWith(TerrainWorldParser.Parse(System.IO.File.ReadAllText(townFile), "other-town", TerrainAssets.ForFolder(System.IO.Path.GetDirectoryName(townFile)!)));
         var current = world;
         var swapping = new TerrainPicker(() => WorldQuery.RenderGeometryOf(current));
         Ready(swapping);
@@ -77,6 +78,11 @@ public sealed class Map3DPickingTests
         Assert.False(swapping.IsBuilt);
         Assert.False(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
         Ready(swapping);
+        Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
+        // ⭐ CE-5016 — a RE-BAKE of the same terrain (a new instance, the SAME name and layout — what a live bake makes): the previous grids answer at once, never blind
+        var rebaked = Map3DTests.WorldWith(TerrainWorldParser.Parse(System.IO.File.ReadAllText(townFile), "other-town", TerrainAssets.ForFolder(System.IO.Path.GetDirectoryName(townFile)!)));
+        current = rebaked;
+        Assert.False(swapping.IsBuilt);
         Assert.True(swapping.TryPick(ray.Item1, ray.Item2, 1000f, out _));
     }
 

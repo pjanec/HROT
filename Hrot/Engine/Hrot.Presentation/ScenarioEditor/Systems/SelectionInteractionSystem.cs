@@ -198,10 +198,12 @@ public sealed class SelectionInteractionSystem
                 _pendingNarrow = Entity.Null;
 
                 // ⭐ B-17 P5 — the modifier rows (declared in MapGestureBindings, never keys checked here): Shift adds · Ctrl toggles · Alt cycles the overlapped units.
-                if (isAdd)    { Request(SelectionChangeRequest.AddTo(entity, "Map.ShiftClick")); OnSelectionChanged?.Invoke(entity, evt.WorldPos); continue; }
+                var group = GroupOf(entity);   // ⭐ CE-5008 (R-5041) — one member of a placed row stands for the whole group (Alt-click, below, still picks the single unit)
+                if (isAdd)    { Request(group is null ? SelectionChangeRequest.AddTo(entity, "Map.ShiftClick") : SelectionChangeRequest.AddTo(group, "Map.ShiftClick")); OnSelectionChanged?.Invoke(entity, evt.WorldPos); continue; }
                 if (isToggle)
                 {
-                    Request(_selection.IsSelected(entity) ? SelectionChangeRequest.RemoveFrom(entity, "Map.CtrlClick") : SelectionChangeRequest.AddTo(entity, "Map.CtrlClick"));
+                    if (_selection.IsSelected(entity)) { if (group is null) Request(SelectionChangeRequest.RemoveFrom(entity, "Map.CtrlClick")); else foreach (var m in group) Request(SelectionChangeRequest.RemoveFrom(m, "Map.CtrlClick")); }
+                    else Request(group is null ? SelectionChangeRequest.AddTo(entity, "Map.CtrlClick") : SelectionChangeRequest.AddTo(group, "Map.CtrlClick"));
                     OnSelectionChanged?.Invoke(entity, evt.WorldPos);
                     continue;
                 }
@@ -231,8 +233,8 @@ public sealed class SelectionInteractionSystem
                 // ⚠ The callback still fires IMMEDIATELY: it means "the operator clicked this
                 //   entity", which is true now — ⛔ not "the selection is X", which is true next frame.
                 // ⭐ B-17 P5 — the modifier masks are read ABOVE (Shift => Add, Ctrl => toggle, Alt => cycle), through the map scope's rows.
-                Request(SelectionChangeRequest.ReplaceWith(entity,
-                    isRight ? "Map.RightClick" : "Map.Click"));
+                Request(group is null ? SelectionChangeRequest.ReplaceWith(entity, isRight ? "Map.RightClick" : "Map.Click")
+                                      : SelectionChangeRequest.ReplaceWith(group, isRight ? "Map.RightClick" : "Map.Click"));
                 OnSelectionChanged?.Invoke(entity, evt.WorldPos);
             }
         }
@@ -260,7 +262,7 @@ public sealed class SelectionInteractionSystem
                 var pending = _pendingNarrow; _pendingNarrow = Entity.Null;
                 if (!_pendingDragged && _world.IsAlive(pending))
                 {
-                    Request(SelectionChangeRequest.ReplaceWith(pending, "Map.Click"));
+                    Request(GroupOf(pending) is { } pendingGroup ? SelectionChangeRequest.ReplaceWith(pendingGroup, "Map.Click") : SelectionChangeRequest.ReplaceWith(pending, "Map.Click"));
                     OnSelectionChanged?.Invoke(pending, _pendingNarrowPos);
                 }
             }
@@ -296,10 +298,11 @@ public sealed class SelectionInteractionSystem
                 toDestroy.Add(e);
             }
 
-            foreach (var e in toDestroy)
-            {
-                DeleteEntity(_world, e);
-            }
+            // ⭐ CE-5017 (TE-9) — deleting several is ONE undo step (a row of obstacles, ten trees), as the menu's Delete over the selection is
+            bool bracket = toDestroy.Count > 1;
+            if (bracket) Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_world, "Delete");
+            try { foreach (var e in toDestroy) DeleteEntity(_world, e); }
+            finally { if (bracket) Fdp.Toolkit.Replication.Edits.EditSteps.End(_world); }
 
             if (toDestroy.Count > 0)
                 Request(SelectionChangeRequest.ClearAll("Map.DeleteKey"));
@@ -326,6 +329,20 @@ public sealed class SelectionInteractionSystem
     /// path and the rails, which is why it is safe for it to bypass the request.</para>
     /// </summary>
     public void ClearAllSelections() => _selection.ClearCore();
+
+    /// <summary>
+    /// ⭐ CE-5008 (R-5041) — every live entity of <paramref name="entity"/>'s <see cref="Fdp.Toolkit.Terrain.PlacementGroup"/> (a placed row of obstacles), or null when it is in none / alone. A user click, so the scan may allocate.
+    /// </summary>
+    private List<Entity>? GroupOf(Entity entity)
+    {
+        if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.PlacementGroup>() || !_world.HasComponent<Fdp.Toolkit.Terrain.PlacementGroup>(entity)) return null;
+        uint id = _world.GetComponentRO<Fdp.Toolkit.Terrain.PlacementGroup>(entity).Id;
+        if (id == 0) return null;
+        var members = new List<Entity>();
+        foreach (var e in _world.Query().With<Fdp.Toolkit.Terrain.PlacementGroup>().Build())
+            if (_world.GetComponentRO<Fdp.Toolkit.Terrain.PlacementGroup>(e).Id == id) members.Add(e);
+        return members.Count > 1 ? members : null;
+    }
 
     /// <summary>
     /// ⭐⭐⭐ Every gesture goes through here — 🔒 §2.7.3 rule 1, <c>SelectionRequestSystem</c> is the

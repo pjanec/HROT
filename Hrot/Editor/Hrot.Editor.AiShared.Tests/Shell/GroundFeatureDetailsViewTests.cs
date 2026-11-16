@@ -53,6 +53,7 @@ public sealed class GroundFeatureDetailsViewTests
     private static EntityRepository World()
     {
         var w = new EntityRepository();
+        Fdp.Toolkit.Terrain.TerrainLock.SetOpen(w, true);   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
         w.RegisterComponent<SimTransform>(); w.RegisterComponent<TerrainFeature>(); w.RegisterComponent<EntityInfo>();
         w.RegisterManagedComponent<EditablePolyline>();
         return w;

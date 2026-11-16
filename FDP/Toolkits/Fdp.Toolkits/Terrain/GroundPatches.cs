@@ -417,11 +417,14 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     public static class DitchPresets
     {
-        public static (float Width, float Depth, bool Obstacle)? Of(string mode) => mode switch
+        /// <remarks>⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-12; §8 R-11) — and the BERM, a LINE preset that RAISES: 3 m wide, 1.5 m high (<c>Depth</c> is its height,
+        /// <c>Raise</c> true), a terrain-class line (no obstacle area — its slopes are what the navmesh sees), drawn on the ditch's strip in the ground-shape slot of the G-32 stack.</remarks>
+        public static (float Width, float Depth, bool Obstacle, bool Raise)? Of(string mode) => mode switch
         {
-            "ditch" => (2f, 1f, true),
-            "at-ditch" => (4f, 2f, true),
-            "foxhole" => (1.5f, 1f, false),
+            "ditch" => (2f, 1f, true, false),
+            "at-ditch" => (4f, 2f, true, false),
+            "foxhole" => (1.5f, 1f, false, false),
+            "berm" => (3f, 1.5f, false, true),
             _ => null,
         };
 
@@ -465,7 +468,8 @@ namespace Fdp.Toolkit.Terrain
             "raise" or "" => GroundShapeMode.Raise,
             "lower" => GroundShapeMode.Lower,
             "ditch" or "at-ditch" or "foxhole" => GroundShapeMode.Ditch,   // ⭐ CE-4593 (P-6)
-            _ => throw new ArgumentException($"[Terrain] {where}: unknown ground mode '{mode}' (level, raise, lower, ditch, at-ditch, foxhole)."),
+            "berm" => GroundShapeMode.Raise,                               // ⭐ CE-5012 (TE-12) — a raised line on the ditch's strip
+            _ => throw new ArgumentException($"[Terrain] {where}: unknown ground mode '{mode}' (level, raise, lower, ditch, at-ditch, foxhole, berm)."),
         };
 
         /// <summary>The target height a shape gives a post whose natural ground is <paramref name="natural"/>.</summary>

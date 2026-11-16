@@ -506,4 +506,65 @@ public class VertexEditGizmoTests : IDisposable
         gizmo.OnInteractionStarted(Token(1), Vector3.Zero);                                  // touching a handle again clears it
         Assert.Equal("the tool's hint", tools.ActiveHint);
     }
+
+    // -- ⭐ CE-5012 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7, TE-15) — a terrain LINE is edited open; a closed wall as a ring that keeps its repeated point, and takes a gate --
+
+    private Entity TerrainLine(byte kind, params Vector2[] points)
+    {
+        if (!_repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>()) _repo.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+        var e = _repo.CreateEntity();
+        _repo.AddComponent(e, default(SimTransform));
+        _repo.AddComponent(e, new NetworkIdentity { Value = 43 });
+        _repo.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainFeature { Kind = kind });
+        _repo.SetManagedComponent(e, new EditablePolyline { Points = points.ToList() });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐ An open wall is edited as an OPEN line: its two ends are not joined, a drag writes back exactly its points, two points are enough. 🔴 Red-proof: drop the line test in the
+    /// constructor ⇒ it is a closed area (min 3, the closing side drawn).
+    /// </summary>
+    [Fact]
+    public void CE5012_AnOpenWall_IsEditedAsALine_NotAnArea()
+    {
+        var wall = TerrainLine(Fdp.Toolkit.Terrain.TerrainFeature.Wall, new Vector2(0, 0), new Vector2(20, 0));
+        using var g = new VertexEditGizmo(_repo, wall, 43, () => { });
+        Assert.True(g.IsOpenLine);
+        Assert.False(g.Session.Closed);
+        var draw = new NullDraw();
+        g.UpdateAndDraw(_repo, 0f, draw);
+        g.OnInteractionStarted(new GizmoPickToken { AnchorId = 43, SubElementId = 2 }, Vector3.Zero);
+        g.OnDragUpdate(new Vector3(30f, 0f, 0f));
+        g.OnCommit(Vector3.Zero);
+        Assert.Equal(new[] { new Vector2(0, 0), new Vector2(30, 0) }, ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(wall).Points);
+    }
+
+    /// <summary>
+    /// ⭐ A CLOSED wall (its first point repeated) is edited as a ring of its corners and written back closed; <i>Add gate here</i> at a right-click beside the east side makes it ONE
+    /// open line from gate post to gate post (3 m) in one undo step, and ends the tool. 🔴 Red-proof: drop the repeated point in the write-back ⇒ the ring opens on a drag.
+    /// </summary>
+    [Fact]
+    public void CE5012_AClosedWall_StaysClosed_AndAddGateHere_OpensIt()
+    {
+        var ring = TerrainLine(Fdp.Toolkit.Terrain.TerrainFeature.Wall, new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0));
+        bool ended = false;
+        using var g = new VertexEditGizmo(_repo, ring, 43, () => ended = true);
+        Assert.True(g.IsRing);
+        Assert.Equal(4, g.Session.Points.Count);                                       // the corners, not the repeated point
+        g.OnInteractionStarted(new GizmoPickToken { AnchorId = 43, SubElementId = 3 }, Vector3.Zero);
+        g.OnDragUpdate(new Vector3(22f, 22f, 0f));
+        g.OnCommit(Vector3.Zero);
+        var pts = ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(ring).Points;
+        Assert.Equal(5, pts.Count);
+        Assert.Equal(pts[0], pts[^1]);                                                  // still closed
+        Assert.Equal(new Vector2(22, 22), pts[2]);
+
+        g.OnMouseEvent(MapMouseButton.Right, true, new Vector3(21f, 10f, 0f));          // the menu opens beside the east side
+        g.OnMenuAction(VertexEditGizmo.AddGateId);
+        var gated = ((ISimulationView)_repo).GetManagedComponentRO<EditablePolyline>(ring).Points;
+        Assert.Equal(6, gated.Count);                                                   // post · 4 corners · post
+        Assert.NotEqual(gated[0], gated[^1]);
+        Assert.Equal(3f, Vector2.Distance(gated[0], gated[^1]), 3);                     // the gate
+        Assert.True(ended);
+    }
 }

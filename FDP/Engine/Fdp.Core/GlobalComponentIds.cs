@@ -1324,6 +1324,10 @@ namespace Fdp.Core
         /// bearing), DERIVED on the aircraft's brain node from the emitters' replicated <c>RadarEmission</c> (<c>RadarWarningReceiverSystem</c>).</summary>
         public const int RadarWarning = 499;
 
+        /// <summary><c>PlacementGroup</c> — ⭐ CE-5008 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-5041): the group a placed ROW of obstacle entities belongs to (one <c>uint</c> id on every member); selecting one member selects the group.
+        /// Unmanaged, authored, recorded and saved (<c>DataPolicy.Default</c>). ⚠ 500 measured free in every origin branch's GlobalComponentIds.cs and in no ComponentId attribute, 2026-11-16 (the highest in use was 499).</summary>
+        public const int PlacementGroup = 500;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>

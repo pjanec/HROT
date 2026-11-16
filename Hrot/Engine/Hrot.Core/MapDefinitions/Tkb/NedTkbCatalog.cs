@@ -1424,6 +1424,10 @@ namespace Hrot.Map.Definitions.Tkb
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.SandbagWall,   TkbEntityTypes.Obstacle_SandbagWall,   feature, maxHealth: 300f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, TkbEntityTypes.Obstacle_ConcreteBlock, feature, maxHealth: 600f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Crate,         TkbEntityTypes.Obstacle_Crate,         feature, maxHealth: 60f);
+            // ⭐ CE-5010 (TE-5, R-4264) — the clutter-only boxes as obstacle types, from the SAME ClutterTypes entries. ⚠ Starter MaxHealth values (the unit above): a barrel 50, a jersey barrier 400, a guard booth 120 — to tune.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Barrel,        TkbEntityTypes.Obstacle_Barrel,        feature, maxHealth: 50f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.JerseyBarrier, TkbEntityTypes.Obstacle_JerseyBarrier, feature, maxHealth: 400f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.GuardBooth,    TkbEntityTypes.Obstacle_GuardBooth,    feature, maxHealth: 120f);
             // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.

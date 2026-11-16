@@ -168,6 +168,9 @@ namespace Hrot.ScenarioEditor.Tools
             ActiveGizmoId = id;
             ActiveGizmo   = gizmo;
             gizmo.Underlay = request.Underlay;   // ⭐ CE-4592 — a ground shape's tint, drawn under the shape
+            gizmo.Repeat = request.Repeat;       // ⭐ CE-5006 TE-2
+            gizmo.OnRepeat = request.OnRepeated;
+            gizmo.Snap = request.Snap;           // ⭐ CE-5009
             _gizmos?.Register(id, gizmo);
             return ToolActivationOutcome.Armed;
         }
@@ -304,5 +307,8 @@ namespace Hrot.ScenarioEditor.Tools
         Action? OnDisarmed = null,
         bool Closed = true,
         Action<List<object>>? Born = null,
-        Action<Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder, IReadOnlyList<System.Numerics.Vector2>>? Underlay = null);   // ⭐ CE-4592 — drawn under the shape (a ground shape's tint)
+        Action<Fdp.Toolkit.Diagnostics.Gizmos.IDebugDrawBuilder, IReadOnlyList<System.Numerics.Vector2>>? Underlay = null,   // ⭐ CE-4592 — drawn under the shape (a ground shape's tint)
+        bool Repeat = false,          // ⭐ CE-5006 TE-2 — the tool stays armed after a finish (a terrain line / area); Esc drops the shape first
+        Action? OnRepeated = null,    // ⭐ TE-2 — after each repeated finish (a new seed for the next)
+        Func<System.Numerics.Vector2, float, Fdp.Toolkit.Vis2D.Gizmos.SnapHit>? Snap = null);   // ⭐ CE-5009 TE-6 — the host's snap (terrain lines only, R-5033)
 }

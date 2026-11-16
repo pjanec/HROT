@@ -421,6 +421,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// seeds the buffer with it at build, so the FIRST frame refuses hidden layers too.</summary>
         public LayerMask256 ActiveLayers => _activeLayers;
         private bool _isEditing;
+
+        /// <summary>⭐ CE-5006 W2 — the layer editor panel is shown (the main toolbar's Tactical Map Layers icon is lit while it is).</summary>
+        public bool IsEditing => _isEditing;
         private readonly GizmoSettingsRegistry? _settings;   // ⭐ CE-3120 — where the family scopes live
 
         private LayerControlDto? _override;

@@ -584,6 +584,58 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(panelB, loaded.Entities.Single().Get(0).Panel);
         }
 
+        private static TerrainWorld PlotWall(string coords) => TerrainWorldParser.Parse(
+            "{ \"type\": \"FeatureCollection\", \"features\": [ { \"type\": \"Feature\", \"properties\": { \"kind\": \"wall\", \"label\": \"plot/0\", \"height\": 2 }, "
+            + "\"geometry\": { \"type\": \"LineString\", \"coordinates\": " + coords + " } } ] }", "range");
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5012</c> (docs/DESIGN_Terrain_Editor_UX.md §5 TE-7; §8 R-5; acceptance §7 item 5) — a gate ROTATES a closed wall's start into a 3 m gap: one line, one
+        /// key, but every segment's rank moves. A breach made before the gate stays where it WAS (by the panel that holds its middle, re-measured from that panel's
+        /// start); one in the gap is gone (the gate covers it); a wall that MOVED keeps the old rank rule. 🔴 Red-proof: map by rank only in <c>TryMapBreach</c> ⇒
+        /// the breach on the north side lands on the east.
+        /// </summary>
+        [Fact]
+        public void CE5012_AGateRotatesTheWall_AndEveryBreachStaysWhereItWas()
+        {
+            var ring = PlotWall("[[0,0],[20,0],[20,20],[0,20],[0,0]]");               // segments: 0 south · 1 east · 2 north · 3 west
+            var gated = PlotWall("[[20,11.5],[20,20],[0,20],[0,0],[20,0],[20,8.5]]");   // a gate at 10 m on the east: 0 east tail · 1 north · 2 west · 3 south · 4 east head
+            // ⭐ WallGate.Open is what makes that line from the ring and a click beside the east side
+            var opened = WallGate.Open(new[] { new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0) }, new Vector2(21f, 10f), out _);
+            Assert.Equal(new[] { new Vector2(20, 11.5f), new Vector2(20, 20), new Vector2(0, 20), new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 8.5f) }, opened);
+            Assert.Null(WallGate.Open(new[] { new Vector2(0, 0), new Vector2(20, 0), new Vector2(20, 20) }, Vector2.Zero, out var notClosed));   // an open line takes no gate
+            Assert.NotNull(notClosed);
+            Assert.Null(WallGate.Open(new[] { new Vector2(0, 0), new Vector2(3, 0), new Vector2(3, 3), new Vector2(0, 0) }, new Vector2(1.5f, 0f), out var tooShort));
+            Assert.Contains("too short", tooShort);
+            int g = BuildingDamages.IndexOfKey(ring, "range/wall:plot/0");
+            Assert.Equal(g, BuildingDamages.IndexOfKey(gated, "range/wall:plot/0"));   // the same key
+            int P(TerrainWorld w, int rank) => BuildingPanelIndex.ToGlobal(w, g, rank);
+            var d = new BuildingDamage { Building = g };
+            void Hit(int rank, float from, float to) { d.Set(d.Count, new WallBreach(P(ring, rank), from, to, 0f, 2f, BreachKind.Passage)); d.Count++; }
+            Hit(2, 4f, 6f);      // north
+            Hit(0, 2f, 3f);      // south
+            Hit(1, 2f, 4f);      // east, before the gate
+            Hit(1, 14f, 16f);    // east, after the gate
+            Hit(1, 9f, 11f);     // east, IN the gate
+
+            Assert.True(BuildingDamages.Remap(ref d, ring, gated));
+            var got = d.ToArray();
+            Assert.Equal(4, got.Length);                                                  // the one in the gap is gone
+            Assert.Equal(new WallBreach(P(gated, 1), 4f, 6f, 0f, 2f, BreachKind.Passage), got[0]);
+            Assert.Equal(new WallBreach(P(gated, 3), 2f, 3f, 0f, 2f, BreachKind.Passage), got[1]);
+            Assert.Equal(new WallBreach(P(gated, 4), 2f, 4f, 0f, 2f, BreachKind.Passage), got[2]);
+            Assert.Equal(P(gated, 0), got[3].Panel);
+            Assert.Equal(2.5f, got[3].From, 3);                                            // re-measured from the gate post
+            Assert.Equal(4.5f, got[3].To, 3);
+
+            // a wall that MOVED (no panel on the old line): the rank rule, as before
+            var moved = PlotWall("[[100,0],[120,0],[120,20],[100,20],[100,0]]");
+            var m = new BuildingDamage { Building = g };
+            m.Set(0, new WallBreach(P(ring, 2), 4f, 6f, 0f, 2f, BreachKind.Passage)); m.Count = 1;
+            BuildingDamages.Remap(ref m, ring, moved);                                    // (the same numbering here, so it may report "unchanged")
+            Assert.Equal(P(moved, 2), m.Get(0).Panel);
+            Assert.Equal(4f, m.Get(0).From);
+        }
+
         /// <summary>
         /// ⭐⭐ <c>CE-4599</c> (V-6; acceptance §7.5 item 14) — a cut from a free wall's BASE to its TOP at least the passage width is a Passage whatever the wall's
         /// height (a 1 m garden wall, a 1.5 m hedge-high wall); one that stops short of the top, or the floor, is a Hole; a building's 3 m wall still needs 1.8 m.

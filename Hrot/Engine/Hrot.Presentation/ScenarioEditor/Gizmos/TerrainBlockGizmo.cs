@@ -39,6 +39,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             if (view is not EntityRepository repo || !repo.HasSingletonManaged<LiveTerrainBakeInfo>()) return;
             if (!view.HasComponent<TerrainBlock>(entity) || !view.HasComponent<EntityGuid>(entity)) return;
+            if (!Fdp.Toolkit.Terrain.TerrainLock.IsOpen(view)) return;   // ⭐ CE-5006 (TE-18, R-5037) — an authoring mark: drawn only while the Terrain toolbar is open
             var info = repo.GetSingletonManaged<LiveTerrainBakeInfo>();
             if (info is null || !info.TryGet(view.GetComponentRO<EntityGuid>(entity).Value, out var bounds)) return;
 
