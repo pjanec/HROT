@@ -4,6 +4,9 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Terrain
 {
+    /// <summary>One struck / cleared mine of a field (the strikes writer's item).</summary>
+    public readonly record struct StrikeItem(Guid Field, short Row, short Col, MineGone How);
+
     /// <summary>How a mine left the field.</summary>
     public enum MineGone : byte { None = 0, Struck = 1, Cleared = 2 }
 
@@ -15,9 +18,22 @@ namespace Fdp.Toolkit.Terrain
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.MinefieldStrikes)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct MinefieldStrikes
+    public unsafe struct MinefieldStrikes : IKeyedRecord<Guid, StrikeItem>
     {
         public const int Capacity = 96;
+        /// <summary>⭐ TKB 7207 <c>MinefieldStrikesRecord</c> (the record block; 7207 measured free on every lane 2026-11-16 — lane decision R-5045).</summary>
+        public const long TkbType = 7207;
+
+        Guid IKeyedRecord<Guid, StrikeItem>.RecordKey { readonly get => Field; set => Field = value; }
+        public readonly bool IsFull => Count >= Capacity;
+        public readonly bool Holds(in StrikeItem item) => Has(item.Row, item.Col);
+        public bool TryAdd(in StrikeItem item)
+        {
+            if (Count >= Capacity) return false;
+            Set(Count, item.Row, item.Col, item.How);
+            Count++;
+            return true;
+        }
 
         /// <summary>The field's stable id (its <c>EntityGuid</c>).</summary>
         public Guid Field;

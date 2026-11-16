@@ -169,21 +169,127 @@ namespace Fdp.Toolkit.Terrain
     }
 
     /// <summary>
-    /// ⭐ <c>CE-4624</c> (§6.1, KR-5, KR-8) — the UNION of every side's place knowledge, per view: <see cref="Knows"/> is what a side knows of a field's cell (the
-    /// lattice max over every deciding node's record). ⚠ CONTRACT STUB until MS-T2: it answers <see cref="MineCellKnowledge.Unknown"/>; MS-T2 makes it ride on
-    /// <c>DoorStates</c> like <c>Craters</c> (0 B a steady frame).
+    /// ⭐⭐ <c>CE-4624</c> MS-T2 (§6.1, KR-5, KR-8, MF-15, R-5046) — what every SIDE knows of every field, as ONE view sees it: the UNION of every node's
+    /// <see cref="MinefieldKnowledge"/> records (per cell the lattice max, <c>Marked</c> OR-ed), plus each field's own <see cref="Minefield.KnownAtStartSides"/> (known in full,
+    /// no record). Rides on <see cref="DoorStates.Knowledge"/> like the craters — every route / sight caller already passes ONE <see cref="DoorStates"/>. ⭐ R-220: rebuilt only
+    /// when a record or a field changed (<see cref="ViewTableCache{TComp}"/>), otherwise this thread's previous table — 0 B a steady frame. Immutable once returned.
     /// </summary>
     public sealed class PlaceKnowledgeTable
     {
-        public static readonly PlaceKnowledgeTable Empty = new();
+        public static readonly PlaceKnowledgeTable Empty = new(new Dictionary<KnowledgeKey, Entry>(), new Dictionary<Entity, (Guid, ushort)>());
+
+        private sealed class Entry { public readonly byte[] Cells = new byte[MinefieldKnowledge.CellBytes]; public bool Marked; }
+
+        private readonly Dictionary<KnowledgeKey, Entry> _entries;
+        private readonly Dictionary<Entity, (Guid Guid, ushort KnownAtStart)> _fields;
+
+        private PlaceKnowledgeTable(Dictionary<KnowledgeKey, Entry> entries, Dictionary<Entity, (Guid, ushort)> fields)
+        {
+            _entries = entries; _fields = fields;
+            foreach (var e in entries.Values) if (e.Marked) MarkedCount++;
+            foreach (var f in fields.Values) if (f.Item2 != 0) MarkedCount++;
+        }
+
+        /// <summary>How many (field, side) pairs are marked (known in full) — 0 lets a caller skip the work.</summary>
+        public int MarkedCount { get; }
+
+        /// <summary>How many (field, side) records the union holds (rails).</summary>
+        public int RecordCount => _entries.Count;
+
+        [ThreadStatic] private static PlaceKnowledgeTable? t_last;
 
         /// <summary>The table of <paramref name="view"/>'s world.</summary>
-        public static PlaceKnowledgeTable Of(ISimulationView view) => Empty;
+        public static PlaceKnowledgeTable Of(ISimulationView view)
+        {
+            if (view is EntityRepository repo)
+            {
+                bool knowledge = repo.IsComponentTypeRegistered<MinefieldKnowledge>(), fields = repo.IsComponentTypeRegistered<Minefield>();
+                if (!knowledge && !fields) return Empty;
+                bool holds = (!knowledge || ViewTableCache<MinefieldKnowledge>.Holds(repo)) & (!fields || ViewTableCache<Minefield>.Holds(repo));
+                if (holds && t_last is { } last) return last;
+                var built = Build(view, repo, knowledge, fields);
+                return t_last = built;
+            }
+            return Build(view, null, true, true);
+        }
 
-        /// <summary>What side <paramref name="side"/> (<c>ForceId</c>) knows of cell (<paramref name="col"/>, <paramref name="row"/>) of <paramref name="field"/>.</summary>
-        public MineCellKnowledge Knows(int side, Entity field, int col, int row) => MineCellKnowledge.Unknown;
+        private static PlaceKnowledgeTable Build(ISimulationView view, EntityRepository? repo, bool knowledge, bool fields)
+        {
+            var entries = new Dictionary<KnowledgeKey, Entry>();
+            var fieldMap = new Dictionary<Entity, (Guid, ushort)>();
+            if (knowledge)
+            {
+                var q = repo != null ? ViewTableCache<MinefieldKnowledge>.Begin(repo) : view.Query().With<MinefieldKnowledge>().WithLifecycle(EntityLifecycle.AllButTearDown).Build();
+                foreach (var e in q)
+                {
+                    if (repo != null) ViewTableCache<MinefieldKnowledge>.Read(e);
+                    Merge(entries, view.GetComponentRO<MinefieldKnowledge>(e));
+                }
+                if (repo != null) ViewTableCache<MinefieldKnowledge>.Taken(repo);
+            }
+            if (fields)
+            {
+                var q = repo != null ? ViewTableCache<Minefield>.Begin(repo) : view.Query().With<Minefield>().Build();
+                foreach (var e in q)
+                {
+                    if (repo != null) ViewTableCache<Minefield>.Read(e);
+                    MinefieldIds.TryGuid(view, e, out var g);
+                    fieldMap[e] = (g, view.GetComponentRO<Minefield>(e).KnownAtStartSides);
+                }
+                if (repo != null) ViewTableCache<Minefield>.Taken(repo);
+            }
+            return entries.Count == 0 && fieldMap.Count == 0 ? Empty : new PlaceKnowledgeTable(entries, fieldMap);
+        }
 
-        /// <summary>True when <paramref name="side"/> has marked <paramref name="field"/> (known in full).</summary>
-        public bool Marked(int side, Entity field) => false;
+        private static unsafe void Merge(Dictionary<KnowledgeKey, Entry> entries, in MinefieldKnowledge k)
+        {
+            var key = new KnowledgeKey(k.Header.Subject, k.Header.SidePlus1);
+            if (key.SidePlus1 == 0) return;
+            if (!entries.TryGetValue(key, out var entry)) entries[key] = entry = new Entry();
+            entry.Marked |= k.Header.Marked != 0;
+            for (int i = 0; i < MinefieldKnowledge.MaxCols * MinefieldKnowledge.MaxRows; i++)
+            {
+                int b = i >> 2, sh = (i & 3) * 2;
+                int incoming = (k.Cells[b] >> sh) & 3, have = (entry.Cells[b] >> sh) & 3;
+                if (incoming > have) entry.Cells[b] = (byte)((entry.Cells[b] & ~(3 << sh)) | (incoming << sh));
+            }
+        }
+
+        /// <summary>What side <paramref name="side"/> (<c>ForceId</c>) knows of cell (<paramref name="col"/>, <paramref name="row"/>) of <paramref name="field"/>: a marked field —
+        /// or one known at start — is known-mined everywhere (its lanes open through the route filter, MS-T4).</summary>
+        public MineCellKnowledge Knows(int side, Entity field, int col, int row)
+        {
+            if (side < 0 || !_fields.TryGetValue(field, out var f)) return MineCellKnowledge.Unknown;
+            if (side < 16 && (f.KnownAtStart & (1 << side)) != 0) return MineCellKnowledge.KnownMined;
+            if (!_entries.TryGetValue(new KnowledgeKey(f.Guid, (byte)(side + 1)), out var e)) return MineCellKnowledge.Unknown;
+            if (e.Marked) return MineCellKnowledge.KnownMined;
+            if ((uint)col >= MinefieldKnowledge.MaxCols || (uint)row >= MinefieldKnowledge.MaxRows) return MineCellKnowledge.Unknown;
+            int i = row * MinefieldKnowledge.MaxCols + col;
+            return (MineCellKnowledge)((e.Cells[i >> 2] >> ((i & 3) * 2)) & 3);
+        }
+
+        /// <summary>True when <paramref name="side"/> knows <paramref name="field"/> in full (marked, or known at start).</summary>
+        public bool Marked(int side, Entity field)
+        {
+            if (side < 0 || !_fields.TryGetValue(field, out var f)) return false;
+            if (side < 16 && (f.KnownAtStart & (1 << side)) != 0) return true;
+            return _entries.TryGetValue(new KnowledgeKey(f.Guid, (byte)(side + 1)), out var e) && e.Marked;
+        }
+
+        /// <summary>True when ANY side has marked <paramref name="field"/> by learning it (a record) — a physical marking others may see (MR-13). Known-at-start is not a marking on the ground.</summary>
+        public bool MarkedByAnySide(Entity field)
+        {
+            if (!_fields.TryGetValue(field, out var f)) return false;
+            foreach (var (key, e) in _entries) if (e.Marked && key.Field == f.Guid) return true;
+            return false;
+        }
+
+        /// <summary>True when <paramref name="side"/> knows ANYTHING of <paramref name="field"/> (a record, or known at start).</summary>
+        public bool KnowsAny(int side, Entity field)
+        {
+            if (side < 0 || !_fields.TryGetValue(field, out var f)) return false;
+            if (side < 16 && (f.KnownAtStart & (1 << side)) != 0) return true;
+            return _entries.ContainsKey(new KnowledgeKey(f.Guid, (byte)(side + 1)));
+        }
     }
 }
