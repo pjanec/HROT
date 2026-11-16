@@ -3936,6 +3936,26 @@ namespace Hrot.SimHost.Tests
                         "the base of fire is ordered forward as the assault");
         }
 
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (the handoff's gate: 0 B per steady frame, R-2084) — a platoon attack in its STEADY approach (orders
+        /// standing, the relief / abort / re-order guards read every frame — R-2112, R-2114) allocates nothing per frame.</summary>
+        [Fact]
+        public void CE2436_ThePlatoonAttack_InItsSteadyApproach_AllocatesNothingPerFrame()
+        {
+            var p = new Platoon(squads: 3);
+            MakeSquad(p.S, 0, 4, 100f);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo);
+            p.Ticks(20);   // warm: every order given, every buffer grown
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            p.Ticks(10);
+            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0L, bytes);
+        }
+
         /// <summary>⭐⭐ <c>CE-2436</c> AU-6 (R-2114) — the assault's APPROACH FAILS (its fire and movement lost a half: TaskFailed) while the squad
         /// still stands: it is ordered forward again — all four standing, and two (the least that stands, <c>ApproachMinMen</c>). Fewer and it is
         /// LOST: R-2112's relief takes it (<c>CE2436_ABlackAssaultWithNoReserve…</c>). 📌 Live cc-battalion run #9: each assault squad stopped
