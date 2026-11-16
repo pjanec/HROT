@@ -15,7 +15,7 @@ Started `411de4f7e` (merged `coordinator@66d47feba`).
 |---|---|---|
 | MS-U1 mockup | ✅ built | `scripts/gen-minefields-mockup.py` → `docs/designs/minefields/minefields-visuals.svg` — the mines are MF-2's derived pattern, not hand-placed |
 | MS-U2 `MinefieldGizmo` | ✅ built against terrain's REAL contract (`25a3f2cf6`); the cells light up when MS-T2's table is real | `MinefieldGizmoRail` 4/0 (truth · known-in-full vs knows-nothing vs gate off · cache + 0 B · the rotated cell); red-proved (a cleared mine left drawn ⇒ red); DESIGN_Minefields §11 |
-| MS-U3 authoring | ⏳ same | — |
+| MS-U3 authoring | ✅ built — `MinefieldOps`, the area tool's minefield arm (no overlay, a default `Minefield`), `MinefieldDetailsView`, Add lane (the area tool in LINE mode), the shape lock via `OutlineEditPolicy` | `MinefieldOpsTests` 7 + `MinefieldDetailsViewTests` 3; as built: [DESIGN_Minefields.md §11](../../designs/minefields/DESIGN_Minefields.md). ⚠ no TKB template for 8830 yet (terrain MS-T1) — placing one in the editor needs it |
 | MS-U4 the clearer's kit | ✅ built as a stand-in (family not yet bound to terrain's class; flail-active read is a stand-in returning false) | `MineClearerModelRail` 6 rails (kit box / drum role / motion / 0 B / reader / real frame under `xvfb-run`, side · ¾ · rear · above, drum spinning vs still) + `AudioTests.CE4624_…FlailLoops…` — 15 passed / 0 failed / 0 skipped on the gate filter; red-proof: the drum's `CreateRotationY(motion.Flail)` zeroed ⇒ 2 rails fail (drum role, real frame). As-built: [DESIGN_Map_3D_Mode.md §6al.4](../../DESIGN_Map_3D_Mode.md). **Re-bind (terrain MS-T4 / type 116):** `FamilyOfClass["MineClearer"]`, `FlailActivity.IsOn` body, a flail clip if wanted |
 
 ## Lane decisions (for the user's review)

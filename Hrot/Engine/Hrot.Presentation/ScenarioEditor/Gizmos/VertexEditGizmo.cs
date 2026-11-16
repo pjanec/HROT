@@ -186,9 +186,20 @@ namespace Hrot.ScenarioEditor.Gizmos
             ShapeDoneMark.Draw(draw, _session);   // ⭐ B-17 P2 — the on-map ✓
         }
 
+        // ⭐ CE-4624 (MR-8) — an entity whose outline may not change (OutlineEditPolicy: a minefield with a mine gone off): the reason goes on the hint line and the edit is dropped
+        private bool _refusing;
+        private bool Refused()
+        {
+            if (OutlineEditPolicy.ReasonFor(_repo, _entity) is not { } reason) return false;
+            Hrot.ScenarioEditor.Map.MapUiStates.ToolsOf(_repo)?.SetHint(reason);
+            return true;
+        }
+
         public void OnInteractionStarted(GizmoPickToken token, Vector3 worldPos)
         {
             _session.ClearReason();
+            if (Refused()) { _refusing = true; return; }
+            _refusing = false;
             if (token.SubElementId == ShapeEditSession.CentreHandleId)
             {
                 // ⭐ B-17 P6 — the centre handle: the whole shape moves with the cursor
@@ -204,6 +215,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void OnDragUpdate(Vector3 worldPos)
         {
+            if (_refusing) return;
             if (_session.CentreDragging) { _session.UpdateCentreDrag(new Vector2(worldPos.X, worldPos.Y)); return; }
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
             _session.Set(_activeVertex, new Vector2(worldPos.X, worldPos.Y));
@@ -211,6 +223,7 @@ namespace Hrot.ScenarioEditor.Gizmos
 
         public void OnCommit(Vector3 worldPos)
         {
+            if (_refusing) { _refusing = false; return; }
             // ⭐ B-17 P6 — a centre drag is ONE edit (a click on the handle that moved nothing is none)
             if (_session.CentreDragging)
             {
@@ -236,6 +249,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (DrawingMenu.CommandOf(actionId) != null) { Resolve(_session.ApplyMenuAction(actionId)); return; }
             if (actionId == AddGateId && _ring) { AddGate(); return; }
             if (_activeVertex < 0 || _activeVertex >= _points.Count) return;
+            if (Refused()) return;
 
             if (actionId == 1) // Insert after
             {
@@ -249,6 +263,7 @@ namespace Hrot.ScenarioEditor.Gizmos
         /// <summary>⭐ B-17 P6 — the Delete key and the menu's Delete point: the ONE removal, held at the shape's minimum (the reason goes to the hint, nothing is removed).</summary>
         private void DeleteSelectedPoint()
         {
+            if (Refused()) return;
             int before = _points.Count;
             _session.DeleteSelectedPoint();
             if (_points.Count != before) WriteBackAndPublish("Delete point");
@@ -262,7 +277,7 @@ namespace Hrot.ScenarioEditor.Gizmos
             var at = new Vector2(worldPos.X, worldPos.Y);
             if (_session.HitDone(at)) { Resolve(_session.Finish()); return; }
             // ⭐ B-17 P6 — a click on a SEGMENT (not on a vertex, the centre or the ✓) inserts a point there: one edit, and it is the selected point
-            if (!_session.CentreDragging && _session.InsertAtClick(at) >= 0) { _session.ClearReason(); WriteBackAndPublish("Insert point"); }
+            if (!_session.CentreDragging && !Refused() && _session.InsertAtClick(at) >= 0) { _session.ClearReason(); WriteBackAndPublish("Insert point"); }
         }
 
         public void OnKeyEvent(MapKeyboardKey key, bool isPressed)

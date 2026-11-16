@@ -213,6 +213,11 @@ namespace Hrot.ScenarioEditor.Tools
                 components.Add(Hrot.UI.Common.AddEntity.AnimalAreaDef.Default(Fdp.Toolkit.Animals.AnimalSpecies.Cattle));
                 components[1] = AnimalAreaStyle();
             }
+            if (tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType)   // ⭐ CE-4624 MS-U3 (MR-8) — a minefield is born WITHOUT the generic overlay style (MinefieldGizmo draws it) and with its parameters
+            {
+                components.RemoveAll(c => c is MapOverlayStyle);
+                components.Add(Hrot.UI.Common.AddEntity.MinefieldOps.Default());
+            }
             if (tkbType == TkbEntityTypes.SpawnArea) components.Add(new Hrot.Common.SpawnArea { Side = Fdp.Core.ForceId.Friend, FacingDeg = 0f });   // ⭐ Player Join S2-b — edited in Details
             return components;
         }

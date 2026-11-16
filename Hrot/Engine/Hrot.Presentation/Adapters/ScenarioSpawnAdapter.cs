@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Fdp.Interfaces;
 using Fdp.Core;
@@ -379,6 +380,43 @@ namespace Hrot.UI.Common.Adapters
             ArmAreaAuthoring(_pendingAreaTkbType);
         }
 
+        // ⭐ CE-4624 MS-U3 (MR-18) — "Add lane": the area tool in LINE mode whose finish adds a LANE to the selected minefield instead of creating an entity
+        private (Fdp.Core.EntityRepository World, Fdp.Core.Entity Field)? _pendingLane;
+
+        /// <summary>
+        /// ⭐ CE-4624 MS-U3 (MR-18) — arms the ONE area tool as an open LINE (two points least) for a LANE of <paramref name="field"/>: its finish calls <see cref="Hrot.UI.Common.AddEntity.MinefieldOps.AddLane"/> with the line's first and
+        /// last points (click A, click B, then Enter or the on-map ✓) — one undo step — instead of spawning an entity. The tool ends after the lane.
+        /// </summary>
+        public void StartLaneAuthoringMode(Fdp.Core.EntityRepository world, Fdp.Core.Entity field)
+        {
+            _pendingLane = (world, field);
+            if (_tools != null) { _tools.Activate(Hrot.ScenarioEditor.Tools.ScenarioToolIds.PlaceArea); return; }
+            ArmAreaAuthoring(_pendingAreaTkbType);
+        }
+
+        private Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmLaneAuthoring((Fdp.Core.EntityRepository World, Fdp.Core.Entity Field) lane)
+        {
+            if (_globalGizmoManager == null) return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
+            var arm = _areaArm ??= new Hrot.ScenarioEditor.Tools.AreaAuthoringArm(_globalGizmoManager, tools: _tools);
+            if (_activeSequenceId.HasValue) { _globalGizmoManager.Unregister(_activeSequenceId.Value); _activeSequenceId = null; }
+            var outcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
+                TkbType:    (Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_Area),   // never spawned: the sink below takes the line
+                StyleJson:  "",
+                OnCommit:   cmd =>
+                {
+                    // the line's points are relative to its anchor (the centroid): the lane runs from the first to the last
+                    var pts = cmd.InitialComponents?.OfType<Hrot.Map.Common.Components.EditablePolyline>().FirstOrDefault()?.Points;
+                    if (pts is not { Count: >= 2 }) return;
+                    var at = new System.Numerics.Vector2(cmd.InitialTransform?.Position.X ?? 0f, cmd.InitialTransform?.Position.Y ?? 0f);
+                    Hrot.UI.Common.AddEntity.MinefieldOps.AddLane(lane.World, lane.Field, at + pts[0], at + pts[^1]);
+                },
+                MinPoints:  2,
+                Closed:     false,
+                OnDisarmed: () => { _activeSequenceId = null; }));
+            _activeSequenceId = arm.ActiveGizmoId;
+            return outcome;
+        }
+
         /// <summary>
         /// The area arm body — reached through <c>Activate</c>, or directly with no arbiter.
         ///
@@ -405,6 +443,7 @@ namespace Hrot.UI.Common.Adapters
         /// </summary>
         public Hrot.ScenarioEditor.Tools.ToolActivationOutcome ArmAreaAuthoring(long tkbType)
         {
+            if (_pendingLane is { } lane) { _pendingLane = null; return ArmLaneAuthoring(lane); }   // ⭐ CE-4624 — "Add lane": the same tool, a line, its own sink
             if (_globalGizmoManager == null)
                 return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Unserviceable;
 
