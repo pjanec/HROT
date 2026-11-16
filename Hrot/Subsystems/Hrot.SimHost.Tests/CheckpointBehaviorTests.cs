@@ -217,5 +217,106 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, f.Watch.Threats);
             Assert.Empty(f.Fire);
         }
+    
+
+        /// <summary>A car STOPPED at the line with a driver aboard (seat 0) and, when <paramref name="charge"/>, a thing in its concealed boot (seat 2).</summary>
+        private static (Entity Car, Entity Driver) StoppedCar(Fixture f, bool charge)
+        {
+            var repo = f.W.Repo;
+            foreach (var reg in new System.Action[]
+            {
+                () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Custody>()) repo.RegisterComponent<Fdp.Toolkit.Civilians.Custody>(); },
+                () => { if (!repo.Bus.IsRegistered<Fdp.Toolkit.Civilians.CustodyEvent>()) repo.Bus.Register<Fdp.Toolkit.Civilians.CustodyEvent>(); },
+                () => { if (!repo.IsComponentTypeRegistered<Gesture>()) repo.RegisterComponent<Gesture>(); },
+            }) reg();
+            var car = f.Car(new Vector3(-4f, 0f, 0f), Vector3.Zero);
+            var driver = repo.CreateEntity();
+            repo.AddComponent(driver, new SimTransform { Position = new Vector3(-4f, 0f, 0f), Rotation = Quaternion.Identity });
+            var buffer = new PassengerBuffer { Count = charge ? 2 : 1 };
+            buffer.Passengers[0] = driver;
+            repo.AddComponent(driver, new IsEmbarkedTag { VehicleEntity = car, Seat = 0 });
+            if (charge)
+            {
+                var thing = repo.CreateEntity();
+                buffer.Passengers[2] = thing;
+                repo.AddComponent(thing, new IsEmbarkedTag { VehicleEntity = car, Seat = 2 });
+                repo.AddComponent(car, new CarrierStations { StationMask = 1 << 2, StowedMask = 1 << 2, ConcealedMask = 1 << 2 });
+            }
+            repo.AddComponent(car, buffer);
+            return (car, driver);
+        }
+
+        /// <summary>⭐⭐ K-6 (CP-4) — a car stopped at the line: its driver is told "out, hands up" (a REACTION, never a write), the vehicle searcher
+        /// goes to its side; once the driver is out showing his hands and the searchers are in reach, each asks custody to search — the man and the
+        /// vehicle; both searched and nothing in the boot ⇒ RELEASED: he is told to board again. ✅ Red-proof: the vehicle's search never asked ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K6_AStoppedCar_IsSearched_ManAndVehicle_ThenReleased()
+        {
+            var f = new Fixture();
+            f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
+            f.Tick(3);
+            var demands = new List<(Entity To, string What, BehaviorOrigin Origin)>();
+            var (car, driver) = StoppedCar(f, charge: false);
+            void Run(int k)
+            {
+                for (int i = 0; i < k; i++)
+                {
+                    f.Drive(car);
+                    f.W.Tick();
+                    foreach (var e in f.W.Repo.ReadManagedEvents<AssignTacticalIntentEvent>())
+                    {
+                        if (e == null) continue;
+                        if (e.IntentId == BehaviorNames.CombatPosture) f.Posts[e.Entity] = Objective(e.JsonParams);
+                        if (e.Entity == driver) demands.Add((e.Entity, e.IntentId, e.Origin));
+                    }
+                }
+            }
+            Run(3);
+            Assert.Equal(1, f.Watch.SearchStage);
+            Assert.Contains(demands, d => d.What == BehaviorNames.ComplyAtCheckpoint && d.Origin == BehaviorOrigin.Reaction);
+            Assert.InRange(Vector3.Distance(f.Posts[f.Men[2]], new Vector3(-4f, 0f, 0f)), 2f, 3f);         // the vehicle searcher, at its side
+            // he gets out with his hands up; the searchers are where they were sent
+            var repo = f.W.Repo;
+            repo.RemoveComponent<IsEmbarkedTag>(driver);
+            repo.GetComponentRW<SimTransform>(driver).Position = new Vector3(-4f, -2.5f, 0f);
+            Gestures.Set(repo, driver, GestureKind.HandsUp);
+            Run(3);
+            repo.GetComponentRW<SimTransform>(f.Men[1]).Position = new Vector3(-4f, -3f, 0f);
+            repo.GetComponentRW<SimTransform>(f.Men[2]).Position = f.Posts[f.Men[2]];
+            var asks = new List<Fdp.Toolkit.Civilians.CustodyEvent>();
+            for (int i = 0; i < 3; i++) { Run(1); foreach (var a in repo.Bus.Read<Fdp.Toolkit.Civilians.CustodyEvent>()) asks.Add(a); }
+            Assert.Contains(asks, a => a.Man == driver && a.By == f.Men[1] && a.Verb == Fdp.Toolkit.Civilians.CustodyVerb.Search);
+            Assert.Contains(asks, a => a.Man == car && a.By == f.Men[2] && a.Verb == Fdp.Toolkit.Civilians.CustodyVerb.Search);
+            // custody finishes both searches (its system's job): nothing found ⇒ released, he boards again
+            repo.AddComponent(driver, new Fdp.Toolkit.Civilians.Custody { Searched = 1 });
+            repo.AddComponent(car, new Fdp.Toolkit.Civilians.Custody { Searched = 1 });
+            Run(3);
+            Assert.Equal((2, 1, 0), (f.Watch.SearchStage, f.Watch.Released, f.Watch.Held));
+            Assert.Contains(demands, d => d.What == BehaviorNames.Embark);
+        }
+
+        /// <summary>⭐ K-6 — the same search of a car with something in its concealed boot ⇒ FOUND, the driver HELD (detained), never told to board.
+        /// ✅ Red-proof: the boot not counted at the demand ⇒ released ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K6_ACarWithSomethingInItsBoot_IsHeld()
+        {
+            var f = new Fixture();
+            f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
+            f.Tick(3);
+            var (car, driver) = StoppedCar(f, charge: true);
+            var repo = f.W.Repo;
+            var asks = new List<Fdp.Toolkit.Civilians.CustodyEvent>();
+            void Run(int k) { for (int i = 0; i < k; i++) { f.Drive(car); f.Tick(); foreach (var a in repo.Bus.Read<Fdp.Toolkit.Civilians.CustodyEvent>()) asks.Add(a); } }
+            Run(3);
+            Assert.Equal(1, f.Watch.SearchStage);
+            repo.RemoveComponent<IsEmbarkedTag>(driver);
+            repo.AddComponent(driver, new Fdp.Toolkit.Civilians.Custody { Searched = 1 });
+            repo.AddComponent(car, new Fdp.Toolkit.Civilians.Custody { Searched = 1 });
+            repo.GetComponentRW<SimTransform>(f.Men[1]).Position = new Vector3(-4f, -1f, 0f);
+            repo.GetComponentRW<SimTransform>(driver).Position = new Vector3(-4f, -1.5f, 0f);
+            Run(3);
+            Assert.Equal((3, 1, 0, 1), (f.Watch.SearchStage, f.Watch.Found, f.Watch.Released, f.Watch.Held));
+            Assert.Contains(asks, a => a.Man == driver && a.Verb == Fdp.Toolkit.Civilians.CustodyVerb.Detain);
+        }
     }
 }

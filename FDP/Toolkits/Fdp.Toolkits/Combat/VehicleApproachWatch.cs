@@ -161,7 +161,7 @@ namespace Fdp.Toolkit.Combat
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CheckpointWatch)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public struct CheckpointWatch
+    public unsafe struct CheckpointWatch
     {
         /// <summary>The vehicle (its entity id, as remembered); 0 = none.</summary>
         public long Vehicle;
@@ -186,6 +186,15 @@ namespace Fdp.Toolkit.Combat
         public float ClosingMps, ClosingAtSignal;
         /// <summary>⭐ K-5 — the vehicle first signalled (<see cref="ClosingAtSignal"/> is its).</summary>
         public long SignalledVehicle;
+        /// <summary>⭐ K-6 — the vehicle being searched, the search's stage (0 none, 1 demanded "out, hands up", 2 released, 3 held: something found).</summary>
+        public long SearchVehicle;
+        public byte SearchStage;
+        /// <summary>⭐ K-6 — how many things the vehicle searches revealed; how many searched vehicles were let go, how many held.</summary>
+        public int Found, Released, Held;
+        /// <summary>⭐ K-6 — the people aboard when the demand went out (up to 4), how many, the concealed things aboard then, the last vehicle searched.</summary>
+        public fixed long Occupants[4];
+        public byte OccupantCount, ConcealedAtDemand;
+        public long LastSearched;
         /// <summary>⭐ K-5 — 1 while the stopper shows the signal.</summary>
         public byte Signalling;
     }

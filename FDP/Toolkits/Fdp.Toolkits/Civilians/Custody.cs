@@ -100,12 +100,21 @@ namespace Fdp.Toolkit.Civilians
 
         /// <summary>CU-4 — does <paramref name="man"/> comply (hands up / on head — <c>ThreatDanger.ShowsHandsUp</c>) or is he restrained?</summary>
         public static bool Complies(ISimulationView view, Entity man)
-            => Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(view, man) || IsRestrained(view, man);
+            => Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(view, man) || IsRestrained(view, man) || IsStoppedVehicle(view, man);
+
+        /// <summary>⭐ <c>CE-4622</c> K-6 (Checkpoint CP-4) — a VEHICLE is searched like a man: it "complies" while it stands still, and the search reveals
+        /// what its CONCEALED stations hide (a boot's charge) the same way a man's hidden weapons are put down.</summary>
+        public static bool IsStoppedVehicle(ISimulationView view, Entity thing)
+            => Fdp.Toolkit.Motion.Locomotions.IsVehicle(view, thing) && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(view, thing);
+
+        /// <summary>⭐ <c>CE-4622</c> K-6 — the reach to a vehicle's centre (m): a man at its side or its boot.</summary>
+        public const float VehicleReach = 4f;
 
         /// <summary>CU-3 — is <paramref name="by"/> alive and within <see cref="Reach"/> of <paramref name="man"/>?</summary>
         public static bool InReach(EntityRepository world, Entity man, Entity by)
             => !by.IsNull && world.IsAlive(by) && world.IsAlive(man) && world.HasComponent<SimTransform>(by) && world.HasComponent<SimTransform>(man)
-               && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(by).Position, world.GetComponentRO<SimTransform>(man).Position) <= Reach * Reach;
+               && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(by).Position, world.GetComponentRO<SimTransform>(man).Position)
+                  <= (Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, man) ? VehicleReach * VehicleReach : Reach * Reach);
 
         private static bool Read(ISimulationView view, Entity man, out Custody c)
         {

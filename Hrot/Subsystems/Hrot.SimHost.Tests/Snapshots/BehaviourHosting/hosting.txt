@@ -39,6 +39,7 @@ CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJso
 CombatShowcase | hostedInput=- | inputBytes=0
 CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=208
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
+ComplyAtCheckpoint | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
 CrossLane | hostedInput=Hrot.Map.Definitions.Behavior.CrossLaneParamsJsonDto | inputBytes=48

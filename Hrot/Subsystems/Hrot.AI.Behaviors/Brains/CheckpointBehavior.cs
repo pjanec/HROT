@@ -6,6 +6,7 @@ using Fbt;
 using Fbt.Compiler;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Squad;
@@ -154,6 +155,101 @@ namespace Hrot.AI.Behaviors.Brains
             public void Apply(EntityRepository repo, Entity e, int code, long arg) => Gestures.Set(repo, e, code != 0 ? GestureKind.Warning : GestureKind.None);
         }
 
+        /// <summary>⭐ K-6 — the live man in role <paramref name="role"/> with slot <paramref name="slot"/>, if any.</summary>
+        public static unsafe Entity InRole(ref CheckpointParams p, in SquadPlayContext ctx, byte role, byte slot)
+        {
+            for (int i = 0; i < ctx.Roster.Count && i < Fdp.Core.CommandHierarchy.UnitRoster.Capacity; i++)
+                if (p.Roles[i] == role && p.Slot[i] == slot && ctx.Live(i, out var m)) return m;
+            return Entity.Null;
+        }
+
+        /// <summary>⭐ K-6 (CP-4) — one tick of the search (stages in <see cref="CheckpointWatch.SearchStage"/>). Every ask is an event (custody, the
+        /// reaction to each man) — nothing here writes another entity.</summary>
+        public static unsafe void Search(ref CheckpointParams p, ref CheckpointWatch now, ref SquadPlayState ws, in SquadPlayContext ctx, Entity vehicle, VehicleRung rung)
+        {
+            var world = ctx.World;
+            var searched = now.SearchVehicle != 0 ? new Entity((ulong)now.SearchVehicle) : Entity.Null;
+            if (now.SearchStage == 0)
+            {
+                if (vehicle.IsNull || rung >= VehicleRung.WarningShot || now.Verdict != (byte)ApproachVerdict.Routine || now.Vehicle == now.LastSearched
+                    || !Fdp.Toolkit.Civilians.CustodyRules.IsStoppedVehicle(world, vehicle)) return;
+                now.SearchVehicle = now.Vehicle; now.SearchStage = 1; now.OccupantCount = 0; now.ConcealedAtDemand = 0;
+                if (world.HasComponent<PassengerBuffer>(vehicle))
+                {
+                    var buffer = world.GetComponentRO<PassengerBuffer>(vehicle);
+                    for (int i = 0; i < PassengerBuffer.Capacity; i++)
+                    {
+                        var thing = buffer.Passengers[i];
+                        if (thing.IsNull) continue;
+                        if (CarryStations.IsConcealed(world, thing)) { now.ConcealedAtDemand++; continue; }
+                        if (Embarkation.IsWeaponSystem(world, thing) || now.OccupantCount >= 4) continue;
+                        now.Occupants[now.OccupantCount++] = (long)thing.PackedValue;
+                        world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+                        {
+                            Entity = thing, IntentId = BehaviorNames.ComplyAtCheckpoint, JsonParams = "{}", Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Reaction,
+                        });
+                    }
+                }
+                ws.Reissue = 1;
+                return;
+            }
+            if (searched.IsNull || !world.IsAlive(searched)) { now.SearchStage = 0; now.SearchVehicle = 0; ws.Reissue = 1; return; }
+            if (now.SearchStage >= 2)
+            {
+                if (!Fdp.Toolkit.Civilians.CustodyRules.IsStoppedVehicle(world, searched)) { now.SearchStage = 0; now.SearchVehicle = 0; ws.Reissue = 1; }   // it drove off
+                return;
+            }
+            var men = InRole(ref p, in ctx, CheckpointManeuver.RoleSearcher, 0);
+            var boot = InRole(ref p, in ctx, CheckpointManeuver.RoleSearcher, 1);
+            if (boot.IsNull) boot = men;
+            bool allMen = true;
+            for (int k = 0; k < now.OccupantCount; k++)
+            {
+                var man = new Entity((ulong)now.Occupants[k]);
+                if (!world.IsAlive(man)) continue;
+                if (Searched(world, man)) continue;
+                allMen = false;
+                if (!men.IsNull && !Searching(world, man) && Fdp.Toolkit.Civilians.CustodyRules.Complies(world, man)
+                    && Fdp.Toolkit.Civilians.CustodyRules.InReach(world, man, men))
+                    Fdp.Toolkit.Civilians.CustodyRules.Ask(world, man, men, Fdp.Toolkit.Civilians.CustodyVerb.Search);
+            }
+            bool car = Searched(world, searched);
+            if (!car && !boot.IsNull && !Searching(world, searched) && Fdp.Toolkit.Civilians.CustodyRules.InReach(world, searched, boot))
+                Fdp.Toolkit.Civilians.CustodyRules.Ask(world, searched, boot, Fdp.Toolkit.Civilians.CustodyVerb.Search);
+            if (!allMen || !car) return;
+            now.Found += now.ConcealedAtDemand;
+            now.LastSearched = now.SearchVehicle;
+            if (now.ConcealedAtDemand > 0)
+            {
+                now.SearchStage = 3; now.Held++;
+                for (int k = 0; k < now.OccupantCount; k++)
+                    if (!men.IsNull) Fdp.Toolkit.Civilians.CustodyRules.Ask(world, new Entity((ulong)now.Occupants[k]), men, Fdp.Toolkit.Civilians.CustodyVerb.Detain);
+            }
+            else
+            {
+                now.SearchStage = 2; now.Released++;
+                int net = world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(searched)
+                    ? world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(searched).Value : 0;
+                for (int k = 0; k < now.OccupantCount; k++)
+                    world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+                    {
+                        Entity = new Entity((ulong)now.Occupants[k]), IntentId = BehaviorNames.Embark, JsonParams = "{\"Vehicle\":" + net + "}",
+                        Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Reaction,
+                    });
+            }
+            ws.Reissue = 1;
+        }
+
+        /// <summary>Is <paramref name="man"/> aboard a vehicle?</summary>
+        public static bool IsAboard(EntityRepository world, Entity man)
+            => world.IsComponentTypeRegistered<IsEmbarkedTag>() && world.HasComponent<IsEmbarkedTag>(man);
+
+        private static bool Searched(EntityRepository world, Entity e)
+            => world.HasComponent<Fdp.Toolkit.Civilians.Custody>(e) && world.GetComponentRO<Fdp.Toolkit.Civilians.Custody>(e).Searched != 0;
+
+        private static bool Searching(EntityRepository world, Entity e)
+            => world.HasComponent<Fdp.Toolkit.Civilians.Custody>(e) && world.GetComponentRO<Fdp.Toolkit.Civilians.Custody>(e).Searching != 0;
+
         /// <summary>Compass bearing (0 = north, clockwise) of a flat direction.</summary>
         public static float Bearing(Vector2 d) { float b = MathF.Atan2(d.X, d.Y) * (180f / MathF.PI); return b < 0f ? b + 360f : b; }
     }
@@ -250,6 +346,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!stopper.IsNull) CheckpointBehavior.Signal(world, stopper, signal != 0);
             }
             if (!vehicle.IsNull && world.HasComponent<SimTransform>(vehicle)) ws.ThreatPoint = world.GetComponentRO<SimTransform>(vehicle).Position;
+            // ⭐ K-6 (CP-4) — the SEARCH of a vehicle stopped at the line: "out, hands up" (a reaction to each man aboard), the men searched by one
+            //   searcher, the vehicle (its concealed stations) by the other; nothing found ⇒ they board again and go; something found ⇒ held
+            CheckpointBehavior.Search(ref p, ref now, ref ws, in ctx, vehicle, due);
             ws.ThreatId = now.Verdict == (byte)ApproachVerdict.Threat ? now.Vehicle : 0;
             if (world.HasComponent<CheckpointWatch>(ctx.Commander)) world.GetComponentRW<CheckpointWatch>(ctx.Commander) = now;
             else world.AddComponent(ctx.Commander, now);   // added WITH its final value (the parallel rule)
@@ -276,6 +375,25 @@ namespace Hrot.AI.Behaviors.Brains
             byte role = member < Fdp.Core.CommandHierarchy.UnitRoster.Capacity ? p.Roles[member] : (byte)0;
             byte slot = member < Fdp.Core.CommandHierarchy.UnitRoster.Capacity ? p.Slot[member] : (byte)0;
             var rear = stop + ahead * p.Site.StandOffM;
+            // ⭐ K-6 — during a search the searchers go to it: one to the next man out not yet searched, the other to the vehicle's side
+            if (role == CheckpointManeuver.RoleSearcher && ctx.World.HasComponent<CheckpointWatch>(ctx.Commander))
+            {
+                var w = ctx.World.GetComponentRO<CheckpointWatch>(ctx.Commander);
+                var sv = w.SearchVehicle != 0 ? new Entity((ulong)w.SearchVehicle) : Entity.Null;
+                if (w.SearchStage == 1 && !sv.IsNull && ctx.World.IsAlive(sv) && ctx.World.HasComponent<SimTransform>(sv))
+                {
+                    Vector3 to = ctx.World.GetComponentRO<SimTransform>(sv).Position + right * 2.5f;
+                    if (slot == 0)
+                        for (int k = 0; k < w.OccupantCount; k++)
+                        {
+                            var man = new Entity((ulong)w.Occupants[k]);
+                            if (!ctx.World.IsAlive(man) || !ctx.World.HasComponent<SimTransform>(man) || CheckpointBehavior.IsAboard(ctx.World, man)) continue;
+                            to = ctx.World.GetComponentRO<SimTransform>(man).Position; break;
+                        }
+                    return new MemberOrder { Kind = MemberOrderKind.Watch, Point = to, Speed = p.Speed, ArrivalRadius = 1f, Post = new MemberPost { Set = 1, Radius = 1f },
+                                             RoleId = role };
+                }
+            }
             Vector3 post = role switch
             {
                 CheckpointManeuver.RoleStopper => stop + right * CheckpointBehavior.StopperOffsetM,
