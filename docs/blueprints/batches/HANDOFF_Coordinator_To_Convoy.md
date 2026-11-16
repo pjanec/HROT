@@ -12,7 +12,7 @@ related-designs:
 
 # HANDOFF — coordinator → `convoy` (a NEW lane): the ROAD CONVOY in SUMO traffic — measure, design, build, prove (CE-4631)
 
-**For:** a NEW lane on branch **`convoy`** (create it from `origin/coordinator`). **From:** coordinator. **Dispatched at `<STAMP>`**; ⛔ scope FROZEN
+**For:** a NEW lane on branch **`convoy`** (create it from `origin/coordinator`). **From:** coordinator. **Dispatched at `74c53dd69`**; ⛔ scope FROZEN
 there — later documents are FYI; one that invalidates a step ⇒ STOP that step, do the rest (R-106).
 
 🔒 User, `2026-11-16`, verbatim: *"Convoy never split, ignores traffic lights, and the sumo vehicles needs to react to it."* · *"I meant the leading sumo
