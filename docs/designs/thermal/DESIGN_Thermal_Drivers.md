@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — TD-1…TD-13 await the user (§3); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 the record · §5 UML · §6 a late joiner · §7 slices
+build-state: DESIGN — TD-1…TD-15 await the user (§3); ids fixed at dispatch
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 the record · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -12,6 +12,7 @@ related-designs:
   - ../../DESIGN_Weapon_Layers.md — OWNS the barrel heat rule (§5k, CE-1358, `WeaponState.Heat`) the weapon drivers carry
   - ../../DESIGN_Visual_Effects.md — OWNS "a destroyed vehicle burns" (W3, VE-P), today a PRESENTATION decision; it reads the FIRE driver instead (TD-6)
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it; its gateway table notes DIS appearance bits are NOT carried (§ "What DIS needs") — TD-11 fills that
+  - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the crater record (`GroundDamage`, CE-4591) the ground heat marks follow (TD-14)
   - ../hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS vehicle part damage (an `Engine` part exists for aircraft): a dead engine is a power-plant driver
 -->
 
@@ -67,6 +68,8 @@ more detailed design for it?"*
 | **TD-11** | the interfaces | our image-generator role and any node read the component directly (our protocol); the DIS / HLA gateway maps it: PowerPlant → Power Plant On, Fire → Flaming / Smoking, Life → a lifeform's health, damage → the 4 DIS damage states (thresholds fixed here: < 25 % lost none, < 50 % slight, < 100 % moderate, destroyed) — a row in the protocol reference for the gateway's repository; ⛔ CIGI not built here | the gateway is an outside product; it needs the mapping written down |
 | **TD-12** | smoke that blocks infrared | a per-munition flag in the TKB (visual-only vs IR-blocking smoke) the area cloud carries by its type | the generator renders the cloud; it must know whether infrared passes |
 | **TD-13** | how much traffic | messages only on events (engine change, burst end, fire start, death, motion start / stop): a moving company ≈ a few messages a minute | the bandwidth argument for TD-1 |
+| **TD-14** | ⭐ **a vehicle that stood with its engine running leaves a WARM SPOT on the ground when it drives away** (🔒 user: *"It is very important for observation to see such places … mark them as separate terrain features, something like craters, but invisible normally"*) | ⭐ **ground heat marks**: a terrain feature in the CRATER record family (`GroundDamage`'s shape — a per-cell record, one per (cell, deciding node), recorded, replicated, unioned by the view; CE-4627's shared writer core), one item per mark: where, the footprint (the hull's length × width and heading, the engine / exhaust end), the KIND, the STAND (when it stopped and when it left), the ENGINE-ON seconds during the stand and the source's power class (TKB) — DRIVERS again: every reader computes how warm it is now; ⛔ NEVER DRAWN in the normal 2-D / 3-D views (an instructor's thermal-marks layer only); kinds: `VehicleStand` now, `BurnedArea` with fire (TD-6) and napalm, `BodyImprint` later | the observer's classic cue (*"something stood here"*) is a PLACE, not an entity — it outlives the vehicle that left; craters already prove the record shape, the replication and the replay |
+| **TD-15** | ✅ a generator that joins late and the sun before it | ✅ **ruled by the user**: it takes the time of day and ESTIMATES the earlier sunshine from the time of year, the time of day and the current clouds — no history is sent (§6) | 🔒 user: *"so no issue here"* |
 
 ## 4. The record — `ThermalDrivers` *(unmanaged; ≤ 128 B; recorded; replicated; times are `SimInstant`)*
 
@@ -78,6 +81,24 @@ more detailed design for it?"*
 | `Mount[4]`: `ShotsFired`, `LastShotAt`, `HeatAtLastShot` | uint, SimInstant, Half | the node that fires | a burst ends |
 | `Fire`, `FireSince`, `FireSeconds` | byte, SimInstant, float | the node that decides damage | ignition / it goes out |
 | `Life`, `LifeSince` | byte, SimInstant | the node that decides injury | the life state changes |
+
+## 4b. Ground heat marks — `GroundHeatMarks` *(TD-14; the crater record's shape; unmanaged, ≤ 1024 B, recorded, replicated, `NoScenario` — a mark cools within hours)*
+
+| per mark | type | meaning |
+|---|---|---|
+| `Kind` | byte | `VehicleStand` · `BurnedArea` · `BodyImprint` (later) |
+| `X`, `Y`, `Heading`, `Length`, `Width` | floats, Half | the footprint on the ground — the hull's, at the place it stood |
+| `HotEnd` | byte | which end carries the engine and exhaust (front / rear / none) — the hottest part of the mark |
+| `StandSince`, `LeftAt` | SimInstant | when it stopped there, when it drove away |
+| `EngineOnSeconds` | Half | how long the engine ran during the stand (idle or running) — a parked, cold vehicle leaves no mark |
+| `PowerClass` | byte | the source's power class from its TKB (a car, a truck, a tank) |
+
+| ⭐ the rule | |
+|---|---|
+| written by | the node that moves the vehicle (`PowerPlantSystem`, TD-3) when it LEAVES a stand of ≥ ~60 s with `EngineOnSeconds` > 0 — one event, one item |
+| kept | until it is COLD (about two hours of sim time, by `PowerClass`), then dropped by the next write to that cell; a capacity of items per cell like the craters, another entity past it |
+| read by | the external image generator (it solves the ground's temperature from the stand, the engine time, the soil's thermal class TD-9 and the weather) · our AI thermal sensor through `ThermalDriversOps.MarkWarmth(mark, now, weather)` (an observer may later report *"a recent vehicle position"* into the per-side place knowledge, `PlaceKnowledge`) · an instructor's thermal-marks map layer |
+| ⛔ never | drawn in the normal views; saved into a scenario |
 
 ## 5. UML
 
@@ -127,6 +148,14 @@ classDiagram
   class TerrainMaterial {
     <<existing, gains thermalClass>>
   }
+  class GroundHeatMarks {
+    <<new, per-cell record, the crater shape, invisible>>
+    Kind X Y Heading Length Width HotEnd
+    StandSince LeftAt EngineOnSeconds PowerClass
+  }
+  class GroundDamage {
+    <<existing - craters, the same record family>>
+  }
   class DisGateway {
     <<external product, maps the drivers to DIS appearance>>
   }
@@ -141,9 +170,13 @@ classDiagram
   DisGateway ..> ThermalDrivers
   DisGateway ..> WeatherConditions
   ThermalHeatSystem .. ThermalDriversOps : replaced by
+  PowerPlantSystem --> GroundHeatMarks : a stand ends
+  GroundHeatMarks .. GroundDamage : same shape
+  ThermalDriversOps ..> GroundHeatMarks : MarkWarmth
 ```
 *What it shows that prose hid: the drivers have WRITERS only at events and ONE calculator that every reader shares — our AI sensor, the burning
-effect and the external generator all start from the same record, so there is no second thermal truth and nothing integrates per frame.*
+effect and the external generator all start from the same record, so there is no second thermal truth and nothing integrates per frame. The warm
+spot a vehicle leaves is a TERRAIN record beside the craters, not a field of the vehicle — it outlives the vehicle that drove away.*
 
 ```mermaid
 sequenceDiagram
@@ -158,6 +191,9 @@ sequenceDiagram
   M->>D: burst of 20 rounds ends - mount 0 ShotsFired, LastShotAt, HeatAtLastShot
   D-->>N: one sample
   Note over N: our sensor - BarrelHeat(mount, now) closed form
+  M->>D: drives away after 15 min idling - Moving since 1020 s
+  M->>N: one GroundHeatMarks item - VehicleStand 120 to 1020 s, engine on 900 s, rear hot
+  Note over N,G: an invisible warm rectangle where it stood, cooling - the generator and our sensor compute it
   M->>D: destroyed - Fire Burning since 300 s for 600 s
   D-->>N: one sample
   Note over N,G: burning until 900 s on every node, a late joiner included
@@ -182,8 +218,10 @@ graph TD
   PACK --> FX[presentation - the burning wreck]
   PACK --> IG[our image-generator node]
   PACK --> GW[DIS / HLA gateway - an external node]
+  PPS --> HM[GroundHeatMarks - per-cell records, invisible]
+  HM --> PACK
   OLD[ThermalHeatSystem - per frame] -.retires.-> SENS
-  linkStyle 16 stroke:#c33,stroke-dasharray: 5 5
+  linkStyle 18 stroke:#c33,stroke-dasharray: 5 5
 ```
 *What it shows: who writes each driver and where it runs, and that every consumer — our sensor, our effects, an outside generator — reads the same
 replicated record; the red edge is the per-frame integrator this design retires.*
@@ -191,9 +229,9 @@ replicated record; the red edge is the per-frame integrator this design retires.
 ## 6. A late joiner and replay
 
 A node or generator that joins late receives the current `ThermalDrivers` (TransientLocal, as every replicated record) and the weather: it knows
-"idling since 120 s", "burning since 300 s for 600 s", "dead since 40 s", "rained since 06:10". ⚠ It does NOT know the hours of sun before it joined —
-it starts the environment SOAKED to the current weather and sun (the usual practice of these generators); a replay from the recording gives the
-full history. Replay and a seek restore the record by bytes (unmanaged, recorded).
+"idling since 120 s", "burning since 300 s for 600 s", "dead since 40 s", "rained since 06:10". ✅ It does not need the hours of sun before it joined — 🔒 the user (TD-15): *"The generator who joins late simply takes the time of day and
+estimates what the sunshine was from the time of year, time of day, and the clouds that are current, so no issue here."* It also receives every
+ground heat mark still warm (§4b), so a place a vehicle left before it joined is there. Replay and a seek restore the record by bytes (unmanaged, recorded).
 
 ## 7. Slices *(lean; ids and lanes at dispatch)*
 
@@ -206,3 +244,4 @@ full history. Replay and a seek restore the record by bytes (unmanaged, recorded
 | TD-S5 | life (TD-7) | a body's `LifeSince` is the time of death on every node |
 | TD-S6 | material thermal classes (TD-9) + the terrain export; IR-blocking smoke (TD-12); weather `Since` (TD-8) | the exported terrain carries a class per surface |
 | TD-S7 | the DIS mapping (TD-11) written into the protocol reference for the gateway | the table, with the damage thresholds |
+| TD-S8 | ground heat marks (TD-14): the record, the writer at a stand's end, `MarkWarmth`, the instructor's layer | `th-vehicle-left-warm-spot`: a tank idles 15 min and drives off — a mark of its footprint, hot end at the rear, is on every node (a late joiner included) and our sensor sees it warm for its cooling time; a parked cold truck leaves none |
