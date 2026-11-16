@@ -82,6 +82,32 @@ namespace GizmoMap.Presentation
         private static readonly Dictionary<long, (float, float, float, float)> _boxes = new();
 
         /// <summary>
+        /// ⭐ CE-8613 (DESIGN_Stochastic_Unit_UI UI-8, mockup ④) — an icon text <c>meter/&lt;0..5&gt;</c>: a 5-box LEVEL meter, pixel-sized at a world point (the
+        /// detection overlay's pair level) — a gizmo cannot place pixel offsets in the world, so the renderer draws the boxes. 0 B.
+        /// </summary>
+        public static bool TryMeter(in FixedString32 text, out int filled)
+        {
+            filled = 0;
+            ReadOnlySpan<byte> b = System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.AsRef(in text), 1));
+            if (b[0] != (byte)'m' || b[1] != (byte)'e' || b[2] != (byte)'t' || b[3] != (byte)'e' || b[4] != (byte)'r' || b[5] != (byte)'/') return false;
+            int d = b[6] - '0';
+            if (d < 0 || d > 5 || b[7] != 0) return false;
+            filled = d;
+            return true;
+        }
+
+        /// <summary>The meter (68 × 20 px black back, five 10 px boxes 12 px apart — mockup ④) centred at <paramref name="world"/>, inside the 2-D camera.</summary>
+        public static void DrawMeterWorld(int filled, Color on, Vector2 world, float zoom)
+        {
+            float k = zoom > 0f ? 1f / zoom : 1f;
+            Raylib.DrawRectangleRec(new Rectangle(world.X - 34f * k, world.Y - 10f * k, 68f * k, 20f * k), new Color((byte)0, (byte)0, (byte)0, (byte)190));
+            var off = new Color((byte)51, (byte)51, (byte)51, (byte)255);
+            for (int i = 0; i < 5; i++)
+                Raylib.DrawRectangleRec(new Rectangle(world.X + (-30f + i * 12f) * k, world.Y - 5f * k, 10f * k, 10f * k), i < filled ? on : off);
+        }
+
+        /// <summary>
         /// ⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13) — the cached texture of a symbol for an ImGui image (an ORBAT row): its id (rlImGui's raylib texture id)
         /// and its width over its height. The SAME texture the map draws — one geometry, one cache.
         /// </summary>

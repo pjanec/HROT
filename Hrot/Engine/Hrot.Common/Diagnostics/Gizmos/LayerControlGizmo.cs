@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 32;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30 · ⭐ CE-8610 — 31 → 32: NATO unit symbols took bit 31
+        public const int FirstUntoggledLayer = 33;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30 · ⭐ CE-8610 — 31 → 32: NATO unit symbols took bit 31 · ⭐ CE-8613 — 32 → 33: Detection levels took bit 32
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -122,6 +122,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Ai.Utility) mask.SetBit(DebugTraceLayers.Utility);
             if (Ai.Eqs) mask.SetBit(DebugTraceLayers.Eqs);
             if (Ai.AiHelpers) mask.SetBit(2);
+            if (Ai.DetectionLevels) mask.SetBit(DebugTraceLayers.DetectionLevels);   // ⭐ CE-8613
             if (Fire.FireTraces) mask.SetBit(3);
             if (Fire.Blast) mask.SetBit(DebugTraceLayers.Blast);
             if (Fire.Hearing) mask.SetBit(DebugTraceLayers.Hearing);
@@ -202,6 +203,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool Eqs { get; set; } = true;
         [EditDisplayName("AI helpers"), EditDoc("The navigation arrow of each moving unit and the danger areas.")]
         public bool AiHelpers { get; set; }
+        // ⭐ CE-8613 (DESIGN_Stochastic_Unit_UI UI-8, mockup ④) — a stochastic unit's detection of each target: OFF by default (a debug overlay)
+        [EditDisplayName("Detection levels (stochastic)"), EditDoc("A stochastic unit's line to each target it is detecting, with the level as 5 boxes: green = contact reported, amber = accumulating, grey = fading (out of sight) (CE-8613).")]
+        public bool DetectionLevels { get; set; }
     }
 
     /// <summary>⭐ CE-1203 — the Fire group.</summary>

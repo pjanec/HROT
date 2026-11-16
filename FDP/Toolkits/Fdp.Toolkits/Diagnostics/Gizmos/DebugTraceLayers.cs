@@ -81,6 +81,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// past the cards' zoom or with them off, the symbol alone at the unit's point, one echelon per zoom (P-3). On by default
         /// (<c>LayerControlDto.FirstUntoggledLayer</c> 31 → 32).</summary>
         public const byte UnitSymbols = EntityCards.UnitSymbolsLayer;
+
+        /// <summary>⭐ <c>CE-8613</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-8, mockup ④) — Tactical Map Layers ▸ AI ▸ Detection levels:
+        /// a stochastic observer's line to each target it is detecting, with its level meter. OFF by default (<c>LayerControlDto.FirstUntoggledLayer</c> 32 → 33).</summary>
+        public const byte DetectionLevels = EntityCards.DetectionLevelsLayer;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

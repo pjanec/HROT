@@ -187,6 +187,10 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(new LayerControlDto { Units = { UnitSymbols = false } }.ToMask().IsSet(DebugTraceLayers.UnitSymbols));
             Assert.True(new LayerControlDto { Units = { UnitCards = false } }.ToMask().IsSet(DebugTraceLayers.UnitSymbols));
             Assert.True(DebugTraceLayers.UnitSymbols < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-8613 (UI-8) — the detection levels: an AI row, OFF by default
+            Assert.False(all.IsSet(DebugTraceLayers.DetectionLevels), "the detection overlay defaults off");
+            Assert.True(new LayerControlDto { Ai = { DetectionLevels = true } }.ToMask().IsSet(DebugTraceLayers.DetectionLevels));
+            Assert.True(DebugTraceLayers.DetectionLevels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
             foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid, DebugTraceLayers.Concealed })   // ⭐ CE-1169 — the ExCon layer too
             {

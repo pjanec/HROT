@@ -504,7 +504,10 @@ namespace GizmoMap.Presentation
                 {
                     var center = new Vector2(prim.IconWorldPosX, prim.IconWorldPosY);
                     // ⭐ CE-8608 — an icon whose key is a land-unit symbol code draws that NATO symbol (SymbolRenderer); anything else: the yellow dot.
-                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in prim.TextContent, out var symbol))
+                    // ⭐ CE-8613 — "meter/<n>" draws a 5-box LEVEL METER in pixels (n filled, in the primitive's colour)
+                    if (SymbolRenderer.TryMeter(in prim.TextContent, out int filled))
+                        SymbolRenderer.DrawMeterWorld(filled, new Color(prim.Color.R, prim.Color.G, prim.Color.B, prim.Color.A), center, zoom);
+                    else if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in prim.TextContent, out var symbol))
                         SymbolRenderer.DrawWorld(symbol, center, SymbolRenderer.HeightOf(prim), zoom, WorldYUp);
                     else
                         Raylib.DrawCircleV(center, 4f, Color.Yellow);

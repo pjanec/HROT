@@ -36,6 +36,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2) — the units' NATO symbols, in the card's cell or alone at the unit's point.</summary>
         public const byte UnitSymbolsLayer = 31;
 
+        /// <summary>⭐ <c>CE-8613</c> (DESIGN_Stochastic_Unit_UI UI-8) — the stochastic units' detection levels (a debug overlay, off by default).</summary>
+        public const byte DetectionLevelsLayer = 32;
+
         public static byte CardLayerOf(bool unitCard) => unitCard ? UnitCardsLayer : LabelsLayer;
 
         /// <summary>⭐ <c>CE-8605</c> — the card of a UNIT (<paramref name="unitCard"/> true) or of a man / vehicle: a row asked on
