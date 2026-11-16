@@ -38,10 +38,10 @@ namespace Fdp.Toolkit.Aggregate
         /// everybody falls (measured: no loss for 10 s, then a side at once).</summary>
         public const float FocusShare = 0.3f;
         /// <summary>CALIBRATED (CE-8009) — a broken man (stress at the break level) goes to ground: this share of a standing man's exposure.</summary>
-        public const float BrokenExposure = 0.5f;
+        public const float BrokenExposure = 1f;   // ⭐ re-fitted `2026-11-16` against the INCAPACITATION curve: rung 1 shows no going to ground (0.5 was fitted to bleed-out times); rung 2 (the MG) is where suppression must show
         /// <summary>CALIBRATED (CE-8009) — a broken man still fires from the ground at this share (the physical loser keeps hitting the winner
         /// for a minute after its men break; a broken side that falls silent loses ~1 man where the physical one costs the winner ~3).</summary>
-        public const float BrokenFireShare = 0.6f;
+        public const float BrokenFireShare = 1f;   // ⭐ re-fitted `2026-11-16`: rung 1 shows no slowing of a broken man's fire (0.6 was fitted to bleed-out times)
 
         /// <summary>Is the step due at <paramref name="now"/> after <paramref name="last"/>?</summary>
         internal static bool Due(SimInstant now, SimInstant last) => (double)now - (double)last >= StepSeconds - 1e-6;

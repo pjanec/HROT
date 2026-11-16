@@ -46,10 +46,13 @@ namespace Fdp.Toolkits.Tests.Aggregate
                                           new Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = new(Rifleman) }, skipped);
             Assert.Equal(2, skipped.Count);                                                                 // the radio fires nothing and is no hull
             Assert.True(t.TryGet(new TkbTypeId(Rifleman), KillerVictimTable.Personnel, out var rifle));
-            Assert.Equal(30f / (30f * 0.8f + 3f), rifle.EffectiveRate, 4);                                 // a magazine aimed, then the reload
+            // ⭐ CE-8009 (RV-1) — a PERSONAL weapon fires at the MEASURED rate (the closed form, a magazine aimed then the reload, said
+            //   30 / (30 × 0.8 + 3) = 1.11; the physical riflemen fire ~0.4); a HELD system keeps its derived pacing until it is measured
+            Assert.Equal(KillerVictimTkb.MeasuredPersonalRoundsPerSecond, rifle.EffectiveRate, 4);
             Assert.Equal(HitModel.HitChance(0.002f, 0.5f * KillerVictimTable.BandMetres, 0.3f), rifle.PHitByBand[0], 5);
             Assert.True(t.TryGet(new TkbTypeId(Ifv), new TkbTypeId(Ifv), out var gunOnHull));
             Assert.True(gunOnHull.Suitability > 0.9f);                                                       // 40 mm through 10–30 mm
+            Assert.Equal(6f / (6f * 1.5f + 4f), gunOnHull.EffectiveRate, 4);                               // held: a magazine aimed, then the reload
             Assert.True(t.TryGet(new TkbTypeId(Rifleman), new TkbTypeId(Ifv), out var rifleOnHull));
             Assert.Equal(0f, rifleOnHull.Suitability);
             Assert.Equal(new TkbTypeId(Rifleman), t.PersonalWeapon(SlotRole.Rifleman));

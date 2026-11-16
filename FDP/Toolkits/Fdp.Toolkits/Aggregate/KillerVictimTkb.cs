@@ -21,6 +21,13 @@ namespace Fdp.Toolkit.Aggregate
     {
         /// <summary>The aim per aimed round when the mount declares none (s) — <c>EngineFallbacks.AimSeconds</c>'s value.</summary>
         public const float FallbackAimSeconds = 0.8f;
+
+        /// <summary>⭐ CE-8009 (RV-1: "the effective rates measured from physical rails") — MEASURED: the rounds per second one rifleman
+        /// actually fires in a firefight, the behaviour's whole rhythm (bursts, re-aim, target changes — <c>FirePacing</c> paces only the
+        /// rounds inside an action). 📐 Live <c>c8-open-100</c> (`2026-11-16`): 18 standard riflemen fired 33 rounds in the first 5 s and 30 in
+        /// the next 5 s with ~13 still up ⇒ 0.37–0.46 a man a second, where the closed form (one round per aim, no magazine) said 1.25. Applied
+        /// to the PERSONAL weapons' rows; a held system keeps its derived rate until it is measured (CE-8008).</summary>
+        public const float MeasuredPersonalRoundsPerSecond = 0.4f;
         /// <summary>The radius a hull presents when its type declares no area (m).</summary>
         public const float FallbackHullRadius = 2f;
         /// <summary>⭐ CE-8019 — a soldier's hit points when no personal-weapon soldier declares a platform (<c>CombatPlatformDefDto.MaxHealth</c>).</summary>
@@ -169,6 +176,11 @@ namespace Fdp.Toolkit.Aggregate
             if (personal != null) foreach (var kv in personal) table.SetPersonalWeapon(kv.Key, kv.Value);
             table.ManOutBelow = SoldierOutBelow(db, personal);   // ⭐ CE-8009 — incapacitated is out of the fight
             ZoneFactors(db, personal, zones, table);             // ⭐ CE-8009 — a hit lands on ONE zone
+            if (personal != null)                                // ⭐ CE-8009 — the personal weapons fire at the MEASURED rate (RV-1)
+                foreach (var kv in personal)
+                    foreach (var t in targets)
+                        if (table.TryGet(kv.Value, t.Type, out var e) && e.EffectiveRate > MeasuredPersonalRoundsPerSecond)
+                            table.Set(kv.Value, t.Type, e with { EffectiveRate = MeasuredPersonalRoundsPerSecond, Source = e.Source + "; rate measured (CE-8009)" });
             return table;
         }
 
