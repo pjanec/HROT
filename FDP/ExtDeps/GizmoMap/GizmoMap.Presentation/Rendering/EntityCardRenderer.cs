@@ -321,7 +321,11 @@ namespace GizmoMap.Presentation
                     Raylib.DrawLineEx(o + new Vector2(p.LineStart.X, p.LineStart.Y), o + new Vector2(p.LineEnd.X, p.LineEnd.Y), 1f, colour);
                     break;
                 case DebugPrimitiveShape.Icon:
-                    Raylib.DrawCircleV(o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), 4f, colour);
+                    // ⭐ CE-8608 — a unit's NATO symbol in its card cell (DESIGN_Unit_Symbols P-2): a symbol code draws the symbol, anything else a dot.
+                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in p.TextContent, out var symbol))
+                        SymbolRenderer.DrawScreen(symbol, o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), SymbolRenderer.HeightOf(p));
+                    else
+                        Raylib.DrawCircleV(o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), 4f, colour);
                     break;
                 case DebugPrimitiveShape.EntityBadge:
                 {

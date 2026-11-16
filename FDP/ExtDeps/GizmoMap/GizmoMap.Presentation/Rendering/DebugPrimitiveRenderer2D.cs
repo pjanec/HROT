@@ -502,9 +502,12 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.Icon:
                 {
-                    // Fallback: draw yellow dot at world position.
                     var center = new Vector2(prim.IconWorldPosX, prim.IconWorldPosY);
-                    Raylib.DrawCircleV(center, 4f, Color.Yellow);
+                    // ⭐ CE-8608 — an icon whose key is a land-unit symbol code draws that NATO symbol (SymbolRenderer); anything else: the yellow dot.
+                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in prim.TextContent, out var symbol))
+                        SymbolRenderer.DrawWorld(symbol, center, SymbolRenderer.HeightOf(prim), zoom, WorldYUp);
+                    else
+                        Raylib.DrawCircleV(center, 4f, Color.Yellow);
                     break;
                 }
 
@@ -571,6 +574,12 @@ namespace GizmoMap.Presentation
 
                 case DebugPrimitiveShape.MilStd2525:
                 {
+                    // ⭐ CE-8608 — a land-unit SIDC this vocabulary composes is drawn whole (frame, icon, echelon, mobility); any other code keeps the stub disc.
+                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in prim.SidcCode, out var sidc))
+                    {
+                        SymbolRenderer.DrawWorld(sidc, new Vector2(prim.MilWorldPosX, prim.MilWorldPosY), SymbolRenderer.HeightOf(prim), zoom, WorldYUp);
+                        break;
+                    }
                     MilStd2525Renderer.Draw(
                         prim.SidcCode.ToString(),
                         prim.MilWorldPosX,

@@ -39,6 +39,8 @@ namespace GizmoMap.Contracts.Tests
             Assert.True(SymbolCode.TryParse("SHGPUCA----E---".AsSpan(), out var tk));   // a plain 2525C hostile armour company
             Assert.Equal(new SymbolCode(SymbolAffiliation.Hostile, SymbolRole.Armour, SymbolEchelon.Company), tk);
             Assert.False(SymbolCode.TryParse("GFGPGLB--------".AsSpan(), out _));        // a control measure: not a land unit
+            Assert.True(SymbolCode.TryParse(new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("SFGPUCIZ---D---|T|AT"), out var fromPrimitive));   // as a primitive carries it
+            Assert.Equal(s, fromPrimitive);
         }
 
         [Fact]

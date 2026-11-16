@@ -133,6 +133,17 @@ namespace GizmoMap.Contracts.Symbology
             return true;
         }
 
+        /// <summary>Reads the code a primitive carries (<c>Icon.IconAtlasCoord</c> / <c>MilStd2525.SidcCode</c>) — ASCII, on the stack, 0 B.</summary>
+        public static bool TryParse(in Fdp.Toolkit.Diagnostics.Gizmos.FixedString32 code, out SymbolCode symbol)
+        {
+            Span<char> chars = stackalloc char[Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.MaxLength];
+            ReadOnlySpan<byte> bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.AsRef(in code), 1));
+            int n = 0;
+            while (n < Fdp.Toolkit.Diagnostics.Gizmos.FixedString32.MaxLength && bytes[n] != 0) { chars[n] = (char)bytes[n]; n++; }
+            return TryParse(chars.Slice(0, n), out symbol);
+        }
+
         public bool Equals(SymbolCode o) => Affiliation == o.Affiliation && Role == o.Role && Echelon == o.Echelon && Mobility == o.Mobility && Secondary == o.Secondary;
         public override bool Equals(object? obj) => obj is SymbolCode o && Equals(o);
         public override int GetHashCode() => (int)Affiliation | ((int)Role << 4) | ((int)Echelon << 9) | ((int)Mobility << 14) | ((int)Secondary << 16);
