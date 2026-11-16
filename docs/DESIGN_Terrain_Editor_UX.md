@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-11-16 (R-5034: every lean of §5, + TE-15); ruled earlier: TE-1 (R-5032), TE-5 (R-4264), TE-6 (R-5033); nothing built
-updated: 2026-11-16 (TE-16: 3-D is the PRIMARY view, R-5035) · 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
+updated: 2026-11-16 (TE-17: terrain is LOCKED unless the Terrain tools are open — user request, refinements await approval) · 2026-11-16 (TE-16: 3-D is the PRIMARY view, R-5035) · 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
 current-answer: §5 the decisions (revised) · §3 the diagrams · §7 acceptance · §8 the review they answer · §2 the friction measured
 stale-below: ## ⛔ HISTORY (the first version's §3 / §5 / §6 / §7 — superseded by the review, kept for the reasoning; ⛔ not to be built)
 known-rot: none in the live sections; §8's findings are answered in §5 (each row names its R-n)
@@ -12,7 +12,7 @@ related-designs:
   - UX/DESIGN_Map_Interaction.md — OWNS drawing / shape editing (§2.5 D11: finish / cancel, insert, centre-drag, delete), snapping (the row TE-6 is the FIRST build of — unbuilt there), always-multi placement (D5) and multi-select
   - UX/UX_Feature_Tool_Model.md — OWNS the tool arbiter (ToolController) and "the toolbar marks the armed tool" (step 5) the Terrain row rides on
   - UX/UX_Feature_Multi_Select.md — OWNS selection; ⚠ its NOT-BUILT status is stale: Map Interaction P5 built Shift / Ctrl / band / Alt-click (2026-11-08)
-  - UX/DESIGN_Editing_UX.md — §3 places the tool palette in the shell toolbar region; ⭐ for TERRAIN tools the user ruled the Editor Toolbar window instead (R-5032: "There is not enough place") — the snap toggles of §3 are what TE-6 builds the terrain half of
+  - UX/DESIGN_Editing_UX.md — §3 wants layers that "lock against accidental moves" (line 251) — TE-17 is that lock for terrain; §3 also places the tool palette in the shell toolbar region; ⭐ for TERRAIN tools the user ruled the Editor Toolbar window instead (R-5032: "There is not enough place") — the snap toggles of §3 are what TE-6 builds the terrain half of
   - DESIGN_Vehicle_Breaching.md — B-6 OWNS what a lone tree does (felled, blocks); B-2 / B-3 what a wall does — the Contents lines of TE-8 quote them
   - blueprints/batches/NOTE_Coordinator_To_Terrain_Obstacle_Tool.md — R-4264: TE-5 RULED, drawn obstacles are obstacle entities (option a)
   - designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — RM-5 (R-4260): a ram breaches a drawn barrier, so drawn obstacles must be breakable entities
@@ -202,6 +202,8 @@ entities breaks the entity budget (B-2: one entity per block).
 
 | **TE-16** | where is terrain edited? | ✅ **RULED R-5035** — 🔒 user `2026-11-16`: *"Will all the terrain enditing work in 3d which is the primary place for that?"* ⭐ **3-D is the PRIMARY authoring view; 2-D must work too.** Measured: the 3-D view already draws and picks what the tools use — points picked on ground / roof / wall top (`Picking.cs`, Map 3D M17 / M22), lines, filled triangles and boxes DRAPED on the relief (`GizmoRenderer3D.cs:133, :229-232, :270-281`), handles hit-tested at the ray's ground point (Map Interaction P7), band select (CE-1136), chunks rebuilt by area after a bake (U-6); snapping works on the picked XY, so it is free in 3-D. ⚠ **Two gaps the slices close:** ① **picking a placed TREE / tree Row in 3-D** — the picker holds the terrain mesh and entity boxes, not trees, so a click on a canopy lands on the ground BEHIND it (metres off from an oblique view): the feature gizmo (TE-9) must test the feature's own volume (a trunk + canopy cylinder, a wall's height band) along the RAY, not only the ground point; ② **right-click = the drawing menu vs right-drag = look** (`MapCamera3D.cs:344-378`) — prove a right CLICK opens the menu while a terrain tool is armed | the user's primary view; every slice's frame rails run in a 3-D frame FIRST, then 2-D |
 
+| **TE-17** | stop accidental terrain edits in an exercise | 🔒 **user's request `2026-11-16`**: *"editing them in live mode or even in preview mode is undesired … limited to only if I open the editor toolbar containing these tools"*. ⭐ **Terrain is LOCKED unless the Terrain tools are open.** ⭐ Lean refinements (await approval): ① the KEY is the **Terrain row's toggle** on the Editor Toolbar, not the window (the window is open by default and carries the unit tools, `EditorWindows.cs:34-48`); closed at every session start, and **closed when Preview or Live starts** — reopening is deliberate; ② **locked = NOT PICKABLE**: one predicate `TerrainLock.IsLocked(view, entity)` (a terrain feature, a block, a placed obstacle entity — while the row is closed) read by the map's select / drag pick in 2-D AND 3-D, so a click passes through to the unit or ground under it and nothing can be grabbed — measured: a gate alone would LEAK, because drags and vertex edits do not pass `Edits.Submit` (`VertexEditGizmo.cs:27`, `GroupTransform` → `IEntityComponentWriter`); ③ backstops with ONE reason, *"terrain is locked — open the Terrain tools"*: the menu's edit rows greyed (`ActionContext`, the `SeatRefusal` pattern) and `HrotEditGate.Refuse` for Details, Delete and every submitted edit; ④ a **"Terrain editing" chip** on the map while unlocked. ⭐ NOT locked: the simulation (blasts, breaches, crushing, craters) and ORDERS that target an obstacle (an order's target pick is not an edit pick — the bulldozer's *clear this*). The lock is per station UI state, never replicated | Editing UX §3 already wants *"layers: … lock against accidental moves"* (line 251) — this is that lock for terrain, keyed by the tools. Blast: the pick filter (2-D + 3-D), the action context, the gate; no data |
+
 **Modifier keys while a terrain tool is armed** (checked against Map Interaction §2.5 and `MapGestures`):
 
 | key | does | already bound to |
@@ -228,7 +230,7 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 
 | slice | builds | lane |
 |---|---|---|
-| S-1 | TE-1 the Terrain row (families, wrap, lit from the armed pick) + TE-2 repeat, new seed, two-stage Esc | ui |
+| S-1 | TE-1 the Terrain row (families, wrap, lit from the armed pick) + TE-2 repeat, new seed, two-stage Esc + TE-17 the lock (the row's toggle, the pick filter, the greyed rows, the gate backstop, the chip) | ui |
 | S-2 | TE-4 `LinePlaces` extracted from the `group` element; kinds Row / Group; TE-13 the two recipes | backend (terrain) |
 | S-3 | TE-5 the obstacle row (entities, one bracket, the group — `MacroInstance` measured first) + the three missing obstacle types | ui + backend |
 | S-4 | TE-6 snapping + the modifier rows | ui + backend |
@@ -246,6 +248,7 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 6. Selecting a placed wall shows the Terrain tab; Kind → Hedge changes it after one bake; Kind offers no point kinds.
 7. While drawing and until its bake lands, the ghost shows what the bake will make; the frames match [the mockup](UX/terrain-editor.svg) (R-4146).
 8. ⭐ (TE-16) Items 1–7 are proven in a 3-D frame first: points picked on the relief, the ghost and handles draped, a tree in a Row picked by a click on its CANOPY from an oblique view, the drawing menu opened by a right click while right-drag still looks around.
+8c. ⭐ (TE-17) With the Terrain row CLOSED, in Edit, Preview and Live, 2-D and 3-D: a click on a tree, a wall, a house or a placed sandbag selects nothing behind which a unit stands — the unit is selected; no drag, Edit Shape, Rotate or Delete can touch them; the menu's edit rows are greyed with the reason; Details refuses; a bulldozer can still be ORDERED to clear an obstacle. Opening the row unlocks them; starting Preview closes it.
 8b. A steady drawing frame allocates 0 B (snap, ghost — R-2084); every sim-touching rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
 9. In a 3-D frame FIRST, then a 2-D one (`xvfb-run -a`, TE-16): a wall moved by its centre handle and one end dragged to a new point; a tree Row's end dragged; an obstacle row moved and turned about its centre as one group — each one undo step, and the bake follows (TE-15).
 
