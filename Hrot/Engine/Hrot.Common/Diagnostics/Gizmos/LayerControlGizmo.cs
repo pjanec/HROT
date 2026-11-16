@@ -66,7 +66,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 31;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30
+        public const int FirstUntoggledLayer = 32;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30 · ⭐ CE-8610 — 31 → 32: NATO unit symbols took bit 31
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -106,6 +106,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Units.Entities) mask.SetBit(0);
             if (Units.Labels) mask.SetBit(DebugTraceLayers.Labels);
             if (Units.UnitCards) mask.SetBit(DebugTraceLayers.UnitCards);   // ⭐ CE-8605
+            if (Units.UnitSymbols) mask.SetBit(DebugTraceLayers.UnitSymbols);   // ⭐ CE-8610
             if (Units.UnitDetails) mask.SetBit(DebugTraceLayers.UnitDetails);
             if (Units.Rounds) mask.SetBit(DebugTraceLayers.Rounds);
             if (Units.Concealed) mask.SetBit(DebugTraceLayers.Concealed);
@@ -154,6 +155,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
         //   keeps its name (saved layer sets and the HTTP API's "Units.Labels" read the men's cards as before); only the row's words changed.
         [EditDisplayName("Unit cards"), EditDoc("The cards of the UNITS - squads, platoons, companies: frame, name, strength (CE-8605).")]
         public bool UnitCards { get; set; } = true;
+        // ⭐ CE-8610 (DESIGN_Unit_Symbols P-2, R-8602) — ONE row: in each unit card's left cell, or alone at the unit's point when no card shows.
+        [EditDisplayName("NATO unit symbols"), EditDoc("The units' APP-6 symbols, derived from what each unit is made of: in the unit card, or alone at the unit's point when cards are off or zoomed past (one echelon per zoom) (CE-8610).")]
+        public bool UnitSymbols { get; set; } = true;
         [EditDisplayName("Men's cards"), EditDoc("The cards of the men and vehicles: frame, name, health bar (CE-1033).")]
         public bool Labels { get; set; } = true;
         [EditDisplayName("Hide labels behind terrain"), EditDoc("3-D: a unit's card, and text at a place, is hidden where the ground or a building stands in front of it (trees do not hide it); the selected unit's card always shows. Off: cards are drawn on top of everything. On by default (CE-4582).")]

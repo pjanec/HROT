@@ -33,6 +33,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public const byte UnitCardsLayer = 30;
 
         /// <summary>⭐ <c>CE-8605</c> — the layer a card of this kind lives on: <see cref="UnitCardsLayer"/> for a unit, else <see cref="LabelsLayer"/>.</summary>
+        /// <summary>⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2) — the units' NATO symbols, in the card's cell or alone at the unit's point.</summary>
+        public const byte UnitSymbolsLayer = 31;
+
         public static byte CardLayerOf(bool unitCard) => unitCard ? UnitCardsLayer : LabelsLayer;
 
         /// <summary>⭐ <c>CE-8605</c> — the card of a UNIT (<paramref name="unitCard"/> true) or of a man / vehicle: a row asked on
@@ -113,6 +116,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.TextY = 0f;
             p.TextContent = new CardText(text);
             p.ThicknessU16 = (ushort)System.Math.Clamp(sizePx, 6f, 64f);
+            _card.Draw.EmitRaw(in p);
+            return this;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2; DESIGN_Stochastic_Unit_UI §6) — a unit's NATO symbol as the card's LEFT CELL: on row 0 (the
+        /// card-wide row) it spans the card's rows, which move right of it, and the card is at least as tall. An <c>Icon</c> primitive whose text is the symbol's
+        /// code, its thickness the frame height in pixels — nothing new on the wire. Formatted on the stack (0 B).
+        /// </summary>
+        public EntityCardRow Symbol(in GizmoMapContracts::GizmoMap.Contracts.Symbology.SymbolCode symbol, float heightPx = 22f)
+        {
+            if (_card.IsInert) return this;
+            var p = New(DebugPrimitiveShape.Icon);
+            System.Span<char> code = stackalloc char[GizmoMapContracts::GizmoMap.Contracts.Symbology.SymbolCode.MaxLength];
+            int n = symbol.Format(code);
+            p.Color = new Rgba32(255, 255, 255, 255);
+            p.TextContent = new CardText(code.Slice(0, n));
+            p.ThicknessU16 = (ushort)System.Math.Clamp(heightPx * 10f, 60f, 2560f);
             _card.Draw.EmitRaw(in p);
             return this;
         }

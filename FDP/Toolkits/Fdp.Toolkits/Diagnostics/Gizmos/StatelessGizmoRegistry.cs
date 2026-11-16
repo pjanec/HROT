@@ -19,6 +19,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public int RuleIndex;
         /// <summary>⭐ CE-4388 (D-3) — the projector's <see cref="GizmoProjectorAttribute.MaxMetresPerPixel"/> (0 = any zoom).</summary>
         public float MaxMetresPerPixel;
+        /// <summary>⭐ CE-8610 — the projector's <see cref="GizmoProjectorAttribute.MinMetresPerPixel"/> (0 = no lower bound).</summary>
+        public float MinMetresPerPixel;
         /// <summary>⭐ CE-4388 (D-4) — the projector's <see cref="GizmoProjectorAttribute.DrawsOffScreen"/>.</summary>
         public bool DrawsOffScreen;
     }
@@ -92,14 +94,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 RuleIndex        = _rules.Count,
                 // ⭐ CE-4388 — the view filter's per-rule settings, read once from the projector's attribute
                 MaxMetresPerPixel = ViewSettingsOf(projector).MaxMetresPerPixel,
+                MinMetresPerPixel = ViewSettingsOf(projector).MinMetresPerPixel,
                 DrawsOffScreen    = ViewSettingsOf(projector).DrawsOffScreen,
             });
         }
 
-        private static (float MaxMetresPerPixel, bool DrawsOffScreen) ViewSettingsOf(IStatelessGizmo projector)
+        private static (float MaxMetresPerPixel, float MinMetresPerPixel, bool DrawsOffScreen) ViewSettingsOf(IStatelessGizmo projector)
         {
             var attr = (GizmoProjectorAttribute?)Attribute.GetCustomAttribute(projector.GetType(), typeof(GizmoProjectorAttribute));
-            return attr == null ? (0f, false) : (attr.MaxMetresPerPixel, attr.DrawsOffScreen);
+            return attr == null ? (0f, 0f, false) : (attr.MaxMetresPerPixel, attr.MinMetresPerPixel, attr.DrawsOffScreen);
         }
 
         /// <summary>

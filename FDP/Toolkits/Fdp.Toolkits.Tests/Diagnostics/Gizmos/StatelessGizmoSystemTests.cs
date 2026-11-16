@@ -428,6 +428,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
         }
 
+        [GizmoProjector(typeof(GizmoTestCompA), MinMetresPerPixel = 2f, MaxMetresPerPixel = 6f)]
+        private sealed class BandGizmo : IStatelessGizmo
+        {
+            public readonly List<int> Drawn = new(16);
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder drawBuilder) => Drawn.Add(entity.Index);
+        }
+
         /// <summary>⭐ CE-4388 (D-1, D-4, D-7) — an entity OUT of view reaches no rule — tested once however many rules match it — except a
         /// <c>DrawsOffScreen</c> one, which sees every match as before; a filter that is not active changes nothing. 🔴 Red-proof (compiles): the view
         /// test skipped in the match pass ⇒ the plain rule draws the out-of-view entity.</summary>
@@ -480,6 +487,30 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             Assert.Single(close.Drawn);
             view.MetresPerPixel = 0f; sys.Execute(repo, 0f);
             Assert.Equal(2, close.Drawn.Count);
+        }
+
+        /// <summary>⭐ CE-8610 (docs/UX/DESIGN_Unit_Symbols.md P-3) — a rule with a zoom BAND draws only inside it: finer than its <c>MinMetresPerPixel</c> it is
+        /// skipped like one coarser than its <c>Max</c>; an unknown scale (0) gates nothing. 🔴 Red-proof (compiles): the lower bound dropped ⇒ it draws at 1 m/px.</summary>
+        [Fact]
+        public void CE8610_ARuleWithAZoomBand_DrawsOnlyInsideIt()
+        {
+            var (repo, buf, registry) = CreateContext();
+            var band = new BandGizmo();
+            registry.Register(band, new[] { typeof(GizmoTestCompA) });
+            var view = new FakeView { MetresPerPixel = 1f };
+            var sys = new StatelessGizmoSystem(registry, buf) { ViewFilter = view };
+            var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompA());
+            view.Visible.Add(e.Index);
+
+            sys.Execute(repo, 0f);
+            Assert.Empty(band.Drawn);                       // finer than the band
+            Assert.Equal(1, sys.RulesSkippedForZoom);
+            view.MetresPerPixel = 4f; sys.Execute(repo, 0f);
+            Assert.Single(band.Drawn);                      // inside
+            view.MetresPerPixel = 10f; sys.Execute(repo, 0f);
+            Assert.Single(band.Drawn);                      // coarser
+            view.MetresPerPixel = 0f; sys.Execute(repo, 0f);
+            Assert.Equal(2, band.Drawn.Count);              // unknown scale: no gate
         }
 
         /// <summary>⭐ CE-4388 (R-2084) — a steady frame with the view filter on allocates nothing.</summary>

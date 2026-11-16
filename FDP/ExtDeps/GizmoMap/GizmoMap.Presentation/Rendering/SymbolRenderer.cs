@@ -53,6 +53,34 @@ namespace GizmoMap.Presentation
                 new Rectangle(MathF.Round(screen.X - e.CentreX), MathF.Round(screen.Y - e.CentreY), e.Width, e.Height), Vector2.Zero, 0f, Color.White);
         }
 
+        /// <summary>
+        /// ⭐ CE-8610 — the symbol's pixel box (width, height) and where its centre sits in it, from the geometry alone (no GL: card LAYOUT runs it, a headless
+        /// rail too). The same numbers <see cref="DrawInBox"/> draws with.
+        /// </summary>
+        public static (float Width, float Height, float CentreX, float CentreY) Measure(in SymbolCode s, float heightPx)
+        {
+            int h = Math.Clamp((int)MathF.Round(heightPx), 6, 256);
+            long key = (uint)s.GetHashCode() | ((long)h << 32);
+            if (_boxes.TryGetValue(key, out var b)) return b;
+            _bounds.Reset();
+            SymbolGeometry.Build(s, Vector2.Zero, h, _bounds);
+            const float Pad = 2f;
+            float minX = MathF.Floor(_bounds.Min.X - Pad), minY = MathF.Floor(_bounds.Min.Y - Pad);
+            b = ((int)MathF.Ceiling(_bounds.Max.X + Pad - minX), (int)MathF.Ceiling(_bounds.Max.Y + Pad - minY), -minX, -minY);
+            _boxes[key] = b;
+            return b;
+        }
+
+        /// <summary>⭐ CE-8610 — draws the symbol with its box's top-left at <paramref name="topLeft"/> (a card's left cell).</summary>
+        public static void DrawInBox(in SymbolCode s, Vector2 topLeft, float heightPx)
+        {
+            var e = Get(s, heightPx);
+            Raylib.DrawTexturePro(e.Texture, new Rectangle(0, 0, e.Width, e.Height),
+                new Rectangle(MathF.Round(topLeft.X), MathF.Round(topLeft.Y), e.Width, e.Height), Vector2.Zero, 0f, Color.White);
+        }
+
+        private static readonly Dictionary<long, (float, float, float, float)> _boxes = new();
+
         private static Entry Get(in SymbolCode s, float heightPx)
         {
             int h = Math.Clamp((int)MathF.Round(heightPx), 6, 256);
@@ -65,11 +93,9 @@ namespace GizmoMap.Presentation
 
         private static Entry Build(in SymbolCode s, int h)
         {
-            _bounds.Reset();
-            SymbolGeometry.Build(s, Vector2.Zero, h, _bounds);
-            const float Pad = 2f;
-            float minX = MathF.Floor(_bounds.Min.X - Pad), minY = MathF.Floor(_bounds.Min.Y - Pad);
-            int w = (int)MathF.Ceiling(_bounds.Max.X + Pad - minX), hh = (int)MathF.Ceiling(_bounds.Max.Y + Pad - minY);
+            var (bw, bh, cx, cy) = Measure(s, h);
+            float minX = -cx, minY = -cy;
+            int w = (int)bw, hh = (int)bh;
             var image = Raylib.GenImageColor(w * Supersample, hh * Supersample, new Color(0, 0, 0, 0));
             _image.Begin(image, new Vector2(-minX, -minY), Supersample);
             SymbolGeometry.Build(s, Vector2.Zero, h, _image);
