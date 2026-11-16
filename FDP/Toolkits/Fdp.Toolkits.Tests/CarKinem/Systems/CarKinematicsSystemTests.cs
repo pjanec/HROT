@@ -2813,6 +2813,47 @@ namespace CarKinem.Tests.Systems
             ifv.Dispose();
         }
 
+        private const string HouseAtX15 = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[10,0],[10,10],[0,10]]," +
+            "\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[10,0],\"to\":[10,10],\"thickness\":0.3,\"material\":\"brick\"}," +
+            "{\"from\":[10,10],\"to\":[0,10],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[0,10],\"to\":[0,0],\"thickness\":0.3,\"material\":\"brick\"}]}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15,-5]}}";
+
+        /// <summary>The world y where a breach's middle lies on its panel.</summary>
+        private static float BreachMiddleY(EntityRepository repo, in Fdp.Toolkit.Terrain.BuildingDamageEvent b)
+        {
+            var p = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!.Panels[b.Panel];
+            var dir = Vector2.Normalize(p.B - p.A);
+            return (p.A + dir * ((b.From + b.To) * 0.5f)).Y;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4629</c> ① — a possessed BULLDOZER (its own row, DIS 1.1.*.9.1, a blade) at speed into a BUILDING wall opens a BLADE-WIDE passage (its 4.3 m blade +
+        /// the cut margin each side) of the wall's FULL height (3 m), centred on the hull — and is still held outside (B-D4, R-3025). A TANK's bump stays door-sized
+        /// (1.2 × 2.2 m) but is centred on the hull too (it used to sit on the contact corner). 🔴 Red-proof: drop the <c>blade</c> branch in <c>ContactBreach.OnContact</c>
+        /// ⇒ the dozer opens 1.2 × 2.2 m; centre on <c>hit.At</c> again ⇒ the tank's hole sits ~1.6 m off the hull's centreline.
+        /// </summary>
+        [Fact]
+        public void CE4629_ABulldozerBumpsABuildingWall_BladeWideFullHeightCentred_AndATanksBumpIsCentredToo()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);
+            ref var vp = ref repo.GetComponentRW<VehicleParams>(e); vp.Width = 4.3f; vp.Length = 8f;
+            repo.SetDisType(e, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.NotEmpty(breaches);
+            float wide = 0f; foreach (var b in breaches) { wide += b.To - b.From; Assert.Equal(3f, b.Top - b.Bottom, 2); }
+            Assert.True(wide >= 4.3f + 1f - 0.01f, $"the dozer's hole is {wide:F2} m wide — not the blade's");
+            Assert.Equal(0f, BreachMiddleY(repo, breaches[0]), 1);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the dozer entered the house: nose x={nose:F2}");
+            repo.Dispose();
+
+            var (tank, t) = Possessed(VehicleClass.Tank, 60000f, 1f, HouseAtX15);
+            ref var tp = ref tank.GetComponentRW<VehicleParams>(t); tp.Width = 3.6f;
+            var (_, tb, _) = DriveInto(tank, t, 8f);
+            var one = Assert.Single(tb);
+            Assert.Equal(1.2f, one.To - one.From, 2);
+            Assert.Equal(0f, BreachMiddleY(tank, one), 1);
+            tank.Dispose();
+        }
+
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
         private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)

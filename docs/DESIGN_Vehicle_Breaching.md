@@ -439,6 +439,16 @@ query's own loop with two switches, not a second geometry walk.*
 | the break gate | `HullBreakGate.MayBreak` — Manual branch, `PossessedBy.Mode == Fps` on the hull, `ReplayState` not active | V-4, V-14 |
 | walkers unchanged | a bent walker's step still traces `Fire` (a man shoved at a garden wall is not stopped by it — the navmesh keeps him off it) | ⛔ searched §7, none — out of B-1's scope |
 
+⭐⭐ **CE-4629 as built (`2026-11-16`, terrain lane) — a bulldozer's hole is BLADE-WIDE, every bump CENTRED, one multi-panel cut:**
+
+| piece | as built | rail |
+|---|---|---|
+| ① the bulldozer's row | `contact-breach.json` row `bulldozer` (first): `"dis": "1.1.*.9.1"` (matched against the hull's DIS type, `ContactBreachTable.Row.MatchesDis`), `"blade": true`, tracked, ≥ 20 t, ram ≥ 1.0 m/s | `CarKinematicsSystemTests.CE4629_*` |
+| ① the blade bump | a BUILDING wall bumped by a `blade` row: a Passage of the hull's width + `cutMarginM` each side, the wall's FULL height, on every panel of that building's line it spans (`ContactBreach.CutAlong`); the hull still held outside (B-D4, R-3025) | same |
+| every bump centred | the hole's middle is where the hull's CENTRELINE meets the wall (`ContactBreach.CentreAlong`), not the contact point — a hull square to a wall touches it first at a corner (📐 measured live: the 1.2 m hole sat ~2.15 m off the dozer's centreline); the contact point under ~12° | same |
+| ② the AI dozer's cut | `DozerCutSystem.CutWall` calls the ONE multi-panel cut (`ContactBreach.CutAlong`, R-5008) — ⛔ was clamped to the one nearest panel (a ≤ 2 m piece of a stepped wall, CE-5015) | `ClearObstacleBehaviorTests.CE4629_*` (straight + 1 m pieces) |
+| `CutAlong` | the player's drive-through (free walls only), the blade bump and the ordered cut share it; a cut stays on ONE wall (a building's own panels, or the free walls) | — |
+
 ⭐ **CE-4630 measured (`2026-11-16`, terrain lane) — a bump hole IS walkable in the editor:** an ordered and a possessed rifleman both entered House A
 (bt-doors) through a possessed bulldozer's 1.2 × 2.2 m bump hole; the navmesh bakes a door-sized passage (the house's fine area) and the possessed walker's
 navmesh clamp (`ManualMotion.KeepOnNavmesh`) carries him through (rails `BuildingDamageBakeTests.CE4630_*`). ⚠ Two neighbours found, filed: CE-5018 (in
