@@ -31,5 +31,27 @@ namespace Hrot.Map.Common.Tests
             Assert.True(clearer > dozer, $"heavier than the dozer ({clearer} vs {dozer} kg)");
             Assert.NotNull(Db.GetByType(Fdp.Toolkit.Terrain.Minefields.MunitionLineCharge));
         }
+
+        /// <summary>
+        /// ⭐ CE-4624 (MR-10; behaviors' NOTE_Behaviors_To_Terrain_AntiTank_Mine_Effects — scenario mf-at-vs-vehicle) — an anti-tank mine's burst gets through the BELLY of every
+        /// armoured vehicle (its stated bottom, thinner than the mine's penetration), and no mine's blast reaches a man 35 m off (each mine has its own warhead, a few metres).
+        /// 🔴 Red-proof: drop the M1's <c>ArmorBottom</c> ⇒ its belly reads its 200 mm rear; drop the AT mine's warhead ⇒ no injury radius stated.
+        /// </summary>
+        [Fact]
+        public void AnAntiTankMine_GetsThroughEveryArmouredBelly_AndNoMineReachesAMan35mOff()
+        {
+            foreach (long type in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
+            {
+                var platform = Db.GetByType(type)!.GetDescriptor<CombatPlatformDefDto>();
+                float belly = Fdp.Toolkit.Combat.ArmorModel.ArmourFor(platform, Fdp.Toolkit.Combat.Facing.Bottom, Fdp.Toolkit.Combat.Penetrator.Kinetic);
+                Assert.True(belly > 0f && belly < MunitionTkbCatalog.AntiTankMinePenetrationMm, $"type {type}: belly {belly} mm vs the mine's {MunitionTkbCatalog.AntiTankMinePenetrationMm} mm");
+            }
+            foreach (int mine in new[] { MunitionTkbCatalog.TkbMineAntiPersonnel, MunitionTkbCatalog.TkbMineAntiTank, MunitionTkbCatalog.TkbLineCharge })
+            {
+                var warhead = Db.GetByType(mine)!.GetDescriptor<WarheadDto>();
+                Assert.NotNull(warhead);
+                Assert.InRange(warhead!.BlastInjuryRadiusM, 1f, 20f);
+            }
+        }
     }
 }

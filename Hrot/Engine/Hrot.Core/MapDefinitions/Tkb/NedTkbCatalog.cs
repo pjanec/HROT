@@ -924,6 +924,7 @@ namespace Hrot.Map.Definitions.Tkb
                     // ⭐ M6 (DESIGN_Armour_Hit_Model §2, D-F) — the roof, the composite front against a shaped charge, and the health
                     //   STATED (the value front × 5 gave it, so no fight moves on that number)
                     c.ArmorTop = 60; c.ArmorFrontCe = 900; c.ArmorSideCe = 450;
+                    c.ArmorBottom = 50;   // ⭐ CE-4624 (MR-10) — the belly plate: an anti-tank mine's burst (120 mm) gets through it (behaviors' mf-at-vs-vehicle finding)
                     c.MaxHealth = 3000;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT shrugs off blast; its fragments and direct hits still count
                     c.EyeHeight = 2.5f;   // ⭐ M5 — the gunner's sight / the commander's hatch
@@ -986,6 +987,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorRear = 40;
                     // ⭐ M6 — aluminium + spaced steel: the roof, the spaced front against a shaped charge, the health as before (100 × 5)
                     c.ArmorTop = 30; c.ArmorFrontCe = 150; c.ArmorSideCe = 80;
+                    c.ArmorBottom = 25;   // ⭐ CE-4624 (MR-10) — the belly
                     c.MaxHealth = 500;
                     c.BlastSusceptibility = 0.1f;   // ⭐ R-2019 D-M2 (AE3) — IFV: blast damages optics and running gear only
                     c.EyeHeight = 2.7f;   // ⭐ M5
@@ -1053,6 +1055,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorRear = 150;
                     // ⭐ M6 — the roof, Kontakt ERA on the front and sides against a shaped charge, the health as before (500 × 5)
                     c.ArmorTop = 40; c.ArmorFrontCe = 700; c.ArmorSideCe = 350;
+                    c.ArmorBottom = 40;   // ⭐ CE-4624 (MR-10) — the belly
                     c.MaxHealth = 2500;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
