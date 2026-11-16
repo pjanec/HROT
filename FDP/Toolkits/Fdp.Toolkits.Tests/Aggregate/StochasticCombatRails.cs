@@ -49,6 +49,26 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.Contains("MS-T1", KillerVictimGenerator.BottomFacingTodo);                                                  // the named TODO
         }
 
+        [Fact]
+        public void C1_TheBottomRow_AMineUnderTheHull_MeetsTheBelly_AndTheBellyIsTheRearUntilDeclared()
+        {
+            var mine = new TkbTypeId(9301);
+            var w = new WeaponNumbers(mine, DispersionMils: 0f, Penetration: 40f, DamagePerHit: 300f, EffectiveRoundsPerSecond: 1f, MaxRange: 1f, FromBelow: true);
+            var bare = new TargetNumbers(Ifv, Radius: 2f, Health: 100f, ArmourFront: 60f, ArmourSide: 30f, ArmourRear: 20f);
+            var bellied = bare with { ArmourBottom = 80f };
+            var t = KillerVictimGenerator.Build(new[] { w }, new[] { bare, new TargetNumbers(KillerVictimTable.Personnel, 0.3f, 25f) });
+            Assert.True(t.TryGet(mine, Ifv, out var row));
+            Assert.Equal(1f, row.PHitAt(0f));                                                                   // under the hull: no dispersion
+            Assert.Equal(ArmorModel.HitDamage(40f, 300f, 20f), row.DamagePerHit, 4);                              // no belly declared ⇒ the rear
+            Assert.Equal(ArmorModel.PenetrationChance(40f, 20f) * KillerVictimGenerator.KKillOfPenetrating, row.KKillShare, 4);
+            var thick = KillerVictimGenerator.BottomAttack(in w, in bellied);
+            Assert.Equal(ArmorModel.HitDamage(40f, 300f, 80f), thick.DamagePerHit, 4);                            // a declared belly is read
+            Assert.True(thick.KKillShare < row.KKillShare);
+            Assert.True(thick.MKillShare > 0f);                                                                   // a belly blast still immobilises
+            Assert.True(t.TryGet(mine, KillerVictimTable.Personnel, out var man));
+            Assert.Equal(ArmorModel.HitDamage(40f, 300f, 0f), man.DamagePerHit, 4);                               // no zone mix under a man
+        }
+
         private static EntityRepository World()
         {
             var w = new EntityRepository();
