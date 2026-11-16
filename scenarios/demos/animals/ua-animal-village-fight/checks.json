@@ -24,7 +24,7 @@
     {
       "name": "the firefight starts",
       "on": "shot",
-      "by": "*Blue"
+      "by": "*"
     },
     {
       "name": "the herd panics",

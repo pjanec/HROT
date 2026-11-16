@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "farm",
-    "description": "What: a firefight among livestock (CE-4623 AB-3 / AB-4; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain a 'Pasture' area holds eight cattle and a 'Hens' area six hens in the farmyard, where three 'Villager's (Neutral) stand. Three 'Blue' men (Friend) south of the pasture and three 'Red' men (Hostile) east of it see each other across it and fight. Judge: (1) the firefight starts (2) the herd panics (3) the villagers panic too (4) no cow is ever targeted (5) no hen is ever targeted. A hit animal is drawn dead, not as a wreck \u2014 the ui lane's drawing, not judged here (R-3091). Check: scripts/scenario-regression.sh ua-animal-village-fight"
+    "description": "What: a firefight among livestock (CE-4623 AB-3 / AB-4; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain a 'Pasture' area holds eight cattle and a 'Hens' area six hens in the farmyard, where three 'Villager's (Neutral) stand. Three 'Blue' men (Friend) south of the pasture and three 'Red' men (Hostile) north of it, by the farmyard (\u2248 55 m from the villagers \u2014 a civilian hears 100 m), see each other across it and fight. Judge: (1) the firefight starts (the first shot, by either side) (2) the herd panics (3) the villagers panic too (4) no cow is ever targeted (5) no hen is ever targeted. A hit animal is drawn dead, not as a wreck \u2014 the ui lane's drawing, not judged here (R-3091). Check: scripts/scenario-regression.sh ua-animal-village-fight"
   },
   "entities": {
     "46230b05-0000-4000-8000-000000000001": {
@@ -285,8 +285,8 @@
     "46230b05-0000-4000-8000-000000000030": {
       "SimTransform": {
         "Position": [
-          228,
-          38,
+          110,
+          85,
           0
         ],
         "Rotation": [
@@ -314,8 +314,8 @@
     "46230b05-0000-4000-8000-000000000031": {
       "SimTransform": {
         "Position": [
-          233,
-          42,
+          115,
+          88,
           0
         ],
         "Rotation": [
@@ -343,8 +343,8 @@
     "46230b05-0000-4000-8000-000000000032": {
       "SimTransform": {
         "Position": [
-          238,
-          46,
+          120,
+          91,
           0
         ],
         "Rotation": [
