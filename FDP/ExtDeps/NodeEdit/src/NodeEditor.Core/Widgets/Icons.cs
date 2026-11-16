@@ -31,6 +31,7 @@ public static class Icons
             case "orbat/part": icon = new("\uf013", IconPalette.Grey); return true;   // Gear — a part of a vehicle (sensor, weapon mount)
             case "orbat/group": icon = new("\uf07c", IconPalette.Amber); return true;   // FolderOpen — Saved / Transient
             // ⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — a MAN by his role, a VEHICLE by its class, a DOWN one; a unit draws its NATO symbol instead
+            case "tab/slots": icon = new("\uf0ae", IconPalette.Violet); return true;   // ListCheck — ⭐ CE-8612: a stochastic unit's Slots tab
             case "orbat/leader": icon = new("\uf521", IconPalette.Amber); return true;   // Crown — a commander / squad or team leader
             case "orbat/soldier": icon = new("\ue54e", IconPalette.Blue); return true;   // PersonRifle — every other man
             case "orbat/medic": icon = new("\uf479", IconPalette.Green); return true;   // KitMedical — the squad's medic
@@ -195,6 +196,7 @@ public static class Icons
         "orbat/unit",
         "orbat/part",
         "orbat/group",
+        "tab/slots",
         "orbat/leader",
         "orbat/soldier",
         "orbat/medic",

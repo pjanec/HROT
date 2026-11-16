@@ -25,6 +25,7 @@ public static class HrotForms
             if (_registered) return;
             _registered = true;
             FormCatalogue.Register(Unit);
+            FormCatalogue.Register(SlotsForm.Decl);   // ⭐ CE-8612 (UI-7) — a stochastic unit's slot table
             FormCatalogue.Register(CrewAndCargo);
             FormCatalogue.Register(Shape);
             FormCatalogue.Register(Scenario);

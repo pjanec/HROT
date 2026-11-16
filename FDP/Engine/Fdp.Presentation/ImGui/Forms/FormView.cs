@@ -391,7 +391,7 @@ public sealed class FormView
                 if (ImGui.Checkbox("##b", ref b)) Commit(i, world, sel, b ? 1 : 0, null);
                 break;
             case FieldKind.Pick: DrawPick(i, field, s, world, sel, editable); break;
-            case FieldKind.Gauge: DrawGauge(field, s, world, sel); break;
+            case FieldKind.Gauge: ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 1f); DrawGauge(field, s, world, sel); ImGui.PopStyleVar(); break;   // ⭐ CE-8612 — a gauge is a reading: never faded by a read-only (live) form
         }
         if (CaptureLayout) _itemRects.Add((i, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
         ImGui.PopID();

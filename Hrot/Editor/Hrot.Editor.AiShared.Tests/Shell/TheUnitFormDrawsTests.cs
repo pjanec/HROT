@@ -783,6 +783,70 @@ public sealed class TheUnitFormDrawsTests
     }
 
     /// <summary>
+    /// ⭐ CE-8612 (DESIGN_Stochastic_Unit_UI UI-7, mockup ②) — a STOCHASTIC unit gets the SLOTS tab (a physical one does not): the suppressed share, the morale
+    /// (the standing men, "1 slot broken") and the prepared level as gauges, then one table row per slot with its health / ammo / stress bars and its flag —
+    /// measured in a real frame: the leader's full health bar is green, the down man's row carries the red skull flag. 🔴 Red-proof (compiles): <c>FlagOf</c>
+    /// never answering Down ⇒ no red flag in the down row ⇒ red. Render: <c>slots-tab.png</c> under <c>HROT_RAIL_SHOTS</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE8612_AStochasticUnit_HasTheSlotsTab_GaugesThenOneRowPerSlot()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitHoldings>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, SuppressedShare = 0.35f, Prepared = Fdp.Toolkit.Aggregate.PreparedLevel.Hasty });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 5 };
+        float full = Fdp.Toolkit.Aggregate.UnitSplits.SlotFullHealth, brk = Fdp.Toolkit.Aggregate.StochasticCombat.BreakLevel;
+        t.Slots[0] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Leader, Health = (Half)full, Stress = (Half)0f, Ammo = 100 };
+        t.Slots[1] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.MachineGunner, Health = (Half)(full * 0.8f), Stress = (Half)(brk * 0.6f), Ammo = 100 };
+        t.Slots[2] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.AntiTank, Health = (Half)full, Stress = (Half)0f, Ammo = 3 };
+        t.Slots[3] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)0f, Stress = (Half)0f, Ammo = 0 };
+        t.Slots[4] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)(full * 0.4f), Stress = (Half)(brk * 1.2f), Ammo = 50 };
+        world.AddComponent(unit, t);
+        HrotForms.EnsureRegistered();
+        Assert.True(SlotsForm.Decl.OffersFor(world, unit));
+        Assert.Equal("35 % of the men under fire", SlotsForm.SuppressedGauge(world, unit).Text.ToString());
+        Assert.Equal("1 slot broken", SlotsForm.MoraleGauge(world, unit).Text.ToString());
+        Assert.Equal("Hasty", SlotsForm.PreparedGauge(world, unit).Text.ToString());
+        Assert.Equal(new[] { SlotsForm.SlotFlag.None, SlotsForm.SlotFlag.Suppressed, SlotsForm.SlotFlag.None, SlotsForm.SlotFlag.Down, SlotsForm.SlotFlag.Broken },
+            Enumerable.Range(0, 5).Select(i => SlotsForm.FlagOf(world.GetComponentRO<Fdp.Toolkit.Aggregate.UnitSlotTable>(unit), i)).ToArray());
+
+        var view = new FormDetailsView(SlotsForm.Decl, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(640, 360));
+            ImGui.Begin("Details##slots");
+            view.View.Draw(SlotsForm.Decl, world, new[] { unit }, editable: false);
+            ImGui.End();
+        });
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "slots-tab.png"));
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            int red = 0, green = 0;
+            for (int y = 0; y < shot.Height; y++)
+                for (int x = 0; x < shot.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                    if (Math.Abs(c.R - 230) < 30 && Math.Abs(c.G - 85) < 30 && Math.Abs(c.B - 85) < 30) red++;
+                    if (Math.Abs(c.R - 91) < 30 && Math.Abs(c.G - 208) < 30 && Math.Abs(c.B - 106) < 30) green++;
+                }
+            Assert.True(green > 300, $"the full-health bars are green ({green} px)");
+            Assert.True(red > 40, $"the down and broken rows carry their red flags ({red} px)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
+
+        world.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Physical, Echelon = 1 });
+        Assert.False(SlotsForm.Decl.OffersFor(world, unit));   // a physical unit: no Slots tab
+    }
+
+    /// <summary>
     /// ⭐ CE-8601 (exp/agg-ui, docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-3) — a UNIT's Unit tab shows its STRENGTH in men and its AMMUNITION,
     /// read through the SITREP's own seams (UnitStrength, the staff's RoundsOf / AmmoOf) — so the form and the report agree; a man keeps his Health row and gets
     /// no unit rows; a steady frame allocates nothing. 🔴 Red-proof (compiles): <c>UnitFacts.IsUnit</c> answering false ⇒ no Strength / Ammunition rows ⇒ red.
