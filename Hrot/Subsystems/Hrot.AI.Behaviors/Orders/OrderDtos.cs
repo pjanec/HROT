@@ -40,15 +40,36 @@ namespace Hrot.AI.Behaviors.Orders
     /// <summary>
     /// ⭐ <c>CE-2140</c> — the ATTACK order: close in on <see cref="Target"/> and fight it until it is out of the fight. ⚠ ROE still
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
+    /// <para>⭐ agg-behaviors R-8303 / R-8316 (ST-3): the attack may be on a <see cref="Position"/> instead — a commander's platoon attack on a point has no entity
+    /// (<c>Target OR Position</c> required, <see cref="RequiredAnyOfAttribute"/>); the map menu still asks for an entity (the EnemyClick gesture, the pick is
+    /// <see cref="Target"/>). <see cref="SearchRadius"/>, <see cref="Speed"/> and <see cref="HoldBack"/> are the optional extras a commander sends (R-8300: every
+    /// play that fulfils Attack accepts them strictly).</para>
     /// </summary>
     [Order(nameof(OrderKind.Attack), Gesture = OrderGesture.EnemyClick)]
     [StructLayout(LayoutKind.Sequential)]
     public struct AttackOrder
     {
-        /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required.</summary>
-        [Required]
+        /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required unless a <see cref="Position"/> is given (R-8316).</summary>
+        [RequiredAnyOf("Objective")]
         [JsonPropertyName("Target")]
         public Fdp.Toolkit.Replication.EntityLink Target;
+
+        /// <summary>⭐ R-8316 — the place to attack (local metres) when there is no entity; the objective is then the place itself.</summary>
+        [RequiredAnyOf("Objective")]
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>The objective is taken when no enemy stands within this distance of it (m); 0 = the play's default.</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>⭐ R-8303 — support by fire: engage from a distance and DO NOT close (the base of fire), never ending by itself.</summary>
+        [JsonPropertyName("HoldBack")]
+        public bool HoldBack;
     }
 
     /// <summary>

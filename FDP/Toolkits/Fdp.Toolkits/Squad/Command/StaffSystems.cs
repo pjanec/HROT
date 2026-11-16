@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Squad.Command
                 if (n == _units.Length) { Array.Resize(ref _units, n * 2); Array.Resize(ref _sent, n * 2); }
                 _units[n++] = unit;
             }
-            // ⭐ agg-behaviors ST-0 (design §23.6) — a STOCHASTIC unit has no roster, yet it is a commander's subordinate that must report (SITREP, PROGRESS Set,
+            // ⭐ agg-behaviors ST-0 (design §23.7) — a STOCHASTIC unit has no roster, yet it is a commander's subordinate that must report (SITREP, PROGRESS Set,
             //   its refusal's TaskFailed): without this its outbox is never flushed and its commander waits to its deadline
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>())
             {
@@ -160,7 +160,8 @@ namespace Fdp.Toolkit.Squad.Command
                 .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>()
                 // ⭐ agg-behaviors ST-0 — a commander's SITREP reads its STOCHASTIC member's slots (UnitStrength.Sum): written by phase B (ST-3), never in this phase
                 .Unmanaged<Fdp.Toolkit.Aggregate.AggregateUnit>()
-                .Unmanaged<Fdp.Toolkit.Aggregate.UnitSlotTable>();
+                .Unmanaged<Fdp.Toolkit.Aggregate.UnitSlotTable>()
+                .Unmanaged<Fdp.Toolkit.Aggregate.UnitHoldings>();   // ⭐ ST-3 — a stochastic unit's ammunition share (UnitAmmunition.TryShare) reads its holdings
             /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
             public int BatchSize => 4;
             public StaffComposerSystem System;
@@ -445,6 +446,10 @@ namespace Fdp.Toolkit.Squad.Command
         /// none BLACK (R-2095, lane decision: a unit fights on at half its basic load; a quarter is a resupply call).</summary>
         public const float AmmoGreenFraction = 0.5f, AmmoAmberFraction = 0.25f;
 
+        /// <summary>⭐ ST-3 (R-8314, lane decision) — a stochastic unit's weight in a parent's ammunition sum: its share counts as this many "rounds" of capacity
+        /// (a unit has no round count of its own, only a share; alone, its colour is exactly the share's).</summary>
+        public const int StochasticAmmoWeight = 1000;
+
         /// <summary>⭐ <c>CE-4610</c> — a unit's ammunition as a colour (the SITREP's <see cref="CommandReport.Ammo"/>): the rounds its men carry
         /// (<see cref="Fdp.Toolkit.Combat.Components.WeaponAmmo"/>, every mount with a capacity) over their capacity, down the roster;
         /// unknown when no man carries a counted weapon. Allocation-free.</summary>
@@ -469,10 +474,16 @@ namespace Fdp.Toolkit.Squad.Command
         private static void Rounds(ISimulationView view, Entity e, int depth, ref long have, ref long max)
         {
             if (e.IsNull || !view.IsAlive(e) || depth > CombatEffective.MaxDepth) return;
-            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — a STOCHASTIC unit carries no counted weapon and its contract holds NO per-slot ammo
-            //   capacity (UnitSlot.Ammo is a count, UnitHoldings.Ammo a pool): it adds nothing to either side ⇒ Unknown, never an invented share
-            //   (finding to agg-backend: a capacity field is needed for a SITREP ammo colour — STATUS_AggBehaviors §5)
-            if (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, e)) return;
+            // ⭐ agg-behaviors ST-3 (R-8314; design §23.5) — a STOCHASTIC unit carries no counted weapon, but agg-backend DERIVES its ammunition share from the
+            //   TKB's basic load (UnitAmmunition.TryShare, CE-8014): it adds StochasticAmmoWeight rounds of capacity and that share of them; Unknown (adds nothing) when it cannot be known
+            if (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, e))
+            {
+                if (view is EntityRepository repo && Fdp.Toolkit.Aggregate.UnitAmmunition.TryShare(repo, e, out float share))
+                {
+                    have += (long)MathF.Round(share * StochasticAmmoWeight); max += StochasticAmmoWeight;
+                }
+                return;
+            }
             if (view.HasComponent<UnitRoster>(e))
             {
                 ref readonly var roster = ref view.GetComponentRO<UnitRoster>(e);
