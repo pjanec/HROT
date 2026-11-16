@@ -21,6 +21,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>⭐ <c>CE-4583</c> (AQ101 §R D, R-2071 E-4) — where bursts keep landing (3 within 60 s, cooling 2 min after the last):
         /// <see cref="ShelledAreas"/>. A threatened area — the crossing decision holds or crosses (rated 1, as gas).</summary>
         Shelled       = 7,
+        /// <summary>⭐ <c>CE-4624</c> (DESIGN_Minefields.md MR-9, KG-7) — a minefield the unit's SIDE knows (mined or suspected cells) on the route: NO-ENTER (like gas), never
+        /// crossable — the squad halts and calls engineers. Derived from the side's knowledge, no circle store.</summary>
+        Minefield     = 8,
     }
 
     /// <summary>
