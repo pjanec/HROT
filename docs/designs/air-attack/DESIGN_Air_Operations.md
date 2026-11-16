@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - DESIGN_Air_Combat.md — OWNS air-to-air combat (jets, AAMs, guns), the ONE MissileDefence extracted from §7e (AC-9), GCAS and the cruise leg altitude that replaces §5's per-sample height for cruise (AC-1)
   - DESIGN_Radar_SAM.md — OWNS AD6 (the radar SAM: one vehicle, radar + missiles; R-4258), built on §7d–§7f
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: uses the air assault, the air defence and the strike aircraft in its phase 3
   - ../../UX/DESIGN_Map_Interaction.md — E8: places a Mobility = Air type airborne at its route / hover height (SpawnHeight.AboveLevel); CE-4272
