@@ -781,5 +781,65 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal("he cannot command himself", decl.Add!(world, man, man));
         Assert.Equal("only a unit commands (a platoon, a squad, an HQ)", decl.Add!(world, man, other));   // a man is not a commander
     }
+
+    /// <summary>
+    /// ⭐ CE-8601 (exp/agg-ui, docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-3) — a UNIT's Unit tab shows its STRENGTH in men and its AMMUNITION,
+    /// read through the SITREP's own seams (UnitStrength, the staff's RoundsOf / AmmoOf) — so the form and the report agree; a man keeps his Health row and gets
+    /// no unit rows; a steady frame allocates nothing. 🔴 Red-proof (compiles): <c>UnitFacts.IsUnit</c> answering false ⇒ no Strength / Ammunition rows ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8601_AUnitsUnitTab_ShowsItsMenAndAmmunition_AsTheSitrepReadsThem()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<InjuryThresholds>(); world.RegisterComponent<WeaponAmmo>();
+        var squad = world.CreateEntity();
+        world.AddComponent(squad, new EntityInfo { Name = new FixedString64("1 Sqn"), ForceId = ForceId.Friend });
+        world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitEntity());
+        world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitRoster());
+        Entity man = default;
+        for (int i = 0; i < 4; i++)
+        {
+            var m = world.CreateEntity();
+            world.AddComponent(m, new EntityInfo { Name = new FixedString64("man"), ForceId = ForceId.Friend });
+            world.AddComponent(m, new Health { Current = i == 3 ? 0f : 100f, Max = 100f });          // one man down
+            world.AddComponent(m, new WeaponAmmo { Count = 1, Ammo0 = 60, Max0 = 120 });              // half their rounds left
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(squad), m);
+            man = m;
+        }
+        HrotForms.EnsureRegistered();
+        // the texts are the SITREP's: 3 of 4 men (75 % — Amber, CB-37), the three fighting men's rounds 180 / 360 = 50 % — Green (≥ 50 %, CE-4610)
+        Assert.Equal("3 / 4 men  ·  Amber", UnitFacts.StrengthText(world, squad).ToString());
+        Assert.Equal("50 %  ·  Green", UnitFacts.AmmoText(world, squad).ToString());
+        Assert.Equal(Fdp.Toolkit.Squad.Command.StatusColour.Amber, Fdp.Toolkit.Squad.Command.StaffComposerSystem.StrengthOf(world, squad));
+        Assert.False(UnitFacts.IsUnit(world, man));
+
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        void Draw(Entity e) => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 300));
+            ImGui.Begin("Details##unit-strength");
+            view.View.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
+            ImGui.End();
+        });
+        Draw(squad);
+        Assert.Contains("Strength = 3 / 4 men  ·  Amber", view.View.Rows);
+        Assert.Contains("Ammunition = 50 %  ·  Green", view.View.Rows);
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-strength.png"));
+        Draw(man);
+        Assert.DoesNotContain(view.View.Rows, r => r.StartsWith("Ammunition", StringComparison.Ordinal));
+        Assert.Contains("Strength = 0 / 100", view.View.Rows);   // a man: his Health, as before
+
+        // a steady read allocates nothing (the texts are cached until the numbers change)
+        UnitFacts.StrengthText(world, squad); UnitFacts.AmmoText(world, squad);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 10; k++) { UnitFacts.StrengthText(world, squad); UnitFacts.AmmoText(world, squad); }
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
 }
 

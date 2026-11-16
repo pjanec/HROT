@@ -148,6 +148,20 @@ public static class HrotForms
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
                 MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // derived: the max — no attribute reads it   // reads "80 / 100"; the write stays Health.Current
             },
+            // ⭐ CE-8601 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-3) — a UNIT's strength and ammunition: men present / authorized + the SITREP colour (UnitStrength,
+            //   the ONE strength seam) and its rounds (the staff's RoundsOf / AmmoOf). Read-only, derived; a man keeps his Health row below.
+            new FormField
+            {
+                Label = "Strength", Kind = FieldKind.Text,
+                Has = UnitFacts.IsUnit,
+                ReadText = UnitFacts.StrengthText,
+            },
+            new FormField
+            {
+                Label = "Ammunition", Kind = FieldKind.Text,
+                Has = (w, e) => UnitFacts.IsUnit(w, e) && !UnitFacts.AmmoText(w, e).IsEmpty,
+                ReadText = UnitFacts.AmmoText,
+            },
             new FormField
             {
                 // ⭐ U-23 part 5 — the make-playable toggle (was the Playable tab's): an owner-side add / remove, the ONE op (PlayableOps)
