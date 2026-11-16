@@ -14,7 +14,7 @@ Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinato
 | slice | state | result |
 |---|---|---|
 | **K-1** `VehicleImpactSystem` (RM-1) | ✅ built `bb865ae81` | the ground twin of `DroneImpactSystem` in `GroundKinematicsModule`, right after `CarKinematicsSystem`: a moving hull's FRONT swept this frame (`Intersection2D.SweptFrontMeetsCircle`, beside the flyer's `SegmentInCircle`) strikes a person / an animal with a Blunt `DamageAssessedEvent` (Source = the vehicle) of a Health fraction by closing speed × √(mass / 1500) in bands, ±15 % seeded; never riders, never under 2 m/s, a pair once per 2 s — ⏳ the 30 vehicle scenarios re-checked (running) |
-| **K-2** `RamOrder` + `RamTarget` (RM-2, RM-3, RM-5) | 📋 | |
+| **K-2** `RamOrder` + `RamTarget` (RM-2, RM-3, RM-5) | 🔨 gating | `RamOrder` (126 / `dtRamOrder` 196, Brain group, translators) on the hull; the avoidance skips the target (every person for a crowd); the break gate opens for an active order (never in a replay), full-throttle push; `RamTarget`: the order, LETHAL on the car + its driver (follow-ups), pursuit of the `TargetLead` point every 0.5 s, ends with the order OFF — design §5b · ⭐ cross-lane: `MineClearing` added to the Brain group (terrain's: in no group, so a split cluster never carried the clearer's switch) |
 | **K-3** the engine zone (CP-6, CP-7) | 📋 | |
 | **K-4** site + `CheckpointPlay` + `VehicleApproachWatch` (CP-1, CP-1a, CP-2) | 📋 | |
 | **K-5** the vehicle ladder (CP-3) | 📋 | |
@@ -25,6 +25,7 @@ Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinato
 
 | id | decision | would change it |
 |---|---|---|
+| R-2129 | K-2: the ram order is switched OFF (`Active` 0), never removed — the off then replicates as a change (the `MineClearing` pattern); the driver is the vehicle's seat-0 occupant; both LETHAL acts are follow-ups inside the parallel phase (`HostileActs.Commit` marks witnesses — other entities); ⛔ NO "direct move inside 50 m": the navigation move has no path-less flag and its flags byte is full — inside 50 m the pursuit aims at the target itself through the planner | `cp-ram-barrier` showing the car paths ROUND a weak barrier instead of through it (then a path-less move is needed — a navigation change, backend's) |
 | R-2128 | K-1: the "ONE shared swept test" is a shared PRIMITIVE beside the flyer's (`Intersection2D.SweptFrontMeetsCircle` next to `SegmentInCircle`) — a hull is a rectangle sweeping forward, a flyer a point sweeping a segment; one function for both would be a rectangle-or-point switch, not sharing. Harm bands (starter values, §4): effective speed = closing × √(mass / 1500 kg), capped ×0.5…×2; < 2 m/s nothing; 2–5 → 10–35 % Health; 5–9 → 35–75 %; 9–15 → 75–110 %; above → 120 %; ±15 % seeded per (vehicle, body, 0.1 s). Boarding is exempt by the 2 m/s floor (a man boards a stopped vehicle; there is no boarding marker). Animals are struck like people. No knock-back: the Blunt hit's knock-down (3 s) is the damage chain's | a live run where a crowd-ram looks too lethal / too soft (tune the bands) · a need for knock-back |
 
 ## 2. Gates
@@ -34,4 +35,4 @@ Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinato
 | K-1: `Fdp.Toolkits.Tests` `VehicleImpactSystemTests` + `DroneImpactSystemTests` + `GroundKinematicsModuleTests` | ✓ (after a clean build) | 19 / 19; red-proofs (`mutate27.py`): the mass term dropped ⇒ RED · the swept front reduced to the current box ⇒ RED (2) · the rider exemption dropped ⇒ RED. Serial system (not a brain): the parallel checks do not apply to it; 0 B steady (a reused body buffer; the pair map grows only on a strike) |
 
 ## 3. Ids allocated
-rulings `R-2128`
+rulings `R-2128`, `R-2129`

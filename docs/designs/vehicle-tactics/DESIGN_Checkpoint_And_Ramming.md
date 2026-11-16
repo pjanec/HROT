@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-15
 build-state: READY-TO-BUILD → DISPATCHED 2026-11-16 to `behaviors` as a follow-up after minefields (§5a ids) (2026-11-15) — R-4260 decisions, R-4262 the review folded; slices §5 K-1…K-7
-current-answer: §1 inventory · §2 decisions · §3 UML · §4 the checkpoint in time · §5 slices and acceptance · §8 the review
+current-answer: §1 inventory · §2 decisions · §3 UML · §4 the checkpoint in time · §5 slices and acceptance · §5b as built (behaviors) · §8 the review
 stale-below: § HISTORY at the bottom (§2–§5 as first written); §8 is the review record, folded into §2–§5
 known-rot: none
 known-conflict: none
@@ -201,6 +201,13 @@ invariant number output (R-4221).
 | its descriptor | **`dtRamOrder` = 196** | 197 held; 194 / 195 are terrain's minefield ordinals |
 | tracker / rulings | the building lane's own block | — |
 | the scenarios (K-8) | `scenarios/demos/checkpoint/cp-routine-car` · `cp-vbied` · `cp-compliant-bomber` · `cp-moto-attack` · `cp-ram-barrier` | each a What / Judge `description` + `checks.json` + golden (R-4277) |
+
+## 5b. As built — behaviors, `2026-11-16` (CE-4622; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Behaviors_Checkpoint.md`)
+
+| slice | as built | deviation from §2 / §3 |
+|---|---|---|
+| **K-1** | `VehicleImpactSystem` (`Fdp.Toolkit.Motion`), in `GroundKinematicsModule`'s PostSimulation right after `CarKinematicsSystem`, serial: every ground vehicle moving ≥ 2 m/s sweeps its hull's FRONT by the distance travelled this frame (`Intersection2D.SweptFrontMeetsCircle`); a person or an animal it reaches, not embarked, closing ≥ 2 m/s, is struck — a `HitEffect.Blunt` `DamageAssessedEvent` (Source = the vehicle, knock-down 3 s) of `HarmFraction(closing, mass, seed)` × Health.Max; a pair once per 2 s | ⚠ R-2128: the "one shared swept test" is a shared PRIMITIVE beside the flyer's `SegmentInCircle`, not one function; bands are starter values; no knock-back |
+| **K-2** | `RamOrder { Active, Target (EntityRef), Crowd }` (component 126, unmanaged, recorded, Brain group, `dtRamOrder` 196 + translators, the MineClearing shape) on the hull; `CarKinematicsSystem`'s avoidance skips the target — every person for a crowd; `HullBreakGate.MayBreak` answers true for an active order (never in a replay) and the push runs at full throttle; `RamTarget` (a vehicle's behaviour): writes the order, commits LETHAL on the car and on its seat-0 driver (follow-ups in the parallel phase — `HostileActs.Commit` marks witnesses), re-issues a move every 0.5 s to the target's `TargetLead` point, ends (order OFF) when the target is down / the crowd's place is reached | ⚠ R-2129: the order is switched OFF, never removed (so the off replicates); NO "direct move inside 50 m" — the navigation move has no path-less flag (the flags are full), so inside 50 m the pursuit aims at the target itself through the planner; `cp-ram-barrier` shows whether that breaks the barrier or paths round it |
 
 ## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; KV-12: "detonates when shot" DROPPED; KV-2: lines in time)
 

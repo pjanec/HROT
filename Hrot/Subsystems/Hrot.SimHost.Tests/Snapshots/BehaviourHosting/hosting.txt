@@ -123,6 +123,7 @@ Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
 QuietArea | hostedInput=- | inputBytes=240
 RadarSamEngage | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
+RamTarget | hostedInput=Hrot.Map.Definitions.Behavior.RamTargetParamsJsonDto | inputBytes=40
 ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
