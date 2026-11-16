@@ -15,7 +15,7 @@ namespace Hrot.Map.Common.Tests
 {
     /// <summary>
     /// ⭐ <c>CE-8009</c> (C-8, RV-3) — the STOCHASTIC side of the ladder's rung 1: 9 v 9 riflemen (the standard rifleman, Infantry_Rifleman, the type the physical
-    /// rungs <c>scenarios/tests/c8-ladder/c8-open-*</c> use) in the open at 100 / 200 / 300 m, 30 run seeds each, through the real phases
+    /// rungs <c>scenarios/tests/c8-ladder/c8-open-*</c> use) in the open at 100 / 200 / 275 m, 30 run seeds each, through the real phases
     /// (sensing, fire, losses) and the table generated from the SAME TKB. Records, per run, the first time 1…9 men of each side are down — the
     /// physical rungs' check rows, read the same way by <c>scripts/c8-ladder.py</c>. With <c>HROT_C8_OUT</c> set the rows are written there (JSON).
     /// ⭐ The rail itself asserts only what is not the calibration: both sides lose men at 100 m, the closer fight is the bloodier, and a seed is
@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Tests
     public sealed class C8LadderStochasticTests
     {
         public const int Seeds = 30, RunFor = 120;
-        private static readonly int[] Ranges = { 100, 200, 300 };
+        private static readonly int[] Ranges = { 100, 200, 275 };   // ⭐ R-8009 — 275, inside the rifle's reach (300 m) for every pair
         private static readonly TkbTypeId Soldier = (TkbTypeId)TkbEntityTypes.Infantry_Rifleman;   // ⭐ the STANDARD rifleman (500 m eye, 25 HP), as the physical rungs
 
         /// <summary>One run: the first second at which k men of Blue / Red are down (k = 1…9; −1 = never).</summary>
@@ -123,7 +123,7 @@ namespace Hrot.Map.Common.Tests
             if (!string.IsNullOrEmpty(outPath)) System.IO.File.WriteAllText(outPath, json.ToString());
 
             Assert.True(meanLosses[100] >= 2.0, $"at 100 m both sides lose men (mean {meanLosses[100].ToString("0.0", CultureInfo.InvariantCulture)} down in all)");
-            Assert.True(meanLosses[100] >= meanLosses[300], "the closer fight is not the less bloody");
+            Assert.True(meanLosses[100] >= meanLosses[275], "the closer fight is not the less bloody");
             // ⭐ CE-8009's calibration, pinned: the winner PAYS (the physical 3.3 men — focused hits, a broken side still fires from the ground)
             Assert.True(winnerLosses100 / Seeds >= 2.0, $"the winner loses men too (mean {(winnerLosses100 / Seeds).ToString("0.00", CultureInfo.InvariantCulture)})");
             // ⭐ the first man falls early (the physical 5.1 s): hits CONCENTRATE on the man under fire — spread evenly, nobody falls for ~9 s

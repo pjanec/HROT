@@ -47,7 +47,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.Equal(2, skipped.Count);                                                                 // the radio fires nothing and is no hull
             Assert.True(t.TryGet(new TkbTypeId(Rifleman), KillerVictimTable.Personnel, out var rifle));
             Assert.Equal(30f / (30f * 0.8f + 3f), rifle.EffectiveRate, 4);                                 // a magazine aimed, then the reload
-            Assert.Equal(HitModel.HitChance(0.002f, 50f, 0.3f), rifle.PHitByBand[0], 5);
+            Assert.Equal(HitModel.HitChance(0.002f, 0.5f * KillerVictimTable.BandMetres, 0.3f), rifle.PHitByBand[0], 5);
             Assert.True(t.TryGet(new TkbTypeId(Ifv), new TkbTypeId(Ifv), out var gunOnHull));
             Assert.True(gunOnHull.Suitability > 0.9f);                                                       // 40 mm through 10–30 mm
             Assert.True(t.TryGet(new TkbTypeId(Rifleman), new TkbTypeId(Ifv), out var rifleOnHull));
@@ -86,6 +86,51 @@ namespace Fdp.Toolkits.Tests.Aggregate
             finally { KillerVictimTable.Current = was; }
         }
     
+        /// <summary>
+        /// ⭐ CE-8009 — a man's row takes his BODY ARMOUR as the physical hit model does: his zones (<c>BodyZones</c> — the platform armour is the
+        /// torso's), each through <c>ArmorModel.HitDamage</c>. A vest of 5 against a 5 mm round halves the torso's share; a man without armour
+        /// keeps the unarmoured mean. 📐 Found by the C-8 ladder: the standard rifleman (armour 5) fell in ONE stochastic hit and needed ~2
+        /// physical ones — first loss 2 s vs 37 s. ✅ Red-proof: the zones not passed ⇒ the armoured man takes the unarmoured damage ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8009_AMansRow_TakesHisBodyArmour_AsThePhysicalHitModelDoes()
+        {
+            KvEntry Row(byte category)
+            {
+                var db = new TkbDatabase();
+                var man = new TkbTemplate("Man", Rifleman) { DisType = new DISEntityType { Kind = 3, Domain = 1, Category = category } };
+                man.AddDescriptor(new WeaponSuiteDto { Mounts = new() { new WeaponMountDto
+                    { DispersionMils = 2f, Penetration = 5f, DamagePerHit = 25f, Range = 300f, AimSeconds = 0.8f, MagazineSize = 30, ReloadSeconds = 3f } } });
+                man.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 25f });
+                db.Register(man);
+                var t = KillerVictimTkb.Build(db, new[] { new TkbTypeId(Rifleman) }, Array.Empty<TkbTypeId>(),
+                                              new Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = new(Rifleman) });
+                Assert.True(t.TryGet(new TkbTypeId(Rifleman), KillerVictimTable.Personnel, out var e));
+                return e;
+            }
+            var civilian = Row(0);   // the engine's "Person" body: no armour
+            // ⭐ and the table carries the ZONES a hit draws from: shares sum to 1, share × factor sums to 1 (the mean), the head is 4× a bare torso
+            var db2 = new TkbDatabase();
+            var sold = new TkbTemplate("Man", Rifleman) { DisType = new DISEntityType { Kind = 3, Domain = 1, Category = 1 } };
+            sold.AddDescriptor(new WeaponSuiteDto { Mounts = new() { new WeaponMountDto
+                { DispersionMils = 2f, Penetration = 5f, DamagePerHit = 25f, Range = 300f, AimSeconds = 0.8f, MagazineSize = 30, ReloadSeconds = 3f } } });
+            sold.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 25f });
+            db2.Register(sold);
+            var tz = KillerVictimTkb.Build(db2, new[] { new TkbTypeId(Rifleman) }, Array.Empty<TkbTypeId>(),
+                                           new Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = new(Rifleman) });
+            Assert.NotNull(tz.ManZoneShare); Assert.NotNull(tz.ManZoneFactor);
+            float shares = 0f, mean = 0f;
+            for (int i = 0; i < tz.ManZoneShare!.Length; i++) { shares += tz.ManZoneShare[i]; mean += tz.ManZoneShare[i] * tz.ManZoneFactor![i]; }
+            Assert.Equal(1f, shares, 4); Assert.Equal(1f, mean, 4);
+            var back = KillerVictimTable.FromJson(tz.ToJson());
+            Assert.Equal(tz.ManZoneFactor, back.ManZoneFactor);
+            var soldier = Row(1);    // the "Soldier" body (DIS 3.1.*.1): a vest, front 5 on the torso (bodies.json)
+            Assert.Equal(25f * KillerVictimGenerator.MeanZoneFactor, civilian.DamagePerHit, 3);   // body 25 HP = slot 25: scale 1
+            // the soldier's torso share loses half (5 mm vs 5 mm: ArmorModel's penetration chance 0.5); head, arms and legs are bare in front
+            float lost = KillerVictimGenerator.TorsoShare * 1f * (25f - ArmorModel.HitDamage(5f, 25f, 5f));
+            Assert.Equal(civilian.DamagePerHit - lost, soldier.DamagePerHit, 3);
+        }
+
         /// <summary>
         /// ⭐ CE-8008 — the table follows the WORLD: steps on an EMPTY world (a node boots before its scenario arrives) build nothing and
         /// allocate nothing; when a stochastic unit arrives the next step builds the table; a unit holding a NEW type later rebuilds it.

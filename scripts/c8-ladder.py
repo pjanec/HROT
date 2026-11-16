@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CE-8009 (C-8, RV-3) — the stochastic units' calibration LADDER, rung 1 (9 v 9 riflemen in the open at 100 / 200 / 300 m).
+"""CE-8009 (C-8, RV-3) — the stochastic units' calibration LADDER, rung 1 (9 v 9 riflemen in the open at 100 / 200 / 275 m).
 
   python3 scripts/c8-ladder.py physical [--seeds 30] [--rungs c8-open-100,...] [--out DIR]   # run the physical rungs (a fresh headless editor per run)
   python3 scripts/c8-ladder.py compare --physical DIR --stochastic FILE                      # the verdict table
@@ -16,7 +16,7 @@ import argparse, glob, json, math, os, statistics, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNNER = os.path.join(ROOT, "Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0/Hrot.ClusterRunner.dll")
-RUNGS = ["c8-open-100", "c8-open-200", "c8-open-300"]
+RUNGS = ["c8-open-100", "c8-open-200", "c8-open-275"]   # ⭐ R-8009 — 275, inside the rifle's reach for every pair
 RUN_FOR = 120
 
 

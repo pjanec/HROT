@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red standard riflemen (Infantry_Rifleman) in two squads, abreast 5 m apart, face each other 200 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (Health below 2 %); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
+  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red standard riflemen (Infantry_Rifleman) in two squads, abreast 5 m apart, face each other 200 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (incapacitated: Health below 30 %, out of the fight); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
  },
  "entities": {
   "c8200000-0000-4000-8000-000000000001": {

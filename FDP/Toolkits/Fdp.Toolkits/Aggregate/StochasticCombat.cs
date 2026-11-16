@@ -300,7 +300,8 @@ namespace Fdp.Toolkit.Aggregate
                 _victims[n++] = e;
             }
             if (n == 0) return;
-            var job = new Job { Repo = repo, Now = now, All = _all, AllCount = all, Seed = seed };
+            var job = new Job { Repo = repo, Now = now, All = _all, AllCount = all, Seed = seed, ManOutBelow = KillerVictimTable.Current?.ManOutBelow ?? 0f,
+                                 ZoneShare = KillerVictimTable.Current?.ManZoneShare, ZoneFactor = KillerVictimTable.Current?.ManZoneFactor };
             if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _victims, n, in job);
             else for (int i = 0; i < n; i++) job.Execute(_victims[i], i, null!);
         }
@@ -315,17 +316,20 @@ namespace Fdp.Toolkit.Aggregate
             public Entity[] All;
             public int AllCount;
             public uint Seed;
+            public float ManOutBelow;
+            public float[]? ZoneShare, ZoneFactor;
 
             /// <summary>The FIRERS' allocations: phase B writes none.</summary>
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads.Unmanaged<FireAllocation>();
 
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
 
-            public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Resolve(Repo, self, Now, All, AllCount, Seed);
+            public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Resolve(Repo, self, Now, All, AllCount, Seed, ManOutBelow, ZoneShare, ZoneFactor);
         }
 
         /// <summary>One victim's step (the test seam).</summary>
-        internal static void Resolve(EntityRepository repo, Entity self, SimInstant now, Entity[] all, int allCount, uint seed)
+        internal static void Resolve(EntityRepository repo, Entity self, SimInstant now, Entity[] all, int allCount, uint seed, float manOutBelow = 0f,
+                                     float[]? zoneShare = null, float[]? zoneFactor = null)
         {
             ref var u = ref repo.GetComponentRW<AggregateUnit>(self);
             ref var slots = ref repo.GetComponentRW<UnitSlotTable>(self);
@@ -374,7 +378,10 @@ namespace Fdp.Toolkit.Aggregate
                     int s = PickExposed(in slots, ref rng);
                     if (s < 0) break;
                     bool wasUp = slots.IsUp(s);
-                    float hp = (float)slots.Slots[s].Health - damage[FireAllocation.PersonnelClass];
+                    float hit = damage[FireAllocation.PersonnelClass];
+                    if (zoneShare != null && zoneFactor != null) hit *= zoneFactor[DrawZone(zoneShare, ref rng)];   // ⭐ CE-8009 — ONE zone, not the mean
+                    float hp = (float)slots.Slots[s].Health - hit;
+                    if (hp < manOutBelow) hp = 0f;   // ⭐ CE-8009 — INCAPACITATED is out of the fight (the soldier's Gen.Injury line), as the physical man is
                     slots.Slots[s].Health = (Half)MathF.Max(0f, hp);
                     slots.Slots[s].Stress = (Half)MathF.Min(1f, (float)slots.Slots[s].Stress + StochasticCombat.StressHit);
                     if (wasUp && !slots.IsUp(s)) downNow++;
@@ -463,6 +470,14 @@ namespace Fdp.Toolkit.Aggregate
             }
             for (int i = t.Count - 1; i >= 0; i--) if (t.IsUp(i)) return i;
             return -1;
+        }
+
+        /// <summary>⭐ CE-8009 — the body zone a hit lands on, drawn by the zones' shares (seeded).</summary>
+        private static int DrawZone(float[] share, ref Fdp.Toolkit.Determinism.SimRng rng)
+        {
+            float x = rng.NextSingle();
+            for (int i = 0; i < share.Length - 1; i++) { x -= share[i]; if (x < 0f) return i; }
+            return share.Length - 1;
         }
 
         /// <summary>⭐ CE-8009 — the share of the incoming fire that still finds the up men: a broken man has gone to ground

@@ -37,6 +37,69 @@ namespace Fdp.Toolkit.Aggregate
             return hp > 0f ? hp : FallbackSoldierHealth;
         }
 
+        /// <summary>⭐ CE-8009 — each zone's share and its damage ÷ the mean, for the personal soldier's own rifle against his own zones
+        /// (<see cref="KillerVictimTable.ManZoneFactor"/>). Nothing when the zones or the rifle are unknown (the mean on every hit).</summary>
+        private static void ZoneFactors(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal, ManZone[]? zones, KillerVictimTable table)
+        {
+            if (zones == null || zones.Length == 0 || personal == null) return;
+            TkbTypeId soldier = personal.TryGetValue(SlotRole.Rifleman, out var r) ? r : default;
+            if ((long)soldier == 0) foreach (var kv in personal) { soldier = kv.Value; break; }
+            if (!TryWeapon(db, soldier, out var w)) return;
+            var share = new float[zones.Length]; var dmg = new float[zones.Length];
+            float total = 0f, mean = 0f;
+            for (int i = 0; i < zones.Length; i++) total += zones[i].Share;
+            if (total <= 0f) return;
+            for (int i = 0; i < zones.Length; i++)
+            {
+                share[i] = zones[i].Share / total;
+                dmg[i] = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, zones[i].Armour) * zones[i].Multiplier;
+                mean += share[i] * dmg[i];
+            }
+            if (mean <= 0f) return;
+            for (int i = 0; i < dmg.Length; i++) dmg[i] /= mean;
+            table.ManZoneShare = share;
+            table.ManZoneFactor = dmg;
+        }
+
+        /// <summary>⭐ CE-8009 — the SLOT health below which a man is out of the fight: the personal soldiers' <c>Gen.Injury</c>
+        /// <c>IncapacitatedBelow</c> (the largest) × <see cref="UnitSplits.SlotFullHealth"/> — the line the physical injury model takes a man out
+        /// at. 0 when none declares one (he fights until dead, as physically).</summary>
+        public static float SoldierOutBelow(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal)
+        {
+            float frac = 0f;
+            if (personal != null)
+                foreach (var kv in personal)
+                    if (db.TryGetByType(kv.Value, out var t) && t?.GetDescriptor<InjuryDefDto>() is { IncapacitatedBelow: > 0f } inj) frac = MathF.Max(frac, inj.IncapacitatedBelow);
+            return frac * UnitSplits.SlotFullHealth;
+        }
+
+        /// <summary>⭐ CE-8009 — the body zones of the soldier a slot stands for (the Rifleman's, else the first personal soldier's), as the physical
+        /// hit model resolves them (<c>BodyZones.Of</c>: his own zones, his platform armour as the torso's, the DIS profile, the engine person) —
+        /// so body armour stops the same share of a round in both resolutions. Null when unknown (⇒ the unarmoured mean).</summary>
+        public static ManZone[]? SoldierZones(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal)
+        {
+            if (personal == null || personal.Count == 0) return null;
+            TkbTypeId type = personal.TryGetValue(SlotRole.Rifleman, out var r) ? r : default;
+            if ((long)type == 0) foreach (var kv in personal) { type = kv.Value; break; }
+            if (!db.TryGetByType(type, out var t) || t == null) return null;
+            var body = Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(t);
+            if (body == null) return null;
+            float platform = t.GetDescriptor<CombatPlatformDefDto>()?.ArmorFront ?? 0f;
+            var zones = new List<ManZone>(body.Zones.Count);
+            foreach (var z in body.Zones)
+            {
+                float share = z.Name.ToLowerInvariant() switch
+                {
+                    "head" => KillerVictimGenerator.HeadShare, "torso" => KillerVictimGenerator.TorsoShare,
+                    "arm" => KillerVictimGenerator.ArmShare, "leg" => KillerVictimGenerator.LegShare, _ => 0f,
+                };
+                if (share <= 0f) continue;
+                float armour = z.ArmourOn(Facing.Front);
+                zones.Add(new ManZone(share, z.Multiplier, float.IsNaN(armour) ? platform : armour));
+            }
+            return zones.Count > 0 ? zones.ToArray() : null;
+        }
+
         /// <summary>⭐ CE-8009 — how far the soldiers a slot stands for SEE with the naked eye (the personal soldiers' <c>VisionRange</c>, the
         /// largest; 0 = unknown, no cap). The physical soldier sees nothing past it, so a stochastic eye looks no further (one source).</summary>
         public static float SoldierEyeReach(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal)
@@ -97,12 +160,15 @@ namespace Fdp.Toolkit.Aggregate
             foreach (var f in firers)
                 if (TryWeapon(db, f, out var w)) weapons.Add(w);
                 else skipped?.Add($"{(long)f}: no weapon suite");
-            var targets = new List<TargetNumbers> { new(KillerVictimTable.Personnel, 0.3f, UnitSplits.SlotFullHealth, BodyHealth: SoldierHealth(db, personal)) };   // ⭐ CE-8019
+            var zones = SoldierZones(db, personal);
+            var targets = new List<TargetNumbers> { new(KillerVictimTable.Personnel, 0.3f, UnitSplits.SlotFullHealth, BodyHealth: SoldierHealth(db, personal), Zones: zones) };   // ⭐ CE-8019
             foreach (var h in hulls)
                 if (TryHull(db, h, out var t)) targets.Add(t);
                 else skipped?.Add($"{(long)h}: no platform record");
             var table = KillerVictimGenerator.Build(weapons, targets);
             if (personal != null) foreach (var kv in personal) table.SetPersonalWeapon(kv.Key, kv.Value);
+            table.ManOutBelow = SoldierOutBelow(db, personal);   // ⭐ CE-8009 — incapacitated is out of the fight
+            ZoneFactors(db, personal, zones, table);             // ⭐ CE-8009 — a hit lands on ONE zone
             return table;
         }
 

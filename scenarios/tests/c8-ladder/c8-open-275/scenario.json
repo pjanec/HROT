@@ -7,10 +7,10 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red standard riflemen (Infantry_Rifleman) in two squads, abreast 5 m apart, face each other 300 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (Health below 2 %); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
+  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red standard riflemen (Infantry_Rifleman) in two squads, abreast 5 m apart, face each other 275 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (incapacitated: Health below 30 %, out of the fight); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
  },
  "entities": {
-  "c8300000-0000-4000-8000-000000000001": {
+  "c8275000-0000-4000-8000-000000000001": {
    "SimTransform": {
     "Position": [
      300.0,
@@ -32,7 +32,7 @@
     "ForceId": "Friend"
    }
   },
-  "c8300000-0000-4000-8000-000000000002": {
+  "c8275000-0000-4000-8000-000000000002": {
    "SimTransform": {
     "Position": [
      280.0,
@@ -61,11 +61,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000003": {
+  "c8275000-0000-4000-8000-000000000003": {
    "SimTransform": {
     "Position": [
      285.0,
@@ -94,11 +94,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000004": {
+  "c8275000-0000-4000-8000-000000000004": {
    "SimTransform": {
     "Position": [
      290.0,
@@ -127,11 +127,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000005": {
+  "c8275000-0000-4000-8000-000000000005": {
    "SimTransform": {
     "Position": [
      295.0,
@@ -160,11 +160,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000006": {
+  "c8275000-0000-4000-8000-000000000006": {
    "SimTransform": {
     "Position": [
      300.0,
@@ -193,11 +193,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "SquadLeader"
    }
   },
-  "c8300000-0000-4000-8000-000000000007": {
+  "c8275000-0000-4000-8000-000000000007": {
    "SimTransform": {
     "Position": [
      305.0,
@@ -226,11 +226,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000008": {
+  "c8275000-0000-4000-8000-000000000008": {
    "SimTransform": {
     "Position": [
      310.0,
@@ -259,11 +259,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000009": {
+  "c8275000-0000-4000-8000-000000000009": {
    "SimTransform": {
     "Position": [
      315.0,
@@ -292,11 +292,11 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000010": {
+  "c8275000-0000-4000-8000-000000000010": {
    "SimTransform": {
     "Position": [
      320.0,
@@ -325,15 +325,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000001",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000001",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000011": {
+  "c8275000-0000-4000-8000-000000000011": {
    "SimTransform": {
     "Position": [
      300.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -351,11 +351,11 @@
     "ForceId": "Hostile"
    }
   },
-  "c8300000-0000-4000-8000-000000000012": {
+  "c8275000-0000-4000-8000-000000000012": {
    "SimTransform": {
     "Position": [
      280.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -380,15 +380,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000013": {
+  "c8275000-0000-4000-8000-000000000013": {
    "SimTransform": {
     "Position": [
      285.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -413,15 +413,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000014": {
+  "c8275000-0000-4000-8000-000000000014": {
    "SimTransform": {
     "Position": [
      290.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -446,15 +446,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000015": {
+  "c8275000-0000-4000-8000-000000000015": {
    "SimTransform": {
     "Position": [
      295.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -479,15 +479,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000016": {
+  "c8275000-0000-4000-8000-000000000016": {
    "SimTransform": {
     "Position": [
      300.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -512,15 +512,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "SquadLeader"
    }
   },
-  "c8300000-0000-4000-8000-000000000017": {
+  "c8275000-0000-4000-8000-000000000017": {
    "SimTransform": {
     "Position": [
      305.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -545,15 +545,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000018": {
+  "c8275000-0000-4000-8000-000000000018": {
    "SimTransform": {
     "Position": [
      310.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -578,15 +578,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000019": {
+  "c8275000-0000-4000-8000-000000000019": {
    "SimTransform": {
     "Position": [
      315.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -611,15 +611,15 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   },
-  "c8300000-0000-4000-8000-000000000020": {
+  "c8275000-0000-4000-8000-000000000020": {
    "SimTransform": {
     "Position": [
      320.0,
-     600.0,
+     575.0,
      0
     ],
     "Rotation": [
@@ -644,7 +644,7 @@
     "Entries": []
    },
    "UnitSubordinate": {
-    "CommanderGuid": "c8300000-0000-4000-8000-000000000011",
+    "CommanderGuid": "c8275000-0000-4000-8000-000000000011",
     "Designation": "Wingman"
    }
   }
