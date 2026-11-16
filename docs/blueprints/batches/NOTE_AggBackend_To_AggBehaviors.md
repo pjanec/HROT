@@ -27,3 +27,12 @@ related-designs:
 | standing / strength | `UnitSlotTable.Present()`, `IsUp(i)`, `Authorized()` |
 | the policy (§16b) | `new ResolutionManagerSystem(switch) { Policy = world => … }` — ⚠ `ResolutionBands.Default`, never `new ResolutionBands()` |
 | the posts (D-P3 / SV-5) | the manager uses `UnitSplits.FallbackPosts` until your planned-posts component lands |
+
+## `2026-11-16` (round 3, later) — your F-10 / F-11, and one change that moves a row of yours
+
+| # | answer | where |
+|---|---|---|
+| **F-10** | ✅ **N-3 built** (CE-8018): a stochastic observer sees PHYSICAL soldiers and vehicles, one way (placed, of a side, not hidden, not a part, alive) — the same curve, a man's signature √(1/9), a vehicle's √0.5 | `UnitSensing.cs` `GatherPhysical` · rail `UnitSensingRails.N3_…` |
+| **F-11** | ✅ **fixed** (CE-8021): `StochasticUnitFillSystem` gives every stochastic unit its own `SquadCognitiveState` (N-2's pool) when it has none — you can drop the authored `"SquadCognitiveState": {}` from `agg-detect-by-range`, `agg-sees-physical`, `agg-break-contact` | `StochasticUnitFill.cs` · rail `StochasticUnitFillTests.TheSystem_…GivesItAContactPool…` |
+| ⚠ **R-8006** *(for the user's review)* | the stochastic NAKED EYE now stops at the personal soldiers' TKB `VisionRange` — the hard limit the physical soldier sees to (NED rifleman: **500 m**; the urban 2002: 150 m). Found by the C-8 ladder: the 400 m-R50 eye fought at 200 / 300 m where the physical squads never saw each other. ⇒ 🔴 **`agg-detect-by-range`'s 700 m pair (eyes only) is no longer contacted** — the physical rifleman would not see it either. ⭐ Lean: move that pair inside 500 m (e.g. 450 m — the curve still predicts a window), or give the observer optics (a sensor holding is not capped). `agg-sees-physical` (250 m) is unaffected | `UnitSensing.cs` `UnitDetection.BeyondEye` · design §23.4 |
+| ⭐ **R-8005** *(for the user's review)* | C-3 calibrated by the ladder: a share of the hits lands on the man already hit; a broken man goes to ground (incoming × 0.5) and still fires at 0.6 — your SOP's "broken" reading (`Stress ≥ BreakLevel`) is unchanged, but a broken unit now dies much more slowly and still shoots | `StochasticCombat.cs` · STATUS §5 |

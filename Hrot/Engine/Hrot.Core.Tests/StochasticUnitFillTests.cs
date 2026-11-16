@@ -72,7 +72,7 @@ namespace Hrot.Map.Common.Tests
         }
 
         [Fact]
-        public void TheSystem_FillsAnAuthoredStochasticUnit_Once_SetsItsEchelon_FeedsThePersonalWeapons_AndLeavesAPhysicalUnitAlone()
+        public void TheSystem_FillsAnAuthoredStochasticUnit_Once_SetsItsEchelon_GivesItAContactPool_FeedsThePersonalWeapons_AndLeavesAPhysicalUnitAlone()
         {
             var before = KillerVictimTkb.PersonalSoldiers;
             KillerVictimTkb.PersonalSoldiers = null;
@@ -80,6 +80,7 @@ namespace Hrot.Map.Common.Tests
             {
                 using var w = new EntityRepository();
                 w.RegisterComponent<AggregateUnit>(); w.RegisterComponent<UnitSlotTable>(); w.RegisterComponent<UnitHoldings>(); w.RegisterComponent<TkbIdentity>();
+                w.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
                 w.SetSingletonManaged<ITkbDatabase>(Db());
                 var stoch = w.CreateEntity();
                 w.AddComponent(stoch, new AggregateUnit { Resolution = AggregateResolution.Stochastic });
@@ -94,6 +95,9 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal(30, w.GetComponentRO<UnitSlotTable>(stoch).Count);
                 Assert.Equal(1, w.GetComponentRO<AggregateUnit>(stoch).Echelon);
                 Assert.False(w.HasComponent<UnitSlotTable>(phys));
+                // ⭐ CE-8021 (F-11) — its own contact pool, so its sensing reports somewhere; a physical unit is left alone
+                Assert.True(w.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(stoch));
+                Assert.False(w.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(phys));
                 Assert.NotNull(KillerVictimTkb.PersonalSoldiers);
                 Assert.Equal((TkbTypeId)TkbEntityTypes.Infantry_Rifleman, KillerVictimTkb.PersonalSoldiers![SlotRole.Rifleman]);
 

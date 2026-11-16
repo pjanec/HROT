@@ -71,6 +71,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | round 3 red-proofs (compiling mutants; two first tries did not compile and were redone) | the participant acking a held child at once · no abandon · UNOBSERVED ignored · the launcher not scaled · the request not stamped with the node | ✅ 5 / 5 red |
 | round 3 gates, final | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Lifecycle\|~NetworkGateway\|~Pathfinding` · `Hrot.SimHost.Tests --filter TheDescriptorMapIsWired\|CgfLogicPackTests\|EntityCreationPackRails\|TheFourRoutingTablesAgree\|AggregateUnitReplication\|TacticalIntent\|NodeBootstrapper` · builds `Hrot.CGF`, `Hrot.Editor` | ✅ 144 / 0 · ✅ 427 / 0 · ✅ |
 | CE-8009 calibration gates | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Lifecycle` · the same `~Aggregate` under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` · `Hrot.Core.Tests --filter C8LadderStochasticTests\|StochasticUnitFillTests` | ✅ 84 / 0 · ✅ 37 / 0 · ✅ 5 / 0. Red-proofs (compiling mutants): `BrokenFireShare` 0 ⇒ "the winner loses men too (mean 0.80)" red · the eye cap never fires ⇒ 200 m `Expected 0, Actual 12.17` red · `FocusShare` 0 ⇒ "the first loss comes early (mean 9.4 s)" red |
+| CE-8021 (F-11) gate | `Hrot.Core.Tests --filter StochasticUnitFillTests\|C8LadderStochasticTests` | ✅ 5 / 0; red-proof: the pool never added ⇒ red |
 | ⭐ T2 (once, at the end) | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Combat\|~Squad\|~Navigation.RoutePlanner\|~Replay` · `Hrot.Core.Tests` (all) · `Hrot.Network.NED.Tests` (all) · `Hrot.SimHost.Tests --filter` the eight touched feature suites | ✅ 1156 / 0 (1 skip) · ✅ 380 / 0 · ✅ 198 / 0 after the fix below · ✅ 102 / 0 (1 skip) |
 | ⛔ a gate MISS, fixed | `TheEntityKeyedWireTypesAreReadableByReflectionTests` was red from the ST-0 commit (`d45dfa77a`) to the last: the three new entity-keyed wire types had no row in `docs/reference/NED_DDS_Protocol.md` — ST-0 gated NED on `RoleGroupOwnershipStrategyTests` only. Rows added | ⚠ the lesson: a new wire type ⇒ run the WHOLE `Hrot.Network.NED.Tests` (4 s) |
 | ⚠ pre-existing red fixed | `CgfLogicPackTests` pinned 37 / 45 while the pack had 39 / 47 (the animals lane's `HerdSystem`, `AnimalAreaSystem`) — now 40 / 48 with the follower | cross-lane edit of a pin, said |
@@ -78,7 +79,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 ## 4. Ids allocated
 
-`CE-8000` … `CE-8020` (Area AGG-B in the tracker) · `R-8000`…`R-8006` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+`CE-8000` … `CE-8022` (Area AGG-B in the tracker) · `R-8000`…`R-8006` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
 
 ## 5. C-8 ladder, rung 1 — the verdict *(CE-8009, `2026-11-16`, after R-8005 / R-8006)*
 
