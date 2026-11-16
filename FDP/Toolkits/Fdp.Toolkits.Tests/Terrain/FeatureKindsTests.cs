@@ -286,14 +286,14 @@ namespace Fdp.Toolkit.Terrain.Tests
         [Fact]
         public void ARow_PlacesATreeEvery8m_AlongTheLine_FirstHalfASpacingIn()
         {
-            var parts = Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 100), new Vector2(160, 100), new Vector2(160, 164.5f));
+            var parts = Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.5f));
             Assert.Equal(16, parts.Count);
             Assert.All(parts, p => Assert.Equal("tree", (string)((JsonObject)p["properties"]!)["kind"]!));
             Assert.Equal(new[] { "k/0", "k/15" }, new[] { (string)((JsonObject)parts[0]["properties"]!)["label"]!, (string)((JsonObject)parts[15]["properties"]!)["label"]! });
             var (x0, y0) = Centre(parts[0]); var (x7, y7) = Centre(parts[7]); var (x8, y8) = Centre(parts[8]); var (x15, y15) = Centre(parts[15]);
-            Assert.Equal((104f, 100f), (x0, y0)); Assert.Equal((160f, 100f), (x7, y7)); Assert.Equal((160f, 108f), (x8, y8)); Assert.Equal((160f, 164f), (x15, y15));
-            Assert.Equal(Json(parts), Json(Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 100), new Vector2(160, 100), new Vector2(160, 164.5f))));
-            Assert.Equal(Of(TerrainFeature.Row, 0f, 0, new Vector2(100, 100), new Vector2(260, 100)).Count, 20);   // spacing 0 = 8 m: 160 m ⇒ 20 trees
+            Assert.Equal((104f, 250f), (x0, y0)); Assert.Equal((160f, 250f), (x7, y7)); Assert.Equal((160f, 258f), (x8, y8)); Assert.Equal((160f, 314f), (x15, y15));
+            Assert.Equal(Json(parts), Json(Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.5f))));
+            Assert.Equal(Of(TerrainFeature.Row, 0f, 0, new Vector2(100, 250), new Vector2(260, 250)).Count, 20);   // spacing 0 = 8 m: 160 m ⇒ 20 trees
         }
 
         private static (float X, float Y) Centre(JsonObject feature)
@@ -326,6 +326,16 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(FeatureExpander.IsKnown(14) && FeatureExpander.IsKnown(15));
             Assert.False(FeatureExpander.IsKnown(16));
             Assert.True(FeatureExpander.NeedsShape(TerrainFeature.Row) && FeatureExpander.NeedsShape(TerrainFeature.Group));
+        }
+
+        /// <summary>⭐ A ROW drawn across the base's pond (x 125..175, y 70..130) plants no tree in the water and still plants those outside (6 of 12). 🔴 Red-proof: remove the <c>InWater</c> skip in <c>Row</c> ⇒ 12 trees ⇒ red.</summary>
+        [Fact]
+        public void ARow_SkipsTheBasesWater_AndPlantsTheRest()
+        {
+            var parts = Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 100), new Vector2(200, 100));
+            Assert.Equal(6, parts.Count);
+            foreach (var t in parts) { var (x, _) = Centre(t); Assert.False(x >= 125f && x <= 175f, $"a tree at x {x} stands in the water"); }
+            Assert.Equal("k/5", (string)((JsonObject)parts[5]["properties"]!)["label"]!);
         }
     }
 }

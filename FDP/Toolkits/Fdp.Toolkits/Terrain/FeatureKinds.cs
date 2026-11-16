@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Terrain
                 case TerrainFeature.Scatter:
                     return Scatter(key, TerrainRecipe.Find(template, recipeRoots), seed, pad, points, baseWorld, where);
                 case TerrainFeature.Row:
-                    return Row(key, points, pad > 0f ? pad : DefaultRowSpacing, where);
+                    return Row(key, points, pad > 0f ? pad : DefaultRowSpacing, baseWorld, where);
                 case TerrainFeature.Group:
                     return Group(key, points, pad > 0f ? (int)pad : DefaultGroupCount, seed, baseWorld, where);
                 case TerrainFeature.Ground when DitchPresets.Of(template) is { } preset:
@@ -185,12 +185,15 @@ namespace Fdp.Toolkit.Terrain
         // ── row and group of lone trees (CE-5007) ─────────────────────────────────────────────────────────────────
 
         /// <summary>⭐ CE-5007 — lone trees every <paramref name="spacing"/> metres along the polyline (<see cref="LinePlacesSpaced"/>), the first half a spacing in; labels <c>&lt;key&gt;/&lt;i&gt;</c>.</summary>
-        private static IReadOnlyList<JsonObject> Row(string key, IReadOnlyList<Vector2> points, float spacing, string where)
+        private static IReadOnlyList<JsonObject> Row(string key, IReadOnlyList<Vector2> points, float spacing, TerrainWorld baseWorld, string where)
         {
             if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a row needs a line of at least two points.");
             var parts = new List<JsonObject>();
             foreach (var (p, _) in LinePlacesSpaced(points, spacing, MaxScatterItems))
-                parts.Add(Tree($"{key}/{parts.Count}", new Vector2(Round(p.X), Round(p.Y))));
+            {
+                var at = new Vector2(Round(p.X), Round(p.Y));
+                if (!InWater(baseWorld, at, new[] { at })) parts.Add(Tree($"{key}/{parts.Count}", at));   // out of the base's water, like the scatter and the group
+            }
             return parts;
         }
 
