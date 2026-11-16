@@ -367,6 +367,20 @@ the threaded node on the editor and the player, the parallel phases on every nod
 `HROT_PARALLEL_SIM` / `HROT_THREADED_KERNEL` / `HROT_SIM_THREADS` overrides — Threaded Presentation §0a.1); the machine checks above are still run
 on every new behaviour.
 
+## ⛔⛔⛔ A FEATURE WORKS ONLY WHEN ITS SCENARIOS PASS — **judged by the machine, kept as regression tests** *(user, `2026-11-16`, R-4277)*
+
+> 🔒 **User, verbatim:** *"Without the scenario passing, i don't believe that the feature works because in the past every such scenario development
+> revealed a lot of issues. Those scenarios should work like a regression test - their description should clearly describe what they are all about
+> and what is expected. Maybe event better if this is expressed as objectives so it is testable by machine (without the need of smart ai agent
+> interpretting the results) as part of regression test suite"*
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **every feature ships a SET of feature-test scenarios** — one per situation it must handle, not one showcase | 📌 every scenario built so far found defects no rail had (`farm-under-fire` found four) |
+| ⭐⭐⭐ **each states its expectation TWICE, the same way:** the `description` (*What* happens · how to *Judge* it) for people, and `checks.json` `expect` rows for the machine (`docs/DESIGN_Scenario_Regression.md` §3) + a `golden` | ⛔ never a verdict read from a log or judged by an agent; a cue the grammar cannot say ⇒ extend the grammar |
+| ⭐⭐ **DONE = `scripts/scenario-regression.sh <name>` passes** — three seeds, equal at 1 / 4 / 8 threads | ⛔ green rails alone are not "the feature works" |
+| ⭐⭐ **every handoff lists its scenarios and their expect rows UPFRONT**, and `docs/CAPABILITIES.md` marks the feature by them (✅ / ⚠ / ⏳) | the suite runs in the background (T3), never a foreground blocker |
+
 ## ⭐⭐⭐ NEW COMPONENTS — **UNMANAGED when recorded; a managed one is IMMUTABLE and REPLACED whole** *(user, `2026-11-02`)*
 
 > 🔒 **User, verbatim:** *"when creating new components, we should prefer unmanaged ones, for those that are going to be saved into the

@@ -188,6 +188,7 @@ that already exists — no node writes another node's entity.*
 | **K-5** | CP-3 the vehicle ladder | rungs by time, skipped when short; warning shot only at NonLethal+; disabled car coasts |
 | **K-6** | CP-4 search | out, hands up, searched; the boot's charge found by the vehicle search |
 | **K-7** | CP-5 / RM-4 the scenario | a routine car released; the VBIED stopped short OR detonating; the compliant bomber — three seeded runs each |
+| **K-8** *(added `2026-11-16`, R-4277)* | the FEATURE-TEST SCENARIOS — each a regression test (a What / Judge `description` + `checks.json` expect rows + golden) | `cp-routine-car` · `cp-vbied` · `cp-compliant-bomber` · ⭐ `cp-moto-attack` (a two-up bike approaches: "two men on one bike" raises the watch (IM-8); the bike ladder has no engine rung (KV-14); the pillion fires or throws; the checkpoint answers) · `cp-ram-barrier` — DONE = `scripts/scenario-regression.sh` passes three seeds, equal at 1 / 4 / 8 threads |
 
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221).
