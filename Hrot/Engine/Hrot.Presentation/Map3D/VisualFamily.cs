@@ -67,8 +67,7 @@ public enum VisualFamily : byte
     Goat,
     /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, MS-U4) — the mine-clearing vehicle (class <c>MineClearer</c>, DIS <c>1.1.*.9.2</c>, TKB 116 <c>Engineer_MineClearer</c>):
     /// a tracked engineer carrier with a line-charge launcher at the rear and a FLAIL drum on two arms in front that spins while the flail is on (<see cref="FlailActivity"/>).
-    /// ⛔ Appended (a byte value others may store), AFTER the animals. ⭐ NOT yet in <see cref="VisualFamilies.FamilyOfClass"/>: the rail <c>CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable</c> requires the
-    /// class to exist in <see cref="EntityClassTable"/> first, and terrain declares it — bound at the re-bind (add <c>["MineClearer"] = VisualFamily.MineClearer</c>, the ONE line).</summary>
+    /// ⛔ Appended (a byte value others may store), AFTER the animals. ✅ Bound (2026-11-16) to terrain's class: <c>["MineClearer"]</c> in <see cref="VisualFamilies.FamilyOfClass"/>, type 116 through the real catalogue; the kit is scaled to the TKB's 9.0 × 4.4 × 3.2 m box.</summary>
     MineClearer,
 }
 
@@ -107,6 +106,7 @@ public static class VisualFamilies
         ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
+        ["MineClearer"] = VisualFamily.MineClearer,     // ⭐ CE-4624 — the mine-clearing vehicle (1.1.*.9.2, TKB 116): bound to terrain's class
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
         ["Motorcycle"] = VisualFamily.Motorcycle,       // ⭐ CE-4621 — the motorcycle (DIS 1.1.*.80, type 115)
         ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
