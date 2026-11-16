@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — decisions AC-1…AC-15 carry leans and are NOT approved; ⛔ no handoff until the user approves them and calls the design complete (then the independent review)
+build-state: DESIGN — AC-1…AC-15 ✅ APPROVED `2026-11-16` (R-4283); the independent review is running; ⛔ no handoff until its findings are folded in and approved
 current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -75,7 +75,7 @@ inside ~2 s, when it cannot follow), with flares / chaff.
 | proportional navigation for missiles | ⛔ reject | the lead pursuit at a turn limit already hits (CE-2187 rails); the user WANTS dodgeable missiles; adding a motor and a g limit (AC-6) makes the drag and the break work for the right reason |
 | beyond-visual-range doctrine (shots at 40 km) | ⛔ reject (show rule AC-11) | the user: *"not many kilometers away"* |
 
-## 3. Decisions — ⭐ leans, NOT approved
+## 3. Decisions — ✅ approved `2026-11-16` (R-4283)
 
 | # | decision — ⭐ lean | why | rejected — one line |
 |---|---|---|---|
