@@ -288,6 +288,9 @@ namespace Hrot.CGF
             // ⭐ CE-2372 (AQ105 B, R-2080) — the squad calls whose moment happens in engine code: a new contact, a throw, a reload, a man down.
             simList.Add(new Hrot.AI.Behaviors.Brains.CalloutSystem(gateOnAuthority));
             simList.Add(_routeContextSystem);
+            // ⭐ CE-4624 MS-T2 (KR-5) — the place-knowledge writer on THIS deciding node too: the recon / marking events the brains raised (a host that also composes the
+            //   SimHost pack keeps one writer — the first instance claims the world).
+            simList.Add(new Fdp.Toolkit.Terrain.PlaceKnowledgeSystem());
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
             // contributed by the infrastructure capabilities (see the field block above).
 

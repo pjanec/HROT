@@ -32,6 +32,8 @@ namespace Fdp.Toolkit.Combat.Modules
                                      new Fdp.Toolkit.Terrain.GroundDamageSystem(),   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity
                                      new Fdp.Toolkit.Terrain.CraterRegroundSystem(),   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground
                                      new Fdp.Toolkit.Terrain.DozerCutSystem(),   // ⭐ CE-4601 (B-4) — a bulldozer's blade cuts the wall / fells the trunk its order marked (before the writers)
-                                     new Fdp.Toolkit.Terrain.TreeDamageSystem() };   // ⭐ CE-4603 (B-6) — the trunks it (or a player's hull) felled   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
+                                     new Fdp.Toolkit.Terrain.TreeDamageSystem(),
+                                     new Fdp.Toolkit.Terrain.MinefieldStrikesSystem(),   // ⭐ CE-4624 MS-T1 — the mines that went off, written into the field's strikes record
+                                     new Fdp.Toolkit.Terrain.PlaceKnowledgeSystem() };   // ⭐ CE-4624 MS-T2 — what each side learned (strikes here; recon on the CGF node)   // ⭐ CE-4603 (B-6) — the trunks it (or a player's hull) felled   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
     }
 }
