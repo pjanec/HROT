@@ -70,11 +70,16 @@ namespace Fdp.Toolkit.Combat
         /// stand-off (∞ when it is not closing; 0 when it is there or past).
         /// </summary>
         public static ApproachVerdict Judge(in ApproachSite site, Vector3 position, Vector3 velocity, out float secondsToStandOff)
+            => Judge(in site, position, velocity, out secondsToStandOff, out _);
+
+        /// <inheritdoc cref="Judge(in ApproachSite, Vector3, Vector3, out float)"/>
+        public static ApproachVerdict Judge(in ApproachSite site, Vector3 position, Vector3 velocity, out float secondsToStandOff, out float closingMps)
         {
             var rel = new Vector2(site.Stop.X - position.X, site.Stop.Y - position.Y);
             float along = Vector2.Dot(rel, site.Inbound);                       // metres still to go to the stop line (negative: past it)
             float lateral = MathF.Abs(rel.X * site.Inbound.Y - rel.Y * site.Inbound.X);
             float closing = Vector2.Dot(new Vector2(velocity.X, velocity.Y), site.Inbound);
+            closingMps = closing;
             float speed = new Vector2(velocity.X, velocity.Y).Length();
             secondsToStandOff = along <= 0f ? 0f : closing > ClosingMinMps ? along / closing : float.PositiveInfinity;
             if (lateral > MathF.Max(AtLineM, along * 0.5f) + 20f) return ApproachVerdict.None;   // off to the side: not on this approach
@@ -120,7 +125,7 @@ namespace Fdp.Toolkit.Combat
                 var e = new Entity((ulong)memory.EntityIds[i]);
                 if (!world.IsAlive(e) || !Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, e)) continue;
                 if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, e, out var at, out var velocity)) continue;
-                var verdict = Judge(in site, at, velocity, out float seconds);
+                var verdict = Judge(in site, at, velocity, out float seconds, out float closing);
                 if (verdict == ApproachVerdict.None) continue;
                 var flags = Indicators(world, e);
                 if (verdict == ApproachVerdict.Approaching && (flags & ApproachIndicator.TwoUpBike) != 0) verdict = ApproachVerdict.Threat;
@@ -130,6 +135,7 @@ namespace Fdp.Toolkit.Combat
                 best.Verdict = (byte)verdict;
                 best.SecondsToStandOff = float.IsPositiveInfinity(seconds) ? 9999f : seconds;
                 best.Indicators = (byte)flags;
+                best.ClosingMps = closing;
             }
             return any;
         }
@@ -171,5 +177,16 @@ namespace Fdp.Toolkit.Combat
         public int Routines;
         /// <summary>The last vehicle counted (so one vehicle counts once per verdict).</summary>
         public long LastThreat, LastRoutine;
+        /// <summary>⭐ K-5 — the squad's ONE ladder rung (a <see cref="VehicleRung"/>) and the vehicle it is on.</summary>
+        public byte Rung;
+        public long RungVehicle;
+        /// <summary>⭐ K-5 — the highest rung reached so far (for the checks).</summary>
+        public byte MaxRung;
+        /// <summary>⭐ K-5 — the vehicle's closing speed now (m/s), and the one it had when it was first signalled (inside the warning line).</summary>
+        public float ClosingMps, ClosingAtSignal;
+        /// <summary>⭐ K-5 — the vehicle first signalled (<see cref="ClosingAtSignal"/> is its).</summary>
+        public long SignalledVehicle;
+        /// <summary>⭐ K-5 — 1 while the stopper shows the signal.</summary>
+        public byte Signalling;
     }
 }

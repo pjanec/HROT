@@ -121,6 +121,39 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        /// <summary>⭐ K-5 — the ladder's fire: rounds per warning shot, per disabling burst, and how often the burst is re-aimed (s).</summary>
+        public const int WarningRounds = 3, DisablingRounds = 8;
+        /// <summary>⭐ K-5 (R-2132) — a signalled vehicle still at this fraction of its closing speed at the warning-shot time ignored the signal.</summary>
+        public const float IgnoredFraction = 0.8f;
+        public const float RefireSeconds = 1.5f;
+        /// <summary>⭐ K-5 — a warning shot lands this far ahead of the vehicle (m), on the ground.</summary>
+        public const float WarningAheadM = 15f;
+
+        /// <summary>⭐ K-5 — the ground <see cref="WarningAheadM"/> ahead of a vehicle at <paramref name="car"/> on the approach.</summary>
+        public static Vector3 GroundAhead(Vector3 car, Vector2 inbound) => new(car.X + inbound.X * WarningAheadM, car.Y + inbound.Y * WarningAheadM, car.Z);
+
+        /// <summary>⭐ K-5 — the live man in the stopper's role, if any.</summary>
+        public static unsafe Entity Stopper(ref CheckpointParams p, in SquadPlayContext ctx)
+        {
+            for (int i = 0; i < ctx.Roster.Count && i < Fdp.Core.CommandHierarchy.UnitRoster.Capacity; i++)
+                if (p.Roles[i] == CheckpointManeuver.RoleStopper && ctx.Live(i, out var m)) return m;
+            return Entity.Null;
+        }
+
+        /// <summary>⭐ K-5 (CP-3 SIGNAL) — the stopper shows the signal (<see cref="GestureKind.Warning"/>) or drops it — his component, so after the
+        /// brains' phase when inside it.</summary>
+        public static void Signal(EntityRepository world, Entity stopper, bool on)
+        {
+            if (ParallelReadCheck.Defers(world)) { ParallelReadCheck.CurrentBatch!.Later(SignalAfterPhase.Instance, stopper, on ? 1 : 0, 0L); return; }
+            Gestures.Set(world, stopper, on ? GestureKind.Warning : GestureKind.None);
+        }
+
+        private sealed class SignalAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly SignalAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg) => Gestures.Set(repo, e, code != 0 ? GestureKind.Warning : GestureKind.None);
+        }
+
         /// <summary>Compass bearing (0 = north, clockwise) of a flat direction.</summary>
         public static float Bearing(Vector2 d) { float b = MathF.Atan2(d.X, d.Y) * (180f / MathF.PI); return b < 0f ? b + 360f : b; }
     }
@@ -186,6 +219,37 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.Live(i, out var m)) VehicleApproachWatch.Scan(world, m, in p.Site, ref now);
             if (now.Verdict == (byte)ApproachVerdict.Threat && now.Vehicle != now.LastThreat) { now.Threats++; now.LastThreat = now.Vehicle; }
             if (now.Verdict == (byte)ApproachVerdict.Routine && now.Vehicle != now.LastRoutine) { now.Routines++; now.LastRoutine = now.Vehicle; }
+            // ⭐ K-5 (CP-2, R-2132) — IGNORED THE SIGNAL: a vehicle signalled at the warning line that has not slowed below IgnoredFraction of its
+            //   speed then by the warning-shot time is a THREAT (the brake test alone names a fast car only ~2 s out — too late for any rung but lethal)
+            if (now.Vehicle != 0 && now.Vehicle != now.SignalledVehicle && now.SecondsToStandOff <= p.Site.WarningSeconds
+                && now.Verdict == (byte)ApproachVerdict.Approaching)
+            { now.SignalledVehicle = now.Vehicle; now.ClosingAtSignal = now.ClosingMps; }
+            if (now.Verdict == (byte)ApproachVerdict.Approaching && now.Vehicle == now.SignalledVehicle
+                && now.SecondsToStandOff <= p.Site.WarningSeconds * VehicleLadder.WarningShotAt
+                && now.ClosingMps >= now.ClosingAtSignal * CheckpointBehavior.IgnoredFraction && now.ClosingMps >= VehicleApproachWatch.RoutineMps)
+            {
+                now.Verdict = (byte)ApproachVerdict.Threat;
+                if (now.Vehicle != now.LastThreat) { now.Threats++; now.LastThreat = now.Vehicle; }
+            }
+            // ⭐ K-5 (CP-3) — the ladder: ONE rung for the squad, by the vehicle's time to the stand-off
+            var vehicle = now.Vehicle != 0 ? new Entity((ulong)now.Vehicle) : Entity.Null;
+            var current = now.RungVehicle == now.Vehicle ? (VehicleRung)now.Rung : VehicleRung.Quiet;
+            bool bike = !vehicle.IsNull && VehicleApproachWatch.IsTwoWheeler(world, vehicle);
+            bool selfDefence = !vehicle.IsNull && Fdp.Toolkit.Civilians.HostileActs.Of(world, vehicle) == Fdp.Toolkit.Civilians.HostileActKind.Lethal;
+            var due = VehicleLadder.Due((ApproachVerdict)now.Verdict, now.SecondsToStandOff, p.Site.WarningSeconds, bike,
+                                        Fdp.Toolkit.Behavior.Components.RoeOf.ForceLevel(world, ctx.Commander), selfDefence, current);
+            if (due != current || now.RungVehicle != now.Vehicle) ws.Reissue = 1;
+            else if (due >= VehicleRung.Disabling && ctx.Now - ws.IssuedAt >= CheckpointBehavior.RefireSeconds) ws.Reissue = 1;   // the aim moves: fresh orders
+            now.Rung = (byte)due; now.RungVehicle = now.Vehicle;
+            if ((byte)due > now.MaxRung) now.MaxRung = (byte)due;
+            byte signal = due >= VehicleRung.Signal ? (byte)1 : (byte)0;
+            if (signal != now.Signalling)
+            {
+                now.Signalling = signal;
+                var stopper = CheckpointBehavior.Stopper(ref p, in ctx);
+                if (!stopper.IsNull) CheckpointBehavior.Signal(world, stopper, signal != 0);
+            }
+            if (!vehicle.IsNull && world.HasComponent<SimTransform>(vehicle)) ws.ThreatPoint = world.GetComponentRO<SimTransform>(vehicle).Position;
             ws.ThreatId = now.Verdict == (byte)ApproachVerdict.Threat ? now.Vehicle : 0;
             if (world.HasComponent<CheckpointWatch>(ctx.Commander)) world.GetComponentRW<CheckpointWatch>(ctx.Commander) = now;
             else world.AddComponent(ctx.Commander, now);   // added WITH its final value (the parallel rule)
@@ -219,6 +283,24 @@ namespace Hrot.AI.Behaviors.Brains
                 CheckpointManeuver.RoleOverwatch => rear + right * CheckpointBehavior.RearOffsetM,
                 _ => rear - right * (CheckpointBehavior.RearOffsetM + 3f * slot),
             };
+            // ⭐ K-5 (CP-3) — the rung's fire: the warning shot into the ground ahead and disabling fire at the engine are the MACHINE GUN's;
+            //   lethal fire at the vehicle is everyone's
+            var watch = ctx.World.HasComponent<CheckpointWatch>(ctx.Commander) ? ctx.World.GetComponentRO<CheckpointWatch>(ctx.Commander) : default;
+            var rung = (VehicleRung)watch.Rung;
+            var target = watch.RungVehicle != 0 ? new Entity((ulong)watch.RungVehicle) : Entity.Null;
+            if (!target.IsNull && ctx.World.IsAlive(target) && ctx.World.HasComponent<SimTransform>(target))
+            {
+                var car = ctx.World.GetComponentRO<SimTransform>(target).Position;
+                byte r = role == 0 ? CheckpointManeuver.RoleReaction : role;
+                if (rung == VehicleRung.Lethal)
+                    return new MemberOrder { Kind = MemberOrderKind.Suppress, Target = target, Point = car, Speed = p.Speed, RoleId = r };
+                if (role == CheckpointManeuver.RoleOverwatch && rung == VehicleRung.WarningShot)
+                    return new MemberOrder { Kind = MemberOrderKind.FireAtPoint, Point = CheckpointBehavior.GroundAhead(car, inbound), Rounds = CheckpointBehavior.WarningRounds,
+                                             Arc = 1, Speed = p.Speed, RoleId = r };
+                if (role == CheckpointManeuver.RoleOverwatch && rung == VehicleRung.Disabling)
+                    return new MemberOrder { Kind = MemberOrderKind.FireAtPoint, Point = AimPoint.Engine(ctx.World, target) ?? car, Rounds = CheckpointBehavior.DisablingRounds,
+                                             Arc = 1, Speed = p.Speed, RoleId = r };
+            }
             return new MemberOrder
             {
                 Kind = MemberOrderKind.Watch, Point = post, Speed = p.Speed, ArrivalRadius = 1.5f, Post = new MemberPost { Set = 1, Radius = 2f },

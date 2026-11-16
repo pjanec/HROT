@@ -60,8 +60,13 @@ namespace Hrot.SimHost.Tests
                 for (int t = 0; t < k; t++)
                 {
                     W.Tick();
+                    Now += 0.1;
                     foreach (var e in W.Repo.ReadManagedEvents<AssignTacticalIntentEvent>())
-                        if (e != null && e.IntentId == BehaviorNames.CombatPosture) Posts[e.Entity] = Objective(e.JsonParams);
+                    {
+                        if (e == null) continue;
+                        if (e.IntentId == BehaviorNames.CombatPosture) Posts[e.Entity] = Objective(e.JsonParams);
+                        if (e.IntentId is BehaviorNames.FireAtPoint or BehaviorNames.Suppress) Fire.Add((Now, e.Entity, e.IntentId));
+                    }
                 }
             }
 
@@ -80,6 +85,22 @@ namespace Hrot.SimHost.Tests
                 }
                 return e;
             }
+
+            /// <summary>Every moving car drives on by its velocity for one tick (0.1 s), and every man sees where it is.</summary>
+            public void Drive(Entity car)
+            {
+                var repo = W.Repo;
+                ref var t = ref repo.GetComponentRW<SimTransform>(car);
+                t.Position += repo.GetComponentRO<SimVelocity>(car).Linear * 0.1f;
+                foreach (var m in Men)
+                {
+                    ref var mem = ref repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(m);
+                    Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(ref mem, (long)car.PackedValue, t.Position.X, t.Position.Y, 1f, repo.SimulationTick);
+                }
+            }
+
+            public readonly List<(double T, Entity Who, string What)> Fire = new();
+            public double Now;
 
             public CheckpointWatch Watch => W.Repo.GetComponentRO<CheckpointWatch>(W.Man);
             public byte Role(int i) => W.Repo.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(W.Man).Roles[i].RoleId;
@@ -138,6 +159,63 @@ namespace Hrot.SimHost.Tests
             f.Tick(2);
             Assert.Equal((byte)ApproachVerdict.Routine, f.Watch.Verdict);
             Assert.Equal(1, f.Watch.Routines);
+        }
+    
+
+        /// <summary>⭐⭐ K-5 (CP-3, R-2132) — a car at 15 m/s that never slows, from 18 s out (a 15 s warning line): signalled inside the line (the
+        /// stopper's gesture), a THREAT once it has ignored the signal to the warning-shot time; then the MACHINE GUN alone fires the warning shot,
+        /// then disabling bursts (by 6 s out), and everyone fires at the car by 3 s out — no shot before the warning-shot time.
+        /// ✅ Red-proofs: the ignored-signal rule dropped (the brake test alone: no rung before ~2 s) ⇒ red · the signal not shown ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K5_ACarThatIgnoresTheSignal_IsLadderedByTime_ShotThenEngineThenLethal()
+        {
+            var f = new Fixture();
+            if (!f.W.Repo.IsComponentTypeRegistered<Gesture>()) f.W.Repo.RegisterComponent<Gesture>();
+            f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
+            f.Tick(3);
+            var car = f.Car(new Vector3(-270f, 0f, 0f), new Vector3(15f, 0f, 0f));
+            double t0 = f.Now, signalAt = -1, threatAt = -1;
+            byte maxRung = 0;
+            for (int i = 0; i < 175 && f.W.Repo.GetComponentRO<SimTransform>(car).Position.X < -10f; i++)
+            {
+                f.Drive(car);
+                f.Tick();
+                if (signalAt < 0 && Gestures.Of(f.W.Repo, f.Men[0]) == GestureKind.Warning) signalAt = f.Now - t0;
+                if (threatAt < 0 && f.Watch.Verdict == (byte)ApproachVerdict.Threat) threatAt = f.Now - t0;
+                maxRung = System.Math.Max(maxRung, f.Watch.Rung);
+            }
+            Assert.InRange(signalAt, 2.8, 3.6);                                     // inside the warning line (15 s out = 3 s in)
+            Assert.InRange(threatAt, 7.8, 8.6);                                     // ignored the signal to 10 s out
+            Assert.Equal((byte)VehicleRung.Lethal, maxRung);
+            double firstShot = f.Fire.Count > 0 ? f.Fire[0].T - t0 : -1;
+            Assert.InRange(firstShot, 7.8, 8.8);
+            Assert.Equal(f.Men[4], f.Fire[0].Who);                                  // the machine gun
+            Assert.Equal(BehaviorNames.FireAtPoint, f.Fire[0].What);
+            Assert.Contains(f.Fire, x => x.Who == f.Men[4] && x.What == BehaviorNames.FireAtPoint && x.T - t0 >= 11.8 && x.T - t0 < 15.2);   // the engine
+            Assert.Contains(f.Fire, x => x.Who == f.Men[0] && x.What == BehaviorNames.Suppress && x.T - t0 >= 14.8);                       // lethal: all
+            Assert.DoesNotContain(f.Fire, x => x.Who != f.Men[4] && x.T - t0 < 14.8);                                                  // nobody else earlier
+        }
+
+        /// <summary>⭐ K-5 — a car that SLOWS after the signal (to 2 m/s by the warning-shot time) is never shot at: signal only.
+        /// ✅ Red-proof: the slowing test dropped ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K5_ACarThatSlowsOnTheSignal_IsNeverShotAt()
+        {
+            var f = new Fixture();
+            if (!f.W.Repo.IsComponentTypeRegistered<Gesture>()) f.W.Repo.RegisterComponent<Gesture>();
+            f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
+            f.Tick(3);
+            var car = f.Car(new Vector3(-250f, 0f, 0f), new Vector3(15f, 0f, 0f));
+            for (int i = 0; i < 300 && f.W.Repo.GetComponentRO<SimTransform>(car).Position.X < -8f; i++)
+            {
+                ref var v = ref f.W.Repo.GetComponentRW<SimVelocity>(car);
+                if (f.Watch.Signalling != 0 && v.Linear.X > 3f) v.Linear = new Vector3(v.Linear.X - 0.2f, 0f, 0f);   // brakes ~2 m/s² on the signal
+                f.Drive(car);
+                f.Tick();
+            }
+            Assert.Equal(1, f.Watch.Signalling);
+            Assert.Equal(0, f.Watch.Threats);
+            Assert.Empty(f.Fire);
         }
     }
 }
