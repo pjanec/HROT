@@ -84,7 +84,7 @@ namespace Hrot.AI.Behaviors.Brains
                     // Stopped: somebody held it (a reaction) — ordered again below, not a retry
                 }
             }
-            float depth = formation == UnitFormation.Line ? LineDepthMetres : ColumnDepthOf(world, self, in u);
+            float depth = formation == UnitFormation.Column ? ColumnDepthOf(world, self, in u) : LineDepthMetres;   // a Line and the Assault line (B-4) are as deep as the area sink takes
             SimInstant now = CommandPictureOps.Now(world);
             UnitMoves.Order(ref world.GetComponentRW<AggregateUnit>(self), target, formation, depth, now);
             d.Started = 1;

@@ -65,6 +65,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
         public const int EstablishRoundsPerMan = 3;
 
+        /// <summary>⭐ R-8315 — the centre of the reported posts (none ⇒ <paramref name="fallback"/>): the place a stochastic squad's support by fire is directed at.</summary>
+        internal static Vector3 PostsCentre(ref SupportByFireParams p, Vector3 fallback)
+        {
+            if (p.Posts <= 0) return fallback;
+            var sum = Vector3.Zero;
+            for (int i = 0; i < p.Posts && i < SupportByFireParams.MaxPosts; i++) sum += p.Post(i);
+            return sum / Math.Min(p.Posts, SupportByFireParams.MaxPosts);
+        }
+
         private static readonly int s_squadHash = BehaviorHash.FromName(BehaviorNames.SupportByFire);
         private static readonly int s_platoonHash = BehaviorHash.FromName(BehaviorNames.PlatoonSupportByFire);
 
@@ -110,7 +119,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Posts++;
         }
 
-        [Behavior(BehaviorNames.SupportByFire, Params = typeof(SupportByFireParamsJsonDto), Categories = BehaviorCategory.Commander,
+        [Behavior(BehaviorNames.SupportByFire, Params = typeof(SupportByFireParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire), Categories = BehaviorCategory.Commander,
                   Description = "A squad's base of fire: holds at the support point and keeps the reported posts under sustained fire.")]
         [BTreeDefinition(BehaviorNames.SupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(SupportByFireBlackboard))]
         public static BTreeBuilder<SupportByFireBlackboard, BTreeContext> BuildTree()
@@ -205,7 +214,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.PlatoonSupportByFire, Params = typeof(PlatoonSupportByFireParamsJsonDto), Categories = BehaviorCategory.Commander,
+        [Behavior(BehaviorNames.PlatoonSupportByFire, Params = typeof(PlatoonSupportByFireParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire), Categories = BehaviorCategory.Commander,
                   Description = "A platoon's base of fire: every squad keeps the reported posts under sustained fire.")]
         [BTreeDefinition(BehaviorNames.PlatoonSupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(PlatoonSupportByFireBlackboard))]
         public static BTreeBuilder<PlatoonSupportByFireBlackboard, BTreeContext> BuildTree()
@@ -235,11 +244,15 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Dirty[i] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 ws.Dirty[i] = 0;
                 var at = p.Position + new Vector3(across * ((i - (n - 1) * 0.5f) * SpreadMetres), 0f);
-                CommandOrders.Assign(world, self, squad, BehaviorNames.SupportByFire, System.Text.Json.JsonSerializer.Serialize(new SupportByFireParamsJsonDto
+                var physical = System.Text.Json.JsonSerializer.Serialize(new SupportByFireParamsJsonDto
                 {
                     Position = at, Speed = p.Speed, CooldownSeconds = p.CooldownSeconds,
                     Post1 = p.Posts > 0 ? p.P0 : default, Post2 = p.Posts > 1 ? p.P1 : default, Post3 = p.Posts > 2 ? p.P2 : default, Post4 = p.Posts > 3 ? p.P3 : default,
-                }, json), newOrder: true);
+                }, json);
+                // ⭐ agg-behaviors R-8315 — a stochastic squad is ordered SupportByFire by KIND: the neutral AttackOrder on the posts' centre (else the support point), HoldBack
+                var neutral = System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.AttackOrder
+                    { Position = SupportByFireBehavior.PostsCentre(ref p, p.Position), Speed = p.Speed, HoldBack = true }, json);
+                CommandOrders.Route(world, self, squad, Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire, neutral, BehaviorNames.SupportByFire, physical, newOrder: true);
                 CommandOrders.AskSitrep(world, squad);
                 ws.Orders++;
             }

@@ -16,8 +16,9 @@ namespace Hrot.AI.Behaviors.Brains
     /// <see cref="Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Sop"/>) — <c>StochasticUnitSop</c>, the ONE standing-orders tree of a stochastic unit at every echelon (the
     /// physical squad SOP's plays — ReactToContact, the carrier drills — never run on a memberless unit). Two rows, first true wins, nothing else (R-8310):
     /// <list type="number">
-    /// <item><b>UNDER FIRE</b> (rounds arrived in the last <see cref="UnderFireSeconds"/> s) and the unit's order is NOT a Defend ⇒ React
-    /// <c>StochasticUnitBreakContact</c> (UnderFire urgency): a defender holds its ground — as <c>SquadDefendBehavior.NotDefending</c> spares a physical one.</item>
+    /// <item><b>UNDER FIRE</b> (rounds arrived in the last <see cref="UnderFireSeconds"/> s) and the unit's order is NOT a Defend or an Attack ⇒ React
+    /// <c>StochasticUnitBreakContact</c> (UnderFire urgency): a defender holds its ground — as <c>SquadDefendBehavior.NotDefending</c> spares a physical one — and ⭐ ST-3 (R-8317)
+    /// an ATTACKER presses on (its play ends in TaskFailed when it breaks; a Move / March under fire still breaks contact).</item>
     /// <item><b>SUPPRESSED</b> (<see cref="AggregateUnit.SuppressedShare"/> ≥ <see cref="SuppressedAt"/>) ⇒ React <c>StochasticUnitHold</c> (Contact urgency, so a
     /// retreat already running is not stopped by it): the unit stops while suppressed and the paused order resumes when the share falls.</item>
     /// </list>
@@ -48,11 +49,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The unit is stochastic (an <see cref="AggregateUnit"/> simulated at that resolution) — a SOP of the table can only be started on one.</summary>
         private static bool Stochastic(Entity self, EntityRepository world) => AggregateUnits.IsStochastic(world, self);
 
-        /// <summary>⭐ Row 1's guard: under fire AND its order is not a Defend.</summary>
+        /// <summary>⭐ R-8317 — an order whose unit holds its ground under fire: a Defend (it is where it should be) and an Attack (an assault that breaks contact at the first round is no
+        /// attack; the Attack play fails the order itself when the unit breaks). </summary>
+        public static bool HoldsItsGround(OrderKind kind) => kind == OrderKind.Defend || kind == OrderKind.Attack;
+
+        /// <summary>⭐ Row 1's guard: under fire AND its order is not one that holds its ground (<see cref="HoldsItsGround"/>).</summary>
         [SharedAiCondition]
         public static bool UnderFireNotDefending(Entity self, EntityRepository world)
             => Stochastic(self, world) && UnderFire(in world.GetComponentRO<AggregateUnit>(self))
-               && CurrentOrders.Of(world, self).Kind != OrderKind.Defend;   // the NotDefending precedent (CE-2359, DA-55)
+               && !HoldsItsGround(CurrentOrders.Of(world, self).Kind);   // the NotDefending precedent (CE-2359, DA-55), + the attack (R-8317)
 
         /// <summary>The unit's suppressed share is at least <see cref="SuppressedAt"/>.</summary>
         public static bool Suppressed(Entity self, EntityRepository world)
@@ -69,8 +74,8 @@ namespace Hrot.AI.Behaviors.Brains
             .Selector(rows => rows
                 .Sequence(row => row
                     .Condition(UnderFireNotDefending, Id("c8310000-0000-0000-0000-000000000011"))
-                        .Label("Under fire (rounds in the last 3 s) AND not defending")
-                        .Comment("R-8310: a defender holds its ground — the NotDefending precedent (CE-2359, DA-55) at the unit level.")
+                        .Label("Under fire (rounds in the last 3 s) AND not defending or attacking")
+                        .Comment("R-8310 / R-8317: a defender holds its ground (the NotDefending precedent, CE-2359, DA-55) and an attacker presses on.")
                     .React(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.BreakContact, ReactionUrgency.UnderFire, Id("c8310000-0000-0000-0000-000000000012"))
                         .Label("React: StochasticUnitBreakContact")
                         .Comment("300 m away from the nearest contact (else behind its heading), as a column; Set on arrival, and the order resumes."),
