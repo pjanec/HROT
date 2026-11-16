@@ -401,6 +401,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -451,6 +466,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5b066993f3d9c16e",
             "ActionStatus": "88f697cab6962087",
@@ -510,6 +541,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5b066993f3d9c16e",
             "ActionStatus": "88f697cab6962087",
@@ -569,6 +616,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5b066993f3d9c16e",
             "ActionStatus": "88f697cab6962087",
@@ -628,6 +691,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -693,6 +776,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -758,6 +861,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -823,6 +946,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -867,6 +1006,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -911,6 +1066,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -976,6 +1151,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1041,6 +1236,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1106,6 +1321,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1171,6 +1406,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1236,6 +1491,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1301,6 +1576,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1366,6 +1661,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1431,6 +1746,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1496,6 +1831,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1561,6 +1916,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1626,6 +2001,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -1696,6 +2091,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1750,6 +2160,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                343.106,
+                260.243,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "98ec631686d6758f",
             "ActionStatus": "179d8fe9af4f6f87",
@@ -1820,6 +2246,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                340,
+                300,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "79fb1d67878c167b",
             "ActionStatus": "179d8fe9af4f6f87",
@@ -1890,6 +2332,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                336.894,
+                339.757,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8d7f6adcd2ce3b77",
             "ActionStatus": "179d8fe9af4f6f87",
@@ -1960,6 +2418,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -2029,6 +2507,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -2098,6 +2596,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -2167,6 +2685,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2200,6 +2734,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "f60b28cc45211414",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -2218,6 +2753,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -2251,6 +2802,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "86540c192ec8bf5d",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -2269,6 +2821,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -2338,6 +2910,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -2407,6 +2999,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -2476,6 +3088,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -2545,6 +3177,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -2614,6 +3266,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -2683,6 +3355,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -2752,6 +3444,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -2821,6 +3533,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -2890,6 +3622,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -2959,6 +3711,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -3028,6 +3800,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -3102,6 +3894,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3156,6 +3963,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                343.106,
+                260.243,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "0208b776b07eaef4",
             "ActionStatus": "65f547077661d2c2",
@@ -3226,6 +4049,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                340,
+                300,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8fe97fb9e60c304c",
             "ActionStatus": "65f547077661d2c2",
@@ -3296,6 +4135,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                336.894,
+                339.757,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "0a08b502a768c38a",
             "ActionStatus": "65f547077661d2c2",
@@ -3366,6 +4221,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -3435,6 +4310,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -3504,6 +4399,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -3573,6 +4488,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3606,6 +4537,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "51a82cd6d3e68e1d",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -3624,6 +4556,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -3658,6 +4606,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "404eb100891d90d5",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -3677,6 +4626,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -3746,6 +4715,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -3815,6 +4804,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -3884,6 +4893,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -3953,6 +4982,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -4022,6 +5071,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -4091,6 +5160,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -4160,6 +5249,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -4229,6 +5338,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -4298,6 +5427,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -4367,6 +5516,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -4436,6 +5605,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -4510,6 +5699,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -4561,6 +5765,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "68700915319db087",
             "ActionStatus": "2f21d171b259ae12",
@@ -4629,6 +5849,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "7915756896ef6ef0",
             "ActionStatus": "2f21d171b259ae12",
@@ -4697,6 +5933,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2ec8e2762d93e3e8",
             "ActionStatus": "2f21d171b259ae12",
@@ -4765,6 +6017,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -4834,6 +6106,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -4903,6 +6195,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -4972,6 +6284,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -5005,6 +6333,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "5db1e4d847dd73d5",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -5023,6 +6352,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -5057,6 +6402,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "fbf1f858d2eb70f8",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -5076,6 +6422,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -5145,6 +6511,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -5214,6 +6600,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -5283,6 +6689,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -5352,6 +6778,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -5421,6 +6867,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -5490,6 +6956,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -5559,6 +7045,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -5628,6 +7134,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -5697,6 +7223,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -5766,6 +7312,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -5835,6 +7401,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -5909,6 +7495,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -5960,6 +7561,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "59c39c6447ae09ba",
             "ActionStatus": "2f21d171b259ae12",
@@ -6028,6 +7645,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b92e6dedd373811e",
             "ActionStatus": "2f21d171b259ae12",
@@ -6096,6 +7729,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "84a5a2cfba8d65a0",
             "ActionStatus": "2f21d171b259ae12",
@@ -6164,6 +7813,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -6233,6 +7902,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -6302,6 +7991,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -6371,6 +8080,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -6404,6 +8129,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "d836166e0dadba2b",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -6422,6 +8148,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -6456,6 +8198,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "f098c93f7be3462a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -6475,6 +8218,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -6544,6 +8307,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -6613,6 +8396,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -6682,6 +8485,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -6751,6 +8574,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -6820,6 +8663,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -6889,6 +8752,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -6958,6 +8841,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -7027,6 +8930,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -7096,6 +9019,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -7165,6 +9108,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -7234,6 +9197,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -7308,6 +9291,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -7359,6 +9357,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "59c39c6447ae09ba",
             "ActionStatus": "2f21d171b259ae12",
@@ -7427,6 +9441,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b92e6dedd373811e",
             "ActionStatus": "2f21d171b259ae12",
@@ -7495,6 +9525,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "84a5a2cfba8d65a0",
             "ActionStatus": "2f21d171b259ae12",
@@ -7563,6 +9609,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -7632,6 +9698,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -7701,6 +9787,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -7770,6 +9876,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -7803,6 +9925,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "1645970c53e13839",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -7821,6 +9944,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -7855,6 +9994,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "6dbedf620faee14c",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -7874,6 +10014,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -7943,6 +10103,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -8012,6 +10192,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -8081,6 +10281,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -8150,6 +10370,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -8219,6 +10459,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -8288,6 +10548,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -8357,6 +10637,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -8426,6 +10726,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -8495,6 +10815,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -8564,6 +10904,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -8633,6 +10993,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -8707,6 +11087,21 @@
             -0.534
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -8758,6 +11153,22 @@
             3.063
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "59c39c6447ae09ba",
             "ActionStatus": "2f21d171b259ae12",
@@ -8826,6 +11237,22 @@
             -0.454
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b92e6dedd373811e",
             "ActionStatus": "2f21d171b259ae12",
@@ -8894,6 +11321,22 @@
             -4.211
           ],
           "health": 1200,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "84a5a2cfba8d65a0",
             "ActionStatus": "2f21d171b259ae12",
@@ -8962,6 +11405,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -9031,6 +11494,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -9100,6 +11583,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 2
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -9169,6 +11672,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -9202,6 +11721,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "a9fe06f7473ff602",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -9220,6 +11740,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.SuppressedShare": 0,
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -9254,6 +11790,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "6270a1b5df3d1c5b",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -9273,6 +11810,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -9342,6 +11899,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -9411,6 +11988,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -9480,6 +12077,26 @@
             3.063
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 1",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c02474b86b1cea37",
             "ActionStatus": "88f697cab6962087",
@@ -9549,6 +12166,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -9618,6 +12255,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -9687,6 +12344,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -9756,6 +12433,26 @@
             -0.454
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 2",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5e6771f40d8637a5",
             "ActionStatus": "88f697cab6962087",
@@ -9825,6 +12522,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 0
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -9894,6 +12611,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -9963,6 +12700,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 3
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",
@@ -10032,6 +12789,26 @@
             -4.211
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@M109 3",
+              "Seat": 4
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08bd0a1782f24aec",
             "ActionStatus": "88f697cab6962087",

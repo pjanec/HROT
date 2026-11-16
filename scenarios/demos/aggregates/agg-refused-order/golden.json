@@ -20,6 +20,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -66,6 +82,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -103,6 +135,21 @@
         "Strike with the battery": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionArgs": "79437a6d41d1be78",
             "ActionStatus": "88f697cab6962087",
@@ -143,6 +190,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -192,6 +255,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -223,6 +302,7 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2b1332aac429e189",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a90af315a23c69",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -238,6 +318,21 @@
         "Strike with the battery": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionArgs": "79437a6d41d1be78",
             "ActionStatus": "88f697cab6962087",
@@ -285,6 +380,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -336,6 +447,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -367,6 +494,7 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2b1332aac429e189",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a90af315a23c69",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -382,6 +510,21 @@
         "Strike with the battery": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionArgs": "79437a6d41d1be78",
             "ActionFailure": "1b65e192cafbd855",
@@ -430,6 +573,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -481,6 +640,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -512,6 +687,7 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2b1332aac429e189",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a90af315a23c69",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -527,6 +703,21 @@
         "Strike with the battery": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionArgs": "79437a6d41d1be78",
             "ActionFailure": "1b65e192cafbd855",
@@ -575,6 +766,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -626,6 +833,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -657,6 +880,7 @@
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "2b1332aac429e189",
             "SimVelocity": "bf069ad2ca2ec25a",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0a90af315a23c69",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -672,6 +896,21 @@
         "Strike with the battery": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionArgs": "79437a6d41d1be78",
             "ActionFailure": "1b65e192cafbd855",

@@ -22,6 +22,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -72,6 +87,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -113,6 +143,21 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -152,6 +197,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -208,6 +269,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -246,6 +322,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "9c893a1a2f890c00",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -262,6 +339,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Active",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -308,6 +401,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -364,6 +473,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -402,6 +526,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "072a0a918c4365ba",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -418,6 +543,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -464,6 +605,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -520,6 +677,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -558,6 +730,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "f2cc44596e3836b8",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -574,6 +747,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -620,6 +809,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -676,6 +881,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -714,6 +934,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "f37bd99f2fd8ad9c",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -730,6 +951,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -776,6 +1013,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -832,6 +1085,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -870,6 +1138,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "3fb5a14dc2807d83",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -886,6 +1155,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",
@@ -932,6 +1217,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandPicture.Subordinates.0.Strength": "Green",
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -988,6 +1289,21 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -1026,6 +1342,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "2fcfe45d3dba18a7",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -1042,6 +1359,22 @@
         "Blue holds the line": {
           "position": null,
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "ObjectiveStatus.State": "Achieved",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "5ff7c7c89fc3fcff",

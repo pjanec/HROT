@@ -28,6 +28,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -74,6 +90,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "Stopped",
+            "AggregateUnit.PathDistanceM": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -126,6 +159,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -175,6 +224,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "OnRoute",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -212,6 +278,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "849581a904716c1c",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -237,6 +304,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -286,6 +369,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "OnRoute",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -323,6 +423,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "9b8af92069356ffc",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -348,6 +449,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -397,6 +514,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "OnRoute",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -434,6 +568,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "072a0a918c4365ba",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -459,6 +594,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 0,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -508,6 +659,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "OnRoute",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -545,6 +713,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "5573a8b038d7f655",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -570,6 +739,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -621,6 +806,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "RouteFailed",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -656,6 +858,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "ac04b306261c5b5b",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -681,6 +884,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -732,6 +951,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "RouteFailed",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -767,6 +1003,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "79d71f8aa4df5879",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
@@ -792,6 +1029,22 @@
             0
           ],
           "health": null,
+          "visible": {
+            "CommandReportHistory.Items.0.Report.Subtype": 12,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -843,6 +1096,23 @@
             0
           ],
           "health": null,
+          "visible": {
+            "AggregateUnit.Move": "RouteFailed",
+            "AggregateUnit.PathDistanceM": 13.478,
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
@@ -878,6 +1148,7 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "57850e80aa69f884",
             "SopState": "f31f03dcf9e7d7d0",
+            "SquadCognitiveState": "c3052b8a9bf104ba",
             "TkbIdentity": "c0ac06f315a46b74",
             "UnitDetections": "6d683f0ffc9a2445",
             "UnitEntity": "e2edc70959f27784",
