@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-14
-current-answer: §2 (the four sub-questions, each with a recommended answer — reply "approved" or name the one to change)
+current-answer: §0 the ruling (R-4280) · §2 the sub-questions as approved
 stale-below: nothing
 related-designs:
   - docs/DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS D-4 (R-4235: "a re-import is a NEW terrain version … a batch step re-compiles every scenario on that terrain"); this question settles HOW the old version is found
@@ -12,6 +12,13 @@ related-designs:
 
 **Asked by:** `terrain` lane, `2026-11-14`, while building D-4 (CE-4403's last open item). **Decides:** where the old version of a re-imported terrain lives and how a
 scenario or a recording finds it. ⚠ Large blast radius: the residency and the catalog every node loads with.
+
+## 0. ✅ RULED `2026-11-16` (R-4280)
+
+🔒 User, verbatim: *"approved · R-5000 lean accepted, vehicles should be able to cross the 10cm curb"* — A–D approved as recommended, **plus one change to
+A** (coordinator): `versions/` is GIT-IGNORED even inside a committed demo terrain (`.gitignore` keeps generated terrain out of git, lines 73–80; the
+demo terrains are committed, city-battle 9.6 MB) — an old version lives on disk and the content root like every generated terrain. Built by
+`terrain` after its minefield batch, in the order B → A → C (D later).
 
 ## 1. Why this is a question, not a build
 

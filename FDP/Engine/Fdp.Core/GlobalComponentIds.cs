@@ -26,7 +26,7 @@ namespace Fdp.Core
     /// 496–511 held back (the 512-bit mask). 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</para>
     /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
-    /// agg-behaviors 324–326, agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
