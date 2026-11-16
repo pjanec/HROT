@@ -384,5 +384,26 @@ namespace Fdp.Toolkit.Combat.Tests
                 Assert.Equal((effect, seconds), (hit.Effect, hit.EffectSeconds.Seconds));
             }
         }
-}
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4624</c> (MR-10) — the damage step on an under-hull burst (an anti-tank mine's detonation: the target the vehicle, the round travelling UP): it meets the BELLY — a tank with a
+        /// 300 mm belly (rear 10) takes nothing from a 120 mm round, the same tank with no belly figure meets its REAR (10 mm) and takes the whole hit; the same round travelling DOWN meets the roof.
+        /// 🔴 Red-proof: map an upward round to the Rear/Top (drop the ascending branch of <c>FacingOfArrival</c>) ⇒ the 300 mm belly is never read ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4624_AnUpwardBurst_MeetsTheBelly_ItsArmourOrTheRearsDefault()
+        {
+            var armoured = SpawnArmouredTank(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 10, ArmorTop = 10, ArmorBottom = 300 });
+            Assert.Equal(0f, DamageArriving(armoured, new System.Numerics.Vector3(0, 0, 1), 120, 250), precision: 3);
+            Assert.Equal(250f, DamageArriving(armoured, new System.Numerics.Vector3(0, 0, -1), 120, 250), precision: 3);   // the roof is 10 mm
+        }
+
+        /// <summary>⭐ <c>CE-4624</c> (MR-10) — no <c>ArmorBottom</c>: the belly is the REAR value (10 mm), so the same round defeats it.</summary>
+        [Fact]
+        public void CE4624_AnUpwardBurst_WithNoBellyFigure_MeetsTheRearsValue()
+        {
+            var plain = SpawnArmouredTank(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 500, ArmorSide = 250, ArmorRear = 10, ArmorTop = 400 });
+            Assert.Equal(250f, DamageArriving(plain, new System.Numerics.Vector3(0, 0, 1), 120, 250), precision: 3);       // rear 10, never the top's 400
+        }
+    }
 }

@@ -40,6 +40,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("mm RHA")] public float? ArmourSide { get; init; }
         [EditUnit("mm RHA")] public float? ArmourRear { get; init; }
         [EditUnit("mm RHA")] public float? ArmourTop { get; init; }
+        /// <summary>⭐ <c>CE-4624</c> (MR-10) — the belly (a mine's burst); unstated ⇒ the zone's rear.</summary>
+        [EditUnit("mm RHA")] public float? ArmourBottom { get; init; }
 
         [Description("Damage × this for a hit in the zone (head 4, torso 1, limbs below 1).")]
         public float? Multiplier { get; init; }

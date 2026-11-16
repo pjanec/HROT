@@ -9,8 +9,8 @@ using Fdp.Toolkit.Tkb.Domain;
 namespace Fdp.Toolkit.Combat
 {
     /// <summary>Which face of a target a shot strikes. ⭐ M1 (D-A) — <see cref="Top"/>: the round arrives descending ≥
-    /// <see cref="ArmorModel.TopDescentDegrees"/>. 📄 <c>docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md</c> §2.</summary>
-    public enum Facing : byte { Front, Side, Rear, Top }
+    /// <see cref="ArmorModel.TopDescentDegrees"/>. ⭐ <c>CE-4624</c> (MR-10) — <see cref="Bottom"/>: the round arrives ASCENDING ≥ the same angle (a mine under the hull). 📄 <c>docs/designs/vehicle-tactics/DESIGN_Armour_Hit_Model.md</c> §2.</summary>
+    public enum Facing : byte { Front, Side, Rear, Top, Bottom }
 
     /// <summary>⭐ M2 (D-B) — what defeats armour: a kinetic round, or a shaped-charge jet (which reads the <c>…Ce</c> columns).
     /// <see cref="Tandem"/> reads the same column as <see cref="ShapedCharge"/> until ERA exists (D-C).</summary>
@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Combat
             float len = travel.Length();
             if (len < 1e-6f) return Facing.Front;
             if (-travel.Z / len >= SinTopDescent) return Facing.Top;
+            if (travel.Z / len >= SinTopDescent) return Facing.Bottom;   // ⭐ CE-4624 MR-10 — an under-hull burst: a round travelling UP meets the belly
             var fwd = Vector3.Transform(Vector3.UnitX, target.Rotation);
             var toSource = new Vector2(-travel.X, -travel.Y);
             var f2 = new Vector2(fwd.X, fwd.Y);
@@ -79,6 +80,7 @@ namespace Fdp.Toolkit.Combat
                 Facing.Front => platform.ArmorFront,
                 Facing.Side  => platform.ArmorSide,
                 Facing.Top   => platform.ArmorTop > 0f ? platform.ArmorTop : platform.ArmorRear,
+                Facing.Bottom => platform.ArmorBottom > 0f ? platform.ArmorBottom : platform.ArmorRear,   // ⭐ CE-4624 MR-10 — 0 ⇒ the rear, like the top
                 _            => platform.ArmorRear,
             };
             if (penetrator == Penetrator.Kinetic) return kinetic;
@@ -87,6 +89,7 @@ namespace Fdp.Toolkit.Combat
                 Facing.Front => platform.ArmorFrontCe,
                 Facing.Side  => platform.ArmorSideCe,
                 Facing.Top   => platform.ArmorTopCe,
+                Facing.Bottom => platform.ArmorBottomCe,
                 _            => platform.ArmorRearCe,
             };
             return ce > 0f ? ce : kinetic;

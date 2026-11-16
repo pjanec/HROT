@@ -54,6 +54,22 @@ public static class RoadBlockage
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-16) — appends the OUTLINE of every minefield that is MARKED on the ground (a side learned and marked it — marking is
+    /// physical, MR-13) or known at start (own fields, marked by their owners): a road crossing it closes to SUMO's cars like a roadblock, for every node (the replicated records).
+    /// An unknown, unmarked field leaves the road open — cars drive into it and set mines off (their bodies are bodies). Cold: the closure recomputes only on a change.
+    /// </summary>
+    public static void AddMinefields(EntityRepository world, PlaceKnowledgeTable? knowledge, List<Vector2[]> into)
+    {
+        if (knowledge == null || !world.IsComponentTypeRegistered<Minefield>()) return;
+        var outline = new List<Vector2>();
+        foreach (var field in world.Query().With<Minefield>().With<SimTransform>().Build())
+        {
+            if (world.GetComponentRO<Minefield>(field).KnownAtStartSides == 0 && !knowledge.MarkedByAnySide(field)) continue;
+            if (MinefieldKnowledgeOps.TryOutline(world, field, outline, out _)) into.Add(outline.ToArray());
+        }
+    }
+
+    /// <summary>
     /// The road along <paramref name="at"/>(s), s in [0, 1] over <paramref name="length"/> m, <paramref name="width"/> m wide: 2 = closed (a station fully
     /// covered), 1 = partly covered, 0 = clear.
     /// </summary>

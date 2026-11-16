@@ -284,6 +284,7 @@ namespace Hrot.Map.Definitions.Tkb
                 ArmorRear  = combatDef.ArmorRear,
                 // ⭐ M6 — the roof and the shaped-charge column (0 ⇒ the rear / the kinetic value, ArmorModel.ArmourFor)
                 ArmorTop     = combatDef.ArmorTop,
+                ArmorBottom  = combatDef.ArmorBottom,   // ⭐ CE-4624 (MR-10)
                 ArmorFrontCe = combatDef.ArmorFrontCe,
                 ArmorSideCe  = combatDef.ArmorSideCe,
                 ArmorRearCe  = combatDef.ArmorRearCe,
