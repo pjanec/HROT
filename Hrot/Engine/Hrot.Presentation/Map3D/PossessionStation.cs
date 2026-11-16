@@ -535,6 +535,14 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, OutOfSeatArcText, cx - sw / 2, uy, Color.Orange);
                 uy += HudLineHeight;
             }
+            // ⭐ CE-4623 (AU-6, AR-10) — a ridden horse BOLTING: the rider's controls are overridden for a while — say so under the crosshair, where he looks
+            if (IsBolted(w, _driver.Unit))
+            {
+                int bt = (int)HudText.Measure(font, BoltingText);
+                Raylib.DrawRectangle(cx - bt / 2 - 6, uy - 3, bt + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, BoltingText, cx - bt / 2, uy, Color.Red);
+                uy += HudLineHeight;
+            }
             // ⭐ CE-1359 (W-8c) — the gun cannot turn to the crosshair: say so, where he looks
             if (BeyondTraverse(w, _driver.Unit, _driver.Mount, _driver.AimAt))
             {
@@ -909,6 +917,18 @@ namespace Hrot.UI.Common.Map3D
             var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, mount);
             return dto is { TurretIndex: >= 0 } && Fdp.Toolkit.Combat.CombatTkb.TurretOf(w, unit, dto.TurretIndex) is { } turret
                 && Fdp.Toolkit.Combat.BallisticAim.BeyondTraverse(w, unit, turret, dto, aimAt);
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> (AU-6) — the text under the crosshair while the horse the rider sits on is bolting (backend's <c>AnimalFlags.Bolting</c>).</summary>
+        public const string BoltingText = "THE HORSE BOLTS - it is not under your control";
+
+        /// <summary>⭐ <c>CE-4623</c> (AU-6, AR-10) — <paramref name="unit"/> rides a horse that is BOLTING (<c>AnimalState.Flags</c> has <c>Bolting</c>). False for anyone else. Zero allocation (the HUD asks each frame).</summary>
+        public static bool IsBolted(EntityRepository w, Entity unit)
+        {
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(unit)) return false;
+            var host = w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity;
+            return w.IsAlive(host) && w.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>() && w.HasComponent<Fdp.Toolkit.Animals.AnimalState>(host)
+                   && (w.GetComponentRO<Fdp.Toolkit.Animals.AnimalState>(host).Flags & Fdp.Toolkit.Animals.AnimalFlags.Bolting) != 0;
         }
 
         /// <summary>⭐ <c>CE-4621</c> (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md PL-2, U-3) — the text under the crosshair while it points outside the FIRING SEAT's arc (a pillion's).</summary>

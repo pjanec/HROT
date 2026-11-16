@@ -21,11 +21,11 @@ public static partial class BlockFigure
     private static KitPart[] RideLegs()
         => Legs(new(0f, 0.11f, 0f), new(0.16f, 0.24f, -0.46f), new(0f, -0.11f, 0f), new(0.16f, -0.24f, -0.46f), swings: false, bend: new Vector3(1f, 0f, 0.2f));
 
-    private static KitPart[] RideBody()
+    private static KitPart[] RideBody(KitPart[]? legs = null)
     {
         return
         [
-            .. RideLegs(),
+            .. legs ?? RideLegs(),
             P(-0.02f, 0f, 0.28f, 0.24f, 0.40f, 0.56f, ColourRole.Body, upper: true),
             Head(0f, 0f, 0.70f, 0.21f, 0.20f, 0.24f, FaceOn.Front, upper: true),
         ];
@@ -68,5 +68,29 @@ public static partial class BlockFigure
         var gripR = new Vector3(0.20f, -0.14f, 0.46f);
         var gripL = new Vector3(0.52f, -0.06f, 0.46f);
         return [.. RideBody(), .. ArmsOn(gripL, gripR), Limb(stock, muzzle, 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    // ── ⭐ CE-4623 (animals, AU-6) — a man MOUNTED on a horse: the same parts in the same order, the thighs round the barrel and the shins hanging in the stirrups ────────────────────────
+
+    private static KitPart[] MountLegs()
+        => Legs(new(0f, 0.12f, 0f), new(0.08f, 0.30f, -0.70f), new(0f, -0.12f, 0f), new(0.08f, -0.30f, -0.70f), swings: false, bend: new Vector3(0.8f, 0.12f, 0.1f));
+
+    private static readonly Vector3 ReinHand = new(0.42f, 0.12f, 0.10f);
+
+    /// <summary>A rider on a horse, not firing: hands on the reins ahead of him (a soldier's rifle slung); lean him with <see cref="PillionLean"/>.</summary>
+    public static KitPart[] Mounted(bool driver, bool soldier)
+    {
+        KitPart[] body = [.. RideBody(MountLegs()), .. ArmsOn(Unlean(ReinHand, PillionLean), Unlean(new Vector3(ReinHand.X, -ReinHand.Y, ReinHand.Z), PillionLean))];
+        if (!soldier) return body;
+        return [.. body, Limb(new(-0.16f, -0.14f, 0.02f), new(-0.18f, 0.16f, 0.52f), 0.05f, 0.08f, ColourRole.Metal)];
+    }
+
+    /// <summary>A rider on a horse FIRING (the horse rider fires while riding, R-4269): the rifle shouldered and level, the legs as <see cref="Mounted"/>.</summary>
+    public static KitPart[] MountedAiming(bool soldier)
+    {
+        if (!soldier) return Mounted(false, false);
+        var stock = new Vector3(0.10f, -0.14f, 0.50f);
+        var muzzle = stock + new Vector3(RifleLength, 0f, 0.02f);
+        return [.. RideBody(MountLegs()), .. ArmsOn(new Vector3(0.52f, -0.06f, 0.46f), new Vector3(0.20f, -0.14f, 0.46f)), Limb(stock, muzzle, 0.05f, 0.08f, ColourRole.Metal)];
     }
 }

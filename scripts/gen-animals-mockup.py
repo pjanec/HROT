@@ -263,3 +263,31 @@ print(out)
 if "--png" in sys.argv:
     from mockup_kit import render
     render(out, sys.argv[sys.argv.index("--png") + 1], W, H)
+
+
+# ── --icons: the picker glyphs (assets/icons/src/_<name>.svg, 128 px, side profile facing right; python3 scripts/render-entity-icons.py renders the PNGs) ──────────────────────────────
+if "--icons" in sys.argv:
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "icons", "src")
+    def icon(name, polys, key):
+        body = "\n".join(f"<polygon points='{pts}' fill='{fill}'/>" for pts, fill in polys)
+        open(os.path.join(root, f"_{key}.svg"), "w", encoding="utf-8").write(
+            f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128' width='128' height='128'>\n<g stroke='#1B2027' stroke-width='2.4' stroke-linejoin='round'>\n{body}\n</g>\n</svg>\n")
+    for name, key in (("Cattle", "cattle"), ("Sheep", "sheep"), ("Horse", "horse"), ("Dog", "dog"), ("Cat", "cat"), ("Pig", "pig"), ("Goat", "goat")):
+        sp = SPECIES[name]; boxes, _ = quad_boxes(sp)
+        xs, zs = [], []
+        polys = []
+        for b in boxes:
+            cx, cz, lx, lz, pitch = b[:5]
+            pts = []
+            for dx, dz in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+                x, z = dx * lx / 2, dz * lz / 2; p = math.radians(pitch)
+                pts.append((cx + x * math.cos(p) + z * math.sin(p), cz - x * math.sin(p) + z * math.cos(p)))
+            polys.append((pts, ROLE(b[5], "#C8D0DA" if b[5] == "Body" else sp["body"]), b))
+            xs += [p[0] for p in pts]; zs += [p[1] for p in pts]
+        k = 104 / max(max(xs) - min(xs), max(zs) - min(zs)); ox = 64 - (min(xs) + max(xs)) / 2 * k; oy = 64 + (min(zs) + max(zs)) / 2 * k
+        out = [(" ".join(f"{ox + x * k:.1f},{oy - z * k:.1f}" for x, z in pts), fill) for pts, fill, _ in polys]
+        icon(name, out, key)
+    # a hen and a bird, hand-built profiles
+    icon("Hen", [("30,70 78,70 86,92 36,98", "#B07040"), ("66,44 80,40 84,56 70,60", "#B07040"), ("84,46 96,50 84,52", "#E1A528"), ("70,34 80,30 82,42 72,42", "#BE2824"), ("26,50 36,46 44,72 30,76", "#2E2E2A"), ("52,98 56,98 56,116 52,116", "#E1A528"), ("62,98 66,98 66,116 62,116", "#E1A528")], "poultry")
+    icon("Bird", [("34,62 84,58 92,70 40,74", "#8A6A50"), ("84,56 100,54 100,68 88,70", "#8A6A50"), ("100,58 112,62 100,64", "#E1A528"), ("18,60 36,58 38,68 22,70", "#2E2E2A"), ("46,60 70,22 88,26 66,62", "#A08060")], "bird")
+    print("icons ->", root)

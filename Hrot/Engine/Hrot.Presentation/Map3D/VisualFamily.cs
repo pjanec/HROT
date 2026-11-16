@@ -45,6 +45,26 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the motorcycle (class <c>Motorcycle</c>, DIS <c>1.1.*.80.1</c>, type 115): TWO wheels (they roll), a
     /// tank, a seat for two (the riders are men drawn seated at the seats' places, <see cref="Fdp.Toolkit.Tkb.Domain.SeatPose.Ride"/>); it BANKS into a turn (a drawing only).</summary>
     Motorcycle,
+    // ── ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1, AU-2) — the animals: nine families, keyed on the CLASS names backend declares (`Cattle` `Sheep` `Horse` `Dog` `Cat` `Bird`
+    //    `Poultry` `Pig` `Goat`). Appended (a byte value others may store). A flock (type 707) is ONE entity of the Bird family drawn as N birds (<see cref="FlockBirds"/>). ──
+    /// <summary>⭐ CE-4623 — cattle (class <c>Cattle</c>, DIS <c>3.1.*.200</c>, type 700).</summary>
+    Cattle,
+    /// <summary>⭐ CE-4623 — sheep (class <c>Sheep</c>, <c>3.1.*.201</c>, type 701).</summary>
+    Sheep,
+    /// <summary>⭐ CE-4623 — a horse: herd, riding or war (class <c>Horse</c>, <c>3.1.*.202</c>, types 702 / 703 / 704); the riding horse carries a rider (<see cref="BlockFigure.Mounted"/>).</summary>
+    Horse,
+    /// <summary>⭐ CE-4623 — a dog (class <c>Dog</c>, <c>3.1.*.203</c>, type 705).</summary>
+    Dog,
+    /// <summary>⭐ CE-4623 — a cat (class <c>Cat</c>, <c>3.1.*.204</c>, type 706).</summary>
+    Cat,
+    /// <summary>⭐ CE-4623 — a bird (class <c>Bird</c>, <c>3.2.*.205</c>): a lone bird (type 708) or a FLOCK (type 707, drawn as N birds).</summary>
+    Bird,
+    /// <summary>⭐ CE-4623 — a hen (class <c>Poultry</c>, <c>3.1.*.206</c>, type 709).</summary>
+    Poultry,
+    /// <summary>⭐ CE-4623 — a pig (class <c>Pig</c>, <c>3.1.*.207</c>, type 710).</summary>
+    Pig,
+    /// <summary>⭐ CE-4623 — a goat (class <c>Goat</c>, <c>3.1.*.208</c>, type 711).</summary>
+    Goat,
 }
 
 /// <summary>
@@ -100,9 +120,36 @@ public static class VisualFamilies
         return family;
     }
 
+    /// <summary>⭐ CE-4623 (DESIGN_Animals §4a, AR-19) — true for the nine animal families: they take the animal kits and gaits, never the man's, and never burn.</summary>
+    public static bool IsAnimal(VisualFamily f) => f >= VisualFamily.Cattle && f <= VisualFamily.Goat;
+
+    /// <summary>⭐ CE-4623 — the four-legged families (<see cref="PartRole.QuadFrontLeft"/> …): everything animal but the birds.</summary>
+    public static bool IsQuadruped(VisualFamily f) => f is VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat
+                                                          or VisualFamily.Pig or VisualFamily.Goat;
+
+    /// <summary>
+    /// ⭐ CE-4623 (AU-2, AR-19) — <b>STAND-IN</b> for the animal classes until backend declares them (AB-1): the §4a fixed DIS ids (Kind 3 · land 1 or air 2 · categories 200–208 → the family).
+    /// ⛔ It must run BEFORE the class walk — an undeclared animal class falls UP to <c>Person</c> (Kind 3) and a cow would be drawn as a man. Re-bind: when the classes
+    /// exist, their rows join <see cref="FamilyOfClass"/> (the CE-2138 rail then requires them in the table) and this method is deleted.
+    /// </summary>
+    public static VisualFamily AnimalOfDis(DISEntityType dis)
+    {
+        if (dis.Kind != 3) return VisualFamily.Unknown;
+        if (dis.Domain == 2) return dis.Category == 205 ? VisualFamily.Bird : VisualFamily.Unknown;
+        if (dis.Domain != 1) return VisualFamily.Unknown;
+        return dis.Category switch
+        {
+            200 => VisualFamily.Cattle, 201 => VisualFamily.Sheep, 202 => VisualFamily.Horse, 203 => VisualFamily.Dog, 204 => VisualFamily.Cat,
+            206 => VisualFamily.Poultry, 207 => VisualFamily.Pig, 208 => VisualFamily.Goat,
+            _ => VisualFamily.Unknown,
+        };
+    }
+
     /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
     public static VisualFamily Of(DISEntityType dis)
     {
+        var animal = AnimalOfDis(dis);   // ⭐ CE-4623 — an animal is never the man a Kind-3 type would otherwise fall up to
+        if (animal != VisualFamily.Unknown) return animal;
         var chain = EntityClassTable.Default.Chain(dis);
         for (int i = chain.Count - 1; i >= 0; i--)
             if (FamilyOfClass.TryGetValue(chain[i].Name, out var family)) return family;
@@ -117,6 +164,8 @@ public static class VisualFamilies
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
         VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
+        VisualFamily.Cattle => "_cattle", VisualFamily.Sheep => "_sheep", VisualFamily.Horse => "_horse", VisualFamily.Dog => "_dog", VisualFamily.Cat => "_cat",
+        VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat",   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)
         VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.AirDefenceVehicle => "_wheeled",   // ⭐ CE-4618 — a SAM truck is a wheeled body on the 2-D picker too
         _ => null,
     };

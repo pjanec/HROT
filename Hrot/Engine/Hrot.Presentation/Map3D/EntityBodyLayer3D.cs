@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Core;
+using Fdp.Toolkit.Animals;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -246,7 +247,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     public void Draw3D(RenderContext ctx)
     {
-        AmbientDrawn = 0;
+        AmbientDrawn = 0; DeadAnimalsDrawn = 0; FlockBirdsDrawn = 0;
         BodiesDrawn = PartsDrawn = DoorsDrawn = JumpsDrawn = CarriedDrawn = GunnersDrawn = GunnersTurned = PillionsAimed = ShoulderedDrawn = FaceDetailsDrawn = StainsDrawn = DetailsDrawn = LittersDrawn = TeamLoadsDrawn = 0;
         DescentsDrawn = CanopiesDrawn = RopesDrawn = CutRopesDrawn = 0;
         _ropeUsers.Clear();
@@ -320,6 +321,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
             var look = LookOf(type, tkb);
             if (look.Family == VisualFamily.Unit) continue;
+            // ⭐ CE-4623 (AU-4) — a FLOCK is one entity drawn as N birds, closed-form (never one body)
+            if (look.Family == VisualFamily.Bird && AnimalReader.FlockOf(world, e, out var flock)) { DrawFlock(world, e, flock, simTime); _drawn.Add(e); continue; }
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
 
@@ -336,6 +339,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (crewEye == null) { _drawn.Add(e); continue; }
             }
             var colour = ColourOf(world, e, look.Colour);
+            bool animal = VisualFamilies.IsAnimal(look.Family);   // ⭐ CE-4623
+            if (animal && !HasOwnColour(world, e, look)) colour = AnimalCoats.Of(look.Family, SeedOf(world, e, hasNet));   // a seeded coat, the same on every host
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
                 colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
             // ⭐ CE-1085 (§6n N-3) — a weapon a man CARRIES is drawn on his back, after every figure is placed (pass 2)
@@ -353,7 +358,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (band == ScreenBand.Hidden) { BodiesHidden++; continue; }
             if (band == ScreenBand.Far) { DrawFar(world, e, look, size, type, colour, hasNet); continue; }
             BodiesFull++;
-            bool wreck = look.Family != VisualFamily.Person && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            bool deadAnimal = animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);   // ⭐ CE-4623 (AR-8) — a dead animal LIES; it is never the burnt-out wreck of a vehicle
+            bool wreck = look.Family != VisualFamily.Person && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
@@ -361,7 +367,11 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
                                            || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
-            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock);   // ⭐ CE-1353
+            var animalMode = animal ? AnimalReader.ModeOf(world, e) : AnimalMode.Calm;
+            if (look.Family == VisualFamily.Horse && type is 703 or 704 && animalMode == AnimalMode.Calm) animalMode = AnimalMode.Guard;   // ⭐ CE-4623 — a saddled (riding / war) horse stands head up, it does not graze
+            float animalHeight = animal && look.Family is VisualFamily.Horse or VisualFamily.Goat or VisualFamily.Cat or VisualFamily.Poultry
+                ? tf.Position.Z - (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f) : 0f;   // ⭐ CE-4623 — a jump's height: the legs tuck
+            var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock, animalMode, animalHeight);   // ⭐ CE-1353
             if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
 
             KitPart[] parts;
@@ -447,6 +457,20 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (deployed >= 1f) pose = LaidPose(world, e, WeaponKits.DefaultElevation(look.Weapon));
                 // ⭐ CE-1179 (People Display U18) — a PLACED charge (lying, not carried, not on a vehicle) blinks red, a quarter second each second
                 chargeBlink = look.Weapon == WeaponKind.Charge && ChargeLightOn(world, e, simTime);
+            }
+            else if (animal)
+            {
+                // ⭐ CE-4623 (AU-2..AU-5) — an animal: its own kit (lying when resting, wings folded when a bird is perched), the gait / head / wing from the motion pose; a DEAD one lies on its side, legs stiff
+                parts = AnimalKits.For(look.Family, animalMode, look.Family == VisualFamily.Bird && motion.Wing == 0f).Parts;
+                if (deadAnimal)
+                {
+                    var (fallT, _) = _fall.Dead(e, simTime);
+                    float a = fallT * MathF.PI / 2f;
+                    body = Matrix4x4.CreateRotationX(a) * Matrix4x4.CreateTranslation(0f, size.Z * 0.4f * MathF.Sin(a), size.Y * 0.5f * MathF.Sin(a)) * body;
+                    motion = MotionPose.Still;
+                    DeadAnimalsDrawn++;
+                }
+                else _fall.Alive(e, StanceId.Standing, simTime);
             }
             else
             {
@@ -1228,6 +1252,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 _fall.Alive(e, StanceId.Crouched, simTime);
                 if (stands) return BlockFigure.AtWeapon(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Kneel, soldier);
                 // ⭐ CE-4621 — astride a two-wheeler: the driver on the bars, a pillion holding on — or, on a FIRING seat with his rifle up, the rifle shouldered
+                if (seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Ride && IsHorse(world, carriage.Holder))   // ⭐ CE-4623 (AU-6) — in the saddle: legs round the barrel, hands on the reins; firing, the rifle shouldered
+                    return FiringAimed(world, e, seat, soldier, driverFires: true) ? BlockFigure.MountedAiming(soldier) : BlockFigure.Mounted(seat.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Driver, soldier);
                 if (seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.Ride)
                     return FiringAimed(world, e, seat, soldier) ? BlockFigure.RidingAiming(soldier) : BlockFigure.Riding(seat.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Driver, soldier);
                 return BlockFigure.Seated(seat.Pose == Fdp.Toolkit.Tkb.Domain.SeatPose.SitLegsOut, soldier);
@@ -1389,6 +1415,54 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return seatFrame * Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateRotationZ(azimuth) * Matrix4x4.CreateTranslation(pivot);
     }
 
+    /// <summary>⭐ CE-4623 — dead animals drawn lying by the last frame (rails).</summary>
+    public int DeadAnimalsDrawn { get; private set; }
+    /// <summary>⭐ CE-4623 — birds drawn from flocks by the last frame (rails).</summary>
+    public int FlockBirdsDrawn { get; private set; }
+
+    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)?</summary>
+    private bool IsHorse(EntityRepository world, Entity holder)
+        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family == VisualFamily.Horse;
+
+    /// <summary>
+    /// ⭐ CE-4623 (AU-4, AR-14) — a flock: N birds, each a closed-form offset of (seed, index, sim time, mode) in the flock's frame (<see cref="FlockBirds"/>); a dot each when far, the bird
+    /// kit (wings beating; folded landed or perched) when near; the flock vanishes under <see cref="HiddenBelowPx"/>. 0 B per frame.
+    /// </summary>
+    private void DrawFlock(EntityRepository world, Entity e, in FlockState flock, double simTime)
+    {
+        int n = Math.Min((int)flock.Count, FlockBirds.MaxDrawn);
+        if (n <= 0) return;
+        ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
+        var frame = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+        float birdPx = _scale.IsSet ? _scale.PixelsOf(tf.Position, 0.35f) : 100f;
+        float flockPx = _scale.IsSet ? _scale.PixelsOf(tf.Position, FlockBirds.Radius(n) * 2f) : 1000f;
+        if (flockPx < HiddenBelowPx) { BodiesHidden++; return; }
+        bool dots = birdPx < 3f;
+        var kit = AnimalKits.For(VisualFamily.Bird, AnimalMode.Calm, perched: flock.Mode != FlockMode.Flying);
+        var size = AnimalKits.SizeOf(VisualFamily.Bird);
+        var colour = AnimalCoats.Of(VisualFamily.Bird, flock.Seed);
+        for (int i = 0; i < n; i++)
+        {
+            var at = FlockBirds.Offset(flock.Seed, i, simTime, flock.Mode, flock.InitialCount > 0 ? flock.InitialCount : flock.Count);
+            var bird = Matrix4x4.CreateRotationZ(FlockBirds.Yaw(flock.Seed, i, simTime, flock.Mode)) * Matrix4x4.CreateTranslation(at) * frame;
+            if (dots)
+                Submit(_cube, HrotToRaylib.ModelFromHrot(Matrix4x4.CreateScale(0.3f, 0.3f, 0.15f) * Matrix4x4.CreateTranslation(0f, 0f, 0.1f) * bird), colour, BodySurface.PlainData);
+            else
+            {
+                var motion = new MotionPose(0f, 0f, 0f, Wing: FlockBirds.Wing(flock.Seed, i, simTime, flock.Mode));
+                var parts = kit.Parts;
+                for (int pi = 0; pi < parts.Length; pi++)
+                {
+                    var part = parts[pi];
+                    Submit(_cube, HrotToRaylib.ModelFromHrot(part.BodyTransform(size, default, ArticulationPose.Neutral, motion) * bird), PartColour(part.Colour, colour, false), BodySurface.PlainData);
+                    PartsDrawn++;
+                }
+            }
+            FlockBirdsDrawn++;
+        }
+        BodiesFull++; BodiesDrawn++;
+    }
+
     /// <summary>⭐ CE-4621 — a pillion drawn TURNED to his aim by the last frame (rails).</summary>
     public int PillionsAimed { get; private set; }
 
@@ -1396,8 +1470,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public const float MaxSeatTwist = 160f * MathF.PI / 180f;
 
     /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station, non-DRIVER seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered. ⛔ The driver (backend's rider seat has an arc, PF-4: fires only stopped) always stays on the bars — LD-9.</summary>
-    private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier)
-        => soldier && seat.Role is not (Fdp.Toolkit.Behavior.Components.SeatRole.Station or Fdp.Toolkit.Behavior.Components.SeatRole.Driver) && seat.TraverseMinDeg != null && seat.TraverseMaxDeg != null
+    private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier, bool driverFires = false)
+        => soldier && (driverFires ? seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station : seat.Role is not (Fdp.Toolkit.Behavior.Components.SeatRole.Station or Fdp.Toolkit.Behavior.Components.SeatRole.Driver))
+           && seat.TraverseMinDeg != null && seat.TraverseMaxDeg != null
            && PostureOf(world, e) == WeaponPostureKind.Aimed;
 
     /// <summary>
@@ -1411,7 +1486,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (carriage.Kind != CarriageKind.Seated || carriage.Seat is not { Pose: Fdp.Toolkit.Tkb.Domain.SeatPose.Ride } seat) return still;
         bool driver = seat.Role == Fdp.Toolkit.Behavior.Components.SeatRole.Driver;
         float twist = 0f, pitch = 0f;
-        bool aiming = FiringAimed(world, e, seat, soldier) && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)
+        bool mounted = IsHorse(world, carriage.Holder);   // ⭐ CE-4623 — a horse's rider FIRES while riding (R-4269, unlike the motorcycle's driver) and sits upright on the reins
+        bool aiming = FiringAimed(world, e, seat, soldier, driverFires: mounted) && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)
                       && Matrix4x4.Invert(body, out var inverse)
                       && AimInSeat(Vector3.Transform(at, inverse), out twist, out pitch);
         if (aiming) PillionsAimed++;
@@ -1419,7 +1495,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return still with
         {
             HipZ = 0f, Twist = twist,
-            Lean = (aiming || MathF.Abs(twist) > 0.02f ? 0f : driver ? BlockFigure.DriverLean : BlockFigure.PillionLean) - pitch,
+            Lean = (aiming || MathF.Abs(twist) > 0.02f ? 0f : driver && !mounted ? BlockFigure.DriverLean : BlockFigure.PillionLean) - pitch,
             HeadTurn = soldier ? _postures.Head(e, HeadTurnOf(world, e, twist), simTime) : 0f,
         };
     }
@@ -2160,6 +2236,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     {
         ColourRole.Skin => Skin,   // ⭐ CE-1097 (§6o F-1)
         ColourRole.Canvas => Canvas,   // ⭐ CE-1104 (§6t)
+        ColourRole.Light => new Color((byte)Math.Min(255, body.R * 1.3f + 12), (byte)Math.Min(255, body.G * 1.3f + 12), (byte)Math.Min(255, body.B * 1.3f + 12), (byte)255),   // ⭐ CE-4623
+        ColourRole.Bone => new Color(226, 218, 196, 255),
+        ColourRole.Red => new Color(190, 40, 36, 255),
+        ColourRole.Amber => new Color(225, 165, 40, 255),
         ColourRole.Dark => Dark,
         ColourRole.Glass => Glass,
         ColourRole.Metal => Metal,
@@ -2184,6 +2264,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
+        >= VisualFamily.Cattle and <= VisualFamily.Goat => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
         _ => new Color(180, 120, 200, 255),
     };
 
