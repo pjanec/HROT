@@ -248,6 +248,30 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Equal(own, controller.ActiveHint);                                             // free again: the tool's own hint is back
         }
 
+        /// <summary>⭐ CE-5009 — a DITCH line (the ground tint underlay, not the ghost) snaps AND says so on the hint line. 🔴 Red-proof: the tint underlay not wrapped by <c>WithSnapHint</c> ⇒ the hint stays the tool's own.</summary>
+        [Fact]
+        public void CE5009_ADitchLinesSnap_IsOnTheHintLineToo()
+        {
+            if (!_world.IsComponentTypeRegistered<SimTransform>()) _world.RegisterComponent<SimTransform>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.TerrainFeature>()) _world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
+            _world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new Fdp.Toolkit.Terrain.TerrainFeature { Kind = Fdp.Toolkit.Terrain.TerrainFeature.Hedge });
+            _world.SetManagedComponent(e, new Hrot.Map.Common.Components.EditablePolyline { Points = new[] { new Vector2(0, 0), new Vector2(60, 0) }, Version = 1 });
+            _world.Tick();
+
+            var manager = MakeManager();
+            var controller = MakeController(manager);
+            var adapter = new ScenarioSpawnAdapter(_creation, tkbDb: _tkb, globalGizmoManager: manager, tools: controller);
+            adapter.StartAreaAuthoringMode(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, Hrot.UI.Common.AddEntity.TerrainBirth.PlacementJson($"feature:{Fdp.Toolkit.Terrain.TerrainFeature.Ground}:ditch:Line"));
+            var field = typeof(GlobalGizmoManager).GetField("_activeGizmos", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var gizmo = ((System.Collections.IDictionary)field.GetValue(manager)!).Values.Cast<object>().OfType<Fdp.Toolkit.Vis2D.Gizmos.PointSequenceGizmo>().Single();
+            var draw = new DebugPrimitiveBuffer();
+            gizmo.OnDragUpdate(new Vector3(100.5f, 50.3f, 0f)); gizmo.UpdateAndDraw(_world, 0.016f, draw);
+            Assert.Equal("snapped: the end of a line · Ctrl: free", controller.ActiveHint);
+        }
+
         [Fact]
         public void StartRouteAuthoringMode_RegistersGizmoWithManager()
         {

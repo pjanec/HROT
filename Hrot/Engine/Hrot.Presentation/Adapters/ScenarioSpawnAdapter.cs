@@ -451,7 +451,7 @@ namespace Hrot.UI.Common.Adapters
                 // ⭐ the commit reads what the drawing panel holds (kind, height / width, recipe, density, seed): ONE object, so the panel and the entity cannot disagree
                 Born:       drawOptions is null ? null : drawOptions.Born,
                 // ⭐ CE-4592 (P-5 2b, mockup B) — a ground area / ditch tints the height CHANGE it makes under the shape while it is drawn (the ONE effect the panel's hint reads)
-                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? (draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke()))
+                Underlay:   drawOptions is { IsGround: true } or { IsDitch: true } ? WithSnapHint((draw, pts) => Hrot.ScenarioEditor.Gizmos.GroundTintDraw.Draw(draw, drawOptions.EffectOf(pts, TerrainContext?.Invoke())), feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? drawOptions : null)   // ⭐ CE-5009 — a ditch / berm line's snap says so on the hint line too
                           : drawOptions is not null && Hrot.UI.Common.AddEntity.TerrainDrawGhost.Applies(drawOptions)
                               ? WithSnapHint(Ghost.UnderlayOf(drawOptions), feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? drawOptions : null) : null,   // ⭐ CE-5011 B (TE-10) — the drawing ghost: a thick line · a dot per tree · the area tinted
                 // ⭐ Clears this adapter's mirror when the tool tears itself down — exactly what the
