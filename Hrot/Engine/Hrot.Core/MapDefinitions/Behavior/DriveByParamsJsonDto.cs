@@ -33,5 +33,9 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The pass starts this far from the target (m); 0 = 40.</summary>
         [JsonPropertyName("PassMetres")]
         public float PassMetres;
+
+        /// <summary>⭐ <c>IM-1</c> — the pillion THROWS one grenade at the target at the pass instead of firing a burst (false / absent keeps the burst).</summary>
+        [JsonPropertyName("Throw")]
+        public bool Throw;
     }
 }
