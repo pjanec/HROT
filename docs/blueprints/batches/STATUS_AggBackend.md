@@ -31,6 +31,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | CE-8017 bottom row | ✅ built | *(round 3)* | ST-3's TODO: the mine row against the belly (MS-T1's `ArmorBottom`, merged from coordinator `341ae8ad6`) |
 | CE-8013 ST-5 wiring | 🟡 ①②③④⑥ built | *(round 3)* | manager in `CgfLogicPack`; `HeldChildParticipant` (EntityCreationPack, per-entity ELM requirement, unbounded); ammo both ways; UNOBSERVED; lifecycle teardown — ⏳ ⑤ the planners' posts (agg-behaviors'), ⑦ CE-8005 |
 | CE-8005 route half | ✅ built | *(round 3)* | a navmesh-less node asks the solver over the path-request topic (5 s, then local); the Brain-only CGF node composes the pair with its pool — ⏳ the position-ownership half |
+| CE-8018 N-3 | ✅ built | *(round 3)* | a stochastic observer sees physical bodies (one way); `UnitSensingRails.N3_…` 47 / 0 plain, 37 / 0 under the parallel checks; red-proofs: bodies not gathered · `Health` undeclared (read check) — 2 / 2 red |
 | ST-5 resolution | 🟡 built (engine), not wired → see CE-8013 above | *(ST-5 commit)* | `CE-8012` the manager, the process stages, `BusResolutionSwitch` (derived identities, held children, X-4 both ways), pins, C-7, hysteresis; ⛔ `CE-8013` production wiring (the TKB composite resolver, the held lifecycle participant, ammunition, UNOBSERVED, the planners' posts) |
 
 ## 2. Lane decisions — ✅ ALL APPROVED by the user `2026-11-16` (R-4278, [NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md](NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md))
@@ -72,4 +73,4 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 ## 4. Ids allocated
 
-`CE-8000` … `CE-8017` (Area AGG-B in the tracker) · `R-8000`…`R-8004` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+`CE-8000` … `CE-8018` (Area AGG-B in the tracker) · `R-8000`…`R-8004` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).

@@ -580,7 +580,8 @@ planner.*
 | the refusal's TaskFailed rides the receiver's own outbox (`ReportQueue`, the staff's delay) | the one report path (CC-5) | — |
 | ST-2's sensing writes the observer's OWN squad pool directly (N-2) and `SquadPerceptionMergeSystem` skips a stochastic unit | the merge recomputes the pool from members; a memberless unit's would be wiped every dwell | — |
 | ST-2's draw is the step's EXPECTED chance accumulated (no dice) | N-5 accumulates; deterministic at any thread count without a seed | — |
-| ⏳ N-3 (a stochastic observer seeing PHYSICAL entities) not in the first increment | stochastic targets only | — |
+| ⛔ ~~N-3 not in the first increment~~ — SUPERSEDED round 3 ↓ | | |
+| ⭐ N-3 (round 3): physical bodies gathered serially (position, side, √(one man's / a vehicle's share) as the signature, no footprint — one sample point); the activity factors (N-4) apply to units only; a dead body leaves the pool; `UnitDetections.Capacity` (32) bounds what one observer tracks — men beyond it are not paired | the parallel phase reads no physical component; one accumulation for both kinds | CE-8018 |
 | ST-3: phase A writes ONLY `FireAllocation`; phase B spends the firer's own ammunition from its own lines (`FireLine.Source`, the former pad byte) | A then reads the targets as stable reads and writes one component; B writes only itself | — |
 | ST-3: phase B reads the enemy lines of THIS step (A ran first in the same frame), not last step's | the same determinism; one step less of delay | — |
 | ST-3: the run seed reaches the draw from the world's `RunSeed` singleton, else the process seed — passed explicitly | a phase never writes the static (and tests run in parallel) | R-8003 |
