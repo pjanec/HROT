@@ -167,11 +167,16 @@ namespace Fdp.Toolkit.Navigation
         /// Appends the last <see cref="Route"/> to <paramref name="output"/> as points along the curves, entry to exit, in travel
         /// direction. <paramref name="z"/> gives each point's height (the navmesh's, or 0).
         /// </summary>
+        /// <summary>⭐ CE-9003 (C-7, R-9006) — drive the outer lane on the travel side instead of the centre line (<see cref="LaneOffset"/>). Set by the planner for
+        /// <see cref="RoadUse.StronglyPrefer"/> (the convoy's road use); every other road use keeps the centre line as before.</summary>
+        public bool KeepLane { get; set; }
+
         public void EmitLeg(in RoadNetworkBlob roads, List<Vector3> output, Func<int, float, Vector2, float> z)
         {
+            bool lane = KeepLane;
             if (_sameSegment)
             {
-                Partial(roads, _entry.Segment, _entry.Along, _exit.Along, output, z);
+                Partial(roads, _entry.Segment, _entry.Along, _exit.Along, output, z, lane);
                 return;
             }
             var se = roads.Segments[_entry.Segment];
@@ -180,32 +185,47 @@ namespace Fdp.Toolkit.Navigation
                 ? (_forward[0] ? roads.Segments[_segments[0]].StartNodeIndex : roads.Segments[_segments[0]].EndNodeIndex)
                 : (_exitViaStartNode ? roads.Segments[_exit.Segment].StartNodeIndex : roads.Segments[_exit.Segment].EndNodeIndex);
             float entryEnd = firstNode == se.StartNodeIndex ? 0f : se.Length;
-            Partial(roads, _entry.Segment, _entry.Along, entryEnd, output, z);
+            Partial(roads, _entry.Segment, _entry.Along, entryEnd, output, z, lane);
 
             for (int i = 0; i < _segments.Count; i++)
             {
                 var seg = roads.Segments[_segments[i]];
-                if (_forward[i]) Partial(roads, _segments[i], 0f, seg.Length, output, z);
-                else Partial(roads, _segments[i], seg.Length, 0f, output, z);
+                if (_forward[i]) Partial(roads, _segments[i], 0f, seg.Length, output, z, lane);
+                else Partial(roads, _segments[i], seg.Length, 0f, output, z, lane);
             }
 
             var sx = roads.Segments[_exit.Segment];
-            Partial(roads, _exit.Segment, _exitViaStartNode ? 0f : sx.Length, _exit.Along, output, z);
+            Partial(roads, _exit.Segment, _exitViaStartNode ? 0f : sx.Length, _exit.Along, output, z, lane);
         }
 
         /// <summary>Points from <paramref name="from"/> to <paramref name="to"/> metres along a segment (either direction).</summary>
-        private static void Partial(in RoadNetworkBlob roads, int segIndex, float from, float to, List<Vector3> output, Func<int, float, Vector2, float> z)
+        private static void Partial(in RoadNetworkBlob roads, int segIndex, float from, float to, List<Vector3> output, Func<int, float, Vector2, float> z, bool keepLane)
         {
             var seg = roads.Segments[segIndex];
             float span = MathF.Abs(to - from);
             int steps = Math.Max(1, (int)MathF.Ceiling(SamplesPerSegment * (seg.Length > 0f ? span / seg.Length : 1f)));
+            float lane = keepLane ? LaneOffset(in seg) : 0f;
+            float dirSign = to >= from ? 1f : -1f;
             for (int k = 0; k <= steps; k++)
             {
                 float a = from + (to - from) * k / steps;
-                var p = RoadGraphNavigator.SampleRoadSegment(seg, a).pos;
+                var (p, tangent, _) = RoadGraphNavigator.SampleRoadSegment(seg, a);
+                // ⭐ CE-9003 (C-7, R-9006) — the outer lane on the travel side (right-hand traffic, the only side SUMO models): a multi-lane road is driven
+                //   in its lane, never on the centre line where it met the oncoming traffic head-on
+                if (lane > 0f && tangent.LengthSquared() > 1e-8f)
+                {
+                    var d = Vector2.Normalize(tangent) * dirSign;
+                    p += new Vector2(d.Y, -d.X) * lane;
+                }
                 Append(output, new Vector3(p, z(segIndex, a, p)));
             }
         }
+
+        /// <summary>
+        /// ⭐ CE-9003 (C-7, R-9006; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — how far right of the centre line the outer lane on the travel side lies:
+        /// <c>LaneWidth · (LaneCount − 1) / 2</c> (the count is the whole carriageway — half-width = <c>LaneWidth · LaneCount / 2</c>); 0 for a one-lane road.
+        /// </summary>
+        public static float LaneOffset(in RoadSegment seg) => seg.LaneCount > 1 && seg.LaneWidth > 0f ? seg.LaneWidth * (seg.LaneCount - 1) * 0.5f : 0f;
 
         /// <summary>
         /// Adds <paramref name="p"/>; a point within 10 cm of the last one REPLACES it (stitched legs share their ends, and the
