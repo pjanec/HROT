@@ -367,6 +367,40 @@ public sealed class AudioTests
         Assert.Equal(0, passes.Scan(world, me, Vector3.Zero));                             // once per round
     }
 
+    /// <summary>⭐ CE-4624 (MS-U4) — a mine clearer's flail is a loop of its own while <c>FlailActivity.IsOn</c>: heard standing still, louder and higher than a tank's engine at the same range
+    /// (the tracked-engine clip, pitched up, until a flail asset is named); silent when the flail is off. ⚠ The reader is a stand-in until terrain's flail state lands, so the rail overrides it.</summary>
+    [Fact]
+    public void CE4624_AMineClearersFlailLoopsWhileItIsOn_LouderAndHigherThanAnEngine_AndStopsWhenItStops()
+    {
+        var (world, tkb) = World();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var clearer = Unit(world, TkbEntityTypes.Tank_T72, new Vector3(100f, 0f, 0f));   // stands in for the clearer: tracked, 100 m away, NOT moving
+        var tank = Unit(world, TkbEntityTypes.Tank_T72, new Vector3(-100f, 0f, 0f));     // a plain tank, 100 m the other way, driving
+        world.AddComponent(clearer, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Tracked });
+        world.AddComponent(tank, new Fdp.Toolkit.Motion.Locomotion { Class = LocomotionClass.Tracked });
+        bool on = false;
+        Hrot.UI.Common.Map3D.FlailActivity.Override = (w, e) => ReferenceEquals(w, world) && on && e == clearer;
+        try
+        {
+            var (layer, output) = Listening(world, tkb, me);
+            for (int i = 0; i < 4; i++) { Move(world, tank, new Vector3(0.16f, 0f, 0f)); layer.Update(0.016f); }
+            var engine = Assert.Single(output.Looping.Where(v => v.Clip == SoundTkbCatalog.TrackedEngine));   // only the driving tank: the clearer's flail is off and it stands
+            on = true;
+            for (int i = 0; i < 4; i++) { Move(world, tank, new Vector3(0.16f, 0f, 0f)); layer.Update(0.016f); }
+            var loops = output.Looping.Where(v => v.Clip == SoundTkbCatalog.TrackedEngine).ToList();
+            Assert.Equal(2, loops.Count);
+            var flail = loops.Single(v => v.Pan > 0f);   // the clearer is on the right
+            var drive = loops.Single(v => v.Pan < 0f);
+            Assert.True(flail.Gain > drive.Gain, $"louder than an engine: {flail.Gain} vs {drive.Gain}");
+            Assert.True(flail.Pitch > drive.Pitch * 1.3f, $"and higher: {flail.Pitch} vs {drive.Pitch}");
+            on = false;
+            for (int i = 0; i < 4; i++) { Move(world, tank, new Vector3(0.16f, 0f, 0f)); layer.Update(0.016f); }
+            Assert.Single(output.Looping.Where(v => v.Clip == SoundTkbCatalog.TrackedEngine));   // the flail stopped: its loop is released
+        }
+        finally { Hrot.UI.Common.Map3D.FlailActivity.Override = null; }
+    }
+
     [Fact]
     public void CE1120_ATankComingIsHigherThanATankGoing_ARoundPastTheEarCracksOnce_AFarBattleRumbles()
     {
