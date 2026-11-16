@@ -36,6 +36,8 @@ namespace Fdp.Toolkit.Animals.Tests
             foreach (var t in tr.GetProducedComponents()) { }
             w.RegisterComponent<AnimalState>();
             w.RegisterComponent<FlockState>();
+            w.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+            w.RegisterComponent<Fdp.Toolkit.Navigation.NavigationStatus>();
 
             var cowType = Type("Cattle", 700, AnimalSpecies.Cattle, 200);
             var cow = w.CreateEntity();
@@ -51,6 +53,10 @@ namespace Fdp.Toolkit.Animals.Tests
             var flock = w.CreateEntity();
             tr.Inject(w, flock, flockType);
             Assert.Equal(AnimalTkbTranslator.DefaultFlockCount, w.GetComponentRO<FlockState>(flock).Count);
+            // ⭐ AB-10 — a bird has no ground (vehicle) translator, so the animal translator gives it the navigation contract its MoveTo writes;
+            //   🔴 red-proof: drop it ⇒ red (the farm demo's flock threw "missing NavigationIntent" on its first flight)
+            Assert.True(w.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(flock));
+            Assert.True(w.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(flock));
 
             Assert.Null(Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(cowType));                  // a whole body, never a man's zones
             Assert.True(Animals.IsAnimalDis(cowType.DisType));

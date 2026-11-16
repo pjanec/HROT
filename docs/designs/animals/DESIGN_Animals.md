@@ -400,6 +400,59 @@ sequenceDiagram
 ```
 *What it shows: an animal's fear has ONE writer (the fear system, on its brain node) and ONE replicated face (the band); nothing per frame crosses the wire.*
 
+## 9a. AB-6 jump links — the design *(backend, `2026-11-16`; build-state: READY-TO-BUILD; INVENTORY: `search_graph name_pattern=".*OffMesh.*" label=Class` ⇒ 6 classes, all fake-navmesh / test-only (`OffMeshLink`, `OffMeshLinkDetectionSystem` unregistered, `FakeNavmeshProvider`); grep `offMeshCon` over the repo ⇒ 0; graph coverage could not be checked through the CLI)*
+
+📐 **Measured:** the real bake (`RecastNavmeshBaker.BakeTile`) sets no `offMeshCon*`; every polygon gets flag 1; the ONE filter (`DoorAwareQueryFilter`, wrapping Detour's default) includes EVERY flag (0xFFFF); `FindStraightPath`'s flags are never read; the kinematics hold any hull or animal at a free wall it cannot breach. `TraversalKind.Jump` already exists (`NavigationComponents.cs:131`).
+
+```mermaid
+classDiagram
+  class RecastNavmeshBaker { BakeTile(geom, p, cs, ax, az) +offMeshCon from JumpLinks }
+  class JumpLinks { <<new, static>> For(TerrainWorld, tileBounds) ; MaxHeightM 1.2 ; SpacingM 4 ; ReachM 1.0 ; Flag 2 }
+  class TerrainWallPanel { <<existing>> Building == -1 is a free wall ; height ; base }
+  class DoorAwareQueryFilter { <<existing>> excludes NavPolyFlags.Jump unless MayJump }
+  class LayerState { <<existing>> FilterFor(doors, layerMask) +a jumping variant }
+  class NavLayerSelection { <<existing>> For() ; +JumpModifier = 1 << 13 for a Quadruped whose type Jumps }
+  class DotRecastNavmeshProvider { <<existing>> straight path OFFMESH point -> Traversal Jump }
+  class CarKinematicsSystem { <<existing>> the barrier gate: a JUMPER over a low barrier passes (AnimalFear.MayJump) }
+  RecastNavmeshBaker --> JumpLinks : asks per tile
+  JumpLinks --> TerrainWallPanel : low free walls / fences
+  LayerState --> DoorAwareQueryFilter : shared + jumping variant
+  NavLayerSelection ..> LayerState : the JumpModifier bit picks the filter
+  DotRecastNavmeshProvider --> LayerState
+  CarKinematicsSystem ..> TerrainWallPanel : barrier height
+```
+*What it shows that prose hid: ONE new class (`JumpLinks`); everything else is an existing seam gaining one branch — and the jump flag must be EXCLUDED by default, or every infantry path would start vaulting garden walls.*
+
+```mermaid
+sequenceDiagram
+  participant B as RecastNavmeshBaker (terrain load)
+  participant P as DotRecastNavmeshProvider (path solve)
+  participant K as CarKinematicsSystem (every frame)
+  B->>B: BakeTile: JumpLinks.For(world, tile) -> offMeshCon (both ways, flag Jump)
+  Note over B: the bake cache key carries the jump-link version, so a cached tile is re-baked
+  P->>P: mask has JumpModifier ? jumping filter : default (Jump excluded)
+  P->>P: FindStraightPath: OFFMESH point -> waypoint Traversal = Jump
+  K->>K: a step crosses a low barrier: a jumper passes (no hold), others are held as today
+```
+
+```mermaid
+graph TD
+  TL[terrain load - RecastNavmeshFactory] -->|once per tile| BK[RecastNavmeshBaker.BakeTile]
+  NS[NavigationSolver module - PathfindingSolverSystem, per request] --> PR[DotRecastNavmeshProvider.PlanPathCore]
+  SIM[SimHost Muscle - CarKinematicsSystem, every frame] --> GATE[the barrier gate]
+  ODS[OffMeshLinkDetectionSystem]:::dead
+  classDef dead fill:#fdd,stroke:#c00
+```
+*The red box is NOT used: the detection system is unregistered in production and its traversal-ended event has no publisher; the jump is done where the hold happens (the kinematics' barrier gate), so nothing new needs registering.*
+
+| decision | why · what would change it |
+|---|---|
+| links only at FREE walls / fences (building = −1) of height ≤ 1.2 m, every 4 m, 1 m each side, both ways | AN-13's "a low obstacle up to ~1.2 m"; a ditch has no terrain feature yet (filed) |
+| links on the INFANTRY layer only (animals plan there, L-A6) | an animal layer would carry them alone |
+| the jump flag EXCLUDED by every filter except a jumper's (`JumpModifier`) | soldiers' paths must not change; ⭐ rail: the same infantry path before and after the bake |
+| the kinematics pass a jumper over a low barrier; the arc is the presentation's (ui AU-3 "the jump's tucked legs") | sim height stays on the ground; a jump arc in the sim would need a vertical state no animal has |
+| ⏳ the cat's SILL hop is NOT in AB-6 v1 | a sill is no navmesh polygon (a window ledge), so an off-mesh link has no far end; it is a perch for the brain — filed (L-A25) |
+
 ## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
 
 ## 6. Slices *(each gated by the review §8 before it is built)*

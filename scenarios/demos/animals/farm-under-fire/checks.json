@@ -1,15 +1,104 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 AB-10 farm-under-fire (docs/designs/animals/DESIGN_Animals.md §6.2). The animals an area makes are named after it ('Pasture 1'..'Pasture 8', the flock 'Orchard birds'), so '*Pasture ' names the herd and not the area. AnimalState.FearBand: 0 calm, 1 uneasy, 2 frightened, 3 panic; AnimalState.Mode: 0 Calm, 1 Alert, 2 Flee, 3 Recover; FlockState.Mode: 0 Perched.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 AB-10 farm-under-fire (docs/designs/animals/DESIGN_Animals.md §6.2). The animals an area makes are named after it ('Pasture 1'..'Pasture 8', the flock 'Orchard birds'), so '*Pasture ' names the herd and not the area. AnimalState.FearBand: 0 calm, 1 uneasy, 2 frightened, 3 panic; enum fields compare by NAME (AnimalState.Mode Calm / Alert / Flee / Recover; FlockState.Mode Perched / Flying / Landed).",
   "runFor": 80,
-  "golden": { "every": 10 },
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Pasture 1",
+    "Pasture 2",
+    "Pasture 3",
+    "Pasture 4",
+    "Pasture 5",
+    "Pasture 6",
+    "Pasture 7",
+    "Pasture 8",
+    "Pig pen 1",
+    "Pig pen 2",
+    "Pig pen 3",
+    "Hens 1",
+    "Hens 2",
+    "Hens 3",
+    "Hens 4",
+    "Hens 5",
+    "Hens 6",
+    "Farm dog 1"
+  ],
   "expect": [
-    { "name": "the herd is out at pasture", "on": "field", "who": "*Pasture ", "path": "AnimalState.Species", "op": "==", "value": 0, "quantifier": "all" },
-    { "name": "the tank panics the herd", "on": "field", "who": "*Pasture ", "path": "AnimalState.FearBand", "op": ">=", "value": 3, "quantifier": "atLeast:3" },
-    { "name": "the herd flees", "on": "field", "who": "*Pasture ", "path": "AnimalState.Mode", "op": "==", "value": 2, "quantifier": "atLeast:3", "after": "the tank panics the herd" },
-    { "name": "a cow breaks through the pasture fence", "on": "field", "who": "*Pasture ", "path": "SimTransform.Position.1", "op": ">", "value": 64, "after": "the tank panics the herd" },
-    { "name": "the birds stay perched until the shots", "never": { "on": "field", "who": "Orchard birds", "path": "FlockState.Mode", "op": "!=", "value": 0 }, "before": "the shots flush the flock" },
-    { "name": "the shots flush the flock", "on": "field", "who": "Orchard birds", "path": "FlockState.Mode", "op": "!=", "value": 0 },
-    { "name": "the birdsong stops (the flock is frightened)", "on": "field", "who": "Orchard birds", "path": "AnimalState.FearBand", "op": ">=", "value": 2, "after": "the shots flush the flock" },
-    { "name": "the pigs stay in their pen", "never": { "on": "field", "who": "*Pig pen ", "path": "SimTransform.Position.0", "op": ">", "value": 30 } }
+    {
+      "name": "the herd is out at pasture",
+      "on": "field",
+      "who": "*Pasture ",
+      "path": "AnimalState.Species",
+      "op": "==",
+      "value": "Cattle",
+      "quantifier": "all"
+    },
+    {
+      "name": "the tank panics the herd",
+      "on": "field",
+      "who": "*Pasture ",
+      "path": "AnimalState.FearBand",
+      "op": ">=",
+      "value": 3,
+      "quantifier": "atLeast:3"
+    },
+    {
+      "name": "the herd flees",
+      "on": "field",
+      "who": "*Pasture ",
+      "path": "AnimalState.Mode",
+      "op": "==",
+      "value": "Flee",
+      "quantifier": "atLeast:3",
+      "after": "the tank panics the herd"
+    },
+    {
+      "name": "a cow breaks through the pasture fence",
+      "on": "field",
+      "who": "*Pasture ",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 64,
+      "after": "the tank panics the herd"
+    },
+    {
+      "name": "the birds stay perched (and singing) through the tank, until the shooting starts at 40 s",
+      "never": {
+        "on": "field",
+        "who": "Orchard birds",
+        "path": "FlockState.Mode",
+        "op": "!=",
+        "value": "Perched"
+      },
+      "before": 39
+    },
+    {
+      "name": "the shots flush the flock",
+      "on": "field",
+      "who": "Orchard birds",
+      "path": "FlockState.Mode",
+      "op": "!=",
+      "value": "Perched"
+    },
+    {
+      "name": "the birdsong stops (the flock is frightened)",
+      "on": "field",
+      "who": "Orchard birds",
+      "path": "AnimalState.FearBand",
+      "op": ">=",
+      "value": 2,
+      "after": "the shots flush the flock"
+    },
+    {
+      "name": "the pigs stay in their pen",
+      "never": {
+        "on": "field",
+        "who": "*Pig pen ",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 30
+      }
+    }
   ]
 }

@@ -30,6 +30,8 @@ namespace Fdp.Toolkit.Animals
             yield return typeof(Fdp.Toolkit.Civilians.Utterance);   // ⭐ AB-8 — its voice (calls, alarms, the bark)
             yield return typeof(AnimalArea);                         // ⭐ AB-9 — an animal area's species / count / seed / Enclosed
             yield return typeof(AnimalAreaPopulated);
+            yield return typeof(Fdp.Toolkit.Navigation.NavigationIntent);   // ⭐ AB-10 — the navigation contract a MoveTo writes (a bird has no ground translator)
+            yield return typeof(Fdp.Toolkit.Navigation.NavigationStatus);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -55,6 +57,13 @@ namespace Fdp.Toolkit.Animals
             // ⭐ AB-3 — its fear (kept where its brain runs; harmless elsewhere); the flight-zone looks staggered by entity so they spread over frames
             if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(entity))
                 repo.AddComponent(entity, new Fear { NextZoneLookAt = (SimInstant)((entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10.0)) });
+            // ⭐ AB-10 — the navigation contract every animal's brain writes (MoveTo): a ground animal has it from the vehicle translator, a BIRD
+            //   from nothing (it is no aircraft — no Gen.Flight). 📐 Measured in the farm demo: the flock's first flight threw "missing
+            //   NavigationIntent" in the MoveTo executor and took the node down
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>() && !repo.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationIntent());
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>() && !repo.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationStatus());
             if ((AnimalSpecies)dto.Species == AnimalSpecies.BirdFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
                 repo.AddComponent(entity, new FlockState { Count = DefaultFlockCount, InitialCount = DefaultFlockCount, Seed = (uint)template.TkbType, Mode = FlockMode.Perched });
         }
