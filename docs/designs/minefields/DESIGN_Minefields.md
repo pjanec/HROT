@@ -269,3 +269,24 @@ field's own rotated lattice).
 | KG-3 | ONE set of sharing rules: a side learns by a witness within range or by a report; a MARKED subject is learned by every side that sees it; the instructor sees all |
 | KG-4 | ONE display filter (`StationMode.SideOf`) and one query (`Knows(side, subject, kind)`) for the map, the path filter, the danger solve and the brains |
 | KG-5 | kinds: **Minefield** built now (§3 + §8 unchanged, its cells the payload). Named, NOT built: obstacle / bridge / route state known, building cleared, area reconnoitred. ⛔ Entity knowledge stays out (contacts, the P-3 last-known markers): moving, ageing, brain-local, already homed |
+
+### 9a. Routes, danger areas and the cost of the per-side table — `2026-11-16`
+
+🔒 User: *"'built once per tick' - i hope it usually does not need to be done so often … how the route planning is working with the knowledge? … 'potentially dangerous areas on the road junctions' … 'areas under fire' … might need unification."*
+
+**Measured today** *(graph: `search_graph` `.*(Danger|Shelled|UnderFire|Junction|Crossing|AreaCost|QueryFilter|RouteCost).*`, Class; grep)*:
+
+| | as built | evidence |
+|---|---|---|
+| the planner avoids NOTHING but blocked terrain and closed doors | the path filter takes a layer mask and the door states only | `DotRecastNavmeshProvider.cs:90-102, :430-442`; AQ101 inventory: *"movement that avoids an area: none"* |
+| danger areas are found ALONG an already-planned route, then the squad CROSSES or HOLDS | `DangerAlongRouteSolve` (the planner's own route) → `DangerAlongRouteClassifier` (street crossing, intersection, open ground) + gas + shelled footprints; the march asks every 2 s | `DangerAlongRouteSolve.cs:11-33`, `DangerAlongRouteClassifier.cs:7-26`, `SquadMarchBehavior.cs:207-224` |
+| the shelled area ("under fire") is a danger kind like gas: crossed or held, never routed around; node-level, no side, cools in minutes | `ShelledAreas.cs:23-52` | AQ101 §R D (R-4227) |
+| a per-view table rebuilt only when something changed | `DoorStates.Of` returns the same table while nothing changed — O(1) | R-220, `TerrainWorld.cs:232` |
+
+**⭐ Lean (KG-6…KG-8):**
+
+| # | lean |
+|---|---|
+| KG-6 | ⛔ NOT rebuilt every tick: the per-side minefield table is VERSIONED like `DoorStates.Of` — rebuilt only when a `PlaceKnowledge` record of that side changes (a strike, a swept cell: rare), otherwise the same table; a query's cost is one array lookup per polygon (MR-4 amended) |
+| KG-7 | TWO mechanisms, kept distinct on purpose: **avoid** (the planner's per-side cost / closure — known-mined closed, suspected priced) and **cross with care** (the danger-area sensor along the planned route + the squad's cross-or-hold decision). A minefield uses both: the planner goes round it when it can; when it cannot (no way round, or the order goes through), the route's danger sensor reports a `Minefield` area and the squad halts and calls engineers (MR-9) |
+| KG-8 | the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
