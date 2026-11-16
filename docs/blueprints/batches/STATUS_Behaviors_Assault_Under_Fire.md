@@ -93,6 +93,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 | id | decision | would change it |
 |---|---|---|
+| R-2124 | close-out item 6 (AU-4 blind fire): an IFV supporting by fire that sees nothing fires 5-round cannon bursts every 15 s on the reported posts' centre and keeps supporting (before: its support ended at once with nothing in sight) | a live run where the bursts land on the own assault (then: lift the blind fire at the assault, as the shift does) |
 | R-2121 | close-out item 5 (A-9 as built): the company's base of fire moves into the enterable building nearest the fixed 250 m point, 120–450 m from the objective, inside the ±30° arc of the line of fire (a world survey, 5 s bound; none ⇒ the fixed point) | a live run where the chosen building has no line of sight to the posts (then: a LOS test from its near face) |
 | R-2120 | close-out item 2: the PL deadlines re-timed to the suppression-first attack — PL 1 by 700 s (≈ 15 % over the slowest passing run's 608 s), PL 2 by 1000 s (the authored 300 s after PL 1; past the 900 s end, so never judged) | a run that passes AU-6 yet misses PL 1 at 700 s · a longer run window that would judge PL 2 |
 | R-2119 | AU-6 (the scenario's end): Red broken ends the exercise only once Blue HOLDS Objective 1 (≥ 4 men in the 35 m block, no enemy, 30 s); Objective 2 held or 15 min end it as before; the check keys on the scenario's own "The end" and judges AU-6 by that hold | a run where Red survivors scattered in the block keep the end away for good (then: maxEnemy 1, or the block radius) |
@@ -161,6 +162,10 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | R-2112 + `FlightGround` red-proofs (`mutate8.py`, `mutate9.py`) | — | the base of fire not considered · the reserve judged on colour alone (the rail-found defect, `SlotLost`) · the ground test dropped from `IsAir` ⇒ each RED; restored 40 / 40 + 57 / 57 |
 | A-9: the rail `CE2436_A9_TheBaseOfFire_…` · SimHost `Company` + `SquadManeuverTests` + `BehaviourHostingSnapshot` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 1 / 1 · 284 / 285 → 285 / 285 after re-recording the hosting golden (ONE moved line: `CompanyAttack` 192 → 208, the plan's cover fields) · 282 / 282 |
 | A-9 red-proof (`mutate16.py`) | — | `CoverChoice.Pick` never finds ⇒ 1 / 1 RED; restored, the tree clean |
+| AU-4 blind fire: `--filter SquadManeuverTests\|VehicleFightFromCover\|BasicVehicleSop\|HillAttack\|CE1431\|SopParamsRoundTrip\|ShippedTreesAreCSharp` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 419 / 419 · 413 / 419 — the 6 reds are ALL `HillAttackIntegrationTests`, one cause: an undeclared `NavigationStatus` read = **CE-2439** (filed earlier; fixed next) · company + AU-4 rerun after the Support-only guard: 37 / 37 |
+| AU-4 hosting golden | ✓ | ONE moved line: `VehicleSupportByFire` 328 → 408 (the posts + the burst state) |
+| AU-4 red-proofs (`mutate19.py`) | — | the blind branch dropped · the 15 s interval dropped ⇒ each RED; restored, the tree clean |
+| ⭐ stepped hash `HROT_PARALLEL_SIM=1 stepped-hash.py --threads 1,4,8 --scenario cc-battalion` (Release, after MC-4a + the dash + A-9) | — | **STATE EQUAL** at 1 / 4 / 8 (972 entities) |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids
@@ -172,4 +177,4 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 **Ids allocated this batch:** tracker `CE-2437` (the read check on a round born this tick) · `CE-2438` (the editor run does not repeat on
 pc-defend-house) · `CE-2439` (NavigationStatus read undeclared, hill attack) · `CE-2440` (the blueprint blackboard races at 8 threads) ·
-rulings `R-2106`…`R-2121` (all LANE DECISIONS for your review, §1).
+rulings `R-2106`…`R-2121`, `R-2124` (all LANE DECISIONS for your review, §1).

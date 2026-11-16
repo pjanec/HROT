@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Numerics;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Squad.Command;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.Map.Definitions.Behavior;
@@ -432,5 +433,47 @@ namespace Hrot.SimHost.Tests
             var watchOnly = Built(Vector3.Zero);
             Assert.DoesNotContain(watchOnly.Orders, o => o.Entity == watchOnly.Members[0]);
         }
-    }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-2436</c> AU-4 blind fire (A-4 as designed) — a vehicle supporting by fire that SEES NOTHING itself fires its cannon on the
+        /// REPORTED posts it was given: once at its stand-off point, a <see cref="VehicleSupportByFireBehavior.BlindRounds"/>-round burst
+        /// (<c>FireAtPoint</c>, mount 0) on the posts' centre; the next only <see cref="VehicleSupportByFireBehavior.BlindIntervalSeconds"/> after
+        /// the first ended; and it keeps supporting. Without posts it ends at once (nothing to fight), as before.
+        /// ✅ Red-proofs: no blind branch ⇒ no burst, it ends ⇒ red; the interval dropped ⇒ the second burst at once ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public unsafe void CE2436_AU4_AVehicleThatSeesNothing_FiresBurstsOnTheReportedPosts(bool posts)
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.HasComponent<WeaponChannel>(w.Man)) repo.AddComponent(w.Man, new WeaponChannel());
+            w.Start(BehaviorNames.VehicleSupportByFire, posts ? "{\"Position\":[0,0,0],\"Posts\":[300,40,0]}" : "{\"Position\":[0,0,0]}");
+            for (int i = 0; i < 3; i++) w.Tick();
+            repo.GetComponentRW<LocomotionChannel>(w.Man).Status = Fbt.NodeStatus.Success;   // at its stand-off point
+            for (int i = 0; i < 3; i++) w.Tick();
+            ref readonly var ch = ref repo.GetComponentRO<WeaponChannel>(w.Man);
+            if (!posts)
+            {
+                Assert.Equal(Fbt.NodeStatus.Success, w.Finished);
+                Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdFireAtPoint, ch.ActiveAction);
+                return;
+            }
+            Assert.Null(w.Finished);
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdFireAtPoint, ch.ActiveAction);
+            var fire = System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.FireAtPointParams>(ref repo.GetComponentRW<WeaponChannel>(w.Man).Params[0]);
+            Assert.Equal(new Vector3(300f, 40f, 0f), fire.Point);
+            Assert.Equal(VehicleSupportByFireBehavior.BlindRounds, fire.Rounds);
+            Assert.Equal(0, fire.Mount);
+            uint first = ch.ActionInstanceId;
+            repo.GetComponentRW<WeaponChannel>(w.Man).Status = Fbt.NodeStatus.Success;     // the burst is out
+            for (int i = 0; i < 50; i++) w.Tick();                                           // 5 s: no second burst yet
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdFireAtPoint, repo.GetComponentRO<WeaponChannel>(w.Man).ActiveAction);
+            for (int i = 0; i < 110; i++) w.Tick();                                          // past the 15 s
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdFireAtPoint, repo.GetComponentRO<WeaponChannel>(w.Man).ActiveAction);
+            Assert.NotEqual(first, repo.GetComponentRO<WeaponChannel>(w.Man).ActionInstanceId);
+            Assert.Null(w.Finished);
+        }
+}
 }

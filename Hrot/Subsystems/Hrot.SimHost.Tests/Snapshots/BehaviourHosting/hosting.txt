@@ -178,7 +178,7 @@ Trigger | hostedInput=- | inputBytes=288
 TriggerIed | hostedInput=Hrot.Map.Definitions.Behavior.TriggerIedParamsJsonDto | inputBytes=24
 UrbanMovement | hostedInput=- | inputBytes=308
 VehicleFightFromCover | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
-VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=328
+VehicleSupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.VehicleSupportByFireParamsJsonDto | inputBytes=408
 WanderMilitary | hostedInput=- | inputBytes=0
 WeaponSystemAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=24
 WeaponSystemHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=24

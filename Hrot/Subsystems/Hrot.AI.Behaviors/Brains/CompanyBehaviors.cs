@@ -353,7 +353,9 @@ namespace Hrot.AI.Behaviors.Brains
             var dir = toObj.LengthSquared() > 1e-4f ? Vector2.Normalize(toObj) : Vector2.UnitY;
             var across = new Vector2(-dir.Y, dir.X) * ((slot & 1) == 0 ? VehicleSpreadMetres : -VehicleSpreadMetres);
             behaviour = BehaviorNames.VehicleSupportByFire;
-            order = JsonSerializer.Serialize(new VehicleSupportByFireParamsJsonDto { Position = p.SupportAt + new Vector3(across, 0f) }, json);
+            // ⭐ AU-4 blind fire (R-2124) — the reported posts the vehicle fires on while it sees nothing itself; ONLY while the base of fire
+            //   works (Support): from the assault on our own men are on them — lifted, as the base of fire lifts
+            order = JsonSerializer.Serialize(new VehicleSupportByFireParamsJsonDto { Position = p.SupportAt + new Vector3(across, 0f), Posts = p.Posts > 0 && p.Phase == CompanyAttackPlan.PhaseSupport ? PostsOf(ref p, o) : Vector3.Zero }, json);
             return true;
         }
 
