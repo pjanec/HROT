@@ -85,6 +85,17 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4591 (P-4) — a ground cell's craters, the node that decided them → every node (each node's DoorStates.Craters unions every such entity).
             yield return new EntityGroundDamageEgressTranslator(participant);
             yield return new EntityGroundDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4624 MS-T2 — the minefield (authored), its strikes and a side's knowledge: every node role (KG-9)
+            yield return new EntityMinefieldEgressTranslator(participant);
+            yield return new EntityMinefieldIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldStrikesEgressTranslator(participant);
+            yield return new EntityMinefieldStrikesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldKnowledgeEgressTranslator(participant);
+            yield return new EntityMinefieldKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldLanesEgressTranslator(participant);                  // ⭐ CE-4624 MS-T4 — the lanes a node cleared
+            yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
+            yield return new EntityMineClearingIngressTranslator(participant, entityMap);
             // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.
             yield return new EntityBladeCutEgressTranslator(participant);
             yield return new EntityBladeCutIngressTranslator(participant, entityMap);

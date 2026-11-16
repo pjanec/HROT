@@ -169,6 +169,127 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsCrater> Craters;
     }
 
+    // ⭐ CE-4624 MS-T2 (minefields §3a, §6.1) — the minefield (authored: parameters + lanes), its ground-truth strikes and a side's knowledge of it. Reliable + TransientLocal +
+    //   KeepLast(1) keyed by entity: a late joiner gets every field, strike and cell. Field / subject ids travel as the two halves of the stable Guid.
+    [DdsStruct]
+    public partial struct DdsMinefieldLane
+    {
+        public float Ax;
+        public float Ay;
+        public float Bx;
+        public float By;
+        public float Width;
+        public byte ClearedBySidePlus1;
+        public int KnownToSides;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefield
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary><c>MineType</c>: 1 anti-personnel · 2 anti-tank · 3 mixed.</summary>
+        public byte MineKind;
+        public byte AntiHandling;
+        public byte LaneCount;
+        public float SpacingM;
+        public float OrientationDeg;
+        public int Seed;
+        public int KnownAtStartSides;
+        [DdsManaged] public List<DdsMinefieldLane> Lanes;
+    }
+
+    /// <summary>⭐ CE-4624 — one struck / cleared mine of <see cref="EntityMinefieldStrikes"/>: its lattice (row, col) and how it went (1 struck · 2 cleared).</summary>
+    [DdsStruct]
+    public partial struct DdsMineGone
+    {
+        public int Row;
+        public int Col;
+        public byte How;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldStrikes
+    {
+        [DdsKey]
+        public int EntityId;
+        public long FieldLo;
+        public long FieldHi;
+        public int Chunk;
+        [DdsManaged] public List<DdsMineGone> Mines;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldKnowledge
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte SubjectKind;
+        public byte SidePlus1;
+        public byte Kind;
+        public byte State;
+        public byte Source;
+        public byte Marked;
+        public int Chunk;
+        public long SubjectLo;
+        public long SubjectHi;
+        public int ObjectIndex;
+        public double LearnedAt;
+        /// <summary>The 2-bit grid (60 × 64 cells, 960 bytes) packed four bytes to an int, little-endian.</summary>
+        [DdsManaged] public List<int> Cells;
+    }
+
+    /// <summary>⭐ CE-4624 MS-T4 — one cleared lane of <see cref="EntityMinefieldLanes"/>: its segment, width and the clearing side + 1.</summary>
+    [DdsStruct]
+    public partial struct DdsClearedLane
+    {
+        public float Ax;
+        public float Ay;
+        public float Bx;
+        public float By;
+        public float Width;
+        public byte SidePlus1;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldLanes
+    {
+        [DdsKey]
+        public int EntityId;
+        public long FieldLo;
+        public long FieldHi;
+        public int Chunk;
+        [DdsManaged] public List<DdsClearedLane> Lanes;
+    }
+
+    // ⭐ CE-4624 MS-T4 — a mine clearer's tool marker (MineClearing), the Brain group's, applied on every other node (the Muscle that clears reads it): the BladeCut shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityMineClearing
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Tool;
+        public float WidthM;
+        public float ToX;
+        public float ToY;
+        public float ToZ;
+    }
+
     // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
