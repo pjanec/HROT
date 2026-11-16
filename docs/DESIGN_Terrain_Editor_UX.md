@@ -261,6 +261,17 @@ deviation: `TerrainPickCatalog.Build` no longer lists a scatter-only recipe (no 
 
 Rails: `ToolStripLayoutTests`, `IconWidgetsTests` (SplitArrow), `EditorToolStripsTests`, `EditorToolbarsSectionTests`, `TerrainLockTests`, `AreaAuthoringArmTests.TE2_*`, `ShapeEditSessionTests.TE2_*` — each red-proved.
 
+### Build notes — S-4 snapping (CE-5009) *(terrain lane `2026-11-16`, decided before the build — the claim table rows are measured)*
+
+| claim | code — how it is | decision |
+|---|---|---|
+| the inputs exist and are cached per terrain | `TerrainGhostContext` holds `Base` (a `TerrainWorld`) and `Roads` (`TerrainGhost.cs:7-21`); `TerrainRoads.Corridors` = centre lines + `HalfWidth` (`GroundPatches.cs:153`); `BuildingPanelGrid.Near` (`BuildingPanelGrid.cs:44`, 16 m cells) | ONE `TerrainSnap` built from the context when it changes: the road EDGE lines (each corridor's centre offset by ±(HalfWidth + offset)) and the house footprint edges in one grid; the line ENDS of the placed terrain features in a second, rebuilt when the world's feature set changes |
+| the drawing tool is generic (FDP) | `PointSequenceGizmo` / `ShapeEditSession` know no terrain | the gizmo gains ONE optional hook `Func<Vector2, SnapHit?>? Snap` (FDP-generic: a point and what it snapped to); the Hrot adapter passes `TerrainSnap` for terrain LINE features only (R-5033); areas get none |
+| priority and reach | — | a line END (a point) wins over a WALL, a wall over a ROAD EDGE; the reach is ~12 screen px converted to metres at the current zoom (so it feels the same at every zoom) |
+| suspend / angle | modifiers reach a click packed in `MapMouseButton`'s high bits; hover has none | Ctrl held (tracked from the gizmo's key events, a keymap row) frees the next point; Shift held quantises the segment's direction to 15° from the previous point |
+| feedback | `GizmoEditStyle` draws the tool | a ring at the snapped point, the target drawn dashed (the road edge / wall / end), the hint line *"snapped: road edge +1 m"* (TE-6 mockup C) |
+| cost | R-2084 | 0 B per moved point: the grids and result buffers are reused; queries scan only the cells within reach |
+
 ## 7. Acceptance
 
 1. Three hedges are drawn after ONE click on the row's *Walls*; each has its own seed; one Esc drops a half-drawn hedge, a second disarms; the row lights *Walls* while armed.
