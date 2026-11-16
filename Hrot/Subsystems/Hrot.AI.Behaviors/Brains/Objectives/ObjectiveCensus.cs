@@ -54,6 +54,22 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             int n = 0;
             foreach (var m in s_men) if (area.Contains(world, world.GetComponentRO<SimTransform>(m).Position)) n += Fdp.Toolkit.Squad.UnitStrength.WholeMenOf(world, m);   // ⭐ CE-4613 — men, not bodies
             s_men.Clear();
+            return n + StochasticMenInside(world, e, in area, 0);   // ⭐ agg-behaviors ST-0 ① — a stochastic unit at / under the subject
+        }
+
+        /// <summary>⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — the Present men of every STOCHASTIC unit at or under <paramref name="e"/> (down its roster) whose
+        /// position (its <see cref="SimTransform"/>, the footprint's centre — the footprint ∩ area share is ST-3's) is inside <paramref name="area"/>. Bodies are
+        /// counted by <c>MenOf</c> above; a stochastic unit has none. Allocation-free (an index walk, the same depth bound).</summary>
+        private static int StochasticMenInside(EntityRepository world, Entity e, in AreaLink area, int depth)
+        {
+            if (e.IsNull || !world.IsAlive(e) || depth > CombatEffective.MaxDepth) return 0;
+            if (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, e))
+                return world.HasComponent<SimTransform>(e) && area.Contains(world, world.GetComponentRO<SimTransform>(e).Position)
+                    ? Fdp.Toolkit.Aggregate.AggregateUnits.LiveMen(world, e, standing: false) : 0;
+            if (!CombatEffective.IsUnit(world, e) || !world.HasComponent<UnitRoster>(e)) return 0;
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(e);
+            int n = 0;
+            for (int i = 0; i < roster.Count; i++) n += StochasticMenInside(world, roster.SubordinateEntities[i], in area, depth + 1);
             return n;
         }
 

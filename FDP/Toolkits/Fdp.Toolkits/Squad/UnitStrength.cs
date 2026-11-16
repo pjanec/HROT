@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Toolkit.Aggregate;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Squad.Command;
@@ -44,6 +45,9 @@ namespace Fdp.Toolkit.Squad
         public static UnitStrength Of(ISimulationView view, Entity unit, bool standing = false)
         {
             if (unit.IsNull || !view.IsAlive(unit)) return default;
+            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — a STOCHASTIC unit has no roster and no bodies: its men are its slots, checked BEFORE the roster
+            if (AggregateUnits.IsStochastic(view, unit))
+                return AggregateUnits.Slots(view, unit, standing, out int live, out int slots, out _) ? new UnitStrength(live, slots, true) : default;
             // ⭐ a ROSTER makes it a unit here (as StrengthOf always read it) — a commander entity without UnitEntity still reports its men
             if (!view.HasComponent<UnitRoster>(unit) && !CombatEffective.IsUnit(view, unit))
             {
@@ -70,6 +74,13 @@ namespace Fdp.Toolkit.Squad
             {
                 var m = roster.SubordinateEntities[i];
                 if (m.IsNull || !view.IsAlive(m)) { authorized += 1; continue; }   // a slot whose man is gone still counts against the authorized strength
+                // ⭐ ST-0 ① — a stochastic member adds ITS men (its live slots), never "1 man, composition unknown"
+                if (AggregateUnits.IsStochastic(view, m))
+                {
+                    if (AggregateUnits.Slots(view, m, standing, out int live, out int slots, out _)) { present += live; authorized += slots; }
+                    else { authorized += 1; present += 1f; }
+                    continue;
+                }
                 if (CombatEffective.IsUnit(view, m))
                 {
                     if (!view.HasComponent<UnitRoster>(m)) { authorized += 1; present += 1f; continue; }   // composition unknown: in the fight, as CombatEffective takes it

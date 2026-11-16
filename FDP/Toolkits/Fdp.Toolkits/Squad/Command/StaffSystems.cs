@@ -64,6 +64,8 @@ namespace Fdp.Toolkit.Squad.Command
 
         /// <param name="gateOnAuthority">the pack's execution gate (as <c>SquadCoordinationSystem</c>): only commanders whose brain this
         /// node owns.</param>
+        private EntityQuery? _stochastic;
+
         public StaffComposerSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
         /// <summary>Reports sent since this system was built (a test / diagnostics probe).</summary>
@@ -117,6 +119,19 @@ namespace Fdp.Toolkit.Squad.Command
                 if (n == _units.Length) { Array.Resize(ref _units, n * 2); Array.Resize(ref _sent, n * 2); }
                 _units[n++] = unit;
             }
+            // ⭐ agg-behaviors ST-0 (design §23.6) — a STOCHASTIC unit has no roster, yet it is a commander's subordinate that must report (SITREP, PROGRESS Set,
+            //   its refusal's TaskFailed): without this its outbox is never flushed and its commander waits to its deadline
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>())
+            {
+                _stochastic ??= repo.Query().With<Fdp.Toolkit.Aggregate.AggregateUnit>().With<UnitSubordinate>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
+                foreach (var unit in _stochastic)
+                {
+                    if (repo.HasComponent<UnitRoster>(unit) || !Sends(repo, unit)) continue;   // a rostered one is in the walk above
+                    if (!repo.HasComponent<ReportOutbox>(unit)) repo.AddComponent(unit, new ReportOutbox());
+                    if (n == _units.Length) { Array.Resize(ref _units, n * 2); Array.Resize(ref _sent, n * 2); }
+                    _units[n++] = unit;
+                }
+            }
             if (n == 0) return;
             var job = new ComposeJob { System = this, Repo = repo, Now = now };
             // ⭐ The per-entity rule (docs/DESIGN_Parallel_Simulation.md §18): a commander writes only ITS OWN ReportOutbox; it reads its squad's
@@ -142,7 +157,10 @@ namespace Fdp.Toolkit.Squad.Command
                 // ⭐ CE-3450 (D-5) — a CASEVAC compose asks whether a member is still in the fight (Injury.IsInTheFight): his Health and
                 //   InjuryThresholds, written by the damage systems, never in this phase. 📐 The survey on city-battle named both
                 .Unmanaged<Fdp.Toolkit.Combat.Components.Health>()
-                .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
+                .Unmanaged<Fdp.Toolkit.Combat.Components.InjuryThresholds>()
+                // ⭐ agg-behaviors ST-0 — a commander's SITREP reads its STOCHASTIC member's slots (UnitStrength.Sum): written by phase B (ST-3), never in this phase
+                .Unmanaged<Fdp.Toolkit.Aggregate.AggregateUnit>()
+                .Unmanaged<Fdp.Toolkit.Aggregate.UnitSlotTable>();
             /// <summary>⭐ CE-4517 — a job is a whole commander's compose: 4 a batch (~100 commanders ⇒ ~25 batches, not 4).</summary>
             public int BatchSize => 4;
             public StaffComposerSystem System;
@@ -166,7 +184,8 @@ namespace Fdp.Toolkit.Squad.Command
         /// <summary>A commander that has a live superior to report to.</summary>
         private static bool Sends(EntityRepository repo, Entity unit)
         {
-            if (!repo.IsAlive(unit) || !repo.HasComponent<UnitSubordinate>(unit) || !repo.HasComponent<UnitRoster>(unit)) return false;
+            if (!repo.IsAlive(unit) || !repo.HasComponent<UnitSubordinate>(unit)) return false;
+            if (!repo.HasComponent<UnitRoster>(unit) && !Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(repo, unit)) return false;   // ⭐ ST-0: a stochastic unit has slots, not a roster
             var superior = repo.GetComponentRO<UnitSubordinate>(unit).Commander;
             return !superior.IsNull && repo.IsAlive(superior);
         }
@@ -387,6 +406,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// asked for (and keeps it). The squad's own buddy aid goes on regardless; the answer takes him from there.</summary>
         private static void ComposeCasevac(EntityRepository repo, Entity unit, SimInstant now)
         {
+            if (!repo.HasComponent<UnitRoster>(unit)) return;   // ⭐ ST-0 — a stochastic unit has no men to lie wounded (its slots are not asked for)
             ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(unit);
             int n = Math.Min(roster.Count, 16);
             ushort asked = repo.GetComponentRO<ReportOutbox>(unit).CasevacAsked;
@@ -417,7 +437,7 @@ namespace Fdp.Toolkit.Squad.Command
         /// its squads); for a squad of soldiers the same share as before.</remarks>
         public static StatusColour StrengthOf(ISimulationView view, Entity unit)
         {
-            if (!view.HasComponent<UnitRoster>(unit)) return StatusColour.ColourUnknown;
+            if (!view.HasComponent<UnitRoster>(unit) && !Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, unit)) return StatusColour.ColourUnknown;   // ⭐ ST-0 ① — a stochastic unit has slots, not a roster
             return UnitStrength.ColourOf(view, unit);
         }
 
@@ -449,6 +469,10 @@ namespace Fdp.Toolkit.Squad.Command
         private static void Rounds(ISimulationView view, Entity e, int depth, ref long have, ref long max)
         {
             if (e.IsNull || !view.IsAlive(e) || depth > CombatEffective.MaxDepth) return;
+            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — a STOCHASTIC unit carries no counted weapon and its contract holds NO per-slot ammo
+            //   capacity (UnitSlot.Ammo is a count, UnitHoldings.Ammo a pool): it adds nothing to either side ⇒ Unknown, never an invented share
+            //   (finding to agg-backend: a capacity field is needed for a SITREP ammo colour — STATUS_AggBehaviors §5)
+            if (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, e)) return;
             if (view.HasComponent<UnitRoster>(e))
             {
                 ref readonly var roster = ref view.GetComponentRO<UnitRoster>(e);

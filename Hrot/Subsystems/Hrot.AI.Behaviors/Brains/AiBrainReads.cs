@@ -39,6 +39,10 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Components.TargetMemory>();  // ⭐ CE-4621 MC-4 — a dash bike's lookout reads its riders' memory (last tick)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();        // SetSkillAmplifier — the verdict's read of the amplifier
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan
+            // ⭐ agg-behaviors ST-0 (design §23.6) — a commander's strength / fight readers (UnitStrength, CombatEffective, the census) read a STOCHASTIC member's
+            //   resolution and slots; measured by the acceptance rail under HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1. Written only by ST-3's phase B, never in the brain phase
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.AggregateUnit>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.UnitSlotTable>();
         }
     }
 }
