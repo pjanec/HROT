@@ -172,4 +172,19 @@ public sealed class MinefieldGizmoRail
         new MinefieldGizmo(Settings(true)).Draw(w2, field2, buffer);
         Assert.Equal(6, Lines(buffer, MinefieldGizmo.LaneColour));
     }
+
+    /// <summary>
+    /// ⭐ CE-4624 (the LIVE check, 2026-11-16) — a placed field is NO UNIT: the generic entity gizmo drew a white 2-D box at its anchor and the 3-D body layer an unknown purple box. 🔴 Red-proof: the
+    /// minefield line removed from <c>NotAUnit</c> ⇒ the first assertion; the type removed from <c>EntityBodyLayer3D.LookOf</c> ⇒ the second.
+    /// </summary>
+    [Fact]
+    public void AMinefieldEntity_IsNotAUnit_NoGenericBox_NoUnknownBody()
+    {
+        var (w, field) = World();
+        Assert.True(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, field));
+        Assert.False(Hrot.Common.Diagnostics.Gizmos.Seeable.OnMap(w, field));
+        var look = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => w, () => null).LookOf(Minefields.TkbType, null);
+        Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit, look.Family);   // the "no body" look, not the unknown purple box
+        Assert.Equal(Vector3.Zero, look.Size);
+    }
 }
