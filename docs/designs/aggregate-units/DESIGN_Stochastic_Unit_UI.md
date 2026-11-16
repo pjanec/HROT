@@ -172,18 +172,18 @@ classDiagram
     Of(view, unit) SymbolCode
   }
   class SymbolGeometry {
-    <<new, GizmoMap.Contracts, pure vectors>>
-    Part(partId, sink)
+    <<BUILT, GizmoMap.Contracts, pure vectors>>
+    Build(code, centre, heightPx, ISymbolSink)
   }
-  class SymbolAtlas {
-    <<new, GizmoMap.Presentation, ONE per process>>
-    PartSprite(partId, sizePx)
-    rasterises a PART once
+  class ISymbolSink {
+    <<BUILT, interface>>
+    Polygon / Line / Ellipse / Text
   }
   class SymbolRenderer {
-    <<new, GizmoMap.Presentation, REPLACES the MilStd2525Renderer stub>>
-    Draw(code, screen point, sizePx)
-    stamps 2 to 6 part quads
+    <<BUILT, GizmoMap.Presentation, the stub stays only for codes outside the vocabulary>>
+    DrawWorld(code, world, heightPx, zoom, northUp)
+    DrawScreen(code, screen, heightPx)
+    caches ONE texture per code x height
   }
   class DebugPrimitiveIcon {
     <<existing primitive Icon, IconAtlasCoord - renderer stub draws a dot>>
@@ -200,16 +200,16 @@ classDiagram
   }
   UnitSymbolDeriver ..> TkbSystemType : weighs roles
   UnitSymbolDeriver --> SymbolCode
-  SymbolAtlas ..> SymbolGeometry : rasterises each part once
+  SymbolGeometry ..> ISymbolSink : draws through
+  SymbolRenderer ..> SymbolGeometry : rasterises each distinct symbol once
   SymbolRenderer ..> SymbolCode : parses
-  SymbolRenderer ..> SymbolAtlas : stamps parts
   DebugPrimitiveRenderer2D ..> SymbolRenderer : case Icon
   EntityCardRenderer ..> SymbolRenderer : case Icon, left cell
-  ImGuiSymbol ..> SymbolRenderer : same parts, ImGui draw list
+  ImGuiSymbol ..> SymbolGeometry : an ImGui sink, same geometry
   DebugPrimitiveIcon ..> SymbolCode : IconAtlasCoord carries it
 ```
-*What it shows that prose hid: the symbol is COMPOSED at draw time from cached PARTS (frame, icon, mobility, marks) — so any combination works without a
-new rasterisation — and the whole renderer sits in the GIZMO library beside the primitive it draws, not in any map; HROT only DERIVES the code; the map's existing `Icon` primitive (built in the protocol, a dot in both renderers today) carries the key, so nothing new crosses the wire.*
+*What it shows that prose hid: ONE geometry draws every symbol through a sink (raylib image for the map and card, ImGui for the panels) — the renderer
+rasterises each DISTINCT symbol once and then stamps one quad (as-built, S-6 below) — and the whole renderer sits in the GIZMO library beside the primitive it draws, not in any map; HROT only DERIVES the code; the map's existing `Icon` primitive (built in the protocol, a dot in both renderers today) carries the key, so nothing new crosses the wire.*
 
 | # | decision (lean) | why — measured where it can be |
 |---|---|---|
@@ -218,7 +218,8 @@ new rasterisation — and the whole renderer sits in the GIZMO library beside th
 | **S-3** | ⚠ from what the unit WAS MADE OF, not what it has left | identity is stable; losses are the card's |
 | ⭐ **S-4** | **a symbol is a UNIT's, never a man's**: a squad draws ONE symbol for its nine men. 1 000 soldiers ≈ 111 squads + 37 platoons + 12 companies + 4 battalions ≈ **165 symbols**, and **ECHELON DECLUTTER** shows only one level per zoom (zoomed out: companies ≈ 12; mid: platoons ≈ 37; close: squads) | the user's worry is right for men (1 000) — it is not the design: the men keep their silhouettes |
 | ⭐ **S-5** | **WHERE: the GIZMO renderer library, not map code** *(user, `2026-11-16`: "it is the symbol gizmo who renders it - needs to be part of the gizmo renderer")* — the symbol CODE and the part geometry in `GizmoMap.Contracts` (BCL only, shared with the IG over DDS); the atlas and `SymbolRenderer` in `GizmoMap.Presentation`, REPLACING the `MilStd2525Renderer` stub, called from the existing `case DebugPrimitiveShape.Icon` in BOTH `DebugPrimitiveRenderer2D` and `EntityCardRenderer`; ImGui panels call the same renderer. HROT only DERIVES the code (`UnitSymbolDeriver`, Hrot.Core — the TKB and the holdings are domain knowledge) and emits an `Icon` primitive with it in `IconAtlasCoord` | one renderer for every host that draws gizmos (editor, CGF, SimHost, Replay Browser, the IG) by construction; the wire already carries the primitive |
-| ⭐ **S-6** | **CACHE THE PARTS, COMPOSE AT DRAW TIME** *(user: "NATO symbols is composable so not sure how far we can cache it")* — the atlas holds each PART once per size bucket (16 / 24 / 40 px): frames × affiliation (4 shapes × 4 fills), role icons (~10), mobility (2), secondary marks (~8), echelon marks (6), status overlays (damaged / destroyed); a symbol = 2–6 stamped quads from ONE texture, batched. ⭐ Any combination works with nothing new rasterised; the part set is fixed and small (~50 sprites per size). Text modifiers (a designation like "2/B") go through the gizmo font, not the atlas | whole-symbol caching would be bounded too (keys ≈ distinct units), but parts make the cache independent of the scenario and let a LIVE modifier (damaged, reduced) change without a re-rasterise |
+| ⭐ **S-6** *(as-built `2026-11-16`, R-8603 — supersedes the parts atlas below)* | **CACHE EACH DISTINCT SYMBOL** — `SymbolRenderer` rasterises a symbol (code × pixel height) ONCE through `SymbolGeometry` into an image (2× supersampled, halved ⇒ antialiased), uploads it, and every draw after is ONE textured quad (rows un-mirrored on the north-up map, S-7) | 📐 **measured, `SymbolRendererFrameRail`: 500 symbols as raw vectors every frame = 39.5–40.8 ms CPU (rejected); cached = 0.09 ms, 0 B.** Whole-symbol beats parts: one quad not 2–6, and the parts do not tile cleanly (the secondary box is sized by its mark, the echelon marks sit on the frame's top, which differs per affiliation). The keys are bounded by the distinct codes in a scenario (dozens); a live modifier changes the code ⇒ one new rasterise, once |
+| ⛔ ~~S-6 (designed)~~ | ~~**CACHE THE PARTS, COMPOSE AT DRAW TIME** *(user: "NATO symbols is composable so not sure how far we can cache it")* — the atlas holds each PART once per size bucket (16 / 24 / 40 px): frames × affiliation (4 shapes × 4 fills), role icons (~10), mobility (2), secondary marks (~8), echelon marks (6), status overlays (damaged / destroyed); a symbol = 2–6 stamped quads from ONE texture, batched. ⭐ Any combination works with nothing new rasterised; the part set is fixed and small (~50 sprites per size). Text modifiers (a designation like "2/B") go through the gizmo font, not the atlas | whole-symbol caching would be bounded too (keys ≈ distinct units), but parts make the cache independent of the scenario and let a LIVE modifier (damaged, reduced) change without a re-rasterise — SUPERSEDED by the measured S-6 above~~ |
 | **S-7** | the symbol stays UPRIGHT and screen-sized (the standard's way: the heading is a separate staff / arrow, never a rotated frame); in 3-D it lives only in the card (a screen-space overlay) — no perspective distortion | APP-6 symbols are never rotated or skewed |
 | **S-8** | ⛔ **NOT in place of the men's / vehicles' vector symbols** — those stay rotated and perspective-correct; a NATO EQUIPMENT mode for vehicles is not proposed (it would trade the rotated footprint, which shows facing and size, for an upright sign) | the user, `2026-11-16`: "each entity has a 2d vector current symbol now, rotated and even perspective distorted" — the earlier "a later switch" line is WITHDRAWN |
 
