@@ -4,6 +4,7 @@ AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputByte
 AirPlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=24
 AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=216
 AllMustPass | hostedInput=- | inputBytes=144
+AnimalHsm | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
 AssembleAfterDrop | hostedInput=Hrot.Map.Definitions.Behavior.AssembleAfterDropParamsJsonDto | inputBytes=1232
 BTreeCuratedBindingDemo | hostedInput=- | inputBytes=0
