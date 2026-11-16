@@ -503,6 +503,92 @@ them by construction); the red edge is today's dead path — the area effect nev
 | **ST-4** | determinism at 1 / 4 / 8 threads | the battalion-vs-battalion scenario, its named checks | the scenario's map picture |
 | **ST-5** | the resolution manager, de-aggregation (children from the TKB composite, stable `<unit>/<slot>` keys), re-aggregation, the Held participant, C-7's forced handover | the policy (§16b), the planners' plan / assign split (D-P3) | the user's de- / re-aggregate request and the process's progress |
 
+
+### 23.4 As-built — exp/agg-backend *(folded by the lane, obligation ⑤; status and gates in [`STATUS_AggBackend.md`](../../blueprints/batches/STATUS_AggBackend.md))*
+
+```mermaid
+classDiagram
+  class AggregateUnit {
+    <<281 built, Fdp.Toolkit.Aggregate>>
+    Resolution Echelon Splitting Pin
+    Formation Posture Activity Prepared Width Depth Heading
+    Move Destination PathDistanceM SpeedMps RouteRequestedAt
+    SuppressedShare IncomingRounds IncomingHead
+    LastFiredAt LastContactAt PreparedSince SplittingSince LastStepAt
+  }
+  class UnitSlotTable {
+    <<282 built, 968 B>>
+    Count Chunk
+    Slots 120 x UnitSlot 8 B
+  }
+  class UnitHoldings {
+    <<283 built>>
+    Items 24 x UnitHolding 24 B
+  }
+  class FireAllocation {
+    <<284 built, node-local>>
+    Step Lines 16 x FireLine
+  }
+  class UnitDetections {
+    <<285 built, own, node-local>>
+  }
+  class RunSeed {
+    <<286 built, own singleton>>
+  }
+  class UnitRoute {
+    <<287 built, own, managed immutable, NoScenario NoReplay>>
+  }
+  class ResolutionRoutingTable {
+    <<built, Hrot.Core.Tkb>>
+    Resolve(classes, dis, resolution, order)
+  }
+  class OrderResolver {
+    <<existing, OrderResolver.cs>>
+  }
+  class TacticalIntentResolutionSystem {
+    <<existing, routes through the table, refusal reports TaskFailed>>
+  }
+  class SimRng {
+    <<existing, gains RunSeed>>
+  }
+  class StochasticUnitMovementSystem {
+    <<built ST-1>>
+  }
+  class RoutePlanner {
+    <<existing, RoutePlanner.cs>>
+  }
+  AggregateUnit "1" *-- "1" UnitSlotTable : same entity
+  AggregateUnit "1" *-- "1" UnitHoldings : same entity
+  AggregateUnit "1" *-- "0..1" UnitRoute : same entity
+  ResolutionRoutingTable ..> OrderResolver : physical delegates
+  TacticalIntentResolutionSystem ..> ResolutionRoutingTable
+  StochasticUnitMovementSystem ..> RoutePlanner : M-1, the one planner
+  StochasticUnitMovementSystem --> AggregateUnit : writes own
+  StochasticUnitMovementSystem --> UnitRoute : writes own
+```
+*What the picture shows that the §22 diagram did not: every table sits on the UNIT entity (no chunk entities — R-8000), so each step writes
+only its own entity; the routing table wraps the existing resolver instead of replacing it; and the follower plans with the one existing
+planner.*
+
+| deviation from §22 / §23.2 | why | lane decision |
+|---|---|---|
+| a slot is 8 B (`Half` health / stress); ONE table holds a company (120); `Chunk` stays 0 | a chunk on another entity would be a cross-entity write in phase B | R-8000 |
+| `UnitDetections` (285), `RunSeed` (286), `UnitRoute` (287) added from the lane's own ids | N-5's per-pair levels recorded before the first recording (RV-11); C-8's seed; M-4's route (derivable, so NoReplay) | — |
+| stochastic with no routing row ⇒ refused; fusion with no row ⇒ the physical rule | RV-7 (no physical play on a memberless unit); X-1 | R-8001 |
+| `FireLine.Hits` carries the FIRER's suppression already | phase B then reads no firer state | R-8002 |
+| the run seed is process-wide (`SimRng.RunSeed`); 0 = the historical numbers | `FromSim` is static with ~30 callers; no golden moves | R-8003 |
+| the refusal's TaskFailed rides the receiver's own outbox (`ReportQueue`, the staff's delay) | the one report path (CC-5) | — |
+| ST-2's sensing writes the observer's OWN squad pool directly (N-2) and `SquadPerceptionMergeSystem` skips a stochastic unit | the merge recomputes the pool from members; a memberless unit's would be wiped every dwell | — |
+| ST-2's draw is the step's EXPECTED chance accumulated (no dice) | N-5 accumulates; deterministic at any thread count without a seed | — |
+| ⏳ N-3 (a stochastic observer seeing PHYSICAL entities) not in the first increment | stochastic targets only | — |
+| ST-3: phase A writes ONLY `FireAllocation`; phase B spends the firer's own ammunition from its own lines (`FireLine.Source`, the former pad byte) | A then reads the targets as stable reads and writes one component; B writes only itself | — |
+| ST-3: phase B reads the enemy lines of THIS step (A ran first in the same frame), not last step's | the same determinism; one step less of delay | — |
+| ST-3: the run seed reaches the draw from the world's `RunSeed` singleton, else the process seed — passed explicitly | a phase never writes the static (and tests run in parallel) | R-8003 |
+| ⛔ ST-3: no host loads the killer–victim table yet; the C-8 ladder needs the physical runs | the TKB adapter + the measured rows are a separate job | CE-8008, CE-8009 |
+| C-6: the sink takes the footprint as a circle of the same area (frontage × max(depth, 20 m)); a casualty in the lethal circle is DOWN, wounds below it folded into `LethalShare` | the overlap in closed form; one calibrated share | CE-8010 |
+| the unit phases (sensing, A, B) are `ICoarseJob`s, 2 units a batch | a battalion's 18 units were one batch of 32 — ST-4's red-proof found it | CE-8011 |
+| ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
+
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
 
 ⭐ 33 raw findings, merged into 17. ✔ = re-measured by the coordinator at the line cited.

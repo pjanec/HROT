@@ -145,5 +145,35 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(SimRng.FromSim(5, 0, 0f).NextUInt(), SimRng.FromSim(0, 5, 0f).NextUInt());
             Assert.NotEqual(SimRng.FromSim(2, 1, 3f).NextUInt(), SimRng.FromSim(3, 1, 2f).NextUInt());
         }
+    
+        /// <summary>⭐⭐ <c>CE-8003</c> (C-8, RV-3) — the RUN SEED: 0 is the historical numbers exactly (no golden moves); a seed changes every draw;
+        /// the same seed gives the same draws (a run replays itself); the recorded singleton wins over the process's seed on sync.
+        /// ✅ Red-proof: the mix line removed ⇒ seeds 1 and 2 draw alike ⇒ red.</summary>
+        [Fact]
+        public void CE8003_TheRunSeed_ZeroIsHistorical_ASeedVaries_TheSameSeedRepeats()
+        {
+            Assert.Equal(SimRng.FromSim(7, 3, 11f, 0u).NextUInt(), SimRng.FromSim(7, 3, 11f, 0u).NextUInt());
+            uint a = SimRng.FromSim(7, 3, 11f, 1u).NextUInt(), b = SimRng.FromSim(7, 3, 11f, 2u).NextUInt();
+            Assert.NotEqual(a, b);
+            Assert.NotEqual(SimRng.FromSim(7, 3, 11f, 0u).NextUInt(), a);
+            Assert.Equal(a, SimRng.FromSim(7, 3, 11f, 1u).NextUInt());
+            int differ = 0;
+            for (int s = 1; s <= 32; s++) if (SimRng.FromSim(7, 3, 11f, (uint)s).NextInt(0, 100) != SimRng.FromSim(7, 3, 11f, 0u).NextInt(0, 100)) differ++;
+            Assert.True(differ >= 28, $"only {differ}/32 seeds moved the draw");
+            Assert.Equal(1234u, SimRng.ParseSeed("1234"));
+            Assert.Equal(0xBEEFu, SimRng.ParseSeed("0xbeef"));
+            Assert.Equal(0u, SimRng.ParseSeed("nope"));
+            Assert.Equal(0u, SimRng.ParseSeed(null));
+        }
+
+        /// <summary>⭐ <c>CE-8003</c> — a world carrying a recorded seed gives it to the process (0 here, so no other test's draws move).</summary>
+        [Fact]
+        public void CE8003_AWorldsRecordedSeed_IsTheOneInForce()
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            w.SetSingleton(new Fdp.Toolkit.Aggregate.RunSeed { Value = 0 });
+            Assert.Equal(0u, RunSeeds.Sync(w));
+            Assert.Equal(0u, SimRng.RunSeed);
+        }
     }
 }
