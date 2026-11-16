@@ -1,0 +1,111 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 rules S2 (the scenario's Judge list), the sr-objectives-march march with three triggers. (1) Hold is Inactive until Reach is Achieved, then Active; (2) Hold Achieved about 20 s later; (3) End fires: Reach and Hold Achieved, the far line Failed, No harm Achieved, the composite final. \u26a0 Left out: ExerciseResult Phase Ended with a per-side outcome and the cluster pause (exercise.pause-on-end) \u2014 the World Environment is not a nameable unit (\u00a79), so the closed objectives' State stands for the end; and the Briefing message is read as the trigger's FireCount (a message is not in the dump).",
+  "runFor": 180,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Briefing trigger fires at 5 s",
+      "on": "field",
+      "who": "Briefing",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": 4.5,
+      "before": 8
+    },
+    {
+      "name": "Hold stays Inactive until Reach is Achieved",
+      "never": {
+        "on": "field",
+        "who": "Hold the crossroads",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Active"
+      },
+      "before": 60
+    },
+    {
+      "name": "Reach the crossroads is Achieved",
+      "on": "field",
+      "who": "Reach the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    {
+      "name": "Phase 2 fires once Reach is Achieved",
+      "on": "field",
+      "who": "Phase 2: hold",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": "Reach the crossroads is Achieved"
+    },
+    {
+      "name": "Hold becomes Active after Reach",
+      "on": "field",
+      "who": "Hold the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active",
+      "after": "Reach the crossroads is Achieved"
+    },
+    {
+      "name": "Hold is Achieved after it",
+      "on": "field",
+      "who": "Hold the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "after": "Hold becomes Active after Reach"
+    },
+    {
+      "name": "the End trigger fires after Hold",
+      "on": "field",
+      "who": "End",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": "Hold is Achieved after it"
+    },
+    {
+      "name": "the far line is Failed (deadline 60 s)",
+      "on": "field",
+      "who": "Reach the far line",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Failed",
+      "after": 59,
+      "before": 65
+    },
+    {
+      "name": "No harm to civilians is Achieved at the close",
+      "on": "field",
+      "who": "No harm to civilians",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "every closed objective is final: Reach Closed",
+      "on": "field",
+      "who": "Reach the crossroads",
+      "path": "ObjectiveStatus.Closed",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "every closed objective is final: Hold Closed",
+      "on": "field",
+      "who": "Hold the crossroads",
+      "path": "ObjectiveStatus.Closed",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    }
+  ]
+}
