@@ -845,7 +845,7 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 | **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
 | **H4** | §10 RH-8, written then | — |
 
-## 11. ⏳ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: DESIGN — RT-1…RT-9 await the user)*
+## 11. ✅ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: READY-TO-BUILD — RT-1…RT-3, RT-5…RT-8 APPROVED (R-4279), RT-4 and RT-9 WITHDRAWN; dispatched to `backend`)*
 
 🔒 User, `2026-11-16`, verbatim: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully
 deterministic run; the networkless editor where everything is easier and faster (networkless) could be used for quicker tests and overnight
@@ -879,7 +879,7 @@ component added since the capture (`RadarSignature`), none a visible state. ⭐ 
 | question | does the feature work, and did anything change? | does it still work when the nodes talk over the wire? |
 | run | the editor's stepped preview, a fresh process per scenario (built) | `--mode all` (every node in one process, real DDS), and a multi-process cluster for a named handful |
 | verdict | the `checks.json` expectations (pass / fail) + the golden (RT-3) | the SAME `checks.json` expectations, judged in sim time with the time windows they already carry; ⛔ no golden (a real-time networked run does not repeat); + the replication sanity (RT-6) |
-| who / when | a lane on its feature's scenarios (minutes); a SMOKE set on every merge (RT-4); all of them nightly | nightly only |
+| who / when | a lane on its feature's scenarios, as it sees fit (how a lane proves its work is its own business — user); all of them nightly | nightly only |
 
 ### 11.3 UML
 
@@ -958,7 +958,6 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  PUSH[a merge into coordinator] --> SMOKE[SMOKE - 5 scenarios, editor tier]
   CRON[nightly schedule] --> BUILD[one build job - the binaries as an artifact]
   BUILD --> FAST[editor tier - every checks.json scenario, a matrix job each]
   BUILD --> CL[cluster tier - every checks.json scenario under mode all]
@@ -966,25 +965,24 @@ graph TD
   FAST --> SUM[one summary - junit and STATUS_Nightly_Regression.md]
   CL --> SUM
   MP --> SUM
-  SUM --> TRI[nightly Claude task - reads the summary, files a row per new red]
   SUM --> CAP[CAPABILITIES marks from the last run]
 ```
-*What it shows: the runs execute on GitHub's runners (free for a public repository, RT-8); the scheduled Claude session only TRIAGES — it never
-sits waiting on a build, and nothing here is a foreground blocker.*
+*What it shows: everything runs on GitHub's runners (free for a public repository, RT-8) — one build, then one job per scenario, each on its own
+fresh virtual machine, up to 20 at a time; the result is the Actions view and its junit. Nothing here is a foreground blocker for a lane.*
 
-### 11.4 ⭐ Leans — RT-1…RT-9 *(for the user)*
+### 11.4 ⭐ RT-1…RT-9 — ✅ APPROVED `2026-11-16` (R-4279; user: *"approved. pls write handoffs"*), RT-4 and RT-9 withdrawn
 
 | # | question | ⭐ lean | why |
 |---|---|---|---|
 | RT-1 | what decides pass / fail | the `checks.json` expectations, in BOTH tiers | they state intent and survive any correct change; measured: 19 / 19 passed while the golden failed on internals |
 | RT-2 | the thread test | ⛔ out of the scenario verdict; stays the parallel rule's own gate (`stepped-hash.py`) | user, `2026-11-16` |
 | RT-3 | the golden | ONLY in the editor tier, comparing VISIBLE state (position, health, modes, the fields the checks read); a difference is a WARNING with a one-command re-capture; internal blackboards and diagnostics left out | today it fails on every correct change ⇒ a suite that is always red |
-| RT-4 | the merge smoke | 5 short scenarios booted end to end on every merge into `coordinator` (≈ 3 min) | the id-500 clash passed a full build and crashed at start-up |
+| ~~RT-4~~ | ⛔ WITHDRAWN `2026-11-16` — no merge smoke | 🔒 user: *"RT-4 not necessary, would slow everything down, its the responsibility of each lane to provide working stuff, and how they achieve that is their business"* |
 | RT-5 | the cluster tier | `--verify` accepts `--mode all`: a `ClusterVerifyRunner` + `ClusterVerifyWorld` over the cluster's debug HTTP, the same `ConditionBook` | no second evaluator (ruling 9) |
 | RT-6 | replication sanity | per run: every translator's sent vs received samples (`/diagnostics/architecture`), and any exception the module host swallowed ⇒ FAIL | the runbook's traps: a control plane threw every frame while the API answered `ok:true` |
 | RT-7 | the 81 Python live checks | move their conditions into `checks.json`; `utility-demo-check.py` keeps only the launch helpers | one condition set per scenario |
 | RT-8 | where it runs | ⭐ GitHub Actions: free for a public repository on standard runners, 20 jobs in parallel; build ONCE and share the binaries; a matrix job per scenario (each < 75 min) | the template exists; a Claude session would only wait on builds |
-| RT-9 | the nightly Claude task (approved by the user) | it TRIAGES, it does not run: reads the night's summary, files one tracker row per NEW red with its log, updates the CAPABILITIES marks, and stays silent when nothing changed | the run is GitHub's; the judgment is ours |
+| ~~RT-9~~ | ⛔ WITHDRAWN `2026-11-16` — no nightly Claude task | 🔒 user: *"no nightly claude task"* — the night's result is GitHub's own Actions view (one red / green per scenario, junit) |
 | — | the 41 scenarios with no checks | each gets a `checks.json`, or moves to `scenarios/showcases/` marked "demo, not a test" | §0: "not all scenarios are checking a concrete feature" |
 
 ⚠ **Unverified, to measure on the first night:** a standard runner's cores / memory against `--mode all` + Xvfb; a scheduled workflow's

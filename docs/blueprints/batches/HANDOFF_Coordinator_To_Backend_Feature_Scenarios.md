@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: FEATURE-TEST SCENARIOS for animals and motorcycles (R-4277; CE-4623, CE-4621)
 
-**For:** the `backend` lane, AFTER its animals report. **From:** coordinator. **Dispatched at `92c78a900`**; ⛔ scope FROZEN there.
+**For:** the `backend` lane, AFTER its animals report. **From:** coordinator. **Dispatched at `92c78a900`, ⭐ RE-STAMPED at `816edc3b9`** *(rule 1a, unstarted: it is now item 2 of `HANDOFF_Coordinator_To_Backend_Regression_Suite.md` — do that handoff's item 1, the visible-state golden, FIRST)*; ⛔ scope FROZEN there.
 
 🔒 User, `2026-11-16`, verbatim: *"Without the scenario passing, i don't believe that the feature works because in the past every such scenario
 development revealed a lot of issues. Those scenarios should work like a regression test - their description should clearly describe what they
