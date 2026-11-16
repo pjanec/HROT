@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress, overnight unattended
+state: LIVE — MS-B1…MS-B4 built and gated; the acceptance demo STOPPED on terrain (CE-2443)
 updated: 2026-11-16
 current-answer: the slice table, then §1 decisions, §2 gates
 related-designs:
@@ -42,9 +42,9 @@ collision 500 that broke every SimHost world after the coordinator merge).
 | hosting golden | ✓ | additive: `+MineStrike` 40 B; ⚠ also `+AnimalHsm` (0 B) — the coordinator's animals, merged without its golden line |
 | the conduct rail `CE4621_TheConductTable_…` | ✓ | names `MineStrike` as the one ruled `LeavesRoute` declarer (MR-6) |
 | MS-B1 red-proofs (`mutate20.py`) | — | hold orders dropped · the stop dropped · the conduct dropped ⇒ each RED; ⭐ the reflex's per-field dedupe dropped ⇒ GREEN — it was redundant (`SopActions.React` already refuses a running identical reaction), so it was REMOVED |
-| MS-B2: `--filter` minefield + squad suites, plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 322 / 322 · 322 / 322; golden additive `+ReconMinefield` 520 B; red-proofs (`mutate21/22.py`): the left-hand order reversed ⇒ RED · the closure test dropped ⇒ RED · the never-enter guard dropped (`if (!mined \|\| s.Phase == Trace)`) ⇒ RED |
+| MS-B2: `--filter` minefield + squad suites, plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 322 / 322 · 322 / 322; golden additive `+ReconMinefield` 520 B; red-proofs (`mutate21/22.py`): the left-hand order reversed ⇒ RED · the closure test dropped ⇒ RED · the never-enter guard dropped (`if (!mined \|\| s.Phase == Trace)`) ⇒ RED (re-run `2026-11-16`, `mutate24.py`) |
 | MS-B3: same, plain · PAR | ✓ | 325 / 325 · 325 / 325; golden additive `+Breach` 56 B, `+ClearLane` 44 B, `+CrossLane` 48 B; red-proofs (`mutate22.py`): the lane at the driving speed ⇒ RED · the 5 m spacing wait dropped ⇒ RED · the crossing ordered with the clearing ⇒ RED |
-| MS-B4: `--filter SquadManeuverTests\|MineStrike…\|ReconMinefield…\|MinefieldBreach…\|BasicSquadSop` (+ the hosting golden plain) plain · PAR | ✓ | 294 / 294 · 291 / 291; golden additive `+MinefieldAhead` 0 B; red-proofs (`mutate23.py`): the SOP row's condition swapped ⇒ RED · the crossing exclusion dropped ⇒ RED · (the hold, the request, the march kind and the resume — running) |
+| MS-B4: `--filter SquadManeuverTests\|MineStrike…\|ReconMinefield…\|MinefieldBreach…\|BasicSquadSop` (+ the hosting golden plain) plain · PAR | ✓ | 294 / 294 · 291 / 291; golden additive `+MinefieldAhead` 0 B; red-proofs (`mutate23.py`): the SOP row's condition swapped ⇒ RED · the crossing exclusion dropped ⇒ RED · the hold dropped ⇒ RED · the request's kind changed ⇒ RED · the march's `Minefield` kind dropped ⇒ RED · the resume dropped (never Success) ⇒ RED (`mutate23b.py`) — 6 / 6 |
 
 ## 3. Ids allocated
 rulings `R-2125`, `R-2126`, `R-2127` · tracker `CE-2442` (no HQ answers an Engineers request), `CE-2443` (the acceptance demo, blocked on terrain)
