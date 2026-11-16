@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-16
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §11 behaviors as built · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -384,3 +384,15 @@ in `EjectionSystemTests.cs:26` only).
 | MS-B4 | the march asks its route sensor for `Minefield` too (`SquadMarchPlay.WatchRoute`, every march with `DangerAreas`); `SquadSopConditions.MinefieldAhead` — the next area is a `Minefield` within 30 m along the route — and `DangerAreaAhead` is FALSE for a minefield (never crossed as a drill); the shipped `BasicSquadSop` row before the crossing row reacts `MinefieldAhead` (Alert, pauses the march): every live man holds (`PersonHold`), ONE `Engineers` request (`RequestKind.Engineers` = 6, appended) at the field's near side through the report queue; Success once the area is gone (the lane is cleared / the field marked and routed round) or after 900 s — the march resumes | ⚠ no HQ answers the request yet (CE-2442 — no engineer asset kind; the request carries no field id); the engineers are ordered by the scenario |
 
 **Rails:** `MineStrikeBehaviorTests` (a man's squad holds, once per field, the hold ends · a vehicle stops, its crew aboard · the conduct is Halts \| LeavesRoute, a Dash refuses it) · `ReconMinefieldBehaviorTests` (from outside a 40 × 40 m field: the 12 edge cells probed and found mined, he walks round it never inside, the field marked once for his side) · `MinefieldBreachBehaviorTests` (the clearer's two legs and tool pace · single file five metres apart · the breach's order: far-side fire, the lane, then the crossing) · `SquadManeuverTests.CE4624_MS_B4_*` (a minefield is its own condition, never a crossing · the SOP halts the marching squad, holds every man, asks for engineers once at the near side, resumes the march when the area is gone) · `CE2161_TheMarch_AsksForOpenGround_…` (the march's kinds include `Minefield`).
+
+## 12. As-built deviations approved — `2026-11-16` *(R-4278)*
+
+🔒 User, verbatim: *"approved the work for the lanes (not yet RT-1…RT-9) but do not write handoff yet, firrst we finish the RT-1…RT-9 and then we write all at once"*
+
+| lane decision | supersedes | now |
+|---|---|---|
+| terrain **R-5047** | KR-13 / MR-4's carrier (the path request's pad byte) | ⭐ the route's SIDE rides in the navmesh layer mask's spare bits 14…18; `NavLayerSelection.For` adds it, so every route caller and the wire carry it with no API or wire change. Side + 1, 0 = no knowledge, as KR-13 |
+| terrain **R-5043** | MR-9's "drop the bit-0 hack" | `DangerAreaKinds` is `ushort`; `Shelled` stays on bit 0 — no recorded or saved value changes |
+| terrain **R-5045 / R-5046 / R-5048** | §3a, MF-15, MR-11 | the strikes record has its own TKB 7207; known-at-start is the field's `KnownAtStartSides`, never a record; a runtime lane is the deciding node's `MinefieldLanes` record |
+| behaviors **R-2125** | MR-5 (back out on breadcrumbs) — ⚠ INTERIM only | the struck unit HOLDS IN PLACE until terrain's per-mover breadcrumb record lands (MS-T2); then it backs out along it — MR-5 stands |
+| behaviors **R-2126 / R-2127** | MR-11, KG-7 | the clearer's tool switch is one seam (`ClearerEquipment.SetActive`) re-bound to terrain's switch; a minefield ahead is its own SOP row — halt, one `Engineers` request |

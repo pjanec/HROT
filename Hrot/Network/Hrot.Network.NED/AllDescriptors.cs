@@ -215,6 +215,8 @@ namespace Hrot.NED.Descriptors
         dtMinefield                   = 191,
         dtMinefieldStrikes            = 192,
         dtMinefieldKnowledge          = 193,
+        // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
+        //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
         // etc., all known descriptor types here
     }
 

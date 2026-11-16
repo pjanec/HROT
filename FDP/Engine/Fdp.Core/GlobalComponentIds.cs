@@ -24,6 +24,9 @@ namespace Fdp.Core
     /// <para><b>⭐ R-2056 (2026-10-19) — NEW ids come from the LANE's block</b> (existing ids are never renumbered):
     /// behaviors 418–433 · backend 434–449 · traffic 450–459 (reserved) · ui 460–475 · coordinator / a new lane 476–495 ·
     /// 496–511 held back (the 512-bit mask). 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</para>
+    /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
+    /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
+    /// agg-behaviors 324–326, agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -1342,6 +1345,17 @@ namespace Fdp.Core
         /// <summary><c>ChargeTimer</c> — ⭐ CE-4621 M-5 (MV-9): a charge's timer (<c>SimInstant DetonateAt</c>), recorded; ticked by <c>ChargeSystem</c>.
         /// ⚠ The backend block (434–449) is full; 486 measured free in backend, behaviors, ui and coordinator 2026-11-15.</summary>
         public const int ChargeTimer = 486;
+
+        // ⭐ R-4276 / CE-4616 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23) — the stochastic unit's
+        //   contract, fixed by coordinator 2026-11-16 for the three exp/agg lanes; measured free on every lane (no constant, no [ComponentId]).
+        /// <summary><c>AggregateUnit</c> — a unit's resolution, echelon, formation and state (§22). Reserved for exp/agg-backend.</summary>
+        public const int AggregateUnit = 281;
+        /// <summary><c>UnitSlotTable</c> — the unit's member slots: health, ammo, stress (chunked ≤ 1024 B). Reserved for exp/agg-backend.</summary>
+        public const int UnitSlotTable = 282;
+        /// <summary><c>UnitHoldings</c> — the systems a unit holds, per type. Reserved for exp/agg-backend.</summary>
+        public const int UnitHoldings = 283;
+        /// <summary><c>FireAllocation</c> — a firer's allocation of expected hits per target (phase A → phase B). Reserved for exp/agg-backend.</summary>
+        public const int FireAllocation = 284;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
