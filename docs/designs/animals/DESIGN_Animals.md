@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — AN-1…AN-14 APPROVED with the user's changes (R-4266); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: DESIGN — AN-1…AN-16 APPROVED with the user's changes (R-4266, R-4267); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
 current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
 stale-below: nothing
 known-rot: none
@@ -53,6 +53,7 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 
 | species | default | frightened by | when frightened | special |
 |---|---|---|---|---|
+| **hens** | peck and wander inside their area | people near, vehicles, any shot | run, or a short low flutter | AN-15 |
 | **cattle** | graze slowly in a pasture, a loose herd | blasts, gunfire, heavy vehicles (the engine sound), people close | the herd runs AWAY, breaks a weak fence if in its way, stops when far enough, seeks grass away from roads, returns to grazing | big: AN-7 |
 | **sheep** | graze in a TIGHT herd, move as one | the same, more easily | flee as one tight mass | cohesion high |
 | **herd horses** | as cattle, faster, more skittish | the same | flee fast, far | — |
@@ -72,7 +73,7 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-2** | fear | ⭐ the EXISTING `CivilianFearSystem` gains a per-species impulse table — engines, rotors, footsteps and SEEN heavy vehicles count for animals; plus the flight-zone rule (a threat class inside the species distance) | ⛔ never a second fear system; civilians unchanged (their table stays) |
 | **AN-3** | herds | each animal an entity; the herd a hidden UNIT (the squad pattern: roster, a leader) — members keep boids spacing round the leader (sheep tight, cattle loose); the herd chooses the next grazing spot; neighbour reads DECLARED (the parallel rule) | individual animals can be shot, can break a fence, can die |
 | **AN-4** | birds | ⭐ a FLOCK is ONE entity (its position, heading, state, a count, a seed) drawn as N birds by a deterministic boids pattern in the PRESENTATION; a lone bird is its own small entity; both on a light flight model (point mass, banked turns). ⭐ **Birds PERCH ON TREES** — lone trees, ORCHARDS and PUBLIC PARKS, ⛔ never the woods: frightened, they fly away; after a while they come back to perch (the same trees or others nearby) | 🔒 user; 200 birds cost one brain; replay draws the same birds from the seed |
-| **AN-5** | dogs | ⭐ `GuardDog`: a territory (a yard area) — ⭐ **or a TETHER**: a tethered dog has an anchor point and a tether length and can NEVER go farther than it (its barking and attacking are within the tether only; an intruder outside the circle is barked at, never reached); BARKS at people inside the bark radius — a SOUND others hear (a sentry wakes up: a tactical gain); ATTACKS an intruder inside the attack radius (chase + `Melee.Strike`); not frightened. An attacking dog is a hostile act (NonLethal) ⇒ soldiers may shoot it | the user's guard; and the bark is useful to scenarios |
+| **AN-5** | dogs | ⭐ `GuardDog`: a dog STAYS CLOSE TO ITS HOUSE by behaviour — a HOME (the house) and a home radius it keeps to without any visible tether; it barks at people near (a SOUND others hear — a sentry wakes up: a tactical gain) and ATTACKS an intruder who comes close (chase + `Melee.Strike`), then returns home; not frightened. ⭐ A TETHER is an OPTION: an anchor and a length it can NEVER exceed (an intruder outside the circle is barked at, never reached). An attacking dog is a hostile act (NonLethal) ⇒ soldiers may shoot it | 🔒 user: *"not all dogs are tethered … stay close to the house … the tether is just an option"* |
 | **AN-6** | grass, orchards, parks | ⭐ a **pasture / grass** surface class, and ⭐ **ORCHARD and PARK areas** (OSM `landuse=orchard`, `leisure=park`, + authored) as the birds' perching places beside lone trees in the `SurfaceClassGrid`: from OSM (`landuse=meadow / pasture / grass / farmland`, `natural=grassland`) and an authored Pasture area; recovery seeks the nearest grass AWAY from roads and the threat (an EQS query) | ⛔ today there is no grass class at all |
 | **AN-7** | a panicking big animal and a fence | ✅ a PANICKED cattle / horse pressing a SMALL fence (wire, wood, a hedge gap — never a wall) breaks it through `ContactBreach`, its mass as the push; the herd then runs through the gap | ✅ 🔒 user: *"yes, for small fences"* — amends Breaching B-D1 |
 | **AN-8** | the riding horse | ⭐ a carrier like the motorcycle: a rider seat (a FIRING seat — he can shoot from the saddle) and an optional second; *Drive* / *Board* for the player; a legged motion model (turns while moving, tighter than a bike, no reverse); a war horse fearless, a riding horse bolts with its rider when the fear is high | reuses the motorcycle's seat and possession work |
@@ -81,6 +82,8 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-11** | cats | ⭐ INCLUDED (🔒 user: *"Include the cats, they are nice, cute"*): sill / parapet perches from the building layout, a hop between sill and ground as a short jump link, wander, hop up elsewhere, slip indoors when frightened | 🔒 user: *"more on the funny optional side"* |
 | **AN-13** | horses JUMP | ⭐ a horse (herd, riding, war) clears a LOW obstacle — a small fence, a ditch, a low wall up to ~1.2 m — instead of breaking or going round it: a jump link in the route and a jump arc in the motion model; a ridden horse jumps on the rider's route (the player: a jump key) | 🔒 user: *"The horses can also jump"* |
 | **AN-14** | the cats' perches | sills and parapets of ground-floor windows from the building layout; a hop between sill and ground (the same jump link as AN-13, a small one) | shares the jump mechanism |
+| **AN-15** | hens (domestic poultry) | ⭐ a new species: pecking at the ground and wandering inside their area; frightened ⇒ RUN, or a very LOW, SHORT flutter-flight (a few metres, ~1 m up) where running is blocked; calm ⇒ back to pecking | 🔒 user: *"hens … picking something from the ground … a very low and short flight … or they simply try to run away"* |
+| **AN-16** | ⭐ the DOMESTIC ANIMAL AREA | ⭐ a CLOSED POLYLINE the author draws (a scenario area, like the checkpoint's lines) with a species and a count (cattle, horses, sheep, hens …, mixed allowed) and a seed: at scenario start it is POPULATED automatically — N animal entities placed inside by the seed, each with a stable key (`<area>/<n>`, the same identity rule as split-created soldiers) and the area as its HOME. They stay inside by behaviour (fence or not); frightened they may leave (and break a small fence, AN-7); calm again they return to their area. The area is also their grazing ground | 🔒 user: *"some zone which is populated automatically by those domestic animals … they will try to stay inside unless frightened … Defined by polyline, closed one"* · the save stores the AREA; the animals are made from it (and recorded once made) |
 | **AN-12** | destructible, neutral | every animal has Health, injury states, the dead figure; hit by fire, blasts, vehicles (RM-1); a NEUTRAL side — soldiers do not target animals unless attacked (the dog) or ordered | 🔒 user: *"destructible the same way"* |
 
 ## 4a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
@@ -97,6 +100,7 @@ categories ≥ 200 are used nowhere (people are `3.1.*.1–3`); no class named f
 | **704** | `Animal_HorseWar` | 3 · 1 · 0 · **202** · 3 | `"Horse"` | `VisualFamily.Horse` |
 | **705** | `Animal_Dog` | 3 · 1 · 0 · **203** · 1 | `"Dog"` = `3.1.*.203` | `VisualFamily.Dog` |
 | **706** | `Animal_Cat` | 3 · 1 · 0 · **204** · 1 | `"Cat"` = `3.1.*.204` | `VisualFamily.Cat` |
+| **709** | `Animal_Hen` | 3 · 1 · 0 · **206** · 1 | `"Poultry"` = `3.1.*.206` | `VisualFamily.Poultry` |
 | **707** | `Animal_BirdFlock` | 3 · **2 (air)** · 0 · **205** · 2 | `"Bird"` = `3.2.*.205` | `VisualFamily.Bird` (N birds) |
 | **708** | `Animal_Bird` | 3 · 2 · 0 · **205** · 1 | `"Bird"` | `VisualFamily.Bird` |
 
@@ -228,3 +232,4 @@ run on.*
 | AN-S4 | horses: herd horses and the riding / war horse (seats, possession, gaits) | backend + ui |
 | AN-S5 | the fence breach (if AN-7 is approved) | backend |
 | AN-S6 | cats (included) | behaviors + ui |
+| AN-S7 | hens + the domestic animal area (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
