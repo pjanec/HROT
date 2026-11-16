@@ -808,6 +808,33 @@ namespace Hrot.NED.Descriptors
         public double LastTime;
     }
 
+    // ⭐ CE-4623 AB-3 (docs/designs/animals/DESIGN_Animals.md §6.1) — an animal's state as every node sees it (its brain node writes it): the
+    //   mode, the fear band, the species, the flags. 4 bytes of payload, sent on change.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAnimalState
+    {
+        [DdsKey] public int EntityId;
+        public byte Mode;
+        public byte FearBand;
+        public byte Species;
+        public byte Flags;
+    }
+
+    // ⭐ CE-4623 AB-3 — a bird flock's birds left, its seed and whether it flies, sits or perches (the presentation draws the N birds).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityFlockState
+    {
+        [DdsKey] public int EntityId;
+        public ushort Count;
+        public ushort InitialCount;
+        public uint Seed;
+        public byte Mode;
+    }
+
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]

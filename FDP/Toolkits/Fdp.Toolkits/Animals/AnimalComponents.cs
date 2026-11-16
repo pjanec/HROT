@@ -41,6 +41,31 @@ namespace Fdp.Toolkit.Animals
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4623</c> AB-3 (AR-3, AR-4) — an ANIMAL's fear, kept by the ONE fear system (<c>CivilianFearSystem</c>) beside a civilian's
+    /// (which stays on <c>CivilianState</c>, unchanged — L-A8). Written on the animal's brain node only; ⛔ not replicated — every other node
+    /// sees the band on <see cref="AnimalState.FearBand"/>. 0 = calm … 1 = blind panic.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.Fear)]
+    [DataPolicy(DataPolicy.Default)]   // world state: recorded, saved, snapshotted
+    public struct Fear
+    {
+        /// <summary>0 = calm … 1 = blind panic.</summary>
+        public float Value;
+        /// <summary>Where the last fright came from (a shot, the man walking up, the tank) — it runs AWAY from here.</summary>
+        public Vector3 FrightFrom;
+        /// <summary>Sim seconds of the last fright (a fright this frame is not faded in the same frame).</summary>
+        public double LastFrightAt;
+        /// <summary>Sim seconds of the next flight-zone look (the zone is looked at ~5 times a second, not every frame).</summary>
+        public double NextZoneLookAt;
+        /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>
+        public byte HasFrightFrom;
+        /// <summary>1 when the last fright was the FLIGHT ZONE (a threat seen near), 0 when it was heard or felt.</summary>
+        public byte Seen;
+        private byte _pad0, _pad1;
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4623</c> §6.1 — an animal's state as every node sees it: written on the animal's brain node, REPLICATED. 4 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]

@@ -104,6 +104,9 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.RuleLeaves);
         // ⭐ CE-3216 S1 — authored weather: the Brain that creates the World Environment / a Weather Region owns it (dtWeather).
         brain.SetBit(GlobalComponentIds.WeatherConditions);
+        // ⭐ CE-4623 AB-3 — an animal's state and a flock's: written by its brain (the fear system, the animal HSM) on the node running it (dtAnimalState, dtFlockState).
+        brain.SetBit(GlobalComponentIds.AnimalState);
+        brain.SetBit(GlobalComponentIds.FlockState);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

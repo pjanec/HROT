@@ -98,6 +98,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
         world.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();       // ⭐ CE-3271 (Q94 D) — a spawn's birth level (dtSpawnLevel)
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();             // ⭐ CE-1223 — when a man was last under fire (dtUnderFire); idempotent beside CombatComponentRegistry
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();                     // ⭐ CE-4623 AB-3 — an animal's state (dtAnimalState), on every node
+        world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();                      // ⭐ CE-4623 AB-3 — a bird flock's state (dtFlockState)
         world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)

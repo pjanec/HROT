@@ -386,6 +386,12 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityTrafficDemand` | descriptor | yes: entity id | S | Hrot.Network.NED | Scenario traffic settings |
 | `Hrot.NED.Descriptors.EntityTurretPose` | descriptor | yes: parent entity id + part instance id | SL | Hrot.Network.NED | Turret part pose, per part instance |
 | `Hrot.NED.Descriptors.EntityUnderFire` | descriptor | yes: entity id | S | Hrot.Network.NED | When the man was last hit or nearly missed |
+| `Hrot.NED.Descriptors.EntityGroundDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Ground damage (craters, ruts) (`dtGroundDamage`; row added at CE-4623 — it was missing) |
+| `Hrot.NED.Descriptors.EntityTreeDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Felled / broken trees (`dtTreeDamage`; row added at CE-4623 — it was missing) |
+| `Hrot.NED.Descriptors.EntityRadarEmission` | descriptor | yes: entity id | S | Hrot.Network.NED | A radar's emission (`dtRadarEmission`, CE-4617; row added at CE-4623 — it was missing) |
+| `Hrot.NED.Descriptors.EntityBladeCut` | descriptor | yes: entity id | S | Hrot.Network.NED | A bulldozer's blade-cut marker (`dtBladeCut`, CE-4601; row added at CE-4623 — it was missing and the protocol rail was red) |
+| `Hrot.NED.Descriptors.EntityAnimalState` | descriptor | yes: entity id | S | Hrot.Network.NED | An animal's mode, fear band, species and flags (`dtAnimalState`, CE-4623) |
+| `Hrot.NED.Descriptors.EntityFlockState` | descriptor | yes: entity id | S | Hrot.Network.NED | A bird flock's birds left, seed and flying / landed / perched (`dtFlockState`, CE-4623) |
 | `Hrot.NED.Descriptors.EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
 | `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
 | `Hrot.NED.Descriptors.EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |

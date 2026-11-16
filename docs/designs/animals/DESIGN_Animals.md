@@ -350,6 +350,30 @@ a "person" in this engine is its MOVEMENT CLASS (`VehicleClass.Pedestrian`), not
 fear system is one serial pass; `Melee` crosses nodes; *Drive* / *Board*, the seat eye and the rider pose work for an animal carrier; window sill
 data exists on template buildings; the mixer degrades by priority; Kind 3 itself is mostly harmless (no civilian-class collision).
 
+## 9. As-built — backend *(folded per task; `CE-4623`; the morning report is `docs/blueprints/batches/STATUS_Backend_Animals.md`)*
+
+| task | as built | deviates from §5 / §6 because |
+|---|---|---|
+| **AB-1** taxonomy | `AnimalTkbCatalog` (`Hrot.Core/Tkb`) — the species table AR-21 as ONE `Row[]`; `AnimalTemperamentDto` (`Gen.Animal`); `AnimalTkbTranslator` gives `AnimalState` (+ `FlockState` for a flock, + `Fear`) on every node at spawn; THE question `Animals.IsAnimal` = carries `AnimalState` | `AirAnimal` is `3.2.*.205-209` (a range — the class table refuses two classes on one mask, and `Bird` is exactly `3.2.*.205`) |
+| **AB-2** movement | `VehicleClass.Quadruped` (a legged CarKinematics preset — steers while it moves, no reverse) for land animals; `BirdFlightModel` (`LocomotionClass.Bird`, never an aircraft) for birds; the infantry nav layer; SUMO sees an animal as a body at its footprint | no `QuadrupedGait` component on the sim side — gaits by speed are ui's (§6.3) |
+| **AB-3** fear | ⭐ the ONE fear system (`CivilianFearSystem`) keeps both: civilians on `CivilianState` (unchanged), animals on `Fear` (id 500) through `AnimalFear` — the same sound-impulse table, the species temperament for the zones and the recovery, and the FLIGHT ZONE look (every person and vehicle in the fight, not aboard, ~5 Hz per animal, staggered; 0 B in the steady state). The band goes to the replicated `AnimalState.FearBand` only when it changes; `AnimalState` and `FlockState` replicate as `dtAnimalState` (189) / `dtFlockState` (190), Brain group, on change | civilians do NOT move onto `Fear` yet (L-A8 — a large blast radius for an overnight run; filed). ⭐ "Approaching" = closing AND heading at it (its track passes within half the flight zone): a car on the road beside the field passes by and leaves the herd only UNEASY — measured in `AnimalFearTests` |
+
+```mermaid
+sequenceDiagram
+  participant S as AcousticPerception (every force, for an animal)
+  participant F as CivilianFearSystem (the one fear system)
+  participant A as AnimalFear (the animal half)
+  participant W as dtAnimalState egress
+  S->>F: SoundContactEvent (shot, blast)
+  F->>A: Frighten(impulse from the one table, temperament)
+  F->>A: StepAnimals: LookRound (flight zone, ~5 Hz) · Fade (recovery time)
+  A-->>F: Fear.Value
+  F->>F: AnimalState.FearBand, only when the band changes
+  F-->>W: AnimalState changed
+  W-->>W: one sample per change, every other node's pose / gait
+```
+*What it shows: an animal's fear has ONE writer (the fear system, on its brain node) and ONE replicated face (the band); nothing per frame crosses the wire.*
+
 ## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
 
 ## 6. Slices *(each gated by the review §8 before it is built)*

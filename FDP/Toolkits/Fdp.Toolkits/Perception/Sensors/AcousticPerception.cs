@@ -233,11 +233,13 @@ namespace Fdp.Toolkit.Perception.Sensors
             Span<SoundEmission> sounds = stackalloc SoundEmission[MaxSoundsPerSolve];
             int k = ring.ReadAfter(after, sounds, out long last, notBefore, asOf);
             byte ourForce = view.HasComponent<EntityInfo>(unit) ? (byte)view.GetComponentRO<EntityInfo>(unit).ForceId : (byte)0;
+            // ⭐ CE-4623 AB-3 (AR-4) — an ANIMAL hears every force: a neutral cow hears the neutral farmer, the neutral car, another cow's alarm
+            bool everyForce = Fdp.Toolkit.Animals.Animals.IsAnimal(view, unit);
             for (int i = 0; i < k; i++)
             {
                 ref readonly var e = ref sounds[i];
                 if (n == candidates.Length) { last = e.Serial - 1; break; }   // no room: this one and the rest wait for the next solve
-                if (e.Source == unit.PackedValue || e.Force == ourForce) continue;   // not his own sound, not his own side's (the broadphase's rule)
+                if (e.Source == unit.PackedValue || (e.Force == ourForce && !everyForce)) continue;   // not his own sound, not his own side's (the broadphase's rule)
                 // ⭐ CE-3292 — the error's seed is the sound's place in THIS timeline: the ring's serial keeps counting across loads, so the
                 //   raw serial gave the same shot a different mishearing in every run. ⭐ CE-3315 — the ring hands out the place itself
                 //   (it goes on across a restore, where serial − first did not).

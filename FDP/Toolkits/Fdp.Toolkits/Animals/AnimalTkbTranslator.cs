@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Animals
         public IEnumerable<Type> GetProducedComponents()
         {
             yield return typeof(AnimalState);
+            yield return typeof(Fear);
             yield return typeof(FlockState);
             yield return typeof(HerdMember);
             yield return typeof(AnimalHome);
@@ -34,6 +35,9 @@ namespace Fdp.Toolkit.Animals
             if (dto == null) return;
             if (repo.IsComponentTypeRegistered<AnimalState>() && !repo.HasComponent<AnimalState>(entity))
                 repo.AddComponent(entity, new AnimalState { Species = (AnimalSpecies)dto.Species, Mode = AnimalMode.Calm });
+            // ⭐ AB-3 — its fear (kept where its brain runs; harmless elsewhere); the flight-zone looks staggered by entity so they spread over frames
+            if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(entity))
+                repo.AddComponent(entity, new Fear { NextZoneLookAt = (entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10f) });
             if ((AnimalSpecies)dto.Species == AnimalSpecies.BirdFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
                 repo.AddComponent(entity, new FlockState { Count = DefaultFlockCount, InitialCount = DefaultFlockCount, Seed = (uint)template.TkbType, Mode = FlockMode.Perched });
         }

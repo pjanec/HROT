@@ -47,7 +47,11 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtDemeanour),             // ⭐ CE-3265 — mood
         D(EDescriptorType.dtObjectiveStatus),     // ⭐ rules S1-a — an objective's status (its own Brain)
         D(EDescriptorType.dtExerciseResult),      // ⭐ rules S2-e — the exercise's phase and outcome (the World Environment's Brain)
-        D(EDescriptorType.dtRuleLeaves) };      // ⭐ rules V-3 — a trigger's when-leaves with their live values (its owning Brain)
+        D(EDescriptorType.dtRuleLeaves),        // ⭐ rules V-3 — a trigger's when-leaves with their live values (its owning Brain)
+        D(EDescriptorType.dtBladeCut),          // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker (pinned here at CE-4623: it was missing, the rail was red)
+        D(EDescriptorType.dtRadarEmission),     // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (pinned here at CE-4623: it was missing)
+        D(EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state (its brain)
+        D(EDescriptorType.dtFlockState) };      // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
