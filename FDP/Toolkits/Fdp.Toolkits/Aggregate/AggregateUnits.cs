@@ -6,7 +6,7 @@ using Fdp.Toolkit.Behavior.Components;
 namespace Fdp.Toolkit.Aggregate
 {
     /// <summary>
-    /// ⭐⭐ agg-behaviors <c>ST-0 ①</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.6; RV-5) — the ONE predicate and the ONE
+    /// ⭐⭐ agg-behaviors <c>ST-0 ①</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.7; RV-5) — the ONE predicate and the ONE
     /// slot walk the four strength readers (<c>UnitStrength</c>, <c>CombatEffective</c>, the staff's <c>AmmoOf</c>, the objectives' census) branch on
     /// BEFORE their roster walk: a STOCHASTIC unit has no roster and no bodies, so its men are its <see cref="UnitSlotTable"/>'s slots. Allocation-free
     /// (index loops over the fixed inline slots; the table is read by reference, never copied). ⛔ Present is never stored (SV-11): it is derived here, every call.

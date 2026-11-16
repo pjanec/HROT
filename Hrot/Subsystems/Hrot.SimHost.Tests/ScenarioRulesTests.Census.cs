@@ -72,7 +72,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(total > 20, $"the premise: men inside the areas ({total})");
         }
 
-        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.6) — the census counts a STOCHASTIC unit's Present men (its live slots) when its position is inside
+        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.7) — the census counts a STOCHASTIC unit's Present men (its live slots) when its position is inside
         /// the area, 0 outside, whether it is the subject or sits under a physical company's roster; bodies keep counting as before. ✅ Red-proof:
         /// <c>StochasticMenInside</c> not added in <c>MenInside</c> ⇒ 0 ⇒ red.</summary>
         [Fact]

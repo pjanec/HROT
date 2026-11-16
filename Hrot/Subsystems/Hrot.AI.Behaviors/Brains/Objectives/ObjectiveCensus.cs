@@ -57,7 +57,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             return n + StochasticMenInside(world, e, in area, 0);   // ⭐ agg-behaviors ST-0 ① — a stochastic unit at / under the subject
         }
 
-        /// <summary>⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — the Present men of every STOCHASTIC unit at or under <paramref name="e"/> (down its roster) whose
+        /// <summary>⭐ agg-behaviors ST-0 ① (RV-5; design §23.7) — the Present men of every STOCHASTIC unit at or under <paramref name="e"/> (down its roster) whose
         /// position (its <see cref="SimTransform"/>, the footprint's centre — the footprint ∩ area share is ST-3's) is inside <paramref name="area"/>. Bodies are
         /// counted by <c>MenOf</c> above; a stochastic unit has none. Allocation-free (an index walk, the same depth bound).</summary>
         private static int StochasticMenInside(EntityRepository world, Entity e, in AreaLink area, int depth)

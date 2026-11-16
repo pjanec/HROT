@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Squad
         private static bool IsInTheFight(ISimulationView view, Entity member, int depth, bool standing)
         {
             if (member.IsNull || !view.IsAlive(member)) return false;
-            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — a stochastic unit: its live (standing) slots, by the SAME MinEffective rule as a roster
+            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.7) — a stochastic unit: its live (standing) slots, by the SAME MinEffective rule as a roster
             if (AggregateUnits.IsStochastic(view, member)) return AggregateUnits.InTheFight(view, member, standing);
             if (!IsUnit(view, member))
                 return Injury.IsInTheFight(view, member) && !(standing && Behavior.Components.Stresses.IsBroken(view, member));

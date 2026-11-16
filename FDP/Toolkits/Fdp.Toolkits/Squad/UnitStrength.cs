@@ -45,7 +45,7 @@ namespace Fdp.Toolkit.Squad
         public static UnitStrength Of(ISimulationView view, Entity unit, bool standing = false)
         {
             if (unit.IsNull || !view.IsAlive(unit)) return default;
-            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.6) — a STOCHASTIC unit has no roster and no bodies: its men are its slots, checked BEFORE the roster
+            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.7) — a STOCHASTIC unit has no roster and no bodies: its men are its slots, checked BEFORE the roster
             if (AggregateUnits.IsStochastic(view, unit))
                 return AggregateUnits.Slots(view, unit, standing, out int live, out int slots, out _) ? new UnitStrength(live, slots, true) : default;
             // ⭐ a ROSTER makes it a unit here (as StrengthOf always read it) — a commander entity without UnitEntity still reports its men
