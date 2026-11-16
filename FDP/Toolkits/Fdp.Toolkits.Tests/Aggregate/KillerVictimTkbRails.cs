@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Aggregate;
@@ -80,6 +81,37 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 Assert.True(KillerVictimTable.Current!.TryGet(new TkbTypeId(Ifv), new TkbTypeId(Ifv), out _));
             }
             finally { KillerVictimTable.Current = was; }
+        }
+    
+        /// <summary>⭐ CE-8014 (agg-behaviors' F-1) — the ammunition share from the TKB's basic load, no capacity field: two IFVs that started with
+        /// 2 × 0 rounds declared ⇒ unknown; a rifle squad at half its rounds ⇒ 0.5. ✅ Red-proof: the load summed over DOWN slots too ⇒ red.</summary>
+        [Fact]
+        public void TheAmmunitionShare_IsRoundsLeftOverTheTkbsBasicLoad()
+        {
+            var db = new TkbDatabase();
+            var man = new TkbTemplate("Rifleman", Rifleman);
+            man.AddDescriptor(new WeaponSuiteDto { Mounts = new() { new WeaponMountDto { InitialAmmunition = 200 } } });
+            db.Register(man);
+            var was = KillerVictimTkb.PersonalSoldiers;
+            KillerVictimTkb.PersonalSoldiers = new Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = new(Rifleman) };
+            try
+            {
+                using var w = new EntityRepository();
+                w.RegisterComponent<UnitSlotTable>(); w.RegisterComponent<UnitHoldings>();
+                w.SetSingletonManaged<ITkbDatabase>(db);
+                var u = w.CreateEntity();
+                var s = new UnitSlotTable { Count = 3 };
+                s.Slots[0] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f, Ammo = 100 };
+                s.Slots[1] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f, Ammo = 100 };
+                s.Slots[2] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)0f, Ammo = 0 };   // down: not counted
+                w.AddComponent(u, s);
+                Assert.True(UnitAmmunition.TryShare(w, u, out float share));
+                Assert.Equal(0.5f, share, 3);
+                var none = w.CreateEntity();
+                w.AddComponent(none, new UnitHoldings());
+                Assert.False(UnitAmmunition.TryShare(w, none, out _));
+            }
+            finally { KillerVictimTkb.PersonalSoldiers = was; }
         }
     }
 }
