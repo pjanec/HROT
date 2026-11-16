@@ -1537,6 +1537,35 @@ public sealed class ReplayBrowserSubsystemTests : IDisposable
         Assert.Contains(baseHash, _subsystem.TerrainWarning); Assert.Contains(new string('a', 64), _subsystem.TerrainWarning);
     }
 
+    /// <summary>
+    /// ⭐⭐ AQ112 B (R-4280) — a recording made on a terrain that was RE-IMPORTED since still replays on the version it recorded: its <c>TerrainHash</c> / overlay's base hash resolves <c>versions/&lt;hash&gt;/</c>, so the Browser shows the OLD base ("B") and
+    /// the overlay's house, not the new terrain ("N"), with no warning. 🔴 Red-proof: have <c>Prepare</c> resolve by name only ⇒ the overlay is refused (C-5) and the Browser falls back to the NEW base with a warning.
+    /// </summary>
+    [Fact]
+    public void AQ112B_ARecordingMadeBeforeAReImport_ReplaysOnTheOldVersion()
+    {
+        var (root, hash, baseHash) = MakeTerrainWithOverlay();
+        string path = RecordWithOverlay("reimported.fdp", hash, baseHash);
+        string folder = Path.Combine(root, "base-t"), moved = folder + "-moving";   // the re-import: the old folder is kept by hash, a new terrain stands in its place
+        Directory.Move(folder, moved); Directory.CreateDirectory(Path.Combine(folder, "versions"));
+        Directory.Move(moved, Path.Combine(folder, "versions", baseHash));
+        File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson"}""");
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,200,200],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"N","height":5},"geometry":{"type":"Polygon","coordinates":[[[30,30],[40,30],[40,40],[30,40],[30,30]]]}}]}
+            """);
+        Assert.NotEqual(baseHash, Fdp.Toolkit.Terrain.TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json")));
+
+        _subsystem.TerrainCatalog = new Fdp.Toolkit.Terrain.TerrainCatalog(new[] { root });
+        _subsystem.Initialize(HeadlessConfig());
+        _subsystem.LoadFdpViaManager(path);
+        var terrain = _subsystem.ActiveRepo!.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+        Assert.Contains(terrain.Buildings, b => b.Label == "ov/0");
+        Assert.Single(terrain.Prisms, p => p.Label == "B");
+        Assert.DoesNotContain(terrain.Prisms, p => p.Label == "N");
+        Assert.Null(_subsystem.TerrainWarning);
+    }
+
     /// <summary>⭐ O-8 — a recording from before the fields (metadata without them) opens exactly as before: no warning, the base terrain.</summary>
     [Fact]
     public void O8_OldMetadataWithoutTheFields_OpensAsBefore()

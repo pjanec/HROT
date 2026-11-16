@@ -28,6 +28,11 @@ namespace Fdp.Toolkit.Terrain
     /// <item><b>Once per mine:</b> a mine in this frame's fired set, in the pending set (struck, its record not yet landed) or in any strikes record (<see cref="MinefieldStrikesSystem.IsGone"/>,
     /// memoised) never fires again; two bodies on one mine fire it once.</item>
     /// <item><b>0 B a steady frame (R-2084):</b> reused buffers, cached queries, no LINQ; a field's outline is read into a reused list and compared with its cache.</item>
+    /// <item><b>⭐ The muscle (MS-T4, MR-11, MR-15, MR-17, MF-9) — after the strike pass:</b> a body carrying an ACTIVE <see cref="MineClearing"/> clears the mines of the field it is inside — a plough / flail every live mine within
+    /// <c>WidthM / 2</c> of its path (and <see cref="ClearAheadMetres"/> beyond its hull's front), each surviving with a seeded chance (<see cref="PloughSurvival"/>, <see cref="FlailSurvival"/> — hashed per field, row and column: the
+    /// same every run), the FLAIL bursting what it clears (a <see cref="DetonationNotification"/> at the mine with its own munition, never the flail as a target), the plough turning them aside in silence; a LINE CHARGE, once
+    /// on its activation edge, bursts the line every <see cref="LineBurstSpacingMetres"/> m (munition 6053) and clears everything within <c>WidthM / 2</c> of it, no roll. A cleared mine is a <see cref="MinesCleared"/>
+    /// event (recorded as <see cref="MineGone.Cleared"/>: no knowledge, no burst of its own); when a plough / flail leaves the field — or its tool goes idle — ONE <see cref="LaneCleared"/> (entry → exit, its width, its side).</item>
     /// </list>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
@@ -44,6 +49,34 @@ namespace Fdp.Toolkit.Terrain
         public const float MaxStepMetres = 60f;
         /// <summary>How long a struck mine stays in the pending set waiting for its record (sim s).</summary>
         public const float PendingSeconds = 20f;
+        /// <summary>⭐ MS-T4 (MR-15) — the chance a mine in the plough's / the flail's swath SURVIVES it (a starter value; hashed per mine, so a survivor survives every pass and every run).</summary>
+        public const float PloughSurvival = 0.05f, FlailSurvival = 0.02f;
+        /// <summary>⭐ MS-T4 — how far beyond its hull's FRONT a plough / flail clears (its chain / share reaches out; also what keeps a flail's own bursts off its hull).</summary>
+        public const float ClearAheadMetres = 3f;
+        /// <summary>⭐ MS-T4 (MF-9) — a line charge bursts every this many metres along its line, and reaches at most <see cref="LineMaxMetres"/>.</summary>
+        public const float LineBurstSpacingMetres = 8f, LineMaxMetres = 100f;
+        /// <summary>A cleared run shorter than this is no lane (a tool switched on and off in place).</summary>
+        public const float MinLaneMetres = 2f;
+        /// <summary>The swath width when the marker states none (m).</summary>
+        public const float DefaultWidthMetres = 4.5f, DefaultLineWidthMetres = 8f;
+
+        private sealed class ClearState
+        {
+            public bool WasActive;
+            public bool HasPrev;
+            public Vector2 Prev;
+            public bool InField;
+            public Entity Field;
+            public Vector2 Entry, Exit;
+            public float Width;
+            public byte SidePlus1;
+        }
+        private readonly Dictionary<Entity, ClearState> _clearers = new();
+        private EntityQuery? _clearQuery;
+        private readonly short[] _batchRow = new short[MinesCleared.MaxMines];
+        private readonly short[] _batchCol = new short[MinesCleared.MaxMines];
+        private int _batchCount;
+        private float _lcPen, _lcDmg;
 
         private sealed class FieldCache
         {
@@ -74,6 +107,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Mines set off since the system was built (rails, diagnostics).</summary>
         public long Struck { get; private set; }
 
+        /// <summary>⭐ MS-T4 — mines cleared by a plough, a flail or a line charge since the system was built (rails, diagnostics).</summary>
+        public long Cleared { get; private set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
@@ -84,7 +120,8 @@ namespace Fdp.Toolkit.Terrain
             {
                 _fieldQuery = repo.Query().With<Minefield>().With<SimTransform>().Build();
                 _bodyQuery = repo.Query().With<SimTransform>().With<PhysicsCollider>().Build();
-                _queryRepo = repo; _fields.Clear(); _last.Clear(); _mass.Clear(); _pending.Clear(); _gone.Clear(); _ammoRead = false;
+                _clearQuery = repo.IsComponentTypeRegistered<MineClearing>() ? repo.Query().With<MineClearing>().With<SimTransform>().Build() : null;
+                _queryRepo = repo; _fields.Clear(); _last.Clear(); _mass.Clear(); _pending.Clear(); _gone.Clear(); _clearers.Clear(); _ammoRead = false;
             }
             _frame++;
             _stamp++;
@@ -113,6 +150,7 @@ namespace Fdp.Toolkit.Terrain
                     TestBody(repo, e, vehicle, animal, t, from, to, kv.Key, c);
                 }
             }
+            if (_clearQuery != null) ClearingPass(repo);   // ⭐ MS-T4 — after the strike pass: the movers moved, the strikes are decided
             if ((_frame & 127) == 0) Sweep(repo);
         }
 
@@ -320,6 +358,7 @@ namespace Fdp.Toolkit.Terrain
             if (db == null) return;
             (_apPen, _apDmg) = BallisticsOf(db, Minefields.MunitionAntiPersonnel);
             (_atPen, _atDmg) = BallisticsOf(db, Minefields.MunitionAntiTank);
+            (_lcPen, _lcDmg) = BallisticsOf(db, Minefields.MunitionLineCharge);
         }
 
         private static (float Pen, float Dmg) BallisticsOf(ITkbDatabase db, long ammo)
@@ -328,6 +367,196 @@ namespace Fdp.Toolkit.Terrain
             foreach (var (type, _, data) in t.GetAllDescriptors())
                 if (type == typeof(AmmoWeaponBallisticsDto) && data is AmmoWeaponBallisticsDto b && b.WeaponGuid == 0) return (b.PenetrationMm, b.Damage);
             return (0f, 0f);
+        }
+
+        // ── ⭐ the muscle (MS-T4) ────────────────────────────────────────────────────────────────────────────────────
+
+        private void ClearingPass(EntityRepository repo)
+        {
+            if (!repo.Bus.IsRegistered<MinesCleared>() || !repo.Bus.IsRegistered<LaneCleared>()) return;
+            foreach (var e in _clearQuery!)
+            {
+                if (!Fdp.Toolkit.Behavior.Embarkation.OwnsPosition(repo, e)) continue;
+                ref readonly var c = ref repo.GetComponentRO<MineClearing>(e);
+                var t = repo.GetComponentRO<SimTransform>(e);
+                var to = new Vector2(t.Position.X, t.Position.Y);
+                if (!_clearers.TryGetValue(e, out var st)) { st = new ClearState(); _clearers[e] = st; }
+                bool active = c.Active != 0 && c.Tool != MineClearingTool.NoTool;
+                if (c.Tool == MineClearingTool.LineCharge)
+                {
+                    if (active && !st.WasActive) FireLine(repo, e, in c, in t, to);
+                }
+                else Swath(repo, e, in c, st, active, t.Position.Z, to);
+                st.WasActive = active;
+                st.Prev = to; st.HasPrev = true;
+            }
+        }
+
+        /// <summary>A plough / flail: while active it clears the swath of the field it is working in — the one the tool already REACHES (<see cref="ClearAheadMetres"/> ahead of the hull) or the hull is inside, so the
+        /// mines under the hull were cleared before it arrived; the lane is the run the HULL is inside the field: entering starts it, leaving (or going idle) ends it with ONE <see cref="LaneCleared"/>.</summary>
+        private void Swath(EntityRepository repo, Entity clearer, in MineClearing mc, ClearState st, bool active, float z, Vector2 to)
+        {
+            if (!active) { EndLane(repo, st); return; }
+            var from = st.HasPrev && Vector2.DistanceSquared(st.Prev, to) <= MaxStepMetres * MaxStepMetres ? st.Prev : to;
+            var dir = to - from;
+            // ⭐ the tool reaches ClearAheadMetres beyond the hull's FRONT (not its centre: a 7 m hull covers mines 3.5 m ahead of its centre, and the strike pass above has already run this frame)
+            Fdp.Toolkit.Diagnostics.Gizmos.EntityFootprint.Dimensions(repo, clearer, out float hullLength, out _);
+            var ahead = dir.LengthSquared() > 1e-8f ? to + Vector2.Normalize(dir) * (hullLength * 0.5f + ClearAheadMetres) : to;
+            Entity hullIn = Entity.Null, work = Entity.Null; FieldCache? hullCache = null, workCache = null;
+            foreach (var kv in _fields)
+            {
+                var f = kv.Value;
+                if (f.Stamp != _stamp) continue;
+                if (hullCache == null && Holds(f, to)) { hullIn = kv.Key; hullCache = f; }
+                if (workCache == null && (Holds(f, to) || Holds(f, ahead))) { work = kv.Key; workCache = f; }
+            }
+            float width = mc.WidthM > 0.1f ? mc.WidthM : DefaultWidthMetres;
+            if (hullCache == null) EndLane(repo, st);
+            else
+            {
+                if (!st.InField || st.Field != hullIn)
+                {
+                    EndLane(repo, st);
+                    st.InField = true; st.Field = hullIn; st.Entry = to; st.Width = width;
+                    st.SidePlus1 = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(clearer) ? (byte)((int)repo.GetComponentRO<EntityInfo>(clearer).ForceId + 1) : (byte)0;
+                }
+                st.Exit = to;
+            }
+            if (workCache == null) return;
+            bool flail = mc.Tool == MineClearingTool.Flail;
+            ClearMines(repo, clearer, work, workCache, from, ahead, width * 0.5f, flail ? FlailSurvival : PloughSurvival, flail, z);
+        }
+
+        private static bool Holds(FieldCache f, Vector2 p)
+            => p.X >= f.MinX && p.X <= f.MaxX && p.Y >= f.MinY && p.Y <= f.MaxY && MinePattern.Inside(f.Outline, p);
+
+        private void EndLane(EntityRepository repo, ClearState st)
+        {
+            if (!st.InField) return;
+            st.InField = false;
+            if (Vector2.DistanceSquared(st.Entry, st.Exit) < MinLaneMetres * MinLaneMetres || !repo.IsAlive(st.Field)) return;
+            repo.Bus.Publish(new LaneCleared { Field = st.Field, Lane = 255, SidePlus1 = st.SidePlus1, Ax = st.Entry.X, Ay = st.Entry.Y, Bx = st.Exit.X, By = st.Exit.Y, Width = st.Width });
+        }
+
+        /// <summary>A line charge on its activation edge: a burst every <see cref="LineBurstSpacingMetres"/> m from the vehicle toward <see cref="MineClearing.LineTo"/> (≤ <see cref="LineMaxMetres"/>), every mine within
+        /// <c>WidthM / 2</c> of the line cleared (no survival roll), and one <see cref="LaneCleared"/> per field the line touches.</summary>
+        private void FireLine(EntityRepository repo, Entity launcher, in MineClearing mc, in SimTransform t, Vector2 from)
+        {
+            var d = new Vector2(mc.LineTo.X, mc.LineTo.Y) - from;
+            float len = MathF.Min(d.Length(), LineMaxMetres);
+            if (len < 1f) return;
+            var dir = d / d.Length();
+            var end = from + dir * len;
+            float width = mc.WidthM > 0.1f ? mc.WidthM : DefaultLineWidthMetres;
+            ReadAmmo(repo);
+            int bursts = Math.Max(1, (int)MathF.Floor(len / LineBurstSpacingMetres));
+            for (int k = 1; k <= bursts; k++)
+            {
+                var p = from + dir * MathF.Min(k * LineBurstSpacingMetres, len);
+                repo.Bus.Publish(new DetonationNotification
+                {
+                    Shooter = launcher, Target = Entity.Null, HitX = p.X, HitY = p.Y, HitZ = t.Position.Z,
+                    Penetration = _lcPen, Damage = _lcDmg, Ammo = Minefields.MunitionLineCharge,
+                });
+            }
+            byte side = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(launcher) ? (byte)((int)repo.GetComponentRO<EntityInfo>(launcher).ForceId + 1) : (byte)0;
+            foreach (var kv in _fields)
+            {
+                var f = kv.Value;
+                if (f.Stamp != _stamp || MathF.Max(from.X, end.X) + width < f.MinX || MathF.Min(from.X, end.X) - width > f.MaxX
+                    || MathF.Max(from.Y, end.Y) + width < f.MinY || MathF.Min(from.Y, end.Y) - width > f.MaxY) continue;
+                long clearedBefore = Cleared;
+                ClearMines(repo, launcher, kv.Key, f, from, end, width * 0.5f, 0f, false, t.Position.Z);
+                if (Cleared > clearedBefore || SegmentTouches(f, from, end))
+                    repo.Bus.Publish(new LaneCleared { Field = kv.Key, Lane = 255, SidePlus1 = side, Ax = from.X, Ay = from.Y, Bx = end.X, By = end.Y, Width = width });
+            }
+        }
+
+        private static bool SegmentTouches(FieldCache f, Vector2 a, Vector2 b)
+        {
+            for (int i = 0; i <= 8; i++) if (MinePattern.Inside(f.Outline, Vector2.Lerp(a, b, i / 8f))) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Clears every live mine of <paramref name="f"/> within <paramref name="half"/> m of the segment <paramref name="a"/>–<paramref name="b"/> (candidates by lattice arithmetic, as <c>TestBody</c>): each one
+        /// that survives the seeded <paramref name="survival"/> roll stays live; the rest go into <see cref="MinesCleared"/> events (≤ 16 each) and — when <paramref name="burst"/> — burst where they lay.
+        /// </summary>
+        private unsafe void ClearMines(EntityRepository repo, Entity clearer, Entity field, FieldCache f, Vector2 a, Vector2 b, float half, float survival, bool burst, float z)
+        {
+            float s = f.Field.SpacingM, ang = f.Field.OrientationDeg;
+            var uv0 = MinePattern.ToField(a, f.Anchor, ang);
+            var uv1 = MinePattern.ToField(b, f.Anchor, ang);
+            float jitter = f.Field.Seed != 0 ? 0.15f * s * 1.5f : 0f;
+            float band = half + jitter + 0.01f;
+            float vMin = MathF.Min(uv0.Y, uv1.Y) - band, vMax = MathF.Max(uv0.Y, uv1.Y) + band;
+            int r0 = (int)MathF.Floor(vMin / s), r1 = (int)MathF.Ceiling(vMax / s);
+            float du = uv1.X - uv0.X, dv = uv1.Y - uv0.Y;
+            float h2 = half * half;
+            for (int r = r0; r <= r1; r++)
+            {
+                if (r < short.MinValue || r > short.MaxValue) continue;
+                float rv = r * s, tA = 0f, tB = 1f;
+                if (MathF.Abs(dv) < 1e-6f) { if (MathF.Abs(uv0.Y - rv) > band) continue; }
+                else
+                {
+                    float t0 = (rv - band - uv0.Y) / dv, t1 = (rv + band - uv0.Y) / dv;
+                    if (t0 > t1) (t0, t1) = (t1, t0);
+                    tA = MathF.Max(0f, t0); tB = MathF.Min(1f, t1);
+                    if (tA > tB) continue;
+                }
+                float uA = uv0.X + du * tA, uB = uv0.X + du * tB;
+                float uLo = MathF.Min(uA, uB) - band, uHi = MathF.Max(uA, uB) + band;
+                float off = (r & 1) != 0 ? 0.5f : 0f;
+                int cLo = (int)MathF.Ceiling(uLo / s - off), cHi = (int)MathF.Floor(uHi / s - off);
+                for (int col = cLo; col <= cHi; col++)
+                {
+                    if (col < short.MinValue || col > short.MaxValue) continue;
+                    var type = MinePattern.TypeAt(f.Field.Type, r);
+                    if (type == MineType.None) continue;
+                    var mp = MinePattern.At(f.Field, f.Anchor, r, col);
+                    if (DistanceSquaredToSegment(mp, a, b) > h2) continue;
+                    if (!MinePattern.Inside(f.Outline, mp) || MinePattern.InLane(f.Field, mp)) continue;
+                    if (survival > 0f && Survives(f, r, col, survival)) continue;
+                    long key = KeyOf(field, r, col);
+                    if (_firedThisFrame.Contains(key) || _pending.ContainsKey(key) || _gone.Contains(key)) continue;
+                    if (f.HasGuid && MinefieldStrikesSystem.IsGone(repo, f.Guid, (short)r, (short)col)) { _gone.Add(key); continue; }
+                    _pending[key] = repo.SimulationTime + PendingSeconds;
+                    Cleared++;
+                    _batchRow[_batchCount] = (short)r; _batchCol[_batchCount] = (short)col;
+                    if (++_batchCount == MinesCleared.MaxMines) Flush(repo, field);
+                    if (burst)
+                    {
+                        ReadAmmo(repo);
+                        bool anti = type == MineType.AntiTank;
+                        // ⭐ MR-17 — the flail's burst: the mine's own munition at the mine, ⛔ never the flail as a target (its chain is out ahead of its hull)
+                        repo.Bus.Publish(new DetonationNotification
+                        {
+                            Shooter = field, Target = Entity.Null, HitX = mp.X, HitY = mp.Y, HitZ = z,
+                            Penetration = anti ? _atPen : _apPen, Damage = anti ? _atDmg : _apDmg,
+                            Ammo = anti ? Minefields.MunitionAntiTank : Minefields.MunitionAntiPersonnel,
+                        });
+                    }
+                }
+            }
+            Flush(repo, field);
+        }
+
+        private unsafe void Flush(EntityRepository repo, Entity field)
+        {
+            if (_batchCount == 0) return;
+            var ev = new MinesCleared { Field = field, Count = (byte)_batchCount };
+            for (int i = 0; i < _batchCount; i++) { ev.Row[i] = _batchRow[i]; ev.Col[i] = _batchCol[i]; }
+            repo.Bus.Publish(ev);
+            _batchCount = 0;
+        }
+
+        /// <summary>The seeded survival roll: hashed per (field seed, row, column) — the same mine survives every pass and every run (MR-15).</summary>
+        private static bool Survives(FieldCache c, int row, int col, float chance)
+        {
+            uint h = (uint)row * 0x85EBCA77u ^ (uint)col * 0xC2B2AE3Du ^ (c.Field.Seed * 0x9E3779B1u + 0x165667B1u) ^ (c.HasGuid ? (uint)c.Guid.GetHashCode() * 0x27D4EB2Fu : 0u);
+            h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+            return (h & 0xFFFFu) / 65535f < chance;
         }
 
         // ── housekeeping ─────────────────────────────────────────────────────────────────────────────────────────
@@ -344,6 +573,9 @@ namespace Fdp.Toolkit.Terrain
             _stale.Clear();
             foreach (var kv in _last) if (!repo.IsAlive(kv.Key)) _stale.Add(kv.Key);
             for (int i = 0; i < _stale.Count; i++) { _last.Remove(_stale[i]); _mass.Remove(_stale[i]); }
+            _stale.Clear();
+            foreach (var kv in _clearers) if (!repo.IsAlive(kv.Key)) _stale.Add(kv.Key);
+            for (int i = 0; i < _stale.Count; i++) _clearers.Remove(_stale[i]);
             _stale.Clear();
             foreach (var kv in _fields) if (!repo.IsAlive(kv.Key)) _stale.Add(kv.Key);
             for (int i = 0; i < _stale.Count; i++) _fields.Remove(_stale[i]);

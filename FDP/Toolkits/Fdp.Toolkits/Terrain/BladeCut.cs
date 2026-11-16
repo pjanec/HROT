@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Terrain
         public const long WorldPosOrdinal = 2;
 
         private readonly Dictionary<int, (Vector3 At, float Seconds)> _progress = new();
+        private readonly List<BuildingDamageEvent> _cut = new();
         private readonly List<int> _near = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -110,12 +111,11 @@ namespace Fdp.Toolkit.Terrain
             if (len <= 1e-3f) return;
             var dir = (p.B - p.A) / len;
             float along = Math.Clamp(Vector2.Dot(at - p.A, dir), 0f, len);
-            float from = MathF.Max(0f, along - width * 0.5f), to = MathF.Min(len, along + width * 0.5f);
-            repo.Bus.Publish(new BuildingDamageEvent
-            {
-                Building = WallGroups.Of(world, panel), Panel = panel, From = from, To = to, Bottom = p.BaseZ, Top = p.TopZ,
-                Kind = (byte)BreachKind.Passage, Shooter = by,
-            });
+            // ⭐ CE-4629 ② — the ONE multi-panel cut (ContactBreach.CutAlong, R-5008): a stepped wall's pieces are ≤ 2 m (CE-5015), so a one-panel clamp left a gap
+            //   narrower than the blade
+            _cut.Clear();
+            global::CarKinem.Controllers.ContactBreach.CutAlong(world, panel, along, width, by, _cut, buildings: true);
+            foreach (var ev in _cut) repo.Bus.Publish(ev);
         }
 
         private void FellTree(EntityRepository repo, TerrainWorld world, Vector2 at, Entity by)

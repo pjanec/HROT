@@ -434,12 +434,29 @@ query's own loop with two switches, not a second geometry walk.*
 |---|---|---|
 | every panel blocks a hull, a free wall's too | `TerrainWorldQuery.IsHullBarrier` (`kind is slab/ramp/door/panel`), `TracePurpose.Hull` | V-1, D-2, R-4237 |
 | a low wall is met, never climbed | `TerrainWorld.HullSurfaceZ` skips panel tops; `QueryHull` meets a panel up to `HullBandM` under the line | D-4, R-4239 |
+| ⭐ a kerb is rolled over *(R-4280, R-5000 changed `2026-11-16`)* | `QueryFireCore` (hull) skips a panel whose own height (top − base) is under `HullTrace.MinPanelHeightM` = 0.25 m — a 10 cm edging is driven over, a 0.4 m garden wall still met | R-4280; rails `CarKinematicsSystemTests.R4280_*` |
 | a building's breach never opens for a hull | `TerrainWorld.HullBreachOpen` returns false for `Building ≥ 0` | V-5, R-3025 |
 | the break gate | `HullBreakGate.MayBreak` — Manual branch, `PossessedBy.Mode == Fps` on the hull, `ReplayState` not active | V-4, V-14 |
 | walkers unchanged | a bent walker's step still traces `Fire` (a man shoved at a garden wall is not stopped by it — the navmesh keeps him off it) | ⛔ searched §7, none — out of B-1's scope |
 
+⭐⭐ **CE-4629 as built (`2026-11-16`, terrain lane) — a bulldozer's hole is BLADE-WIDE, every bump CENTRED, one multi-panel cut:**
+
+| piece | as built | rail |
+|---|---|---|
+| ① the bulldozer's row | `contact-breach.json` row `bulldozer` (first): `"dis": "1.1.*.9.1"` (matched against the hull's DIS type, `ContactBreachTable.Row.MatchesDis`), `"blade": true`, tracked, ≥ 20 t, ram ≥ 1.0 m/s | `CarKinematicsSystemTests.CE4629_*` |
+| ① the blade bump | a BUILDING wall bumped by a `blade` row: a Passage of the hull's width + `cutMarginM` each side, the wall's FULL height, on every panel of that building's line it spans (`ContactBreach.CutAlong`); the hull still held outside (B-D4, R-3025) | same |
+| every bump centred | the hole's middle is where the hull's CENTRELINE meets the wall (`ContactBreach.CentreAlong`), not the contact point — a hull square to a wall touches it first at a corner (📐 measured live: the 1.2 m hole sat ~2.15 m off the dozer's centreline); the contact point under ~12° | same |
+| ② the AI dozer's cut | `DozerCutSystem.CutWall` calls the ONE multi-panel cut (`ContactBreach.CutAlong`, R-5008) — ⛔ was clamped to the one nearest panel (a ≤ 2 m piece of a stepped wall, CE-5015) | `ClearObstacleBehaviorTests.CE4629_*` (straight + 1 m pieces) |
+| `CutAlong` | the player's drive-through (free walls only), the blade bump and the ordered cut share it; a cut stays on ONE wall (a building's own panels, or the free walls) | — |
+
+⭐ **CE-4630 measured (`2026-11-16`, terrain lane) — a bump hole IS walkable in the editor:** an ordered and a possessed rifleman both entered House A
+(bt-doors) through a possessed bulldozer's 1.2 × 2.2 m bump hole; the navmesh bakes a door-sized passage (the house's fine area) and the possessed walker's
+navmesh clamp (`ManualMotion.KeepOnNavmesh`) carries him through (rails `BuildingDamageBakeTests.CE4630_*`). ⚠ Two neighbours found, filed: CE-5018 (in
+`--mode all` the bump never breaches) and CE-5019 (a charge's crater at the wall's foot leaves a pit deeper than the infantry step). ⚠ And B-D4's bump hole
+is centred on the hull's CONTACT POINT (a corner when the hull meets the wall square), not its centreline — CE-4629 ① centres it.
+
 ⭐ **Lane decisions (for the user's review):** [R-5000](blueprints/RULINGS.md) the hull band = the probe height (any panel whose top is above the
-wheels meets the hull — a 10 cm decorative edging panel holds a car too); [R-5001](blueprints/RULINGS.md) a free-wall breach opens for a hull only
+wheels meets the hull) — ⛔ *its kerb half SUPERSEDED by R-4280: a panel under 0.25 m is rolled over (row above)*; [R-5001](blueprints/RULINGS.md) a free-wall breach opens for a hull only
 when open from the wall's base (a raised hole never), with no per-trace width test — the cut's size is B-3's (V-9); [R-5002](blueprints/RULINGS.md)
 the gate reads `PossessedBy` on the HULL (a station driving a vehicle holds the vehicle in `Fps`; a `Riding` soldier is not its driver).
 

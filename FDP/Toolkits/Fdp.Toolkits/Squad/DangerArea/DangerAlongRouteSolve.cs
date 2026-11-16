@@ -98,9 +98,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 var grid = Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.Grid(repo.GetComponentRO<Fdp.Toolkit.Terrain.Minefield>(field), anchor, outline);
                 Vector3 safe = route[0];
                 bool found = false;
+                float before = 0f;   // ⭐ the route's length up to segment i (behaviors, CE-4624 MS-B4: the "within N m" reaction reads DistanceAlongRoute)
                 for (int i = 1; i < route.Length && !found; i++)
                 {
                     var a = route[i - 1]; var b = route[i];
+                    if (i > 1) before += Vector3.Distance(route[i - 2], a);
                     int steps = Math.Max(1, (int)MathF.Ceiling(Vector3.Distance(a, b) / MinefieldSampleMetres));
                     for (int k = 0; k <= steps; k++)
                     {
@@ -114,6 +116,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                                 FeatureId = (uint)field.Index * 2654435761u, ThreatRating = 1f, Kind = DangerAreaKind.Minefield,
                                 Center = p, ExtentsXY = new Vector2(grid.Cell * grid.Cols, grid.Cell * grid.Rows) * 0.5f, AngleRad = grid.OrientationDeg * (MathF.PI / 180f),
                                 ZFloor = p.Z - 2f, ZCeiling = p.Z + 3f, NearSideHandle = safe, FarSideHandle = p,
+                                DistanceAlongRoute = before + Vector3.Distance(a, p),
                             };
                             found = true;
                             break;

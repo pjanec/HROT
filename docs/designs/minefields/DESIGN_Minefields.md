@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-16
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -246,6 +246,84 @@ node writes another node's entity.*
 
 *Rails (`MineTriggerTests`, `ArmorModelTests`, `DamageCalculationSystemTests`, `BodyPartDamageTests`): a man on AP ⇒ one strike and one burst at the mine; a man over AT ⇒ nothing; a tank over AT ⇒ strike, burst on its BOTTOM, a light car nothing; a fast step across a mine ⇒ fires (a point test would not); birds never, livestock AP; livestock AT rarely and the same every run; once per mine; a body another node owns ⇒ nothing; a turned jittered field; 0 B steady frames.*
 
+### 3d. As built — MS-T2 save *(`2026-11-16`, terrain, CE-4624, KR-15)*
+
+| piece | as built | decision · what would change it |
+|---|---|---|
+| the section | a top-level scenario section **`Knowledge`** (`PlaceKnowledgeSection`, `FDP/Toolkits/Fdp.Toolkits/Terrain/Minefields/PlaceKnowledgeSection.cs`), NOT `TerrainObjects` (a field is an entity, KR-15): `"<guid>\|<side+1>\|<kind>\|<chunk>": { "cells": [[row, col, level], …], "marked", "learnedAt", "source" }` · `"<guid>\|strikes": { "mines": [[row, col, how]] }` · `"<guid>\|lanes": { "lanes": [[ax, ay, bx, by, width, side+1]] }` | ⭐ only the non-unknown cells are written (a 60 × 64 grid is 1 KB, a typical field a few cells); strikes and lanes of ALL chunks of a field are ONE entry (the chunking is a record limit, not a file shape); a future kind or a missing record is ignored / absent |
+| save | `ScenarioSerializer` writes it beside `TerrainObjects`: every knowledge / strikes / lanes record this host OWNS (the record writer's own `OwnsRecord` gate — a distributed save writes each entity once), merged per key | known-at-start is not a record (R-5046) so it is not saved: the field's own `KnownAtStartSides` is |
+| merge | `ScenarioMergeCore` merges two slices carrying one key by the kind's policy (`PlaceKnowledgeSection.MergeInto`: lattice max per cell, `Marked` OR, `LearnedAt` max; strikes — union, `cleared` outranks `struck`; lanes — union by endpoints) and **never throws on a duplicate key** (two deciding nodes writing one (field, side) is the normal case, MR-2); the merged section is written in the single-node save's key order | KR-4: a future non-monotone kind (a bridge) adds a `case` to `MergeInto` (newest `LearnedAt` wins) |
+| load | `ScenarioLoadStep` reads it on `Prepare` (a malformed entry refuses the load on every node, naming its key) and, on `Commit`, publishes one transient untargeted creation request per saved record (`TerrainObjectRequests.ForPlaceKnowledge`: TKB 7206 / 7207 / 7208; strikes re-chunked by 96, lanes by 8) — the loading node owns them, as the craters; a family that already has an entity is not loaded twice | a record the loader owns stays the loader's (a muscle's NEW strike opens its own record beside it — the same rule as the breaches, R-4196) |
+| recorded | the three records are unmanaged: a keyframe restored over a live world serves the keyframe's knowledge, strikes and lanes (the `BuildingBreachTests` seek precedent) | — |
+
+*Rails (`MinefieldSaveTests` 11 in `Fdp.Toolkits.Tests`, `TerrainObjectRequestsTests.CE4624_SavedPlaceKnowledge_…` in `Hrot.Core.Tests`): the round trip through TEXT (owned only, blanks and replicas absent), the two-slice merge in both orders (no throw), seven malformed entries, a future kind ignored, a seek B → A → B, the load requests and the re-commit guard.*
+
+### 3e. As built — MS-T3 navmesh stamping + pricing *(`2026-11-16`, terrain, CE-4624, MR-3, MR-4, MR-20, KR-10, KR-14)*
+
+```mermaid
+graph TD
+  FE[field entity + MinefieldLanes records] -->|MinefieldSet.SignatureOf each frame, 0 B| SIG[StaticObstacleBakeSystem signature]
+  SIG -->|a change| GATH[MinefieldSet.Of on the frame thread]
+  GATH --> BAKE[TerrainResidency.BakeObstacles - MinefieldDirt, TerrainObstacles.With]
+  BAKE --> W[derived TerrainWorld.Minefields]
+  W --> VOL[NavDoorways.Minefields volumes: woods, craters, FIELD 5, composites 6 and 7, lane restores 63 3 4, doors]
+  VOL --> MESH[Recast mesh]
+  MESH --> MAP[NavDoorways.MinefieldPolys: poly to field, cells, lane]
+  MAP --> FILT[DoorAwareQueryFilter.GetCost: side x worst cell]
+  KNOW[DoorStates.Knowledge, PlaceKnowledgeTable] --> FILT
+  MASK[route layer mask, side bits] --> FILT
+```
+*What it shows that prose hid: the field reaches the navmesh by the SAME frame-thread gather as the obstacles (no query ever sees a live entity); what the SIDE knows is read at QUERY time from the view's table, never baked — so a strike, a recon sweep or a seek changes a route with no rebake; only the GEOMETRY (an outline edit, a lane added or lost) rebakes tiles.*
+
+| piece | as built | decision · what would change it |
+|---|---|---|
+| the data | `MinefieldSet` (`Terrain/Minefields/MinefieldSet.cs`): per field its guid, parameters, world outline and lanes (authored + every node's `MinefieldLanes` record, side + 1); `TerrainWorld.Minefields` on the derived world; `TerrainObstacles.With(…, MinefieldSet?)` | gathered only on a node that does world queries (`TerrainResidency.BakesDamage`, the building damage's rule): a display node's terrain is never queried |
+| bake signature, dirty region | `MinefieldSet.SignatureOf(world)` (cached queries, index loops — 0 B) joins `StaticObstacleBakeSystem`'s input hash; `TerrainResidency.MinefieldDirt` adds the box (±3 m) of every field new, gone or changed (old and new place, by `TerrainMinefield.Hash`): only those tiles rebake | a lane record gone in a seek changes the hash ⇒ the same rebake |
+| composite areas | `MinefieldArea 5` (plain), **`MinefieldWoodsArea 6`**, **`MinefieldCraterArea 7`** (ids 6 and 7 measured free: only 2, 3, 4, 5 and Recast's 63 are used). ⚠ A Recast area is per SPAN and a later stamp wins, so a composite needs the underlying area known at stamp time: **cut by geometry** — the field's ear-clipped triangles clipped against each wood triangle / crater (and ditch) piece (convex ∩ convex, `NavDoorways.Clip`) | a masked `RcAreaModification` cannot do it (ground is 63, all bits set); a per-span "if area == X" stamp does not exist in DotRecast. Cost: field triangles × wood triangles at bake time, bbox-rejected |
+| stamp order | woods · craters + ditches · **field 5 · composites 6 (wood), 7 (crater, wins over wood) · lane restores (63, then 3, 4)** · doorways | a crater wins over a wood as the plain stamps do |
+| every area test | `NavDoorways.IsWoods / IsCrater / IsMinefield`; `PassFilter` (wheels out of a wood and of a mined wood; every vehicle out of a crater and a mined crater) and `GetCost` (the wood factor) use them | a new area that is "a kind of X" must add itself there, one place |
+| a lane | a STRIP (segment ± width / 2) ∩ the field's triangles stamped as the underlying area again: a passage in the mesh whose polygons the filter can tell apart | who may USE it is the filter's job (below), never the mesh |
+| polygon → map | `NavDoorways.MinefieldPolys` after the bake (the `DoorPolys` precedent): every polygon with a minefield area, or in a lane strip of the field it is inside → `MinePoly { Field, Lane, Cells }`; the cells (row × 60 + col, KR-14) are those holding a vertex, an edge midpoint or the centre, plus every cell whose centre is inside; `DoorAwareQueryFilter` carries the map | a polygon on the outline whose centre is just outside takes the field whose box (+2 m) holds it |
+| pricing | `MinefieldPolyMap.FactorFor(poly, DoorStates.Knowledge, side + 1)`: the WORST cell — known-mined ×**200** (`KnownMinedCost`), suspected ×**20** (`SuspectedCost`), unknown / known-clear ×1; a lane polygon ×1 to the side that cleared it and the sides its known-to mask names, the field's price to the rest; side 0 (no side in the mask) and a query without the view's `DoorStates` apply no knowledge; **never closed** (KR-10): a route goes round when it can and through when it must, and the danger sensor then reports the area | 200 / 20 are tuning values: with them a 30 m crossing (+570 m suspected, +5 970 m mined) is cheaper than a ~1 km detour when suspected and dearer when known-mined. `PlaceKnowledgeTable.Knows(side, Guid field, col, row)` was added beside the entity overload (the map holds guids) |
+
+*Rails (`MinefieldNavTests` 9 in `Fdp.Toolkits.Tests`; `MinefieldBakeTests` 2 in `Hrot.SimHost.Tests`): the stamping and the lane polygons, a field over a wood keeps wheels out, the crater composite and the stamp order, a side that knows it goes round / one that does not walks through, known-mined dearer than suspected dearer than unknown, a lane opens the field to its clearing side only, 0 B per priced query, the filter arithmetic and every area test on a composite; the bake: a field's dirty rectangle, a lane record rebakes, a seek back restores the detour, a display node bakes none.*
+
+### 3f. As built — MS-T4 the muscle *(`2026-11-16`, terrain, CE-4624, MR-11, MR-15, MR-17, MF-9)*
+
+```mermaid
+sequenceDiagram
+  participant B as ClearLane brain (behaviors)
+  participant M as MineClearing marker (Brain group)
+  participant T as MineTriggerSystem (serial)
+  participant S as MinefieldStrikesSystem
+  participant L as MinefieldLanesSystem
+  participant N as navmesh bake (MS-T3)
+  B->>M: Active, Tool, WidthM (the order)
+  T->>T: strike pass - bodies on mines
+  T->>T: ClearingPass - the swath 3 m ahead of the hull, seeded survivors
+  T-->>S: MinesCleared (row, col up to 16)
+  T-->>T: flail only - DetonationNotification at each cleared mine
+  S->>S: strikes record, Cleared, no knowledge
+  T->>T: hull leaves the field or tool idle
+  T-->>L: LaneCleared (entry, exit, width, side)
+  L->>L: MinefieldLanes record
+  L-->>N: signature changes, field tiles rebake, lane polygons open to the clearing side
+```
+*What it shows: the brain only switches its tool (the bulldozer's `BladeCut` pattern); every write to another entity's state is an event the serial writers apply (R-4212); the lane is a record, so the navmesh opens it by the MS-T3 path with no new seam.*
+
+| piece | as built | decision · what would change it |
+|---|---|---|
+| where | `MineTriggerSystem.ClearingPass`, AFTER the strike pass of the same `Execute` (the movers moved, the strikes decided); a body with `MineClearing` + `SimTransform` this node owns the position of (`Embarkation.OwnsPosition`); never in a replay | the trigger's own field cache (outline, bounds, parameters) is reused — no second per-field cache |
+| the swath (plough, flail) | every live mine within `WidthM / 2` of the segment last position → current position **extended half the hull's length + `ClearAheadMetres` (3 m) ahead**, i.e. 3 m beyond the hull's FRONT, in the field the hull is inside OR the tool already reaches; candidates by the trigger's lattice arithmetic; not in an authored lane; each mine rolled ONCE per pass by `Survives` (a hash of the field's seed, id, row, col): plough `PloughSurvival` 5 %, flail `FlailSurvival` 2 % — a survivor survives every pass and every run, and what is under the hull then strikes it (the trigger) | ⭐ the lookahead is what keeps mines OUT from under the hull and a flail's bursts off it (rail: no strike but a survivor's). 📌 First built as 3 m from the hull's CENTRE: a 7 m hull covers mines 3.5 m ahead of its centre, so the first mine at the field's edge was struck before it was cleared (the red-proof of the plough's survival chance showed it). Starter chances. The survival hash uses the field's STABLE id — a test field must give it a fixed one |
+| the flail's bursts | each cleared mine: a `DetonationNotification` at the mine with its own munition (AP 6051 / AT 6052), `Shooter` = the field, **`Target` = null — never the flail** (MR-17); the plough turns mines aside in silence (rail: bursts == strikes) | the area effect still reaches any `Health` entity near a burst (`AreaEffectSystem` has no "skip the shooter"); the 3 m offset and the vehicle's blast susceptibility are what keep the flail safe |
+| the record | a cleared mine is a **`MinesCleared { Field, ≤ 16 × (Row, Col) }`** event (id **5109**, free on `coordinator`, `behaviors`, `ui`, `backend` by `git grep`, `2026-11-16`), registered in the shared registry; `MinefieldStrikesSystem` reads it as `MineGone.Cleared`: gone for every node and a fresh trigger, **no knowledge, no burst of its own** (`PlaceKnowledgeSystem` does not read it) | pending set (20 s) covers the record's latency, as for a strike |
+| the lane | per clearer: the hull's entry point while it is inside a field; when the hull leaves, or the tool goes idle, **ONE `LaneCleared { Field, Lane = 255, SidePlus1 = ForceId + 1, A = entry, B = exit, Width = WidthM }`** (a run under `MinLaneMetres` 2 m is no lane) → `MinefieldLanesSystem` → the MS-T3 bake | a lane through TWO fields is two lanes (one per field) |
+| the line charge | on the activation EDGE (`Active` 0 → 1, tool 3): `floor(len / 8)` bursts of munition 6053 at 8 m, 16 m … from the vehicle toward `LineTo` (≤ 100 m, `Target` null, `Shooter` the launcher), every mine within `WidthM / 2` (default 8 ⇒ 4 m) of the line cleared with **no survival roll**, one `LaneCleared` per field the line touches; staying active fires nothing more | the first burst is 8 m from the launcher: its blast susceptibility, not geometry, protects it |
+| TKB 116 | `DefineMineClearer` in `NedTkbCatalog`: tracked, no weapon, 58 t (the dozer's 49), armour 70 / 50 / 50 / 40, health 1500, class **`MineClearer`** (DIS 1.1.*.9.2, `EntityClassTable`); the picker lists it | ⭐ it carries **no `MineClearing` at birth** — the brain adds it on its first `ClearLane` order, exactly as the dozer's brain adds `BladeCut` (the catalogue has no "initial component" seam; adding one would be a shared change). If behaviors want it pre-existing, the type needs that seam |
+| catalogue | the three munitions got a relative cost (10 / 60 / 400) and the class table the `Minefield` class (5.0.*.91): two pre-existing reds of MS-T1 in `Hrot.Core.Tests` (`CE2186_EveryBuiltInMunition_HasACost…`, `CE2138_EveryBuiltInType_ResolvesToANamedClassPath`) | |
+
+*Rails (`MineTriggerTests` 4 new, `PlaceKnowledgeTests.AMinesCleared_…`, `MineClearerTkbTests`): a flail leaves only seeded survivors, bursts at every cleared mine and never at the flail, one lane with the right segment / side / width, the same set on a second run, a man on a cleared mine ⇒ nothing; a plough clears silently; a line charge ⇒ 11 bursts 8 m apart, its whole strip cleared, on the edge only; 0 B steady frames with clearers; a `MinesCleared` is recorded as Cleared and teaches nobody; TKB 116 in the catalogue, heavier than the dozer.*
+
 ## 4. Slices — ✅ dispatched `2026-11-16` *(backend busy with the animals ⇒ the ENGINE work goes to `terrain`, which built the record family, the crater table on `DoorStates` and the navmesh areas)*
 
 | lane | slices | needs first |
@@ -386,7 +464,21 @@ knowledge and the side through the shared pack; the record family (serial writer
 and the shelled area kept apart agree with AQ101; observations as events respect R-4212. ⚠ TKB 7206 is free in production (a test-local constant
 in `EjectionSystemTests.cs:26` only).
 
-## 11. As-built deviations approved — `2026-11-16` *(R-4278)*
+## 11. As built — behaviors, `2026-11-16` (CE-4624 MS-B1…MS-B4; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Behaviors_Minefields.md`)
+
+| slice | as built | deviation from §3 / §8 |
+|---|---|---|
+| MS-B1 | `MineStrikeReflexSystem` (CGF pack, before the brain tick): a `MineStruck` ⇒ the drill as a REACTION (urgency Hit), once per (unit, field) a minute — a struck VEHICLE itself; a struck MAN's live commander, else the man. `MineStrike` (Halts \| LeavesRoute): every live man of the unit ordered to hold (`PersonHold`), the unit stops (a vehicle's crew stays aboard); Success once the side has MARKED the field (`PlaceKnowledgeTable.Marked`) or after `Hold` (120 s). The report up the chain is the knowledge path itself | ⚠ R-2125: NO back-out along breadcrumbs (MR-5's per-mover record does not exist yet) — the unit holds in place; the followers of a struck vehicle do not reverse in its tracks (no convoy context) |
+
+| MS-B2 | `ReconMinefield` (a man's behaviour; a commander orders it to his engineer): the field's parameters, outline (≤ 24 points) and knowledge grid read ONCE into the blackboard; **seek** — one 4-neighbour cell at a time toward `At`; every step a **probe** at detector pace (half a cell's length): a cell holding a live-by-geometry mine (the lattice inside the outline, not in a lane — arithmetic, 0 B) is KNOWN-MINED and never entered, else KNOWN-CLEAR and walked into; the first mined cell starts the **trace** (the mine on the LEFT; left · straight · right · back) on swept-clear cells only, until back at its start (closed ⇒ `MinefieldMarked`) or `MaxCells`; `Mark` marks an unclosed walk. Every probe raises `MinefieldCellsSwept` (one cell) through the batch buffer; `Minefield` is a declared brain read | the start is the man's OWN cell (seek toward the strike), not "the cell nearest the strike" — that cell is mined; a struck mine counts as a mine to the detector (conservative; `MinefieldStrikes` not read) |
+
+| MS-B3 | `ClearLane` (the clearer): drive to the lane's mouth (5 m/s), the tool ON through ONE seam (`ClearerEquipment.SetActive`), the lane at the TOOL's pace (0.5 m/s), the tool OFF at the end and in the deactivator · `CrossLane` (a squad): all to the assembly point on the lane's axis 10 m short of its mouth, then one man at a time once the one ahead is 5 m on, each STRAIGHT down the axis to 10 m past the end · `Breach` (a commander): the roster's vehicle = the clearer, its last foot unit = the assault, every other = support; ① support `SupportByFire` on the far side (60 m past the end) + a SMOKE request there (`CompanyAttackBehavior.AskFires`), ② the clearer `ClearLane`, ③ once its order has ended, the assault `CrossLane` | ⚠ the equipment switch is a STAND-IN (terrain MS-T4 names it — `NOTE_Behaviors_To_Terrain_Minefield_Switch.md`); the line charge not driven; `LaneCleared` not raised by the brain (no lane geometry in the event — the engine's swath clear owns the lane) |
+
+| MS-B4 | the march asks its route sensor for `Minefield` too (`SquadMarchPlay.WatchRoute`, every march with `DangerAreas`); `SquadSopConditions.MinefieldAhead` — the next area is a `Minefield` within 30 m along the route — and `DangerAreaAhead` is FALSE for a minefield (never crossed as a drill); the shipped `BasicSquadSop` row before the crossing row reacts `MinefieldAhead` (Alert, pauses the march): every live man holds (`PersonHold`), ONE `Engineers` request (`RequestKind.Engineers` = 6, appended) at the field's near side through the report queue; Success once the area is gone (the lane is cleared / the field marked and routed round) or after 900 s — the march resumes | ⚠ no HQ answers the request yet (CE-2442 — no engineer asset kind; the request carries no field id); the engineers are ordered by the scenario |
+
+**Rails:** `MineStrikeBehaviorTests` (a man's squad holds, once per field, the hold ends · a vehicle stops, its crew aboard · the conduct is Halts \| LeavesRoute, a Dash refuses it) · `ReconMinefieldBehaviorTests` (from outside a 40 × 40 m field: the 12 edge cells probed and found mined, he walks round it never inside, the field marked once for his side) · `MinefieldBreachBehaviorTests` (the clearer's two legs and tool pace · single file five metres apart · the breach's order: far-side fire, the lane, then the crossing) · `SquadManeuverTests.CE4624_MS_B4_*` (a minefield is its own condition, never a crossing · the SOP halts the marching squad, holds every man, asks for engineers once at the near side, resumes the march when the area is gone) · `CE2161_TheMarch_AsksForOpenGround_…` (the march's kinds include `Minefield`).
+
+## 12. As-built deviations approved — `2026-11-16` *(R-4278)*
 
 🔒 User, verbatim: *"approved the work for the lanes (not yet RT-1…RT-9) but do not write handoff yet, firrst we finish the RT-1…RT-9 and then we write all at once"*
 

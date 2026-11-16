@@ -346,10 +346,23 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐ State, not the <c>AreaAhead</c> edge: the edge fires once, when the area first shows on the route — often 100 m+ out —
         /// and the far-side test keeps a buffer not yet refreshed after the crossing from starting it again.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7, MR-9) — a MINEFIELD is ahead: the commander's route sensor (the march's, which asks for the kind)
+        /// holds a <c>Minefield</c> area the route reaches within <see cref="SopAreaParams.WithinMetres"/> — the planner could not go round it (no
+        /// way round, or the order goes through). The squad halts and calls the engineers (<c>MinefieldAhead</c>); it is never crossed as a drill.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool MinefieldAhead(ref SopAreaParams p, Entity self, EntityRepository world)
+            => DangerCrossingPlay.NextArea(world, self, out var area)
+               && area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield
+               && area.DistanceAlongRoute <= (p.WithinMetres > 0f ? p.WithinMetres : 30f);
+
         [Fbt.Kernel.SharedAiCondition]
         public static bool DangerAreaAhead(ref SopAreaParams p, Entity self, EntityRepository world)
         {
             if (!DangerCrossingPlay.NextArea(world, self, out var area)) return false;
+            // ⭐ CE-4624 MS-B4 (KG-7) — a MINEFIELD is never crossed as a drill: its own row halts the squad and calls the engineers
+            if (area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield) return false;
             if (area.DistanceAlongRoute > (p.WithinMetres > 0f ? p.WithinMetres : 30f)) return false;
             var line = area.FarSideHandle - area.NearSideHandle; line.Z = 0f;
             if (line.LengthSquared() < 1f) return false;

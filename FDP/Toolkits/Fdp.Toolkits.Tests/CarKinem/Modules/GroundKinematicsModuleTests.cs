@@ -25,7 +25,7 @@ namespace CarKinem.Tests.Modules
             // Assert — 6 simulation + 5 post-simulation systems (⭐ 5d-3: + DoorPassageSystem; ⭐ CE-3117: + PathTraceSystem;
             //   ⭐ R-3039 §7c: + TrajectoryRestoreSystem, FIRST — a restored mover's path is back before anything drives it)
             Assert.Equal(6, module.SimulationSystems.Count);
-            Assert.Equal(5, module.PostSimulationSystems.Count);   // ⭐ CE-3252: + LookFollowSystem after the gait; ⭐ CE-3293: + the paused clamp
+            Assert.Equal(6, module.PostSimulationSystems.Count);   // ⭐ CE-4622 K-1: + VehicleImpactSystem after the mover   // ⭐ CE-3252: + LookFollowSystem after the gait; ⭐ CE-3293: + the paused clamp
             Assert.IsType<TrajectoryRestoreSystem>(module.SimulationSystems[0]);
             Assert.IsType<SpatialHashSystem>(module.SimulationSystems[1]);
             Assert.IsType<FormationTargetSystem>(module.SimulationSystems[2]);
@@ -33,10 +33,11 @@ namespace CarKinem.Tests.Modules
             Assert.IsType<NavigationExecutionSystem>(module.SimulationSystems[4]);
             Assert.IsType<DoorPassageSystem>(module.SimulationSystems[5]);
             Assert.IsType<CarKinematicsSystem>(module.PostSimulationSystems[0]);
-            Assert.IsType<GroundClampWhilePausedSystem>(module.PostSimulationSystems[1]);   // CarKinematics' paused half
-            Assert.IsType<Fdp.Toolkit.Perception.Look.LookFollowSystem>(module.PostSimulationSystems[2]);   // the head, after the body moved
-            Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[3]);
-            Assert.IsType<PathTraceSystem>(module.PostSimulationSystems[4]);   // after the mover, so it traces this tick's path
+            Assert.IsType<Fdp.Toolkit.Motion.VehicleImpactSystem>(module.PostSimulationSystems[1]);   // the hull meets what it reached this frame
+            Assert.IsType<GroundClampWhilePausedSystem>(module.PostSimulationSystems[2]);   // CarKinematics' paused half
+            Assert.IsType<Fdp.Toolkit.Perception.Look.LookFollowSystem>(module.PostSimulationSystems[3]);   // the head, after the body moved
+            Assert.IsType<LinearKinematicsSystem>(module.PostSimulationSystems[4]);
+            Assert.IsType<PathTraceSystem>(module.PostSimulationSystems[5]);   // after the mover, so it traces this tick's path
         }
 
         [Fact]

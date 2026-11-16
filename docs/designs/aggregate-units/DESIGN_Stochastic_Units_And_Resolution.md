@@ -478,7 +478,7 @@ them by construction); the red edge is today's dead path — the area effect nev
 | space | agg-backend | agg-behaviors | agg-ui |
 |---|---|---|---|
 | tracker `CE-` / rulings `R-` | `CE-8000`…`CE-8299` · `R-8000`…`R-8299` | `CE-8300`…`CE-8599` · `R-8300`…`R-8599` | `CE-8600`…`CE-8999` · `R-8600`…`R-8999` |
-| component ids | the contract 281–284 + 285–289 | 324–326 | 327–329 |
+| component ids | the contract 281–284 + 285–289 | ⭐ **119, 138, 139** *(moved `2026-11-16`: terrain took 324–326 for the minefields first — R-4276 amended)* | 327–329 |
 | DDS descriptor ordinals | the contract 220–222 + 223–229 | 230–234 | 235–239 |
 
 ### 23.2 The contract every agg lane builds against *(agg-backend DECLARES; its FIRST commit publishes the layouts in `NOTE_AggBackend_To_Agg_Contract.md`)*

@@ -158,6 +158,8 @@ namespace Hrot.Core.Tkb
         public const string MineAntiPersonnelName = "anti-personnel mine", MineAntiTankName = "anti-tank mine", LineChargeName = "line charge";
         /// <summary>⭐ CE-4624 (MS-T1) — an anti-tank mine's burst against the BELLY: penetration (mm RHA) and damage of its direct hit on the hull's bottom (starter values, tune with the armour's <c>ArmorBottom</c>).</summary>
         public const float AntiTankMinePenetrationMm = 120f, AntiTankMineDamage = 250f;
+        /// <summary>⭐ CE-4624 — the mines' blast INJURY radii (m): an AP mine 5, an AT mine 12, a line-charge burst 15 (starter values).</summary>
+        public const float MineApInjuryRadiusM = 5f, MineAtInjuryRadiusM = 12f, LineChargeInjuryRadiusM = 15f;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
@@ -324,9 +326,16 @@ namespace Hrot.Core.Tkb
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 4f }, damage: 5f);
             // ⭐ CE-4624 (minefields §3a, MS-T1, MR-17) — the mines' bursts, their blast from the library by name: an anti-personnel mine a small frag blast at the foot (no direct
             //   hit), an anti-tank mine a large blast whose direct hit lands on the hull's BOTTOM (the trigger sends it travelling UP), the line charge (MS-T4) a big one.
-            Register(tkb, MineAntiPersonnelName, TkbMineAntiPersonnel, Dis(8, 0, 2));
-            Register(tkb, MineAntiTankName, TkbMineAntiTank, Dis(2, 0, 2), penetrationMm: AntiTankMinePenetrationMm, damage: AntiTankMineDamage);
-            Register(tkb, LineChargeName, TkbLineCharge, Dis(9, 0, 2));
+            //   ⭐ Each with its OWN warhead (behaviors' mf-at-vs-vehicle finding: with none, the blast radii came from a default that hurt a man 35 m off an AT burst).
+            //   Starter values: an AP mine (~0.1–0.2 kg) maims at the foot; an AT mine (~7.5 kg, directed up into the belly) kills within a few metres; the line charge's
+            //   bursts are its 8 m strip's.
+            Register(tkb, MineAntiPersonnelName, TkbMineAntiPersonnel, Dis(8, 0, 2),
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = MineApInjuryRadiusM });
+            Register(tkb, MineAntiTankName, TkbMineAntiTank, Dis(2, 0, 2),
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 3f, BlastInjuryRadiusM = MineAtInjuryRadiusM },
+                     penetrationMm: AntiTankMinePenetrationMm, damage: AntiTankMineDamage);
+            Register(tkb, LineChargeName, TkbLineCharge, Dis(9, 0, 2),
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 4f, BlastInjuryRadiusM = LineChargeInjuryRadiusM });
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
@@ -442,6 +451,7 @@ namespace Hrot.Core.Tkb
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
+                [TkbMineAntiPersonnel] = 10, [TkbMineAntiTank] = 60, [TkbLineCharge] = 400,           // ⭐ CE-4624 — the mines and the line charge (rule order: a mine a few small-arms rounds' worth, a charge in the hundreds)
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds

@@ -357,7 +357,8 @@ namespace Fdp.Toolkit.Tests.Squad
         /// <summary>
         /// ⭐ CE-4624 MS-T3 (DESIGN_Minefields.md MR-9, KG-7, KR-9) — a route into a minefield the unit's SIDE knows reports ONE <c>Minefield</c> area (NO-ENTER): its centre where the
         /// route first enters a known cell, its near handle the last safe point before it (halt there, call engineers); a side that knows nothing of the field gets none.
-        /// 🔴 Red-proof: skip the knowledge test ⇒ the unknowing side gets an area too.
+        /// 🔴 Red-proof: skip the knowledge test ⇒ the unknowing side gets an area too. ⭐ The area carries its DISTANCE ALONG THE ROUTE (behaviors, found by
+        /// mf-no-way-round: it was 0, so a squad halted wherever the field was). 🔴 Red-proof: leave it unset ⇒ red.
         /// </summary>
         [Fact]
         public void CE4624_ARouteIntoAKnownMinefield_ReportsANoEnterArea_OnlyForTheSideThatKnows()
@@ -377,6 +378,10 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(DangerAreaKind.Minefield, into[0].Kind);
             Assert.InRange(into[0].Center.X, 80f, 86f);                                           // where the route enters (x = 80)
             Assert.True(into[0].NearSideHandle.X < 80f, "the halt point is outside the field");
+            Assert.InRange(into[0].DistanceAlongRoute, 80f, 86f);                                 // ⭐ CE-4624 MS-B4 — how far along the route (the "within N m" reaction reads it)
+            var bent = new[] { new Vector3(0, 0, 0), new Vector3(30, 40, 0), new Vector3(60, 0, 0), new Vector3(200, 0, 0) };   // 50 + 50 m before the last leg
+            Assert.Equal(1, DangerAlongRouteSolve.MinefieldAreas(w, bent, 2, table, into));
+            Assert.InRange(into[0].DistanceAlongRoute, 120f, 126f);                               // the legs' lengths, not the straight distance
             Assert.Equal(0, DangerAlongRouteSolve.MinefieldAreas(w, route, 3, table, into));      // side 2 knows nothing
             Assert.Equal(0, DangerAlongRouteSolve.MinefieldAreas(w, route, 0, table, into));      // no side: no knowledge applied
             Assert.True(DangerAreaKindsOf.Wants(DangerAreaKinds.Minefield, DangerAreaKind.Minefield));

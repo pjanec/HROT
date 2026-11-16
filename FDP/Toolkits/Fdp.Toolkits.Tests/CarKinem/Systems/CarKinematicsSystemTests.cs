@@ -2478,6 +2478,48 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>R-4280</c> (R-5000 changed — <i>"vehicles should be able to cross the 10cm curb"</i>) — a tank drives over a 10 cm edging (a wall
+        /// panel lower than <c>HullTrace.MinPanelHeightM</c>) and stays on the ground. 🔴 Red-proof: drop the kerb skip in <c>QueryFireCore</c> ⇒ held at y ≈ 10.
+        /// </summary>
+        [Fact]
+        public void R4280_ATank_DrivesOverATenCentimetreKerb()
+        {
+            var (north, topZ) = DriveAtTheWall(GardenWall(0.1f, thickness: 0.15f));
+            Assert.True(north > 14f, $"held at the kerb: the nose reached only y={north:F2}");
+            Assert.True(topZ < 0.05f, $"the hull stood on the kerb: z={topZ:F2}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>R-4280</c> — a possessed CAR drives over a 10 cm kerb; the same car is still held by a 1 m garden wall (the possessed-car rail below).
+        /// 🔴 Red-proof: as above.
+        /// </summary>
+        [Theory]
+        [InlineData(0.1f, true)]
+        [InlineData(1.0f, false)]
+        public void R4280_APossessedCar_CrossesAKerb_ButNotAGardenWall(float height, bool crosses)
+        {
+            var (repo, e) = ManualWorld(VehicleClass.PersonalCar, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"edge\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                ",\"thickness\":0.15,\"material\":\"concrete\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}]}"));
+            float east = float.MinValue;
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var p = repo.GetComponent<VehicleParams>(e);
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                east = MathF.Max(east, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            repo.Dispose();
+            if (crosses) Assert.True(east > 20f, $"held at the {height} m kerb: nose x={east:F2}");
+            else Assert.True(east <= 15f - 0.075f + 0.05f, $"through the {height} m wall: nose x={east:F2}");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-4598</c> (B-1, V-1, acceptance §7.5 item 11) — a POSSESSED wheeled vehicle at full throttle into a garden wall is held at it
         /// too (the operator's drive goes through the same guard). 📌 The user saw exactly this one drive through. 🔴 Red-proof: as above.
         /// </summary>
@@ -2769,6 +2811,72 @@ namespace CarKinem.Tests.Systems
             Assert.Empty(ifvBreaches);
             Assert.Contains(ifvCues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);
             ifv.Dispose();
+        }
+
+        private const string HouseAtX15 = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[10,0],[10,10],[0,10]]," +
+            "\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[10,0],\"to\":[10,10],\"thickness\":0.3,\"material\":\"brick\"}," +
+            "{\"from\":[10,10],\"to\":[0,10],\"thickness\":0.3,\"material\":\"brick\"},{\"from\":[0,10],\"to\":[0,0],\"thickness\":0.3,\"material\":\"brick\"}]}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[15,-5]}}";
+
+        /// <summary>The world y where a breach's middle lies on its panel.</summary>
+        private static float BreachMiddleY(EntityRepository repo, in Fdp.Toolkit.Terrain.BuildingDamageEvent b)
+        {
+            var p = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!.Panels[b.Panel];
+            var dir = Vector2.Normalize(p.B - p.A);
+            return (p.A + dir * ((b.From + b.To) * 0.5f)).Y;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4629</c> ① — a possessed BULLDOZER (its own row, DIS 1.1.*.9.1, a blade) at speed into a BUILDING wall opens a BLADE-WIDE passage (its 4.3 m blade +
+        /// the cut margin each side) of the wall's FULL height (3 m), centred on the hull — and is still held outside (B-D4, R-3025). A TANK's bump stays door-sized
+        /// (1.2 × 2.2 m) but is centred on the hull too (it used to sit on the contact corner). 🔴 Red-proof: drop the <c>blade</c> branch in <c>ContactBreach.OnContact</c>
+        /// ⇒ the dozer opens 1.2 × 2.2 m; centre on <c>hit.At</c> again ⇒ the tank's hole sits ~1.6 m off the hull's centreline.
+        /// </summary>
+        [Fact]
+        public void CE4629_ABulldozerBumpsABuildingWall_BladeWideFullHeightCentred_AndATanksBumpIsCentredToo()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);
+            ref var vp = ref repo.GetComponentRW<VehicleParams>(e); vp.Width = 4.3f; vp.Length = 8f;
+            repo.SetDisType(e, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.NotEmpty(breaches);
+            float wide = 0f; foreach (var b in breaches) { wide += b.To - b.From; Assert.Equal(3f, b.Top - b.Bottom, 2); }
+            Assert.True(wide >= 4.3f + 1f - 0.01f, $"the dozer's hole is {wide:F2} m wide — not the blade's");
+            Assert.Equal(0f, BreachMiddleY(repo, breaches[0]), 1);
+            Assert.True(nose <= 15f - 0.15f + 0.05f, $"the dozer entered the house: nose x={nose:F2}");
+            repo.Dispose();
+
+            var (tank, t) = Possessed(VehicleClass.Tank, 60000f, 1f, HouseAtX15);
+            ref var tp = ref tank.GetComponentRW<VehicleParams>(t); tp.Width = 3.6f;
+            var (_, tb, _) = DriveInto(tank, t, 8f);
+            var one = Assert.Single(tb);
+            Assert.Equal(1.2f, one.To - one.From, 2);
+            Assert.Equal(0f, BreachMiddleY(tank, one), 1);
+            tank.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4629</c> (R-2084) — a bulldozer HELD at a building wall after its bump runs the contact rule every frame (its row matched by DIS type): steady frames
+        /// allocate 0 B — possessed or not, dozer row or tank row. 📐 It caught a pre-existing 40 B a frame: <c>ContactBreachTable.For</c>'s foreach over the <c>IReadOnlyList</c> interface (CE-4600). 🔴 Red-proof: that foreach again ⇒ 2400 B over 60 frames.
+        /// </summary>
+        [Theory]
+        [InlineData(true, true)]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        public void CE4629_ABulldozerHeldAtAWall_AllocatesNothing_PerSteadyFrame(bool dozer, bool possessed)
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);
+            ref var vp = ref repo.GetComponentRW<VehicleParams>(e); vp.Width = 4.3f; vp.Length = 8f;
+            if (dozer) repo.SetDisType(e, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            if (!possessed) repo.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(e);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            for (int i = 0; i < 8 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); repo.Bus.SwapBuffers(); }   // bumped, held, the grace run out
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++) kin.Execute(repo, 1f / 60f);
+            long bytes = System.GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X + 4f <= 15f - 0.15f + 0.05f, "held at the wall");
+            Assert.Equal(0L, bytes);
+            repo.Dispose();
         }
 
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
