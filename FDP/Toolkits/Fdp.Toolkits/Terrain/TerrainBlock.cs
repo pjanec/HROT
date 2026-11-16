@@ -38,6 +38,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ CE-4592 (P-5, G-14) — a GROUND shape: <see cref="Template"/> = its mode (<c>level</c> / <c>raise</c> / <c>lower</c>), <see cref="Pad"/> = the level's Z or the change's dZ,
         /// <see cref="Seed"/> = its DRAW ORDER (the newest — the highest — wins where shapes overlap, V-28). The skirt is derived (G-3's walkable rule).</summary>
         public const byte Ground = 13;
+        /// <summary>⭐ CE-5007 (S-2) — a ROW of lone trees along the polyline: <see cref="Template"/> = the item (<c>tree</c> in v1; empty = tree), <see cref="Pad"/> = the spacing in metres (0 = 8 m), <see cref="Seed"/> unused. Placed by the expander's ONE line placement.
+        /// A GROUP of lone trees inside the polygon: <see cref="Pad"/> = the count (0 = 10), <see cref="Seed"/> = the placement seed (the scatter's in-polygon sampler). A build that predates them ignores both kinds.</summary>
+        public const byte Row = 14, Group = 15;
 
         /// <summary>One of the kind constants above; 0 and anything unknown are ignored.</summary>
         public byte Kind;
@@ -47,10 +50,10 @@ namespace Fdp.Toolkit.Terrain
         public float HeadingDeg;
         /// <summary>
         /// By kind — house: a level pad's height (written as the feature's <c>pad</c> when non-zero) · wall / fence / hedge: the height in metres (0 = the kind's default) · bridge: the deck's width (0 = 4 m) ·
-        /// wood: trees per hectare (0 = the default) · lane (T-3): unused · scatter: items per 100 m² (0 = the recipe's density).
+        /// wood: trees per hectare (0 = the default) · lane (T-3): unused · scatter: items per 100 m² (0 = the recipe's density) · row: the spacing in metres (0 = 8) · group: the tree count (0 = 10).
         /// </summary>
         public float Pad;
-        /// <summary>The seed of a wood, a scrub patch or a scatter (it draws from it, deterministically).</summary>
+        /// <summary>The seed of a wood, a scrub patch, a scatter or a group (it draws from it, deterministically).</summary>
         public uint Seed;
     }
 }

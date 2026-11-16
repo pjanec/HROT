@@ -41,7 +41,7 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     public void U1_TheCatalogue_ListsEveryShippedRecipeAsABlock_AndEveryBuildingTemplateAsAHouse()
     {
         var picks = Shipped();
-        var recipes = Directory.EnumerateFiles(ContentLayout.TerrainRecipeAssets(_src), "*.recipe.json").Select(f => Path.GetFileName(f)[..^".recipe.json".Length]).OrderBy(x => x).ToArray();
+        var recipes = Directory.EnumerateFiles(ContentLayout.TerrainRecipeAssets(_src), "*.recipe.json").Select(f => Path.GetFileName(f)[..^".recipe.json".Length]).Where(id => id is not ("street-clutter" or "undergrowth")).OrderBy(x => x).ToArray();   // ⭐ CE-5007: the scatter-only recipes are the scatter tool's, not Block tiles
         var templates = Directory.EnumerateFiles(ContentLayout.BuildingAssets(_src), "*.building.json").Select(f => Path.GetFileName(f)[..^".building.json".Length]).OrderBy(x => x).ToArray();
         Assert.NotEmpty(recipes);
         Assert.Equal(recipes, picks.Where(p => p.Kind == TerrainPickKind.Block).Select(p => p.Id).OrderBy(x => x).ToArray());
@@ -434,7 +434,11 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     [Fact]
     public void U7_TheScatterPickLights_WhenARecipeCarriesAScatterSection()
     {
-        Assert.Contains("T-3", Shipped().Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        // ⭐ CE-5007 — street-clutter and undergrowth now SHIP: the pick is lit on the shipped set, and neither is a Block tile
+        var shipped = Shipped();
+        Assert.Null(shipped.Single(p => p.FeatureKind == TerrainFeature.Scatter).Disabled);
+        Assert.DoesNotContain(shipped, p => p.Kind == TerrainPickKind.Block && p.Id is "street-clutter" or "undergrowth");
+        Assert.Equal(new[] { "street-clutter", "undergrowth" }, TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }).Select(r => r.Id).OrderBy(x => x).ToArray());
         Directory.CreateDirectory(_tmp);
         File.WriteAllText(Path.Combine(_tmp, "street-clutter.recipe.json"), """{ "id": "street-clutter", "radius": 40, "scatter": { "density": 3, "items": [ { "kind": "clutter", "type": "car", "weight": 1 }, { "kind": "tree", "weight": 2 } ] } }""");
         var picks = TerrainPickCatalog.Build(new[] { _tmp, ContentLayout.TerrainRecipeAssets(_src) }, new[] { ContentLayout.BuildingAssets(_src) });
@@ -442,7 +446,6 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
         Assert.Null(scatter.Disabled);
         Assert.Equal("feature:11:street-clutter:Area", scatter.Spec);
         Assert.Equal(("street-clutter", 3f), (TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Id, TerrainPickCatalog.ScatterRecipes(new[] { _tmp }).Single().Density));
-        Assert.Empty(TerrainPickCatalog.ScatterRecipes(new[] { ContentLayout.TerrainRecipeAssets(_src) }));
     }
 
     /// <summary>

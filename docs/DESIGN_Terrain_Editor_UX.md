@@ -242,6 +242,11 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 | S-6 [CE-5011](blueprints/Blueprint_Issues_Tracker.md) | TE-9 (measure the generic symbol, then the gizmo — with its 3-D volume pick, TE-16 ①) + TE-10 the ghost and its stay-until-baked | ui |
 | S-7 [CE-5012](blueprints/Blueprint_Issues_Tracker.md) | TE-7 the closed wall and the gate rotation; TE-12 the berm | backend + ui |
 
+**As built — S-2 (CE-5007).** `TerrainFeature.Row = 14` (Pad = spacing, 0 ⇒ 8 m) and `Group = 15` (Pad = count, 0 ⇒ 10; Seed) in `TerrainBlock.cs`; `FeatureExpander.IsKnown` widened to `<= Group`, both kinds in `NeedsShape`, so an older build skips them. ONE placement in the new `Terrain/LinePlaces.cs`:
+`LinePlacesEven` (n places at `(i+0.5)/n` of a polyline — the recipe `group` element's `line` now CALLS it; on one segment it is the old `a + d·t`, byte for byte), `LinePlacesSpaced` (a place every `spacing` m, the first half a spacing in — the Row), and `AreaSampler`
+(the scatter's seeded in-polygon rejection sampling, extracted — `Scatter` and the Group both call it). A rail hashes every shipped block recipe (3 seeds) and a fixed-seed scatter, captured BEFORE the refactor: identical. Shipped `street-clutter` and `undergrowth` scatter recipes;
+deviation: `TerrainPickCatalog.Build` no longer lists a scatter-only recipe (no houses / woods / elements) as a Block tile — it is the scatter tool's — and the two picker rails that assumed "every recipe is a tile / no scatter shipped" were updated. The Row / Group authoring tools (the picks, S-2's UI half) are not built here.
+
 ## 7. Acceptance
 
 1. Three hedges are drawn after ONE click on the row's *Walls*; each has its own seed; one Esc drops a half-drawn hedge, a second disarms; the row lights *Walls* while armed.

@@ -144,7 +144,9 @@ public static class TerrainPickCatalog
                     string json = File.ReadAllText(file);
                     var recipe = TerrainRecipe.Parse(json, file);
                     if (!seen.Add("r:" + recipe.Id)) continue;
-                    list.Add(OfRecipe(recipe, json));
+                    // ⭐ CE-5007 — a SCATTER-ONLY recipe (no houses, woods or elements) is placed by the scatter tool, not as a Block tile
+                    bool scatterOnly = recipe.Scatter.Count > 0 && recipe.HousesMax == 0 && recipe.WoodsMax == 0 && recipe.Elements.Count == 0;
+                    if (!scatterOnly) list.Add(OfRecipe(recipe, json));
                     if (recipe.Scatter.Count > 0) scatter.Add((recipe.Id, Title(recipe.Id), recipe.ScatterDensity));
                 }
                 catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { }

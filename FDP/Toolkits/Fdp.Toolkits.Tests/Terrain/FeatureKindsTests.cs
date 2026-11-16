@@ -239,5 +239,93 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(System.Runtime.CompilerServices.Unsafe.SizeOf<TerrainFeature>() <= 1024);
             Assert.Throws<ArgumentException>(() => ClutterTypes.Get("no-such-thing", "test"));
         }
+
+        // ── ⭐ CE-5007 (S-2) — row / group kinds on the ONE shared placement ─────────────────────────────────────────
+
+        private static string Sha(string s) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(s)));
+
+        /// <summary>
+        /// ⭐ The refactor guard — every shipped block recipe (three seeds, two headings) and a fixed-seed scatter expand to the SAME bytes as before the shared placement was extracted (hash captured from the code BEFORE the refactor).
+        /// 🔴 Red-proof: nudge the group element's line placement (<c>+0.5</c> → <c>+0.4</c>) or the scatter's draw order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void TheSharedPlacement_LeavesEveryShippedRecipeAndScatterByteIdentical()
+        {
+            string root = Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
+            string folder = Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(root), "test-town");
+            string def = Path.Combine(folder, "terrain.json");
+            var world = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "test-town")!;
+            var assets = TerrainAssets.ForFolder(folder);
+            var all = new System.Text.StringBuilder();
+            foreach (var id in new[] { "farmstead", "hamlet", "village-street", "town-block", "checkpoint", "roadblock", "defensive-position", "copse", "orchard", "hedgerow-fields" })
+            {
+                var recipe = TerrainRecipe.Find(id, new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(root) });
+                foreach (var (seed, heading) in new[] { (11u, 0f), (12u, 0f), (13u, 37f) })
+                {
+                    var x = FeatureExpander.Expand(recipe, seed, new Vector2(345f, 180f), heading, TerrainBlock.FitAll, world, "g1", assets);
+                    all.Append(id).Append(seed).Append(new JsonArray(x.Features.Select(f => (JsonNode)f.DeepClone()).ToArray()).ToJsonString());
+                }
+            }
+            var poly = new[] { new Vector2(270, 270), new Vector2(330, 270), new Vector2(330, 330), new Vector2(270, 330) };
+            foreach (uint seed in new[] { 3u, 7u })
+            {
+                var sc = FeatureExpander.OfKind(TerrainFeature.Scatter, "k", "litter", 0, 3.9f, seed, default, poly, _f.BaseWorld(), TerrainAssets.ForFolder(_f.TerrainFolder), new[] { _f.Recipes });
+                all.Append(new JsonArray(sc.Select(f => (JsonNode)f.DeepClone()).ToArray()).ToJsonString());
+            }
+            Assert.Equal("A04A89CEC7ACB293DB606D5E246CF27ADCD75E496B3EC587E73CD39D66A0E15C", Sha(all.ToString()));
+        }
+
+        private System.Collections.Generic.IReadOnlyList<JsonObject> Of(byte kind, float pad, uint seed, params Vector2[] pts)
+            => FeatureExpander.OfKind(kind, "k", "", 0f, pad, seed, default, pts, _f.BaseWorld(), TerrainAssets.ForFolder(_f.TerrainFolder), new[] { _f.Recipes });
+
+        private static string Json(System.Collections.Generic.IEnumerable<JsonObject> parts) => new JsonArray(parts.Select(f => (JsonNode)f.DeepClone()).ToArray()).ToJsonString();
+
+        /// <summary>
+        /// ⭐ A ROW over a 3-point line of 124.5 m at 8 m spacing is 16 lone trees, the first 4 m in, then every 8 m round the corner. 🔴 Red-proof: spacing <c>* (i + 0.5f)</c> → <c>* (i + 1f)</c> in <c>LinePlacesSpaced</c> ⇒ the first tree is at 8 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void ARow_PlacesATreeEvery8m_AlongTheLine_FirstHalfASpacingIn()
+        {
+            var parts = Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 100), new Vector2(160, 100), new Vector2(160, 164.5f));
+            Assert.Equal(16, parts.Count);
+            Assert.All(parts, p => Assert.Equal("tree", (string)((JsonObject)p["properties"]!)["kind"]!));
+            Assert.Equal(new[] { "k/0", "k/15" }, new[] { (string)((JsonObject)parts[0]["properties"]!)["label"]!, (string)((JsonObject)parts[15]["properties"]!)["label"]! });
+            var (x0, y0) = Centre(parts[0]); var (x7, y7) = Centre(parts[7]); var (x8, y8) = Centre(parts[8]); var (x15, y15) = Centre(parts[15]);
+            Assert.Equal((104f, 100f), (x0, y0)); Assert.Equal((160f, 100f), (x7, y7)); Assert.Equal((160f, 108f), (x8, y8)); Assert.Equal((160f, 164f), (x15, y15));
+            Assert.Equal(Json(parts), Json(Of(TerrainFeature.Row, 8f, 0, new Vector2(100, 100), new Vector2(160, 100), new Vector2(160, 164.5f))));
+            Assert.Equal(Of(TerrainFeature.Row, 0f, 0, new Vector2(100, 100), new Vector2(260, 100)).Count, 20);   // spacing 0 = 8 m: 160 m ⇒ 20 trees
+        }
+
+        private static (float X, float Y) Centre(JsonObject feature)
+        {
+            var c = (JsonArray)((JsonObject)feature["geometry"]!)["coordinates"]!;
+            return (c[0]!.GetValue<float>(), c[1]!.GetValue<float>());
+        }
+
+        /// <summary>
+        /// ⭐ A GROUP of count 11 is 11 lone trees inside the polygon — the same bytes for the same seed, other bytes for another. 🔴 Red-proof: ignore the seed (<c>new Rng(0)</c>) in <c>Group</c> ⇒ the seeds agree ⇒ red; drop the polygon test in <c>AreaSampler.Next</c> ⇒ a tree outside ⇒ red.
+        /// </summary>
+        [Fact]
+        public void AGroup_IsCountTreesInsideThePolygon_ByteIdenticalPerSeed()
+        {
+            var square = new[] { new Vector2(250, 250), new Vector2(290, 250), new Vector2(290, 290), new Vector2(250, 290) };
+            var a = Of(TerrainFeature.Group, 11f, 5, square);
+            Assert.Equal(11, a.Count);
+            foreach (var t in a) { var (x, y) = Centre(t); Assert.InRange(x, 249f, 291f); Assert.InRange(y, 249f, 291f); }
+            Assert.Equal(Json(a), Json(Of(TerrainFeature.Group, 11f, 5, square)));
+            Assert.NotEqual(Json(a), Json(Of(TerrainFeature.Group, 11f, 6, square)));
+            Assert.Equal(10, Of(TerrainFeature.Group, 0f, 5, square).Count);   // count 0 = 10
+        }
+
+        /// <summary>⭐ A row needs two points and a group three; the new kinds are KNOWN (14, 15) and 16 is not — an older build ignores them, a newer one throws nothing for 16. 🔴 Red-proof: <c>IsKnown</c> back to <c>&lt;= Ground</c> ⇒ red.</summary>
+        [Fact]
+        public void RowAndGroup_NeedTheirShape_AndAreKnownKinds()
+        {
+            Assert.Throws<ArgumentException>(() => Of(TerrainFeature.Row, 8f, 0, new Vector2(1, 1)));
+            Assert.Throws<ArgumentException>(() => Of(TerrainFeature.Group, 5f, 0, new Vector2(1, 1), new Vector2(5, 5)));
+            Assert.True(FeatureExpander.IsKnown(14) && FeatureExpander.IsKnown(15));
+            Assert.False(FeatureExpander.IsKnown(16));
+            Assert.True(FeatureExpander.NeedsShape(TerrainFeature.Row) && FeatureExpander.NeedsShape(TerrainFeature.Group));
+        }
     }
 }

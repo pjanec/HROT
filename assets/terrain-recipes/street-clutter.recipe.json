@@ -1,0 +1,17 @@
+{
+ "id": "street-clutter",
+ "scatter": {
+  "density": 1.5,
+  "items": [
+   { "kind": "clutter", "type": "car", "weight": 2 },
+   { "kind": "clutter", "type": "crate", "weight": 3 },
+   { "kind": "clutter", "type": "barrel", "weight": 3 },
+   { "kind": "clutter", "type": "concrete-block", "weight": 2 },
+   { "kind": "clutter", "type": "jersey-barrier", "weight": 1 }
+  ]
+ },
+ "ui": {
+  "group": "Clutter",
+  "line": "cars, crates, barrels and blocks scattered in an area"
+ }
+}
