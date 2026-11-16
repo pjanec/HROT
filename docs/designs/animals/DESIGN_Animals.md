@@ -358,6 +358,24 @@ data exists on template buildings; the mixer degrades by priority; Kind 3 itself
 | **AB-2** movement | `VehicleClass.Quadruped` (a legged CarKinematics preset — steers while it moves, no reverse) for land animals; `BirdFlightModel` (`LocomotionClass.Bird`, never an aircraft) for birds; the infantry nav layer; SUMO sees an animal as a body at its footprint | no `QuadrupedGait` component on the sim side — gaits by speed are ui's (§6.3) |
 | **AB-3** fear | ⭐ the ONE fear system (`CivilianFearSystem`) keeps both: civilians on `CivilianState` (unchanged), animals on `Fear` (id 500) through `AnimalFear` — the same sound-impulse table, the species temperament for the zones and the recovery, and the FLIGHT ZONE look (every person and vehicle in the fight, not aboard, ~5 Hz per animal, staggered; 0 B in the steady state). The band goes to the replicated `AnimalState.FearBand` only when it changes; `AnimalState` and `FlockState` replicate as `dtAnimalState` (189) / `dtFlockState` (190), Brain group, on change | civilians do NOT move onto `Fear` yet (L-A8 — a large blast radius for an overnight run; filed). ⭐ "Approaching" = closing AND heading at it (its track passes within half the flight zone): a car on the road beside the field passes by and leaves the herd only UNEASY — measured in `AnimalFearTests` |
 
+| **AB-4** brain, herds | ⭐ `AnimalHsm` (`Hrot.AI.Behaviors/Brains/AnimalBehavior.cs`) — Graze · Rest · Alert · Flee · Recover · Casualty, its numbers read once from the temperament; started by every animal type (`DefaultBehavior`). ⭐ `HerdSystem` (FDP, SERIAL, before the brains — registered in `CgfLogicPack` after the fear system): the herd's centre and lead, its mode (most afraid member, else REST at night, else calm), the next grazing spot (in its home; after a flight the candidate farthest from the fright), and herd CONTAGION through the crowd's rule (`CrowdRules.ContagionPull` / `Contagion` — extracted, the crowd calls the same two) × 2 × (0.5 + cohesion). The brain reads `HerdState` (declared in `BrainReads`) and writes only its own `AnimalState.Mode`, on change | ⚠ no GRASS: the terrain has no meadow / pasture / orchard / park surface (only Open, Forest, Water, Scrub) — grazing spots are in the home area, away from a recent fright (L-A12). Night is the herd's only (L-A13) |
+
+```mermaid
+sequenceDiagram
+  participant F as the fear system
+  participant H as HerdSystem (serial)
+  participant B as AnimalHsm (parallel brain phase)
+  F->>F: Fear of each member (heard, felt, the flight zone)
+  F->>H: members' Fear
+  H->>H: centre, lead, mode (night: Rest), next grazing spot
+  H->>H: contagion: the most afraid member pulls the others (the crowd rule)
+  H-->>B: HerdState (declared read)
+  B->>B: Graze / Rest / Alert / Flee / Recover on its own Fear
+  B-->>B: LocomotionMoveTo (graze spot, away from the fright)
+```
+*What it shows that the prose hid: the herd is written ONCE, serially, before the brains; the brains never write each other — the only
+cross-entity write (one cow frightening another) happens in the serial herd step.*
+
 ```mermaid
 sequenceDiagram
   participant S as AcousticPerception (every force, for an animal)

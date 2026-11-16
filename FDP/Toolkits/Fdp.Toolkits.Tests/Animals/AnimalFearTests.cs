@@ -160,6 +160,66 @@ namespace Fdp.Toolkit.Animals.Tests
             Assert.Equal(CivilianFear.Impulse(SoundSourceClass.Explosion, 20f) * AnimalFear.FearlessBlastFactor, w.GetComponentRO<Fear>(dog).Value, 3);
         }
 
+        /// <summary>⭐ <c>CE-4623</c> AB-4 — the HERD: its centre and lead from its members; a panicking member pulls the others' fear up through the
+        /// crowd's contagion rule and passes on where the fright came from; the steady frame allocates nothing (R-2084). 🔴 Red-proof: the
+        /// contagion skipped ⇒ the second cow stays calm.</summary>
+        [Fact]
+        public void CE4623_AHerd_HasACentre_CatchesFearFromOneMember_AndAllocatesNothing()
+        {
+            using var w = World();
+            w.RegisterComponent<HerdMember>();
+            w.RegisterComponent<HerdState>();
+            w.RegisterComponent<AnimalHome>();
+            var herd = w.CreateEntity();
+            w.AddComponent(herd, new HerdState { Species = AnimalSpecies.Cattle });
+            var a = Animal(w, CattleType, new Vector3(0, 0, 0));
+            var b = Animal(w, CattleType, new Vector3(10, 0, 0));
+            w.AddComponent(a, new HerdMember { Herd = herd });
+            w.AddComponent(b, new HerdMember { Herd = herd });
+            var herds = new HerdSystem();
+            herds.Execute(w, 0.1f);
+            Assert.Equal(new Vector3(5, 0, 0), w.GetComponentRO<HerdState>(herd).Centre);
+            Assert.Equal(a, w.GetComponentRO<HerdState>(herd).Lead);
+
+            w.GetComponentRW<Fear>(a) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-40, 0, 0), HasFrightFrom = 1 };
+            for (int i = 0; i < 15; i++) { w.SetSimulationTime(w.SimulationTime + 0.1f); herds.Execute(w, 0.1f); }   // 1.5 s
+            var fb = w.GetComponentRO<Fear>(b);
+            Assert.True(fb.Value > 0.75f, $"the cow beside a panicking one panics too: {fb.Value}");
+            Assert.True(fb.Value <= Civilians.CrowdRules.ContagionShare * 0.95f + 1e-4f);
+            Assert.Equal(new Vector3(-40, 0, 0), fb.FrightFrom);
+
+            for (int i = 0; i < 10; i++) herds.Execute(w, 0.1f);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) herds.Execute(w, 0.1f);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-4 — after a fright the herd's next grazing spot is picked AWAY from it (the farthest of the candidates),
+        /// inside its home: 20 picks from a fright in the west all land east, on average well east; with no fright they centre on the home.
+        /// 🔴 Red-proof: the candidates' score ignoring the fright ⇒ the picks scatter both ways ⇒ red.</summary>
+        [Fact]
+        public void CE4623_AfterAFright_TheNextGrazingSpot_IsAwayFromIt_InsideTheHome()
+        {
+            using var w = World();
+            w.RegisterComponent<HerdMember>();
+            w.RegisterComponent<HerdState>();
+            w.RegisterComponent<AnimalHome>();
+            var herd = w.CreateEntity();
+            w.AddComponent(herd, new AnimalHome { Centre = Vector3.Zero, Radius = 60f });
+            var lead = Animal(w, CattleType, Vector3.Zero);
+            w.GetComponentRW<Fear>(lead) = new Fear { Value = 0.2f, FrightFrom = new Vector3(-80, 0, 0), HasFrightFrom = 1, LastFrightAt = 10.0 };
+            var hs = new HerdState { Lead = lead };
+            float sumAfraid = 0f;
+            for (int i = 0; i < 20; i++)
+            {
+                var p = HerdSystem.PickGrazing(w, herd, in hs, 10.0 + i * 3.1);
+                Assert.True(p.Length() <= 60f, $"inside the home: {p}");
+                Assert.True(p.X > 0f, $"pick {i} lands on the far side from the fright: {p}");
+                sumAfraid += p.X;
+            }
+            Assert.True(sumAfraid / 20f > 20f, $"well east on average: {sumAfraid / 20f}");
+        }
+
         /// <summary>⭐ R-2084 — the steady frame of the animal pass allocates nothing (the threat buffer is reused).</summary>
         [Fact]
         public void CE4623_TheAnimalPass_AllocatesNothingInTheSteadyState()

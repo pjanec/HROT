@@ -74,6 +74,9 @@ namespace Hrot.Core.Tkb
             {
                 SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
                 CanMove = true, Faction = ForceId.Neutral,   // AR-6: spawned neutral, never changes side
+                // ⭐ AB-4 — its one brain (by name, its params its own temperament; the hash the fallback without the managed event)
+                DefaultBehavior = Hrot.Map.Definitions.Behavior.BehaviorNames.AnimalHsm,
+                DefaultBehaviorHash = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.AnimalHsm),
             });
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = 150f, HearingRange = 600f, FieldOfViewDegrees = 300f });
             // movement sound (hooves, paws, wings) — the animal calls are voices (AB-8, AR-7)
