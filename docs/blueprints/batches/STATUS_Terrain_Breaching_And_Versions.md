@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress
+state: LIVE — REPORTED (every item built, gated and pushed)
 updated: 2026-11-16
 current-answer: §1 the items, §2 lane decisions, §3 gates
 related-designs:
@@ -32,5 +32,15 @@ related-designs:
 | R-5058 | the bulldozer is recognised by a `contact-breach.json` row matched on its DIS type (`1.1.*.9.1`, the class EntityClassTable already gives it), not by a TKB id or a new descriptor | a dozer without that DIS class ⇒ a TKB flag |
 | R-5059 | `ContactBreach.CutAlong` cuts ONE wall: a building's own panels, or the free walls — never both (the ordered cut keeps cutting building walls as before) | — |
 
-## 3. Gates
-*(per item)*
+## 3. Gates (rule 8) — on the final tree `6718271d5`, `--no-build` after building the TEST projects
+
+| gate | command | result | note |
+|---|---|---|---|
+| toolkit: terrain + hull guard + contact breach | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter "…Fdp.Toolkit.Terrain.Tests\|…CarKinematicsSystemTests"` | **620 / 620** | ⚠ `MineTriggerTests.CE4624_SteadyFramesWithClearers_Allocate_ZeroBytes` went red ONCE in an earlier full-suite run and passed alone and in this run (an in-suite first-call allocation) — not this batch |
+| SimHost: damage, bakes, breaches, terrain load, dozer, overlay, bridges | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter "…BuildingDamage\|…Bake\|…Breach\|…TerrainLoad\|…ClearObstacle\|…BladeCut\|…ContactBreach\|…Overlay\|…BridgeClosure"` | **131 / 131** | the navmesh bake suites included |
+| the catalogue (TKB) | `dotnet test Hrot/Engine/Hrot.Core.Tests --no-build --filter MineClearerTkbTests` | 2 / 2 | |
+| item 5 (the worker's run) | `Fdp.Toolkits.Tests` Terrain · `Hrot.Terrain.Import.Tests` · `Hrot.SimHost.Tests` TerrainLoad/Bridge · `Hrot.ReplayBrowser.Tests` · `Hrot.Orchestrator.Tests` Storage | 468 · 54 · 44 · 95 (+10 skipped, as before) · 22 — all pass | no pre-existing reds against `26513ef44` |
+| ⭐ the feature scenario | `OUT=… NO_BUILD=1 scripts/scenario-regression.sh tt-dozer-breach` | **16 / 16**, three fresh runs | no golden (§5 — the re-bake's wall-clock timing does not repeat) |
+| red-proofs | one compiling mutation per new rail | all red | kerb skip · breached panel kept whole · blade branch off · centre on the contact · cut clamped to 1 m · free-wall groups not dirty · the boxing foreach (2400 B measured) |
+| `tracker-counts.py --check` | | OK | ids allocated: CE-5018, CE-5019; rulings R-5056…R-5062 |
+| not run | the E2E / integration suites (T3), `--mode all` | — | ⚠ CE-5018 (no bump breach in `--mode all`) stays open |
