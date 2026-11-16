@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — ✅ APPROVED `2026-11-16` (P-1…P-5 + O-1; O-2 not now) — R-8602; ✅ BUILT: O-1 (CE-8605), P-5 the unit card (CE-8607); ⏳ the symbol (CE-8608…CE-8610)
+build-state: BUILT — ✅ APPROVED `2026-11-16` (P-1…P-5 + O-1; O-2 not now) — R-8602; ✅ BUILT: O-1 (CE-8605), P-5 the unit card (CE-8607), the symbol (CE-8608…CE-8610 — as-built in ../designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §5)
 updated: 2026-11-16
 current-answer: the whole file
 stale-below: nothing
@@ -63,6 +63,10 @@ and only the standalone case needs the echelon filter — a card is already one 
 | **E** | ✗ | ✓ | ✓ | the units' cards with symbols, no men — an ORBAT on the map |
 | **F** | ✓ | ✗ | ✗ | the men only — nothing new |
 | **G** | — | ✗ | ✓ | zoom: squads < 1.5 m/px · platoons < 6 · companies < 25 · battalions beyond; a SELECTED unit also shows its children one level down |
+
+⭐ **As-built (`2026-11-16`, CE-8610):** a unit card is drawn only up to 1 m/px (`CardZoom.FrameMaxMetresPerPixel`), so in case A / E the symbol
+leaves with the card when you zoom out — and the standalone symbol of the zoom's echelon takes over (G's bands apply past the cards' zoom, with cards on
+or off). ⇒ "Labels on ⇒ the card's cell" holds wherever a card shows; a unit never shows two symbols at once.
 
 ## 4. The decisions *(✅ APPROVED `2026-11-16` — 🔒 user: "approved, with O-1 split labels" — R-8602)*
 
