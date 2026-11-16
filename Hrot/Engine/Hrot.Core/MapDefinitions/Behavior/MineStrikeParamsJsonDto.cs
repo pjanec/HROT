@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -14,9 +15,8 @@ namespace Hrot.Map.Definitions.Behavior
     {
         public const string BehaviorId = BehaviorNames.MineStrike;
 
-        /// <summary>The struck field's network id (0 = unknown).</summary>
-        [JsonPropertyName("FieldNetId")]
-        public int FieldNetId;
+        /// <summary>The struck field (none = unknown).</summary>
+        [JsonPropertyName("Field")] public EntityLink Field;
 
         /// <summary>Where the mine went off (world m).</summary>
         [JsonPropertyName("At")]

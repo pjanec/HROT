@@ -31,7 +31,7 @@ CivilianSop | hostedInput=- | inputBytes=0
 ClearArea | hostedInput=Hrot.Map.Definitions.Behavior.ClearAreaParamsJsonDto | inputBytes=1712
 ClearAreaObjective | hostedInput=- | inputBytes=240
 ClearBuilding | hostedInput=Hrot.Map.Definitions.Behavior.ClearBuildingParamsJsonDto | inputBytes=1632
-ClearLane | hostedInput=Hrot.Map.Definitions.Behavior.ClearLaneParamsJsonDto | inputBytes=44
+ClearLane | hostedInput=Hrot.Map.Definitions.Behavior.ClearLaneParamsJsonDto | inputBytes=48
 ClearObstacle | hostedInput=Hrot.AI.Behaviors.Brains.ClearObstacleOrder | inputBytes=56
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1544

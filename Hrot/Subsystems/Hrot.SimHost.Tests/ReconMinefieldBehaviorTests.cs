@@ -58,7 +58,7 @@ namespace Hrot.SimHost.Tests
             repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(-25f, 15f, 0f);
             if (!repo.HasComponent<EntityInfo>(w.Man)) repo.AddComponent(w.Man, new EntityInfo { ForceId = ForceId.Friend });
             else repo.GetComponentRW<EntityInfo>(w.Man).ForceId = ForceId.Friend;
-            w.Start(BehaviorNames.ReconMinefield, "{\"FieldNetId\":" + FieldNet + ",\"At\":[20,20,0],\"Pace\":5}");
+            w.Start(BehaviorNames.ReconMinefield, "{\"Field\":" + FieldNet + ",\"At\":[20,20,0],\"Pace\":5}");
             var swept = new Dictionary<(int, int), byte>();
             int marks = 0;
             byte side = 0;

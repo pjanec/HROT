@@ -24,24 +24,33 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ MF-9 / MR-11 — the clearer drives to the lane's start at its driving speed, then down the lane to its end at the TOOL's pace
-        /// (0.5 m/s), and ends there. ✅ Red-proof: the lane driven at the driving speed ⇒ red.</summary>
+        /// (0.5 m/s), and ends there; its own <c>MineClearing</c> marker (terrain's switch, R-2126) is OFF on the way, ON down the lane with the
+        /// ordered tool and width, OFF at the end. ✅ Red-proofs: the lane driven at the driving speed ⇒ red; the switch-on dropped ⇒ red.</summary>
         [Fact]
         public void CE4624_MS_B3_ClearLane_DrivesToTheMouth_ThenTheLaneAtTheToolsPace()
         {
             var w = new StationWeaponBehaviorTests.World();
             var repo = w.Repo;
-            w.Start(BehaviorNames.ClearLane, "{\"Start\":[100,0,0],\"End\":[180,0,0]}");
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.MineClearing>()) repo.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+            repo.AddComponent(w.Man, new Fdp.Toolkit.Terrain.MineClearing());                       // a TKB 116 carries it, inactive
+            Fdp.Toolkit.Terrain.MineClearing Tool() => repo.GetComponentRO<Fdp.Toolkit.Terrain.MineClearing>(w.Man);
+            w.Start(BehaviorNames.ClearLane, "{\"Start\":[100,0,0],\"End\":[180,0,0],\"Width\":5,\"Tool\":1}");
             for (int i = 0; i < 3; i++) w.Tick();
             Assert.Equal(100f, Move(repo, w.Man).Destination.X, 1);
             Assert.Equal(ClearLaneBehavior.DefaultSpeed, Move(repo, w.Man).Speed, 2);
+            Assert.Equal(0, Tool().Active);                                                          // off on the way to the mouth
             repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(99f, 0f, 0f);
             for (int i = 0; i < 3; i++) w.Tick();
             Assert.Equal(180f, Move(repo, w.Man).Destination.X, 1);
             Assert.Equal(ClearLaneBehavior.DefaultPace, Move(repo, w.Man).Speed, 2);
+            Assert.Equal(1, Tool().Active);                                                          // ON down the lane, the ordered tool and swath
+            Assert.Equal(Fdp.Toolkit.Terrain.MineClearingTool.Plough, Tool().Tool);
+            Assert.Equal(5f, Tool().WidthM);
             Assert.Null(w.Finished);
             repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(179.5f, 0f, 0f);
             for (int i = 0; i < 3; i++) w.Tick();
             Assert.Equal(NodeStatus.Success, w.Finished);
+            Assert.Equal(0, Tool().Active);                                                          // off at the end
         }
 
         private static (StationWeaponBehaviorTests.World W, Entity[] Units) Commander(int n, int vehicles = 0)

@@ -15,15 +15,24 @@ using Hrot.Map.Definitions.Behavior;
 namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
-    /// ⭐ <c>CE-4624</c> MS-B3 (MR-11) — the mine clearer's EQUIPMENT SWITCH, the one seam the brain uses: the plough / flail on or off. ⚠ STAND-IN until
-    /// terrain's MS-T4 lands the switch (the bulldozer's outlet pattern, terrain-owned: `NOTE_Behaviors_To_Terrain_Minefield_Switch.md`); it records
-    /// the request on the clearer's own blackboard only (<see cref="ClearLaneBehavior.ClearLaneState.ToolOn"/>) — the engine's swath clear does
-    /// nothing yet. ⛔ The brain never writes the field.
+    /// ⭐ <c>CE-4624</c> MS-B3 (MR-11; R-2126) — the mine clearer's EQUIPMENT SWITCH, the one seam the brain uses: terrain's
+    /// <see cref="Fdp.Toolkit.Terrain.MineClearing"/> marker on the clearer ITSELF (component 325, recorded; a per-entity write) — <c>Active</c>, and
+    /// on switching on the <c>Tool</c> and the swath's <c>WidthM</c>. The engine's swath clear (the Muscle) reads it and clears the mines under it,
+    /// and raises <c>LaneCleared</c>. ⛔ The brain never writes the field. A clearer without the marker (not a TKB 116) answers false and clears nothing.
+    /// ⛔ HISTORY: a stand-in that returned false until terrain named the switch (`NOTE_Terrain_To_Behaviors_Minefield_Switch.md`).
     /// </summary>
     public static class ClearerEquipment
     {
-        /// <summary>Switch <paramref name="clearer"/>'s tool <paramref name="on"/> / off; true when the switch exists (false: the stand-in).</summary>
-        public static bool SetActive(EntityRepository world, Entity clearer, bool on) => false;
+        /// <summary>Switch <paramref name="clearer"/>'s tool <paramref name="on"/> / off; true when the clearer carries the marker.</summary>
+        public static bool SetActive(EntityRepository world, Entity clearer, bool on,
+                                     Fdp.Toolkit.Terrain.MineClearingTool tool = Fdp.Toolkit.Terrain.MineClearingTool.Flail, float widthM = ClearLaneBehavior.DefaultWidth)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.MineClearing>() || !world.HasComponent<Fdp.Toolkit.Terrain.MineClearing>(clearer)) return false;
+            ref var m = ref world.GetComponentRW<Fdp.Toolkit.Terrain.MineClearing>(clearer);
+            m.Active = on ? (byte)1 : (byte)0;
+            if (on) { m.Tool = tool; m.WidthM = widthM; }
+            return true;
+        }
     }
 
     /// <summary>
@@ -42,6 +51,8 @@ namespace Hrot.AI.Behaviors.Brains
             public int FieldNetId;
             public Vector3 Start, End;
             public float Width, Pace, Speed;
+            /// <summary>Terrain's <c>MineClearingTool</c>: 1 plough, 2 flail.</summary>
+            public byte Tool;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -64,8 +75,9 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Params = new ClearLaneParams
             {
-                FieldNetId = a.FieldNetId, Start = a.Start, End = a.End,
+                FieldNetId = a.Field.Ref.NetworkId, Start = a.Start, End = a.End,
                 Width = a.Width > 0f ? a.Width : DefaultWidth, Pace = a.Pace > 0f ? a.Pace : DefaultPace, Speed = a.Speed > 0f ? a.Speed : DefaultSpeed,
+                Tool = a.Tool == (byte)Fdp.Toolkit.Terrain.MineClearingTool.Plough ? a.Tool : (byte)Fdp.Toolkit.Terrain.MineClearingTool.Flail,
             };
             block.State = default;
         }
@@ -86,7 +98,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (Flat(here, p.Start) <= StartRadius)
                 {
-                    ClearerEquipment.SetActive(world, self, true);   // the tool on at the lane's mouth
+                    ClearerEquipment.SetActive(world, self, true, (Fdp.Toolkit.Terrain.MineClearingTool)p.Tool, p.Width);   // the tool on at the lane's mouth
                     s.ToolOn = 1;
                     s.Phase = Clearing;
                     s.Issued = 0;
@@ -277,7 +289,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BehaviorResolver(BehaviorNames.Breach)]
         public static void Resolve(in BreachParamsJsonDto a, ref BreachBlackboard block, EntityRepository world, Entity self)
         {
-            block.Params = new BreachParams { FieldNetId = a.FieldNetId, Start = a.Start, End = a.End, Width = a.Width > 0f ? a.Width : ClearLaneBehavior.DefaultWidth };
+            block.Params = new BreachParams { FieldNetId = a.Field.Ref.NetworkId, Start = a.Start, End = a.End, Width = a.Width > 0f ? a.Width : ClearLaneBehavior.DefaultWidth };
             block.State = default;
         }
 
@@ -336,7 +348,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (s.Phase == Clear)
                 {
                     CommandOrders.Assign(world, self, roster.SubordinateEntities[clearer], BehaviorNames.ClearLane,
-                        System.Text.Json.JsonSerializer.Serialize(new ClearLaneParamsJsonDto { FieldNetId = p.FieldNetId, Start = p.Start, End = p.End, Width = p.Width }, json), newOrder: true);
+                        System.Text.Json.JsonSerializer.Serialize(new ClearLaneParamsJsonDto { Field = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(p.FieldNetId)), Start = p.Start, End = p.End, Width = p.Width }, json), newOrder: true);
                     return NodeStatus.Running;
                 }
                 CommandOrders.Assign(world, self, roster.SubordinateEntities[assault], BehaviorNames.CrossLane,

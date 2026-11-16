@@ -55,7 +55,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Params = new MineStrikeParams
             {
-                FieldNetId = authored.FieldNetId, At = authored.At,
+                FieldNetId = authored.Field.Ref.NetworkId, At = authored.At,
                 Hold = (float)authored.Hold > 0f ? authored.Hold : (SimDuration)DefaultHoldSeconds,
             };
             block.State = default;
@@ -194,9 +194,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (_gateOnAuthority && !repo.HasAuthority<BehaviorState>(unit)) continue;
                 var dto = new MineStrikeParamsJsonDto
                 {
-                    FieldNetId = repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                    Field = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
                                  && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(strikes[i].Field)
-                        ? repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(strikes[i].Field).Value : 0,
+                        ? repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(strikes[i].Field).Value : 0)),
                     At = new Vector3(strikes[i].X, strikes[i].Y, 0f),
                 };
                 SopActions.React(repo, unit, BehaviorNames.MineStrike, ReactionUrgency.Hit, in dto);

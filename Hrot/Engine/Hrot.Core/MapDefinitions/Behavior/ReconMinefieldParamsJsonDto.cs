@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -15,9 +16,8 @@ namespace Hrot.Map.Definitions.Behavior
     {
         public const string BehaviorId = BehaviorNames.ReconMinefield;
 
-        /// <summary>The field's network id.</summary>
-        [JsonPropertyName("FieldNetId")]
-        public int FieldNetId;
+        /// <summary>The field: a GUID (the scenario's), <c>"@Key"</c> or a bare network id.</summary>
+        [JsonPropertyName("Field")] public EntityLink Field;
 
         /// <summary>The suspected point (world m) he works toward.</summary>
         [JsonPropertyName("At")]

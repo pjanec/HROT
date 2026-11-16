@@ -73,7 +73,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Params = new ReconMinefieldParams
             {
-                FieldNetId = authored.FieldNetId, At = authored.At, Mark = (byte)(authored.Mark ? 1 : 0),
+                FieldNetId = authored.Field.Ref.NetworkId, At = authored.At, Mark = (byte)(authored.Mark ? 1 : 0),
                 MaxCells = authored.MaxCells > 0 ? authored.MaxCells : DefaultMaxCells,
                 Pace = authored.Pace > 0f ? authored.Pace : DefaultPace,
             };

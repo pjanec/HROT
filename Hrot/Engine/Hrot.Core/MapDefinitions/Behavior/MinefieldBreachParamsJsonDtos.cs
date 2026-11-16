@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
+using Fdp.Toolkit.Replication;
 using Fdp.Core;
 
 namespace Hrot.Map.Definitions.Behavior
@@ -13,7 +14,8 @@ namespace Hrot.Map.Definitions.Behavior
     public struct ClearLaneParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.ClearLane;
-        [JsonPropertyName("FieldNetId")] public int FieldNetId;
+        /// <summary>The field: a GUID (the scenario's), <c>"@Key"</c> or a bare network id.</summary>
+        [JsonPropertyName("Field")] public EntityLink Field;
         [JsonPropertyName("Start")] public Vector3 Start;
         [JsonPropertyName("End")] public Vector3 End;
         /// <summary>The swath (m); 0 = 4.5.</summary>
@@ -22,6 +24,8 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Pace")] public float Pace;
         /// <summary>The drive to the lane's start (m/s); 0 = 5.</summary>
         [JsonPropertyName("Speed")] public float Speed;
+        /// <summary>The tool (terrain's <c>MineClearingTool</c>): 1 plough, 2 flail; 0 = flail.</summary>
+        [JsonPropertyName("Tool")] public byte Tool;
     }
 
     /// <summary>⭐ <c>CE-4624</c> MS-B3 (MF-11) — the contract of <c>CrossLane</c>, a squad's crossing of a cleared, marked lane in SINGLE FILE: assemble on
@@ -46,7 +50,8 @@ namespace Hrot.Map.Definitions.Behavior
     public struct BreachParamsJsonDto
     {
         public const string BehaviorId = BehaviorNames.Breach;
-        [JsonPropertyName("FieldNetId")] public int FieldNetId;
+        /// <summary>The field: a GUID (the scenario's), <c>"@Key"</c> or a bare network id.</summary>
+        [JsonPropertyName("Field")] public EntityLink Field;
         [JsonPropertyName("Start")] public Vector3 Start;
         [JsonPropertyName("End")] public Vector3 End;
         /// <summary>The swath (m); 0 = 4.5.</summary>
