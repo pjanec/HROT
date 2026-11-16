@@ -28,9 +28,9 @@ public sealed class AnimalAreaDetailsView : IDetailsViewInstance
     {
         if (context.Entities is not { Count: 1 } || _world() is not { } world) return;
         var e = context.Entities[0];
-        if (!world.IsAlive(e) || !world.IsComponentTypeRegistered<AnimalAreaDef>() || !world.HasComponent<AnimalAreaDef>(e)) { ImGui.TextDisabled("Select one animal area."); return; }
-        if (e != _entity) { _entity = e; _seed = world.GetComponentRO<AnimalAreaDef>(e).Seed.ToString(); }
-        var area = world.GetComponentRO<AnimalAreaDef>(e);
+        if (!world.IsAlive(e) || !world.IsComponentTypeRegistered<AnimalArea>() || !world.HasComponent<AnimalArea>(e)) { ImGui.TextDisabled("Select one animal area."); return; }
+        if (e != _entity) { _entity = e; _seed = world.GetComponentRO<AnimalArea>(e).Seed.ToString(); }
+        var area = world.GetComponentRO<AnimalArea>(e);
         Rects.Clear();
         ImGui.PushID(idScope + "/animalarea");
 
@@ -97,7 +97,7 @@ public static class AnimalAreaDetailsViewDescriptor
             AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w && w.IsAlive(ctx.Entities[0]),
             Create:    () => instance)
         {
-            Requires     = new[] { typeof(AnimalAreaDef) },
+            Requires     = new[] { typeof(AnimalArea) },
             Availability = new Hrot.Common.Actions.ActionAvailability(Hrot.Common.Actions.ActionModes.InEdit),
         };
     }

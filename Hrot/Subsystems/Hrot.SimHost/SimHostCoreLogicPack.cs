@@ -138,6 +138,8 @@ namespace Hrot.SimHost
             simList.Add(_navIntentBridge);
             simList.Add(_routeTrajSync);
             foreach (var s in _groundKinematicsModule.SimulationSystems) simList.Add(s);
+            // ⭐ CE-4624 (MS-T1) — the mine trigger runs AFTER the ground movers moved (it tests each owned body's step from its last position to this one)
+            simList.Add(new Fdp.Toolkit.Terrain.MineTriggerSystem());
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here.
 
             foreach (var s in _combatModule.PostSimulationSystems)             postSimList.Add(s);

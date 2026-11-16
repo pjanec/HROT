@@ -178,6 +178,14 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c2123000-0000-0000-0000-000000000020"))
                     .Label("Squad contact → react")
                 .Sequence(row => row
+                    .Condition(bb => bb.AreaAhead, SquadSopConditions.MinefieldAhead, Id("c4624000-0000-0000-0000-000000000b41"))
+                        .Label("A minefield ahead (within 30 m)")
+                    .React(BehaviorNames.MinefieldAhead, ReactionUrgency.Alert, Id("c4624000-0000-0000-0000-000000000b42"))
+                        .Label("React: MinefieldAhead"),
+                    Id("c4624000-0000-0000-0000-000000000b40"))
+                    .Label("Minefield ahead → halt, call the engineers")
+                    .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill.")
+                .Sequence(row => row
                     .Condition(bb => bb.AreaAhead, SquadSopConditions.DangerAreaAhead, Id("c2123000-0000-0000-0000-000000000061"))
                         .Label("Danger area ahead (within 30 m, not yet crossed)")
                     .React(BehaviorNames.SquadDangerCrossing, ReactionUrgency.Alert, Id("c2123000-0000-0000-0000-000000000062"))

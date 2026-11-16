@@ -1,3 +1,4 @@
+using Fdp.Core;
 using System.Numerics;
 using Xunit;
 
@@ -194,6 +195,39 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(nav.PathExists(west, east, wheeled), "a wheeled vehicle may not enter a wood");
             Assert.True(nav.PathExists(west, east, tracked), "a tracked vehicle drives through it");
             Assert.True(nav.PathExists(west, east, infantry), "infantry walks through it");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-4, KR-9, KR-13; R-5047) — a mover's SIDE rides in its route mask (bits 14…18, side + 1): <c>NavLayerSelection.For</c> adds
+        /// it from the entity's <c>EntityInfo.ForceId</c>, every filter variant the provider hands out is judged by it, and the extra bits change no layer, no path and no woods rule.
+        /// 🔴 Red-proof: the provider's working copies judged with side 0 ⇒ <c>SidePlus1</c> is 0.
+        /// </summary>
+        [Fact]
+        public void CE4624_TheMoversSide_RidesInTheMask_AndReachesEveryFilterVariant()
+        {
+            var world = TerrainWorldParser.Parse(WoodBarrier, "barrier");
+            var nav = (Fdp.Toolkit.Navigation.Recast.DotRecastNavmeshProvider)new Fdp.Toolkit.Navigation.Recast.RecastNavmeshFactory { TileCache = null }.Build(world)!;
+            var doors = DoorStates.Authored(world);
+            uint side = Fdp.Toolkit.Navigation.NavLayerSelection.SideBits(2);
+            Assert.Equal(3, Fdp.Toolkit.Navigation.NavLayerSelection.SidePlus1Of(side));
+            uint infantry = (uint)Fdp.Toolkit.Navigation.NavLayerMask.Infantry, wheeled = (uint)Fdp.Toolkit.Navigation.NavLayerMask.Vehicle;
+            foreach (uint m in new[] { infantry, wheeled, wheeled | Fdp.Toolkit.Navigation.NavLayerSelection.TrackedModifier, wheeled | Fdp.Toolkit.Navigation.NavLayerSelection.WoodsFactorBits(0.3f),
+                                       infantry | Fdp.Toolkit.Navigation.NavLayerSelection.JumpModifier })
+            {
+                Assert.Equal(3, nav.FilterFor(doors, m | side)!.SidePlus1);
+                Assert.Equal(0, nav.FilterFor(doors, m)!.SidePlus1);
+            }
+            Vector3 west = new(40, 40, 0), east = new(260, 40, 0);
+            Assert.False(nav.PathExists(west, east, wheeled | side), "the side bits change no woods rule");
+            Assert.True(nav.PathExists(west, east, infantry | side));
+
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<EntityInfo>();
+            var man = repo.CreateEntity();
+            repo.AddComponent(man, new EntityInfo { ForceId = (ForceId)2 });
+            uint mask = (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, man, 0);
+            Assert.Equal(infantry, mask & ~Fdp.Toolkit.Navigation.NavLayerSelection.SideMask);
+            Assert.Equal(3, Fdp.Toolkit.Navigation.NavLayerSelection.SidePlus1Of(mask));
         }
 
         /// <summary>

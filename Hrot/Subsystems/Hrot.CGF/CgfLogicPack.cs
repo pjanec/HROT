@@ -265,6 +265,8 @@ namespace Hrot.CGF
             // ⭐ CE-2360 (AQ102 I) — a live grenade lying near a man: his reflex (run, drop, throw it back) as a reaction, before the brain
             //   tick — every man, under command or not (it is no SOP row).
             simList.Add(new Hrot.AI.Behaviors.Brains.GrenadeDangerSystem(gateOnAuthority));
+            // ⭐ CE-4624 MS-B1 — a mine set off by a man or a vehicle: the unit's MineStrike drill as a reaction, before the brain tick.
+            simList.Add(new Hrot.AI.Behaviors.Brains.MineStrikeReflexSystem(gateOnAuthority));
             // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
@@ -300,6 +302,11 @@ namespace Hrot.CGF
             // ⭐ CE-2372 (AQ105 B, R-2080) — the squad calls whose moment happens in engine code: a new contact, a throw, a reload, a man down.
             simList.Add(new Hrot.AI.Behaviors.Brains.CalloutSystem(gateOnAuthority));
             simList.Add(_routeContextSystem);
+            // ⭐ CE-4624 MS-T2 (KR-5) — the place-knowledge writer on THIS deciding node too: the recon / marking events the brains raised (a host that also composes the
+            //   SimHost pack keeps one writer — the first instance claims the world).
+            simList.Add(new Fdp.Toolkit.Terrain.PlaceKnowledgeSystem());
+            // ⭐ CE-4624 MS-T2 (MR-5, R-5049) — each driven unit's own track near a minefield: the struck unit backs out along it, the medic comes in along it
+            simList.Add(new Fdp.Toolkit.Terrain.MineBreadcrumbSystem(gateOnAuthority));
             // CE-221: UnitHierarchySystem + EqsResultUpdateSystem were appended here. They are now
             // contributed by the infrastructure capabilities (see the field block above).
 

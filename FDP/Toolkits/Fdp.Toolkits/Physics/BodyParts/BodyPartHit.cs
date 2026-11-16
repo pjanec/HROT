@@ -94,10 +94,11 @@ namespace Fdp.Toolkit.Physics.BodyParts
         }
 
         /// <summary>The armour face a body-frame outward normal belongs to: TOP when it points up ≥ 45°, else by its bearing from the
-        /// body's forward (&lt; 60° front, &gt; 120° rear, else side — <see cref="ArmorModel"/>'s arcs). A downward face reads as a side.</summary>
+        /// body's forward (&lt; 60° front, &gt; 120° rear, else side — <see cref="ArmorModel"/>'s arcs). A downward face (⭐ CE-4624) is the BOTTOM.</summary>
         public static Facing FaceOf(Vector3 normalBody)
         {
             if (normalBody.Z >= TopNormalZ) return Facing.Top;
+            if (normalBody.Z <= -TopNormalZ) return Facing.Bottom;   // ⭐ CE-4624 MR-10 — a face pointing DOWN is the belly (was: a side)
             var h = new Vector2(normalBody.X, normalBody.Y);
             if (h.LengthSquared() < 1e-6f) return Facing.Side;
             float cos = Vector2.Normalize(h).X;
@@ -112,6 +113,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
             float len = travelPart.Length();
             if (len < 1e-6f) return Facing.Front;
             if (-travelPart.Z / len >= TopNormalZ) return Facing.Top;
+            if (travelPart.Z / len >= TopNormalZ) return Facing.Bottom;   // ⭐ CE-4624 MR-10 — a round travelling UP enters the belly
             var from = new Vector2(-travelPart.X, -travelPart.Y);
             if (from.LengthSquared() < 1e-6f) return Facing.Top;
             float cos = Vector2.Normalize(from).X;

@@ -123,9 +123,13 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ <c>CE-4603</c> (B-6) — and the view's FELLED lone trunks left out of the pieces (the navmesh and the drawing follow; sight / fire / the hull skip them at query time already).</summary>
         public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees)
+            => With(terrain, obstacles, damage, craters, trees, null);
+
+        /// <summary>⭐ <c>CE-4624</c> MS-T3 (MR-3) — and the world's MINEFIELDS laid into <see cref="TerrainWorld.Minefields"/> (the navmesh stamps them as composite areas; the bake reads nothing else of them).</summary>
+        public static TerrainWorld With(TerrainWorld terrain, IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
         {
             bool overlay = damage != null && damage.NavHash != 0;
-            if (obstacles.Count == 0 && !overlay && craters == null && trees == null) return terrain;
+            if (obstacles.Count == 0 && !overlay && craters == null && trees == null && (minefields == null || minefields.Count == 0)) return terrain;
             var prisms = new List<TerrainPrism>(terrain.Prisms.Count + obstacles.Count);
             var walkables = terrain.Walkables;
             IReadOnlyList<int> bakedCollapse = terrain.BakedCollapsed;
@@ -204,6 +208,7 @@ namespace Fdp.Toolkit.Terrain
                 Doors     = terrain.Doors,
                 Materials = terrain.Materials,
                 Breaches = terrain.Breaches,   // ⭐ CE-4391 S-1
+                Minefields = minefields is { Count: > 0 } ? minefields.Fields : terrain.Minefields,   // ⭐ CE-4624 MS-T3
             };
             if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
             return derived;

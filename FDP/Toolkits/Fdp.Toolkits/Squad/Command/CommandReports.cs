@@ -61,6 +61,8 @@ namespace Fdp.Toolkit.Squad.Command
         Resupply = 3,
         Reinforce = 4,
         Permission = 5,
+        /// <summary>⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7) — engineers to a minefield the unit cannot pass (APPENDED).</summary>
+        Engineers = 6,
     }
 
     /// <summary>⭐ <c>CE-2291</c> — SALUTE's S: the size of an element.</summary>

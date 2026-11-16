@@ -93,5 +93,22 @@ namespace Fdp.Toolkit.Physics.Math
             tOut = MathF.Min(1f, (-b + sq) / (2f * a));
             return tIn <= tOut;
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4622</c> K-1 (Checkpoint RM-1, KV-4) — the swept test's GROUND form, beside <see cref="SegmentInCircle"/> (the flyer's): a hull
+        /// rectangle (centre <paramref name="hullCentre"/> NOW, unit <paramref name="forward"/>, half length / width) that moved
+        /// <paramref name="travelled"/> metres forward this frame MEETS a circle (a person: centre, radius) when the circle overlaps the strip the
+        /// hull's FRONT swept — from where its front was to where it is (grown by the radius). A body the hull already overlapped is not met again
+        /// (it was met when the front reached it). <paramref name="along"/> = how far ahead of the hull's centre the contact lies.
+        /// </summary>
+        public static bool SweptFrontMeetsCircle(Vector2 hullCentre, Vector2 forward, float halfLength, float halfWidth, float travelled,
+                                                 Vector2 center, float radius, out float along)
+        {
+            var d = center - hullCentre;
+            along = d.X * forward.X + d.Y * forward.Y;
+            float side = -d.X * forward.Y + d.Y * forward.X;
+            if (MathF.Abs(side) > halfWidth + radius) return false;
+            return along <= halfLength + radius && along >= halfLength - MathF.Max(0f, travelled) - radius;
+        }
     }
 }

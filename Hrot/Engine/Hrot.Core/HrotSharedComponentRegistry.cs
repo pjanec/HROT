@@ -111,6 +111,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();                     // ⭐ CE-4623 AB-3 — an animal's state (dtAnimalState), on every node
         world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();                      // ⭐ CE-4623 AB-3 — a bird flock's state (dtFlockState)
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalArea>();                      // ⭐ CE-4623 AB-10 — an animal area's species / count / seed (AUTHORED: every node that loads a scenario)
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();                       // ⭐ CE-4624 MS-U3 (cross-lane, one line — terrain's MS-T1 owns it): the minefield's parameters + lanes (AUTHORED), so the editor can place and edit one
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalAreaPopulated>();             // ⭐ CE-4623 AB-10 — the area has made its animals (recorded, never saved)
         world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
@@ -165,6 +166,19 @@ public static class HrotSharedComponentRegistry
         //   DoorStates.Craters (the cratered ground, D-1). The event is the local "a burst made this crater" the deciding node's system turns into the component.
         world.RegisterComponent<Fdp.Toolkit.Terrain.GroundDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.CraterEvent>();
+        // ⭐ CE-4624 (minefields §3a, MS-T1) — the minefield (authored: parameters + lanes), its ground-truth strikes record and the per-side knowledge record (every node: KG-9),
+        //   and the local events the trigger and the recon brain raise for the writers (§6.1)
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldStrikes>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.LaneCleared>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinesCleared>();   // ⭐ CE-4624 MS-T4 (MR-15) — mines a plough / flail / line charge cleared (the strikes writer reads it as Cleared)
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();

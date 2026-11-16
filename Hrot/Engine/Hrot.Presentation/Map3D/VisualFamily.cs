@@ -65,6 +65,11 @@ public enum VisualFamily : byte
     Pig,
     /// <summary>⭐ CE-4623 — a goat (class <c>Goat</c>, <c>3.1.*.208</c>, type 711).</summary>
     Goat,
+    /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, MS-U4) — the mine-clearing vehicle (class <c>MineClearer</c>, DIS <c>1.1.*.9.2</c>, TKB 116 <c>Engineer_MineClearer</c>):
+    /// a tracked engineer carrier with a line-charge launcher at the rear and a FLAIL drum on two arms in front that spins while the flail is on (<see cref="FlailActivity"/>).
+    /// ⛔ Appended (a byte value others may store), AFTER the animals. ⭐ NOT yet in <see cref="VisualFamilies.FamilyOfClass"/>: the rail <c>CE2138_EveryClassAFamilyOrAvatarNames_IsInTheTable</c> requires the
+    /// class to exist in <see cref="EntityClassTable"/> first, and terrain declares it — bound at the re-bind (add <c>["MineClearer"] = VisualFamily.MineClearer</c>, the ONE line).</summary>
+    MineClearer,
 }
 
 /// <summary>
@@ -146,6 +151,7 @@ public static class VisualFamilies
         VisualFamily.Person => "_person",
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
+        VisualFamily.MineClearer => "_tank",   // ⭐ CE-4624 — a tracked body on the 2-D picker; its own glyph (assets/icons/_mineclearer, the mockup's) is a follow-up asset
         VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
         VisualFamily.Cattle => "_cattle", VisualFamily.Sheep => "_sheep", VisualFamily.Horse => "_horse", VisualFamily.Dog => "_dog", VisualFamily.Cat => "_cat",
         VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat",   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)

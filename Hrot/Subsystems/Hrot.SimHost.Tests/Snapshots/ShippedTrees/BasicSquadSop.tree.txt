@@ -16,6 +16,7 @@ parse (empty) -> ok
   c2123000-0000-0000-0000-000000000031 {"Kind":"SquadLeaderDown","Seconds":3}
   c2123000-0000-0000-0000-000000000051 {"Kind":"SquadMemberDown","Seconds":3}
   c2123000-0000-0000-0000-000000000021 {"Kind":"SquadContact","Seconds":3}
+  c4624000-0000-0000-0000-000000000b41 {"WithinMetres":30}
   c2123000-0000-0000-0000-000000000061 {"WithinMetres":30}
 parse {} -> ok
 parse {"bogus":1} -> refused InvalidOperationException
@@ -84,6 +85,10 @@ Selector c2123000-0000-0000-0000-000000000002 "Rows — first true wins"
     Condition c2123000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"SquadContact","Seconds":3} "Squad contact (fresh, 3 s)"
     Action c2123000-0000-0000-0000-000000000022 sop React:ReactToContact:Contact "React: ReactToContact"
       # Hold and return fire, decide once (assault / break contact / hold), run the drill.
+  Sequence c4624000-0000-0000-0000-000000000b40 "Minefield ahead → halt, call the engineers"
+    # CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill.
+    Condition c4624000-0000-0000-0000-000000000b41 call Hrot.AI.Behaviors.Brains.SquadSopConditions.MinefieldAhead p:SopAreaParams={"WithinMetres":30} "A minefield ahead (within 30 m)"
+    Action c4624000-0000-0000-0000-000000000b42 sop React:MinefieldAhead:Alert "React: MinefieldAhead"
   Sequence c2123000-0000-0000-0000-000000000060 "Danger area ahead → cross it"
     # CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).
     Condition c2123000-0000-0000-0000-000000000061 call Hrot.AI.Behaviors.Brains.SquadSopConditions.DangerAreaAhead p:SopAreaParams={"WithinMetres":30} "Danger area ahead (within 30 m, not yet crossed)"

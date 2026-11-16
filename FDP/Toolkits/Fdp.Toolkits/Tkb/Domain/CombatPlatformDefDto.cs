@@ -38,6 +38,14 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("mm RHA")]
         public float ArmorTop { get; init; }
 
+        /// <summary>⭐ <c>CE-4624</c> (MR-10) — belly armour (mm RHA), struck by a mine's burst (a round travelling UP ≥ 45°). <b>0 = <see cref="ArmorRear"/></b>.</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorBottom { get; init; }
+
+        /// <summary>⭐ <c>CE-4624</c> — belly armour against a shaped charge. <b>0 = <see cref="ArmorBottom"/></b> (its kinetic value).</summary>
+        [EditUnit("mm RHA")]
+        public float ArmorBottomCe { get; init; }
+
         /// <summary>⭐ M2 (D-B) — front armour against a SHAPED CHARGE (mm RHA). <b>0 = <see cref="ArmorFront"/></b>.</summary>
         [EditUnit("mm RHA")]
         public float ArmorFrontCe { get; init; }

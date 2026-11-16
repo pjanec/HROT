@@ -37,10 +37,10 @@ public sealed class AnimalAreaDetailsViewTests
     private static (EntityRepository World, Entity Area) World(AnimalSpecies species = AnimalSpecies.Cattle)
     {
         var w = new EntityRepository();
-        w.RegisterComponent<SimTransform>(); w.RegisterComponent<AnimalAreaDef>();
+        w.RegisterComponent<SimTransform>(); w.RegisterComponent<AnimalArea>();
         var e = w.CreateEntity();
         w.AddComponent(e, new SimTransform { Position = new Vector3(100, 100, 0), Rotation = Quaternion.Identity });
-        w.AddComponent(e, AnimalAreaDef.Default(species));
+        w.AddComponent(e, AnimalAreaOps.Default(species));
         return (w, e);
     }
 
@@ -52,7 +52,7 @@ public sealed class AnimalAreaDetailsViewTests
         var (w, e) = World();
         var d = AnimalAreaDetailsViewDescriptor.For(() => w);
         Assert.Equal("Animal area", d.Title);
-        Assert.Contains(typeof(AnimalAreaDef), d.Requires);
+        Assert.Contains(typeof(AnimalArea), d.Requires);
         Assert.True(d.AppliesTo(Context(e)));
     }
 
@@ -90,17 +90,17 @@ public sealed class AnimalAreaDetailsViewTests
         Assert.True(Math.Abs(rects["species"].Min.X - rects["count"].Min.X) < 4f, "species and count start one value column");
         Assert.True(rects["species"].Min.Y < rects["count"].Min.Y && rects["count"].Min.Y < rects["seed"].Min.Y && rects["seed"].Min.Y < rects["enclosed"].Min.Y, "in the mockup's order");
         // a pig's area is born Enclosed
-        Assert.Equal(1, w.GetComponentRO<AnimalAreaDef>(e).Enclosed);
+        Assert.Equal(1, w.GetComponentRO<AnimalArea>(e).Enclosed);
         // the dice re-rolls the seed in ONE step
         rec.Log.Clear();
-        uint before = w.GetComponentRO<AnimalAreaDef>(e).Seed;
+        uint before = w.GetComponentRO<AnimalArea>(e).Seed;
         Click(frame, Draw, (rects["dice"].Min + rects["dice"].Max) * 0.5f);
-        Assert.NotEqual(before, w.GetComponentRO<AnimalAreaDef>(e).Seed);
+        Assert.NotEqual(before, w.GetComponentRO<AnimalArea>(e).Seed);
         Assert.Equal(new[] { "begin Re-roll animal area", "end" }, rec.Log);
         // the Enclosed box: one step, and 🔴 red-proof: a form that never writes it leaves the byte as it was
         rec.Log.Clear();
         Click(frame, Draw, (rects["enclosed"].Min + rects["enclosed"].Max) * 0.5f);
-        Assert.Equal(0, w.GetComponentRO<AnimalAreaDef>(e).Enclosed);
+        Assert.Equal(0, w.GetComponentRO<AnimalArea>(e).Enclosed);
         Assert.Equal(new[] { "begin Open animal area", "end" }, rec.Log);
     }
 }

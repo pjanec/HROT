@@ -122,7 +122,7 @@ public sealed class ScenarioChecksTests
         public readonly Dictionary<long, JsonObject> Comps = new();
         public readonly JsonArray ShotRows = new();
         public readonly JsonArray BlastRows = new();
-        public EntityRepository? World => null;
+        public EntityRepository? World { get; set; }
         public IShotWorld Units => U;
         public string? BehaviourName(int hash) => null;
         public JsonObject? Components(int id) => Comps.TryGetValue(id, out var c) ? c : null;
@@ -216,6 +216,52 @@ public sealed class ScenarioChecksTests
         var v = book.Verdicts().ToDictionary(x => x.Name);
         Assert.Equal(3.0, v["a Bradley is struck"].Time!.Value, 6);
         Assert.True(v["both Bradleys alive"].Ok);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> (Minefields MR-19, R-4277) — the <c>knowledge</c> cue reads what a SIDE knows of a named minefield, as the side's own readers do
+    /// (<c>PlaceKnowledgeTable</c>): <c>Marked</c> holds for the side that knows it (here: known at start) and not for another; a cell state counts the
+    /// field's grid cells the side knows in it (default <c>&gt;= 1</c>). The grammar names a knowledge cue with no side or an unknown state.
+    /// 🔴 Red-proof: read the knowledge of side 0 for every cue ⇒ Friend's rows fail.
+    /// </summary>
+    [Fact]
+    public void CE4624_TheKnowledgeCue_ReadsWhatASideKnowsOfAField()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "Friend knows the field", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Marked"},
+                {"name": "Hostile knows the field", "on": "knowledge", "who": "Field A", "side": "Hostile", "is": "Marked"},
+                {"name": "Friend knows every cell mined", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "KnownMined", "op": "==", "value": 16},
+                {"name": "Friend suspects a cell", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Suspected"},
+                {"name": "Hostile knows nothing", "on": "knowledge", "who": "Field A", "side": "Hostile", "is": "Unknown", "op": "==", "value": 16}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>(); world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+        var field = world.CreateEntity();
+        world.AddComponent(field, new SimTransform { Position = new Vector3(500f, 200f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 4f, KnownAtStartSides = 1 << (int)ForceId.Friend });
+        world.AddComponent(field, new NetworkIdentity { Value = 77 });
+        world.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline   // 40 × 40 m ⇒ a 4 × 4 grid of 10 m cells
+        {
+            Points = new[] { new Vector2(0f, 0f), new Vector2(40f, 0f), new Vector2(40f, 40f), new Vector2(0f, 40f) },
+        });
+        var w = new FakeWorld { World = world };
+        w.U.Ids["Field A"] = 77;
+        var book = new ConditionBook(checks, w, 0);
+        book.Finish(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["Friend knows the field"].Ok);
+        Assert.False(v["Hostile knows the field"].Ok);
+        Assert.True(v["Friend knows every cell mined"].Ok);
+        Assert.False(v["Friend suspects a cell"].Ok);
+        Assert.True(v["Hostile knows nothing"].Ok);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "knowledge", "who": "Field A", "is": "Mined"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("needs side", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("is is one of", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -359,5 +405,47 @@ public sealed class ScenarioChecksTests
         Assert.Contains(plain, l => l.Contains("where"));
         Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.*.B", "where": {"C": [">", 0]}}]}""", out var starred);
         Assert.Empty(starred);
+    }
+
+    /// <summary>
+    /// ⭐⭐ RT-3 (R-4279) — the golden compares VISIBLE state: an internal blackboard / diagnostics component that differs (or a component
+    /// added since the capture) is NOT a difference; a visible mode (<c>AnimalState</c>), a field the checks read (<c>Fuel.Litres</c>) and a
+    /// position ARE; a golden from before the visible mode asks to be re-captured; and a golden difference is a WARNING — the run still
+    /// PASSES. 🔴 Red-proofs: compare with <c>Compare</c> (the full one) ⇒ the blackboard line appears; keep the golden in <c>Passed</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void RT3_TheGolden_ComparesVisibleState_AndADifferenceIsAWarning()
+    {
+        var checks = Parse("""{ "runFor": 1, "golden": {"every": 1}, "expect": [{"name": "fuel", "on": "field", "who": "A", "path": "Fuel.Litres", "op": ">", "value": 0}] }""", out _);
+        JsonObject Run(string blackboard, string mode, double litres, double x, bool addedComponent = false)
+        {
+            var w = new FakeWorld().Unit("A", 1, 100, x);
+            w.Comps[1]["BlueprintBlackboard1024"] = new JsonObject { ["Bytes"] = blackboard };
+            w.Comps[1]["AnimalState"] = new JsonObject { ["Mode"] = mode };
+            w.Comps[1]["Fuel"] = new JsonObject { ["Litres"] = litres, ["Internal"] = blackboard };
+            if (addedComponent) w.Comps[1]["RadarSignature"] = new JsonObject { ["Rcs"] = 3 };
+            var g = new ScenarioGolden(w, checkPaths: checks.Paths());
+            g.Snapshot(0);
+            var book = new ConditionBook(checks, w, 0);
+            book.Finish(0);
+            return g.ToJson("s", 60, book);
+        }
+        var golden = Run("aa", "Calm", 10, 0);
+        Assert.Empty(ScenarioGolden.CompareVisible(golden, Run("bb", "Calm", 10, 0, addedComponent: true)));   // internals and a new component: same
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Flee", 10, 0)), l => l.Contains("visible.AnimalState"));
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Calm", 4, 0)), l => l.Contains("visible.Fuel.Litres"));
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Calm", 10, 2)), l => l.Contains("units.A.position"));
+
+        // a golden captured before the visible mode: compared on what it has, and asked to be re-captured
+        var old = (JsonObject)golden.DeepClone();
+        foreach (var snap in old["snapshots"]!.AsArray()) foreach (var u in snap!["units"]!.AsObject()) u.Value!.AsObject().Remove("visible");
+        Assert.StartsWith("the golden predates", ScenarioGolden.CompareVisible(old, golden)[0]);
+
+        // a difference is a WARNING: the run passes and says so
+        var result = new VerifyResult { Golden = "different" };
+        result.Verdicts.Add(new Verdict("fuel", true, 0, "field"));
+        Assert.True(result.Passed);
+        Assert.Single(result.Warnings);
+        Assert.Single(result.ToJson()["warnings"]!.AsArray());
     }
 }
