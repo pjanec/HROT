@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: the CHECKPOINT, RAMMING and the CAR BOMB (CE-4622, slices K-1…K-8)
 
-**For:** the `behaviors` lane, as a FOLLOW-UP — start when your minefield batch is reported. **From:** coordinator. **Dispatched at `<STAMP>`**;
+**For:** the `behaviors` lane, as a FOLLOW-UP — start when your minefield batch is reported. **From:** coordinator. **Dispatched at `b933ddd7d`**;
 ⛔ scope FROZEN there — later documents are FYI; one that invalidates a slice ⇒ STOP that slice, do the rest (R-106).
 
 🔒 User, `2026-11-16`: *"Checkpoint and ramming (CE-4622) can be passed to one of the lanes as a followup handoff"* · decisions R-4260, the review
