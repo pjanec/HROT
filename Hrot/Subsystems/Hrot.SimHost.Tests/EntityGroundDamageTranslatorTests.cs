@@ -43,6 +43,15 @@ namespace Hrot.SimHost.Tests
         public void TheToolkitsOrdinal_IsTheDescriptorsOrdinal()
             => Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtGroundDamage, GroundDamageSystem.DescriptorOrdinal);
 
+        /// <summary>⭐ CE-4624 — the minefield's three ordinals (the toolkit cannot reference NED) equal the wire's (NOTE_Terrain_To_All_Minefield_Contract.md).</summary>
+        [Fact]
+        public void CE4624_TheMinefieldOrdinals_MatchTheWire()
+        {
+            Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtMinefield, Fdp.Toolkit.Terrain.Minefields.MinefieldDescriptorOrdinal);
+            Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtMinefieldStrikes, Fdp.Toolkit.Terrain.Minefields.StrikesDescriptorOrdinal);
+            Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtMinefieldKnowledge, Fdp.Toolkit.Terrain.Minefields.KnowledgeDescriptorOrdinal);
+        }
+
         /// <summary>
         /// The wire form round-trips BYTE FOR BYTE (the same craters, the same birth — V-10: no node recomputes a profile from the charge) and reaches a ghost whose
         /// view reads the crater at once; the recorded owner never takes its own sample back; an unchanged component matches its last sample (no resend).

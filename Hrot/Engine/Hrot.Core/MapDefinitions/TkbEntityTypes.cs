@@ -37,6 +37,9 @@ namespace Hrot.Map.Common
         /// civilian traffic (the side from the scenario's faction): seat 0 the rider (Driver), seat 1 the pillion — a FIRING seat (PF-1). DIS 1.1.*.80.1,
         /// class <c>"Motorcycle"</c>, SUMO class <c>motorcycle</c>. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Motorcycle = 115;
+        /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a) — the MINE-CLEARING vehicle: an engineering tank with a plough / flail and a line-charge mount.
+        /// DIS 1.1.*.9.2 (beside the bulldozer's 1.1.*.9.1), class <c>"MineClearer"</c>. ⛔ A permanent wire value. (Registered in MS-T4.)</summary>
+        public const long Engineer_MineClearer = 116;
 
         // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
         //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.
@@ -147,6 +150,8 @@ namespace Hrot.Map.Common
         //   dies (its footprint per instance), cleared by a charge or a blade (CE-6003). ⛔ PERMANENT WIRE VALUE; 8819 measured free on every lane
         //   (git grep of every origin branch, 2026-11-13). Not in Obstacles (the palette's starter set): the simulation makes it.
         public const long Obstacle_Wreck         = 8819;
+        // ⭐ CE-4624 (minefields §3a) — the MINEFIELD: one entity per field (a closed outline, its mines derived). DIS 5.0.0.91, class "Minefield". ⛔ A permanent wire value.
+        public const long Minefield              = 8830;
         // ⭐ CE-5010 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-4264) — the three clutter-only boxes become obstacle types too, so a row of barrels / jersey barriers / booths is real obstacle ENTITIES.
         //   ⛔ PERMANENT WIRE VALUES; 8820–8822 measured free (no use in any origin branch's TkbEntityTypes.cs, nor anywhere in the tree), 2026-11-16.
         public const long Obstacle_Barrel        = 8820;

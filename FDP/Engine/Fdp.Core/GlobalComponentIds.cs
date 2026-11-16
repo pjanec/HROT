@@ -1325,8 +1325,14 @@ namespace Fdp.Core
         public const int RadarWarning = 499;
 
         /// <summary><c>PlacementGroup</c> — ⭐ CE-5008 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-5041): the group a placed ROW of obstacle entities belongs to (one <c>uint</c> id on every member); selecting one member selects the group.
-        /// Unmanaged, authored, recorded and saved (<c>DataPolicy.Default</c>). ⚠ 500 measured free in every origin branch's GlobalComponentIds.cs and in no ComponentId attribute, 2026-11-16 (the highest in use was 499).</summary>
-        public const int PlacementGroup = 500;
+        /// Unmanaged, authored, recorded and saved (<c>DataPolicy.Default</c>). ⚠ MOVED 500 → 309 (CE-4624, 2026-11-16): the animals' <c>Fear</c> took 500 on coordinator the same day — two types on one id. 309 is in the terrain block (300–319), free on every lane.</summary>
+        public const int PlacementGroup = 309;
+
+        /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, §6.1) — <c>Minefield</c> (on TKB 8830: the parameters and lanes; the outline is its <c>EditablePolyline</c>),
+        /// <c>MinefieldStrikes</c> (the per-field record of struck / cleared mines), <c>MinefieldKnowledge</c> (one side's knowledge of one field, TKB 7206). Replicated as
+        /// <c>dtMinefield</c> 191 · <c>dtMinefieldStrikes</c> 192 · <c>dtMinefieldKnowledge</c> 193. ⚠ 318 / 319 / 323: the terrain block's free ids, measured free on every lane 2026-11-16
+        /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
+        public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
 
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
