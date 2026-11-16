@@ -577,6 +577,19 @@ planner.*
 | `FireLine.Hits` carries the FIRER's suppression already | phase B then reads no firer state | R-8002 |
 | the run seed is process-wide (`SimRng.RunSeed`); 0 = the historical numbers | `FromSim` is static with ~30 callers; no golden moves | R-8003 |
 | the refusal's TaskFailed rides the receiver's own outbox (`ReportQueue`, the staff's delay) | the one report path (CC-5) | — |
+| ST-2's sensing writes the observer's OWN squad pool directly (N-2) and `SquadPerceptionMergeSystem` skips a stochastic unit | the merge recomputes the pool from members; a memberless unit's would be wiped every dwell | — |
+| ST-2's draw is the step's EXPECTED chance accumulated (no dice) | N-5 accumulates; deterministic at any thread count without a seed | — |
+| ⏳ N-3 (a stochastic observer seeing PHYSICAL entities) not in the first increment | stochastic targets only | — |
+| ST-3: phase A writes ONLY `FireAllocation`; phase B spends the firer's own ammunition from its own lines (`FireLine.Source`, the former pad byte) | A then reads the targets as stable reads and writes one component; B writes only itself | — |
+| ST-3: phase B reads the enemy lines of THIS step (A ran first in the same frame), not last step's | the same determinism; one step less of delay | — |
+| ST-3: the run seed reaches the draw from the world's `RunSeed` singleton, else the process seed — passed explicitly | a phase never writes the static (and tests run in parallel) | R-8003 |
+| ⛔ ST-3: no host loads the killer–victim table yet; the C-8 ladder needs the physical runs | the TKB adapter + the measured rows are a separate job | CE-8008, CE-8009 |
+| C-6: the sink takes the footprint as a circle of the same area (frontage × max(depth, 20 m)); a casualty in the lethal circle is DOWN, wounds below it folded into `LethalShare` | the overlap in closed form; one calibrated share | CE-8010 |
+| the unit phases (sensing, A, B) are `ICoarseJob`s, 2 units a batch | a battalion's 18 units were one batch of 32 — ST-4's red-proof found it | CE-8011 |
+| ST-5: the manager decides by the nearest PHYSICAL enemy against fixed bands (SV-9) — the policy is a `Policy` seam (agg-behaviors'); the UNOBSERVED merge condition is not yet in | the policy is the other lane's half; the condition needs the physical sensors' view | CE-8013 |
+| ST-5: Planning uses the FALLBACK posts at once (D-P5) | the real planners' plan / assign split (D-P3) is agg-behaviors' | CE-8013 |
+| ST-5: HELD is a tag (`AggregateChild.Held`, 288), not yet a lifecycle participant (SV-6); children are destroyed with `DestroyEntity` | single-world first; the cluster's lifecycle is the wiring step | CE-8013 |
+| ST-5: in Physical, `SplittingSince` is when the unit last became merge-ELIGIBLE (the quiet clock) | one recorded field instead of a new one (SV-12) | — |
 | ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
 
 ### 23.5 agg-behaviors — ST-0 ⑦: the commanders' orders ROUTED *(exp/agg-behaviors, `2026-11-16`; build-state: BUILDING — increment 1 BUILT; lane decisions R-8300…R-8304 "for the user's review")*

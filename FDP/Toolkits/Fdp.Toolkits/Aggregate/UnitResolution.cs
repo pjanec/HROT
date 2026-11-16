@@ -1,0 +1,374 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Scenario;
+
+namespace Fdp.Toolkit.Aggregate
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-8012</c> (ST-5, SV-4 / SV-6; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §16a) — the tag on an entity
+    /// a stochastic unit's split created: its unit, its slot, and whether it is still HELD (created, kept out of the fight until the handover).
+    /// </summary>
+    [ComponentId(GlobalComponentIds.AggregateChild)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    public struct AggregateChild
+    {
+        public Entity Unit;
+        public byte Slot;
+        /// <summary>1 while held (Materialising), 0 after the handover.</summary>
+        public byte Held;
+        private ushort _pad0;
+        private uint _pad1;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-8012</c> (§16b, SV-9, SV-15) — the numbers the resolution manager decides by. ⭐ The POLICY (an unmanaged World Environment
+    /// component set by <c>SetResolutionPolicy</c>, detail areas) is agg-behaviors' (§23.3 ST-5); the manager reads it through
+    /// <see cref="ResolutionManagerSystem.Policy"/> — these defaults are SV-9's FIXED bands until it lands.
+    /// </summary>
+    public readonly record struct ResolutionBands(
+        float PhysicalBand = 400f,       // a physical enemy nearer than this ⇒ physical (SV-9)
+        float LeadMetres = 200f,         // D-P1's lead: the process's budget × the closing speed, widened into the trigger band
+        float MergeMargin = 100f,        // the hysteresis margin a merge needs beyond the band
+        float QuietSeconds = 60f,        // out of contact and out of the band this long before an automatic merge
+        float ForcedRange = 300f,        // C-7: a physical enemy this near forces the fallback handover AT ONCE
+        float DeadlineSeconds = 10f)     // D-P5: the process's deadline (fallback posts are used from the start until D-P3's planners land)
+    {
+        /// <summary>SV-9's fixed bands. ⚠ Use THIS, never <c>new ResolutionBands()</c> — a record struct's parameterless <c>new()</c> is all
+        /// zeros, not the defaults above (measured: every band 0, the manager never split).</summary>
+        public static ResolutionBands Default => new(400f, 200f, 100f, 60f, 300f, 10f);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-8012</c> — the seam the manager drives a split / merge through (§16a). ⭐ Production: <see cref="BusResolutionSwitch"/> (transient
+    /// creation requests with derived identities, SV-4). A test may supply its own.
+    /// </summary>
+    public interface IUnitResolutionSwitch
+    {
+        /// <summary>Materialise: create the unit's live slots at <paramref name="posts"/>, HELD (SV-6, SV-7).</summary>
+        void Materialise(EntityRepository repo, Entity unit, ReadOnlySpan<Vector3> posts);
+        /// <summary>Has every requested child been created?</summary>
+        bool AllPresent(EntityRepository repo, Entity unit);
+        /// <summary>The one-tick handover (D-P6): the latest slot table mapped onto the children (X-4), the dead removed, the held released.</summary>
+        void Handover(EntityRepository repo, Entity unit);
+        /// <summary>The trigger was withdrawn mid-process: the held children removed (SV-7) — logged, never seen.</summary>
+        void Cancel(EntityRepository repo, Entity unit);
+        /// <summary>Re-aggregation (D-P7): sum the children back into the slot table, the centroid into the unit, then remove them.</summary>
+        void Merge(EntityRepository repo, Entity unit);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-8012</c> (X-3 / X-4 / SV-4, D-P5) — the mapping rules, written once: a child's STABLE identity, the fallback posts, a slot's
+    /// health onto a soldier's and back.
+    /// </summary>
+    public static class UnitSplits
+    {
+        /// <summary>A man's health (the slot scale, <see cref="UnitSlot.Health"/>).</summary>
+        public const float SlotFullHealth = 25f;
+
+        /// <summary>⭐ SV-4 — the child of <paramref name="unitGuid"/> in <paramref name="slot"/>: the same unit split twice gives the same children.</summary>
+        public static Guid ChildGuid(Guid unitGuid, int slot) => EntityGuidDerivation.Derive(unitGuid, "child:" + slot.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        /// <summary>The unit's identity: its <see cref="EntityGuid"/>, else one derived from nothing but its index (a unit with no scenario key).</summary>
+        public static Guid UnitGuid(EntityRepository repo, Entity unit)
+            => repo.IsComponentTypeRegistered<EntityGuid>() && repo.HasComponent<EntityGuid>(unit) ? repo.GetComponentRO<EntityGuid>(unit).Value
+             : EntityGuidDerivation.Derive(Guid.Empty, "unit:" + unit.Index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        /// <summary>⭐ D-P5 — the FALLBACK posts: the live slots spread across the frontage, square to the heading, in rows of ≤ 12.</summary>
+        public static int FallbackPosts(in AggregateUnit u, Vector3 at, in UnitSlotTable slots, Span<Vector3> into)
+        {
+            int n = Math.Min(slots.Present(), into.Length);
+            if (n == 0) return 0;
+            float rad = u.Heading.Degrees * (MathF.PI / 180f);
+            var across = new Vector3(MathF.Cos(rad), -MathF.Sin(rad), 0f);
+            var back = new Vector3(-MathF.Sin(rad), -MathF.Cos(rad), 0f);
+            int perRow = Math.Min(12, n);
+            float width = MathF.Max(u.Width, 2f * perRow);
+            for (int k = 0; k < n; k++)
+            {
+                int row = k / perRow, col = k % perRow;
+                into[k] = at + across * (-width * 0.5f + width * (col + 0.5f) / perRow) + back * (row * 10f);
+            }
+            return n;
+        }
+
+        /// <summary>X-4 — a slot's health onto a soldier of max <paramref name="max"/>, and back.</summary>
+        public static float ToSoldier(float slotHealth, float max) => max <= 0f ? slotHealth : slotHealth / SlotFullHealth * max;
+        public static float ToSlot(float current, float max) => max <= 0f ? current : MathF.Max(0f, current) / max * SlotFullHealth;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-8012</c> (ST-5, §16a / §16b, R-1 … R-7, C-7) — THE RESOLUTION MANAGER: one serial pass every second over the stochastic units
+    /// (and the split ones), deciding by the bands (<see cref="ResolutionBands"/>), the instructor's pin (SV-14: instructor &gt; author &gt;
+    /// automatic) and the nearest PHYSICAL enemy; driving the process stage by stage on <see cref="AggregateUnit.Splitting"/> (recorded) through
+    /// an <see cref="IUnitResolutionSwitch"/>. ⛔ The unit's brain never takes part (§16b): a split is invisible to its tactics.
+    /// <para>Stochastic: enemy within band + lead (or pin Physical) ⇒ Planning → (fallback posts, D-P5 — the real planners' plan/assign split
+    /// is agg-behaviors' D-P3) Materialising → every child present ⇒ Handover (one tick) ⇒ Physical. ⭐ C-7: an enemy within the forced range
+    /// skips straight to Materialising. Withdrawn before the handover (beyond the band + lead + margin, not pinned) ⇒ cancelled (SV-7).
+    /// Physical (split): out of the band + margin and quiet for the quiet time (or pin Stochastic) ⇒ Merging ⇒ Stochastic.</para>
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class ResolutionManagerSystem : IEcsModuleSystem
+    {
+        public const float StepSeconds = 1f;
+        private readonly IUnitResolutionSwitch _switch;
+        private readonly bool _gateOnAuthority;
+        private EntityQuery? _units, _people;
+        private EntityRepository? _queriesFor;
+        private SimInstant _last = (SimInstant)(-1.0);
+        private readonly List<(Vector3 At, ForceId Force)> _enemies = new();
+        private Vector3[] _posts = new Vector3[UnitSlotTable.Capacity];
+
+        /// <summary>The policy in force (agg-behaviors' <c>ResolutionPolicy</c> plugs in here); default SV-9's fixed bands.</summary>
+        public Func<EntityRepository, ResolutionBands> Policy { get; init; } = static _ => ResolutionBands.Default;
+
+        public ResolutionManagerSystem(IUnitResolutionSwitch @switch, bool gateOnAuthority = false)
+        {
+            _switch = @switch ?? throw new ArgumentNullException(nameof(@switch));   // ⛔ never a silent default: a manager with no switch does nothing
+            _gateOnAuthority = gateOnAuthority;
+        }
+
+        public void Execute(ISimulationView view, float deltaTime)
+        {
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>() || !repo.IsComponentTypeRegistered<EntityInfo>()) return;
+            SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
+            if ((double)now - (double)_last < StepSeconds - 1e-6) return;
+            _last = now;
+            if (!ReferenceEquals(_queriesFor, repo))
+            {
+                _units = repo.Query().With<AggregateUnit>().With<SimTransform>().With<EntityInfo>().WithOwnedWhen<AggregateUnit>(_gateOnAuthority).Build();
+                _people = repo.Query().With<EntityInfo>().With<SimTransform>().Build();
+                _queriesFor = repo;
+            }
+            var bands = Policy(repo);
+            // the PHYSICAL entities that can see / fight a unit: everything with a side and a place that is not a unit and not hidden
+            _enemies.Clear();
+            bool tagged = repo.IsComponentTypeRegistered<AggregateChild>();
+            foreach (var e in _people!)
+            {
+                if (repo.HasComponent<AggregateUnit>(e)) continue;
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;
+                if (tagged && repo.HasComponent<AggregateChild>(e) && repo.GetComponentRO<AggregateChild>(e).Held != 0) continue;
+                var f = repo.GetComponentRO<EntityInfo>(e).ForceId;
+                if (f == ForceId.Neutral) continue;
+                _enemies.Add(((Vector3)repo.GetComponentRO<SimTransform>(e).Position, f));
+            }
+            foreach (var unit in _units!)
+                Decide(repo, unit, now, in bands);
+        }
+
+        private float NearestEnemy(Vector3 at, ForceId mine)
+        {
+            float best = float.MaxValue;
+            for (int i = 0; i < _enemies.Count; i++)
+            {
+                if (_enemies[i].Force == mine) continue;
+                float d = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(_enemies[i].At.X, _enemies[i].At.Y));
+                if (d < best) best = d;
+            }
+            return best;
+        }
+
+        private void Decide(EntityRepository repo, Entity unit, SimInstant now, in ResolutionBands b)
+        {
+            ref var u = ref repo.GetComponentRW<AggregateUnit>(unit);
+            var at = (Vector3)repo.GetComponentRO<SimTransform>(unit).Position;
+            float d = NearestEnemy(at, repo.GetComponentRO<EntityInfo>(unit).ForceId);
+            bool trigger = d < b.PhysicalBand + b.LeadMetres;
+            bool forced = d < b.ForcedRange;
+            bool withdrawn = d > b.PhysicalBand + b.LeadMetres + b.MergeMargin;
+            var res = u.Effective;
+
+            if (res == AggregateResolution.Stochastic)
+            {
+                switch (u.Splitting)
+                {
+                    case SplitStage.NotSplitting:
+                        if (u.Pin == ResolutionPin.PinStochastic || u.Pin == ResolutionPin.PinKeep && !forced) return;
+                        if (u.Pin == ResolutionPin.PinPhysical || trigger)
+                        {
+                            u.Splitting = SplitStage.Planning;
+                            u.SplittingSince = now;
+                            if (forced) goto case SplitStage.Planning;   // C-7: no planning time
+                        }
+                        return;
+                    case SplitStage.Planning:
+                        if (withdrawn && u.Pin != ResolutionPin.PinPhysical && !forced) { u.Splitting = SplitStage.NotSplitting; return; }
+                        if (!repo.IsComponentTypeRegistered<UnitSlotTable>() || !repo.HasComponent<UnitSlotTable>(unit)) return;
+                        // ⭐ D-P5 — the fallback posts (the real planners' posts, SV-5 / D-P3, are agg-behaviors')
+                        int n = UnitSplits.FallbackPosts(in u, at, repo.GetComponentRO<UnitSlotTable>(unit), _posts);
+                        _switch.Materialise(repo, unit, _posts.AsSpan(0, n));
+                        u.Splitting = SplitStage.Materialising;
+                        return;
+                    case SplitStage.Materialising:
+                        if (withdrawn && u.Pin != ResolutionPin.PinPhysical && !forced)
+                        {
+                            _switch.Cancel(repo, unit);   // SV-7: the held soldiers removed — never seen
+                            u.Splitting = SplitStage.NotSplitting;
+                            return;
+                        }
+                        if (!_switch.AllPresent(repo, unit)) return;
+                        u.Splitting = SplitStage.Handover;
+                        goto case SplitStage.Handover;
+                    case SplitStage.Handover:
+                        _switch.Handover(repo, unit);   // D-P6: one tick — the latest slot table mapped, the held released
+                        u.Resolution = AggregateResolution.Physical;
+                        u.Splitting = SplitStage.NotSplitting;
+                        u.SplittingSince = now;   // in Physical: when the unit last became merge-eligible (reset below while not)
+                        return;
+                }
+                return;
+            }
+
+            if (res != AggregateResolution.Physical || !HasChildren(repo, unit)) return;
+            // a split unit: re-aggregate when out of the band + margin and quiet (automatic), or at once on the instructor's pin
+            bool far = d > b.PhysicalBand + b.MergeMargin;
+            if (u.Pin == ResolutionPin.PinPhysical || u.Pin == ResolutionPin.PinKeep) return;
+            if (u.Pin != ResolutionPin.PinStochastic)
+            {
+                if (!far) { u.SplittingSince = now; return; }
+                if ((double)now - (double)u.SplittingSince < b.QuietSeconds) return;
+            }
+            u.Splitting = SplitStage.Merging;
+            _switch.Merge(repo, unit);
+            u.Resolution = AggregateResolution.Stochastic;
+            u.Splitting = SplitStage.NotSplitting;
+            u.SplittingSince = now;
+        }
+
+        private static bool HasChildren(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsComponentTypeRegistered<AggregateChild>()) return false;
+            foreach (var c in repo.Query().With<AggregateChild>().Build())
+                if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) return true;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-8012</c> (SV-4, SV-6, SV-7, X-4) — THE production switch: a split publishes one TRANSIENT <see cref="EntityCreationRequest"/>
+    /// per live slot (the existing creation path, <c>CreateEntityRequestSystem</c>; never saved — <c>ScenarioIgnoreTag</c> by IsTransient)
+    /// carrying the EXPLICIT identity <see cref="UnitSplits.ChildGuid"/>, its post, and the HELD tag; the handover maps the LATEST slot table
+    /// (health, stress) onto each child and releases it, removing the slots that died meanwhile; a merge sums the children back and removes
+    /// them. ⚠ <see cref="ChildType"/> (the TKB composite's slot → type) MUST be set by the host that has the TKB (the silent-default rule:
+    /// none ⇒ <see cref="Materialise"/> throws). ⚠ Ammunition is not mapped yet (a soldier's per-mount <c>WeaponAmmo</c>) — CE-8013.
+    /// </summary>
+    public sealed class BusResolutionSwitch : IUnitResolutionSwitch
+    {
+        private readonly Dictionary<Entity, int> _requested = new();
+
+        /// <summary>The TKB type of the unit's composite slot (host-supplied).</summary>
+        public Func<EntityRepository, Entity, int, TkbTypeId>? ChildType { get; init; }
+
+        public void Materialise(EntityRepository repo, Entity unit, ReadOnlySpan<Vector3> posts)
+        {
+            if (ChildType == null) throw new InvalidOperationException("BusResolutionSwitch.ChildType is not set: the host must resolve the TKB composite (CE-8013)");
+            ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
+            var guid = UnitSplits.UnitGuid(repo, unit);
+            var force = repo.HasComponent<EntityInfo>(unit) ? repo.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
+            int k = 0;
+            for (int i = 0; i < slots.Count && k < posts.Length; i++)
+            {
+                if (!slots.IsUp(i)) continue;
+                int slot = slots.Slots[i].CompositeSlot;
+                repo.Bus.PublishManaged(new EntityCreationRequest
+                {
+                    RequestId = EntityGuidDerivation.Derive(guid, "split:" + slot.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    TkbType = ChildType(repo, unit, slot),
+                    IsTransient = true,
+                    InitialComponents = new List<object>
+                    {
+                        new EntityGuid(UnitSplits.ChildGuid(guid, slot)),
+                        new SimTransform { Position = posts[k], Rotation = Quaternion.Identity },
+                        new AggregateChild { Unit = unit, Slot = (byte)i, Held = 1 },
+                        new EntityInfo { ForceId = force },
+                    },
+                });
+                k++;
+            }
+            _requested[unit] = k;
+        }
+
+        public bool AllPresent(EntityRepository repo, Entity unit)
+            => _requested.TryGetValue(unit, out int n) && Count(repo, unit) >= n;
+
+        public void Handover(EntityRepository repo, Entity unit)
+        {
+            ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
+            bool health = repo.IsComponentTypeRegistered<Health>();
+            bool stress = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>();
+            foreach (var c in Children(repo, unit))
+            {
+                ref var tag = ref repo.GetComponentRW<AggregateChild>(c);
+                int i = tag.Slot;
+                if (i >= slots.Count || !slots.IsUp(i)) { repo.DestroyEntity(c); continue; }   // died meanwhile (SV-7)
+                if (health && repo.HasComponent<Health>(c))
+                {
+                    ref var h = ref repo.GetComponentRW<Health>(c);
+                    h.Current = UnitSplits.ToSoldier((float)slots.Slots[i].Health, h.Max);
+                }
+                if (stress && repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(c))
+                    repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.Stress>(c).Level = (float)slots.Slots[i].Stress;
+                tag.Held = 0;
+            }
+            _requested.Remove(unit);
+        }
+
+        public void Cancel(EntityRepository repo, Entity unit)
+        {
+            foreach (var c in Children(repo, unit)) repo.DestroyEntity(c);
+            _requested.Remove(unit);
+        }
+
+        public void Merge(EntityRepository repo, Entity unit)
+        {
+            ref var slots = ref repo.GetComponentRW<UnitSlotTable>(unit);
+            bool health = repo.IsComponentTypeRegistered<Health>();
+            bool stress = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>();
+            // a slot whose child is gone (killed and removed) is down; the rest take their child's state
+            Span<bool> seen = stackalloc bool[UnitSlotTable.Capacity];
+            var sum = Vector3.Zero; int n = 0;
+            foreach (var c in Children(repo, unit))
+            {
+                int i = repo.GetComponentRO<AggregateChild>(c).Slot;
+                if (i < slots.Count)
+                {
+                    seen[i] = true;
+                    if (health && repo.HasComponent<Health>(c))
+                    {
+                        var h = repo.GetComponentRO<Health>(c);
+                        slots.Slots[i].Health = (Half)UnitSplits.ToSlot(h.Current, h.Max);
+                    }
+                    if (stress && repo.HasComponent<Fdp.Toolkit.Behavior.Components.Stress>(c))
+                        slots.Slots[i].Stress = (Half)repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.Stress>(c).Level;
+                }
+                if (repo.HasComponent<SimTransform>(c)) { sum += (Vector3)repo.GetComponentRO<SimTransform>(c).Position; n++; }
+                repo.DestroyEntity(c);
+            }
+            for (int i = 0; i < slots.Count; i++) if (!seen[i] && slots.IsUp(i)) slots.Slots[i].Health = (Half)0f;
+            if (n > 0 && repo.HasComponent<SimTransform>(unit)) repo.GetComponentRW<SimTransform>(unit).Position = sum / n;   // the centroid (X-4)
+        }
+
+        private static int Count(EntityRepository repo, Entity unit)
+        {
+            int n = 0;
+            if (!repo.IsComponentTypeRegistered<AggregateChild>()) return 0;
+            foreach (var c in repo.Query().With<AggregateChild>().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) n++;
+            return n;
+        }
+
+        private static List<Entity> Children(EntityRepository repo, Entity unit)
+        {
+            var list = new List<Entity>();   // a split / merge is rare: allocation is fine here (R-2084: not every frame)
+            if (!repo.IsComponentTypeRegistered<AggregateChild>()) return list;
+            foreach (var c in repo.Query().With<AggregateChild>().Build()) if (repo.GetComponentRO<AggregateChild>(c).Unit == unit) list.Add(c);
+            return list;
+        }
+    }
+}

@@ -135,11 +135,47 @@ Attack · ClearBuilding · Bound · FireAndMovement · SupportByFire ⇒ `Stocha
 Sop ⇒ `StochasticUnitSop`. ⛔ No row (refused): Strike, ObserveFire, Recover. Embark / Dismount: added with ST-3 (the posture, S-9).
 ⭐ The play behaviours are agg-behaviors'; until a play is registered, `isBehaviour` is false and the order resolves to `NoBehaviour`.
 
+## 3a. Movement — what a play calls *(ST-1, CE-8004; added after the first NOTE commit)*
+
+```csharp
+ref var u = ref world.GetComponentRW<AggregateUnit>(unit);       // the play's OWN unit (safe in a per-entity phase)
+UnitMoves.Order(ref u, destination, UnitFormation.Column, UnitMoves.ColumnDepth(in u, in holdings, in slots), now);
+// then read u.Move: AwaitingRoute → OnRoute → Arrived (Set, B-2) · RouteFailed (re-order it — B-2's "a dropped route re-requested")
+UnitMoves.Stop(ref u);
+```
+⭐ The follower (`StochasticUnitMovementSystem`, in `CgfLogicPack`) owns everything after the order: the plan, the speed (`UnitSpeedModel`),
+the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play never writes those.
+
+## 3b. Sensing — what reads it *(ST-2, CE-8006)*
+
+| reader | reads |
+|---|---|
+| the SOP, the staff's SPOT, every commander | the unit's own `SquadCognitiveState.Contacts` — unchanged readers (N-2) |
+| agg-ui's detection overlay | `UnitDetections.Pairs[i]` (`Target`, `Level` 0..2 — a contact at ≥ 1, `Reported`, `LastSeenAt`) on the observer |
+| tuning | `UnitDetection.StepChance(range, r50, transmittance)` — N-1's curve; `UnitDetection.Signature`, `SensorR50` |
+
+## 3c. Attrition — what changed in the contract, and what reads it *(ST-3, CE-8007)*
+
+| | |
+|---|---|
+| ⭐ `FireLine.Source` | the former private pad byte, now public (the layout is unchanged): `FireAllocation.PersonalSource` (0) = the slots' personal weapons, else 1 + the firer's holding index |
+| the plays (agg-behaviors) | read `AggregateUnit.SuppressedShare`, `UnitSlotTable` (health / stress / ammo — standing = up and stress < `StochasticCombat.BreakLevel`), `UnitHoldings.Operational` / `Immobile`; ⛔ never write them |
+| agg-ui | the same, plus `FireAllocation.Lines` (who fires at whom this step) |
+
+## 3d. Resolution — the seams for agg-behaviors and agg-ui *(ST-5, CE-8012)*
+
+| | |
+|---|---|
+| ⭐ the POLICY (agg-behaviors) | `new ResolutionManagerSystem(switch) { Policy = world => <your ResolutionPolicy as ResolutionBands> }` — ⚠ `ResolutionBands.Default`, never `new ResolutionBands()` (all zeros) |
+| ⭐ the posts (agg-behaviors, D-P3 / SV-5) | today the fallback posts (`UnitSplits.FallbackPosts`); a planned-posts component replaces them in Planning |
+| agg-ui | `AggregateUnit.Splitting` (the stage), `Resolution`, `Pin` (the instructor's request writes `Pin`); a split's children carry `AggregateChild { Unit, Slot, Held }` |
+| identities | `UnitSplits.ChildGuid(unitGuid, compositeSlot)` — the same children every split |
+
 ## 4. Ids allocated by this commit
 
 | | |
 |---|---|
-| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` (own) — 287–289 free |
+| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) · 288 `AggregateChild` (own, ST-5) — 289 free |
 | descriptors | 220 `dtAggregateUnit` · 221 `dtUnitSlotTable` · 222 `dtUnitHoldings` — 223–229 free |
 | tracker / rulings | `CE-8000` (the contract) · `R-8000`, `R-8001` (lane decisions, `STATUS_AggBackend.md`) |
 

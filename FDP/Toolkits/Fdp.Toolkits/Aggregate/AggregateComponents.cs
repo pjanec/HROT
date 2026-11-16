@@ -379,7 +379,9 @@ namespace Fdp.Toolkit.Aggregate
         public float Rounds;
         /// <summary><see cref="FireAllocation.PersonnelClass"/> = the men (slots); else 1 + the victim's holding index.</summary>
         public byte VictimClass;
-        private byte _pad0;
+        /// <summary>⭐ CE-8007 — what fired it: <see cref="FireAllocation.PersonalSource"/> = the slots' personal weapons; else 1 + the FIRER's
+        /// holding index (phase B spends the firer's own ammunition from its own lines). The former padding byte: the layout is unchanged.</summary>
+        public byte Source;
         private ushort _pad1;
     }
 
@@ -404,6 +406,8 @@ namespace Fdp.Toolkit.Aggregate
         public const int Capacity = 16;
         /// <summary><see cref="FireLine.VictimClass"/> of the men.</summary>
         public const byte PersonnelClass = 0;
+        /// <summary><see cref="FireLine.Source"/> of the slots' personal weapons.</summary>
+        public const byte PersonalSource = 0;
 
         /// <summary>The step this allocation belongs to (a stale one is ignored by phase B).</summary>
         public SimInstant Step;
