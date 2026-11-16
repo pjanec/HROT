@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — COMPLETE (R-4266…R-4268); ⏳ REVIEWED (§8: 8 blockers) — awaiting rulings; ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: READY-TO-BUILD (2026-11-16) — decisions R-4266…R-4268, the review R-4269 (⭐ §8's AR rows SUPERSEDE the §4 AN rows they touch); ids §4a; UML §5 as folded; ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
 current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
 stale-below: nothing
 known-rot: none
@@ -117,6 +117,15 @@ animal" asks (AN-12's neutrality, the fear table, the ROE). ⚠ **Kind 3 also ma
 measure every place that treats a `"Person"` / life form as a MAN (body zones `BodyZones.cs:100`, the census, civilians, targeting) and make an
 animal answer "animal" there (the more specific class wins, R-279). Declared by: backend (types, DIS, classes); ui (the families and kits).
 
+⭐ **Added by the review (R-4269), measured free on every lane `2026-11-16`:**
+
+| what | the value |
+|---|---|
+| the parent classes (AR-19) | **`"LandAnimal"` = `3.1.*.200-209`** · **`"AirAnimal"` = `3.2.*.205`** (replacing the one `"Animal"` mask, which ranked below `"LandPerson"`) |
+| the movement classes (AR-1, AR-2) | **`LocomotionClass.Quadruped`** (ground) · **`LocomotionClass.Bird`** (air, NOT an aircraft) — the next free enum values, backend measures them at build |
+| the domestic animal area (AR-16) | TKB **712** `AnimalArea` — the area entity holding species, count, seed, Enclosed |
+| animal sounds (AR-7) | the sound-type block **7800–7895**: species `s` (the TKB order 700…711), line `l` = **7800 + s·8 + l**; lines 0 call at rest · 1 alarm · 2 the special (bark, squeal, crow) · 3 hooves walk · 4 trot · 5 gallop · 6 wings · 7 flutter (voices use 7400–7591; 78xx used nowhere) |
+
 ## 5. UML
 
 ```mermaid
@@ -139,9 +148,6 @@ classDiagram
   }
   class AnimalHsm {
     <<new, one brain: Graze Wander Rest, Alert, Flee, Recover>>
-  }
-  class HerdUnit {
-    <<new, the squad pattern: roster, leader, next grazing spot>>
   }
   class GuardDog {
     <<new play: territory or tether, bark, attack>>
@@ -180,29 +186,50 @@ classDiagram
     <<new, a closed polyline: species, count, seed, Enclosed>>
     Populate()
   }
-  class SoundEmissionSystem {
-    <<existing, grows SoundSourceClass.Animal>>
+  class Utterance {
+    <<existing replicated voice path, grows animal call kinds with their range>>
   }
   class SoundSources {
-    <<existing presentation, plays calls, alarms, hooves, wings>>
+    <<existing presentation, plays calls by the same closed-form timing>>
+  }
+  class SharedFear {
+    <<new unmanaged component, written by the ONE fear system>>
+    Fear
+    FrightFrom
+  }
+  class FlightZone {
+    <<new, a proximity rule inside the fear system>>
+  }
+  class Quadruped {
+    <<new LocomotionClass, QuadrupedGait>>
+  }
+  class HerdEntity {
+    <<new, centre, next grazing spot, lead animal>>
+  }
+  class PanicBreach {
+    <<new marker beside the bulldozer and the ram>>
   }
   AnimalHsm ..> AnimalTemperament
   CivilianFearSystem ..> FearImpulseTable
   AnimalHsm ..> CivilianFearSystem : fear
-  HerdUnit o-- AnimalHsm : members
   GuardDog ..> Tether
   GuardDog ..> Melee
   FlockEntity ..> BirdFlightModel
   BirdFlightModel ..> SurfaceClassGrid : orchards, parks, lone trees
   AnimalHsm ..> SurfaceClassGrid : grass to recover to
-  AnimalHsm ..> ContactBreach : panicked, small fence
+  PanicBreach ..> ContactBreach : the one breach
   AnimalHsm ..> JumpLink : horses
   CatPlay ..> JumpLink : sill hop
   CarrierSeats .. AnimalHsm : the riding horse
   MotionTracker .. AnimalTemperament : gaits by speed
-  DomesticAnimalArea ..> AnimalHsm : populates, the home area
-  AnimalHsm ..> SoundEmissionSystem : calls, alarms, the bark
-  SoundEmissionSystem ..> SoundSources : the operator hears what the AI hears
+  DomesticAnimalArea ..> AnimalHsm : populates through macro insertion
+  AnimalHsm ..> Utterance : calls, alarms, the bark
+  Utterance ..> SoundSources : the operator hears what the AI hears
+  CivilianFearSystem --> SharedFear : civilians and animals
+  CivilianFearSystem ..> FlightZone : seen threats
+  AnimalHsm ..> Quadruped : moves
+  HerdEntity o-- AnimalHsm : HerdMember
+  AnimalHsm ..> PanicBreach : panicked, small fence
 ```
 *What it shows that prose hid: ONE brain, ONE fear system and ONE sound path serve every species; the domestic animal area only POPULATES and gives a home — the guard dog, the cat and the riding horse are plays over the
 same brain, and the two genuinely new mechanisms are the flock entity and the jump link (shared by horses and cats).*
@@ -256,7 +283,7 @@ run on.*
 | AN-S8 | ⭐ sounds — the animal sound class and families, calls / alarms / movement / bark through the one sound path, the birdsong bed | backend (emission, hearing) + ui (the clips, the mixer) — each species' slice brings its own sounds |
 | AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
 
-## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: behaviour realism, engine fit, visuals / horses / cats / sound; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: behaviour realism, engine fit, visuals / horses / cats / sound; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-16` (R-4269); AR-10 CHANGED by the user: the rider FIRES WHILE RIDING
 
 ⭐ 41 raw findings merged into 21. The design is NOT buildable as drawn until AR-1…AR-8 are ruled. ⭐ The biggest correction: **what makes an entity
 a "person" in this engine is its MOVEMENT CLASS (`VehicleClass.Pedestrian`), not its DIS kind** — the design never chose one.
@@ -272,7 +299,7 @@ a "person" in this engine is its MOVEMENT CLASS (`VehicleClass.Pedestrian`), not
 | AR-7 | ⛔ BLOCKER | the sounds as drawn do not fit: the sound class is 3 bits, all 8 used; the family is a WEAPON family; the operator's audio does NOT read the simulation's sounds, so a random call would differ between AI and operator | ✔ `AcousticPerception.cs:34-41`, ✔ `SignaturesDto.cs:159-170`, `SoundSources.cs:270-305` | calls, alarms and the bark as **voice utterances** (the replicated `Utterance` path people's speech uses), each kind with its own carry and an animal class (a field widened or a value freed — backend's call; the species told by the TYPE); hooves and wings as movement sounds; each call's TIME in closed form from (stable key, seed, sim time) — the same on both sides; the frightened state replicated (the door precedent); an animal sound-id block and a mixer priority; calls throttled per HERD |
 | AR-8 | ⛔ BLOCKER | a dead animal is drawn as a BURNING black wreck (only people get the fallen figure) | `EntityBodyLayer3D.cs:356`, `EffectSystems.cs:487-492` | a dead pose (lying on its side, the fall reused), no burning; a hit flock drops birds (its count falls) |
 | AR-9 | SHOULD | a herd cannot be a `UnitRoster` (16 members, and it IS the command hierarchy); hundreds of animals each sensing is costly and crowds soldiers' 16-slot memory | `UnitRoster.cs:19-45`, `PerceptionConstants.cs:11` | `HerdMember { Herd }` + a light herd entity (centre, next grazing spot, a lead animal); the first to panic starts the flight; herd-level senses; animals rank LOWEST in soldiers' memory |
-| AR-10 | SHOULD | the riding horse: a ridden horse's brain is idle (cannot bolt); no reverse vs a negative throttle; the rider firing while riding vs the motorcycle's driver (stopped only); no class, no nav layer | `Possession.cs:18-21`, `ManualDrive.cs:8-25`, `InteractionComponents.cs:240-246` | fear keeps running on a ridden horse; above the bolt line a TIMED override of the rider's controls with a HUD cue; no reverse; the RIDER fires only stopped (the motorcycle rule) — ⚠ user's call; class Quadruped, an animal nav layer |
+| AR-10 | SHOULD | the riding horse: a ridden horse's brain is idle (cannot bolt); no reverse vs a negative throttle; the rider firing while riding vs the motorcycle's driver (stopped only); no class, no nav layer | `Possession.cs:18-21`, `ManualDrive.cs:8-25`, `InteractionComponents.cs:240-246` | fear keeps running on a ridden horse; above the bolt line a TIMED override of the rider's controls with a HUD cue; no reverse; ⭐ the RIDER FIRES WHILE RIDING (🔒 user: *"horse rider can fire while riding (western movie style)"*) — his seat is a firing seat WITHOUT the stopped-only rule (unlike the motorcycle's driver), the moving-shooter spread at the horse's speed; class Quadruped, an animal nav layer. ⏭ LATER (a filed row, not this design): mounted archers — a BOW and ARROWS fired from horseback |
 | AR-11 | SHOULD | jump links do not exist in production (Recast skips off-mesh polygons; the detection system is test-only) | `DotRecastNavmeshProvider.cs:289` | a real navigation feature: off-mesh connections BAKED at low fences, ditches and sills — one output shared by horses, goats and cats |
 | AR-12 | SHOULD | cats: sills exist only on enterable TEMPLATE buildings; a "parapet" here is the ROOF's low wall | `TerrainBuildings.cs:22-49`, Interiors UI-2 | cats on template buildings only; "parapet" dropped; indoors through doors / open windows |
 | AR-13 | SHOULD | gaits: the limb rule animates people only, with two phases | `MotionTracker.cs:141-158`, `ShapeKit.cs:83, :181-197` | a per-leg phase offset in the kits + a quadruped case by per-species stride and speed bands (a visual descriptor); a tucked-legs pose in a jump |
