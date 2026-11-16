@@ -48,6 +48,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | **R-8006** 🔵 for the user's review | the stochastic NAKED EYE sees no further than the soldiers' own TKB `VisionRange` (the personal soldiers', the largest — `KillerVictimTkb.SoldierEyeReach`); the R50 curve applies inside it; optics / thermal / radar holdings are not capped | ⭐ one source: the physical soldier's `VisualPerception` stops at that range (150 m for 2002), so the stochastic one now does too; before, its eye R50 of 400 m fought at 200 / 300 m where the physical squads never saw each other (0 losses in 60 runs) | the TKB soldier's open-ground vision corrected (CE-8020) — both follow it then |
 | **R-8009** 🔵 for the user's review | rung 1's long range is **275 m**, not 300 m | 📐 300 m is the rifle's EXACT reach (M4 `Range = 300`): with the men abreast, 5 m apart, every pair but the opposite one stood just beyond it, and the physical men had to step into range first (measured live: a 14 m step, first hits at 11 s); a stochastic unit, measured centre to centre, has no such edge. 275 m keeps the farthest pair (~278 m) inside | a rifle with a longer reach, or a rung designed to test the edge of reach |
 | **R-8010** 🔵 for the user's review | the stochastic hit takes the physical man's BODY (one source, `BodyZones` + `Gen.Injury`): a man's row through his zones' armour (the soldier profile's vest); each hit draws ONE zone by the physical shares (head · torso · arms · legs); a man below his `IncapacitatedBelow` is out of the fight; a PERSONAL weapon fires at the MEASURED 0.4 rounds a second (RV-1); range bands 25 m | 📐 each measured on the live physical rung: the mean damage took a 25-HP rifleman out with every hit (≈ 2 physically); the vest halves a torso hit at 5 mm; the closed-form rate (1.25 / s) was 3× the physical 0.37–0.46; at 100 m bands the rifle's 200 m and 300 m shared a band | a measured per-weapon rate table (CE-8008) replaces the one personal-weapon number |
+| **R-8011** 🔵 for the user's review | the C-8 verdict's LOSS-EXCHANGE RATIO over seeds is the RATIO OF TOTALS (all Red down ÷ all Blue down; the physical CI by a seeded bootstrap), and the stochastic side runs **300** seeds (the physical stays at the design's 30) | 📐 the mean of per-run ratios exploded when one side lost nobody (up to 19 in one run); 30 stochastic seeds put Red ahead in 22 of 30 runs at 100 m by chance — 300 give 154 / 146, both sides 6.4 / 6.6 down. ⚠ Said plainly: the 300-seed result was SEEN before this was chosen — the reason is the statistics (the stochastic side is seconds a run, so its mean need carry no sampling noise), not the verdict | the design naming another aggregation |
 | **R-8007** 🔵 for the user's review | a stochastic unit's POSITION stays with its BRAIN (the unit's owner), its route from the solver over the path-request topic; a BURST on it is applied by that owner (`StochasticAreaEffectSystem`, from the replicated detonation) — never by the Muscle | 📐 the Muscle group applies only to templates with vehicle / flight / weapon-system parameters (`HrotOwnershipGroups.cs:191`); a unit template has none, and a physical squad's commander is placed by its owner (`UnitCentroidSystem`) — the same rule for both resolutions; R-171 (damage where the health is) | a unit template given kinematics (then the Muscle would own both resolutions' unit positions, together) |
 | **R-8008** ✅ user `2026-11-16` | the FusionSquad is NOT shown anywhere in the UI; `AggregateResolution.Fusion = 2` stays in the recorded / wire enum (never requested, never drawn) | 🔒 user: *"we are not simulating Fusion Squad because it was dropped … we do not need to mention it anywhere in the UI"* (the design deferred it, R-4253) | the FusionSquad revived |
 | **R-8002** ✅ approved | `FireLine.Hits` is written **already × the FIRER's suppression** (phase A owns it); phase B multiplies only by the VICTIM's cover | the firer's suppression is its own state ⇒ phase B needs no read of the firer's `AggregateUnit` (one fewer cross-entity read to declare) | — (equivalent maths) |
@@ -85,25 +86,31 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 ## 4. Ids allocated
 
-`CE-8000` … `CE-8022` (Area AGG-B in the tracker) · `R-8000`…`R-8010` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+`CE-8000` … `CE-8022` (Area AGG-B in the tracker) · `R-8000`…`R-8011` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
 
-## 5. C-8 ladder, rung 1 — the verdict *(CE-8009, `2026-11-16`, after R-8005 / R-8006)*
+## 5. C-8 ladder, rung 1 — the verdict *(CE-8009, round 4, `2026-11-16`)*
+
+⭐ **PASS — all nine metrics.** Rung 1: 9 v 9 STANDARD riflemen (`Infantry_Rifleman`) in the open at 100 / 200 / 275 m (R-8009); a man is down when
+INCAPACITATED (below 30 %, his `Gen.Injury`); physical 30 seeds a rung (`artifacts/c8-ladder/round5-incapacitated`, not committed —
+`scripts/c8-ladder.py physical --seeds 30 --out <dir>`), stochastic 300 (R-8011). The model behind it: R-8005 re-fitted, R-8010.
 
 | rung | metric | physical mean [95 % CI] (n) | stochastic mean (n) | band (CI ± 15 %) | verdict |
 |---|---|---|---|---|---|
-| c8-open-100 | total down | 11.87 [11.30, 12.44] (30) | 12.37 (30) | [9.60, 14.30] | ✅ |
-| c8-open-100 | loss-exchange ratio | 1.94 [1.27, 2.61] (30) | 1.92 (30) | [1.08, 3.00] | ✅ |
-| c8-open-100 | time to 50 % (s) | 22.70 [16.39, 29.01] (30) | 23.23 (30) | [13.93, 33.36] | ✅ |
-| c8-open-100 | first loss (s) — informative | 5.12 [4.77, 5.46] (30) | 4.27 (30) | — | ℹ |
-| c8-open-200 | total down | 0.00 [0.00, 0.00] (30) | 0.00 (30) | [0.00, 0.00] | ✅ |
-| c8-open-200 | loss-exchange ratio | 1.00 [1.00, 1.00] (30) | 1.00 (30) | [0.85, 1.15] | ✅ |
-| c8-open-200 | time to 50 % (s) | 120.00 [120.00, 120.00] (30) | 120.00 (30) | [102.00, 138.00] | ✅ |
-| c8-open-300 | total down | 0.00 [0.00, 0.00] (30) | 0.00 (30) | [0.00, 0.00] | ✅ |
-| c8-open-300 | loss-exchange ratio | 1.00 [1.00, 1.00] (30) | 1.00 (30) | [0.85, 1.15] | ✅ |
-| c8-open-300 | time to 50 % (s) | 120.00 [120.00, 120.00] (30) | 120.00 (30) | [102.00, 138.00] | ✅ |
+| c8-open-100 | total down | 12.97 [12.27, 13.66] (30) | 12.96 (300) | [10.43, 15.71] | ✅ |
+| c8-open-100 | loss-exchange ratio | 1.22 [0.92, 1.65] (30) | 1.03 (300) | [0.78, 1.89] | ✅ |
+| c8-open-100 | time to 50 % (s) | 9.72 [8.68, 10.76] (30) | 8.87 (300) | [7.37, 12.37] | ✅ |
+| c8-open-100 | first loss (s) — informative | 2.40 [2.16, 2.64] (30) | 2.63 (300) | — | ℹ |
+| c8-open-200 | total down | 13.77 [13.25, 14.29] (30) | 12.54 (300) | [11.26, 16.43] | ✅ |
+| c8-open-200 | loss-exchange ratio | 1.12 [0.89, 1.39] (30) | 1.02 (300) | [0.76, 1.60] | ✅ |
+| c8-open-200 | time to 50 % (s) | 13.75 [12.29, 15.21] (30) | 15.43 (300) | [10.44, 17.49] | ✅ |
+| c8-open-200 | first loss (s) — informative | 3.21 [3.10, 3.31] (30) | 3.52 (300) | — | ℹ |
+| c8-open-275 | total down | 12.13 [11.38, 12.89] (30) | 12.67 (300) | [9.67, 14.82] | ✅ |
+| c8-open-275 | loss-exchange ratio | 1.03 [0.83, 1.27] (30) | 0.97 (300) | [0.70, 1.46] | ✅ |
+| c8-open-275 | time to 50 % (s) | 24.49 [14.93, 34.05] (30) | 21.10 (300) | [12.69, 39.16] | ✅ |
+| c8-open-275 | first loss (s) — informative | 4.20 [4.06, 4.34] (30) | 4.39 (300) | — | ℹ |
 
 C-8 rung 1: PASS
 
-⚠ **200 / 300 m pass VACUOUSLY** — neither resolution sees past the soldier's 150 m eye, so nobody fights (CE-8020). ⭐ The first compare (before
-R-8005 / R-8006) was NOT MET: 100 m LER 7.84 vs 1.94, total 9.20 vs 11.87; 200 / 300 m 9.17 men down vs 0. Physical data: `artifacts/c8-ladder/round3`
-(90 reports, not committed — regenerate with `scripts/c8-ladder.py physical --seeds 30 --out <dir>`).
+⛔ **HISTORY — the earlier verdicts are SUPERSEDED, each by a measurement error found on the live physical rung:** round 3's "PASS" (urban soldier,
+100 / 200 / 300 m) counted men BLEEDING OUT (health below 2 %) and its 200 / 300 m rows passed only because nobody saw that far (CE-8020);
+round 4's first compare (standard rifleman, the same death threshold) put the losses at 50–90 s in a fight that was over by ~20 s.

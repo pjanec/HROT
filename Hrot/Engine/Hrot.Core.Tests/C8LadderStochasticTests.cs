@@ -24,7 +24,9 @@ namespace Hrot.Map.Common.Tests
     [Collection("FdpWorkerPool")]
     public sealed class C8LadderStochasticTests
     {
-        public const int Seeds = 30, RunFor = 120;
+        /// <summary>⭐ R-8011 — 300 seeds: the stochastic side costs seconds, so its mean carries ~no sampling noise (30 seeds put Red ahead in
+        /// 22 of 30 runs at 100 m by chance — 300 give 154 / 146); the PHYSICAL side stays at the design's 30 (minutes a run), its noise in the CI.</summary>
+        public const int Seeds = 300, RunFor = 120;
         private static readonly int[] Ranges = { 100, 200, 275 };   // ⭐ R-8009 — 275, inside the rifle's reach (300 m) for every pair
         private static readonly TkbTypeId Soldier = (TkbTypeId)TkbEntityTypes.Infantry_Rifleman;   // ⭐ the STANDARD rifleman (500 m eye, 25 HP), as the physical rungs
 

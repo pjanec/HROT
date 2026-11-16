@@ -8,8 +8,8 @@ physical: each rung × seed runs `Hrot.ClusterRunner --mode editor --headless --
 and keeps the report; the rung's checks (scripts/gen-c8-ladder.py) record the first time 1…9 men of each side are down.
 stochastic: the JSON C8LadderStochasticTests writes with HROT_C8_OUT (the same rows, the same seeds).
 
-Metrics per run: the LOSS-EXCHANGE RATIO at the end (Red down ÷ Blue down, both sides symmetric — so also the TOTAL down, which is the
-informative one for a symmetric rung) and the TIME TO 50 % LOSSES (the first side to lose 5; the run's end when neither does).
+Metrics: the LOSS-EXCHANGE RATIO (all Red down ÷ all Blue down over the runs — the ratio of totals, R-8011; its physical CI by bootstrap),
+the TOTAL down (the informative one for a symmetric rung) and the TIME TO 50 % LOSSES (the first side to lose 5; the run's end when neither does).
 PASS (C-8): the stochastic mean inside the physical 95 % CI ± 15 % (when the physical spread is ~0: ± 15 % of the physical mean).
 """
 import argparse, glob, json, math, os, statistics, subprocess, sys, time
@@ -47,9 +47,23 @@ def metrics(rows):
     """(total down, LER, time to 50 %) of one run's first-time rows."""
     b = sum(1 for t in rows["Blue"] if t is not None)
     r = sum(1 for t in rows["Red"] if t is not None)
-    ler = (r + 0.5) / (b + 0.5)   # smoothed: a side with no loss is not an infinite ratio
+    ler = (r + 0.5) / (b + 0.5)   # one run's (smoothed) ratio — kept for the record; the verdict uses the ratio of totals (R-8011)
     t50 = [x for x in (rows["Blue"][4], rows["Red"][4]) if x is not None]
-    return b + r, ler, (min(t50) if t50 else float(RUN_FOR))
+    return b + r, ler, (min(t50) if t50 else float(RUN_FOR)), b, r
+
+
+def ler(pairs):
+    """The loss-exchange ratio over runs: all Red down ÷ all Blue down (R-8011)."""
+    b = sum(p[0] for p in pairs); r = sum(p[1] for p in pairs)
+    return r / b if b > 0 else float("inf")
+
+
+def ler_ci(pairs, n=2000):
+    """The ratio of totals and its 95 % CI by a seeded bootstrap over the runs."""
+    import random
+    rnd = random.Random(8011)
+    xs = sorted(ler([pairs[rnd.randrange(len(pairs))] for _ in pairs]) for _ in range(n))
+    return ler(pairs), xs[int(0.025 * n)], xs[int(0.975 * n) - 1]
 
 
 def first_loss(rows):
@@ -105,8 +119,14 @@ def compare(args):
         for i, name in enumerate(("total down", "loss-exchange ratio", "time to 50 % (s)")):
             if not phys or not st:
                 print(f"| {rung} | {name} | (n {len(phys)}) | (n {len(st)}) | — | ⏳ no data |"); allpass = False; continue
-            pm, lo, hi = ci95([p[i] for p in phys])
-            sm = statistics.mean(s[i] for s in st)
+            if i == 1:
+                # ⭐ R-8011 — the LER over seeds is the RATIO OF TOTALS (all Red down ÷ all Blue down), its CI by a seeded bootstrap. ⛔ Not the
+                #   mean of per-run ratios: a run where one side loses nobody makes that ratio explode (up to 19) and the mean follows it.
+                pm, lo, hi = ler_ci([(p[3], p[4]) for p in phys])
+                sm = ler([(s[3], s[4]) for s in st])
+            else:
+                pm, lo, hi = ci95([p[i] for p in phys])
+                sm = statistics.mean(s[i] for s in st)
             if hi - lo < 1e-6: lo, hi = pm, pm
             blo, bhi = lo - 0.15 * abs(lo), hi + 0.15 * abs(hi)
             ok = blo <= sm <= bhi
