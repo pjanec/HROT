@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — TD-1…TD-15 await the user (§3); ids fixed at dispatch
+build-state: DESIGN — STORED FOR LATER (user, 2026-11-16: "Looks right. Please record to the design, but do not mark as approved. Just store for later.") — TD-1…TD-14 NOT approved (TD-15 ruled); no review run; ids fixed at dispatch
 current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 the record · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
