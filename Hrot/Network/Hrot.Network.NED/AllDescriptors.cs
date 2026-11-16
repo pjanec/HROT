@@ -205,6 +205,10 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4617 (B-1, RS-10; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a radar's emission, the owner (brain) → every node.
         //   Measured free on ui, behaviors, backend, coordinator 2026-11-15 (the highest in use was 187).
         dtRadarEmission               = 188,
+        // ⭐ CE-4623 AB-3 (docs/designs/animals/DESIGN_Animals.md §6.1) — an animal's state (Brain group → every node): mode, fear band, species,
+        //   flags; and a bird flock's state. Measured free on ui, behaviors, backend, coordinator 2026-11-16.
+        dtAnimalState                 = 189,
+        dtFlockState                  = 190,
         // etc., all known descriptor types here
     }
 

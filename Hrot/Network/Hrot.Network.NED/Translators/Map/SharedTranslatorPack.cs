@@ -174,6 +174,11 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-1223 (Entity Control §8k S-2) — when a man was last under fire: the Muscle's stamp out, every other node's hit model reads it.
             yield return new Hrot.Map.Common.Replication.Egress.EntityUnderFireEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityUnderFireIngressTranslator(participant, entityMap);
+            // ⭐ CE-4623 AB-3 — an animal's state and a flock's: its brain node out, every other node (the presentation's pose, gait, birds) in.
+            yield return new Hrot.Map.Common.Replication.Egress.EntityAnimalStateEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityAnimalStateIngressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Egress.EntityFlockStateEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityFlockStateIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this
