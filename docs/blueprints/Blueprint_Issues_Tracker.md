@@ -50,7 +50,7 @@ rail, a signature change) · `RW-L` = real work, low (≲150 lines) · `RW-M` = 
 > | `exp/agg-backend` *(added `2026-11-16` by coordinator, R-4276; experimental, the stochastic units CE-4616)* | **`CE-8000` – `CE-8299`** | `CE-8000` |
 > | `exp/agg-behaviors` *(added `2026-11-16`, R-4276)* | **`CE-8300` – `CE-8599`** | `CE-8300` |
 > | `exp/agg-ui` *(added `2026-11-16`, R-4276)* | **`CE-8600` – `CE-8999`** | `CE-8600` |
-> | `convoy` *(added `2026-11-16` by coordinator, R-4282; the road convoy, CE-4631)* | **`CE-9000` – `CE-9999`** | `CE-9006` *(CE-9000…CE-9005 the slices S-1…S-6)* |
+> | `convoy` *(added `2026-11-16` by coordinator, R-4282; the road convoy, CE-4631)* | **`CE-9000` – `CE-9999`** | `CE-9007` *(CE-9000…CE-9005 the slices S-1…S-6; CE-9006 city-battle's hedges cut its roads)* |
 > | *a new lane* | the next free thousand — **add its row here first** (and the same thousand in `RULINGS.md` §0a for its ruling ids) | |
 >
 > ⭐ Ids below `CE-1000` stay as they are (highest in use `CE-524`, measured `2026-10-02` at the `backend` merge). ⛔ **Never renumber.**
@@ -5252,6 +5252,7 @@ collides with work in flight.
 - [ ] **CE-9003** · `convoy` 🚧 **S-4** — mode 2: the outer-lane offset where road points are emitted (C-7). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-4.
 - [ ] **CE-9004** · `convoy` 🚧 **S-5** — the order: `OrderKind.Convoy`, `ConvoyOrder`, behaviour `ConvoyColumn`; `PlatoonConvoyBehavior` uses it; contact ends it (C-8…C-10); `ConvoyMember` on the wire (198). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-5.
 - [ ] **CE-9005** · `convoy` 🚧 **S-6** — the six feature scenarios in `scenarios/demos/convoy/` (R-4277): cv-red-lights, cv-no-cut-in, cv-blocked-road, cv-ambush, cv-offroad-join-leave, cv-mode-1-to-2. 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-6.
+- [ ] **CE-9006** · `convoy` → `terrain` 🐞 **`city-battle`'s road net is cut by hedges** — 4 road segments cross a wall LineString (📌 a garden hedge `eb1b6b9c…/e0` + `/e4` encloses x 135–221, y 950–1050 and crosses the road at y 954.2 at x 135 and x 221): every vehicle routed along it is held at x 131 (`FailedBlocked`, 3 hull recoveries). Found by `cv-offroad-join-leave` (which now uses the y-541.8 road). Fix in the asset (a gap or a gate where a hedge meets a road), and a load / compile check that no wall crosses a road segment. 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §6.
 
 
 ## Out of scope

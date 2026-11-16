@@ -1,6 +1,6 @@
 {
   "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md \u00a75 S-6): mode 2, an off-road start joins the road net, drives its lane, leaves it to an off-road target, unsplit. No golden yet (first run).",
-  "runFor": 150,
+  "runFor": 120,
   "golden": false,
   "expect": [
     {
@@ -16,12 +16,12 @@
       "is": "PlatformConvoy"
     },
     {
-      "name": "the lead drives the road in its lane (lane 0 of the imported net, y 954.2)",
+      "name": "the lead drives the road in its lane (lane 0, y 541.8)",
       "on": "near",
       "who": "Convoy 1",
       "point": [
-        330,
-        954.2
+        350,
+        541.8
       ],
       "within": 2.5
     },
@@ -30,8 +30,8 @@
       "on": "near",
       "who": "Convoy 1",
       "point": [
-        560,
-        995
+        500,
+        586.8
       ],
       "within": 20
     },
@@ -40,8 +40,8 @@
       "on": "near",
       "who": "Convoy 4",
       "point": [
-        330,
-        954.2
+        350,
+        541.8
       ],
       "within": 3
     },
@@ -61,8 +61,8 @@
       "on": "near",
       "who": "Convoy 4",
       "point": [
-        560,
-        995
+        500,
+        586.8
       ],
       "within": 80,
       "atEnd": true
