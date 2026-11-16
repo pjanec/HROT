@@ -627,6 +627,33 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-2 (Animals AR-1) — a COW sent along a path at a right angle to it turns WHILE it moves (it steers round, the legged
+        /// preset), never the person's turn-on-the-spot: by the time it faces its path it has walked several metres. 🔴 Red-proof: treat the
+        /// Quadruped as a person in the steering (<c>person</c>) ⇒ it pivots in place ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4623_ACow_TurnsWhileItMoves_NeverOnTheSpot()
+        {
+            var north = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // its path runs east: a quarter turn to make
+            var (repo, e, pool) = TrajectoryWorld(6f, startSpeed: 0f, facing: north, vehicle: VehiclePresets.GetPreset(VehicleClass.Quadruped));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            var start = repo.GetComponent<SimTransform>(e).Position;
+            float movedWhenFacing = -1f;
+            for (int i = 0; i < 20 * 60 && movedWhenFacing < 0f; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                if (fwd.X > MathF.Cos(30f * MathF.PI / 180f)) movedWhenFacing = Vector3.Distance(start, tf.Position);
+            }
+            Assert.True(movedWhenFacing > 0.5f, $"a cow turns while it walks (moved {movedWhenFacing:F1} m by the time it faced its path)");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4621</c> MC-2 (R-2084) — reading the surface grid costs nothing per frame: a factored body's steady move allocates 0 B.
         /// </summary>
         [Fact]

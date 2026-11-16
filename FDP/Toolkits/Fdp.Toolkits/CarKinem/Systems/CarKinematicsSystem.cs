@@ -313,11 +313,13 @@ namespace CarKinem.Systems
             //   checked first — a hull parked nose to a wall whose way on is not clear backs out before it touches it.
             // ⭐⭐ CE-3287 (R-3026; Motion Domains §5g) — a WRECK has no driver: no move, no recovery, no push (📐 one man 4 m off pushed a
             //   destroyed M1 ~10 m). Belt and braces with CE-3091, which ends the move on the brain at death.
-            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
+            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped   // ⭐ CE-4623 (AB-2): a dead animal is a body, no wreck
+                         && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
             // ⭐⭐ CE-2321 (R-3027; Motion Domains §5h) — a MAN DOWN (incapacitated or dead) lies where he fell: no move, no push, no turn.
             //   📌 Live: whoever came close pushed and turned a lying body. He moves only carried or dragged (embarked, so not driven here);
             //   others still walk round him.
-            bool down = _health && @params.Class == VehicleClass.Pedestrian && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, entity);
+            bool down = _health && (@params.Class == VehicleClass.Pedestrian || @params.Class == VehicleClass.Quadruped)   // ⭐ CE-4623 (AB-2): an animal down lies still too
+                        && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, entity);
             bool recoverable = !wreck && _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
                                && repo.HasComponent<FrustrationTicks>(entity);
             FrustrationTicks ft = recoverable ? repo.GetComponent<FrustrationTicks>(entity) : default;
@@ -482,7 +484,7 @@ namespace CarKinem.Systems
             if (wreck || down) targetSpeed = 0f;   // ⭐ CE-3287 / CE-2321 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
-            if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
+            if ((@params.Class == VehicleClass.Pedestrian || @params.Class == VehicleClass.Quadruped) && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;   // ⭐ CE-4623: a stunned animal stands too
 
             // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person (his weapon brain's replicated WeaponPosture)
             //   turns his body to the aim — snapping beyond his twist, smoothly inside it — and moves along his way independently of
@@ -766,7 +768,7 @@ namespace CarKinem.Systems
             // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than
             //   HumanGait.MaxStepDown lower is not taken (he stays, stopped). Stairs and ramps descend in small steps, so they pass.
             //   📐 bt-window-duel: the path skirts House A's stairwell by 5 cm and a cut corner dropped A 3 m to the ground floor.
-            if (person && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
+            if ((person || hull.Class == VehicleClass.Quadruped) && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
             {
                 var here = new Vector2(tf.Position.X, tf.Position.Y);
                 if (MathF.Abs(_terrain.SurfaceZ(here.X, here.Y, tf.Position.Z) - tf.Position.Z) <= HumanGait.OnFloorTolerance)
@@ -868,7 +870,7 @@ namespace CarKinem.Systems
         /// arrival is judged in 2-D, and a man standing under a point one floor up was "arrived" (Peek and Fire §12.7, 160 s). A vehicle
         /// keeps the 2-D rule.</summary>
         private bool OnLevelOf(in VehicleParams @params, Vector3 at, Vector3 destination)
-            => @params.Class != VehicleClass.Pedestrian || Fdp.Toolkit.World.Levels.Same(_terrain, at, destination);
+            => (@params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped) || Fdp.Toolkit.World.Levels.Same(_terrain, at, destination);   // ⭐ CE-4623: a cat indoors arrives on its floor
 
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D,
                                                                                Vector2 fwd2D, float speedNow, float posZ)

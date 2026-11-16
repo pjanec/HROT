@@ -49,6 +49,7 @@ namespace Fdp.Toolkit.Motion
         {
             VehicleClass.Pedestrian => LocomotionClass.Pedestrian,
             VehicleClass.Tank => LocomotionClass.Tracked,
+            VehicleClass.Quadruped => LocomotionClass.Quadruped,   // ⭐ CE-4623 AB-2
             _ => LocomotionClass.Wheeled,
         };
 
@@ -91,7 +92,7 @@ namespace Fdp.Toolkit.Motion
         public static bool IsVehicle(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
             var c = Of(view, e);
-            if (c != LocomotionClass.Unknown) return DomainOf(c) == MotionDomain.Ground && c != LocomotionClass.Pedestrian;
+            if (c != LocomotionClass.Unknown) return DomainOf(c) == MotionDomain.Ground && c != LocomotionClass.Pedestrian && c != LocomotionClass.Quadruped;   // ⭐ CE-4623: an animal is no vehicle
             return Has<VehicleState>(view, e);
         }
 

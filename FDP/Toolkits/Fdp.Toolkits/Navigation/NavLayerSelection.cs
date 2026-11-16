@@ -61,6 +61,9 @@ namespace Fdp.Toolkit.Navigation
                 var vp = repo.GetComponent<VehicleParams>(entity);
                 var cls = vp.Class;
                 if (cls == VehicleClass.Pedestrian) return NavLayerMask.Infantry;
+                // ⭐ CE-4623 AB-2 (L-A6) — an ANIMAL walks where a man walks (fields, woods, through gaps) and never prefers the road: the
+                //   infantry layer. ⛔ Not the vehicle layer (woods closed, roads preferred). A dedicated animal layer is filed for later.
+                if (cls == VehicleClass.Quadruped) return NavLayerMask.Infantry;
                 uint woods = WoodsFactorBits(vp.OffRoadForest);   // ⭐ CE-4621 MC-2a — the type's own forest factor prices the woods
                 // ⭐ CE-4369 (R-4190 Q-T1 / Q-T2) — a TRACKED vehicle plans on the vehicle layer with the tracked modifier: woods open to
                 //   it at a high cost, closed to a wheeled one (the provider's per-mover filter). The ONE locomotion rule decides.

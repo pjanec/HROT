@@ -67,5 +67,32 @@ namespace Fdp.Toolkit.Tests.Motion
 
             Agree(w, w.CreateEntity(), false, "a body with none of them");
         }
+    
+        /// <summary>⭐⭐ <c>CE-4623</c> AB-2 (Animals AR-1 / AR-2) — a COW (Quadruped) is a ground body that is no vehicle (no roads preferred, no hull
+        /// backing out) and no person; a BIRD is in the air and NEVER an aircraft (radar, air contacts and air defence never see it); the ground class
+        /// is moved by the kinematics (no air model), the bird by its own; the preset maps to the class. 🔴 Red-proof: drop <c>Bird</c> from
+        /// <c>IsAircraft</c>'s exclusions ⇒ red.</summary>
+        [Fact]
+        public void CE4623_ACowIsNoVehicleAndNoPerson_ABirdFliesAndIsNoAircraft()
+        {
+            using var w = World();
+            var cow = w.CreateEntity();
+            w.AddComponent(cow, new VehicleParams { Class = VehicleClass.Quadruped, Length = 2.4f, Width = 0.9f });
+            w.AddComponent(cow, new VehicleState());
+            w.AddComponent(cow, new Locomotion { Class = LocomotionClass.Quadruped });
+            Agree(w, cow, false, "a cow");
+            Assert.Equal(MotionDomain.Ground, Locomotions.DomainOf(LocomotionClass.Quadruped));
+            Assert.False(Locomotions.IsAircraft(w, cow));
+            Assert.False(global::CarKinem.Controllers.HullClearance.HasHull(w.GetComponentRO<VehicleParams>(cow)));
+            Assert.Equal(LocomotionClass.Quadruped, Locomotions.FromVehicleClass(VehicleClass.Quadruped));
+            Assert.Null(MotionModelTable.Model(LocomotionClass.Quadruped));
+
+            var bird = w.CreateEntity();
+            w.AddComponent(bird, new Locomotion { Class = LocomotionClass.Bird });
+            Assert.Equal(MotionDomain.Air, Locomotions.DomainOf(LocomotionClass.Bird));
+            Assert.False(Locomotions.IsAircraft(w, bird), "a bird is never an aircraft");
+            Assert.IsType<BirdFlightModel>(MotionModelTable.Model(LocomotionClass.Bird));
+            Assert.Equal(NavLayerMask.Infantry, NavLayerSelection.For(w, cow, 0u));   // an animal walks where a man walks
+        }
     }
 }

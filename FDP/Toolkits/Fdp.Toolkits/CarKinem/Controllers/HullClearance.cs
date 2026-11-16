@@ -34,7 +34,7 @@ namespace CarKinem.Controllers
         [ThreadStatic] private static List<TraceCrossing>? t_crossings;
 
         /// <summary>Does this vehicle have a hull to trace (a length and a width; a person has none)?</summary>
-        public static bool HasHull(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Length > 0f && p.Width > 0f;
+        public static bool HasHull(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Class != VehicleClass.Quadruped && p.Length > 0f && p.Width > 0f;   // ⭐ CE-4623: an animal backs out of nothing
 
         /// <summary>The smallest turning radius (m) — the bicycle model's, at full lock.</summary>
         public static float TurnRadius(in VehicleParams p)

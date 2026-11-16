@@ -61,6 +61,7 @@ namespace Fdp.Toolkit.Motion
         private static readonly IMotionModel FixedWing = new FixedWingModel();   // ⭐ Air Ops slice 4
         private static readonly IMotionModel Rope = new RopeSlideModel();          // ⭐ airborne insertion B-2
         private static readonly IMotionModel Parachute = new ParachuteModel();     // ⭐ airborne insertion B-2
+        private static readonly IMotionModel Bird = new BirdFlightModel();         // ⭐ CE-4623 AB-2 (AR-2) — a bird, never an aircraft
 
         /// <summary>The model of <paramref name="c"/>; null for a ground class (CarKinematics moves it in v1).</summary>
         /// <exception cref="NotSupportedException">a class whose model is not built yet.</exception>
@@ -70,7 +71,9 @@ namespace Fdp.Toolkit.Motion
             LocomotionClass.FixedWing => FixedWing,
             LocomotionClass.Rope => Rope,
             LocomotionClass.Parachute => Parachute,
-            LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Unknown => null,
+            LocomotionClass.Bird => Bird,
+            // ⭐ CE-4623 AB-2 — a Quadruped is a GROUND body: CarKinematics moves it (its own preset, VehicleClass.Quadruped)
+            LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Quadruped or LocomotionClass.Unknown => null,
             _ => throw new NotSupportedException(
                 $"no motion model for {c} yet (DESIGN_Motion_Domains.md MD-H: FixedWing / Surface / Amphibious are table rows until built)"),
         };
