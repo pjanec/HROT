@@ -52,6 +52,9 @@ public sealed class TerrainDrawGhost
     /// <summary>Whether a drawing ghost exists for <paramref name="o"/> (a wall / fence / hedge, a tree Row / Group, a scatter).</summary>
     public static bool Applies(TerrainDrawOptions o) => o.IsLine || o.IsTreeRow || o.IsTreeGroup || o.IsScatter;
 
+    /// <summary>⭐ CE-4594 — the width of the drawing ghost's band (m): at least <c>GizmoRenderer3D.RibbonFromMetres</c>, so 3-D draws it as a draped ribbon.</summary>
+    public const float GhostBandMetres = 1f;
+
     /// <summary>Draws the shape being drawn (<paramref name="pts"/> = the committed points) and the just-committed ones still waiting for the bake.</summary>
     public void Draw(IDebugDrawBuilder draw, IReadOnlyList<Vector2> pts, TerrainDrawOptions o)
     {
@@ -60,7 +63,13 @@ public sealed class TerrainDrawGhost
         if (o.IsLine)
         {
             for (int i = 1; i < pts.Count; i++)
-                draw.DrawLine(new Vector3(pts[i - 1].X, pts[i - 1].Y, 0f), new Vector3(pts[i].X, pts[i].Y, 0f), With(colour, 150), 4f, SizeMode.ScreenPixels, layer: layer);
+            {
+                var a = new Vector3(pts[i - 1].X, pts[i - 1].Y, 0f); var b = new Vector3(pts[i].X, pts[i].Y, 0f);
+                // ⭐ CE-4594 item 7 (mockup C) — the THICK line: a band GhostBandMetres wide, which the 3-D drawer drapes as a ribbon (a screen-pixel width is a hairline there) …
+                draw.DrawLine(a, b, With(colour, 110), GhostBandMetres, SizeMode.WorldMeters, layer: layer);
+                // … and the 4 px line on top, so it stays thick in 2-D at any zoom
+                draw.DrawLine(a, b, With(colour, 150), 4f, SizeMode.ScreenPixels, layer: layer);
+            }
         }
         else if (o.IsTreeRow)
         {

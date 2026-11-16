@@ -150,8 +150,11 @@ public sealed class TerrainFeatureGizmoTests : IDisposable
 
         var wall = TerrainDrawOptions.From("feature:2::Line")!;
         var w = new DebugPrimitiveBuffer(); ghost.UnderlayOf(wall)(w, Row124);
-        Assert.Equal(2, All(w).Count(p => p.Shape == DebugPrimitiveShape.Line));
-        Assert.All(All(w).Where(p => p.Shape == DebugPrimitiveShape.Line), l => Assert.True(l.ThicknessU16 >= 30, "a thick line"));
+        var lines = All(w).Where(p => p.Shape == DebugPrimitiveShape.Line).ToArray();
+        Assert.Equal(4, lines.Length);                                                     // per segment: the band and the line
+        Assert.Equal(2, lines.Count(l => l.SizeMode == SizeMode.ScreenPixels && l.ThicknessU16 >= 30));   // thick in 2-D at any zoom
+        // ⭐ CE-4594 item 7 — and a band in METRES wide enough that the 3-D drawer drapes it as a RIBBON (a pixel width is a hairline there)
+        Assert.Equal(2, lines.Count(l => l.SizeMode == SizeMode.WorldMeters && l.ThicknessU16 / 10f >= Fdp.Toolkit.Vis3D.GizmoRenderer3D.RibbonFromMetres));
 
         var group = TerrainDrawOptions.From("feature:15:tree:Area")!;
         var g = new DebugPrimitiveBuffer(); ghost.UnderlayOf(group)(g, new[] { new Vector2(0, 0), new Vector2(40, 0), new Vector2(40, 40), new Vector2(0, 40) });
