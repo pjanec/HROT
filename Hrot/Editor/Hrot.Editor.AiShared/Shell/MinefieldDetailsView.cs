@@ -175,8 +175,12 @@ public sealed class MinefieldDetailsView : IDetailsViewInstance
 
         bool full = f.LaneCount >= Minefield.MaxLanes || _armLane is null;
         if (full) ImGui.BeginDisabled();
-        if (ImGui.Button("Add lane") && _armLane is not null) _armLane(e);
+        if (ImGui.Button("       Add lane") && _armLane is not null) _armLane(e);   // the leading blanks leave room for the green plus (the mockup's glyph button)
         Rects["addlane"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        {
+            var min = ImGui.GetItemRectMin();
+            ImGui.GetWindowDrawList().AddText(new Vector2(min.X + ImGui.GetStyle().FramePadding.X + 2f * s, min.Y + ImGui.GetStyle().FramePadding.Y), ImGui.ColorConvertFloat4ToU32(full ? IconPalette.Muted : IconPalette.Green), KitGlyph.Plus);
+        }
         if (full) ImGui.EndDisabled();
         ImGui.SameLine(); ImGui.TextDisabled(f.LaneCount >= Minefield.MaxLanes ? "a field holds 8 lanes" : "arms the area tool in line mode: two clicks (MR-18)");
         ImGui.PopID();

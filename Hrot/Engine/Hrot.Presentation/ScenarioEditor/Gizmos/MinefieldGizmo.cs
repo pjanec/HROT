@@ -86,7 +86,8 @@ public sealed class MinefieldGizmo : IStatelessGizmo
 
     private void DrawTruth(EntityRepository repo, Entity entity, in Minefield f, FieldCache c, IDebugDrawBuilder draw)
     {
-        DrawOutline(c, draw, LineStyle.Dashed);
+        DrawOutline(c, draw);
+        EdgeSymbols(c, draw);
         CollectGone(repo, entity);
         int stride = Math.Max(1, (c.Mines.Count + MaxDots - 1) / MaxDots);
         for (int i = 0; i < c.Mines.Count; i += stride)
@@ -96,8 +97,8 @@ public sealed class MinefieldGizmo : IStatelessGizmo
             var p = new Vector3(m.At, c.MineZ[i]);
             if (_struck.Contains(key)) { Star(draw, p, 2.2f); continue; }
             if (_gone.Contains(key)) continue;   // cleared: nothing left to draw
-            if (m.Type == MineType.AntiTank) Square(draw, p, 0.7f, MineColour);
-            else Cross(draw, p, 0.45f, MineColour);
+            if (m.Type == MineType.AntiTank) Square(draw, p, 1.0f, MineColour);
+            else Cross(draw, p, 0.9f, MineColour);
         }
         DrawLanes(in f, c, -1, draw);
     }
@@ -105,20 +106,22 @@ public sealed class MinefieldGizmo : IStatelessGizmo
     private static void DrawKnown(in Minefield f, FieldCache c, int side, IDebugDrawBuilder draw)
     {
         for (int i = 0; i + 2 < c.Fill.Length; i += 3)
-            draw.DrawFilledTriangle(c.Outline[c.Fill[i]], c.Outline[c.Fill[i + 1]], c.Outline[c.Fill[i + 2]], FillColour);
-        DrawOutline(c, draw, LineStyle.Solid);
+            draw.DrawFilledTriangle(c.Outline[c.Fill[i]], c.Outline[c.Fill[i + 1]], c.Outline[c.Fill[i + 2]], FillColour, target: Flat);   // 2-D only: the 3-D map shows the dashed outline + the pickets (panel B)
+        DrawOutline(c, draw);
+        EdgeSymbols(c, draw);
         for (int i = 0; i < c.Symbols.Count; i++)
         {
             var p = c.Symbols[i];
-            Ring(draw, p, 2.2f, FieldColour, PipelineTarget.Map2D);
-            draw.DrawLine(p + new Vector3(-1.5f, -1.5f, 0f), p + new Vector3(1.5f, 1.5f, 0f), FieldColour, 1.4f, target: PipelineTarget.Map2D);
-            // 3-D: a picket with a red triangle sign facing up the field (MF-8's marking)
-            var top = p + new Vector3(0f, 0f, 1.3f);
-            draw.DrawLine(p, top, new Rgba32(80, 60, 40, 255), 2f, target: PipelineTarget.Viewport3D);
-            var l = top + new Vector3(-0.35f, 0f, 0f); var r = top + new Vector3(0.35f, 0f, 0f); var b = top + new Vector3(0f, 0f, -0.4f);
-            draw.DrawLine(l, r, FieldColour, 3f, target: PipelineTarget.Viewport3D);
-            draw.DrawLine(r, b, FieldColour, 3f, target: PipelineTarget.Viewport3D);
-            draw.DrawLine(b, l, FieldColour, 3f, target: PipelineTarget.Viewport3D);
+            // 3-D: a picket with a red triangle sign, point down, facing the field (MF-8's marking; panel B: ~2.2 m tall, a 1 m sign)
+            var top = p + new Vector3(0f, 0f, 2.2f);
+            draw.DrawLine(p, top, new Rgba32(80, 60, 40, 255), 3f, target: PipelineTarget.Viewport3D);
+            var l = top + new Vector3(-0.55f, 0f, 0f); var r = top + new Vector3(0.55f, 0f, 0f); var b = top + new Vector3(0f, 0f, -0.9f);
+            var m = (l + r + b) / 3f;
+            draw.DrawLine(l, r, FieldColour, 4f, target: PipelineTarget.Viewport3D);
+            draw.DrawLine(r, b, FieldColour, 4f, target: PipelineTarget.Viewport3D);
+            draw.DrawLine(b, l, FieldColour, 4f, target: PipelineTarget.Viewport3D);
+            draw.DrawLine(top + new Vector3(0f, 0f, -0.18f), b + new Vector3(0f, 0f, 0.3f), FieldColour, 6f, target: PipelineTarget.Viewport3D);   // the sign's body (a thick centre line fills the triangle)
+            draw.DrawLine(m + new Vector3(-0.2f, 0f, 0.2f), m + new Vector3(0.2f, 0f, 0.2f), FieldColour, 6f, target: PipelineTarget.Viewport3D);
         }
         draw.DrawText(c.Centroid.X, c.Centroid.Y, c.Label, FieldColour);
         DrawLanes(in f, c, side, draw);
@@ -148,10 +151,28 @@ public sealed class MinefieldGizmo : IStatelessGizmo
 
     // ── the pieces ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private static void DrawOutline(FieldCache c, IDebugDrawBuilder draw, LineStyle style)
+    /// <summary>The 2-D map only: <c>Map2D | FlatOnly</c> — a 3-D pass never draws it (the 3-D map has its own look, panel B).</summary>
+    private const PipelineTarget Flat = PipelineTarget.Map2D | PipelineTarget.FlatOnly;
+
+    /// <summary>⭐ Panel A / B — the outline: SOLID in the 2-D map, DASHED in 3-D (a known field's red dashes on the ground).</summary>
+    private static void DrawOutline(FieldCache c, IDebugDrawBuilder draw)
     {
         for (int i = 0; i + 1 < c.Draped.Count; i++)
-            draw.DrawLine(c.Draped[i], c.Draped[i + 1], FieldColour, 2f, style: style);
+        {
+            draw.DrawLine(c.Draped[i], c.Draped[i + 1], FieldColour, 2.2f, target: Flat);
+            draw.DrawLine(c.Draped[i], c.Draped[i + 1], FieldColour, 2.5f, target: PipelineTarget.Viewport3D, style: LineStyle.Dashed);
+        }
+    }
+
+    /// <summary>The ⊘ signs on the edge, every ~60 m (2-D only; the 3-D map has pickets instead).</summary>
+    private static void EdgeSymbols(FieldCache c, IDebugDrawBuilder draw)
+    {
+        for (int i = 0; i < c.Symbols.Count; i++)
+        {
+            var p = c.Symbols[i];
+            Ring(draw, p, 3.0f, FieldColour, Flat);
+            draw.DrawLine(p + new Vector3(-2.1f, -2.1f, 0f), p + new Vector3(2.1f, 2.1f, 0f), FieldColour, 1.6f, target: Flat);
+        }
     }
 
     private static void DrawLanes(in Minefield f, FieldCache c, int side, IDebugDrawBuilder draw)
