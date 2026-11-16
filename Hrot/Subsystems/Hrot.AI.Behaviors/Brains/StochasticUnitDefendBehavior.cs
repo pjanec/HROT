@@ -20,13 +20,17 @@ namespace Hrot.AI.Behaviors.Brains
         public SimInstant Since;
         public byte Occupied;
         public byte Reported;
+        /// <summary>⭐ ST-1 (R-8307) — the approach: the move's progress, and whether it is over (arrived, or none was needed).</summary>
+        public MoveDrive Drive;
+        public byte Approached;
     }
 
     /// <summary>
     /// ⭐⭐ agg-behaviors <c>ST-0 ③</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5; routing row <c>(Unit, Stochastic, Defend)</c>
     /// — <see cref="Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend"/>) — the DEFEND play of a STOCHASTIC unit: it OCCUPIES its position at once and holds it.
-    /// <para>⚠ MINIMAL, and said so: <b>movement is ST-1</b> (agg-backend's path follower is not built), so "occupy" is immediate — the unit's footprint
-    /// centre (<see cref="SimTransform"/>) is set to the position and <see cref="AggregateUnit.Move"/> reads <see cref="UnitMoveState.Arrived"/>. It then reports
+    /// <para>⭐ ST-1 (R-8307): a unit FARTHER than <see cref="StochasticUnitMoves.ArrivalRadiusMetres"/> from its position MOVES there first, as a deployed line
+    /// (<see cref="StochasticUnitMoves.Step"/>: the one route/follower, a dropped route re-requested at most 3 times, then PROGRESS TaskFailed and Failure) and occupies
+    /// on ARRIVAL; a unit already there occupies at once. Occupying marks <see cref="AggregateUnit.Move"/> <see cref="UnitMoveState.Arrived"/>. It then reports
     /// PROGRESS <see cref="ProgressKind.Set"/> to its commander (the one report path, <see cref="CommandNodes.ReportProgress"/>), and raises
     /// <see cref="AggregateUnit.Prepared"/> with time in position (R-8306: Hasty at once, Prepared after <see cref="PreparedAfterSeconds"/>, Fortified after
     /// <see cref="FortifiedAfterSeconds"/> of SIM time; <see cref="AggregateUnit.PreparedSince"/> stamped at occupation). It never ends by itself — an order
@@ -54,7 +58,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         [Behavior(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend, Params = typeof(DefendOrder), Fulfils = nameof(OrderKind.Defend), Categories = BehaviorCategory.Commander,
-                  Description = "A stochastic unit holds its position (occupied at once; movement is ST-1) and becomes better prepared with time.")]
+                  Description = "A stochastic unit moves to its position as a line when it is not there (ST-1), then holds it and becomes better prepared with time.")]
         [BTreeDefinition(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend, Curated = true, Group = "Library/Combat", ParamsType = typeof(Blackboard))]
         public static BTreeBuilder<Blackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<Blackboard, BTreeContext>()
@@ -71,9 +75,23 @@ namespace Hrot.AI.Behaviors.Brains
             bool aggregate = world.IsComponentTypeRegistered<AggregateUnit>() && world.HasComponent<AggregateUnit>(self);
             if (p.Occupied == 0)
             {
+                if (aggregate && p.Approached == 0)
+                {
+                    var at = world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : p.Position;
+                    if (p.Drive.Started == 0 && Vector3.Distance(new Vector3(at.X, at.Y, 0f), new Vector3(p.Position.X, p.Position.Y, 0f)) <= StochasticUnitMoves.ArrivalRadiusMetres)
+                        p.Approached = 1;   // already there: occupy at once
+                    else
+                        switch (StochasticUnitMoves.Step(ref p.Drive, p.Position, UnitFormation.Line, self, world))
+                        {
+                            case DriveResult.Moving: return NodeStatus.Running;
+                            case DriveResult.Failed:
+                                CommandNodes.ReportProgress(world, self, ProgressKind.TaskFailed, p.Position);
+                                return NodeStatus.Failure;
+                            default: p.Approached = 1; break;
+                        }
+                }
                 p.Occupied = 1;
                 p.Since = now;
-                if (world.HasComponent<SimTransform>(self)) world.GetComponentRW<SimTransform>(self).Position = p.Position;   // ST-1 replaces this with the follower
                 if (aggregate)
                 {
                     ref var u = ref world.GetComponentRW<AggregateUnit>(self);
@@ -83,6 +101,7 @@ namespace Hrot.AI.Behaviors.Brains
                     u.Prepared = PreparedLevel.Hasty;
                     u.PreparedSince = now;
                 }
+                else if (world.HasComponent<SimTransform>(self)) world.GetComponentRW<SimTransform>(self).Position = p.Position;   // a body-less test unit with no follower
             }
             if (p.Reported == 0)
             {
@@ -95,6 +114,13 @@ namespace Hrot.AI.Behaviors.Brains
                 if (world.GetComponentRO<AggregateUnit>(self).Prepared < level) world.GetComponentRW<AggregateUnit>(self).Prepared = level;   // write only on change
             }
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ ST-1 — the order is replaced (or the commander's run ended) while the unit is still approaching: it stops where it stands.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.StochasticUnitDefendBehavior.Hold")]
+        public static void Deactivate_Hold(ref StochasticDefendParams p, Entity self, EntityRepository world)
+        {
+            if (p.Occupied == 0) StochasticUnitMoves.StopIfMoving(self, world);
         }
     }
 }

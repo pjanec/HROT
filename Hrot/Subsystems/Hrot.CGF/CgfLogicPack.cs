@@ -157,6 +157,9 @@ namespace Hrot.CGF
             IntentClears = new IntentClearRegistry();
             IntentClears.Register(_missionExecutionSystem);
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
+            // ⭐ agg-behaviors ST-2 (R-8311, the silent-default rule) — the ingress starts a stochastic unit's template-default SOP through the SAME routing table that
+            //   resolves its orders; Fdp.Toolkits cannot see that table, so the host that holds it hands the ingress the resolver. Every brain host builds this pack.
+            Fdp.Toolkit.Behavior.StochasticSopRouting.Resolver = TacticalIntentResolutionSystem.SopFor;
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {

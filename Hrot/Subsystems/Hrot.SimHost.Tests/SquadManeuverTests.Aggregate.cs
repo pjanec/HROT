@@ -44,9 +44,11 @@ namespace Hrot.SimHost.Tests
             var composer = new StaffComposerSystem();
             var resolver = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), c.S.Registry);
             int seen = 0;
+            var mover = new StochasticUnitMovementSystem();                                              // ST-1: the defence position is 75 m off — the unit now MARCHES there
             void Frame()
             {
                 c.Ticks(1);
+                mover.Execute(repo, 1f);
                 composer.Execute(repo, 0.016f);
                 repo.FlushCommandBuffers();                                                                // a parallel phase defers its events/commands to its batch end
                 // the receiver's resolution: every superior order to the stochastic platoon, once
@@ -66,6 +68,9 @@ namespace Hrot.SimHost.Tests
 
             // ③ the receiver's routing table started the generic play, and it reported Set to the company
             Assert.Equal(BehaviorHash.FromName(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend), repo.GetComponentRO<BehaviorState>(plat).ActiveBehaviorHash);
+            for (int i = 0; i < 300 && repo.GetComponentRO<AggregateUnit>(plat).Move != UnitMoveState.Arrived; i++) Frame();   // ST-1: it marches first (R-8307), Set only on arrival
+            Frames(3);                                                                                   // the play sees the arrival and occupies; its Set is queued
+            Assert.Equal(ProgressKind.NoProgress, CommandPictureOps.ProgressOf(repo, c.S.Commander, 0));
             c.S.Pause(5); Frames(6);
             Assert.Equal(ProgressKind.Set, CommandPictureOps.ProgressOf(repo, c.S.Commander, 0));
             Assert.Equal(PreparedLevel.Hasty, repo.GetComponentRO<AggregateUnit>(plat).Prepared);

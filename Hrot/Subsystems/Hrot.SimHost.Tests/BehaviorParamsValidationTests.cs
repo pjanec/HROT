@@ -99,7 +99,7 @@ public sealed class BehaviorParamsValidationTests
             }
         }
         Assert.Equal(4, perKind["Defend"]);          // SquadDefend, PlatoonDefend, CompanyDefend + the stochastic unit's StochasticUnitDefend
-        Assert.Equal(1, perKind["BreakContact"]);
+        Assert.Equal(2, perKind["BreakContact"]);   // BreakContact + the stochastic unit's StochasticUnitBreakContact (ST-2)
         Assert.True(perKind["Move"] >= 4 && perKind["Attack"] >= 4 && perKind["Hold"] >= 4, "the walk finds the plays (not vacuous)");
     }
 }
