@@ -1,0 +1,112 @@
+using System;
+using System.Linq;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Animals;
+using Fdp.Toolkit.NetworkSpawning.Events;
+using Fdp.Toolkit.Scenario;
+using Hrot.Core.Animals;
+using Hrot.Map.Common;
+using Hrot.Map.Common.Components;
+using Xunit;
+
+namespace Hrot.SimHost.Tests
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-4623</c> AB-9 (docs/designs/animals/DESIGN_Animals.md AR-16) — the ANIMAL AREA populates ONCE: its count of animals of its species, inside
+    /// its outline, each a TRANSIENT creation request with a GUID derived from the area's (the same twice), the area marked populated and made the herd;
+    /// a second frame, a RESTORED area (it carries the mark) and a REPLAY ask for nothing; a flock area asks for ONE flock of that many birds; an arriving
+    /// animal joins its area's herd. 🔴 Red-proofs: the populated mark not checked ⇒ a second frame asks again ⇒ red; the outline ignored ⇒ an animal
+    /// outside it ⇒ red.
+    /// </summary>
+    public sealed class AnimalAreaTests
+    {
+        private static readonly Guid AreaGuid = new("4623a0a0-0000-4000-8000-000000000001");
+
+        private static (EntityRepository W, Entity Area) World(AnimalSpecies species, ushort count, bool populated = false)
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<AnimalArea>();
+            w.RegisterComponent<AnimalAreaPopulated>();
+            w.RegisterComponent<HerdState>();
+            w.RegisterComponent<HerdMember>();
+            w.RegisterComponent<AnimalHome>();
+            w.RegisterComponent<AnimalState>();
+            w.RegisterComponent<EntityGuid>();
+            w.RegisterManagedComponent<EditablePolyline>();
+            w.RegisterManagedEvent<EntityCreationRequest>();
+            w.SetSingleton(new GlobalTime { TotalTime = 1.0 });
+            var area = w.CreateEntity();
+            w.AddComponent(area, new SimTransform { Position = new Vector3(100, 0, 0), Rotation = Quaternion.Identity });
+            w.AddComponent(area, new AnimalArea { Species = species, Count = count, Seed = 42 });
+            w.AddComponent(area, new EntityGuid(AreaGuid));
+            // a 40 × 20 m field, relative to the area's anchor
+            w.SetManagedComponent(area, new EditablePolyline { Points = new[] { new Vector2(-20, -10), new Vector2(20, -10), new Vector2(20, 10), new Vector2(-20, 10) } });
+            if (populated) w.AddComponent(area, new AnimalAreaPopulated { At = (SimInstant)0.5 });
+            return (w, area);
+        }
+
+        private static EntityCreationRequest[] Frame(EntityRepository w, AnimalAreaSystem sys)
+        {
+            sys.Execute(w, 0.1f);
+            w.Bus.SwapBuffers();
+            return w.Bus.ReadManaged<EntityCreationRequest>().ToArray();
+        }
+
+        [Fact]
+        public void CE4623_AnArea_PopulatesOnce_InsideItsOutline_TransientWithDerivedIds_AndBecomesTheHerd()
+        {
+            var (w, area) = World(AnimalSpecies.Cattle, 6);
+            var sys = new AnimalAreaSystem();
+            var asked = Frame(w, sys);
+            Assert.Equal(6, asked.Length);
+            foreach (var r in asked)
+            {
+                Assert.Equal(TkbEntityTypes.Animal_Cattle, (long)r.TkbType);
+                Assert.True(r.IsTransient);
+                var at = (Vector3)r.InitialComponents.OfType<SimTransform>().Single().Position;
+                Assert.InRange(at.X, 80f, 120f);
+                Assert.InRange(at.Y, -10f, 10f);
+                var home = r.InitialComponents.OfType<AnimalHome>().Single();
+                Assert.Equal(new Vector3(100, 0, 0), (Vector3)home.Centre);
+            }
+            var ids = asked.Select(r => r.InitialComponents.OfType<EntityGuid>().Single().Value).ToArray();
+            Assert.Equal(6, ids.Distinct().Count());
+            Assert.True(w.HasComponent<AnimalAreaPopulated>(area));
+            Assert.True(w.HasComponent<HerdState>(area));                                   // the area is the herd
+            Assert.Empty(Frame(w, sys));                                                    // never again
+
+            var (w2, _) = World(AnimalSpecies.Cattle, 6);                                   // the same area in another run: the same ids
+            Assert.Equal(ids, Frame(w2, new AnimalAreaSystem()).Select(r => r.InitialComponents.OfType<EntityGuid>().Single().Value).ToArray());
+
+            // an animal arriving with the area's home joins its herd
+            var cow = w.CreateEntity();
+            w.AddComponent(cow, new SimTransform { Position = new Vector3(95, 0, 0), Rotation = Quaternion.Identity });
+            w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle });
+            w.AddComponent(cow, asked[0].InitialComponents.OfType<AnimalHome>().Single());
+            new HerdSystem().Execute(w, 0.1f);
+            Assert.Equal(area, w.GetComponentRO<HerdMember>(cow).Herd);
+            w.Dispose(); w2.Dispose();
+        }
+
+        [Fact]
+        public void CE4623_ARestoredArea_AndAReplay_NeverRepopulate_AFlockAreaAsksForOneFlock()
+        {
+            var (restored, _) = World(AnimalSpecies.Cattle, 6, populated: true);
+            Assert.Empty(Frame(restored, new AnimalAreaSystem()));
+            restored.Dispose();
+
+            var (replay, _) = World(AnimalSpecies.Cattle, 6);
+            Fdp.Toolkit.Replay.ReplayState.Enter(replay);
+            Assert.Empty(Frame(replay, new AnimalAreaSystem()));
+            replay.Dispose();
+
+            var (birds, _) = World(AnimalSpecies.BirdFlock, 35);
+            var one = Assert.Single(Frame(birds, new AnimalAreaSystem()));
+            Assert.Equal(TkbEntityTypes.Animal_BirdFlock, (long)one.TkbType);
+            Assert.Equal((ushort)35, one.InitialComponents.OfType<FlockState>().Single().Count);
+            birds.Dispose();
+        }
+    }
+}

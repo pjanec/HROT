@@ -44,6 +44,8 @@ namespace Fdp.Toolkit.Animals
         public const float PassingCap = 0.3f;
         /// <summary>Inside the panic zone fear is at least this: it runs.</summary>
         public const float PanicFear = 0.85f;
+        /// <summary>⭐ AB-8 — the fear another animal's alarm call adds (beside it): uneasy, frightened if it keeps on.</summary>
+        public const float AlarmImpulse = 0.3f;
         /// <summary>A fearless animal flinches at a blast at this fraction of the impulse; nothing else touches it.</summary>
         public const float FearlessBlastFactor = 0.4f;
         /// <summary>A species with no recovery time recovers in this (s).</summary>
@@ -56,7 +58,10 @@ namespace Fdp.Toolkit.Animals
         /// flinches at a blast).</summary>
         public static float Impulse(AnimalTemperamentDto? t, SoundSourceClass heard, float distanceMetres)
         {
-            float i = Fdp.Toolkit.Civilians.CivilianFear.Impulse(heard, distanceMetres);
+            // ⭐ AB-8 — another animal's ALARM (or a bark): an animal's fright, falling off over the alarm's own range
+            float i = heard == SoundSourceClass.Animal
+                ? AlarmImpulse * (1f - 0.5f * Math.Clamp(distanceMetres / AnimalCalls.AlarmRangeM, 0f, 1f))
+                : Fdp.Toolkit.Civilians.CivilianFear.Impulse(heard, distanceMetres);
             if (t != null && t.Fearless) return heard == SoundSourceClass.Explosion ? i * FearlessBlastFactor : 0f;
             return i;
         }
@@ -71,7 +76,7 @@ namespace Fdp.Toolkit.Animals
             if (impulse <= 0f || !repo.HasComponent<Fear>(animal)) return;
             ref var f = ref repo.GetComponentRW<Fear>(animal);
             f.Value = MathF.Min(1f, f.Value + impulse);
-            f.LastFrightAt = now;
+            f.LastFrightAt = (SimInstant)now;
             f.Seen = 0;
             if (from is { } p) { f.FrightFrom = p; f.HasFrightFrom = 1; }
         }
@@ -120,7 +125,7 @@ namespace Fdp.Toolkit.Animals
 
         private static void Mark(ref Fear f, double now, Vector3 from)
         {
-            f.LastFrightAt = now;
+            f.LastFrightAt = (SimInstant)now;
             f.FrightFrom = from;
             f.HasFrightFrom = 1;
             f.Seen = 1;
@@ -212,8 +217,8 @@ namespace Fdp.Toolkit.Animals
         /// <summary>A horse that can bolt (<c>BoltFear</c> &gt; 0) bolts for <see cref="BoltSeconds"/> once its fear passes the line; true while it does.</summary>
         public static bool UpdateBolt(ref Fear f, AnimalTemperamentDto t, double now)
         {
-            if (t.BoltFear <= 0f) { f.BoltUntil = 0; return false; }
-            if (f.Value >= t.BoltFear && f.BoltUntil <= now) f.BoltUntil = now + BoltSeconds;
+            if (t.BoltFear <= 0f) { f.BoltUntil = default; return false; }
+            if (f.Value >= t.BoltFear && f.BoltUntil <= now) f.BoltUntil = (SimInstant)(now + BoltSeconds);
             return f.BoltUntil > now;
         }
     }

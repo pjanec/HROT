@@ -53,6 +53,8 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Fearless;
             /// <summary>⭐ AB-5 — guards its ground (the dog); a bird (a flock or a lone bird: perches, flies off).</summary>
             public byte Territorial, Bird;
+            /// <summary>⭐ AB-8 — its mean interval between calls at rest (s); 0 = silent.</summary>
+            public float CallInterval;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -60,6 +62,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public byte Walking, HasOrigin;
             public int Legs;
+            /// <summary>⭐ AB-8 — the last call number it made (the closed-form schedule's k), −1 none.</summary>
+            public long LastCall;
             public SimInstant PauseUntil;
             public Vector3 Target, Origin;
         }
@@ -114,6 +118,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Fearless = (byte)(t is { Fearless: true } ? 1 : 0),
                     Territorial = (byte)(t is { Territorial: true } ? 1 : 0),
                     Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird) ? 1 : 0),
+                    CallInterval = t?.CallIntervalSeconds ?? 0f,
                 },
             };
         }
@@ -174,7 +179,8 @@ namespace Hrot.AI.Behaviors.Brains
             SetMode(world, self, AnimalMode.Calm);
             double now = world.SimulationTime;
             var here = Here(world, self);
-            if (ws.HasOrigin == 0) { ws.Origin = here; ws.HasOrigin = 1; }
+            if (ws.HasOrigin == 0) { ws.Origin = here; ws.HasOrigin = 1; ws.LastCall = -1; }
+            CallAtRest(ref p, ref ws, self, world, now);   // ⭐ AB-8 — a moo, a baa, birdsong, on the closed-form schedule
             if (p.Bird != 0) { SetFlock(world, self, FlockMode.Perched); return NodeStatus.Running; }   // ⭐ AB-5 — a bird sits in its tree
             if (ws.Walking != 0)
             {
@@ -255,6 +261,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Arrived != 0 && !fresh) return NodeStatus.Running;
             var here = Here(world, self);
             ws.Target = here + Away(world, self, here) * p.FleeMetres;
+            if (TryHome(world, self, out var pen) && pen.Enclosed != 0) ws.Target = KeepHome(world, self, ws.Target);   // ⭐ AB-9 — a pen holds it
+            if ((double)ws.Since == 0) Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.AnimalAlarm, 2f);   // ⭐ AB-8 — the alarm as it bolts
             ws.Since = (SimInstant)now;
             ws.Arrived = 0;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.FleeSpeed, ArrivalMetres * 2f, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
@@ -315,6 +323,7 @@ namespace Hrot.AI.Behaviors.Brains
             var who = FearOf(world, self).Intruder;
             if (now < (double)ws.NextAimAt || !Present(world, who)) return NodeStatus.Running;
             ws.NextAimAt = (SimInstant)(now + BarkAimSeconds);
+            Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.Bark, BarkAimSeconds);   // ⭐ AB-8 — the bark, every re-aim
             var here = Here(world, self);
             var there = Here(world, who);
             var off = here - there; off.Z = 0f;
@@ -354,6 +363,8 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (now >= (double)ws.NextAimAt)
             {
+                if (Fdp.Toolkit.Civilians.Utterances.Of(world, self, now, out _) != Fdp.Toolkit.Civilians.UtteranceKind.Bark)
+                    Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.Bark, BarkAimSeconds);
                 ws.NextAimAt = (SimInstant)(now + 0.25);
                 LocomotionMoveTo.Issue(world, self, KeepHome(world, self, Here(world, who)), p.FleeSpeed, 0.5f, MoveGait.Upright, onSurface: true, source: MoveSource.Attack);
             }
@@ -447,6 +458,24 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static float Flat(Vector3 v) => MathF.Sqrt(v.X * v.X + v.Y * v.Y);
+
+        /// <summary>⭐ AB-8 — it says <paramref name="kind"/> (the one voice door; its <c>Utterance</c> exists from spawn, so this only writes).</summary>
+        private static void Say(EntityRepository world, Entity self, Fdp.Toolkit.Civilians.UtteranceKind kind, float seconds)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Utterance>() || !world.HasComponent<Fdp.Toolkit.Civilians.Utterance>(self)) return;
+            Fdp.Toolkit.Civilians.Utterances.Say(world, self, kind, Entity.Null, world.SimulationTime, seconds);
+        }
+
+        /// <summary>⭐ AB-8 — a call at rest when its closed-form schedule says so (once per call number; a herd's members share the herd's rate).</summary>
+        private static void CallAtRest(ref AnimalParams p, ref GrazeState ws, Entity self, EntityRepository world, double now)
+        {
+            if (p.CallInterval <= 0f) return;
+            int herd = HerdOf(world, self, out var h) ? Math.Max(1, (int)h.Members) : 1;
+            long k = AnimalCalls.CallDue((uint)self.Index, now, p.CallInterval, herd);
+            if (k < 0 || k == ws.LastCall) return;
+            ws.LastCall = k;
+            Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.AnimalCall, AnimalCalls.CallSeconds);
+        }
 
         private static bool Present(EntityRepository world, Entity who) => !who.IsNull && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, who);
 

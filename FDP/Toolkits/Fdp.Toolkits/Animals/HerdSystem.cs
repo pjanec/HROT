@@ -63,6 +63,8 @@ namespace Fdp.Toolkit.Animals
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
             if (now >= _nextNightLook) { _night = IsNight(repo, now); _nextNightLook = now + NightLookSeconds; }
 
+            LinkToAreas(repo);   // ⭐ AB-9 — an area's arriving animals join its herd
+
             // ① the members, per herd
             _acc.Clear();
             int n = 0;
@@ -94,9 +96,10 @@ namespace Fdp.Toolkit.Animals
             foreach (var h in repo.Query().With<HerdState>().Build())
             {
                 ref var hs = ref repo.GetComponentRW<HerdState>(h);
-                if (!_acc.TryGetValue(h, out var a) || a.Count == 0) { hs.Lead = Entity.Null; continue; }
+                if (!_acc.TryGetValue(h, out var a) || a.Count == 0) { hs.Lead = Entity.Null; hs.Members = 0; continue; }
                 hs.Centre = a.Sum / a.Count;
                 hs.Lead = a.Lead;
+                hs.Members = (ushort)Math.Min(a.Count, ushort.MaxValue);
                 var was = hs.Mode;
                 hs.Mode = a.Mode != AnimalMode.Calm ? a.Mode : (_night ? AnimalMode.Rest : AnimalMode.Calm);
                 bool unset = hs.NextGrazing == Vector3.Zero;
@@ -124,7 +127,36 @@ namespace Fdp.Toolkit.Animals
                 ref var f = ref repo.GetComponentRW<Fear>(m);
                 f.Value = Civilians.CrowdRules.Contagion(f.Value, target, pull, deltaTime);
                 if (src.HasFrightFrom != 0) { f.FrightFrom = src.FrightFrom; f.HasFrightFrom = 1; }
-                f.LastFrightAt = now;
+                f.LastFrightAt = (SimInstant)now;
+            }
+        }
+
+        private readonly List<Entity> _unlinked = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-4623</c> AB-9 — an animal POPULATED from an area (its <see cref="AnimalHome"/> is the area's, no herd yet) joins the area's herd: the
+        /// area entity carrying a <see cref="HerdState"/> of its species and the same home centre. By VALUE, not by an entity id — the creation request
+        /// may be served on another node, where the area has another handle.
+        /// </summary>
+        private void LinkToAreas(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<AnimalHome>() || !repo.IsComponentTypeRegistered<AnimalArea>() || !repo.IsComponentTypeRegistered<AnimalState>()) return;
+            _unlinked.Clear();
+            foreach (var e in repo.Query().With<AnimalHome>().With<AnimalState>().Without<HerdMember>().Build()) _unlinked.Add(e);
+            if (_unlinked.Count == 0) return;
+            for (int i = 0; i < _unlinked.Count; i++)
+            {
+                var e = _unlinked[i];
+                var home = repo.GetComponentRO<AnimalHome>(e);
+                var species = repo.GetComponentRO<AnimalState>(e).Species;
+                foreach (var area in repo.Query().With<AnimalArea>().With<HerdState>().With<AnimalHome>().Build())
+                {
+                    if (repo.GetComponentRO<HerdState>(area).Species != species) continue;
+                    if (Flat((Vector3)repo.GetComponentRO<AnimalHome>(area).Centre - (Vector3)home.Centre) > 0.5f) continue;
+                    repo.AddComponent(e, new HerdMember { Herd = area });
+                    repo.GetComponentRW<AnimalHome>(e).Area = area;
+                    break;
+                }
             }
         }
 

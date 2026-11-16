@@ -45,3 +45,11 @@ sides + rear; 704: 0); sounds 7800–7895 = `7800 + species·8 + line`.
 - The HUD's bolt cue: read **`AnimalFlags.Bolting`** on the horse (replicated); the local `ActionStatus` locomotion row also says `Bolting`.
 - `MeleeWeapon` gains **`MeleeBite = 3`** (appended): the guard dog's bite arrives as a `StrikeNotification` like a blow — draw a snap, not a swing.
 - `AnimalMode.Guard` + `Calling` = the dog barking; `Guard` + `Dangerous` = attacking. A flock: `FlockState.Mode` `Perched` → `Flying` (flushed) → `Landed` → `Perched`.
+- ⭐ **AB-8 — the calls:** `UtteranceKind` **`AnimalCall = 26` · `AnimalAlarm = 27` · `Bark = 28`** on the animal's replicated `Utterance` (the one voice
+  path) — play the species' line for it (`AnimalState.Species`, your 7800 + species·8 + line block). `SoundSourceClass` gains **`Animal = 8`** (an alarm / a
+  bark as heard). The calm-call SCHEDULE is closed form — `Fdp.Toolkit.Animals.AnimalCalls.CallDue(entityIndex, simTime, CallIntervalSeconds, herdMembers)`
+  — but the sim already sends each call as an `Utterance`, so ui needs only to play what arrives.
+- `HerdState`'s last 2 bytes are now `ushort Members` (was padding) — backend's; ui does not read it.
+- ⭐ **AB-9 — the animal area:** TKB **712** is registered (defaults `AnimalAreaDto`: species 0, count 12). An area entity = the one area tool's
+  `EditablePolyline` + **`AnimalArea` (506)**: `AnimalSpecies Species` · `byte Enclosed` · `ushort Count` · `uint Seed` — **8 B**, authored and saved;
+  ui's Details form edits these four. `AnimalAreaPopulated` (507, `SimInstant At`) is backend's run-time mark — never shown, never saved.

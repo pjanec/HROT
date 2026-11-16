@@ -21,8 +21,8 @@ Started at `c24f127cb` (merged `coordinator@d367b6a04`). Contract note to ui: `3
 | **AB-5** species plays | ✅ built | the GUARD DOG (barks at a person on its ground from inside its home and chain; bites one who comes close inside it — `MeleeBite`, little damage, a short stagger — marked Dangerous: no longer held as a neutral, firing at it is self-defence; settles when he leaves); BIRDS (perched → flushed `Flying` → `Landed` → perched); the RIDDEN HORSE BOLTS past its line for 6 s, overriding the rider in the manual drive (full gallop away from the fright, no reverse), `Bolting` replicated + the `ActionStatus` reason; cats / hens / pigs / goats on the common brain with their numbers |
 | **AB-6** jump links | ⏳ deferred to after AB-10 (L-A19) | the real Recast bake has NO off-mesh connections — measured: `RecastNavmeshBaker` builds none, only the fake navmesh has `OffMeshLink` |
 | **AB-7** panic breach | ✅ built | a panicked big animal (a fence-breaking species, fleeing in panic) breaks a SMALL fence through the ONE contact rule — its own `panicked-animal` row (wire / wood / sheet break; a hedge or a wall holds), the vehicle's breach record and Broke cue unchanged; a calm cow or a panicked sheep is held; no vehicle takes the animal row |
-| **AB-8** sounds | ⏳ | — |
-| **AB-9** animal area | ⏳ | — |
+| **AB-8** sounds | ✅ built | animal calls on the ONE voice path — `AnimalCall` / `AnimalAlarm` / `Bark` (26–28) on the animal's `Utterance`, heard at their own range (300 / 600 / 800 m) and class (an alarm or a bark is the new `SoundSourceClass.Animal`, a fright to other animals only); the calm calls on a CLOSED-FORM schedule with a per-herd throttle (~3 calls per interval for the herd); the alarm as it bolts, the bark while it barks |
+| **AB-9** animal area | ✅ built | TKB 712 registered; its `AnimalArea` (species, count, seed, Enclosed) authored; `AnimalAreaSystem` populates it ONCE at run start on its owner — transient creation requests with GUIDs derived from the area's (a flock area: one flock of that many birds), the area marked `AnimalAreaPopulated` (recorded, never saved) so a restore or replay never repopulates, and made the herd its animals join; an Enclosed pen holds a frightened animal |
 | **AB-10** demo | ⏳ | — |
 
 ## Lane decisions (for the user's review — each says what would change it)
@@ -47,6 +47,10 @@ Started at `c24f127cb` (merged `coordinator@d367b6a04`). Contract note to ui: `3
 | L-A17 | the bolt overrides only the MANUAL (possessed) drive; an unridden riding horse just flees with its brain | the design's bolt is the rider's problem (AR-10); an AI rider (no possession) would need the same override in the autonomous path — filed |
 | L-A18 | the cat's sill hop, the horse's jump and tree perching wait for AB-6 (jump links) and a tree / orchard layer | built in the order of the handoff; the brain states are species-data, so they need no rework when the links land |
 | L-A19 | AB-6 (jump links) is built AFTER AB-8 … AB-10, not before | the Recast bake has no off-mesh connections at all (a bake, a per-animal query filter and the traversal are all new) while the demo needs none of it; the handoff's order is kept for every other task |
+| L-A20 | call ranges are per CALL KIND (call 300, alarm 600, bark 800 m), not the species' `CallRangeM` / `AlarmRangeM` | the hearing solve may run on a snapshot view with no TKB database; a species range would need it carried on a component — a small follow-up |
+| L-A21 | free values: `UtteranceKind` 26–28, `SoundSourceClass.Animal` = 8 (measured free on ui, behaviors, coordinator 2026-11-16) | — |
+| L-A22 | component ids 506 / 507 (`AnimalArea`, `AnimalAreaPopulated`) — measured free on every lane | — |
+| L-A23 | the animals are created through the creation path in MacroInsertion's SHAPE (transient, derived GUID, the default processor) by `AnimalAreaSystem` itself, not through a macro ASSET | a macro per species would need content files and an expansion per animal for no gain; one shared helper for "a transient derived-id creation request" is the follow-up |
 | L-A5 | the CE-1208 sprint rail now means PEOPLE (`Pedestrian`), not every Kind-3 type | the same "life form = a man" assumption the review warned about, in a test |
 
 ## Gates
@@ -71,7 +75,12 @@ Started at `c24f127cb` (merged `coordinator@d367b6a04`). Contract note to ui: `3
 | **AB-5** red-proofs | intruder search skipped ⇒ dog rail red; a dangerous dog still neutral ⇒ red; the home/chain clamp dropped ⇒ red; the flock never flushes ⇒ red; the bolt line ignored ⇒ red |
 | **AB-5** found + fixed (not mine) | the threat phase read a target's `Locomotion` / `Descent` undeclared (V8 under the checks) — declared; `WL6_EveryWeaponStatusHasAPosture` now exempts `Bolting` (a locomotion reason, like `Moving`) |
 | **AB-7** red-proofs | the animal arm dropped from the kinematics gate ⇒ the panicked cow is held (red); any vehicle allowed the animal row ⇒ the new car rail red |
+| **AB-8** toolkit WHOLE suite | 5122 / 5129 (1 skipped); the 6 reds are the S0 type-discipline rails naming OTHER lanes' members only (terrain `TerrainBlock/Feature.HeadingDeg`, `BladeCut.PushSeconds`, orchestration `NodeId`s, replay browser `ExerciseId`, drone-team params) — my animal fields were retyped to `SimInstant` / `WorldPoint` to pass them (that is why `Fear` / `AnimalHome` / `HerdState` changed type, same layout) |
+| **AB-8** red-proofs | the herd throttle removed ⇒ the call-schedule rail red; a bark at a man's 40 m voice ⇒ the hearing rail red; no alarm as it bolts ⇒ the herd rail red |
+| **AB-8 + AB-9** `Hrot.SimHost.Tests` filtered (animals, area, civilian HSM, crowd, melee, force levels, possession, breach, descriptor map), WITH and WITHOUT the checks | 89 / 89 both |
+| **AB-8 + AB-9** toolkit filtered (animals, civilians, perception, crowd, data policy) · `Hrot.Core.Tests` whole | 301 / 301 · 374 / 374 |
+| **AB-9** red-proofs | the populated mark not checked ⇒ the area asks twice (red); the outline ignored ⇒ an animal outside the field (red); the pen clamp dropped ⇒ the penned animal runs out (red) |
 | civilian / crowd / vehicle SCENARIO re-runs and `stepped-hash.py --threads 1,4,8` | ⏳ batched into AB-10 (one cluster run covers the demo and the regression scenarios); the unit-level civilian, crowd and traffic suites above are unchanged |
 
 ## Next step
-AB-8: animal sounds, sim side (call kinds on the voice path, closed-form call timing, the alarm, hooves and wings, a per-herd throttle); then AB-9, AB-10, and AB-6 last.
+AB-10: the demo `farm-under-fire` (pasture + herd by a road, dog at the house, hens, a pig pen, birds in an orchard; a tank passes, shots): three seeded runs, deterministic at 1 / 4 / 8 threads. Then AB-6.

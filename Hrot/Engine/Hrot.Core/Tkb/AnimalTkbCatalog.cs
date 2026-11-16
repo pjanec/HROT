@@ -55,6 +55,10 @@ namespace Hrot.Core.Tkb
         {
             if (tkb == null) throw new ArgumentNullException(nameof(tkb));
             foreach (var r in Species) Register(tkb, r);
+            // ⭐ AB-9 (AR-16) — the ANIMAL AREA: an area drawn with the one area tool; its species / count / Enclosed, defaults here
+            var area = new TkbTemplate("AnimalArea", TkbEntityTypes.AnimalArea);
+            area.AddDescriptor(new AnimalAreaDto { Species = 0, Count = 12 });
+            tkb.Register(area);
         }
 
         private static void Register(ITkbDatabase tkb, Row r)

@@ -53,15 +53,15 @@ namespace Fdp.Toolkit.Animals
         /// <summary>0 = calm … 1 = blind panic.</summary>
         public float Value;
         /// <summary>Where the last fright came from (a shot, the man walking up, the tank) — it runs AWAY from here.</summary>
-        public Vector3 FrightFrom;
+        public WorldPoint FrightFrom;
         /// <summary>Sim seconds of the last fright (a fright this frame is not faded in the same frame).</summary>
-        public double LastFrightAt;
+        public SimInstant LastFrightAt;
         /// <summary>Sim seconds of the next flight-zone look (the zone is looked at ~5 times a second, not every frame).</summary>
-        public double NextZoneLookAt;
+        public SimInstant NextZoneLookAt;
         /// <summary>⭐ AB-5 — a TERRITORIAL animal's intruder: the nearest person on its ground (the guard dog's bark and bite), Null = none.</summary>
         public Entity Intruder;
         /// <summary>⭐ AB-5 — a ridden horse bolts until this sim time (0 = not bolting).</summary>
-        public double BoltUntil;
+        public SimInstant BoltUntil;
         /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>
         public byte HasFrightFrom;
         /// <summary>1 when the last fright was the FLIGHT ZONE (a threat seen near), 0 when it was heard or felt.</summary>
@@ -124,7 +124,7 @@ namespace Fdp.Toolkit.Animals
     [DataPolicy(DataPolicy.Default)]
     public struct AnimalHome
     {
-        public Vector3 Centre;
+        public WorldPoint Centre;
         public float Radius;
         /// <summary>0 = no tether; else the chain's length from <see cref="Centre"/> (m).</summary>
         public float TetherMetres;
@@ -141,11 +141,39 @@ namespace Fdp.Toolkit.Animals
     [DataPolicy(DataPolicy.Default)]
     public struct HerdState
     {
-        public Vector3 Centre;
-        public Vector3 NextGrazing;
+        public WorldPoint Centre;
+        public WorldPoint NextGrazing;
         public Entity Lead;
         public AnimalMode Mode;
         public AnimalSpecies Species;
-        private ushort _pad;
+        /// <summary>⭐ AB-8 — its living members (the herd's call throttle reads it; was padding).</summary>
+        public ushort Members;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4623</c> AB-9 (docs/designs/animals/DESIGN_Animals.md AR-16) — an ANIMAL AREA (TKB 712, drawn with the one area tool): which species
+    /// lives in it, how many, the seed that places them, and whether it is ENCLOSED (a pen: nothing runs out of it). AUTHORED and saved; the animals are
+    /// NOT — they are populated at run start (<see cref="AnimalAreaPopulated"/>).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.AnimalArea)]
+    [DataPolicy(DataPolicy.Default)]
+    public struct AnimalArea
+    {
+        public AnimalSpecies Species;
+        public byte Enclosed;
+        public ushort Count;
+        public uint Seed;
+    }
+
+    /// <summary>⭐ AB-9 — the area WAS populated (its animals were asked for). Recorded, so a restore or a replay sees it and never repopulates; never
+    /// saved, so a scenario loaded fresh populates once.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.AnimalAreaPopulated)]
+    [DataPolicy(DataPolicy.NoScenario)]
+    public struct AnimalAreaPopulated
+    {
+        /// <summary>Sim time it was populated.</summary>
+        public SimInstant At;
     }
 }

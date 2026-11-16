@@ -67,6 +67,7 @@ namespace Hrot.SimHost.Tests
                 BlueprintTierTable.RegisterAll(Repo);
                 foreach (var t in new AnimalTkbTranslator().GetProducedComponents()) { }
                 Reg<AnimalState>(); Reg<Fear>(); Reg<HerdMember>(); Reg<HerdState>(); Reg<AnimalHome>(); Reg<FlockState>(); Reg<TkbIdentity>();
+                Reg<Fdp.Toolkit.Civilians.Utterance>();
                 if (!Repo.IsComponentTypeRegistered<StanceIntent>()) Repo.RegisterComponent<StanceIntent>();
                 if (!Repo.IsComponentTypeRegistered<InjuryThresholds>()) Repo.RegisterComponent<InjuryThresholds>();
                 Repo.SetSingletonManaged<IGeographicTransform>(UtmTransform.AtOrigin(0.0, 0.0, 0.0));
@@ -102,6 +103,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
                 Repo.AddComponent(e, new AnimalState { Species = species });
                 Repo.AddComponent(e, new Fear());
+                Repo.AddComponent(e, new Fdp.Toolkit.Civilians.Utterance());
                 if (!Repo.IsComponentTypeRegistered<EntityInfo>()) Repo.RegisterComponent<EntityInfo>();
                 Repo.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });   // spawned neutral (AR-6)
                 return e;
@@ -132,6 +134,7 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new AnimalState { Species = AnimalSpecies.Cattle });
                 Repo.AddComponent(e, new Fear());
                 Repo.AddComponent(e, new HerdMember { Herd = Herd });
+                Repo.AddComponent(e, new Fdp.Toolkit.Civilians.Utterance());   // its voice, from spawn (the translator's)
                 return e;
             }
 
@@ -181,7 +184,7 @@ namespace Hrot.SimHost.Tests
             w.Run(0.5);
             Assert.Equal(AnimalMode.Calm, w.Mode(w.A));
             var spot = w.Repo.GetComponentRO<HerdState>(w.Herd).NextGrazing;
-            Assert.NotEqual(Vector3.Zero, spot);                                         // the herd picked a grazing spot
+            Assert.NotEqual(Vector3.Zero, (Vector3)spot);                                         // the herd picked a grazing spot
             var (to, speed, moving) = w.Move(w.A);
             Assert.True(moving);
             Assert.True(Vector2.Distance(new(to.X, to.Y), new(spot.X, spot.Y)) <= AnimalBehavior.TightSpreadMetres + AnimalBehavior.LooseSpreadMetres + 0.1f,
@@ -190,11 +193,13 @@ namespace Hrot.SimHost.Tests
 
             // a fright past panic on cow A only, from the west
             var from = new Vector3(-50, 0, 0);
-            var fear = new Fear { Value = 0.95f, FrightFrom = from, HasFrightFrom = 1, LastFrightAt = w.Repo.SimulationTime };
+            var fear = new Fear { Value = 0.95f, FrightFrom = from, HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
             w.Repo.GetComponentRW<Fear>(w.A) = fear;
             w.Run(2.0);   // contagion carries B past panic in ~1 s (8 m from A, cattle cohesion 0.4)
             Assert.Equal(AnimalMode.Flee, w.Mode(w.A));
             Assert.Equal(AnimalMode.Flee, w.Mode(w.B));                                  // caught it from A (contagion)
+            Assert.Equal(Fdp.Toolkit.Civilians.UtteranceKind.AnimalAlarm,                  // ⭐ AB-8 — the alarm as it bolted
+                w.Repo.GetComponentRO<Fdp.Toolkit.Civilians.Utterance>(w.B).Kind);
             foreach (var c in new[] { w.A, w.B })
             {
                 var (dest, s, m) = w.Move(c);
@@ -244,6 +249,8 @@ namespace Hrot.SimHost.Tests
             Assert.True((flags & AnimalFlags.Calling) != 0);
             Assert.True((flags & AnimalFlags.Dangerous) == 0);
             Assert.True(Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(w.Repo, dog));   // a barking dog is still a neutral
+            Assert.Equal(Fdp.Toolkit.Civilians.UtteranceKind.Bark,                                      // ⭐ AB-8 — and it is heard barking
+                Fdp.Toolkit.Civilians.Utterances.Of(w.Repo, dog, w.Repo.SimulationTime, out _));
             var (to, _, moving) = w.Move(dog);
             Assert.True(moving);
             Assert.True(Vector2.Distance(new(to.X, to.Y), new(100, 0)) <= 20.01f, $"it stays inside its ground: {to}");
@@ -282,7 +289,7 @@ namespace Hrot.SimHost.Tests
             w.Run(0.5);
             Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
             Assert.False(w.Move(flock).Moving);                                              // a perched flock does not wander
-            w.Repo.GetComponentRW<Fear>(flock) = new Fear { Value = 0.9f, FrightFrom = new Vector3(-150, 0, 0), HasFrightFrom = 1, LastFrightAt = w.Repo.SimulationTime };
+            w.Repo.GetComponentRW<Fear>(flock) = new Fear { Value = 0.9f, FrightFrom = new Vector3(-150, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
             w.Run(0.3);
             Assert.Equal(FlockMode.Flying, w.Repo.GetComponentRO<FlockState>(flock).Mode);
             var (to, speed, _) = w.Move(flock);
@@ -295,6 +302,27 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<Fear>(flock).Value = 0f;
             w.Run(Flock.RecoverySeconds * AnimalBehavior.LookBackShare + 0.5);
             Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-9 — an ENCLOSED pen holds its animals: a frightened one runs only to the pen's edge, where one in an open
+        /// area runs its full flee distance. 🔴 Red-proof: the Enclosed clamp dropped from Flee ⇒ the penned one's run leaves the pen ⇒ red.</summary>
+        [Fact]
+        public void CE4623_AnEnclosedPen_HoldsAFrightenedAnimal_AnOpenAreaDoesNot()
+        {
+            var w = new World();
+            var penned = w.Animal(CowType, new Vector3(-200, 50, 0), AnimalSpecies.Cattle);
+            w.Repo.AddComponent(penned, new AnimalHome { Centre = new Vector3(-200, 50, 0), Radius = 10f, Enclosed = 1 });
+            var open = w.Animal(CowType, new Vector3(-200, -50, 0), AnimalSpecies.Cattle);
+            w.Repo.AddComponent(open, new AnimalHome { Centre = new Vector3(-200, -50, 0), Radius = 10f, Enclosed = 0 });
+            w.Start(penned); w.Start(open);
+            w.Run(0.3);
+            foreach (var (e, y) in new[] { (penned, 50f), (open, -50f) })
+                w.Repo.GetComponentRW<Fear>(e) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-260, y, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
+            w.Run(0.3);
+            var (pen, _, _) = w.Move(penned);
+            var (field, _, _) = w.Move(open);
+            Assert.True(Vector2.Distance(new(pen.X, pen.Y), new(-200, 50)) <= 10.01f, $"the pen holds it: {pen}");
+            Assert.True(field.X > -100f, $"in the open it runs its distance: {field}");
         }
 
         [Fact]
@@ -310,7 +338,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(w.Herds.Night);
             Assert.Equal(AnimalMode.Rest, w.Mode(w.A));
             Assert.False(w.Move(w.A).Moving);
-            w.Repo.GetComponentRW<Fear>(w.A) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-50, 0, 0), HasFrightFrom = 1, LastFrightAt = w.Repo.SimulationTime };
+            w.Repo.GetComponentRW<Fear>(w.A) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-50, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
             w.Run(0.5);
             Assert.Equal(AnimalMode.Flee, w.Mode(w.A));
         }

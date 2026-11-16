@@ -47,6 +47,14 @@ namespace Fdp.Toolkit.Civilians
         CmdHold = 23,
         CmdFallBack = 24,
         CallAck = 25,
+        // ⭐ CE-4623 AB-8 (docs/designs/animals/DESIGN_Animals.md AR-7) — ANIMAL calls on the same voice path (measured free on every lane 2026-11-16):
+        //   heard at the call's own range (Fdp.Toolkit.Animals.AnimalCalls), the operator and the AI hear the same call
+        /// <summary>A call at rest (a moo, a baa, a cluck) — heard, frightens nothing.</summary>
+        AnimalCall = 26,
+        /// <summary>An ALARM call (a bellow, a squeal, a bird's alarm) — other animals hear it as a fright.</summary>
+        AnimalAlarm = 27,
+        /// <summary>A guard dog's bark — far-carrying; a sentry hears it.</summary>
+        Bark = 28,
     }
 
     /// <summary>

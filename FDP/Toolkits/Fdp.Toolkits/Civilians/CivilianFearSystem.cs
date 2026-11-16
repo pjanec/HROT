@@ -153,7 +153,7 @@ namespace Fdp.Toolkit.Civilians
                 ref var f = ref repo.GetComponentRW<Animals.Fear>(a);
                 if (now >= f.NextZoneLookAt && t != null && repo.HasComponent<SimTransform>(a) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, a))
                 {
-                    f.NextZoneLookAt = now + Animals.AnimalFear.ZoneLookSeconds;
+                    f.NextZoneLookAt = (SimInstant)(now + Animals.AnimalFear.ZoneLookSeconds);
                     if (nThreats < 0) nThreats = GatherThreats(repo);
                     var here = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(a).Position;
                     var seen = new ReadOnlySpan<Animals.AnimalFear.Threat>(_threats, 0, nThreats);

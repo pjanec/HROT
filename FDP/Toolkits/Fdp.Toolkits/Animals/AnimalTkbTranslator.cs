@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Animals
         /// <summary>A flock's birds when nothing set its count (an area or the author may).</summary>
         public const ushort DefaultFlockCount = 40;
 
-        public IEnumerable<Type> GetConsumedDescriptors() { yield return typeof(AnimalTemperamentDto); }
+        public IEnumerable<Type> GetConsumedDescriptors() { yield return typeof(AnimalTemperamentDto); yield return typeof(AnimalAreaDto); }
 
         public IEnumerable<Type> GetProducedComponents()
         {
@@ -27,17 +27,34 @@ namespace Fdp.Toolkit.Animals
             yield return typeof(HerdMember);
             yield return typeof(AnimalHome);
             yield return typeof(HerdState);
+            yield return typeof(Fdp.Toolkit.Civilians.Utterance);   // ⭐ AB-8 — its voice (calls, alarms, the bark)
+            yield return typeof(AnimalArea);                         // ⭐ AB-9 — an animal area's species / count / seed / Enclosed
+            yield return typeof(AnimalAreaPopulated);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
+            // ⭐ AB-9 — an animal AREA: its defaults, unless the author already set them (a loaded scenario's AnimalArea wins)
+            if (template.GetDescriptor<AnimalAreaDto>() is { } area)
+            {
+                if (repo.IsComponentTypeRegistered<AnimalArea>() && !repo.HasComponent<AnimalArea>(entity))
+                    repo.AddComponent(entity, new AnimalArea
+                    {
+                        Species = (AnimalSpecies)area.Species, Count = (ushort)Math.Clamp(area.Count, 0, ushort.MaxValue),
+                        Enclosed = (byte)(area.Enclosed ? 1 : 0), Seed = (uint)entity.Index * 2654435761u,
+                    });
+                return;
+            }
             var dto = template.GetDescriptor<AnimalTemperamentDto>();
             if (dto == null) return;
             if (repo.IsComponentTypeRegistered<AnimalState>() && !repo.HasComponent<AnimalState>(entity))
                 repo.AddComponent(entity, new AnimalState { Species = (AnimalSpecies)dto.Species, Mode = AnimalMode.Calm });
+            // ⭐ AB-8 — its voice, present from spawn so the brain only WRITES it (never adds a component inside the parallel phase)
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Utterance>() && !repo.HasComponent<Fdp.Toolkit.Civilians.Utterance>(entity))
+                repo.AddComponent(entity, new Fdp.Toolkit.Civilians.Utterance());
             // ⭐ AB-3 — its fear (kept where its brain runs; harmless elsewhere); the flight-zone looks staggered by entity so they spread over frames
             if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(entity))
-                repo.AddComponent(entity, new Fear { NextZoneLookAt = (entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10f) });
+                repo.AddComponent(entity, new Fear { NextZoneLookAt = (SimInstant)((entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10.0)) });
             if ((AnimalSpecies)dto.Species == AnimalSpecies.BirdFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
                 repo.AddComponent(entity, new FlockState { Count = DefaultFlockCount, InitialCount = DefaultFlockCount, Seed = (uint)template.TkbType, Mode = FlockMode.Perched });
         }

@@ -1347,5 +1347,9 @@ namespace Fdp.Core
         public const int AnimalHome = 504;
         /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
         public const int HerdState = 505;
+        /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
+        public const int AnimalArea = 506;
+        /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
+        public const int AnimalAreaPopulated = 507;
     }
 }

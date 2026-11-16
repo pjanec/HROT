@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Animals.Tests
             w.GetSingletonManaged<ITkbDatabase>().TryGetByType(type, out var t);
             new AnimalTkbTranslator().Inject(w, e, t!);
             ref var f = ref w.GetComponentRW<Fear>(e);
-            f.NextZoneLookAt = 0;   // look from the first frame
+            f.NextZoneLookAt = default;   // look from the first frame
             return e;
         }
 
@@ -155,7 +155,7 @@ namespace Fdp.Toolkit.Animals.Tests
             Frame(w, sys, 0.1f);
             Assert.Equal(CivilianFear.Impulse(SoundSourceClass.SmallArms, 20f), w.GetComponentRO<Fear>(cow).Value, 3);
             Assert.Equal(0f, w.GetComponentRO<Fear>(dog).Value);
-            Assert.Equal(new Vector3(20, 0, 0), w.GetComponentRO<Fear>(cow).FrightFrom);
+            Assert.Equal(new Vector3(20, 0, 0), (Vector3)w.GetComponentRO<Fear>(cow).FrightFrom);
             Assert.False(w.HasComponent<CivilianState>(cow));   // ⛔ never a civilian
 
             w.Bus.Publish(new SoundContactEvent { Observer = dog, X = 20, Y = 0, SourceClass = (byte)SoundSourceClass.Explosion });
@@ -181,7 +181,7 @@ namespace Fdp.Toolkit.Animals.Tests
             w.AddComponent(b, new HerdMember { Herd = herd });
             var herds = new HerdSystem();
             herds.Execute(w, 0.1f);
-            Assert.Equal(new Vector3(5, 0, 0), w.GetComponentRO<HerdState>(herd).Centre);
+            Assert.Equal(new Vector3(5, 0, 0), (Vector3)w.GetComponentRO<HerdState>(herd).Centre);
             Assert.Equal(a, w.GetComponentRO<HerdState>(herd).Lead);
 
             w.GetComponentRW<Fear>(a) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-40, 0, 0), HasFrightFrom = 1 };
@@ -189,7 +189,7 @@ namespace Fdp.Toolkit.Animals.Tests
             var fb = w.GetComponentRO<Fear>(b);
             Assert.True(fb.Value > 0.75f, $"the cow beside a panicking one panics too: {fb.Value}");
             Assert.True(fb.Value <= Civilians.CrowdRules.ContagionShare * 0.95f + 1e-4f);
-            Assert.Equal(new Vector3(-40, 0, 0), fb.FrightFrom);
+            Assert.Equal(new Vector3(-40, 0, 0), (Vector3)fb.FrightFrom);
 
             for (int i = 0; i < 10; i++) herds.Execute(w, 0.1f);
             long before = GC.GetAllocatedBytesForCurrentThread();
@@ -210,7 +210,7 @@ namespace Fdp.Toolkit.Animals.Tests
             var herd = w.CreateEntity();
             w.AddComponent(herd, new AnimalHome { Centre = Vector3.Zero, Radius = 60f });
             var lead = Animal(w, CattleType, Vector3.Zero);
-            w.GetComponentRW<Fear>(lead) = new Fear { Value = 0.2f, FrightFrom = new Vector3(-80, 0, 0), HasFrightFrom = 1, LastFrightAt = 10.0 };
+            w.GetComponentRW<Fear>(lead) = new Fear { Value = 0.2f, FrightFrom = new Vector3(-80, 0, 0), HasFrightFrom = 1, LastFrightAt = (SimInstant)10.0 };
             var hs = new HerdState { Lead = lead };
             float sumAfraid = 0f;
             for (int i = 0; i < 20; i++)
@@ -251,6 +251,37 @@ namespace Fdp.Toolkit.Animals.Tests
             w.GetComponentRW<Fear>(horse).Value = 0.5f;
             for (int i = 0; i < (int)(AnimalFear.BoltSeconds / 0.1f) + 2; i++) Frame(w, sys, 0.1f);
             Assert.True((w.GetComponentRO<AnimalState>(horse).Flags & AnimalFlags.Bolting) == 0, "the bolt is over");
+        }
+
+        /// <summary>⭐⭐ <c>CE-4623</c> AB-8 (AR-7) — the CLOSED-FORM call schedule: a lone cow calls about once per its interval, a herd of 30 calls
+        /// about <see cref="AnimalCalls.CallersPerHerd"/> times per interval in all (the per-herd throttle) — not 30; pure (the same numbers twice);
+        /// another animal's ALARM frightens an animal and never a civilian. 🔴 Red-proof: the herd stretch removed ⇒ the herd calls ~30× ⇒ red.</summary>
+        [Fact]
+        public void CE4623_Calls_FollowAClosedFormSchedule_AHerdIsThrottled_AnAlarmFrightensAnimalsOnly()
+        {
+            const float interval = 45f;
+            int lone = 0, herd = 0;
+            long last = -1;
+            for (double t = 0; t < 900; t += 0.1)
+            {
+                long k = AnimalCalls.CallDue(7, t, interval, 1);
+                if (k >= 0 && k != last) { lone++; last = k; }
+            }
+            var lastOf = new long[30];
+            for (int m = 0; m < 30; m++) lastOf[m] = -1;
+            for (double t = 0; t < 900; t += 0.1)
+                for (int m = 0; m < 30; m++)
+                {
+                    long k = AnimalCalls.CallDue((uint)(100 + m), t, interval, 30);
+                    if (k >= 0 && k != lastOf[m]) { herd++; lastOf[m] = k; }
+                }
+            Assert.InRange(lone, 18, 21);                                       // 900 / 45 = 20
+            Assert.InRange(herd, 55, 65);                                       // 3 per interval, not 600
+            Assert.Equal(AnimalCalls.CallDue(7, 123.4, interval, 1), AnimalCalls.CallDue(7, 123.4, interval, 1));
+
+            Assert.True(AnimalFear.Impulse(Cattle, SoundSourceClass.Animal, 50f) > 0.2f);
+            Assert.Equal(0f, Civilians.CivilianFear.Impulse(SoundSourceClass.Animal, 50f));
+            Assert.Equal(0f, AnimalFear.Impulse(Cattle, SoundSourceClass.Footsteps, 5f));   // a moo nearby frightens nothing
         }
 
         /// <summary>⭐ R-2084 — the steady frame of the animal pass allocates nothing (the threat buffer is reused).</summary>

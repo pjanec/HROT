@@ -196,9 +196,14 @@ namespace Fdp.Toolkit.Perception.Sensors
             foreach (var (_, source) in broadphase.Select(view, unit, range, fovCos: -1f))
             {
                 // ⭐ AQ105 D — a SHOUT (his replicated Utterance, on whichever node hears): heard while he speaks, like his steps
-                if (Fdp.Toolkit.Civilians.Utterances.IsShouted(Fdp.Toolkit.Civilians.Utterances.Of(view, source, now, out _)))
-                    Sound(candidates, ref n, in ears, view.GetComponentRO<SimTransform>(source).Position, AcousticPerception.VoiceRange,
-                          SoundKind.Movement, (byte)SoundSourceClass.Footsteps, source.PackedValue, ears.Tick ^ VoiceSeed);
+                var said = Fdp.Toolkit.Civilians.Utterances.Of(view, source, now, out _);
+                if (Fdp.Toolkit.Civilians.Utterances.IsShouted(said))
+                {
+                    // ⭐ CE-4623 AB-8 — an animal's call / alarm / bark at its own range and class (AnimalCalls.Heard); a man's shout as before
+                    Fdp.Toolkit.Animals.AnimalCalls.Heard(said, AcousticPerception.VoiceRange, out float voice, out byte voiceClass);
+                    Sound(candidates, ref n, in ears, view.GetComponentRO<SimTransform>(source).Position, voice,
+                          SoundKind.Movement, voiceClass, source.PackedValue, ears.Tick ^ VoiceSeed);
+                }
                 if (!view.HasComponent<AcousticEmitter>(source)) continue;
                 var a  = view.GetComponentRO<AcousticEmitter>(source);
                 if (a.CurrentMovingRange > 0f)
