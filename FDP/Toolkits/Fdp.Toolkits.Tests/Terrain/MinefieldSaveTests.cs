@@ -93,7 +93,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             var blue = saved.Knowledge.Single(k => k.SidePlus1 == Blue + 1);
             Assert.Equal(FieldA, blue.Subject);
             Assert.False(blue.Marked);
-            Assert.Equal(12.5, blue.LearnedAt);
+            Assert.Equal(12.5, (double)blue.LearnedAt);
             Assert.Equal(KnowledgeSource.Recon, blue.Source);
             Assert.Equal(new[] { (((byte)0, (byte)0), (byte)2), (((byte)4, (byte)3), (byte)3), (((byte)63, (byte)59), (byte)1) },
                 blue.Cells.Select(kv => (kv.Key, kv.Value)).ToArray());
@@ -150,7 +150,7 @@ namespace Fdp.Toolkit.Terrain.Tests
 
                 var a = saved.Knowledge.Single(k => k.Subject == FieldA);
                 Assert.True(a.Marked);                                    // OR
-                Assert.Equal(9.0, a.LearnedAt);                           // max
+                Assert.Equal(9.0, (double)a.LearnedAt);                           // max
                 Assert.Equal((byte)3, a.Cells[((byte)1, (byte)1)]);       // max(suspected, known-mined)
                 Assert.Equal((byte)2, a.Cells[((byte)2, (byte)2)]);       // max(known-clear, suspected)
                 Assert.Equal((byte)3, a.Cells[((byte)3, (byte)3)]);

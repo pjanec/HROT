@@ -199,7 +199,7 @@ public static class TerrainObjectRequests
             {
                 var r = new MinefieldKnowledge();
                 r.Header.SubjectKind = SubjectKind.Entity; r.Header.Subject = k.Subject; r.Header.ObjectIndex = -1; r.Header.SidePlus1 = k.SidePlus1;
-                r.Header.Kind = k.Kind; r.Header.Chunk = k.Chunk; r.Header.Marked = (byte)(k.Marked ? 1 : 0); r.Header.LearnedAt = (SimInstant)k.LearnedAt; r.Header.Source = k.Source;
+                r.Header.Kind = k.Kind; r.Header.Chunk = k.Chunk; r.Header.Marked = (byte)(k.Marked ? 1 : 0); r.Header.LearnedAt = k.LearnedAt; r.Header.Source = k.Source;
                 foreach (var ((row, col), level) in k.Cells) r.Set(col, row, (MineCellKnowledge)level);
                 requests.Add(Req(MinefieldKnowledge.TkbType, r));
             }

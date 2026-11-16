@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Terrain
         public PlaceKnowledgeKind Kind = PlaceKnowledgeKind.Minefield;
         public ushort Chunk;
         public bool Marked;
-        public double LearnedAt;
+        public SimInstant LearnedAt;
         public KnowledgeSource Source;
         /// <summary>(col, row) → level; only cells above unknown.</summary>
         public readonly SortedDictionary<(byte Row, byte Col), byte> Cells = new();
@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Terrain
             var k = new SavedKnowledge
             {
                 Subject = r.Header.Subject, SidePlus1 = r.Header.SidePlus1, Kind = r.Header.Kind, Chunk = r.Header.Chunk,
-                Marked = r.Header.Marked != 0, LearnedAt = (double)r.Header.LearnedAt, Source = r.Header.Source,
+                Marked = r.Header.Marked != 0, LearnedAt = r.Header.LearnedAt, Source = r.Header.Source,
             };
             for (int row = 0; row < MinefieldKnowledge.MaxRows; row++)
                 for (int col = 0; col < MinefieldKnowledge.MaxCols; col++)
@@ -177,7 +177,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var ((row, col), level) in k.Cells) cells.Add(new JsonArray((int)row, (int)col, (int)level));
             var o = new JsonObject { [CellsProperty] = cells };
             if (k.Marked) o["marked"] = true;
-            o["learnedAt"] = k.LearnedAt;
+            o["learnedAt"] = (double)k.LearnedAt;
             o["source"] = (int)k.Source;
             return o;
         }
@@ -223,7 +223,7 @@ namespace Fdp.Toolkit.Terrain
                         var k = new SavedKnowledge
                         {
                             Subject = guid, SidePlus1 = side, Kind = kind, Chunk = ushort.Parse(parts[3], CultureInfo.InvariantCulture),
-                            Marked = entry["marked"]?.GetValue<bool>() ?? false, LearnedAt = entry["learnedAt"]?.GetValue<double>() ?? 0d,
+                            Marked = entry["marked"]?.GetValue<bool>() ?? false, LearnedAt = (SimInstant)(entry["learnedAt"]?.GetValue<double>() ?? 0d),
                             Source = (KnowledgeSource)(entry["source"]?.GetValue<int>() ?? 0),
                         };
                         var rows = (JsonArray)entry[CellsProperty]!;

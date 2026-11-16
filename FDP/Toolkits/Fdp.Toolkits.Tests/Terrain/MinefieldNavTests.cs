@@ -267,6 +267,44 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐ MR-3, R-2084 — the bake's change detection: <c>MinefieldSet.SignatureOf</c> is 0 with no field, steady and ALLOCATION-FREE with one, and moves with everything the bake reads — an outline point, the position, a lane
+        /// record added (and back when it goes: a seek). 🔴 Red-proof: leave the lane records out of the hash ⇒ the lane step reads equal.
+        /// </summary>
+        [Fact]
+        public void CE4624_TheBakeSignature_IsStable_AllocatesNothing_AndMovesWithTheFieldsContent()
+        {
+            using var empty = new EntityRepository();
+            empty.RegisterComponent<Minefield>(); empty.RegisterComponent<SimTransform>();
+            Assert.Equal(0UL, MinefieldSet.SignatureOf(empty));
+
+            var rig = new Rig(LongField, knownAtStart: 0);
+            rig.R.Tick();
+            ulong a = MinefieldSet.SignatureOf(rig.R);
+            Assert.NotEqual(0UL, a);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            bool stable = true;
+            for (int i = 0; i < 100; i++) stable &= MinefieldSet.SignatureOf(rig.R) == a;
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(stable);
+
+            rig.R.SetManagedComponent(rig.Field, new TestAreaOutline { Points = new[] { new Vector2(130, 0), new Vector2(160, 0), new Vector2(160, 560), new Vector2(131, 560) } });
+            ulong edited = MinefieldSet.SignatureOf(rig.R);
+            Assert.NotEqual(a, edited);
+            rig.R.SetManagedComponent(rig.Field, new TestAreaOutline { Points = LongField });
+            Assert.Equal(a, MinefieldSet.SignatureOf(rig.R));
+            var moved = rig.R.GetComponent<SimTransform>(rig.Field); moved.Position = new Vector3(1, 0, 0); rig.R.SetComponent(rig.Field, moved);
+            Assert.NotEqual(a, MinefieldSet.SignatureOf(rig.R));
+            moved.Position = Vector3.Zero; rig.R.SetComponent(rig.Field, moved);
+
+            var lanes = new MinefieldLanes { Field = FieldGuid };
+            lanes.TryAdd(new LaneItem(FieldGuid, new Vector2(120, 250), new Vector2(170, 250), 6f, (byte)(Blue + 1)));
+            var le = rig.R.CreateEntity(); rig.R.AddComponent(le, lanes);
+            Assert.NotEqual(a, MinefieldSet.SignatureOf(rig.R));
+            rig.R.DestroyEntity(le);
+            Assert.Equal(a, MinefieldSet.SignatureOf(rig.R));   // a seek back: the lane record is gone, the hash is the field's again
+        }
+
+        /// <summary>
         /// ⭐ MR-20, KR-14 — the filter's arithmetic on a hand-made polygon map: the side's WORST cell decides (mined ×200 over suspected ×20 over unknown / known-clear ×1); side 0 applies no knowledge; a lane polygon is open (×1)
         /// to the side that cleared it and to the sides its known-to mask names, priced as the field to the rest; a minefield COMPOSITE over a wood / a crater obeys the wood / crater rules (wheels out of both, infantry in
         /// both, the wood priced). 🔴 Red-proof: price the first cell, not the worst ⇒ the mixed polygon reads ×1.
