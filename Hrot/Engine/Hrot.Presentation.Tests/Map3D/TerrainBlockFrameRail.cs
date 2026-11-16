@@ -56,6 +56,7 @@ public sealed class TerrainBlockFrameRail
         var r = OverlayCompiler.Compile(dom, scenarioDir, catalog.ResolveDefinition, bakeNavtiles: false);
         Assert.True(r.Wrote);
         var world = new EntityRepository();
+        Fdp.Toolkit.Terrain.TerrainLock.SetOpen(world, true);   // ⭐ CE-5006 (TE-17 / TE-18) — authoring with the Terrain toolbar OPEN
         var residency = new TerrainResidency(catalog, new CarKinem.Road.RoadNetworkHolder());
         residency.Commit(world, residency.Prepare("test-town", r.Folder));
         world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<TerrainBlock>(); world.RegisterComponent<EntityGuid>(); world.RegisterComponent<SelectionState>();

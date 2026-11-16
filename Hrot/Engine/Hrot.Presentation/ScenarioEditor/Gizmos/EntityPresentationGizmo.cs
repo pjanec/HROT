@@ -150,6 +150,9 @@ namespace Hrot.ScenarioEditor.Gizmos
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle has no symbol, anchor or pick box of its own (the vehicle's is
             //   the one on the map); an exposed rider keeps them. The engine's one rule (PhysicalPresence, R-271).
             if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(view, entity)) return;
+            // ⭐ CE-5006 (TE-18, R-5037) — a placed terrain feature / block is an AUTHORING thing: no symbol, anchor or pick box while the Terrain toolbar is closed
+            //   (a placed obstacle keeps its symbol — an order may target it)
+            if (Fdp.Toolkit.Terrain.TerrainLock.IsAuthoringMark(view, entity) && !Fdp.Toolkit.Terrain.TerrainLock.IsOpen(view)) return;
 
             // ⭐ SimTransform is the single source on every host. CGF's copy preferred NetworkTransform on
             // the grounds that it is "fresher on a host that does not own the entity" — measured false:

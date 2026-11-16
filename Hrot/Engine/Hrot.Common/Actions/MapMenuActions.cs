@@ -231,6 +231,8 @@ namespace Hrot.Common.Actions
         /// </summary>
         public static string JsonFor(ISimulationView view, Entity entity, System.Func<int, bool>? runsHere = null)
         {
+            // ⭐ CE-5006 (TE-17, R-5036) — a placed terrain thing has no menu while terrain authoring is closed (an order's own target pick is not a menu)
+            if (Fdp.Toolkit.Terrain.TerrainLock.IsLocked(view, entity)) return "[]";
             // ⭐ B-11 A2 — a station's view of the menu (greyed where it binds no handler): composed per right-click, not cached (the cache
             //   holds the station-free menu, which MenuShortcuts and the goldens read)
             if (runsHere != null) return MenuComposer.Json(ContextFor(view, entity), runsHere);
