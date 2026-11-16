@@ -7,6 +7,7 @@ stale-below: § HISTORY at the bottom (§2–§5 as first written); §8 is the r
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Terrain_Editor_UX.md — CE-4594 TE-5 (R-4264): the terrain editor's Obstacle tool draws the serpentine's blocks as obstacle ENTITIES, a row = one undo / one group
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — §12.4 / §12.5: the analysis this design builds (SQD-13, VEH-4, ASY-2)
   - DESIGN_Motorcycle.md — the two-wheeler: the bike-borne bomb (IM-3) uses `RamTarget`; "two men on one bike" (IM-8) is an indicator here
   - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the escalation ladder (§5k), the hostile act, custody / search, hidden weapons (§5h), AW-19 ("a vehicle driven at people is a hostile act")
