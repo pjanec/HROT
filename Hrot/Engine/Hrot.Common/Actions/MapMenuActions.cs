@@ -90,6 +90,16 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.PastePlan, "Paste plan", ActionGroup.Orders, First + 5, Unit) { Modes = ActionModes.InEdit | ActionModes.InLive,
                 Offer = ctx => ctx.Unit.Orders ? new ContextMenuItemDto { Id = GlobalActionIds.PastePlan, Label = "Paste plan" } : null });
 
+            // ⭐ CE-8615 (exp/agg-ui, DESIGN_Stochastic_Unit_UI UI-9, mockup ⑤) — the instructor's Resolution › request on an AGGREGATE unit, while running:
+            //   at once, an instructor order wins over the policy (SV-14) — it writes AggregateUnit.Pin. Every row says why when it is greyed.
+            catalogue.Declare(new ActionDecl(0, "Resolution", ActionGroup.Orders, First + 6, Unit)
+            {
+                Modes = ActionModes.Running,
+                Icon = "resolution/menu",
+                SideScoped = false,   // the instructor's request, whatever the side (SV-14)
+                Offer = ctx => ResolutionRequests.Menu(ctx.Unit.Aggregate),
+            });
+
             // ── Embark (⭐ CE-1230 OM-2, OM-3, R-1019 — the ONE place a unit is embarked / disembarked by hand) ─────────────────────────
             catalogue.Declare(new ActionDecl(GlobalActionIds.Disembark, "Disembark", ActionGroup.Embark, First, Unit)
             {
@@ -249,7 +259,7 @@ namespace Hrot.Common.Actions
             int flags = ctx.Target != ActionTarget.Unit ? 0
                 : (u.Degraded ? 1 : 0) | (u.Brain ? 2 : 0) | (u.Orders ? 4 : 0) | (u.Form ? 8 : 0) | (u.Manned ? 16 : 0)
                   | ((int)u.Embark << 5) | ((int)u.Pins << 8) | (u.TraceOn ? 1 << 24 : 0) | (u.Plan ? 1 << 25 : 0);
-            var key = (ctx.Target, (long)flags | ((long)modeBits << 26) | (SeatHats.Allows(ctx.Seat, Hat.Embodied) ? 0L : 1L << 40), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);   // ⭐ H6 — the seat's hats grey Possess: part of the key
+            var key = (ctx.Target, (long)flags | ((long)modeBits << 26) | (SeatHats.Allows(ctx.Seat, Hat.Embodied) ? 0L : 1L << 40) | ((long)u.Aggregate << 41), u.Orders ? u.Dis.Value : 0UL, u.Orders && u.IsUnit);   // ⭐ H6 — the seat's hats grey Possess: part of the key
             return Menus.GetOrAdd(key, _ => MenuComposer.Json(ctx));
         }
 
@@ -301,7 +311,8 @@ namespace Hrot.Common.Actions
             ForceId? unitSide = side is null ? null : repo != null && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity) ? repo.GetComponentRO<EntityInfo>(entity).ForceId : ForceId.Neutral;   // ⭐ Seats H2 — as EntityOrders' side lock reads it
             return new ActionContext(view, entity, ActionTarget.Unit, mode,
                 new UnitFacts(degraded, brain, orders, dis, isUnit, form && orders, manned && orders, embark, pins, traceOn,
-                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity)))
+                    Plan: view.HasManagedComponent<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(entity),
+                    Aggregate: repo != null ? ResolutionRequests.Pack(repo, entity) : (byte)0))
                 { Level = level, Side = side, UnitSide = unitSide, Seat = seat };
         }
     }

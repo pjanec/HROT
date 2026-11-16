@@ -31,6 +31,13 @@ public static class Icons
             case "orbat/part": icon = new("\uf013", IconPalette.Grey); return true;   // Gear — a part of a vehicle (sensor, weapon mount)
             case "orbat/group": icon = new("\uf07c", IconPalette.Amber); return true;   // FolderOpen — Saved / Transient
             // ⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — a MAN by his role, a VEHICLE by its class, a DOWN one; a unit draws its NATO symbol instead
+            // ⭐ CE-8615 (UI-9, mockup ⑤) — the Resolution › request rows
+            case "resolution/menu": icon = new("\uf522", IconPalette.Violet); return true;     // Dice — the group
+            case "resolution/split": icon = new("\uf126", IconPalette.Blue); return true;      // CodeBranch — make physical (split)
+            case "resolution/fusion": icon = new("\uf247", IconPalette.Teal); return true;     // ObjectGroup — fusion
+            case "resolution/merge": icon = new("\uf387", IconPalette.Violet); return true;    // CodeMerge — aggregate
+            case "resolution/pin": icon = new("\uf08d", IconPalette.Amber); return true;       // Thumbtack — keep as it is
+            case "resolution/unpin": icon = new("\uf00d", IconPalette.Grey); return true;      // Xmark — the policy decides
             case "tab/slots": icon = new("\uf0ae", IconPalette.Violet); return true;   // ListCheck — ⭐ CE-8612: a stochastic unit's Slots tab
             case "orbat/leader": icon = new("\uf521", IconPalette.Amber); return true;   // Crown — a commander / squad or team leader
             case "orbat/soldier": icon = new("\ue54e", IconPalette.Blue); return true;   // PersonRifle — every other man
@@ -197,6 +204,12 @@ public static class Icons
         "orbat/part",
         "orbat/group",
         "tab/slots",
+        "resolution/menu",
+        "resolution/split",
+        "resolution/fusion",
+        "resolution/merge",
+        "resolution/pin",
+        "resolution/unpin",
         "orbat/leader",
         "orbat/soldier",
         "orbat/medic",

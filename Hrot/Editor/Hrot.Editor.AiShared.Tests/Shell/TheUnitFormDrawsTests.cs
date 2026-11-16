@@ -783,6 +783,78 @@ public sealed class TheUnitFormDrawsTests
     }
 
     /// <summary>
+    /// ⭐ CE-8615 (DESIGN_Stochastic_Unit_UI UI-9, mockup ⑤'s Details rows) — while an aggregate unit SPLITS, its Unit tab shows the change: stochastic → physical
+    /// (the instructor's pin), the stage strip with Planning and Materialising done (blue) and Handover not, and the men created so far; settled, nothing.
+    /// 🔴 Red-proof (compiles): <c>MenCreated</c> counting every child (not this unit's) ⇒ 4 ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8615_ASplittingUnitsUnitTab_ShowsTheStagesAndTheMenCreated()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateChild>();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit
+        {
+            Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, Splitting = Fdp.Toolkit.Aggregate.SplitStage.Materialising,
+            Pin = Fdp.Toolkit.Aggregate.ResolutionPin.PinPhysical, SplittingSince = new SimInstant(96.0),
+        });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 5 };
+        for (int i = 0; i < 5; i++) t.Slots[i] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)Fdp.Toolkit.Aggregate.UnitSplits.SlotFullHealth };
+        world.AddComponent(unit, t);
+        for (int i = 0; i < 3; i++) { var c = world.CreateEntity(); world.AddComponent(c, new Fdp.Toolkit.Aggregate.AggregateChild { Unit = unit, Slot = (byte)(i + 1), Held = (byte)(i < 2 ? 1 : 0) }); }
+        var stranger = world.CreateEntity(); world.AddComponent(stranger, new Fdp.Toolkit.Aggregate.AggregateChild { Unit = stranger, Slot = 1, Held = 1 });   // another unit's child
+        Assert.Equal(3, SplitProgress.MenCreated(world, unit));
+        Assert.Equal(Fdp.Toolkit.Aggregate.AggregateResolution.Physical, SplitProgress.TargetOf(world.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(unit)));
+
+        HrotForms.EnsureRegistered();
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 520);
+        void Draw() => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(600, 480));
+            ImGui.Begin("Details##split");
+            view.View.Draw(HrotForms.Unit, world, new[] { unit }, editable: false);
+            ImGui.End();
+        });
+        int Blue()
+        {
+            var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+            try
+            {
+                var b = NodeEditor.Core.Widgets.IconPalette.Blue; int n = 0;
+                for (int y = 0; y < shot.Height; y++)
+                    for (int x = 0; x < shot.Width; x++)
+                    {
+                        var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                        if (Math.Abs(c.R - b.X * 255f) < 25 && Math.Abs(c.G - b.Y * 255f) < 25 && Math.Abs(c.B - b.Z * 255f) < 25) n++;
+                    }
+                return n;
+            }
+            finally { Raylib_cs.Raylib.UnloadImage(shot); }
+        }
+        view.View.CaptureLayout = true;
+        Draw();
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-split.png"));
+        var rows = view.View.Rows.ToList();
+        Assert.Contains("Changing = Stochastic  \uf061  Physical  ·  pinned by the instructor", rows);
+        Assert.Contains("Stage = Materialising  (2 of 3)", rows);
+        Assert.Contains("Progress = 3 of 5 men created  ·  deadline 6 s", rows);
+        int splitting = Blue();
+        world.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
+        Draw();
+        int settled = Blue();
+        Assert.True(splitting - settled > 1500, $"the Stage gauge two thirds blue while splitting ({splitting} blue px, settled {settled})");
+    }
+
+    /// <summary>
     /// ⭐ CE-8614 (DESIGN_Stochastic_Unit_UI UI-1, mockup ①; the attribute rows are agg-backend's CE-8015) — a unit carrying AggregateUnit gets the RESOLUTION
     /// section on its Unit tab, between Identity and State: the resolution as three glyph toggles (the dice violet when stochastic) + the word, the echelon
     /// (read-only), the formation, frontage × depth and heading (read-only), the prepared level; a toggle click writes the AUTHORED resolution through the

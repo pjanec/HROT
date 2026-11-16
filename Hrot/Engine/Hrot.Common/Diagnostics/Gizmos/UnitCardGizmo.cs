@@ -57,12 +57,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>The ONE worst alarm, and its number (broken men, or the suppressed share in %).</summary>
         public static (Alarm Kind, int Value) WorstAlarm(ISimulationView view, Entity e)
         {
-            int broken = 0, suppressedPct = 0; bool splitting = false;
+            int broken = 0, suppressedPct = 0; bool splitting = false; int stage = 0;
             if (IsStochastic(view, e))
             {
                 ref readonly var u = ref view.GetComponentRO<AggregateUnit>(e);
                 suppressedPct = (int)(u.SuppressedShare * 100f);
-                splitting = u.Splitting != SplitStage.NotSplitting;
+
                 if (HasSlots(view, e))
                 {
                     ref readonly var t = ref view.GetComponentRO<UnitSlotTable>(e);
@@ -70,10 +70,16 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 }
             }
             else if (view.HasComponent<UnitRoster>(e)) broken = BrokenMen(view, e, 0);
+            // ⭐ CE-8615 — ANY aggregate unit can be changing resolution (a merging one is still physical): the card says WHICH stage (mockup ⑤ "split 2/3")
+            if ((view is not EntityRepository r || r.IsComponentTypeRegistered<AggregateUnit>()) && view.HasComponent<AggregateUnit>(e))
+            {
+                var st = view.GetComponentRO<AggregateUnit>(e).Splitting;
+                splitting = st != SplitStage.NotSplitting; stage = (int)st;
+            }
             if (broken > 0) return (Alarm.Broken, broken);
             if (suppressedPct >= 25) return (Alarm.Suppressed, suppressedPct);
             if (!IsStochastic(view, e) && StaffComposerSystem.AmmoOf(view, e) == StatusColour.Black) return (Alarm.OutOfAmmo, 0);
-            if (splitting) return (Alarm.Splitting, 0);
+            if (splitting) return (Alarm.Splitting, stage);
             return (Alarm.None, 0);
         }
 
@@ -128,7 +134,11 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 case Alarm.Broken: { "BROKEN ".AsSpan().CopyTo(buf); value.TryFormat(buf[7..], out int k); row.Text(buf[..(7 + k)], Red, Size, x); break; }
                 case Alarm.Suppressed: { "SUPP ".AsSpan().CopyTo(buf); value.TryFormat(buf[5..], out int k); buf[5 + k] = '%'; row.Text(buf[..(6 + k)], Amber, Size, x); break; }
                 case Alarm.OutOfAmmo: row.Text("NO AMMO", Red, Size, x); break;
-                case Alarm.Splitting: row.Text("SPLIT", Blue, Size, x); break;
+                case Alarm.Splitting:
+                    // ⭐ CE-8615 (UI-9) — "SPLIT 2/3": the stage of the three (Planning · Materialising · Handover); a merge says MERGE
+                    if (value == (int)SplitStage.Merging) row.Text("MERGE", Blue, Size, x);
+                    else { "SPLIT ".AsSpan().CopyTo(buf); buf[6] = (char)('0' + Math.Clamp(value, 1, 3)); buf[7] = '/'; buf[8] = '3'; row.Text(buf[..9], Blue, Size, x); }
+                    break;
             }
         }
     }

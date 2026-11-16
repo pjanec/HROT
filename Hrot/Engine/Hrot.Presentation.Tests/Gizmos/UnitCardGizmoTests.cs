@@ -90,4 +90,37 @@ public sealed class UnitCardGizmoTests : IDisposable
         for (int k = 0; k < 20; k++) { g.Draw(_w, plt, _draw); UnitCardFacts.InfoRow(card, _w, plt, "Defend"); _draw.Clear(); }
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
     }
+
+    /// <summary>⭐ CE-8615 (UI-9, mockup ⑤ ⑥) — a SPLITTING unit's card says WHICH stage ("SPLIT 2/3" while Materialising), a merging one "MERGE"; a man the split
+    /// materialised but still HOLDS is a dashed ring in his unit's side colour on the 2-D map — gone at the handover. 🔴 Red-proof (compiles): the ring drawn
+    /// for a released man too ⇒ two rings ⇒ red.</summary>
+    [Fact]
+    public void CE8615_ASplittingUnitsCard_NamesTheStage_AndAHeldManIsADashedRing()
+    {
+        _w.RegisterComponent<AggregateChild>();
+        var plt = _w.CreateEntity();
+        _w.AddComponent(plt, new NetworkIdentity(90)); _w.AddComponent(plt, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        _w.AddComponent(plt, new UnitEntity()); _w.AddComponent(plt, new SimTransform());
+        _w.AddComponent(plt, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Echelon = 1, Splitting = SplitStage.Materialising });
+        var t = new UnitSlotTable { Count = 3 };
+        for (int i = 0; i < 3; i++) t.Slots[i] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f };
+        _w.AddComponent(plt, t);
+        UnitCardFacts.InfoRow(_draw.Card(90, DebugTraceLayers.Labels, unitCard: true), _w, plt, null);
+        Assert.True(Texts(90, EntityCardRows.UnitInfo).Contains("SPLIT 2/3"), string.Join(" | ", Texts(90, EntityCardRows.UnitInfo)));
+        _draw.Clear();
+        _w.SetComponent(plt, new AggregateUnit { Resolution = AggregateResolution.Physical, Echelon = 1, Splitting = SplitStage.Merging });
+        UnitCardFacts.InfoRow(_draw.Card(90, DebugTraceLayers.Labels, unitCard: true), _w, plt, null);
+        Assert.Contains("MERGE", Texts(90, EntityCardRows.UnitInfo));
+        _draw.Clear();
+
+        var held = _w.CreateEntity(); _w.AddComponent(held, new AggregateChild { Unit = plt, Slot = 1, Held = 1 }); _w.AddComponent(held, new SimTransform { Position = new System.Numerics.Vector3(5, 5, 0) });
+        var free = _w.CreateEntity(); _w.AddComponent(free, new AggregateChild { Unit = plt, Slot = 2, Held = 0 }); _w.AddComponent(free, new SimTransform { Position = new System.Numerics.Vector3(9, 9, 0) });
+        var g = new HeldManGizmo();
+        g.Draw(_w, held, _draw); g.Draw(_w, free, _draw);
+        var ring = Assert.Single(_draw.GetFrame().ToArray());
+        Assert.Equal(DebugPrimitiveShape.Sphere, ring.Shape);
+        Assert.Equal(LineStyle.Dashed, ring.LineStyle);
+        Assert.Equal(SidePalette.Of(ForceId.Friend), ring.Color);
+        Assert.Equal(PipelineTarget.Map2D | PipelineTarget.FlatOnly, ring.TargetView);
+    }
 }

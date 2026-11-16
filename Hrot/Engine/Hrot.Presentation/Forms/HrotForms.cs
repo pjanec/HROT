@@ -149,6 +149,10 @@ public static class HrotForms
             new FormField { Label = "Frontage", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.FrontageText },
             new FormField { Label = "Heading", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.HeadingText },
             new FormField { Label = "Prepared", Kind = FieldKind.Choice, Attribute = "Aggregate.Prepared", Choices = PreparedLevels, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
+            // ⭐ CE-8615 (UI-9, mockup ⑤) — while the unit CHANGES resolution: what to what and who asked, the stage in thirds, the men created and the deadline
+            new FormField { Label = "Changing", Kind = FieldKind.Text, Has = SplitProgress.IsChanging, ReadText = SplitProgress.ChangeText },
+            new FormField { Label = "Stage", Kind = FieldKind.Gauge, Has = SplitProgress.IsChanging, ReadText = (w, e) => SplitProgress.StageGauge(w, e).Text, ReadGauge = SplitProgress.StageGauge },
+            new FormField { Label = "Progress", Kind = FieldKind.Text, Has = SplitProgress.IsChanging, ReadText = SplitProgress.ProgressText },
             new FormField
             {
                 Label = "Posture", Section = "State", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,
