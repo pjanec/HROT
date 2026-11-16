@@ -587,6 +587,10 @@ planner.*
 | ⛔ ST-3: no host loads the killer–victim table yet; the C-8 ladder needs the physical runs | the TKB adapter + the measured rows are a separate job | CE-8008, CE-8009 |
 | C-6: the sink takes the footprint as a circle of the same area (frontage × max(depth, 20 m)); a casualty in the lethal circle is DOWN, wounds below it folded into `LethalShare` | the overlap in closed form; one calibrated share | CE-8010 |
 | the unit phases (sensing, A, B) are `ICoarseJob`s, 2 units a batch | a battalion's 18 units were one batch of 32 — ST-4's red-proof found it | CE-8011 |
+| ST-5: the manager decides by the nearest PHYSICAL enemy against fixed bands (SV-9) — the policy is a `Policy` seam (agg-behaviors'); the UNOBSERVED merge condition is not yet in | the policy is the other lane's half; the condition needs the physical sensors' view | CE-8013 |
+| ST-5: Planning uses the FALLBACK posts at once (D-P5) | the real planners' plan / assign split (D-P3) is agg-behaviors' | CE-8013 |
+| ST-5: HELD is a tag (`AggregateChild.Held`, 288), not yet a lifecycle participant (SV-6); children are destroyed with `DestroyEntity` | single-world first; the cluster's lifecycle is the wiring step | CE-8013 |
+| ST-5: in Physical, `SplittingSince` is when the unit last became merge-ELIGIBLE (the quiet clock) | one recorded field instead of a new one (SV-12) | — |
 | ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
 
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22

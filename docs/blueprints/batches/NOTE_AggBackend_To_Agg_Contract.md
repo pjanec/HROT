@@ -162,11 +162,20 @@ the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play 
 | the plays (agg-behaviors) | read `AggregateUnit.SuppressedShare`, `UnitSlotTable` (health / stress / ammo — standing = up and stress < `StochasticCombat.BreakLevel`), `UnitHoldings.Operational` / `Immobile`; ⛔ never write them |
 | agg-ui | the same, plus `FireAllocation.Lines` (who fires at whom this step) |
 
+## 3d. Resolution — the seams for agg-behaviors and agg-ui *(ST-5, CE-8012)*
+
+| | |
+|---|---|
+| ⭐ the POLICY (agg-behaviors) | `new ResolutionManagerSystem(switch) { Policy = world => <your ResolutionPolicy as ResolutionBands> }` — ⚠ `ResolutionBands.Default`, never `new ResolutionBands()` (all zeros) |
+| ⭐ the posts (agg-behaviors, D-P3 / SV-5) | today the fallback posts (`UnitSplits.FallbackPosts`); a planned-posts component replaces them in Planning |
+| agg-ui | `AggregateUnit.Splitting` (the stage), `Resolution`, `Pin` (the instructor's request writes `Pin`); a split's children carry `AggregateChild { Unit, Slot, Held }` |
+| identities | `UnitSplits.ChildGuid(unitGuid, compositeSlot)` — the same children every split |
+
 ## 4. Ids allocated by this commit
 
 | | |
 |---|---|
-| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) — 288–289 free |
+| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) · 288 `AggregateChild` (own, ST-5) — 289 free |
 | descriptors | 220 `dtAggregateUnit` · 221 `dtUnitSlotTable` · 222 `dtUnitHoldings` — 223–229 free |
 | tracker / rulings | `CE-8000` (the contract) · `R-8000`, `R-8001` (lane decisions, `STATUS_AggBackend.md`) |
 
