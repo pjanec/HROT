@@ -14,7 +14,7 @@ Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinato
 | slice | state | result |
 |---|---|---|
 | **K-1** `VehicleImpactSystem` (RM-1) | ✅ built `bb865ae81` | the ground twin of `DroneImpactSystem` in `GroundKinematicsModule`, right after `CarKinematicsSystem`: a moving hull's FRONT swept this frame (`Intersection2D.SweptFrontMeetsCircle`, beside the flyer's `SegmentInCircle`) strikes a person / an animal with a Blunt `DamageAssessedEvent` (Source = the vehicle) of a Health fraction by closing speed × √(mass / 1500) in bands, ±15 % seeded; never riders, never under 2 m/s, a pair once per 2 s — ⏳ the 30 vehicle scenarios re-checked (running) |
-| **K-2** `RamOrder` + `RamTarget` (RM-2, RM-3, RM-5) | 🔨 gating | `RamOrder` (126 / `dtRamOrder` 196, Brain group, translators) on the hull; the avoidance skips the target (every person for a crowd); the break gate opens for an active order (never in a replay), full-throttle push; `RamTarget`: the order, LETHAL on the car + its driver (follow-ups), pursuit of the `TargetLead` point every 0.5 s, ends with the order OFF — design §5b · ⭐ cross-lane: `MineClearing` added to the Brain group (terrain's: in no group, so a split cluster never carried the clearer's switch) |
+| **K-2** `RamOrder` + `RamTarget` (RM-2, RM-3, RM-5) | ✅ built `21a71e455` | `RamOrder` (126 / `dtRamOrder` 196, Brain group, translators) on the hull; the avoidance skips the target (every person for a crowd); the break gate opens for an active order (never in a replay), full-throttle push; `RamTarget`: the order, LETHAL on the car + its driver (follow-ups), pursuit of the `TargetLead` point every 0.5 s, ends with the order OFF — design §5b · ⭐ cross-lane: `MineClearing` added to the Brain group (terrain's: in no group, so a split cluster never carried the clearer's switch) |
 | **K-3** the engine zone (CP-6, CP-7) | 📋 | |
 | **K-4** site + `CheckpointPlay` + `VehicleApproachWatch` (CP-1, CP-1a, CP-2) | 📋 | |
 | **K-5** the vehicle ladder (CP-3) | 📋 | |
@@ -33,6 +33,9 @@ Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinato
 | command | `--no-build` | result |
 |---|---|---|
 | K-1: `Fdp.Toolkits.Tests` `VehicleImpactSystemTests` + `DroneImpactSystemTests` + `GroundKinematicsModuleTests` | ✓ (after a clean build) | 19 / 19; red-proofs (`mutate27.py`): the mass term dropped ⇒ RED · the swept front reduced to the current box ⇒ RED (2) · the rider exemption dropped ⇒ RED. Serial system (not a brain): the parallel checks do not apply to it; 0 B steady (a reused body buffer; the pair map grows only on a strike) |
+| K-2 engine: `Fdp.Toolkits.Tests` `CE4622` + `CE3287` + `CE4598` + `CE6014` + `VehicleImpactSystemTests` | ✓ | 26 / 26 (the ramming hull's four rows, the break gate) |
+| K-2 behaviour + wire: `Hrot.SimHost.Tests` `RamTargetBehaviorTests` + `EntityGroundDamageTranslatorTests` + `SopParamsRoundTrip` + `ShippedTreesAreCSharp` + `MinefieldBreachBehaviorTests` (+ the hosting golden plain), plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 47 / 47 · 44 / 44; golden additive `+RamTarget` 40 B |
+| K-2 red-proofs (`mutate28.py`) | — | the lead dropped · the car's act dropped · the order left on (2) · the crowd flag dropped · the wire's `Crowd` copy dropped · the avoidance's target skip dropped · the break gate's `RamOrder` test dropped ⇒ each RED (7 / 7) |
 
 ## 3. Ids allocated
 rulings `R-2128`, `R-2129`
