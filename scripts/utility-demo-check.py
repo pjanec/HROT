@@ -5864,6 +5864,7 @@ class Dynamism:
 # ── CE-4615 — THE COMMAND CHAIN ON A BATTALION SLICE (DESIGN_Command_Chain_Battalion_Test.md §3.2) ────────────────────────────────
 
 # the dynamism thresholds, set from the first three clean base runs and then LOCKED (Battalion Test §5.2) — None = measure only
+CC_FIRE_NEAR_M = 60.0   # ③ a mortar burst / its smoke within this of the requested point (an 81 mm sheaf + the report's error); was 120
 CC_MOVED_MIN = None
 CC_CONTACTS_MIN = None
 
@@ -5926,8 +5927,9 @@ def run_cc_battalion(c, timeout):
         for d in _detonations():
             if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
                 bursts[d.get("seq")] = (t, d.get("burst"))
-        for cid, (cx, cy, _src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
-            clouds.setdefault(cid, (t, (cx, cy)))
+        for cid, (cx, cy, src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
+            if src in shooters:   # ⭐ only the mortars' smoke — 📌 #13 / #15 passed ③ on the platoons' own grenade smoke while the tubes never fired
+                clouds.setdefault(cid, (t, (cx, cy)))
         o3 = ((data(call("GET", f"/entities/{u['Red 3rd Platoon']}/order")) or {}).get("task") or {})   # R-2102: the reserve's order point
         pos3 = (o3.get("params") or {}).get("Position")
         if pos3 and len(pos3) >= 2:
@@ -6007,7 +6009,7 @@ def run_cc_battalion(c, timeout):
         p = req[0].get("at") or [0, 0, 0]
         after = [(bt, b) for bt, b in sorted(list(bursts.values()) + list(clouds.values()), key=lambda x: x[0]) if bt >= t_req]
         near = min((math.hypot(b[0] - p[0], b[1] - p[1]) for _, b in after), default=None)
-    arrows.append(("③ REQUEST FireSupport → bursts / smoke on the reported point", t_req, near is not None and near <= 120,
+    arrows.append(("③ REQUEST FireSupport → bursts / smoke on the reported point", t_req, near is not None and near <= CC_FIRE_NEAR_M,
                    f"request {t_req} at {req[0].get('at') if req else None}, nearest later burst {near if near is None else round(near)} m"))
     # ④ a Red block LOST (TaskFailed / Black) → the company reserve counter-attacks
     lost = [r for n in ("Red 1st Platoon", "Red 2nd Platoon") for r in _reports_of(log, frm=u[n])
