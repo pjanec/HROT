@@ -122,6 +122,7 @@ RadarSamEngage | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes
 ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
+ReconMinefield | hostedInput=Hrot.Map.Definitions.Behavior.ReconMinefieldParamsJsonDto | inputBytes=520
 ReportLatency | hostedInput=- | inputBytes=168
 Sample | hostedInput=- | inputBytes=264
 SampleGuard | hostedInput=- | inputBytes=0

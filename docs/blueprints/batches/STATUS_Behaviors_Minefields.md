@@ -18,7 +18,7 @@ collision 500 that broke every SimHost world after the coordinator merge).
 | §0a approvals | ✅ | R-2106…R-2124 marked approved in both status files; the dash row closed by R-4275 |
 | CE-2441 (StationWeapon cross-entity write) | ✅ `aa96708ae` | always ask (`RestationEvent`, serial `CarryStationSystem`); red without / green with under PAR + checks |
 | **MS-B1** `MineStrike` | ✅ built | the reflex (`MineStrikeReflexSystem`, CGF pack) + the drill: halt, every man holds in place, a vehicle stops (crew aboard), hold until marked / 120 s; Halts \| LeavesRoute — design §11 |
-| **MS-B2** `ReconMinefield` | 📋 | |
+| **MS-B2** `ReconMinefield` | 🔨 gating | seek → probe at detector pace → left-hand trace on swept-clear cells → marked when closed; every probe a `MinefieldCellsSwept` — design §11 |
 | **MS-B3** `ClearLane` + breach + crossing | 📋 | |
 | **MS-B4** the march + the acceptance demo | 📋 | |
 

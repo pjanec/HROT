@@ -274,6 +274,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DashRide = "DashRide";
         /// <summary>⭐ CE-4624 MS-B1 — a unit or vehicle that set off a mine: halt, care in place, hold for the engineers (Halts | LeavesRoute).</summary>
         public const string MineStrike = "MineStrike";
+        /// <summary>⭐ CE-4624 MS-B2 — an engineer sweeps toward a suspected point and traces the minefield's edge on swept-clear cells; marks it.</summary>
+        public const string ReconMinefield = "ReconMinefield";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";
