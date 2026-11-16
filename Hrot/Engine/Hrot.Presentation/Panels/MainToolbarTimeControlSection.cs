@@ -150,23 +150,19 @@ public sealed class MainToolbarTimeControlSection
     private void DrawPresetArrow(float iconSize)
     {
         if (!ShowsPresetArrow) return;
-        ImGui.SameLine(0f, 1f);
-        if (ImGui.ArrowButton("##mt_presets", ImGuiDir.Down)) ImGui.OpenPopup("##mt_presets_menu");
-        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Run with a preset");
-        if (!ImGui.BeginPopup("##mt_presets_menu")) return;
+        if (!Fdp.Presentation.Icons.SplitArrow.Begin("##mt_presets", "##mt_presets_menu", "Run with a preset")) return;   // ⭐ CE-5006 W1 — the SHARED split arrow
         var choice = _choice!;
         var presets = choice.LoadedPresets;
         var armed = choice.ArmedPreset;
         for (int i = 0; i < presets.Count; i++)
         {
             var p = presets[i];
-            if (ImGui.MenuItem(PresetText.Label(p), null, ReferenceEquals(p, armed) || armed is not null && string.Equals(p.Name, armed.Name, StringComparison.OrdinalIgnoreCase)))
+            if (Fdp.Presentation.Icons.SplitArrow.Item(PresetText.Label(p), ReferenceEquals(p, armed) || armed is not null && string.Equals(p.Name, armed.Name, StringComparison.OrdinalIgnoreCase), true, PresetText.Summary(p)))
                 choice.ArmPreset(p.Name);
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip(PresetText.Summary(p));
         }
-        ImGui.Separator();
-        if (ImGui.MenuItem("Edit presets…", null, false, choice.EditPresets is not null)) choice.EditPresets!.Invoke();
-        ImGui.EndPopup();
+        Fdp.Presentation.Icons.SplitArrow.Separator();
+        if (Fdp.Presentation.Icons.SplitArrow.Item("Edit presets…", false, choice.EditPresets is not null)) choice.EditPresets!.Invoke();
+        Fdp.Presentation.Icons.SplitArrow.End();
     }
 
     /// <summary>The mode indicator's FontAwesome 6 Solid glyph (merged into the UI font): Edit Pen, Preview Eye (CE-3394, presets D9), Live Circle,
