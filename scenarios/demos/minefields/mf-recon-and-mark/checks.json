@@ -1,0 +1,13 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Minefields MR-19 / R-4277 (NOTE_Coordinator_To_Behaviors_Minefield_Scenarios.md): an engineer traces an unknown field on swept-clear cells and marks it. From the header's Judge (1)-(5). The knowledge cue (CE-4624) reads what Friend's own readers see.",
+  "runFor": 900,
+  "golden": false,
+  "expect": [
+    { "name": "the Engineer runs ReconMinefield", "on": "task", "who": "Engineer", "is": "ReconMinefield" },
+    { "name": "Friend knows mined cells of the field", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "KnownMined", "op": ">=", "value": 1, "atEnd": true },
+    { "name": "Friend has the field marked", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Marked" },
+    { "name": "he never steps into the field", "never": { "on": "near", "who": "Engineer", "point": [130, 80], "within": 10 } },
+    { "name": "no mine goes off", "never": { "on": "blast" } },
+    { "name": "he is never hurt", "never": { "on": "field", "who": "Engineer", "path": "Health.Current", "op": "<", "value": 100 } }
+  ]
+}
