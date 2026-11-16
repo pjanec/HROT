@@ -112,6 +112,8 @@ internal static class VerifyCommand
         var all = new JsonObject
         {
             ["passed"] = failed.Count == 0, ["count"] = scenarios.Count, ["failed"] = new JsonArray(failed.Select(f => (JsonNode?)f).ToArray()),
+            // ⭐ RT-3 — the scenarios that PASSED with a warning (a golden that differs in visible state, or none yet)
+            ["warned"] = new JsonArray(reports.OfType<JsonObject>().Where(i => (i["warnings"] as JsonArray)?.Count > 0).Select(i => (JsonNode?)i["scenario"]?.ToString()).ToArray()),
             ["scenarios"] = reports,
         };
         var text = all.ToJsonString(Fdp.Core.Serialization.FdpJsonOptionsRegistry.Indented);
@@ -158,7 +160,9 @@ internal static class VerifyCommand
                 if (lines.Count == 0) lines.Add($"exit {c.Code} — {c.Item?["status"]}");
                 sb.Append($"      <failure message=\"{X(lines[0])}\">{X(string.Join("\n", lines))}</failure>\n");
             }
-            sb.Append($"      <system-out>{X("log: " + c.Log)}</system-out>\n");
+            // ⭐ RT-3 — a passing scenario's warnings (a golden that differs in visible state) are listed, never a failure
+            var warn = (c.Item?["warnings"] as JsonArray ?? new JsonArray()).Select(x => "WARNING " + x).Concat(c.Code == 0 ? (c.Item?["goldenDiff"] as JsonArray ?? new JsonArray()).Take(10).Select(d => "  " + d) : Array.Empty<string>()).ToList();
+            sb.Append($"      <system-out>{X(string.Join("\n", warn.Prepend("log: " + c.Log)))}</system-out>\n");
             sb.Append("    </testcase>\n");
         }
         sb.Append("  </testsuite>\n</testsuites>\n");
