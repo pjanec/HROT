@@ -45,6 +45,7 @@ of a specific existing game (its name, characters or art) — our own take on th
 | F-22 | **Fireworks** over the city at night | demo | arcing shells that burst in the air, night | coloured bursts | — | (suggested) |
 | F-23 | **Western train robbery** | team | — | trains (CE-4632) | CE-4632 | "we are missing the train" |
 | F-24 | **Power-ups** — pick-up items in the world that give a timed effect or an item: speed, a shield, extra throws, a lasso, a smoke cloud, double points, rapid fire, a med kit, ammo, planks | all games | picking up a LYING round is built and arbitrated by its owner (one grant wins — `RoundPickUp`, CE-3235); a picked item goes to the man's hands (`PersonHands.Give`); a live item burns down a timer in his hands (`HandsFuzeSystem`); macros respawn units | a `PowerUp` pickup entity (kind, value, respawn time), a per-unit `ActiveEffects` record (a few timed slots, recorded), each effect read at an existing seam (speed, aim time, the unseat rule, the score), the HUD icon | CE-4642 | "Racing, and maybe not just that, requires some concept of picking power-ups." |
+| F-25 | **WWI air combat** — biplanes and triplanes, a machine gun fixed in front of the pilot, occasional jams to clear, bombs and grenades thrown by hand over the side; dogfights between players | competitive / team | a fixed-wing flight model with a MOUSE-AIM manual pilot (`FixedWingModel`, Air Ops slice 6); forward-fixed guns on a plane (gun runs); level bombing with the release inheriting the plane's velocity (`BombBallistics`); ground air defence engages aircraft (`EngageAircraft`); weapons can be BROKEN (`WeaponSystems.IsBroken`) | WWI aircraft types (slow, tight-turning), the plane kits, a temporary JAM + an unjam action, a throw from a moving seat, an air-to-air AI play for AI opponents (none today), period targets (observation balloons, trenches) | CE-4643 | "what about the World War I air combat?" |
 
 ## Serious spin-offs (shared engine, NOT fun content)
 
@@ -54,3 +55,4 @@ of a specific existing game (its name, characters or art) — our own take on th
 | S-2 | the **napalm bomb** — a burning ground area with its visual and its damage | CE-4637 |
 | S-3 | **military convoys in SUMO traffic** until they must act | CE-4631 |
 | S-4 | **trains** | CE-4632 |
+| S-5 | **weapon stoppages and the immediate-action drill** — a weapon jams now and then (by rounds fired, seeded) and is cleared by an action (a player key; the AI after its drill time): realistic for training, and F-25's jam | CE-4644 |
