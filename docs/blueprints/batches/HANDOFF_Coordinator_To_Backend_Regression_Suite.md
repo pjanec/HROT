@@ -9,7 +9,7 @@ related-designs:
 
 # HANDOFF — coordinator → `backend`: the TWO-TIER REGRESSION SUITE (R-4279; RT-1…RT-8) + the feature scenarios
 
-**For:** the `backend` lane (the test-suite harness is yours). **From:** coordinator. **Dispatched at `<STAMP>`**; ⛔ scope FROZEN there — later
+**For:** the `backend` lane (the test-suite harness is yours). **From:** coordinator. **Dispatched at `816edc3b9`**; ⛔ scope FROZEN there — later
 documents are FYI; one that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-16`: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully deterministic
