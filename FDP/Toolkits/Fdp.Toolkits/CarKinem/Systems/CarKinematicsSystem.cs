@@ -585,12 +585,17 @@ namespace CarKinem.Systems
             else
                 finalTargetSpeed = MathF.Min(finalTargetSpeed, @params.MaxSpeedFwd);
             
+            // ⭐ CE-4622 K-3 (Checkpoint CP-3, KV-2) — a RAMMING hull whose engine is dead (a Mobility wound) or that is destroyed COASTS: nobody
+            //   brakes it, it rolls on at the rolling resistance's deceleration (a bomber does not stop for a dead engine). Any other stopped vehicle brakes.
+            bool coast = !person && RamOrder.On(repo, entity, out _)
+                         && (wreck || (_health && Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility)));
+            if (coast) finalTargetSpeed = MathF.Min(finalTargetSpeed, MathF.Max(0f, state.Speed));   // never driven on
             float accel = SpeedController.CalculateAcceleration(
                 state.Speed,
                 finalTargetSpeed,
                 @params.AccelGain,
                 @params.MaxAccel,
-                person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
+                coast ? CoastDecel : person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
             
             // Integrate: a person's gait, else the bicycle model
             Vector2 stepFrom = pos2D;
@@ -1141,6 +1146,9 @@ namespace CarKinem.Systems
             float side = MathF.Abs(to.X * dir.Y - to.Y * dir.X);
             return side <= p.Width * 0.5f + ManDownHullMarginM;
         }
+
+        /// <summary>⭐ <c>CE-4622</c> K-3 (KV-2) — a coasting hull's deceleration (m/s²): rolling resistance, no brakes.</summary>
+        public const float CoastDecel = 0.7f;
 
         private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, float selfZ,
             Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo, Entity self)

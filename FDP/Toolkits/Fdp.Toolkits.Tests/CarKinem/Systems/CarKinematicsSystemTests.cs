@@ -1485,6 +1485,31 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4622</c> K-3 (Checkpoint CP-3, KV-2) — a disabled RAMMING car COASTS: a destroyed hull at 10 m/s with an active ram order loses only the rolling
+        /// resistance (0.7 m/s² — about 9.3 m/s after 1 s), so a bomber still covers ground; the same hull with no order (any stopped vehicle) brakes. 🔴 Red-proof:
+        /// the coast dropped ⇒ the ramming hull brakes like the other ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE4622_K3_ADisabledRammingCar_Coasts_AnyOtherBrakes(bool ramming)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 10f, startSpeed: 10f, vehicle: VehiclePresets.GetPreset(VehicleClass.PersonalCar));
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 300f });   // destroyed
+            repo.RegisterComponent<RamOrder>();
+            if (ramming) repo.AddComponent(e, new RamOrder { Active = 1, Crowd = 1 });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            float v = repo.GetComponent<VehicleState>(e).Speed;
+            if (ramming) Assert.InRange(v, 10f - CarKinematicsSystem.CoastDecel - 0.15f, 10f - CarKinematicsSystem.CoastDecel + 0.15f);
+            else Assert.True(v < 10f - 2f, $"a stopped vehicle brakes: {v:F2} m/s after 1 s");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3286</c> — a box with no way out is BOUNDED: a tank sent INTO the block (its destination inside it) is held, backs out
         /// <see cref="CarKinem.Controllers.HullRecovery.MaxRecoveries"/> times and then stays the watchdog's (it never enters, never loops).
         /// </summary>

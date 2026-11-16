@@ -86,6 +86,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var vehicle in _leaving.Keys) if (repo.IsAlive(vehicle)) Embarkation.ReleaseCarrier(repo, vehicle);
 
             CarryAndKill(repo);
+            HitOccupants(repo);   // ⭐ CE-4622 K-3 (Checkpoint CP-6)
             Assistants(repo);
 
             // ⭐ CE-2152 (R-2011 C9) — a person carrier who is DOWN (incapacitated or dead) drops his load where he lies, alive: on the node
@@ -152,6 +153,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                         repo.GetComponentRW<SimVelocity>(p) = repo.GetComponentRO<SimVelocity>(vehicle);   // dead reckoning elsewhere
                 }
 
+                // ⭐ CE-4622 K-3 (Checkpoint CP-6, KV-1) — WHO DRIVES IS STATED: a vehicle's seat-0 man is its driver; once he is out of the fight the
+                //   vehicle's move ENDS (CanMove cleared where the vehicle's capability is owned — the dispatcher then stops the move, CE-3091)
+                if (tag.Seat == 0 && !person && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, p)) StopDriverless(repo, vehicle);
                 if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, p)) { _killSent.Remove(p); continue; }
                 if (damage && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, vehicle) && !Survives(repo, vehicle)
                     && Embarkation.OwnsHealth(repo, p) && _killSent.Add(p))
@@ -164,6 +168,61 @@ namespace Fdp.Toolkit.Behavior.Systems
                     Killed++;
                 }
             }
+        }
+
+        /// <summary>⭐ <c>CE-4622</c> K-3 — a soft skin's armour (mm, its side): a car at or under it lets a penetrating round reach who sits inside.</summary>
+        public const float SoftSkinMaxArmourMm = 10f;
+        /// <summary>⭐ <c>CE-4622</c> K-3 — the chance a penetrating hit on a soft skin also hits ONE occupant (seeded per hit).</summary>
+        public const float OccupantHitChance = 0.3f;
+
+        /// <summary>Occupant hits this process sent (rails).</summary>
+        public int OccupantHits { get; private set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4622</c> K-3 (docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md CP-6, KV-1) — the ONE soft-skin rule: the occupants of an
+        /// enclosed car are hidden (never aimed at), but a PENETRATING round (a Kinetic hit that did damage) on a car whose side armour is at most
+        /// <see cref="SoftSkinMaxArmourMm"/> may go on into the cabin: with <see cref="OccupantHitChance"/> (seeded by the vehicle, the frame and the hit's
+        /// order) ONE occupant — a seat, never a station — takes the same damage, where his Health is owned. A person carrier (a man carrying a casualty)
+        /// is not a car. Last frame's hits (this runs in Input, after the swap), so the order is the bus's — the same on every thread count.
+        /// </summary>
+        private void HitOccupants(EntityRepository repo)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) return;
+            uint frame = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u;
+            uint k = 0;
+            foreach (var ev in repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+            {
+                k++;
+                if (ev.TotalDamage <= 0f || ev.Effect != Fdp.Toolkit.Combat.HitEffect.Kinetic || ev.IsRemote) continue;
+                var v = ev.HitEntity;
+                if (!repo.IsAlive(v) || !repo.HasComponent<PassengerBuffer>(v) || Embarkation.IsPersonCarrier(repo, v)) continue;
+                ref readonly var buf = ref repo.GetComponentRO<PassengerBuffer>(v);
+                if (buf.Count <= 0) continue;
+                if (Fdp.Toolkit.Combat.CombatTkb.PlatformOf(repo, v) is not { } platform || platform.ArmorSide > SoftSkinMaxArmourMm) continue;
+                uint h = (uint)v.Index * 0x9E3779B1u ^ frame * 0x85EBCA77u ^ k * 0xC2B2AE3Du;
+                h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+                if ((h & 0xFFFF) / 65536f >= OccupantHitChance) continue;
+                int seat = (int)((h >> 16) % PassengerBuffer.Capacity), tries = 0;
+                Entity p = Entity.Null;
+                for (; tries < PassengerBuffer.Capacity; tries++, seat = (seat + 1) % PassengerBuffer.Capacity)
+                {
+                    p = buf.Passengers[seat];
+                    if (!p.IsNull && repo.IsAlive(p) && StationOf(repo, v, seat) == null) break;
+                }
+                if (tries == PassengerBuffer.Capacity || !Embarkation.OwnsHealth(repo, p) || !Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, p)) continue;
+                repo.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = p, TotalDamage = ev.TotalDamage, Source = ev.Source });
+                OccupantHits++;
+            }
+        }
+
+        /// <summary>⭐ <c>CE-4622</c> K-3 — a vehicle whose driver is out of the fight stops: its <c>CanMove</c> cleared where its capability is owned.</summary>
+        private static void StopDriverless(EntityRepository repo, Entity vehicle)
+        {
+            if (!repo.IsComponentTypeRegistered<ActorCapabilityState>() || !repo.HasComponent<ActorCapabilityState>(vehicle)) return;
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkAuthority>()
+                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(vehicle) && !repo.HasAuthority<ActorCapabilityState>(vehicle)) return;
+            if ((repo.GetComponentRO<ActorCapabilityState>(vehicle).Capabilities & ActorCapabilities.CanMove) == 0) return;
+            repo.GetComponentRW<ActorCapabilityState>(vehicle).Capabilities &= ~ActorCapabilities.CanMove;
         }
 
         /// <summary>⭐ WS-2 — seat <paramref name="seat"/> of <paramref name="vehicle"/> when it is a station (a type fact), else null.</summary>
