@@ -1445,6 +1445,64 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> M-4 acceptance, the measured share (Motorcycle §6; seeded, in process — the REAL dive guidance and the REAL
+        /// rotorcraft model against a bike driven here): 40 seeded dashes — the drone from a random bearing 400–600 m off, the bike at 18–25 m/s
+        /// on a random heading; at the dash's trigger (time-to-go ≤ <c>DashRideBehavior.BreakAtSeconds</c>) the bike turns hard for 1.5 s, at
+        /// road grip (8 m/s²) or off-road (4.4 m/s², 0.45 g). Unhurt = the drone's closest pass beyond the warhead's casualty radius (5 m, MV-1).
+        /// 📐 The shares go into the status file; the rail pins only what the design claims: a break saves riders in a real share on the
+        /// road, more than off-road, and riding on without a break saves almost none.
+        /// </summary>
+        [Fact]
+        public void CE4621_M4_SeededDashes_AgainstTheRealisticFpv_TheBreakSavesAShare()
+        {
+            float Share(float grip, bool breaks, out string misses)
+            {
+                var rnd = new System.Random(4621);
+                int unhurt = 0, n = 40;
+                var sb = new System.Text.StringBuilder();
+                for (int k = 0; k < n; k++)
+                {
+                    var o = new Vector3(0f, 8000f * (k + 1) + (breaks ? 0f : 400000f) + grip * 1000000f, 0f);
+                    float bearing = (float)(rnd.NextDouble() * 2 * Math.PI), dist = 400f + (float)rnd.NextDouble() * 200f;
+                    float heading = (float)(rnd.NextDouble() * 2 * Math.PI), speed = 18f + (float)rnd.NextDouble() * 7f;
+                    var drone = SpawnDrone(o + new Vector3(MathF.Cos(bearing) * dist, MathF.Sin(bearing) * dist, 60f));
+                    var bike = SpawnGround(o, 100f, vehicle: true, ForceId.Friend);
+                    var p = new AirAttackParams { Target = bike, Point = o };
+                    var ws = default(AirAttackState);
+                    var v = new Vector3(MathF.Cos(heading), MathF.Sin(heading), 0f) * speed;
+                    float turned = -1f, best = float.MaxValue, side = rnd.Next(2) == 0 ? 1f : -1f;
+                    for (int frame = 0; frame < 60 * 90; frame++)
+                    {
+                        _w.GetComponentRW<SimVelocity>(bike).Linear = v;
+                        DroneStep(ref p, ref ws, drone, frame);
+                        var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                        var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, bike, out _, out _);
+                        float tgo = Vector3.Distance(at, middle) / DroneSpeed;
+                        if (breaks && turned < 0f && ws.Stage == 8 && tgo <= Hrot.AI.Behaviors.Brains.DashRideBehavior.BreakAtSeconds) turned = 0f;
+                        if (turned >= 0f && turned < 1.5f)
+                        {
+                            var lat = Vector3.Normalize(new Vector3(-v.Y, v.X, 0f)) * side;
+                            v = Vector3.Normalize(v + lat * grip * Dt) * speed;   // a turn at the grip's lateral acceleration
+                            turned += Dt;
+                        }
+                        _w.GetComponentRW<SimTransform>(bike).Position += v * Dt;
+                        best = MathF.Min(best, Vector3.Distance(at, middle));
+                        if (at.Z < 0.3f) break;
+                    }
+                    sb.Append($"{best:F1} ");
+                    if (best > 5f) unhurt++;
+                }
+                misses = sb.ToString();
+                return unhurt / (float)n;
+            }
+            float road = Share(8f, true, out var r), dirt = Share(4.4f, true, out var d), none = Share(8f, false, out var z);
+            System.Console.WriteLine($"M-4 unhurt share: road break {road:P0} [{r}] · off-road break {dirt:P0} [{d}] · no break {none:P0} [{z}]");
+            Assert.True(road >= 0.3f, $"a road break saves a real share: {road:P0} [{r}]");
+            Assert.True(road >= dirt, $"the road grip beats the off-road one: {road:P0} vs {dirt:P0}");
+            Assert.True(none <= 0.1f, $"no break, no escape: {none:P0} [{z}]");
+        }
+
+        /// <summary>
         /// ⭐ §9i ② — a drone sent to a POINT searches it and dives on what it remembers there: of a tank (1000 hp — its warhead's 450 is
         /// 0.45 of a kill, a vehicle ×1), a rifleman (100 hp — a whole kill, but a person ×0.3) and its OWN side's tank, it picks the
         /// enemy TANK; a contact outside the search radius is passed over.

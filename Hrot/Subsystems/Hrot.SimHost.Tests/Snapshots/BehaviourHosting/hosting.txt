@@ -39,6 +39,7 @@ Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
 DangerCrossing | hostedInput=- | inputBytes=128
 DangerCrossingBp | hostedInput=Hrot.AI.Behaviors.Brains.DangerCrossingParams | inputBytes=60
+DashRide | hostedInput=- | inputBytes=128
 Demo_Advance | hostedInput=- | inputBytes=0
 Demo_Engage | hostedInput=- | inputBytes=0
 Demo_MissionPlan | hostedInput=Hrot.AI.Behaviors.Brains.DemoMissionPlanParams | inputBytes=192
@@ -66,6 +67,7 @@ FireAtTarget | hostedInput=Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonD
 FiringPosition | hostedInput=- | inputBytes=0
 Flank | hostedInput=- | inputBytes=0
 FollowRoute | hostedInput=- | inputBytes=16
+GreyZoneDash | hostedInput=- | inputBytes=120
 HitRatio | hostedInput=- | inputBytes=608
 HoldArea | hostedInput=- | inputBytes=256
 HoldStance | hostedInput=Hrot.Map.Definitions.Behavior.HoldStanceParamsJsonDto | inputBytes=1

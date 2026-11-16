@@ -265,6 +265,10 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DriveBy = "DriveBy";
         /// <summary>⭐ CE-4621 M-6 (IM-5) — a commander's bikes converge on an objective from N directions, fight, then disperse on divergent routes to a rally point.</summary>
         public const string SwarmRaid = "SwarmRaid";
+        /// <summary>⭐ CE-4621 M-4 (MC-3) — a commander's bikes cross an exposed zone under a Dash: full speed, spaced, never stop, riders out at the edge.</summary>
+        public const string GreyZoneDash = "GreyZoneDash";
+        /// <summary>⭐ CE-4621 M-4 (MC-3, MC-4) — a bike's own dash: the legs at speed, the lookout's break across a diving drone, riders out at the end.</summary>
+        public const string DashRide = "DashRide";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";
