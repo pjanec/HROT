@@ -121,6 +121,14 @@ namespace Hrot.AI.Behaviors.Brains
         public byte BatteryOut;
         /// <summary>⭐ <c>CE-7027</c> — where a hover drop started: the bomber flies back here once it dropped.</summary>
         public Vector3 Home;
+        /// <summary>⭐ <c>CE-4621</c> MC-4a (R-2122) — the FPV's OWN perceived track: the last <see cref="AirAttackNodes.TrackSamples"/> camera
+        /// sightings of its target (xyz, w = seconds since <see cref="StartedAt"/>), newest first, one every <see cref="AirAttackNodes.DiveSteerPeriod"/>.</summary>
+        public Vector4 Seen0, Seen1, Seen2, Seen3;
+        /// <summary>⭐ MC-4a — sightings held (0…4) and when the next is due (seconds since <see cref="StartedAt"/>).</summary>
+        public byte SeenCount;
+        public float NextSeen;
+        /// <summary>⭐ MC-4a — 1 once the dive COMMITTED (time-to-go ≤ <see cref="AirAttackNodes.CommitSeconds"/>): no more re-aims.</summary>
+        public byte Committed;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -344,6 +352,14 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultSearchRadiusM = 150f;
         /// <summary>⭐ Slice 6e — the dive is re-aimed this often (s): every re-aim is a new intent on the wire.</summary>
         public const double DiveSteerPeriod = 0.2;
+        /// <summary>⭐ <c>CE-4621</c> MC-4a (R-2122; Motorcycle MV-1) — the operator's delay (s): every aim is made from what the camera showed this
+        /// long ago (a whole number of <see cref="DiveSteerPeriod"/>s).</summary>
+        public const float OperatorDelaySeconds = 0.4f;
+        /// <summary>⭐ MC-4a — the commit point: at this time-to-go (s) the drone stops re-aiming and flies its last line into the ground.
+        /// ⇒ a target that breaks at lateral acceleration a after the last aim it could see misses by up to ½·a·(commit + delay)².</summary>
+        public const float CommitSeconds = 0.7f;
+        /// <summary>⭐ MC-4a — the sightings the track keeps (delay / period + 2: two seen at least the delay ago, for a velocity).</summary>
+        public const int TrackSamples = 4;
         /// <summary>⭐ Slice 6e — within this horizontal distance of the target the dive line reaches its middle (m).</summary>
         public const float DiveHitRadiusM = 1f;
         /// <summary>⭐ CE-7014 — <c>AirAttackState.BatteryOut</c> when the link was JAMMED (1 = the battery ran out): it comes down where it is.</summary>
@@ -618,15 +634,27 @@ namespace Hrot.AI.Behaviors.Brains
                     ? NodeStatus.Running : NodeStatus.Failure;
             }
 
+            // ⭐ CE-4621 MC-4a — once committed nothing is re-aimed: the drone flies its last line into the ground (the Muscle's impact ends it)
+            if (ws.Committed != 0) return NodeStatus.Running;
             // the target (Run keeps p.Point on it and ends the attack when it is dead), LED: where it will be when the drone gets there.
             //   📐 live ua-drone-shelter (2026-10-16): aimed at where it IS, the drone sank to the hull's height and trailed a fleeing M1
             //   ~10 m behind for a minute (braking on the approach, it held the tank's own speed)
+            //   ⭐⭐ CE-4621 MC-4a (R-2122) — LED FROM ITS OWN PERCEIVED TRACK, as an operator flies it: the camera's sightings, the newest one
+            //   at least OperatorDelaySeconds old, the velocity from two of them (never the target's true velocity)
+            float t = (float)(now - (double)ws.StartedAt);
             var aim = p.Point;
             if (!p.Target.IsNull && world.HasComponent<SimTransform>(p.Target))
             {
-                aim.Z += Fdp.Toolkit.Combat.AimPoint.Middle(world, p.Target, out _, out _).Z - world.GetComponentRO<SimTransform>(p.Target).Position.Z;
-                if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out _, out var tv))
-                    aim += new Vector3(tv.X, tv.Y, 0f) * (Vector3.Distance(at, aim) / MathF.Max(speed, 1f));
+                float middleZ = Fdp.Toolkit.Combat.AimPoint.Middle(world, p.Target, out _, out _).Z - world.GetComponentRO<SimTransform>(p.Target).Position.Z;
+                if (t >= ws.NextSeen) { See(ref ws, p.Point, t); ws.NextSeen = t + (float)DiveSteerPeriod - 1e-4f; }
+                var v = Vector3.Zero;
+                if (Perceived(in ws, t, out var seenNow, out v)) aim = seenNow;   // where its sightings say it is now…
+                aim.Z += middleZ;
+                // …and led to the impact — twice: the time to go measured to the LED point, not to where it is now (📐 measured, MC-4a's
+                //   rail: one pass over-led a crossing 20 m/s bike by ~2 m — the drone reached the aim height 0.1 s before it)
+                var flatV = new Vector3(v.X, v.Y, 0f);
+                var led = aim + flatV * (Vector3.Distance(at, aim) / MathF.Max(speed, 1f));
+                aim += flatV * (Vector3.Distance(at, led) / MathF.Max(speed, 1f));
             }
             float flat = new Vector2(aim.X - at.X, aim.Y - at.Y).Length();
             float angle = (p.DiveAngleDeg > 0f ? p.DiveAngleDeg : DefaultDiveAngleDeg) * MathF.PI / 180f;
@@ -634,6 +662,17 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.Stage = StageDive;
                 ws.NextSteer = 0;
+            }
+            // ⭐ CE-4621 MC-4a — the COMMIT: at the time-to-go of CommitSeconds the last aim is the line from the drone through the led
+            //   target, carried on into the ground, and nothing is re-aimed after it — checked every tick, not only at a re-aim
+            if (ws.Stage == StageDive && !p.Target.IsNull && Vector3.Distance(at, aim) <= CommitSeconds * MathF.Max(speed, 1f))
+            {
+                ws.Committed = 1;
+                var line = aim - at;
+                float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(aim.X, aim.Y) ?? 0f;
+                float drop = at.Z - aim.Z;
+                float k = drop > 0.1f ? MathF.Max(1f, (at.Z - (ground - CommitPastGroundM)) / drop) : 1f;
+                return LocomotionMoveTo.Issue(world, self, at + line * k, speed, 0f, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
             }
             if (now < ws.NextSteer) return NodeStatus.Running;
             if (ws.Stage == StagePursue)
@@ -645,9 +684,53 @@ namespace Hrot.AI.Behaviors.Brains
             ws.NextSteer = now + DiveSteerPeriod;
             // D-3 — down the DIVE LINE: the point above the (led) target at flat · tan(angle), never above the cruise height — so the drone
             //   stays over the target until it is above it and comes down on its roof, never skimming the ground behind it
-            float over = MathF.Min(height, MathF.Max(0f, flat - DiveHitRadiusM) * MathF.Tan(angle));
-            return LocomotionMoveTo.Issue(world, self, aim + new Vector3(0f, 0f, over), speed, 0f, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
+            //   ⭐ CE-4621 MC-4a — the point is a LOOK-AHEAD down that line (one commit's flight nearer the target), not the point straight
+            //   over the target at the drone's own height: the drone then flies the line itself, so the committed line CONTINUES its path
+            //   (📐 the old point made it fly level and curl down, and the turn at the commit cost ~2 m against a 20 m/s bike)
+            var back = new Vector2(at.X - aim.X, at.Y - aim.Y);
+            var u = back.LengthSquared() > 1e-4f ? Vector2.Normalize(back) : Vector2.Zero;
+            float f = MathF.Max(0f, flat - DiveHitRadiusM - CommitSeconds * MathF.Max(speed, 1f) * MathF.Cos(angle));
+            float over = MathF.Min(height, f * MathF.Tan(angle));
+            var onLine = aim + new Vector3(u * f, 0f) + new Vector3(0f, 0f, over);
+            return LocomotionMoveTo.Issue(world, self, onLine, speed, 0f, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
         }
+
+        /// <summary>⭐ MC-4a — the committed line is carried this far under the ground (m), so the drone never brakes or hovers short of it.</summary>
+        public const float CommitPastGroundM = 5f;
+
+        /// <summary>⭐ <c>CE-4621</c> MC-4a — one camera sighting of the target (its position, no velocity) onto the track, newest first.</summary>
+        public static void See(ref AirAttackState ws, Vector3 seen, float t)
+        {
+            ws.Seen3 = ws.Seen2; ws.Seen2 = ws.Seen1; ws.Seen1 = ws.Seen0;
+            ws.Seen0 = new Vector4(seen, t);
+            if (ws.SeenCount < TrackSamples) ws.SeenCount++;
+        }
+
+        /// <summary>⭐ <c>CE-4621</c> MC-4a — what the operator acts on at <paramref name="t"/>: the newest sighting at least
+        /// <see cref="OperatorDelaySeconds"/> old and the velocity from it and the one before (zero with one only); false with none.</summary>
+        public static bool Perceived(in AirAttackState ws, float t, out Vector3 at, out Vector3 velocity)
+        {
+            at = default; velocity = default;
+            float cut = t - OperatorDelaySeconds + 1e-3f;
+            int n = ws.SeenCount;
+            for (int i = 0; i < n; i++)
+            {
+                var s = Sample(in ws, i);
+                if (s.W > cut) continue;
+                at = new Vector3(s.X, s.Y, s.Z);
+                if (i + 1 < n)
+                {
+                    var o = Sample(in ws, i + 1);
+                    float dt = s.W - o.W;
+                    if (dt > 1e-3f) velocity = (at - new Vector3(o.X, o.Y, o.Z)) / dt;
+                }
+                at += velocity * (t - s.W);   // where that sighting says it is NOW
+                return true;
+            }
+            return false;
+        }
+
+        private static Vector4 Sample(in AirAttackState ws, int i) => i switch { 0 => ws.Seen0, 1 => ws.Seen1, 2 => ws.Seen2, _ => ws.Seen3 };
 
         /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its
         /// time to impact and the margin is a missile already gone — an attack that starts later ignores it).</summary>

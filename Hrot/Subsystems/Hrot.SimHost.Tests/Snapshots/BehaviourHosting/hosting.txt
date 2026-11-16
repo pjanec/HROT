@@ -1,8 +1,8 @@
 AdvanceTo | hostedInput=Hrot.Map.Definitions.Behavior.AdvanceToParamsJsonDto | inputBytes=88
-AirArmedSearch | hostedInput=Hrot.AI.Behaviors.Orders.AirArmedSearchOrder | inputBytes=288
-AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=216
+AirArmedSearch | hostedInput=Hrot.AI.Behaviors.Orders.AirArmedSearchOrder | inputBytes=368
+AirPlatformAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=296
 AirPlatformMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=24
-AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=216
+AirPlatformStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=296
 AllMustPass | hostedInput=- | inputBytes=144
 ArtilleryUnitStrike | hostedInput=Hrot.AI.Behaviors.Orders.StrikeOrder | inputBytes=1608
 AssembleAfterDrop | hostedInput=Hrot.Map.Definitions.Behavior.AssembleAfterDropParamsJsonDto | inputBytes=1232

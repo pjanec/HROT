@@ -1293,8 +1293,14 @@ namespace Hrot.SimHost.Tests
                 status = DroneStep(ref p, ref ws, drone, frame);
                 var at = _w.GetComponentRO<SimTransform>(drone).Position;
                 var dest = MoveOf(drone).Destination;
-                bool diving = new Vector2(dest.X - middle.X, dest.Y - middle.Y).Length() < 0.01f && dest.Z < 59.9f;   // down the dive line
-                if (diving) Assert.True(dest.Z >= middle.Z - 0.01f, $"the dive line is never below the tank's middle: {dest}");
+                // down the dive line: a point on the 60° line over the tank (MC-4a: a look-ahead down it, toward the drone)
+                float destFlat = new Vector2(dest.X - middle.X, dest.Y - middle.Y).Length();
+                bool diving = ws.Stage == 8 && dest.Z < 59.9f;
+                if (diving && ws.Committed == 0 && dest.Z > middle.Z + 0.01f)
+                    Assert.InRange(dest.Z - middle.Z, destFlat * MathF.Tan(MathF.PI / 3f) - 0.5f, destFlat * MathF.Tan(MathF.PI / 3f) + 0.5f);
+                // ⭐ CE-4621 MC-4a — the COMMITTED order is the one line from the drone through the middle into the ground; every order
+                //   before it stays on the dive line, never below the tank's middle
+                if (diving && ws.Committed == 0) Assert.True(dest.Z >= middle.Z - 0.01f, $"the dive line is never below the tank's middle: {dest}");
                 if (!diving) maxPursuit = MathF.Max(maxPursuit, dest.Z);
                 else
                 {
@@ -1359,7 +1365,7 @@ namespace Hrot.SimHost.Tests
         {
             var sb = new System.Text.StringBuilder();
             bool all = true;
-            int caseNo = 0;
+            int caseNo = 0, hits = 0;
             foreach (float speed in new[] { 7f, 10f })
             foreach (float phase in new[] { 0f, 1.5f, 3f })
             {
@@ -1369,10 +1375,11 @@ namespace Hrot.SimHost.Tests
                 var p = new AirAttackParams { Target = tank, Point = o };
                 var ws = default(AirAttackState);
                 float best = float.MaxValue; double legT = phase; int side = 0;
+                double lastSwerve = double.NegativeInfinity, bestAt = 0;
                 for (int frame = 0; frame < 60 * 40; frame++)
                 {
                     legT += Dt;
-                    if (legT >= 40f / speed) { legT = 0; side ^= 1; }
+                    if (legT >= 40f / speed) { legT = 0; side ^= 1; lastSwerve = frame * Dt; }
                     float a = MathF.PI + (side == 0 ? 1f : -1f) * 35f * MathF.PI / 180f;   // away from the drone (+x), swerving
                     var v = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f) * speed;
                     _w.GetComponentRW<SimVelocity>(tank).Linear = v;
@@ -1380,13 +1387,61 @@ namespace Hrot.SimHost.Tests
                     _w.GetComponentRW<SimTransform>(tank).Position += v * Dt;
                     var at = _w.GetComponentRO<SimTransform>(drone).Position;
                     var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, tank, out _, out _);
-                    best = MathF.Min(best, Vector3.Distance(at, middle));
+                    float d = Vector3.Distance(at, middle);
+                    if (d < best) { best = d; bestAt = frame * Dt; }
                     if (at.Z < 0.5f) break;
                 }
-                sb.Append($"speed {speed} phase {phase}: closest {best:F2} m; ");
-                all &= best < 1.5f;
+                // ⭐⭐ CE-4621 MC-4a (R-2122) — the drone re-aims only on what its operator saw OperatorDelaySeconds ago, and not at all after its
+                //   commit: a swerve SEEN before that window is still hit (< 1.5 m); one inside it misses by at most the swerve's velocity
+                //   change carried over the window, Δv·(commit + delay) — the design's ½·a·T² for an instant swerve
+                float window = AirAttackNodes.CommitSeconds + AirAttackNodes.OperatorDelaySeconds;
+                bool late = bestAt - lastSwerve < window + (float)AirAttackNodes.DiveSteerPeriod;
+                float bound = late ? 2f * speed * MathF.Sin(35f * MathF.PI / 180f) * window : 1.5f;
+                sb.Append($"speed {speed} phase {phase}: closest {best:F2} m (swerve {bestAt - lastSwerve:F2} s before, bound {bound:F1}); ");
+                all &= best < bound;
+                if (!late) hits++;
             }
             Assert.True(all, sb.ToString());
+            Assert.True(hits >= 3, $"most dives see the last swerve in time: {sb}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> MC-4a (R-2122; Motorcycle MV-1) — the FPV is beaten only because it COMMITS. A bike crossing at 20 m/s
+        /// is hit; the same target breaking sideways at 8 m/s² (a bike's road grip) at time-to-go ≈ 1 s is MISSED — by about ½·a·T² with
+        /// T = commit + delay (the design's expected miss: 4.8 m; 📐 measured 4.53 m), at least 0.85 of it; breaking at 3 s out it is still hit (the drone
+        /// sees the break in time). ✅ Red-proofs (mutants): no commit (re-aims to the end) ⇒ the late break is hit ⇒ red; the true
+        /// operator delay 0 ⇒ the late break is seen in part and the miss falls under half the expected ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(-1f, true)]    // never breaks
+        [InlineData(3.0f, true)]   // breaks 3 s out: seen in time
+        [InlineData(1.0f, false)]  // breaks at time-to-go 1 s: inside commit + delay
+        public void CE4621_MC4a_TheDrone_CommitsOnWhatItSawLate_ALateBreakIsMissed_AnEarlyOneIsHit(float breakAtTgo, bool hit)
+        {
+            var drone = SpawnDrone(new Vector3(500f, 0f, 60f));
+            var bike = SpawnGround(Vector3.Zero, 100f, vehicle: true, ForceId.Friend);
+            var p = new AirAttackParams { Target = bike, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var v = new Vector3(0f, 20f, 0f);   // crossing the drone's line of approach at 20 m/s
+            const float a = 8f;
+            bool broke = false;
+            float best = float.MaxValue, turned = 0f;
+            for (int frame = 0; frame < 60 * 120; frame++)
+            {
+                _w.GetComponentRW<SimVelocity>(bike).Linear = v;
+                DroneStep(ref p, ref ws, drone, frame);
+                var at = _w.GetComponentRO<SimTransform>(drone).Position;
+                var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, bike, out _, out _);
+                float tgo = Vector3.Distance(at, middle) / DroneSpeed;
+                if (breakAtTgo > 0f && !broke && ws.Stage != 0 && tgo <= breakAtTgo && at.Z < 55f) broke = true;
+                if (broke && turned < 1f) { v += new Vector3(a, 0f, 0f) * Dt; turned += Dt; }   // the break: 1 s hard across its own track
+                _w.GetComponentRW<SimTransform>(bike).Position += v * Dt;
+                best = MathF.Min(best, Vector3.Distance(at, middle));
+                if (at.Z < 0.3f) break;
+            }
+            float expected = 0.5f * a * MathF.Pow(0.7f + 0.4f, 2f);   // the DESIGN's commit + delay (FPV §5e), not the constants under test
+            if (hit) Assert.True(best < 1.5f, $"hit: closest {best:F2} m");
+            else Assert.True(best >= 0.85f * expected, $"missed by about ½·a·T² = {expected:F1} m: closest {best:F2} m");   // 📐 4.53 m; no delay: 3.33
         }
 
         /// <summary>
