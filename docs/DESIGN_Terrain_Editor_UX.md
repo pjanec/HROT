@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-11-16 (R-5034: every lean of §5, + TE-15); ruled earlier: TE-1 (R-5032), TE-5 (R-4264), TE-6 (R-5033); nothing built
-updated: 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
+updated: 2026-11-16 (TE-16: 3-D is the PRIMARY view, R-5035) · 2026-11-16 (✅ APPROVED R-5034; TE-15 move / rotate / reshape added) · 2026-11-16 (TE-6 ruled R-5033) · 2026-11-15 (REVISED to §8 + R-5032 + R-4264; the first §3 / §5 / §6 / §7 moved to HISTORY) · 2026-11-15 (R-4264 folded: TE-5 obstacles are entities) · 2026-11-15 (first version — terrain lane, close-out item 4)
 current-answer: §5 the decisions (revised) · §3 the diagrams · §7 acceptance · §8 the review they answer · §2 the friction measured
 stale-below: ## ⛔ HISTORY (the first version's §3 / §5 / §6 / §7 — superseded by the review, kept for the reasoning; ⛔ not to be built)
 known-rot: none in the live sections; §8's findings are answered in §5 (each row names its R-n)
@@ -196,9 +196,11 @@ entities breaks the entity budget (B-2: one entity per block).
 | ~~TE-11~~ | "another one like that" | ⛔ **dropped**: Copy / Paste / Duplicate (Ctrl+C / V / D) already exist for any entity (`MapMenuActions.cs:115-117`); Alt-click is *select the next overlapped unit* | §8 R-6 |
 | **TE-12** | a berm | ⭐ kept, re-costed: a ground mode + the parser + a TERRAIN-class line + its slot in the G-32 stack — a small backend item, not a preset | §8 R-11 |
 | **TE-13** | the greyed *Street clutter* | ⭐ ship two scatter recipes: *Street clutter* and *Undergrowth* (baked, inert — R-4264 keeps generated clutter scenery) | data only |
-| **TE-14** | what v1 leaves OUT, said | erasing everything in an area · a clearing inside a wood · deleting part of a line (Edit Shape deletes points) · snapping in the 3-D view (drawing there works as the area tool does today) · single-letter shortcuts (`W` is *move forward* in 3-D — `EmbodiedKeys.cs:134`) | §8 R-15: each is a later item if asked for |
+| **TE-14** | what v1 leaves OUT, said | erasing everything in an area · a clearing inside a wood · deleting part of a line (Edit Shape deletes points) · single-letter shortcuts (`W` is *move forward* in 3-D — `EmbodiedKeys.cs:134`) | §8 R-15: each is a later item if asked for |
 
 | **TE-15** | moving, turning and reshaping what was placed — in 2-D AND 3-D | ✅ **RULED R-5034** — 🔒 user `2026-11-16`: *"Line can be of course.bettwr to be editable by dragging endpoinys, no wxtra rotation needed tgen"*. ⭐ A LINE (wall, hedge, tree Row, ditch) is moved by Edit Shape's centre handle and reshaped — "turned" included — by dragging its points (P6, built: drag a point, insert on a segment, Delete); ⛔ **no rotate for lines**. ⭐ An OBSTACLE ROW (entities) moves and turns as a group with the built group move / rotate (P5 `GroupTransform`: about the group's centre, or each piece about its own; one undo) once it selects as one group (TE-5). An AREA (wood, Group, ground shape) the same as a line. A block keeps its own Move / Rotate (U-3). ⭐ 3-D: the same handles — the 3-D view turns the mouse ray into a ground point and runs the 2-D hit test (P7: handles draped and pickable), band select works in 3-D (CE-1136); ⚠ not yet proven for terrain features in a 3-D frame — acceptance 9 | measured: the Rotate action is units-only (`MapMenuActions.cs:118`) and a line's shape is its points, not the entity's rotation (`OverlayCompiler.cs:95-99`) — so dragging points is the ONE way, no second mechanism |
+
+| **TE-16** | where is terrain edited? | ✅ **RULED R-5035** — 🔒 user `2026-11-16`: *"Will all the terrain enditing work in 3d which is the primary place for that?"* ⭐ **3-D is the PRIMARY authoring view; 2-D must work too.** Measured: the 3-D view already draws and picks what the tools use — points picked on ground / roof / wall top (`Picking.cs`, Map 3D M17 / M22), lines, filled triangles and boxes DRAPED on the relief (`GizmoRenderer3D.cs:133, :229-232, :270-281`), handles hit-tested at the ray's ground point (Map Interaction P7), band select (CE-1136), chunks rebuilt by area after a bake (U-6); snapping works on the picked XY, so it is free in 3-D. ⚠ **Two gaps the slices close:** ① **picking a placed TREE / tree Row in 3-D** — the picker holds the terrain mesh and entity boxes, not trees, so a click on a canopy lands on the ground BEHIND it (metres off from an oblique view): the feature gizmo (TE-9) must test the feature's own volume (a trunk + canopy cylinder, a wall's height band) along the RAY, not only the ground point; ② **right-click = the drawing menu vs right-drag = look** (`MapCamera3D.cs:344-378`) — prove a right CLICK opens the menu while a terrain tool is armed | the user's primary view; every slice's frame rails run in a 3-D frame FIRST, then 2-D |
 
 **Modifier keys while a terrain tool is armed** (checked against Map Interaction §2.5 and `MapGestures`):
 
@@ -231,7 +233,7 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 | S-3 | TE-5 the obstacle row (entities, one bracket, the group — `MacroInstance` measured first) + the three missing obstacle types | ui + backend |
 | S-4 | TE-6 snapping + the modifier rows | ui + backend |
 | S-5 | TE-8 the Terrain Details tab | ui |
-| S-6 | TE-9 (measure the generic symbol, then the gizmo) + TE-10 the ghost and its stay-until-baked | ui |
+| S-6 | TE-9 (measure the generic symbol, then the gizmo — with its 3-D volume pick, TE-16 ①) + TE-10 the ghost and its stay-until-baked | ui |
 | S-7 | TE-7 the closed wall and the gate rotation; TE-12 the berm | backend + ui |
 
 ## 7. Acceptance
@@ -243,8 +245,9 @@ settles TE-5. · Checkpoint & Ramming RM-5 — why obstacles must be breakable. 
 5. A closed wall round a house, then *Add gate here*: still ONE feature with a 3 m gap, one undo; a breach made before the gate survives it.
 6. Selecting a placed wall shows the Terrain tab; Kind → Hedge changes it after one bake; Kind offers no point kinds.
 7. While drawing and until its bake lands, the ghost shows what the bake will make; the frames match [the mockup](UX/terrain-editor.svg) (R-4146).
-8. A steady drawing frame allocates 0 B (snap, ghost — R-2084); every sim-touching rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
-9. In a 2-D AND a 3-D frame (`xvfb-run -a`): a wall moved by its centre handle and one end dragged to a new point; a tree Row's end dragged; an obstacle row moved and turned about its centre as one group — each one undo step, and the bake follows (TE-15).
+8. ⭐ (TE-16) Items 1–7 are proven in a 3-D frame first: points picked on the relief, the ghost and handles draped, a tree in a Row picked by a click on its CANOPY from an oblique view, the drawing menu opened by a right click while right-drag still looks around.
+8b. A steady drawing frame allocates 0 B (snap, ghost — R-2084); every sim-touching rail runs under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`.
+9. In a 3-D frame FIRST, then a 2-D one (`xvfb-run -a`, TE-16): a wall moved by its centre handle and one end dragged to a new point; a tree Row's end dragged; an obstacle row moved and turned about its centre as one group — each one undo step, and the bake follows (TE-15).
 
 ## 8. ⛔ Critical review `2026-11-15` — three independent reviewers *(engine / data · the author's workflow · claims vs code; every headline finding re-measured)*
 
