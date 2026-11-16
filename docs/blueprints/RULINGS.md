@@ -947,6 +947,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2127** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B4): a minefield ahead is its OWN SOP row, never a crossing drill; the squad halts in place (every man holds) and asks for engineers ONCE at the field's near side (a new `RequestKind.Engineers`, appended); it goes on when the area is gone or after 900 s; no HQ answers the request yet (CE-2442). 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
 | ⭐ **R-2128** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-1): the vehicle impact's "one shared swept test" is a shared PRIMITIVE beside the flyer's (`SweptFrontMeetsCircle` next to `SegmentInCircle`); harm in bands by closing speed × √(mass / 1500), ±15 % seeded; no harm under 2 m/s (boarding exempt by it); animals struck like people; no knock-back. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5 |
 | ⭐ **R-2129** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-2): the ram order is switched OFF, never removed (the off replicates); the driver is seat 0; both Lethal acts are follow-ups in the parallel phase; NO path-less "direct move inside 50 m" (no flag for it) — the pursuit aims at the target through the planner. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
+| ⭐ **R-2130** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-3): a car whose engine is hit COASTS only while it rams (a committed driver), any other disabled car brakes; the driver is seat 0 (his loss stops the car); a penetrating hit on a soft skin (≤ 10 mm side) reaches one non-station occupant at 30 %, never through armour. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5b |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1316,6 +1317,7 @@ R-2126 | docs/designs/minefields/DESIGN_Minefields.md | the equipment switch is 
 R-2127 | docs/designs/minefields/DESIGN_Minefields.md | `DangerAreaAhead` is FALSE for a minefield (never crossed as a drill)
 R-2128 | docs/blueprints/batches/STATUS_Behaviors_Checkpoint.md | the "ONE shared swept test" is a shared PRIMITIVE beside the flyer's
 R-2129 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | the order is switched OFF, never removed (so the off replicates)
+R-2130 | docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md | coasting is for a ramming car only
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians
