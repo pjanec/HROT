@@ -80,7 +80,7 @@ namespace Hrot.SimHost.Tests
             return e;
         }
 
-        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.6) — a STOCHASTIC unit has no roster and no bodies, so its strength is its SLOTS: N of M
+        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.7) — a STOCHASTIC unit has no roster and no bodies, so its strength is its SLOTS: N of M
         /// up reads Present N / Authorized M, the SITREP colour from that share (46/48 GREEN, 20/48 not), a broken-stress slot is in the fight but not
         /// standing, and every slot down is out of the fight and BLACK. ✅ Red-proof: the stochastic branch of <c>UnitStrength.Of</c> removed ⇒ Unknown ⇒ red;
         /// of <c>CombatEffective.IsInTheFight</c> removed ⇒ the wiped-out unit stays in the fight ⇒ red; <c>StaffComposerSystem.StrengthOf</c>'s roster guard ⇒ Unknown ⇒ red.</summary>
@@ -124,10 +124,11 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> — a stochastic PLATOON under a physical COMPANY's roster adds its men (its live slots), not "1 man, composition
-        /// unknown"; and its ammunition adds nothing (the contract holds no slot capacity ⇒ <c>AmmoOf</c> stays Unknown for it — finding, STATUS_AggBehaviors §5).
-        /// ✅ Red-proof: the stochastic arm of <c>UnitStrength.Sum</c> removed ⇒ 1 man ⇒ red.</summary>
+        /// unknown"; and (ST-3, R-8314) its ammunition is its SHARE of the TKB's basic load (<c>UnitAmmunition.TryShare</c>): ≥ ½ GREEN, ≥ ¼ AMBER, some RED, none BLACK —
+        /// the same thresholds as a roster's, alone and through the company's sum; UNKNOWN only when the share cannot be known (no TKB, nothing standing to measure).
+        /// ✅ Red-proof: the stochastic arm of <c>UnitStrength.Sum</c> removed ⇒ 1 man ⇒ red; <c>AmmoOf</c>'s stochastic arm back to "adds nothing" ⇒ Unknown ⇒ red.</summary>
         [Fact]
-        public void ST0_AStochasticPlatoon_UnderAPhysicalCompany_AddsItsMen_AndItsAmmoIsUnknown()
+        public void ST0_AStochasticPlatoon_UnderAPhysicalCompany_AddsItsMen_AndItsAmmoIsItsShare()
         {
             using var w = new Fdp.Core.EntityRepository();
             Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
@@ -141,9 +142,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((40f, 48), (s.Present, s.Authorized));
             Assert.Equal(1, Fdp.Toolkit.Squad.CombatEffective.FightingMembers(w, company) > 0 ? 1 : 0);   // the platoon is in the fight
             Assert.Equal(StatusColour.Amber, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, company));      // 40/48 = 0.83
-            Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, platoon));
+            Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, platoon));          // no TKB ⇒ no basic load ⇒ the share cannot be known
             Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, company));
             Assert.Equal(0L, StaffComposerSystem.RoundsOf(w, company, out long max)); Assert.Equal(0L, max);
+
+            var was = AggregateTestUnits.GiveABasicLoad(w, basicLoad: 20);
+            try
+            {
+                void Rounds(ushort each) => AggregateTestUnits.Make(w, platoon, slots: 48, up: 40, ammoEach: each);
+                foreach (var (each, colour) in new[] { ((ushort)10, StatusColour.Green), ((ushort)5, StatusColour.Amber), ((ushort)4, StatusColour.Red), ((ushort)0, StatusColour.Black) })
+                {
+                    Rounds(each);
+                    Assert.Equal(colour, StaffComposerSystem.AmmoOf(w, platoon));
+                    Assert.Equal(colour, StaffComposerSystem.AmmoOf(w, company));                          // through the parent's sum
+                }
+                Rounds(20);
+                Assert.Equal(StatusColour.Green, StaffComposerSystem.AmmoOf(w, platoon));
+                Assert.Equal(StaffComposerSystem.StochasticAmmoWeight, StaffComposerSystem.RoundsOf(w, company, out max));
+                Assert.Equal(StaffComposerSystem.StochasticAmmoWeight, max);
+                AggregateTestUnits.Make(w, platoon, slots: 48, up: 0);                                       // wiped out: nothing to measure ⇒ unknown, not green
+                Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, platoon));
+            }
+            finally { Fdp.Toolkit.Aggregate.KillerVictimTkb.PersonalSoldiers = was; }
         }
 
         /// <summary>⭐ agg-behaviors <c>ST-0 ①</c> — the stochastic readers allocate NOTHING in the steady state (R-2084: 0 B per call). ✅ Red-proof: a

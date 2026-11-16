@@ -30,5 +30,34 @@ namespace Hrot.SimHost.Tests
             if (w.HasComponent<AggregateUnit>(e)) { w.SetComponent(e, a); w.SetComponent(e, t); }
             else { w.AddComponent(e, a); w.AddComponent(e, t); w.AddComponent(e, new UnitHoldings()); }
         }
+
+        /// <summary>⭐ ST-3 (R-8314) — gives the world a TKB whose soldier (Leader and Rifleman alike) is spawned with <paramref name="basicLoad"/> rounds, and maps the
+        /// slot roles to it (<see cref="KillerVictimTkb.PersonalSoldiers"/>, a process-wide static the host sets from the TKB) — so <see cref="UnitAmmunition.TryShare"/>
+        /// can answer. Returns the previous map: restore it in a <c>finally</c>.</summary>
+        public static System.Collections.Generic.IReadOnlyDictionary<SlotRole, Fdp.Core.TkbTypeId>? GiveABasicLoad(EntityRepository w, int basicLoad)
+        {
+            const long Soldier = 7401;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var man = new Fdp.Interfaces.TkbTemplate("TestSoldier", Soldier);
+            man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = new() { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = basicLoad } } });
+            db.Register(man);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var was = KillerVictimTkb.PersonalSoldiers;
+            KillerVictimTkb.PersonalSoldiers = new System.Collections.Generic.Dictionary<SlotRole, Fdp.Core.TkbTypeId>
+            { [SlotRole.Leader] = new(Soldier), [SlotRole.Rifleman] = new(Soldier) };
+            return was;
+        }
+
+        /// <summary>⭐ ST-3 — the killer–victim table the attrition rails fight with (agg-backend's <c>StochasticCombatRails.Table()</c> recipe, <c>KillerVictimGenerator.Build</c> from a
+        /// 2-mil rifle that hits a man for 12.5): the personal weapon of a Leader and a Rifleman. Set <see cref="KillerVictimTable.Current"/> to it for the run, restore it after.</summary>
+        public static KillerVictimTable FightTable(float roundsPerSecond = 0.5f)
+        {
+            var rifle = new TkbTypeId(9001);
+            var t = KillerVictimGenerator.Build(new[] { new WeaponNumbers(rifle, DispersionMils: 2f, Penetration: 6f, DamagePerHit: 12.5f, EffectiveRoundsPerSecond: roundsPerSecond, MaxRange: 600f) },
+                new[] { new TargetNumbers(KillerVictimTable.Personnel, Radius: 0.3f, Health: 25f) });
+            t.SetPersonalWeapon(SlotRole.Rifleman, rifle);
+            t.SetPersonalWeapon(SlotRole.Leader, rifle);
+            return t;
+        }
     }
 }

@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
 
                 object plain = Activator.CreateInstance(dtoType)!;
                 object changed = Activator.CreateInstance(dtoType)!;
-                if (!SetSentinels(changed)) continue;   // no top-level number to vary
+                if (!SetSentinels(changed, name.StartsWith("StochasticUnit", StringComparison.Ordinal) ? null : AcceptedUnusedByPhysicalPlays(dtoType))) continue;   // no top-level number to vary
 
                 byte[] a = new byte[bytes], b = new byte[bytes];
                 try
@@ -129,13 +129,18 @@ namespace Hrot.SimHost.Tests
             fixed (byte* p = into) def.ParseParams!(json, p, into.Length, world, self);
         }
 
-        private static bool SetSentinels(object boxed)
+        /// <summary>⭐ agg-behaviors R-8300 / R-8303 (ST-3) — the fields of a NEUTRAL order DTO a PHYSICAL play accepts strictly but does not use (the neutral union is wider than a physical play's
+        /// reading: <c>AttackOrder</c>'s Position / SearchRadius / Speed / HoldBack are the stochastic attack's; the physical attack plays read the Target). A stochastic play reads them all — checked.</summary>
+        private static HashSet<string>? AcceptedUnusedByPhysicalPlays(Type dto)
+            => dto == typeof(Hrot.AI.Behaviors.Orders.AttackOrder) ? new HashSet<string> { "Position", "SearchRadius", "Speed", "HoldBack" } : null;
+
+        private static bool SetSentinels(object boxed, HashSet<string>? skip = null)
         {
             bool any = false;
             int k = 0;
             foreach (var f in boxed.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public))
             {
-                if (f.IsInitOnly) continue;
+                if (f.IsInitOnly || (skip != null && skip.Contains(f.Name))) continue;
                 if (Array.IndexOf(Numeric, f.FieldType) >= 0)
                 {
                     k++;
