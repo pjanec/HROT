@@ -16,13 +16,13 @@ Started at `0ef5b4084` (merged `coordinator@1a8f074a6`), marker `7e7cfc7a0`.
 | # | item | state | result |
 |---|---|---|---|
 | 1 | RT-3 visible-state golden, a WARNING | ✅ built | each snapshot carries `visible` (`VisibleState.Paths` + every path the checks read); the golden verdict compares only times, rounds, bursts, positions, health and visible state (`ScenarioGolden.CompareVisible`); a difference or a missing golden is a WARNING (`VerifyResult.Warnings`; exit 0; `summary.json` `warned`; junit system-out); the full comparison (`Compare`) stays for the replay harness and leaves `visible` out. `farm-under-fire` and `ua-drone-shelter`: PASS with "golden different (a WARNING)" on their old goldens → re-captured once → PASS, golden SAME |
-| 2 | feature scenarios | 🟡 in progress | [`STATUS_Backend_Feature_Scenarios.md`](STATUS_Backend_Feature_Scenarios.md): drive-by + grenade + horse-rider PASS; parked bomb 8/9; the runs found **CE-3453** (animals crowded every target memory — nobody fired on a farm), **CE-3455** (an attacking dog read unarmed), **CE-3456** (`ChargeTimer` never registered), the drive-by's off-road pass, the out-of-range throw, the raid displaced by a contact reaction (all fixed); **CE-3452**, **CE-3454**, **CE-3457** filed |
+| 2 | feature scenarios | 🟡 nearly done | [`STATUS_Backend_Feature_Scenarios.md`](STATUS_Backend_Feature_Scenarios.md): **8 PASS with goldens** (drive-by, drive-by-grenade, parked-bomb 9/9, horse-rider, guard-dog, flock-flush, herd-road, village-fight); swarm-raid ⚠ 10/11 (CE-3454, behaviors); drone-dash ⏳. Found and fixed CE-3453, CE-3455, CE-3456, CE-3459; filed CE-3452, CE-3454, CE-3457, CE-3458 |
 | 3 | RT-5 cluster tier | ✅ built | `--verify <s> --mode all` → `ClusterVerifyRunner` + `ClusterVerifyWorld` (design §11.5). `farm-under-fire` 8/8 and `ua-drone-shelter` 11/11 **PASS** in the cluster tier. Found building it: every state cue (near/task/side/health/embark/gesture) read FALSE in a world without a repository — `ConditionBook.StateHolds` (R-3094) |
 | 4 | RT-6 replication sanity | ✅ built | `ReplicationSanity.Judge` on `/diagnostics/architecture` in every cluster run; first runs: no problem, one note (an unsubscribed `PathResponseBatch`) |
-| 5 | RT-8 GitHub Actions | ⏳ | — |
-| 6 | RT-7 Python checks → checks.json | ⏳ | — |
-| 7 | the 41 scenarios without checks | ⏳ | — |
-| 8 | CAPABILITIES marks | ⏳ | — |
+| 5 | RT-8 GitHub Actions | ✅ built (`af95eaed6`) | `.github/workflows/scenario-regression.yml`: build once → editor-tier + cluster-tier matrix, nightly cron + manual dispatch, junit summary; ⏳ **the first manual run** (runner cores / memory / DDS) needs the workflow on the default branch — measured once it merges |
+| 6 | RT-7 Python checks → checks.json | 🟡 scoped | 📐 measured: the script's `SCENARIOS` table has **107** scenarios (not 81) — **87** already carry a committed `checks.json`, **17** get one in item 7, **3** have none (`pc-assault`, `morale-barrage-green`, `morale-barrage-veteran`). ⇒ the work is an AUDIT per scenario (every `run_*` condition is an `expect` row, add the missing ones), then delete the condition from the script. Queued to the worker after item 7 |
+| 7 | the scenarios without checks | 🟡 worker | 23 `checks.json` written so far (in the tree, uncommitted until reviewed); worker paused by the rate limit, resumed `2026-11-16 23:00` |
+| 8 | CAPABILITIES marks | 🟡 part | motorcycles + animals marked by their feature scenarios (`d9a8af458`); the rest after items 6–7 |
 
 ## Lane decisions (R-3xxx block — each says what would change it)
 | # | decision | why · what would change it |
