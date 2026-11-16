@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — OPEN (the user is still adding): AN-1…AN-16 approved (R-4266, R-4267); AN-17 / AN-18 pigs, goats, enclosed areas, AN-19 sounds (user requests; leans); ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: DESIGN — COMPLETE: AN-1…AN-19 approved (R-4266, R-4267, R-4268); ⏳ the review (§8) before READY-TO-BUILD; ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
 current-answer: §1 inventory · §2 the proven pattern · §3 the species · §4 decisions (approved) · §4a the fixed ids · §5 UML · §6 slices
 stale-below: nothing
 known-rot: none
@@ -176,6 +176,16 @@ classDiagram
   class MotionTracker {
     <<existing, grows quadruped gaits>>
   }
+  class DomesticAnimalArea {
+    <<new, a closed polyline: species, count, seed, Enclosed>>
+    Populate()
+  }
+  class SoundEmissionSystem {
+    <<existing, grows SoundSourceClass.Animal>>
+  }
+  class SoundSources {
+    <<existing presentation, plays calls, alarms, hooves, wings>>
+  }
   AnimalHsm ..> AnimalTemperament
   CivilianFearSystem ..> FearImpulseTable
   AnimalHsm ..> CivilianFearSystem : fear
@@ -190,8 +200,11 @@ classDiagram
   CatPlay ..> JumpLink : sill hop
   CarrierSeats .. AnimalHsm : the riding horse
   MotionTracker .. AnimalTemperament : gaits by speed
+  DomesticAnimalArea ..> AnimalHsm : populates, the home area
+  AnimalHsm ..> SoundEmissionSystem : calls, alarms, the bark
+  SoundEmissionSystem ..> SoundSources : the operator hears what the AI hears
 ```
-*What it shows that prose hid: ONE brain and ONE fear system serve every species — the guard dog, the cat and the riding horse are plays over the
+*What it shows that prose hid: ONE brain, ONE fear system and ONE sound path serve every species; the domestic animal area only POPULATES and gives a home — the guard dog, the cat and the riding horse are plays over the
 same brain, and the two genuinely new mechanisms are the flock entity and the jump link (shared by horses and cats).*
 
 ```mermaid
