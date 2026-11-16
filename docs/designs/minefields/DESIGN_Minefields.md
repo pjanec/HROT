@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — COMPLETE (R-4270, R-4271); review §8 APPROVED (R-4272); ⏳ the knowledge-generalization question (§9) before READY-TO-BUILD
-current-answer: §3 decisions (approved) · §3a the fixed ids · §3b UML · §4 slices
+build-state: DESIGN — COMPLETE (R-4270…R-4273); review §8 APPROVED (R-4272); generalization §9 APPROVED + folded (R-4273); ⏳ an independent review of the generalization (§10) before READY-TO-BUILD
+current-answer: §3 decisions (approved, MF-17 the generic knowledge) · §3a the fixed ids · §3b UML · §4 slices · §8 the review (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -12,6 +12,9 @@ related-designs:
   - ../vehicle-tactics/DESIGN_Urban_Armour_Tactics.md — M1 plans a BOTTOM facing "for mines later" — an AT mine strikes it
   - ../../DESIGN_Terrain_Authoring.md — OWNS the scatter's deterministic placement inside a polygon (the pattern MF-2 follows)
   - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS charges and `TriggerIed` (an IED is a single, command-fired mine)
+  - ../../DESIGN_Utility_AI_Demo_Scenarios.md — OWNS the danger-area sensor along a route (§10, R-213) that reports a Minefield area here (KG-7, KG-9)
+  - ../../blueprints/Architect_Question_101_Shelling_Fear_And_Shelled_Areas.md — OWNS the shelled area (cross or hold, never avoided) — kept apart from PlaceKnowledge (KG-8)
+  - ../../PLAN_Training_And_Gameplay_Engine.md — P-3 OWNS side knowledge of ENTITIES on the 2-D map; PlaceKnowledge is the PLACE half and shares its display filter
 -->
 
 # DESIGN — minefields: laid, struck, avoided, breached
@@ -65,6 +68,7 @@ through a minefield, which will basically cut the zone into parts."*
 | **MF-14** | ⭐ **where the knowledge LIVES, how it is recorded and saved** (🔒 user: *"Where would the mine knowledge grid be stored? Is that part of some world singleton … How would it be stored, recorded to the scenario? Because it has to be"*) | ⭐ **NOT a world singleton** — 📐 the shelled area IS node-level (`ShelledAreas.cs:9-16`: "no component id: a restore forgets"), which is right for shelling and WRONG here (knowledge must survive a restore, a replay and a save). ⭐ It follows the **runtime damage-record pattern** the engine already uses for craters, felled trees and breaches (`CellRecordSystem.cs:17-23`, `TreeDamage.cs:21`, `BuildingDamage`): ONE small **record entity per (field, side)** carrying an unmanaged **`MinefieldKnowledge`** component — the field's link, the side, the cell size, the grid at 2 bits per cell (unknown · suspected · known-mined · known-clear) and a **Marked** flag — owned by the node that decides (where the strike or the recon happens), **recorded** (keyframes, seek, replay), **replicated** to every node, and **SAVED** into the scenario through a section keyed by the field's stable id + side, the way `TerrainObjectsSection` saves the breaches (`TerrainObjectsSection.cs:8-20`; the record entity itself transient, rebuilt at load). ⭐ Size: ≤ 1024 B per component (the engine's cap) ⇒ up to 4096 cells — a field up to ~640 × 640 m at 10 m cells; a larger field coarsens its cells (≤ 64 × 64) — fields are rarely larger | one proven pattern, nothing new; runtime knowledge is recorded and saved like runtime damage |
 | **MF-15** | ⭐ **OWN minefields** (🔒 user: *"Own minefields should be also avoided by everyone who knows"*) | the field's per-side **known-at-start** flags (MF-1) create that side's record already **Marked** (known in full) — no grid needed until something changes; every unit of a side that knows a field avoids it exactly as an enemy field it has learned: **knowledge is per SIDE, not per field owner** (a field laid by Blue is known to Blue, and to Red only by what Red learns). ⭐ Knowledge is SHARED by the whole side (its common picture — reports travel the chain at once, a simplification) | one rule for own and enemy fields |
 | **MF-16** | ⭐ **MANY minefields** (🔒 user: *"what if there are multiple minefield entities? How the knowledge grid will be structured to cover that?"*) | ⭐ there is NO global grid: each field has its OWN records, one per side that knows anything about it (absent ⇒ that side knows nothing). Fields are independent — a strike near two fields marks suspected cells in each field's own grid; a recon team traces whichever field it is on. Avoidance asks every field: a route for a unit of side S is priced through a side-aware navmesh **query filter** (📐 the engine already has a custom filter — `DoorAwareQueryFilter`, `NavDoorways.cs:194` — that is the seam) over the minefield navmesh area: a polygon of field F is closed / costly for S where S's record of F says suspected or known-mined, open otherwise (an unknown field is walked into); the march's danger-area sensor shows known fields ahead per side | per-field state scales with the number of fields; the route filter is the one place sides differ |
+| **MF-17** | ⭐ **the knowledge is GENERIC — knowledge of a PLACE per side** (🔒 user: *"maybe this is something which is more generic, the knowledge about some part of the world"*) | ⭐ ✅ R-4273 — §9 KG-1…KG-9 folded: ONE record `PlaceKnowledge` (subject, side, kind, chunk; a common header + a kind-owned payload), ONE writer (events → the serial `PlaceKnowledgeSystem`, the kind's lattice max), ONE set of sharing rules, ONE display filter and ONE `Knows(side, subject, kind)`; the planner's ONE per-side area-cost table, VERSIONED (rebuilt only when a record changes, the `DoorStates.Of` precedent); avoid (planner) vs cross-with-care (danger sensor) kept distinct; only the Minefield kind is built | entity knowledge (contacts, last-known markers) stays out; shelled / gas may later price the same table |
 | **MF-12** | authoring and drawing | a Minefield tool (a closed polyline, type, spacing, orientation, seed, known-to sides); drawn as the tactical graphic (a hatched area, mine symbols) ONLY where the viewer's side knows it; the instructor sees all; lanes drawn as marked corridors; individual mines invisible except to the instructor | the user's map; per-side display |
 
 ## 3a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
@@ -72,12 +76,12 @@ through a minefield, which will basically cut the zone into parts."*
 | what | the value | note |
 |---|---|---|
 | the minefield entity | TKB **8830** `Minefield`, DIS **5 · 0 · 0 · 91** (cultural feature, HROT — beside the scenario macro's `5.0.*.90`), class **`"Minefield"`** = `5.0.*.91` | the authored field (polygon, type, spacing, orientation, seed, known-at-start per side, its lanes) |
-| the knowledge record | TKB **7206** `MinefieldKnowledgeRecord` (the record block 7201–7205: ground / tree damage …) | one per (field, side), transient, saved through the section (MF-14) |
+| the knowledge record | TKB **7206** `PlaceKnowledgeRecord` (the record block 7201–7205: ground / tree damage …) | ⭐ MF-17: one per (subject, side, kind, chunk); the minefield is its first KIND (`PlaceKnowledgeKind.Minefield = 1`); transient, saved through the section (MF-14) |
 | the mines (rounds) | munitions **6051** `TkbMineAntiPersonnel` · **6052** `TkbMineAntiTank` · **6053** `TkbLineCharge` | 6047–6049 smoke, 6050 the radar SAM |
 | the mine-clearing vehicle | TKB **116** `Engineer_MineClearer`, DIS **1 · 1 · \* · 9 · 2** (large tracked utility, beside the bulldozer `1.1.*.9.1`), class **`"MineClearer"`** = `1.1.*.9.2` | plough / flail + a line charge mount |
 | the navmesh area | **`MinefieldArea = 5`** (door 2, woods 3, crater 4) | per-mover, priced per side by the query filter (MF-16) |
 | the danger kind | **`DangerAreaKind.Minefield = 8`** | ⚠ the kinds' bitmask is a SIGNED byte with every bit used (`Shelled` already sits on bit 0) — the review decides how to widen it |
-| the components | **`Minefield`** (on 8830; the parameters, a lanes list), **`MinefieldStrikes`** (the struck / cleared mine bitset, MF-3), **`MinefieldKnowledge`** (on 7206, MF-14) — unmanaged, recorded, replicated; ids allocated by backend at build | ⚠ the strike bitset of a big field may pass 1024 B — chunked like the knowledge |
+| the components | **`Minefield`** (on 8830; the parameters, a lanes list), **`MinefieldStrikes`** (the struck / cleared mine bitset, MF-3), **`PlaceKnowledge`** (on 7206, MF-14 + MF-17: header + the kind's payload; the minefield payload = the 2-bit cell grid ≤ 62 × 64) — unmanaged, recorded, replicated through the SHARED translator pack (every node role, KG-9); ids allocated by backend at build | ✅ MR-1: no strike bitset — struck mines are a lattice-index list, chunked |
 
 ## 3b. UML
 
@@ -100,10 +104,33 @@ classDiagram
   class MinefieldStrikes {
     <<new record, struck and cleared mines>>
   }
-  class MinefieldKnowledge {
-    <<new record per field and side, TKB 7206>>
-    Grid2bit
+  class PlaceKnowledge {
+    <<new record per subject, side, kind, chunk - TKB 7206>>
+    SubjectKey
+    Side
+    Kind
+    Chunk
+    State
+    LearnedAt
+    Source
     Marked
+    Payload
+  }
+  class MinefieldCells {
+    <<the Minefield kind's payload>>
+    Grid2bit
+    StruckLattice
+  }
+  class PlaceKnowledgeKinds {
+    <<new, per kind: payload merge as a lattice max>>
+    Merge()
+  }
+  class SideAreaCostTable {
+    <<new, per side, VERSIONED like DoorStates.Of>>
+    Version
+  }
+  class DangerAlongRouteSolve {
+    <<existing, adds a Minefield area for the unit's side>>
   }
   class MineTriggerSystem {
     <<new, serial, movers inside a field>>
@@ -117,8 +144,8 @@ classDiagram
   class ShelledAreaSystem {
     <<existing, the precedent for suspected circles>>
   }
-  class MinefieldKnowledgeSystem {
-    <<new, strikes and recon fill the grid>>
+  class PlaceKnowledgeSystem {
+    <<new, serial, applies knowledge events on the owning node>>
   }
   class SideAwareNavFilter {
     <<new, beside DoorAwareQueryFilter>>
@@ -140,33 +167,38 @@ classDiagram
   MineTriggerSystem --> MinefieldStrikes : a mine goes off once
   MineTriggerSystem ..> ArmorModel : AT under the hull
   MineTriggerSystem ..> AreaEffectSystem : AP burst
-  MinefieldKnowledgeSystem ..> MineTriggerSystem : a strike
-  MinefieldKnowledgeSystem ..> ReconMinefield : cells the team sees
-  MinefieldKnowledgeSystem --> MinefieldKnowledge : writes
-  ShelledAreaSystem .. MinefieldKnowledgeSystem : the same shape, but recorded
-  SideAwareNavFilter ..> MinefieldKnowledge : per side
+  PlaceKnowledgeSystem ..> MineTriggerSystem : a strike event
+  PlaceKnowledgeSystem ..> ReconMinefield : swept-cell events
+  PlaceKnowledgeSystem --> PlaceKnowledge : writes
+  PlaceKnowledgeSystem ..> PlaceKnowledgeKinds : merges by kind
+  PlaceKnowledge *-- MinefieldCells : Kind Minefield
+  ShelledAreaSystem .. PlaceKnowledgeSystem : short-lived, unsaved - stays apart
+  SideAreaCostTable ..> PlaceKnowledge : rebuilt on a version change
+  SideAwareNavFilter ..> SideAreaCostTable : per side
+  DangerAlongRouteSolve ..> PlaceKnowledge : the unit's side
   ClearLane --> Minefield : adds a lane
   ClearLane --> MinefieldStrikes : clears the mines in it
-  TerrainObjectsSection ..> MinefieldKnowledge : saved per field and side
-  MineStrikeReaction ..> MinefieldKnowledgeSystem : reports
+  TerrainObjectsSection ..> PlaceKnowledge : saved per subject, side, kind
+  MineStrikeReaction ..> PlaceKnowledgeSystem : reports
 ```
 *What it shows that prose hid: the field's mines are never stored — they are DERIVED; the only runtime state is two records (what went off, what
-each side knows), both following the damage-record pattern, and the ONE place sides differ is the route filter.*
+each side knows), both following the damage-record pattern. ⭐ The knowledge record is GENERIC (`PlaceKnowledge`, MF-17): the minefield is only
+its first kind, and the per-side cost table is rebuilt only when a record changes.*
 
 ```mermaid
 sequenceDiagram
   participant P as Blue patrol
   participant T as MineTriggerSystem
-  participant K as MinefieldKnowledgeSystem
+  participant K as PlaceKnowledgeSystem
   participant E as Blue engineers
   participant N as SideAwareNavFilter
   participant C as Blue mine clearer
   P->>T: a man steps on an AP mine
   T->>P: the burst, a casualty
   T->>K: a strike in field F
-  K->>K: Blue's grid of F, suspected cells within 50 m
+  K->>K: Blue's PlaceKnowledge of F, suspected cells within 50 m, version +1
   P->>P: MineStrike, halt, back out, report
-  N->>N: Blue routes avoid the suspected cells
+  N->>N: Blue's cost table rebuilt once, routes avoid the suspected cells
   E->>K: ReconMinefield, cells within 5 m become mined or clear
   K->>K: the edge traced, F marked for Blue
   C->>T: ClearLane through F
@@ -180,12 +212,14 @@ and saved; the lane then opens a passage for that side only.*
 graph TD
   SIM[SimHost - the ground integrator and the fire path] --> TR[MineTriggerSystem, serial, after the movers]
   TR --> AE[AreaEffectSystem and the hull damage]
-  TR --> KS[MinefieldKnowledgeSystem]
+  TR --> KS[PlaceKnowledgeSystem, serial]
   CGF[CgfLogicPack - brains] --> BEH[MineStrikeReaction, ReconMinefield, ClearLane, the breach play]
   BEH --> KS
   NAV[the navmesh provider - the side-aware query filter] --> ROUTES[routes per side]
   KS --> REC[the knowledge records - recorded, replicated, saved]
-  REC --> NAV
+  REC --> SHARED[shared translator pack - every node role]
+  SHARED --> NAV
+  SHARED --> DS[DangerAlongRouteSolve on the navigation node]
   SAVE[ScenarioSerializer - the terrain objects section] --> REC
   SCH[kernel scheduler every frame] --> SIM
   SCH --> CGF
@@ -213,7 +247,7 @@ no node writes another node's entity.*
 | MR-1 | ⛔ BLOCKER | the knowledge record breaks the 1024 B cap (4096 cells × 2 bits = 1024 B before its header); a struck-mine BITSET of a large AP field is ~12 KB | `EntityCommandBuffer.cs:39, :87, :122` | the grid capped at 62 × 64 cells (or tiles); NO strike bitset — mines inside a LANE are cleared by geometry, STRUCK mines (sparse) are a capacity-N list of lattice (row, col) indices, more entities past capacity (the cell-record shape, keyed by field) — a lattice index survives a polygon edit |
 | MR-2 | ⛔ BLOCKER | the record pattern is "one entity per key per DECIDING node": strikes decided on the SimHost, recon on the CGF ⇒ two entities per (field, side) and a save that throws on a key in two slices | `CellRecordSystem.cs:26-31, :65-96`, `ScenarioMergeCore.cs:183-207` | the union as a LATTICE MAX (unknown < suspected < known-clear < known-mined; Marked OR-ed), order-independent; a sibling of `CellRecordSystem` keyed by (field, side); save / load / merge arms; the saved key the field's stable scenario id |
 | MR-3 | ⛔ BLOCKER | ONE navmesh area per span, "a later mark wins": a minefield area stamped over woods lets wheels into the wood, over craters lets vehicles through them — and area 5 cannot tell WHICH field | ✔ `RecastNavmeshFactory.cs:186-197`, `NavDoorways.cs:282-283` | COMPOSITE area ids (Minefield, Minefield + Woods, Minefield + Crater — 64 ids exist); a polygon → field map after the bake (the `DoorPolys` precedent); a lane as a later "open" volume; fields and lanes in the static-obstacle bake's signature (a 0.5–2 s rebake of touched tiles, never a live mesh write) |
-| MR-4 | ⛔ BLOCKER | no path request knows the mover's SIDE; road legs bypass the navmesh filter | ✔ `PathfindingEvents.cs:30` (`_pad2`), `RoutePlanner.cs:113` | a side byte in the request (in the pad; a wire row); the solver builds a per-side minefield table once per tick and re-points the filter (the `DoorStates` precedent); road edges priced by the same table |
+| MR-4 | ⛔ BLOCKER | no path request knows the mover's SIDE; road legs bypass the navmesh filter | ✔ `PathfindingEvents.cs:30` (`_pad2`), `RoutePlanner.cs:113` | a side byte in the request (in the pad; a wire row); the solver keeps a per-side area-cost table, ⭐ VERSIONED — rebuilt only when that side's knowledge changes (KG-6, the `DoorStates.Of` precedent) — and re-points the filter; road edges priced by the same table |
 | MR-5 | ⛔ BLOCKER | the MineStrike drill has no track to back out on (only a march lead's 80 m breadcrumbs), the medic carries the casualty back ACROSS the field, and the side's own filter traps the struck unit inside closed cells | `SquadManeuverRunner.cs:197-266`, ✔ `CasualtyCareBehavior.cs:39, :98` | a per-mover BREADCRUMB record kept only inside a field's bounds; backing out and the medic follow it (safe by construction: what was under it has gone off); care IN PLACE; a unit's own breadcrumbs are open to its filter |
 | MR-6 | ⛔ BLOCKER | MF-5's "a mine is not fire, a Dash halts" cannot be built — the conduct gate refuses ANY forbidden conduct, the only escape is "cannot comply" | ✔ `BehaviorConduct.cs:89-97` | MineStrike declares Halts \| LeavesRoute honestly ⇒ a dismounted squad on a Dash presses on (realistic), a mobility-killed vehicle yields (CD-5); MF-5 rewritten |
 | MR-7 | ⛔ BLOCKER | the recon trace is not specified (start, rule, ties, end), and the team would set off the mines it traces; 5 m detection on 10 m cells marks half-swept cells clear | — | the team walks ONLY on its known-clear cells or breadcrumbs; start at the cell nearest the strike, left-hand rule on the 4-neighbourhood, stop at the start or after N cells; a cell known only when FULLY swept; detector pace a tuning value (~0.1–0.3 m/s) |
@@ -221,7 +255,7 @@ no node writes another node's entity.*
 | MR-9 | SHOULD | the danger kind: the byte mask is full AND the danger solve has no side; MF-6's circles would be a SECOND store of the knowledge | `DangerAreaSettings.cs:28-58`, `ShelledAreas.cs:12-20` | the kinds widened to `ushort` (bit-0 hack dropped); Minefield footprints DERIVED from the requesting side's record (no circle store); a minefield is NO-ENTER (like gas), never "crossable" |
 | MR-10 | SHOULD | the armour BOTTOM silently reads Top (`float[4]` clamped); a downward normal maps to Side | `ArmorModel.cs:13, :74-89`, `BodyZones.cs:24, :33`, `BodyPartHit.cs:98-104` | the array to 5, bottom armour fields defaulting to rear, Bottom in `FaceOf`, an explicit mine path, a rail per consumer |
 | MR-11 | SHOULD | `ClearLane` writes the field (another entity, another node's) | `ClearObstacleBehavior.cs:30-39` | lanes in a RECORD owned by the deciding node (like breaches); the serial trigger clears the blade's swath for any mover whose plough / flail is active; the brain only switches its equipment (the bulldozer's outlet pattern) |
-| MR-12 | SHOULD | the recon brain and the SimHost strike write the record from the parallel phase / another node | R-4212 | observations as events through the batch buffer, applied by a serial `MinefieldKnowledgeSystem` on the owning node; the DDS descriptor ordinals and translators fixed in §3a now |
+| MR-12 | SHOULD | the recon brain and the SimHost strike write the record from the parallel phase / another node | R-4212 | observations as events through the batch buffer, applied by the serial `PlaceKnowledgeSystem` (MF-17) on the owning node; the DDS descriptor ordinals and translators fixed in §3a now |
 | MR-13 | SHOULD | knowledge with no witness; marking is per side though physical | — | a strike teaches the side only if a living member is within ~300 m, or when the report is sent; a MARKED field is learned by ANY side (civilians too) whose unit sees its edge |
 | MR-14 | SHOULD | a point test lets a fast mover step over a mine at high time scale | — | test the SEGMENT from the last footprint to this one; candidate mines by lattice arithmetic (O(1), 0 B) |
 | MR-15 | SHOULD | the breach is 100 % reliable; generic speeds; no follow-up | — | a seeded per-mine survival chance for plough / flail; a proofing pass; tool speeds (flail ~0.3–0.8 m/s); an `AntiHandling` flag per field |
@@ -235,7 +269,7 @@ no node writes another node's entity.*
 practice; all ids are free; vehicle mass is available; the record pattern stops in replay and records by bytes; the tile-hash rebake covers new
 volumes; MF-14's reason against a singleton holds; the ClearLane order needs no new UI (the order form picks two points).
 
-## 9. ⏳ Generalize the knowledge? — `2026-11-16`
+## 9. ✅ Generalize the knowledge — `2026-11-16` *(KG-1…KG-9 APPROVED, R-4273; folded into §3 MF-17, §3a, §3b; this section keeps the reasoning)*
 
 🔒 User, verbatim: *"Approved. An additional question: the knowledge information about the fields. Now it is designed for the fields only, but maybe this is something which is more generic, the knowledge about some part of the world, of the terrain. There could be many things like reconnaissance reports and something. Maybe it could be generalized."*
 
@@ -291,3 +325,7 @@ field's own rotated lattice).
 | KG-7 | TWO mechanisms, kept distinct on purpose: **avoid** (the planner's per-side cost / closure — known-mined closed, suspected priced) and **cross with care** (the danger-area sensor along the planned route + the squad's cross-or-hold decision). A minefield uses both: the planner goes round it when it can; when it cannot (no way round, or the order goes through), the route's danger sensor reports a `Minefield` area and the squad halts and calls engineers (MR-9) |
 | KG-8 | the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
 | KG-9 | ⭐ the navigation node (the Muscle, where the danger solve and the planner run) HAS the knowledge: `PlaceKnowledge` and `Minefield` replicate through the shared translator pack every node role installs — the `GroundDamage` precedent (`SharedTranslatorPack.cs:14-16, :86-87`); the sensor's unit side comes from the replicated affiliation (`EntityInfo`, the same pack). The solve adds a `Minefield` area when the route enters a cell the UNIT'S SIDE knows as mined or suspected; the march asks for the kind (`SquadMarchBehavior.cs:218-222`) |
+
+## 10. ⏳ The independent review of the generalization (MF-17) — `2026-11-16`
+
+🔒 User, verbatim: *"approved, fold it in. Mark ready to build only after one more independent review of the knowledge generalization."*
