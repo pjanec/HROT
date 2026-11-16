@@ -161,23 +161,28 @@ classDiagram
     SymbolRole
     Mobility
   }
-  class UnitSymbol {
-    <<new, Fdp.Toolkits Symbology, unmanaged 8 B>>
-    Affiliation Role Secondary Mobility Echelon
-    Key() atlas key
+  class SymbolCode {
+    <<new, GizmoMap.Contracts, BCL only>>
+    a 2525-style code, at most 31 chars
+    Parse() into parts
   }
   class UnitSymbolDeriver {
-    <<new, Hrot.Core>>
-    Of(view, unit) UnitSymbol
+    <<new, Hrot.Core - the domain knowledge>>
+    Of(view, unit) SymbolCode
   }
   class SymbolGeometry {
-    <<new, Fdp.Toolkits Symbology, pure>>
-    Build(symbol, sink)
+    <<new, GizmoMap.Contracts, pure vectors>>
+    Part(partId, sink)
   }
   class SymbolAtlas {
-    <<new, Fdp.Presentation, ONE per process>>
-    Get(key, sizePx) sprite rect
-    rasterises a key ONCE into a RenderTexture
+    <<new, GizmoMap.Presentation, ONE per process>>
+    PartSprite(partId, sizePx)
+    rasterises a PART once
+  }
+  class SymbolRenderer {
+    <<new, GizmoMap.Presentation, REPLACES the MilStd2525Renderer stub>>
+    Draw(code, screen point, sizePx)
+    stamps 2 to 6 part quads
   }
   class DebugPrimitiveIcon {
     <<existing primitive Icon, IconAtlasCoord - renderer stub draws a dot>>
@@ -193,15 +198,17 @@ classDiagram
     ImGui.Image of the atlas sprite
   }
   UnitSymbolDeriver ..> TkbSystemType : weighs roles
-  UnitSymbolDeriver --> UnitSymbol
-  SymbolAtlas ..> SymbolGeometry : rasterises once per key
-  DebugPrimitiveRenderer2D ..> SymbolAtlas : stamps a sprite
-  EntityCardRenderer ..> SymbolAtlas : stamps a sprite
-  ImGuiSymbol ..> SymbolAtlas : same texture
-  DebugPrimitiveIcon ..> UnitSymbol : carries Key()
+  UnitSymbolDeriver --> SymbolCode
+  SymbolAtlas ..> SymbolGeometry : rasterises each part once
+  SymbolRenderer ..> SymbolCode : parses
+  SymbolRenderer ..> SymbolAtlas : stamps parts
+  DebugPrimitiveRenderer2D ..> SymbolRenderer : case Icon
+  EntityCardRenderer ..> SymbolRenderer : case Icon, left cell
+  ImGuiSymbol ..> SymbolRenderer : same parts, ImGui draw list
+  DebugPrimitiveIcon ..> SymbolCode : IconAtlasCoord carries it
 ```
-*What it shows that prose hid: the vectors are drawn ONCE per DISTINCT symbol into one atlas texture, and every place — map, card, ORBAT — STAMPS the
-same sprite; the map's existing `Icon` primitive (built in the protocol, a dot in both renderers today) carries the key, so nothing new crosses the wire.*
+*What it shows that prose hid: the symbol is COMPOSED at draw time from cached PARTS (frame, icon, mobility, marks) — so any combination works without a
+new rasterisation — and the whole renderer sits in the GIZMO library beside the primitive it draws, not in any map; HROT only DERIVES the code; the map's existing `Icon` primitive (built in the protocol, a dot in both renderers today) carries the key, so nothing new crosses the wire.*
 
 | # | decision (lean) | why — measured where it can be |
 |---|---|---|
@@ -209,8 +216,8 @@ same sprite; the map's existing `Icon` primitive (built in the protocol, a dot i
 | **S-2** | the rule: the authored content (holdings / roster) weighed by role ⇒ icon, carriers ⇒ mechanised / motorised + mobility, a second role > 20 % ⇒ one secondary mark, echelon from the unit | mockup ⑧ |
 | **S-3** | ⚠ from what the unit WAS MADE OF, not what it has left | identity is stable; losses are the card's |
 | ⭐ **S-4** | **a symbol is a UNIT's, never a man's**: a squad draws ONE symbol for its nine men. 1 000 soldiers ≈ 111 squads + 37 platoons + 12 companies + 4 battalions ≈ **165 symbols**, and **ECHELON DECLUTTER** shows only one level per zoom (zoomed out: companies ≈ 12; mid: platoons ≈ 37; close: squads) | the user's worry is right for men (1 000) — it is not the design: the men keep their silhouettes |
-| ⭐ **S-5** | **WHERE: a generic SYMBOLOGY module, not map code** — `UnitSymbol` + `SymbolGeometry` (pure data and vectors, no renderer) in `Fdp.Toolkits` beside the components (so a sim node can derive it and an IG can export it); `SymbolAtlas` (the only raylib part) in `Fdp.Presentation`, ONE per process; the map, the card and ImGui are CALLERS | the user: "quite generic, should not be just in the 2d/3d map code"; and two map renderers + ImGui must look identical by construction |
-| ⭐ **S-6** | **CACHE: draw ONCE, stamp every frame** — the atlas rasterises each distinct `UnitSymbol` key (and size bucket: 16 / 24 / 40 px) the first time it is asked, into one `RenderTexture`; afterwards a symbol is ONE textured quad, all of them one batched texture. Distinct keys are few (side × role × mobility × secondary × echelon actually present — tens per scenario). The gizmo emits the existing `Icon` primitive with the key in `IconAtlasCoord` (64 B, already on the wire); the derivation is cached per unit and redone only when its authored content changes | cheaper per frame than today's vector silhouette (one quad vs several polylines); ⛔ unmeasured on Windows — the build adds a rail: 500 stamped symbols, ms per frame |
+| ⭐ **S-5** | **WHERE: the GIZMO renderer library, not map code** *(user, `2026-11-16`: "it is the symbol gizmo who renders it - needs to be part of the gizmo renderer")* — the symbol CODE and the part geometry in `GizmoMap.Contracts` (BCL only, shared with the IG over DDS); the atlas and `SymbolRenderer` in `GizmoMap.Presentation`, REPLACING the `MilStd2525Renderer` stub, called from the existing `case DebugPrimitiveShape.Icon` in BOTH `DebugPrimitiveRenderer2D` and `EntityCardRenderer`; ImGui panels call the same renderer. HROT only DERIVES the code (`UnitSymbolDeriver`, Hrot.Core — the TKB and the holdings are domain knowledge) and emits an `Icon` primitive with it in `IconAtlasCoord` | one renderer for every host that draws gizmos (editor, CGF, SimHost, Replay Browser, the IG) by construction; the wire already carries the primitive |
+| ⭐ **S-6** | **CACHE THE PARTS, COMPOSE AT DRAW TIME** *(user: "NATO symbols is composable so not sure how far we can cache it")* — the atlas holds each PART once per size bucket (16 / 24 / 40 px): frames × affiliation (4 shapes × 4 fills), role icons (~10), mobility (2), secondary marks (~8), echelon marks (6), status overlays (damaged / destroyed); a symbol = 2–6 stamped quads from ONE texture, batched. ⭐ Any combination works with nothing new rasterised; the part set is fixed and small (~50 sprites per size). Text modifiers (a designation like "2/B") go through the gizmo font, not the atlas | whole-symbol caching would be bounded too (keys ≈ distinct units), but parts make the cache independent of the scenario and let a LIVE modifier (damaged, reduced) change without a re-rasterise |
 | **S-7** | the symbol stays UPRIGHT and screen-sized (the standard's way: the heading is a separate staff / arrow, never a rotated frame); in 3-D it lives only in the card (a screen-space overlay) — no perspective distortion | APP-6 symbols are never rotated or skewed |
 | **S-8** | ⛔ **NOT in place of the men's / vehicles' vector symbols** — those stay rotated and perspective-correct; a NATO EQUIPMENT mode for vehicles is not proposed (it would trade the rotated footprint, which shows facing and size, for an upright sign) | the user, `2026-11-16`: "each entity has a 2d vector current symbol now, rotated and even perspective distorted" — the earlier "a later switch" line is WITHDRAWN |
 
