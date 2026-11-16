@@ -15,8 +15,8 @@ related-designs:
 | slice | state | evidence |
 |---|---|---|
 | contract NOTE + stubs | ✅ | [NOTE](NOTE_Terrain_To_All_Minefield_Contract.md); `MinefieldContractTests` (4), the ordinals pinned (`EntityGroundDamageTranslatorTests.CE4624_*`), `TestComponentIdUniquenessTests.EveryGlobalComponentId_IsUnique` |
-| MS-T1 field, trigger, bursts, armour bottom | 🔨 worker (trigger / bursts / bottom / TKB); ✅ the strikes record (`MinefieldStrikesSystem`, `7e2b1b8e1`) | `PlaceKnowledgeTests` |
-| MS-T2 place-knowledge core | ✅ core `7e2b1b8e1` (RecordWriterCore, PlaceKnowledgeSystem on SimHost + CGF, the union table on DoorStates); 🔨 worker: translators, the save `knowledge` entry | `PlaceKnowledgeTests` (8), red-proved |
+| MS-T1 field, trigger, bursts, armour bottom | ✅ `68ae4763e` (trigger: segment test, AP / AT / livestock, once per mine, 0 B; munitions 6051–6053; armour Bottom facing; TKB 8830, 7206, 7207) + the strikes record `7e2b1b8e1` | `MineTriggerTests` (10), armour rails (4) — 15 mutations red-proved; gates 1132/1132 toolkit (PAR + READ + GUARD), SimHost 329/331 (2 not this slice) |
+| MS-T2 place-knowledge core | ✅ core `7e2b1b8e1` (RecordWriterCore, PlaceKnowledgeSystem on SimHost + CGF, the union table on DoorStates); ✅ translators `c1bd65533` (191–195, round-trip rails; red-proved by the coordinator); 🔨 a second worker: the save `knowledge` entry | `PlaceKnowledgeTests` (8), red-proved |
 | MS-T3 routing by side | ✅ the side in the route mask + `JudgeBy(doors, side)` `55b5e0690`; ✅ the danger kind `55b5e0690`; ✅ SUMO closure `59d1c2226`; 🔨 worker: stamping (composite areas, polygon → field map) + pricing | `TerrainWoodsTests.CE4624_*`, `DangerAreaSensorSystemTests.CE4624_*`, `BridgeClosureTests.CE4624_*` |
 | MS-T4 lanes and clearing | ✅ the marker + the lanes record `e99beab11`; 🔨 worker: the swath / line-charge Muscle, TKB 116 | `PlaceKnowledgeTests.ALaneCleared_*` |
 
