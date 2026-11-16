@@ -503,6 +503,130 @@ them by construction); the red edge is today's dead path — the area effect nev
 | **ST-4** | determinism at 1 / 4 / 8 threads | the battalion-vs-battalion scenario, its named checks | the scenario's map picture |
 | **ST-5** | the resolution manager, de-aggregation (children from the TKB composite, stable `<unit>/<slot>` keys), re-aggregation, the Held participant, C-7's forced handover | the policy (§16b), the planners' plan / assign split (D-P3) | the user's de- / re-aggregate request and the process's progress |
 
+### 23.4 agg-behaviors — ST-0 ⑦: the commanders' orders ROUTED *(exp/agg-behaviors, `2026-11-16`; build-state: DESIGN → BUILDING; lane decisions R-8300…R-8304 "for the user's review")*
+
+**INVENTORY** *(`scripts/cbm.sh search_graph name_pattern ".*(UnitStrength|CombatEffective|ObjectiveCensus|AmmoOf|CommandOrders|OrderKinds|CurrentOrders).*"` — 8 rows, the index stale (no `UnitStrength`), re-indexed; + grep `CommandOrders.Assign(` outside tests — **23 sites in 14 files**; ⚠ coverage not checkable through the CLI)*
+
+| site | sends (play · DTO fields) | receiver | kind | routed? |
+|---|---|---|---|---|
+| `CompanyBehaviors.cs:902` (CompanyDefend counter-attack) | `PlatoonAttack` · Position, Speed | platoon | Attack | ⏳ increment 2 (R-8303) |
+| `CompanyBehaviors.cs:909` | `PlatoonDefend` · Position, Speed, FallBackTo, ShootAndMoveSeconds, Left, Right | platoon | Defend | ⭐ yes |
+| `CompanyBehaviors.cs:442` (CompanyAttack `OrderFor`) | `PlatoonAttack` (Position, SearchRadius, Speed) · `PlatoonDefend` · `PlatoonSupportByFire` · `VehicleSupportByFire` · `DroneTeam` | platoon / vehicle / drone team | Attack · Defend · SupportByFire · — | ⭐ the `PlatoonDefend` arm; the rest ⏳ |
+| `PlatoonDefendBehavior.cs:413, :420` | `BreakContact` · To, Speed | squad | BreakContact | ⭐ yes |
+| `PlatoonDefendBehavior.cs:427` | `SquadDefend` · Position, SearchRadius, Speed, ShootAndMoveSeconds | squad | Defend | ⭐ yes |
+| `PlatoonAttackBehavior.cs:584` (`OrderFor`) | `ClearBuilding` · `FireAndMovement` · `BreakContact` · `SupportByFire` · `SquadDefend` · `BoundingOverwatch` | squad | ClearBuilding · FireAndMovement · BreakContact · — · Defend · Bound | ⭐ BreakContact, Defend; the rest ⏳ increment 2 |
+| `PlatoonAttackBehavior.cs:916` | `SquadRecover` · Casualty, To, PutDown, Speed | squad | Recover | ⏳ increment 2 |
+| `SupportCommandBehavior.cs:141` (`ReinforceOrder`) | `CompanyDefend` / `PlatoonDefend` / `SquadDefend` by echelon · Position (+ Threat, SearchRadius) | any unit | Defend | ⭐ yes — the echelon switch becomes the receiver's own resolution |
+| `UrbanMovementBehavior.cs:180` | `SquadMarch` · Objective, … | squad | March | ⏳ increment 2 |
+| `PlatoonConvoyBehavior.cs:320` | `SquadDefend` · `SquadRecover` · `SquadEmbark` (+ `:311` already an `Order`) | squad | Defend · Recover · Embark | ⭐ the `SquadDefend` arm |
+| `SupportByFireBehavior.cs:238` | `SupportByFire` · Position, Speed, CooldownSeconds | squad | — | ⏳ increment 2 |
+| `SquadManeuverRunner.cs:689` (`Publish`, the command nodes) · `SquadShelterFromAir :70` | a drill's behaviour | the squad's MEN (bodies) | — | ⛔ keep — a body, never stochastic |
+| `PlatoonConvoyBehavior.cs:282, :285` · `DroneOperator :105, :108` · `DroneTeam :76, :86` · `SupportCommand :112` · `SwarmRaid :111` · `GreyZoneDash :128` | vehicle / drone / bike / helicopter tasks | platforms (bodies) | — | ⛔ keep — platforms stay physical (B-8: Strike / ObserveFire refused to a stochastic unit) |
+
+**Claims** *(the decision rests on)*
+
+| claim | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| an `Order.<K>` intent is resolved by the RECEIVER (O2), refused when nothing fulfils it | ✅ `TacticalIntentResolutionSystem.cs:139-150` | ✅ Orders §2, rule O2 |
+| params are read STRICTLY — an unknown key refuses the start | ✅ `BehaviorParamsValidation.cs:18-36`, called by the ingress `BehaviorIngressSystem.cs:908, :989` | ✅ CE-2377 |
+| a neutral DTO per kind already exists for Move · Attack · Hold · Strike · ObserveFire (`[Order(K)]`) | ✅ `Orders/OrderDtos.cs` | ✅ Orders §1 O1 |
+| `AttackOrder` REQUIRES a `Target` entity — a commander's platoon attack on a POSITION has none | ✅ `OrderDtos.cs:46-52` (`[Required] Target`, CE-2148) | ⛔ searched Orders §1–§15 and this design: no ruling on a position-objective Attack ⇒ R-8303 |
+| a concrete play declares its kind (`Fulfils`) | ✅ 14 plays, e.g. `SquadDefendBehavior.cs:318`, `PlatoonDefendBehavior.cs:203`, `CompanyBehaviors.cs:763` | ✅ R-2089 |
+| `SubordinateOrders.Entry` is replicated — adding a field changes its wire shape | ✅ `SubordinateOrders.cs:24-25` ("same name and wire shape") | ✅ CLAUDE.md new-components rule |
+| the (class, resolution, order) table is agg-backend's (ST-0 ④); the name rule `<Class><K>` finds no `InfantrySquadDefend` | ✅ `OrderResolver.cs:58` | ✅ §17.1 SV-2, §23.3 |
+
+| # | lane decision *(for the user's review)* | would change it |
+|---|---|---|
+| **R-8300** | ⭐ the NEUTRAL params DTO of kind K = an `[Order(K)]` struct in `Hrot.AI.Behaviors/Orders` (the commander's vocabulary, the menu's form); ⭐ **every play that fulfils K (its `Fulfils`, or its DTO's `[Order]`) must READ it strictly** — its params DTO holds each neutral field with the same JSON name and type; a field a play does not use is accepted and documented as unused at that echelon. A rail walks every (fulfilling play × its kind's neutral DTO) pair and refuses a mismatch. **Increment 1: `DefendOrder` { Position, SearchRadius, Speed, ShootAndMoveSeconds, Left, Right, FallBackTo, Threat } and `BreakContactOrder` { To, Speed }** — the union of what the commanders send today | a play that cannot honestly accept a neutral field (its meaning differs) ⇒ that kind gets two DTOs and the user decides |
+| **R-8301** | a routed order RECORDS its intent (`Order.<K>`) and its JSON in `SubordinateOrders.Entry.Behavior` / `.Json` — so `Stands` / `Gave` / `StillRunning` keep recognising an unchanged re-send (CE-2304: a re-send restarts a posted defender); ⭐ `SubordinateOrders.Release` turns an `Order.` entry into the UNNAMED clear `Order` sends today — ⛔ no new field (the entry is replicated) | the release needing the resolved play's name (two commanders' orders on one member) |
+| **R-8302** | the physical rows of agg-backend's routing table, proposed (a NOTE, never built here): (InfantrySquad, Physical, Defend) → `SquadDefend` · (InfantryPlatoon, Physical, Defend) → `PlatoonDefend` · (InfantryCompany, Physical, Defend) → `CompanyDefend` · (InfantrySquad, Physical, BreakContact) → `BreakContact` — i.e. each concrete play's `Fulfils` IS its row; the table can be BUILT from `Fulfils` + the play's echelon class, never hand-listed | agg-backend's table shape |
+| **R-8303** | ⏳ increment 2 (after the table lands): Attack on a POSITION (`AttackOrder` gains an optional `Position` — Target OR Position required), March, Recover, Bound, FireAndMovement, ClearBuilding, Embark, and a new `OrderKind.SupportByFire` (B-8 names it) | the user preferring a separate "AttackPosition" kind |
+| **R-8304** | ⭐ a site FLIPS from `Assign(<play>)` to `Order(<K>)` only once the table resolves K for every class it sends to — until then increment 1 ships the DTOs and the rail (the plays accept the neutral DTOs; the commanders already SERIALISE them) and the flip is one line per site | the table landing with a different resolve API |
+
+```mermaid
+classDiagram
+  direction LR
+  class DefendOrder {
+    <<NEW OrderDefend>>
+    Position
+    SearchRadius
+    Speed
+    ShootAndMoveSeconds
+    Left
+    Right
+    FallBackTo
+    Threat
+  }
+  class BreakContactOrder {
+    <<NEW OrderBreakContact>>
+    To
+    Speed
+  }
+  class SquadDefendParamsJsonDto {
+    <<existing Hrot.Core>>
+    NEW  Left
+    Right
+    FallBackTo
+    Threat accepted
+  }
+  class PlatoonDefendParamsJsonDto {
+    <<existing>>
+    NEW  Threat accepted
+  }
+  class CompanyDefendParamsJsonDto {
+    <<existing>>
+    NEW  SearchRadius
+    Left
+    Right
+    FallBackTo accepted
+  }
+  class BreakContactParamsJsonDto {
+    <<existing already ⊇>>
+  }
+  class OrderContractRail {
+    <<NEW test>>
+    every Fulfils = K play reads K's neutral DTO strictly
+  }
+  class CommandOrders {
+    <<existing CommandNodes.cs>>
+    Order NEW records intent  json
+  }
+  class SubordinateOrders {
+    <<existing replicated>>
+    Release NEW: an Order. entry then unnamed clear
+  }
+  class RoutingTable {
+    <<agg-backend ST-0 4>>
+    class resolution kind to play
+  }
+  DefendOrder <.. SquadDefendParamsJsonDto : reads strictly
+  DefendOrder <.. PlatoonDefendParamsJsonDto : reads strictly
+  DefendOrder <.. CompanyDefendParamsJsonDto : reads strictly
+  BreakContactOrder <.. BreakContactParamsJsonDto : reads strictly
+  OrderContractRail ..> DefendOrder
+  OrderContractRail ..> BreakContactOrder
+  CommandOrders --> SubordinateOrders : Record intent + json
+  CommandOrders ..> RoutingTable : Order.K resolved by the receiver
+```
+*What it shows: nothing new decides anything — the neutral DTO is a CONTRACT the existing plays already almost meet (the rail makes the "almost"
+visible), and the routing itself is agg-backend's table; the commander only stops naming the play.*
+
+```mermaid
+sequenceDiagram
+  participant P as PlatoonDefend (commander)
+  participant C as CommandOrders.Order
+  participant T as TacticalIntentResolution + the routing table
+  participant S as the squad (physical OR stochastic)
+  P->>C: Order(squad, Defend, DefendOrder json)
+  C->>C: Record(Behavior = "Order.Defend", Json, RequestId)
+  C->>T: AssignTacticalIntent(Order.Defend, json, Superior, RequestId)
+  T->>T: (squad's class, its Resolution, Defend) → SquadDefend or StochasticUnitDefend
+  T->>S: AssignBehavior(play, json) — the ingress reads json strictly into the play's DTO
+  P->>C: next tick: StillRunning(squad, "Order.Defend", json) → his CurrentOrder.RequestId == mine ⇒ no re-send
+```
+*What it shows: the receiver's RESOLUTION enters at exactly one point (the table) — the commander's code is the same for a physical and a
+stochastic squad, which is the whole point of step ⑥.*
+
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
 
 ⭐ 33 raw findings, merged into 17. ✔ = re-measured by the coordinator at the line cited.
