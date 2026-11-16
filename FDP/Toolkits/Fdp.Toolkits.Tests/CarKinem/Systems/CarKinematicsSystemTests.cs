@@ -2729,6 +2729,95 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ CE-4594 item 3 — the members of an obstacle ROW as the spawn gives them: each of obstacle type <paramref name="box"/> (the ONE <c>ClutterTypes</c> table the TKB obstacle types are built from) gets the components the TKB translator injects
+        /// (<c>ObstacleTkbTranslator.Inject</c> over a <c>StaticObstacleDto</c> of that box with <paramref name="maxHealth"/> — the catalog's value; ⚠ this project is FDP-level and cannot reference the Hrot catalog, so the dto is built here from the same entries), a
+        /// <c>PlacementGroup</c>, and its baked prism. The row is laid ACROSS the line x = <paramref name="x"/>, tight (end to end), from y = <paramref name="y0"/>, <paramref name="count"/> members facing along the line.
+        /// </summary>
+        private static List<Entity> ObstacleRow(EntityRepository repo, Fdp.Toolkit.Terrain.ClutterTypes.Type box, float maxHealth, float x, float y0, int count, uint group)
+        {
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.ObstacleShape>();
+            repo.RegisterComponent<Fdp.Toolkit.Terrain.PlacementGroup>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            var template = new Fdp.Interfaces.TkbTemplate(box.Name, 9100);
+            template.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto { Length = box.Length, Width = box.Width, Height = box.Height, Material = box.Material, MaxHealth = maxHealth });
+            var members = new List<Entity>(); var prisms = new List<Fdp.Toolkit.Terrain.TerrainPrism>();
+            for (int i = 0; i < count; i++)
+            {
+                var at = new Vector3(x, y0 + box.Length * (i + 0.5f), 0f);
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
+                repo.AddComponent(e, new Fdp.Toolkit.Terrain.PlacementGroup { Id = group });
+                new Fdp.Toolkit.Terrain.ObstacleTkbTranslator().Inject(repo, e, template);
+                members.Add(e);
+                prisms.Add(Fdp.Toolkit.Terrain.TerrainObstacles.PrismOf(at, MathF.PI / 2f, repo.GetComponent<Fdp.Toolkit.Terrain.ObstacleShape>(e),
+                    Fdp.Toolkit.Terrain.TerrainMaterialLibrary.Shared.Get(box.Material, "t"), Fdp.Toolkit.Terrain.TerrainObstacles.LabelPrefix + e.Index));
+            }
+            var world = repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()!;
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainObstacles.With(world, prisms));
+            return members;
+        }
+
+        /// <summary>Drives the possessed hull for <paramref name="seconds"/> and returns the obstacle damage events and the hull's farthest nose x.</summary>
+        private static (List<Fdp.Toolkit.Combat.Events.DamageAssessedEvent> Damage, float Nose) DriveCollectingDamage(EntityRepository repo, Entity e, float seconds)
+        {
+            var spatial = new SpatialHashSystem(); var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            var damage = new List<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>(); var p = repo.GetComponent<VehicleParams>(e); float nose = float.MinValue;
+            for (int i = 0; i < (int)(seconds * 60); i++)
+            {
+                spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                damage.AddRange(repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>().ToArray());
+                nose = MathF.Max(nose, repo.GetComponent<SimTransform>(e).Position.X + p.Length * 0.5f);
+            }
+            return (damage, nose);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4594</c> item 3 (B-3) — a TANK (60 t) driving into the END member of a row of four concrete blocks (8 m of 1 m-thick blocks across its way, one <c>PlacementGroup</c>, the components the TKB translator gives the type) crushes THAT member through the same
+        /// obstacle-damage path as the sandbag wall — ONE damage of its whole Health (600) naming that member, its owner removes it — and the other three stand with full Health. Concrete is strength 1500 (1500 mm/m × 1 m × 1 m) against the tank row's 2000.
+        /// The hull is offset so only the row's end member is in its path (its half-width 1.8 m). 🔴 Red-proof: name no obstacle in <c>ContactBreach.Identify</c> ⇒ held, no damage ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4594_ATank_CrushesOneMemberOfAConcreteRow_ThroughTheObstacleDamagePath_TheOthersStand()
+        {
+            var (repo, e) = Possessed(VehicleClass.Tank, 60000f, 1f, "");
+            float hw = repo.GetComponent<VehicleParams>(e).Width * 0.5f;
+            var row = ObstacleRow(repo, Fdp.Toolkit.Terrain.ClutterTypes.ConcreteBlock, 600f, 15f, 2f, 4, 91u);   // members span y 2…10; the hull is offset below it
+            // the hull's upper edge at y = 2.5: it clips ONLY the first member (y 2…4) by half a metre
+            var at = repo.GetComponent<SimTransform>(e); at.Position = new Vector3(0f, 2.5f - hw, 0f); repo.SetComponent(e, at);
+            var (damage, nose) = DriveCollectingDamage(repo, e, 8f);
+            var d = Assert.Single(damage);
+            Assert.Equal(row[0], d.HitEntity);
+            Assert.True(d.TotalDamage >= 600f, $"the member's whole Health: {d.TotalDamage}");
+            for (int i = 1; i < 4; i++) Assert.Equal(600f, repo.GetComponent<Fdp.Toolkit.Combat.Components.Health>(row[i]).Current);
+            Assert.True(nose > 15f + 1f, $"the hull went through where the member stood: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4594</c> item 3 (B-3, MEASURED) — which obstacle materials a hull breaks, for each of the seven obstacle types (strength = the material's resistance × the box's short side × its height, against the hull row's limit): a TANK (60 t, limit 2000) breaks ALL SEVEN
+        /// (concrete block 1500, jersey barrier 720, barrel 540, guard booth 374, car 324, crate 60, sandbag wall 60); an IFV (25 t, limit 150) breaks ONLY the sandbag wall and the crate (60 each) — a concrete block, a jersey barrier, a barrel, a booth and a car are TooStrong for it.
+        /// 🔴 Red-proof: the tank row's limit lowered to 1000 ⇒ the concrete block holds ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData("Car", 60000f, true)] [InlineData("Sandbag wall", 60000f, true)] [InlineData("Concrete block", 60000f, true)] [InlineData("Crate", 60000f, true)]
+        [InlineData("Barrel", 60000f, true)] [InlineData("Jersey barrier", 60000f, true)] [InlineData("Guard booth", 60000f, true)]
+        [InlineData("Car", 25000f, false)] [InlineData("Sandbag wall", 25000f, true)] [InlineData("Concrete block", 25000f, false)] [InlineData("Crate", 25000f, true)]
+        [InlineData("Barrel", 25000f, false)] [InlineData("Jersey barrier", 25000f, false)] [InlineData("Guard booth", 25000f, false)]
+        public void CE4594_WhatAHullBreaks_ByTheMaterialTable_ForEachObstacleType(string type, float massKg, bool breaks)
+        {
+            var box = Fdp.Toolkit.Terrain.ClutterTypes.All.Single(t => t.Name == type);
+            var (repo, e) = Possessed(VehicleClass.Tank, massKg, 1f, "");
+            var row = ObstacleRow(repo, box, 100f, 15f, -box.Length * 0.5f, 1, 92u);   // one member across the hull's centre line
+            var (damage, _) = DriveCollectingDamage(repo, e, 8f);
+            Assert.Equal(breaks, damage.Count > 0);
+            if (breaks) Assert.Equal(row[0], damage[0].HitEntity);
+            repo.Dispose();
+        }
+
         private static bool CarKem_MayBreak(EntityRepository repo, Entity e)
             => CarKinem.Controllers.HullBreakGate.MayBreak(repo, e, repo.GetComponent<NavState>(e));
     }
