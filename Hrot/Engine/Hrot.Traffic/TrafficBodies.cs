@@ -97,6 +97,7 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             into.Add(new TrafficBody(id, kind, nx, ny, ax - nx, ay - ny, length, width));
         }
         AddObstacles(world, placement, into);
+        AddConvoyGaps(world, placement, into);   // ⭐ CE-9002 (C-5) — the column's gaps: no SUMO car slips into the convoy
         return into.ToArray();
     }
 
@@ -125,6 +126,74 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
                 var c = new Vector2(t.Position.X, t.Position.Y) + axis * (-longSide * 0.5f + step * (k + 0.5f));
                 var (nx, ny) = placement.ToNet(c.X, c.Y);
                 into.Add(new TrafficBody(-(e.Index * 64 + k + 1), TrafficBodyKind.Vehicle, nx, ny, 0, 0, step, side));
+            }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-9002</c> (C-5; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3) — a road convoy is ONE continuous obstacle to SUMO: each gap between a
+    /// vehicle and the one ahead of it (the predecessor's rear to this vehicle's front) is told as a chain of squares (side = the follower's width) — along
+    /// the lead's TRAIL where this node holds it (the editor, the kinematic owner), else along the straight chord between the two. A SUMO car then never
+    /// sees room to cut in: an obstacle on its lane blocks it, a lane change into one is vetoed, a junction foe lane holding one stops it at the line (§1 ⑦).
+    /// The squares move with the follower. ⭐ Synthetic NEGATIVE ids <c>-(follower.Index · 64 + k + 1)</c> — the static-obstacle scheme (V-24), never a
+    /// unit's network id; a follower is never a static obstacle, so the two never collide.
+    /// </summary>
+    public static void AddConvoyGaps(EntityRepository world, SumoNetPlacement placement, List<TrafficBody> into)
+    {
+        if (!world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyMember>()) return;
+        bool trails = world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>() && world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyProgress>();
+        bool velocity = world.IsComponentTypeRegistered<SimVelocity>();
+        bool sized = world.IsComponentTypeRegistered<VehicleParams>();
+        var members = world.Query().With<CarKinem.Convoy.ConvoyMember>().With<SimTransform>().Build();
+        foreach (var e in members)
+        {
+            var m = world.GetComponentRO<CarKinem.Convoy.ConvoyMember>(e);
+            if (m.Rank == 0 || HandedToSumo(world, e)) continue;
+            Entity pred = default; bool found = false;
+            foreach (var o in members)
+            {
+                var om = world.GetComponentRO<CarKinem.Convoy.ConvoyMember>(o);
+                if (om.Lead == m.Lead && om.Rank == m.Rank - 1) { pred = o; found = true; break; }
+            }
+            if (!found) continue;
+            float lf = EntityFootprint.DefaultLengthMetres, wf = lf * EntityFootprint.DefaultWidthFactor, lp = lf, wp = wf;
+            if (sized) { EntityFootprint.Dimensions(world, e, out lf, out wf); EntityFootprint.Dimensions(world, pred, out lp, out wp); }
+            var v = velocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
+            var (vx0, vy0) = placement.ToNet(0, 0);
+            var (vx1, vy1) = placement.ToNet(v.X, v.Y);
+            float side = MathF.Max(wf, 1f);
+
+            if (trails && world.IsAlive(m.Lead) && world.HasComponent<CarKinem.Convoy.ConvoyTrail>(m.Lead) && world.HasComponent<CarKinem.Convoy.ConvoyProgress>(e)
+                && (pred == m.Lead || world.HasComponent<CarKinem.Convoy.ConvoyProgress>(pred)))
+            {
+                ref readonly var trail = ref world.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(m.Lead);
+                double sp = pred == m.Lead ? trail.RankArc(0) : world.GetComponentRO<CarKinem.Convoy.ConvoyProgress>(pred).ArcS;
+                double from = world.GetComponentRO<CarKinem.Convoy.ConvoyProgress>(e).ArcS + lf * 0.5, to = sp - lp * 0.5;
+                if (to - from < 0.5) continue;
+                int parts = Math.Min(63, Math.Max(1, (int)Math.Ceiling((to - from) / side)));
+                double step = (to - from) / parts;
+                for (int k = 0; k < parts; k++)
+                {
+                    var (c, _) = trail.Sample(from + step * (k + 0.5));
+                    var (nx, ny) = placement.ToNet(c.X, c.Y);
+                    into.Add(new TrafficBody(-(e.Index * 64 + k + 1), TrafficBodyKind.Vehicle, nx, ny, vx1 - vx0, vy1 - vy0, (float)step, side));
+                }
+                continue;
+            }
+
+            // no trail here (a dedicated traffic node): the straight chord from the predecessor's rear to this vehicle's front
+            var pf = world.GetComponentRO<SimTransform>(e); var pp = world.GetComponentRO<SimTransform>(pred);
+            var ff = Vector3.Transform(Vector3.UnitX, pf.Rotation); var fp = Vector3.Transform(Vector3.UnitX, pp.Rotation);
+            var a = new Vector2(pf.Position.X, pf.Position.Y) + Vector2.Normalize(new Vector2(ff.X, ff.Y) + new Vector2(1e-6f, 0f)) * (lf * 0.5f);
+            var b = new Vector2(pp.Position.X, pp.Position.Y) - Vector2.Normalize(new Vector2(fp.X, fp.Y) + new Vector2(1e-6f, 0f)) * (lp * 0.5f);
+            float len = Vector2.Distance(a, b);
+            if (len < 0.5f) continue;
+            int n = Math.Min(63, Math.Max(1, (int)MathF.Ceiling(len / side)));
+            for (int k = 0; k < n; k++)
+            {
+                var c = Vector2.Lerp(a, b, (k + 0.5f) / n);
+                var (nx, ny) = placement.ToNet(c.X, c.Y);
+                into.Add(new TrafficBody(-(e.Index * 64 + k + 1), TrafficBodyKind.Vehicle, nx, ny, vx1 - vx0, vy1 - vy0, len / n, side));
             }
         }
     }
