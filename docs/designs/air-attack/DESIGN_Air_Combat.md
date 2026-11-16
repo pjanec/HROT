@@ -1,12 +1,19 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — AC-1…AC-15 ✅ APPROVED `2026-11-16` (R-4283); ⭐ the review §9 (RV-1…RV-21) proposes the fixes — ⛔ NOT approved, not yet folded into §3–§8; no handoff until it is
-current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · ⭐ §9 the review (where §9 and §3–§8 disagree, §9's proposal is pending the user)
+build-state: READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
+current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the review (its fixes are folded; kept as the record)
 stale-below: none
-known-rot: §7's component ids 163 (reserved) and 277–279 (NavFakeIds block) and ordinals 205–206 (time translators) are WRONG — §9 RV-7; §1's "one turn rate" — missiles already carry their own (CE-2222); §5's 0.5 km is a diameter (radius 0.26 km), Stinger is 700 m/s
+known-rot: none (the review's corrections are folded)
 known-conflict: Air Operations §5 (the route: a height above the ground on every 20 m sample) — AC-1 replaces it for cruise legs; §5 keeps it for low flight
 related-designs:
+  - ../../DESIGN_Entity_Control.md — OWNS the pilot station: possessing a fighter (the mouse-aim manual pilot, §8f) and the HUD ui extends (§4d)
+  - ../../DESIGN_Map_3D_Mode.md — OWNS the visual families and shape kits (§6n): the MiG's `TwinEngineFighter` body and the jet's stores
+  - ../../DESIGN_Visual_Effects.md — OWNS the effects: muzzle flash, missile smoke, the new afterburner / vortex / falling-smoke effects
+  - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS how aircraft are seen and heard (the vision range S0 measures)
+  - ../../DESIGN_Scenario_Regression.md — OWNS the checks grammar §3 the air lane extends (`Defeated`, the shot's range, `far`) and the feature / demo golden rule §5
+  - ../../DESIGN_Parallel_Simulation.md — OWNS the per-entity rule the brain behaviour obeys (§18.5–§18.8) and the read declarations
+  - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS the entity classes and the `<Class><Order>` lookup the new `TwinEngineFighter` class enters (R-278)
   - DESIGN_Air_Operations.md — OWNS the aircraft route (§5), the flight models (§6), the attack behaviour and its missile evasion (§7e, unified here by AC-9), the air targets (§7c: the lead, the hull hit)
   - DESIGN_Radar_SAM.md — OWNS the radar sensor (RS-2), the published radar emission and the radar warning (RS-10, RS-6), the salvo fields (RS-4) a fighter's radar and radar missile reuse
   - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS guidance, seekers, the proximity fuze and decoys (§3c); AC-6 adds the motor and the g limit to its round
@@ -46,7 +53,7 @@ the CLI.
 | `AirRoute.Compile` | ⚠ re-samples height above the ground every 20 m ⇒ **the terrain following the user saw** | `Motion/AirRoute.cs:97-104` |
 | `MotionFrame.Ground(x, y)` | the terrain height on the motion node | `Motion/IMotionModel.cs:24` |
 | `NavigationMode` | 0…7 (`Traffic` = 7) — ⭐ 8 is free | `Navigation/NavigationComponents.cs:20-60` |
-| `GuidedRoundSystem` | lead-pursuit homing (`TargetLead.Point`), **constant speed**, one turn rate (30°/s default), seeker cone, proximity fuze, decoy seduction | `Combat/Systems/GuidedRoundSystem.cs:183-283` |
+| `GuidedRoundSystem` | lead-pursuit homing (`TargetLead.Point`), **constant speed**, a turn rate per missile (`MissileDto.TurnRateDegPerSec`, CE-2222; 30°/s when unset), seeker cone, proximity fuze, decoy seduction | `Combat/Systems/GuidedRoundSystem.cs:183-283` |
 | `TargetLead` | the ONE predictor (rounds, missiles, gun runs) | `Combat/TargetLead.cs:14-45` |
 | `Countermeasures.Release` · `CountermeasureSystem` | one flare / chaff per dispenser interval; seduction in the cone | `Combat/Countermeasures.cs:83`, `Systems/CountermeasureSystem.cs:23` |
 | `MissileWarning` (+ sensing) | bearing, seeker, time to impact on the target's brain | `Combat/Components/AirDefenceComponents.cs:50` |
@@ -64,7 +71,7 @@ the CLI.
 picks the basic fighter manoeuvre (lead / pure / lag pursuit, break, extend, high and low yo-yo, defensive spiral), and an **autopilot** flies
 it within the aircraft's limits (g, corner speed, energy). Ground safety is **Auto-GCAS** (F-16, in service since 2014): it predicts the
 recovery path at the aircraft's g and takes the stick at the last safe moment. Missile defence is **drag** (turn away until the missile runs out
-of energy), **beam / notch** (put it on the 3 or 9 o'clock — kills a radar seeker's Doppler) and the **last-ditch break** (max g across its path
+of energy), **beam / notch** (put it on the 3 or 9 o'clock — a radar seeker loses a target with no closing speed against the ground clutter; ⚠ no such model existed — RV-4 adds one rule) and the **last-ditch break** (max g across its path
 inside ~2 s, when it cannot follow), with flares / chaff.
 
 | piece | adopt? | the reason here |
@@ -75,61 +82,67 @@ inside ~2 s, when it cannot follow), with flares / chaff.
 | proportional navigation for missiles | ⛔ reject | the lead pursuit at a turn limit already hits (CE-2187 rails); the user WANTS dodgeable missiles; adding a motor and a g limit (AC-6) makes the drag and the break work for the right reason |
 | beyond-visual-range doctrine (shots at 40 km) | ⛔ reject (show rule AC-11) | the user: *"not many kilometers away"* |
 
-## 3. Decisions — ✅ approved `2026-11-16` (R-4283)
+## 3. Decisions — ✅ approved `2026-11-16` (R-4283), ⭐ AS AMENDED by the review §9 (R-4284)
 
-| # | decision — ⭐ lean | why | rejected — one line |
+| # | decision | why | rejected — one line |
 |---|---|---|---|
-| **AC-1** | **cruise is a fixed altitude per leg**: a route leg / point move flies at `max(ground under the leg) + the ordered height`, constant along the leg (one climb or descent at the leg's start); terrain following stays ONLY for low flight (ordered height < 100 m: attack run-ins, helicopters, drones) | the user's report; real aircraft hold an altitude; clearance is kept by taking the highest ground | keep per-sample AGL (the bobbing) · absolute Z from the waypoint (the draw tool writes Z 0, CE-2172) |
-| **AC-2** | ONE new motion mode, `NavigationMode.AirCombat = 8`, with the brain's choice in ONE new replicated component `AirCombatSteer` (manoeuvre, target, threat, throttle, show limits); the **motion node flies it every frame** (`FixedWingModel.Fight`) | the manoeuvre is geometry against the target's live position; the motion node holds both | the brain re-issuing `MoveTo` points (laggy, 2-D, no g) · a new motion model (one model per locomotion class, `MotionModelTable`) |
-| **AC-3** | the autopilot steers a **3-D velocity vector**: it rolls to put the lift onto the desired direction and pulls at most `MaxG` (and the speed-limited g below corner speed); speed changes by thrust − drag(g) − g·sin(climb); never below stall | one rule gives every manoeuvre — a pursuit, a break, a loop, a climb are just different desired vectors | per-manoeuvre scripted paths (dozens of special cases) |
-| **AC-4** | **GCAS in every AI fixed-wing mode** (route, point, air combat): each frame predict the recovery (roll level + pull `MaxG` from the current climb angle, after a 0.3 s reaction) over the terrain ahead (the highest ground under the next `recovery time + 2 s` of track); if it would pass below `FloorAgl` (default 150 m; 60 m on an attack run) it takes over until climbing and above the floor; a counter on `FighterPilotState` | the user: *"knows the aircraft limits and pulls up soon enough"*; the prediction uses the SAME g as AC-3 | a minimum-altitude clamp (an aircraft diving at 250 m/s cannot stop in one frame) · GCAS for the manual pilot (R-3007: a hand-flown plane may hit a hill) |
-| **AC-5** | the **manoeuvre set** (the brain picks, the autopilot flies): `LeadPursuit` (guns: nose on the led point), `PurePursuit` (missile lock), `LagPursuit` (close without overshooting), `Break` (max g away from the threat's nose), `Extend` (unload, full throttle, away), `Climb` (trade speed for height), `Beam` (threat at 90°, descending), `Drag` (threat at the tail), `LastDitch` (max g across the missile's path), `ReturnToArena`, `Merge` (head-on toward the target, offset 300 m) | the standard set; each is a desired vector + throttle (AC-3) | a free-form planner (untestable) |
-| **AC-6** | **missiles get energy and a g limit** — `MissileDto` + `BurnSeconds`, `MaxG`, `DragPerS` (speed loss per second after burn-out, more while turning), `MinSpeedMps` (below it the seeker is lost — "defeated"); turn rate = MaxG·g / speed. 0 everywhere ⇒ today's constant-speed round (ATGMs unchanged). The SAMs (Stinger, Igla, radar SAM) get numbers too | the user: dodging must work; in reality a missile is defeated by running it out of energy or out-turning it near the end; both need these two numbers | a scripted miss chance (no geometry, nothing to watch) · proportional navigation (§2) |
-| **AC-7** | **the jets**: the F-16C (401) gets flight, weapons, a radar and a brain; a new **MiG-29 class (409)** for the other side; both cruise 220 m/s, corner 150 m/s, 9 g; flares + chaff; a gun (M61 20 mm / GSh-30-1 30 mm), 2 IR + 2 radar missiles | the opponents a show needs; F-16 already has a body and signatures | a mirrored F-16 for both sides (same silhouette, the viewer cannot tell sides) |
-| **AC-8** | **the weapons**: IR missile (AIM-9X / R-73 class: 0.3–8 km, 90° off-boresight cone, flare rejection 0.6) · radar missile (AIM-120 / R-77 class: 1–15 km real, clamped by AC-11, radar seeker, chaff only in the end-game — RS-3) · the gun (≤ 800 m, the led point, `ForwardFire`). Shot rule: one missile at a time per target, wait for the outcome; guns when inside 800 m and the nose within 2° of the lead | numbers from public figures, rounded; the shot rule keeps a fight long enough to watch | salvos of 4 (the fight ends in one pass) |
-| **AC-9** | **ONE missile defence for every aircraft**, extracted from `AirAttackNodes`' evade stage into `MissileDefence` (behaviors): warned (missile warning, or a radar TRACKED warning) ⇒ countermeasures by seeker (E2/E3 kept) ⇒ `Beam` (radar) or `Drag` (IR, far) ⇒ `LastDitch` when time to impact < 2.5 s ⇒ resume. Air combat, attack runs AND transit call it (closes the RS-6 / §7e "a move does not react" row) | *"one implementation per concept"*; the SAM and the AAM are the same problem to the aircraft | a second evasion inside the fighter behaviour (two copies drift) |
-| **AC-10** | **the arena**: an authored `AirArena` entity (centre, radius, floor, ceiling) the fighters of a scenario fight inside; outside the radius a pilot flies `ReturnToArena` before anything except `LastDitch`; the start is a `Merge` through the centre | the user: *"the attacks need to happen above the terrain"*; an arena is the show's stage | clamping positions (unphysical) · no arena (they drift 20 km away, measured habit of extend / chase) |
-| **AC-11** | **show rules on the arena**: `MaxShotRangeM` (default 6 km) — no missile beyond it; `MinFightAltitude` / ceiling | keeps every shot within view | real BVR ranges (the fight is over before it is visible) |
-| **AC-12** | **lapses** — each pilot has a `Skill` (Rookie / Veteran / Ace); the arena counts **stalemate seconds** (no hit by anyone in it); past `StalemateSeconds` (default 90 s) each pilot draws a lapse per second with a chance rising with the stalemate and falling with skill (per-entity `SimRng`, deterministic): **Fixation** (on a gun track it holds the pull-out until GCAS at a third of the floor — may hit the ground), **LateWarning** (reacts to a missile 2 s late), **EnergyBleed** (stays in a slow turn under corner speed 10 s), **GLoc** (after > 8 g for 5 s, no control for 3 s, wings level). ⛔ the gun jam is a MALFUNCTION — CE-4644's, not a lapse | the user: *"'too immersed in combat' or other auxiliary induced failures … if the combat turns to be too equal"*; skill makes it unequal by design, lapses break the rest | a director that writes another pilot's state (breaks the per-entity rule) · random deaths (nothing to watch) |
-| **AC-13** | **the behaviour** `AirCombat` (one library behaviour, stateful): pick the target (nearest hostile aircraft seen or radar-tracked inside the arena), pick the manoeuvre each 0.5 s from the geometry (aspect, range, energy, threat), pick the weapon (AC-8), call `MissileDefence` (AC-9), apply lapses (AC-12). Orders: **CAP** (patrol a point, engage what enters) and **Intercept** (a named target); a fighter's SOP reacts to an air contact with `AirCombat` | the brain decides, the motion node flies (AC-2); one behaviour, the existing order and SOP machinery | one behaviour per manoeuvre (the transitions ARE the fight) |
-| **AC-14** | **who builds** — one new `air` lane (CE / R block 10000–10999) builds the motion, the missiles, the catalogue rows and the behaviour, cross-lane into motion, combat, catalogue and behaviours, said in each commit; ⭐ **the looks go to ui as usual (AC-15)**; ⚠ if no air lane: backend (AC-1…AC-4, AC-6, AC-7 catalogue), behaviors (AC-5 picking, AC-8…AC-13) | one owner keeps the pilot and the behaviour in step (they share the manoeuvre enum) | three lanes on one loop (three handoffs, three merges for one feature) |
-| **AC-15** | ⭐ **the visuals are ui's** (as with the radar SAM, RS-9): the air lane declares the ids and placeholder rows (the MiG's TKB type and DIS class, a placeholder `MunitionVisualDto` per new munition); ui builds what §4d lists | ui owns `ShapeKit`, the effects and the mockup-fidelity rule (R-4138); the 3-D map is keyed by the class name, so the two halves meet on ONE key and never on a model path | the air lane building the looks (a second lane in `ShapeKit` / effects; the mockup and fidelity discipline lives in ui) |
+| **AC-1** | **cruise is a fixed altitude per leg**: a route leg / point move flies at `max(ground under the leg) + the ordered height`, constant along the leg; the climb or descent to it **starts early by its climb time** (RV-5); terrain following stays ONLY for low flight (ordered height < 100 m: attack run-ins, helicopters, drones) | the user's report; real aircraft hold an altitude; clearance is kept by taking the highest ground | keep per-sample AGL (the bobbing) · absolute Z from the waypoint (the draw tool writes Z 0, CE-2172) |
+| **AC-2** | ONE new motion mode, `NavigationMode.AirCombat = 8` — ⭐ **added to the wire enum `ENavigationMode` and to BOTH `MapMode` switches** (today an unknown mode becomes `NAV_NONE`, RV-6); the brain's choice in ONE replicated `AirCombatSteer` (**brain** ownership group); the motion node flies it every frame (`FixedWingModel.Fight`) and answers in ONE replicated `FighterPilotState` (**muscle** group). The brain writer follows `OperatorControlBehavior.ManualControl` (mode, bump `IntentId`, then the replicated drive) | the manoeuvre is geometry against the target's live position; the motion node holds both | the brain re-issuing `MoveTo` points (laggy, 2-D, no g) · a new motion model (one per locomotion class) |
+| **AC-3** | the autopilot steers a **3-D velocity vector** with its **own attitude** (the quaternion in `SimTransform.Rotation`, never read back as Euler angles; no ±25° pitch clamp, no `ClimbMps` cap in this mode — RV-5): it rolls (fighter 240°/s) to put the lift onto the desired direction and pulls at most the skill's g (≤ `MaxG`, and the speed-limited g below corner speed); bank = acos(1/n); speed by `AccelMps2` (the thrust, R-3007 — no second thrust field, RV-13) − drag(g) − g·sin(climb), never below stall. ONE integrator, `Steer3D` | one rule gives every manoeuvre | per-manoeuvre scripted paths |
+| **AC-4** | **GCAS in every AI fixed-wing mode** (route, point, air combat): each frame `Steer3D` SIMULATES the recovery (0.3 s reaction, roll to wings level, pull the type's `MaxG`) over the terrain under that curved path for up to 10 s of climb; if it would pass below the floor it takes over until climbing and above the floor; a ridge the climb cannot clear ⇒ it turns away. **Floor = min(150 m, the ordered / profile height − 20 m), never below 8 m** (a 50 m gun run, RS-6's 10 m radar escape keep working, RV-5); in a fight, the arena floor. `FighterPilotState.GcasCount` / `MinAgl` | the user: *"knows the aircraft limits and pulls up soon enough"*; the SAME integrator as the flight, so the prediction matches the aircraft | a minimum-altitude clamp · a straight-line look-ahead (misses the curve and the roll) · GCAS for the manual pilot (R-3007) |
+| **AC-5** | the **manoeuvre set**: `Manoeuvre` enum — None 0 · Merge 1 · LeadPursuit 2 · PurePursuit 3 · LagPursuit 4 · Break 5 · Extend 6 · Climb 7 · Beam 8 · Drag 9 · LastDitch 10 · ReturnToArena 11 · Disengage 12 · Rejoin 13; each is a desired vector + throttle (AC-3) | the standard set | a free-form planner |
+| **AC-6** | **missiles that can be beaten** (RV-1): `MissileDto` + `BurnSeconds`, `MaxG`, `DragPerS`, `MinSpeedMps`, `SteerLagS`; the round boosts from the launcher's speed to `SpeedMps` over the burn, then loses `DragPerS` (more while turning); its available g = `MaxG·(v / SpeedMps)²` (it gets LESS agile as it slows); its steering follows the lead through a first-order lag (0.4 s); below `MinSpeedMps` it is DEFEATED — it expires, and its shot row says `Defeated`. `GuidedRound` keeps a separate current speed (`SpeedMps` still feeds the lead and the dive maths). `MaxG` 0 ⇒ the existing `TurnRateDegPerSec` (CE-2222) — ATGMs unchanged. The SAMs (Stinger, Igla, radar SAM) get numbers too. ⭐ **The radar notch** (RV-4): a radar seeker loses the target while its closing speed < 50 m/s AND it is below 300 m above the ground | dodging must work by geometry and energy, and must sometimes fail | a scripted miss chance · proportional navigation |
+| **AC-7** | **the jets**: the F-16C (401) gets flight, weapons, a radar, armour and a brain; a new **MiG-29 class (409)**, DIS `1.2.*.1.<sub>` with a HROT subcategory (the recon drone's `1.2.*.50.2` precedent), class **`TwinEngineFighter`**, faction from the scenario. They DIFFER (RV-8): the MiG has the better instantaneous turn and nose authority, the F-16 the better sustained turn — the catalogue table §5a | two different jets make a fight that someone wins | a mirrored F-16 (identical jets circle forever, RV-8) |
+| **AC-8** | **the weapons**: IR missile (AIM-9X / R-73 class), radar missile (AIM-120 / R-77 class, chaff only in the end-game, RS-3), the gun. ⭐ **A shot only inside the weapon employment zone** (RV-10): the max range and the no-escape range against the target's present speed and aspect, from a cheap step-simulation of the motor model (`TargetLead.FlightTime` through it, at the 2 Hz decision, allocation-free); ⭐ **the gun lead adds the target's acceleration** (½·a·t²), fires ≤ 500 m with the nose within 2° of that lead. One missile at a time per target, wait for the outcome. ⛔ **No shot whose line or burst radius holds a friendly** (RV-11). A NEW air-to-air weapon category for the missile mounts — ⛔ never `Sam` (it trips the ground-AA SOP row) | public figures; the zone makes a shot mean something | salvos of 4 · shots at max range |
+| **AC-9** | **ONE missile defence for every aircraft** (RV-2, RV-3, RV-14): a **`MissileDefenceState` component** (brain, recorded) and `MissileDefence.Run` (behaviors), called by `AirCombat`, `AirAttack` (its evade stage and the RS-6 radar escape folded in) and a transit move. **Started by a LAUNCH only** — a radar "tracked" warning only biases the manoeuvre. It reads the LIVE threat from `FighterPilotState` (below), not the launch snapshot. **IR far (> 4 s to go) ⇒ Drag; IR near ⇒ Beam + flares (§7e E4 kept); radar ⇒ Beam / notch + chaff in the end-game.** TWO outputs: a `Manoeuvre` for a fixed-wing in mode 8, a MoveTo point for rotorcraft and transit (today's beam). ⭐ **`LastDitch` is a REFLEX on the motion node**: inside 2.5 s to impact it breaks across the missile's path whatever the brain asked. The defence ends when no round is inbound | one concept, one implementation; the motion node is the only place that SEES the missile live | a second evasion in the fighter · the launch snapshot (stale, overwritten by a second missile) |
+| **AC-9a** | **the live threat** (RV-2): each frame the motion node scans the guided rounds whose target is this aircraft (a small set; allocation-free) and writes into `FighterPilotState`: `Inbound` count, the nearest's bearing, seeker, closure and live time to impact, `LastDitchAt`, `Defeated` count. `MissileWarning` stays the launch EVENT (it starts the defence) | the brain cannot see a round (not replicated) | replicating every missile to the brain |
+| **AC-10** | **the arena**: an authored, replicated `AirArena` entity (centre, radius, floor, ceiling, `MaxShotRangeM`, `StalemateSeconds`, `LastHitAt`); fighters fight inside it; ⭐ **a SOFT edge** (RV-9): the pull back grows with the distance outside; the missile defence and a disengage override it; the start is a `Merge` through the centre at corner speed + 20 % | the show's stage | a hard wall (turns a dragging jet back into the missile) · no arena |
+| **AC-11** | **show rules on the arena**: no missile beyond `MaxShotRangeM` (default 6 km) even inside the employment zone; the arena floor and ceiling | every shot within view | real ranges |
+| **AC-12** | **skill and lapses** — `Skill` enum Rookie 0 · Veteran 1 · Ace 2 sets (RV-8) **reaction time** (1.5 · 0.7 · 0.3 s), **the g it will pull** (6.5 · 8 · 9), **decision quality** (Rookie: level turns and pure pursuit, shoots at max range; Veteran: lag / lead, shoots inside 0.8 × max; Ace: the vertical, one- vs two-circle by energy, shoots inside the no-escape range) **and the lapse rate**. Past `StalemateSeconds` (90 s) with no hit in the arena, each pilot draws a lapse per second (per-entity `SimRng`, deterministic): `Lapse` enum None 0 · Fixation 1 (holds a gun track until GCAS at a third of the floor) · LateWarning 2 (+2 s reaction to a launch) · EnergyBleed 3 (a slow turn under corner speed, 10 s) · GLoc 4 (after > 8 g for 5 s: no control 3 s, wings level). ⛔ The gun jam is CE-4644's malfunction | the user: *"'too immersed in combat' … if the combat turns to be too equal"*; skill makes fights unequal by design, lapses break the rest | a director that writes other pilots (breaks the per-entity rule) · random deaths |
+| **AC-13** | **the behaviour, inside R-2015's one order set** (RV-12): an **Attack order on an AIRCRAFT** picks the air-combat profile of the ONE `AirAttack` entry, which delegates to `AirCombatNodes` (one stateful behaviour); **CAP = a Hold over the arena + the fighter SOP row** (an air contact ⇒ engage). No new orders, no order ids. The behaviour: target = a hostile aircraft seen or radar-tracked in the arena, ⭐ **deconflicted** — wingmen take different targets through the group's shared contacts; the manoeuvre from the geometry each decision (2 Hz, after the skill's reaction); the weapon (AC-8); the defence (AC-9); lapses (AC-12); **after a kill** the next target, else `Rejoin` the leader or Hold over the arena; **winchester** (no weapons) or damaged < 50 % or alone against two with no missiles ⇒ `Disengage` (out of the arena); it switches its own radar On (RS-10's one writer) — ⭐ an AIRCRAFT emitter is exempt from RS-6's dive and RS-7's spot report (RV-3) | R-2015 kept; one behaviour, the existing order and SOP machinery | CAP / Intercept orders and a separate behaviour (contradicts R-2015) |
+| **AC-13a** | **jets that touch both crash** (the existing body contact, `DroneImpactSystem`) (RV-11) | — | — |
+| **AC-14** | **who builds** — a new **`air` lane** (branch `air` off `coordinator`; CE / R block 10000–10999) builds the motion, the missiles, the catalogue rows, the wire, the checks-grammar items and the behaviour, cross-lane into motion, combat, catalogue, network, scenario harness and behaviours, said in each commit | one owner keeps the pilot and the behaviour in step | three lanes on one loop |
+| **AC-15** | **the visuals are ui's** (RS-9's split): the air lane declares the ids, the class and placeholder look rows; ui builds §4d — ⛔ mockups first (R-4143), the frame rails check them (R-4146) | ui owns `ShapeKit`, the effects and the fidelity rule | the air lane in `ShapeKit` |
 
-## 4. UML
+## 4. UML *(as amended, R-4284)*
 
 ### 4a. Classes
 
 ```mermaid
 classDiagram
-  class FixedWingModel { <<existing, grows>> +Autonomous() · +Fight(frame, steer, params) ★ · +Gcas(frame, params, floor) ★ · -Steer3D(frame, desired, g) ★ }
-  class AirRoute { <<existing, grows>> +Compile() · ★ a leg's height = max ground + ordered height (AC-1) }
-  class AirCombatSteer { <<★ new, replicated, brain writes>> Manoeuvre · Target · Threat · Throttle · FloorAgl · Arena }
-  class FighterPilotState { <<★ new, motion node writes, recorded>> GLoad · Energy · GcasActive · GcasCount · MinAgl · LastDitchAt }
-  class AirCombatState { <<★ new, brain, recorded>> Target · Manoeuvre · Skill · Lapse · LapseUntil · Kills · Shots }
-  class AirArena { <<★ new, authored>> Centre · Radius · Floor · Ceiling · MaxShotRangeM · StalemateSeconds · LastHitAt }
-  class FlightParamsDto { <<existing, grows>> +MaxG · +CornerSpeedMps · +ThrustMps2 · +DragK }
-  class MissileDto { <<existing, grows>> +BurnSeconds · +MaxG · +DragPerS · +MinSpeedMps }
-  class GuidedRound { <<existing, grows>> +BurnUntil · +MaxG · +DragPerS · +MinSpeed }
-  class GuidedRoundSystem { <<existing, grows>> speed profile · turn = MaxG·g / v · slow ⇒ Lost }
-  class AirCombatNodes { <<★ new behaviour>> +AirCombat() · -PickTarget() · -PickManoeuvre() · -PickWeapon() · -Lapse() }
-  class MissileDefence { <<★ extracted from AirAttackNodes evade>> +Warned(self) · +Run(ref state) Manoeuvre }
-  class AirAttackNodes { <<existing>> evade stage ⇒ calls MissileDefence }
-  class AirArenaSystem { <<★ new, the arena's one writer>> LastHitAt from the hits inside it }
-  class TargetLead { <<existing>> +Point() }
+  class FixedWingModel { <<existing, grows>> +Autonomous() · +Fight(frame, steer, params) ★ · -Steer3D(frame, desired, g) ★ · -Gcas(frame, floor) ★ · -ScanInbound(frame) ★ }
+  class AirRoute { <<existing, grows>> ★ a leg's height = max ground + ordered height, climb started early (AC-1) }
+  class AirCombatSteer { <<★ component, brain group, replicated>> Manoeuvre · Target · Throttle · FloorAgl · MaxG · Arena }
+  class FighterPilotState { <<★ component, muscle group, replicated>> GLoad · Throttle · GcasActive · GcasCount · MinAgl · Inbound · ThreatBearingDeg · ThreatSeeker · ThreatClosureMps · ThreatTtiS · LastDitchAt · Defeated }
+  class AirCombatState { <<★ component, brain, recorded>> Target · Manoeuvre · Skill · Lapse · LapseUntil · NextDecision · Kills · Shots }
+  class MissileDefenceState { <<★ component, brain, recorded>> Phase · Seeker · StartedAt · Decoys · Resume }
+  class AirArena { <<★ component, authored, replicated>> Centre · Radius · Floor · Ceiling · MaxShotRangeM · StalemateSeconds · LastHitAt }
+  class FlightParamsDto { <<existing, grows>> +MaxG · +CornerSpeedMps · +DragK · +RollRateDeg · AccelMps2 = thrust }
+  class MissileDto { <<existing, grows>> +BurnSeconds · +MaxG · +DragPerS · +MinSpeedMps · +SteerLagS }
+  class GuidedRound { <<existing, grows>> +Speed (current) · +BurnUntil · +MaxG · +DragPerS · +MinSpeed · +SteerLagS · +SteerDir }
+  class GuidedRoundSystem { <<existing, grows>> boost / coast · g by speed² · lag · notch · slow ⇒ Defeated }
+  class AirAttackNodes { <<existing, grows>> Attack on an aircraft ⇒ the AirCombat profile · evade + radar escape ⇒ MissileDefence }
+  class AirCombatNodes { <<★ behaviour>> +AirCombat() · -PickTarget() · -PickManoeuvre() · -InZone() · -Lapse() }
+  class MissileDefence { <<★ extracted>> +Run(world, self, ref MissileDefenceState) Manoeuvre or MoveTo point }
+  class AirArenaSystem { <<★ the arena's one writer>> LastHitAt }
+  class TargetLead { <<existing, grows>> +Point() · +PointAccelerating() ★ }
   class Countermeasures { <<existing>> +Release() }
-  class RadarWarning { <<existing>> Level Tracked }
-  class MissileWarning { <<existing>> TimeToImpactS · Seeker }
-  AirCombatNodes --> AirCombatSteer : writes (own entity)
-  AirCombatNodes --> AirCombatState : writes (own entity)
-  AirCombatNodes ..> MissileDefence
+  class RadarEmissions { <<existing>> +Set() the one writer }
+  AirAttackNodes ..> AirCombatNodes : the air-combat profile
   AirAttackNodes ..> MissileDefence
-  MissileDefence ..> MissileWarning
-  MissileDefence ..> RadarWarning
-  MissileDefence ..> Countermeasures
+  AirCombatNodes ..> MissileDefence
+  AirCombatNodes --> AirCombatSteer : writes (own)
+  AirCombatNodes --> AirCombatState : writes (own)
+  AirCombatNodes ..> RadarEmissions : own radar On
+  AirCombatNodes ..> FighterPilotState : reads (g, energy)
   AirCombatNodes ..> AirArena : reads
+  MissileDefence --> MissileDefenceState : writes (own)
+  MissileDefence ..> FighterPilotState : reads the live threat
+  MissileDefence ..> Countermeasures
   AirArenaSystem --> AirArena : writes
   FixedWingModel ..> AirCombatSteer : reads
-  FixedWingModel --> FighterPilotState : writes (own entity)
+  FixedWingModel --> FighterPilotState : writes (own)
+  FixedWingModel ..> GuidedRound : reads (inbound, tick-start)
   FixedWingModel ..> TargetLead
   FixedWingModel ..> FlightParamsDto
   FixedWingModel ..> AirRoute
@@ -137,59 +150,59 @@ classDiagram
   GuidedRoundSystem --> GuidedRound
 ```
 
-*What the picture shows that prose hid: there is no new motion model and no second evasion — the fighter is ONE new mode of the existing
-plane model plus ONE extracted defence that the attack behaviour already needed; the brain and the motion node share exactly one replicated
-component, `AirCombatSteer`.*
+*What the picture shows that prose hid: the brain and the motion node exchange exactly TWO replicated components — the order down
+(`AirCombatSteer`), the state and the live threat up (`FighterPilotState`); the defence is one component shared by every behaviour that flies.*
 
 ### 4b. Who runs it, and who calls it each frame
 
 ```mermaid
 graph TD
   subgraph CGF["Brain node (CGF / editor)"]
-    SOP["fighter SOP row: air contact ⇒ React AirCombat"] --> AC["AirCombatNodes.AirCombat (per entity, parallel brain phase)"]
+    ORD["Attack order on an aircraft / CAP = Hold + SOP row"] --> AA["AirAttackNodes (existing) — air-combat profile"]
+    AA --> AC["AirCombatNodes.AirCombat (per entity, parallel brain phase)"]
     AC --> MD["MissileDefence.Run"]
-    AA["AirAttackNodes (existing)"] --> MD
+    AA --> MD
+    MOVE["a transit move"] --> MD
     AR["AirArenaSystem (serial, the arena's owner)"]
   end
   subgraph SIM["Motion node (SimHost / editor)"]
-    AMS["AirMotionSystem.Execute — PostSimulation, every frame"] --> FW["FixedWingModel.Autonomous"]
+    AMS["AirMotionSystem.Execute — PostSimulation, every frame, serial"] --> FW["FixedWingModel.Autonomous"]
     FW --> FIGHT["Fight (mode 8)"]
     FW --> ROUTE["FollowRoute / ToPoint"]
-    FIGHT --> GCAS["Gcas"]
-    ROUTE --> GCAS
+    FIGHT --> S3D["Steer3D + Gcas + ScanInbound (LastDitch reflex)"]
+    ROUTE --> S3D
     GRS["GuidedRoundSystem.Execute — PostSimulation, every frame"]
   end
-  AC -- "AirCombatSteer (replicated) + NavigationIntent mode 8" --> FIGHT
-  GRS -- "MissileWarningEvent" --> MD
+  AC -- "AirCombatSteer + NavigationIntent mode 8 (wire NAV_AIR_COMBAT)" --> FIGHT
+  S3D -- "FighterPilotState (replicated)" --> MD
+  GRS -- "MissileWarningEvent (published by FireProcessingSystem at launch)" --> MD
 ```
 
-*What the picture shows that prose hid: GCAS sits UNDER both the combat mode and the route modes, so the transit and the attack runs get it too;
-and the arena has ONE writer on the brain node — no pilot ever writes another pilot or the arena.*
+*What the picture shows that prose hid: mode 8 crosses the wire — the one edge that was silently dropped (RV-6); GCAS sits under both the
+combat and the route modes; the live threat flows UP from the motion node, the launch event only starts the defence.*
 
 ### 4c. A dogfight tick, and a missile defeated
 
 ```mermaid
 sequenceDiagram
-  participant B as AirCombat (brain, 2 Hz decisions)
+  participant B as AirCombat (brain, 2 Hz, after the skill's reaction)
   participant S as AirCombatSteer (replicated)
   participant F as FixedWingModel.Fight (motion node, every frame)
   participant G as GuidedRoundSystem
-  participant D as MissileDefence
-  B->>B: target = nearest hostile seen / tracked in the arena
-  B->>B: geometry ⇒ Merge, then LagPursuit / LeadPursuit
-  B->>S: Manoeuvre, Target, Throttle
+  participant D as MissileDefence (brain)
+  B->>B: target (deconflicted) · in the employment zone? · manoeuvre
+  B->>S: Manoeuvre, Target, Throttle, MaxG (skill)
   loop every frame
-    F->>F: desired vector from the manoeuvre (TargetLead for LeadPursuit)
-    F->>F: roll the lift onto it, pull ≤ MaxG, speed by thrust − drag − climb
-    F->>F: Gcas: predicted recovery below the floor ⇒ take over
+    F->>F: desired vector (lead with the target's acceleration) · Steer3D · Gcas
+    F->>F: ScanInbound ⇒ FighterPilotState (inbound, live time to impact)
   end
-  B->>B: nose within 2° of the lead, ≤ 800 m ⇒ gun burst (ForwardFire)
-  G->>D: missile warning (IR, 6 s to impact)
-  D->>D: flares (4, one per interval) · Drag
-  D->>S: Manoeuvre Drag, Threat = the missile's bearing
-  G->>G: burn-out, drag in the turn, speed < MinSpeed ⇒ Lost
-  D->>D: time to impact < 2.5 s would have meant LastDitch
-  D->>B: warning cleared ⇒ resume
+  G-->>D: MissileWarningEvent (launch) ⇒ the defence starts
+  D->>D: IR, 6 s to go ⇒ Drag · flares
+  D->>S: Manoeuvre Drag
+  G->>G: burn-out · g falls with speed² · drag in the turn
+  F->>F: time to impact < 2.5 s ⇒ LastDitch reflex
+  G->>G: speed < MinSpeed ⇒ Defeated (shot row)
+  F->>D: Inbound 0 ⇒ the defence ends, the fight resumes
 ```
 
 ### 4d. The looks — what exists, what ui adds *(measured `2026-11-16`)*
@@ -200,72 +213,107 @@ sequenceDiagram
 | the MiG-29 body (409) | ⛔ would draw as the same F-16 shape | a twin-fin variant (two canted fins, two nozzles, intakes under the wings), keyed by a class `TwinEngineFighter` (more specific than `Fighter`, the `AttackAircraft` precedent `VisualFamily.cs:108`) — so the sides look different |
 | missiles and the gun pod on the jet | ⛔ none on the jet; ✅ the precedent: the A-10's bombs on pylons, shown by rounds left (`EntityBodyLayer3D.cs:483,1534`) | wingtip and underwing rails with the missiles still carried (IR outboard, radar inboard), one disappears per shot — the same rounds-left rule |
 | the missile in flight | ✅ `MunitionShape.Missile` + smoke trail (Stinger, radar SAM) | the four AAM look rows; the trail only while the motor burns (`BurnSeconds`, AC-6) — a missile that coasts is seen to coast |
-| afterburner, contrails, gun | ⛔ none (no `afterburner` / `contrail` in `Hrot.Presentation`) | an afterburner flame at full throttle (from the replicated speed rising / the steer's throttle), wingtip vortex trails above 6 g, the cannon's muzzle flash and tracers (tracer rows exist for the GAU-8) |
+| afterburner, vortex trails, gun | ⛔ no afterburner / contrail; ✅ a muzzle flash for any non-bomb mount (`EffectSystems.cs:177`); ✅ retractable gear hidden in the air (`EntityBodyLayer3D.cs:1840`) | an afterburner at full throttle and wingtip vortex trails above 6 g, both from the replicated `FighterPilotState` (`Throttle`, `GLoad`); the gun only needs its effect-set and tracer rows |
+| the missile's burn | — | the smoke trail only while the motor burns: derived from the round's AGE against its `MissileDto.BurnSeconds` (no wire) |
+| a shot-down jet, the launch | ⛔ none | smoke and fire on a dead jet as it falls; a launch-off-the-rail flash and smoke |
+| the arena | ⛔ none | an authoring gizmo (centre, radius, floor, ceiling) and its 2-D / 3-D drawing (a faint ring and the floor) |
+| the possessing player's fighter HUD | the mouse-aim pilot + a speed / height / heading HUD exist (Entity Control §8f) | a fighter HUD: gun pipper at the led point, missile lock / in-zone cue, radar warning, g; ⛔ the player flies the manual pilot — mode 8 is AI only |
 | flares | ✅ decoys drawn (CE-2188) | nothing |
+
+⛔ **Mockups first** (R-4143): the MiG, the jet with stores, the HUD, the arena — house style over `scripts/mockup_kit.py`, committed beside this design.
 
 *Why ui and not the air lane: the body is chosen by the class chain, so the air lane's only visual act is naming the class — exactly the radar SAM's split (§2a there).*
 
-## 5. The numbers *(public figures, rounded; the builder records each as a lane decision)*
 
-| | F-16C (401) | MiG-29 class (409) | IR missile (AIM-9X / R-73) | radar missile (AIM-120 / R-77) | radar SAM (6050) · Stinger · Igla |
-|---|---|---|---|---|---|
-| speed | cruise 220, corner 150, top 400 m/s | same | boost to 850 m/s, burn 5 s | 1100 m/s, burn 8 s | 800 · 650 · 570 m/s, burn 4 · 2 · 2 s |
-| g | 9 | 9 | 40 (⇒ 26°/s at 850 m/s, 70°/s at 300) | 35 | 30 · 20 · 18 |
-| after burn-out | — | — | −40 m/s per s, +more turning | −30 m/s per s | −40 · −60 · −60 m/s per s |
-| defeated below | — | — | 300 m/s | 350 m/s | 300 · 250 · 250 m/s |
-| other | 2 IR + 2 radar missiles, M61 20 mm 500 rounds, 30 flares + 30 chaff | GSh-30-1 30 mm 150 rounds, same missiles' counterparts | cone 90°, flare rejection 0.6 | cone 60°, chaff end-game (RS-3) | as built |
+## 5. The numbers *(public figures, rounded; the builder tunes and records each as a lane decision)*
 
-📐 **Why a dodge works, in two numbers:** at 850 m/s and 40 g the IR missile turns 26°/s — a radius of 1.9 km; an F-16 at corner speed and 9 g
-turns 34°/s — 0.5 km. ⇒ a hard turn across its path in the last 2 s puts the aircraft outside what it can follow, and a drag (turn away) makes
-it chase until it falls under 300 m/s. ⇒ the outcome depends on WHEN the pilot reacts — which is exactly what lapses (AC-12) and skill change.
+### 5a. The jets
 
-## 6. Feature-test scenarios *(R-4277 — each: `description` What / Judge, `checks.json` expect rows, a golden)*
-
-| scenario | what happens | expect rows (machine) |
+| | F-16C (401) | MiG-29 class (409) |
 |---|---|---|
-| **`ac-cruise-altitude`** | an F-16 flies a 3-leg route at 300 m over hills | `field Viper SimTransform.Position.Z` within ±15 m of each leg's altitude after the climb · `never field FighterPilotState.GcasCount > 0` |
-| **`ac-gcas-ridge`** | an F-16 ordered to 50 m toward a 200 m ridge, and one in a 30° dive at 2000 m | `field FighterPilotState.GcasCount >= 1` (both) · `never health Viper == 0` · `field FighterPilotState.MinAgl >= 30` at end |
-| **`ac-guns-drone`** | an F-16 on a recon drone (407) flying straight | `shot by Viper at Drone hit` before 60 s · `health Drone == 0` before 90 s |
-| **`ac-ir-defeated`** | a MiG fires one IR missile at an F-16 (flares, Veteran) from 3 km behind | `field Viper Countermeasures` ≥ 2 flares released · `field FighterPilotState.LastDitchAt > 0` or the missile `Lost` · `never health Viper < 100%` |
-| **`ac-ir-hits-late`** | the same shot, the F-16 with `LateWarning` forced | `health Viper < max` before 15 s — ⭐ proves the defence is what saves it |
-| **`ac-sam-dodge`** | an F-16 crossing a radar SAM site (114) and a Stinger team at 3 km | the SAM fires ≥ 1 (`shot by *Sam`) · the F-16 flies `Beam` (`field AirCombatState.Manoeuvre == Beam` or the defence's state) · ≥ 1 SAM defeated · the F-16 alive at 120 s (seeded) |
-| **`ac-attack-evades`** | the existing A-10 gun run under a Stinger — the §7e evasion through `MissileDefence` | the §7e rail's cues, unchanged (4 flares, beam, comes round) |
-| **`ac-dogfight-1v1`** | F-16 vs MiG, both Veteran, an arena of 4 km over the map | `near Viper Fulcrum 1500` before 60 s (the merge) · `never` either beyond arena radius + 1 km · `shot` (gun or missile) before 120 s · one `health == 0` before 300 s |
-| **`ac-dogfight-2v2`** | the sky show: two pairs, one Ace, one Rookie a side | ≥ 4 missile shots · ≥ 1 gun hit · ≥ 4 flare releases · ≥ 2 kills before 600 s · `never` a shot from beyond `MaxShotRangeM` |
-| **`ac-stalemate-lapse`** | two Aces, `StalemateSeconds` 30 | `field AirCombatState.Lapse != None` (any) before 120 s · a kill or a crash before 240 s |
+| speed | stall 70 · corner 170 · cruise 220 · top 400 m/s | stall 70 · corner 160 · cruise 220 · top 380 m/s |
+| turn | `MaxG` 9; sustained 6.5 g at 220 m/s (radius at corner 9 g: 0.33 km) | `MaxG` 9.5, better nose authority (roll 270°/s); sustained 5.5 g |
+| roll · thrust (`AccelMps2`) | 240°/s · 12 | 270°/s · 13 |
+| health · armour faces (front · side · rear · top) | 400 · 4 · 4 · 2 · 2 | 450 · 5 · 5 · 2 · 2 |
+| eye · radar | measured at step 0 (the vision range for a jet) · radar 40 km real, the arena caps shots | same |
+| weapons | M61 20 mm (500 rounds, fixed, 2° cone) · 2 IR + 2 radar missiles on rails · 30 flares + 30 chaff (dispensers are weapons, BS-1 §5.4c) | GSh-30-1 30 mm (150 rounds) · 2 IR + 2 radar · 30 + 30 |
+| other | ejection seat (the A-10's, `NedTkbCatalog.cs:1670`) · RCS 3 m² (exists) · `Heard(JetRange)` (exists) · a brain (AT4: health needs one) | the same rows written NEW: RCS 4 m², `Heard(JetRange)`, a body with gear, the hostile symbol; faction from the scenario |
 
-⚠ A crash and a kill both read `Health 0`; the rows tell them apart by `FighterPilotState.GcasCount` / a `shot … hit` before it.
+### 5b. The missiles
 
-## 7. Ids *(measured free on coordinator, behaviors, backend, ui, terrain, convoy, exp/agg-* `2026-11-16`; ⛔ permanent once built)*
+| | IR (AIM-9X / R-73) | radar (AIM-120 / R-77) | radar SAM (6050) · Stinger · Igla |
+|---|---|---|---|
+| top speed · burn | 850 m/s · 5 s | 1 100 m/s · 8 s | 800 · 700 · 570 m/s · 4 · 2 · 2 s |
+| `MaxG` (falls with speed²) | 40 | 35 | 30 · 20 · 18 |
+| after burn-out · defeated below | −40 m/s per s · 300 m/s | −30 · 350 | −40 · −60 · −60 · 300 · 250 · 250 |
+| steering lag · fuze | 0.4 s · 8 m | 0.4 s · 12 m | 0.4 s · as built |
+| seeker | cone 90°, flare rejection 0.6 | cone 60°, chaff end-game (RS-3), the notch | as built + the notch (radar) |
+
+📐 **Why a dodge can work and can fail** (as amended, RV-1): at 2.5 s to go a 9 g break moves the jet ≈ 275 m off the predicted point; a 40 g
+round at full speed can follow ≈ 1 200 m — but only at full speed, and only after its 0.4 s lag. A round that has coasted to 400 m/s has
+`40·(400/850)²` ≈ 9 g left — no more than the jet. ⇒ an early drag (bleed its speed) or a well-timed break (inside its lag) beats it; a late
+reaction does not. ⭐ **The acceptance is measured, not argued**: a seeded rail of 100 shots per profile states the hit-rate band.
+
+## 6. Feature-test scenarios *(R-4277; ⭐ feature scenarios carry a golden; ⭐ the dogfights carry expect rows ONLY — they are demos in Scenario Regression §5's sense)*
+
+Checks-grammar items the air lane adds first (RV-15; cross-lane into the scenario harness, said): ⭐ a `Defeated` shot outcome, ⭐ the shot
+row's RANGE, ⭐ a `far` cue (`{"on":"far","who","from","m"}`, usable under `never`). Flares are `shot by X where ammo contains "Flare"` with `n`.
+
+| slice | scenario | what happens | expect rows (machine) |
+|---|---|---|---|
+| S1 | `ac-cruise-altitude` | an F-16 flies a 3-leg route at 300 m over hills | per leg (anchored on the leg): two `field SimTransform.Position.Z` rows (≥ alt − 15, ≤ alt + 15) · `never field FighterPilotState.GcasCount > 0` |
+| S1 | `ac-gcas-ridge` | ordered to 50 m toward a 200 m ridge; a second in a 30° dive from 2 000 m | `field GcasCount >= 1` (both) · `never health == 0` · `field MinAgl >= 8` at end |
+| S1 | `ac-gcas-inverted` | inverted, 60° nose-down at 400 m/s from 3 000 m | `field GcasCount >= 1` · `never health == 0` |
+| S1 | `ac-gcas-steep-ridge` | at 150 m toward a ridge rising faster than it can climb | it turns away: `never health == 0` · `field GcasCount >= 1` |
+| S1 | `ac-map-edge` | a route that leaves the terrain and returns | `never field GcasCount > 0` · `never health == 0` (step 0 measures what the ground reads there) |
+| S2 | `ac-ir-defeated` | a MiG fires one IR missile at a Veteran F-16 from 3 km behind | `shot by Fulcrum hit` never · ≥ 2 `shot by Viper where ammo contains "Flare"` · `shot by Fulcrum` outcome `Defeated` |
+| S2 | `ac-ir-hits-late` | the same shot, `LateWarning` forced | `health Viper < max` before 15 s — ⭐ the defence is what saves it |
+| S2 | `ac-radar-chaff-beam` | a radar missile at an F-16 at 150 m above the ground | `field MissileDefenceState.Phase == Beam` · ≥ 1 chaff shot · outcome `Defeated` |
+| S2 | `ac-two-missiles` | two IR missiles 2 s apart | `field FighterPilotState.Inbound == 2` · both shot rows end (`hit` or `Defeated`) · the defence runs until `Inbound == 0` |
+| S2 | `ac-sam-dodge` | an F-16 in transit over a radar SAM (114) and a Stinger team | `shot by *Sam` ≥ 1 · `field MissileDefenceState.Phase == Beam` · ≥ 1 SAM `Defeated` · F-16 alive at 120 s (seeded) |
+| S2 | `ac-attack-evades` | the A-10 gun run under a Stinger (§7e through `MissileDefence`) | 4 flares · `MissileDefenceState.Phase == Beam` (IR near) · it comes round; ⚠ its golden is RE-RECORDED (state moved) |
+| S3 | `ac-guns-drone` | an F-16 on a recon drone (407) flying straight | `shot by Viper at Drone hit` before 60 s · `health Drone == 0` before 90 s |
+| S3 | `ac-guns-turning` | the F-16 behind a MiG in a 5 g turn | `shot by Viper at Fulcrum hit` before 120 s (the accelerating lead) |
+| S3 | `ac-head-on-shot` | the jets merge head-on at 12 km | the first missile `shot` at ≤ 6 km (`range`), inside the zone |
+| S3 | `ac-dogfight-1v1` | F-16 vs MiG, both Veteran, lapses on | `near Viper Fulcrum 1500` before 60 s · `never far … arena + 1000` · a shot before 120 s · one `health == 0` before 300 s |
+| S3 | `ac-winchester` | an F-16 with one missile and no gun ammunition | after its shot: `field AirCombatState.Manoeuvre == Disengage` · `far Viper arena` before 120 s |
+| S4 | `ac-dogfight-2v2` | two pairs, an Ace and a Rookie a side | ≥ 4 missile shots · ≥ 1 gun hit · ≥ 4 flares · ≥ 2 kills before 600 s · `never` a shot with range > `MaxShotRangeM` · `never` a friendly hit · the two wingmen hold different targets at the first shot |
+| S4 | `ac-skill-decides` | an Ace vs a Rookie, lapses OFF, 5 seeds | the Ace wins in ≥ 4 of 5 (one expect per seed) |
+| S4 | `ac-stalemate-lapse` | two Aces, `StalemateSeconds` 30 | `field AirCombatState.Lapse != None` before 120 s · a kill or a crash before 240 s |
+
+⭐ **Rails** (not scenarios): the missile Monte-Carlo (100 seeded shots per profile, the hit-rate band; a late reaction worse); the wire
+round-trip of mode 8; GCAS against a terrain function (inverted, vertical, steep ridge); the zone maths; no allocation in a steady fight frame.
+
+## 7. Ids *(⛔ permanent once built)*
 
 | what | id |
 |---|---|
-| aircraft type MiG-29 class | **409** (`TkbEntityTypes`, max in use 408) |
-| munitions: AIM-9X class, AIM-120 class, R-73 class, R-77 class, M61 20 mm HEI, GSh-30-1 30 mm HEI | **6060…6065** (in use up to 6053) |
-| components: `AirCombatSteer`, `FighterPilotState`, `AirCombatState`, `AirArena` | **163, 277, 278, 279** (holes; 281–289 taken by agg) |
-| DDS ordinals: `AirCombatSteer`, `AirArena` (+ 2 spare) | **204–207** (convoy holds 198–203) |
-| `NavigationMode.AirCombat` | **8** |
-| CE / R block (if the air lane is approved) | **10000–10999** |
+| aircraft type MiG-29 class | **409** (max in use 408, measured on every lane) |
+| munitions AIM-9X, AIM-120, R-73, R-77 class, M61 20 mm HEI, GSh-30-1 30 mm HEI | **6060…6065** (max in use 6053) |
+| `NavigationMode.AirCombat` / wire `NAV_AIR_COMBAT` | **8** in both enums |
+| `Manoeuvre`, `Lapse`, `Skill`, `MissileDefenceState.Phase` | §3 AC-5, AC-12, AC-9 |
+| ⭐ **component ids ×5** (`AirCombatSteer`, `FighterPilotState`, `AirCombatState`, `MissileDefenceState`, `AirArena`) | **the air lane's own block, measured at step 0** (R-4284): a FULL scan of every `[ComponentId]` and every id constant on every lane branch, tests included — ⛔ not a grep of `= N;` literals (163 is reserved, 277–279 are `NavFakeIds`', 476–495 is full, tests hold 487/488/492/493); declared in `GlobalComponentIds`' header like R-4276 |
+| ⭐ **DDS ordinals ×4** (`AirCombatSteer`, `FighterPilotState`, `AirArena` + 1 spare) | **measured at step 0** across every `DescriptorOrdinal` (the time translators hold 201–206; agg 220–239; convoy's three, see the convoy note) |
+| the MiG's DIS subcategory · the air-to-air weapon category value | measured at step 0 |
+| CE / R block | **10000–10999** (the `air` lane) |
 
-## 8. Slices *(the order; each ends with its scenarios passing)*
+## 8. Slices *(each ends with its scenarios passing in `scripts/scenario-regression.sh`)*
 
-⭐ **ui, in parallel from S3** (AC-15, §4d): the MiG twin-fin body, the carried missiles, the AAM looks, the afterburner, vortex trails and the gun flash — its own handoff, keyed on the ids in §7; the frame rails render each next to its mockup (R-4138, R-4146).
-
-| slice | items | scenarios |
+| slice | items | scenarios · ⭐ the existing suites it moves (RV-16) |
 |---|---|---|
-| **S1 the autopilot** | AC-1 (leg altitude), AC-3 (3-D steer + energy), AC-4 (GCAS in every AI mode), F-16 flight numbers | `ac-cruise-altitude`, `ac-gcas-ridge` |
-| **S2 missiles that can be beaten** | AC-6 (motor, g, drag, defeat) on every SAM and AAM; AC-9 `MissileDefence` extracted, transit reacts | `ac-ir-defeated`, `ac-ir-hits-late`, `ac-sam-dodge`, `ac-attack-evades` |
-| **S3 the fighters** | AC-2 mode 8 + `AirCombatSteer`, AC-5 manoeuvres, AC-7 jets, AC-8 weapons, AC-13 behaviour + CAP / Intercept | `ac-guns-drone`, `ac-dogfight-1v1` |
-| **S4 the show** | AC-10 arena, AC-11 show rules, AC-12 skill + lapses | `ac-dogfight-2v2`, `ac-stalemate-lapse` |
+| **S0 measure** — ⛔ STOP rule (R-106): an item whose premise fails is reported, the rest go on | the ids (§7); `Ground(x, y)` beyond the map edge; the vision range at which a pilot sees a jet; whether the radar sensor (RS-2) runs on an aircraft emitter | — |
+| **S1 the autopilot** | AC-1, AC-3, AC-4 (`Steer3D`, GCAS in every AI mode), the F-16 flight numbers | 5 S1 scenarios · `FixedWingModelTests` (the per-sample AGL rails re-pinned), `RotorcraftModelTests` unchanged, `ua-air-attack` re-golden |
+| **S2 missiles that can be beaten** | AC-6 (+ the notch), AC-9 / AC-9a (`MissileDefence`, the live threat, the reflex), the grammar items | 6 S2 scenarios · the Monte-Carlo rail · `GuidedRoundSystemTests`, `AirAttackNodesTests`, `sam-site` (its 20–40 % chaff band re-measured), `ua-air-defence` |
+| **S3 the fighters** | AC-2 (+ wire), AC-5, AC-7 (catalogue §5a), AC-8, AC-13 / AC-13a | 5 S3 scenarios · the wire round-trip rail |
+| **S4 the show** | AC-10, AC-11, AC-12 | 3 S4 scenarios |
+| **ui, in parallel from S3** | §4d, mockups first | its frame rails (R-4146) |
 
-Machine checks on every behaviour slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (the pilot reads the target's and the missile's position —
-declared tick-start reads), the world guard, and `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` (parallel safety, not the verdict).
+Machine checks on every behaviour slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (the brain's reads of `FighterPilotState` and `AirArena`
+declared in `BrainReads.Declare`), the world guard, and `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` (parallel safety, not the
+verdict). The motion node is serial (`AirMotionSystem`), so the fight reads the target's and the rounds' TICK-START state, never this
+frame's half-moved one. ⛔ No allocation and no LINQ in `Fight`, `Steer3D`, `Gcas`, `ScanInbound` (a rail: 0 bytes in a steady frame).
 
-⚠ **Measured by the builder first** (unknown today): the terrain height `Ground(x, y)` beyond the map's edge (RS-2a says aircraft fly there — GCAS
-must not read a cliff at the edge); the vision range at which a pilot sees a jet (else the radar cues the fight); whether `RadarPerception`
-runs on a non-vehicle emitter (the fighter's radar).
-
-## 9. ⛔ The review — `2026-11-16` *(🔒 user: "Approved. Please do an independent review and find gaps and flaws."; three independent reviewers: engine fit (EF), realism and AI (RL), corpus / catalogue / handoff (CP); ✔ = re-measured by the coordinator)* — ⛔ the fixes are PROPOSALS, not approved
+## 9. ⛔ The review — `2026-11-16` *(🔒 user: "Approved. Please do an independent review and find gaps and flaws."; three independent reviewers: engine fit (EF), realism and AI (RL), corpus / catalogue / handoff (CP); ✔ = re-measured by the coordinator)* — ✅ APPROVED and FOLDED into §3–§8 `2026-11-16` (R-4284; 🔒 user: *"approved, fold it in and write the handoffs"*)
 
 | # | finding (sources) | ⭐ proposed fix — lean |
 |---|---|---|
