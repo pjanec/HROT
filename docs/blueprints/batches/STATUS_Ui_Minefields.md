@@ -39,3 +39,15 @@ Ids allocated: R-1054, R-1055 · CE-1955.
 
 ## Waiting on terrain
 ~~MS-T1 munitions, TKB 8830~~ landed and bound (bursts: `EffectTkbCatalog`; the field placeable) · ~~MS-T4 `MineClearing`~~ bound (`FlailActivity`) · ~~runtime lanes~~ drawn · ⏳ MS-T4's TKB 116 template + class `MineClearer` (`FamilyOfClass`, the thumbnail).
+
+## Morning summary — `2026-11-16`
+
+| slice | state |
+|---|---|
+| MS-U1 mockup | ✅ |
+| MS-U2 gizmo | ✅ bound to terrain's real contract (knowledge table, strikes, runtime lanes); frame rails a–d; LIVE in the editor (placed, edited, struck — `NOTE_Ui_To_Terrain_Minefield_Live.md`) |
+| MS-U3 authoring | ✅ picker entry, area-tool birth (no overlay style), the form, Add / Delete lane (line mode), the struck-field shape lock |
+| MS-U4 clearer | ✅ kit, flail drum + loop bound to `MineClearing`, mine bursts; ⏳ `FamilyOfClass["MineClearer"]` + the thumbnail wait for terrain's TKB 116 template / class (not landed at `61cb3b854`) |
+| CE-4623 animals | ✅ the area tool re-bound to backend's `AnimalArea` (stand-in id 511 deleted) |
+
+Follow-ups: the picker files the field under "Cultural Feature/Category 91" (the DIS name table has no name for 5.0.*.91 — golden accepted as is); the HTTP API cannot drive the area tool (the live run used the spawn route).
