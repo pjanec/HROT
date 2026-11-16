@@ -743,6 +743,29 @@ sequenceDiagram
 *What it shows: the receiver's RESOLUTION enters at exactly one point (the table) — the commander's code is the same for a physical and a
 stochastic squad, which is the whole point of step ⑥.*
 
+**✅ ST-1 / ST-2 BUILT** *(`2026-11-16`; lane decisions R-8307 … R-8311 "for the user's review")*
+
+| # | lane decision | would change it |
+|---|---|---|
+| **R-8307** | `StochasticUnitMove` orders the unit through `UnitMoves.Order` as a COLUMN (depth = `ColumnDepth`); `StochasticUnitDefend` moves FIRST when farther than `ArrivalRadiusMetres` = 30 m (a platoon's frontage) from its position, as a LINE (depth `LineDepthMetres` = 20 m, the least `StochasticAreaSink` takes), and occupies on arrival (Set, Prepared from that moment); a Defend already there occupies at once | the user's radius / line depth |
+| **R-8308** | a dropped route (`RouteFailed`) is re-requested at most `MaxRouteRetries` = 3 times, the next drop ⇒ PROGRESS TaskFailed and Failure. A unit found `Stopped`, or sent elsewhere by another play (a reaction paused this one), is re-ordered WITHOUT counting — that is how a paused order resumes | a different retry budget |
+| **R-8309** | `StochasticUnitBreakContact`: `To` when given; else 300 m directly away from the nearest contact of the unit's OWN squad pool; else directly BEHIND its heading — the contract carries the rounds that arrived, never a firer position | agg-backend adding a last-fire direction to `AggregateUnit` |
+| **R-8310** | `StochasticUnitSop`, two rows: ① UNDER FIRE (a non-zero bucket among the ring's 3 newest steps or the head's pending bucket — the area sink writes there) AND `CurrentOrders.Of(unit).Kind != Defend` ⇒ React `StochasticUnitBreakContact` (UnderFire urgency); ② `SuppressedShare ≥ 0.5` ⇒ React `StochasticUnitHold` (Contact urgency, so it cannot stop a retreat already running) — a new tiny play: stops the unit while suppressed, Success when the share falls | the share / seconds |
+| **R-8311** | the SOP seam is the ingress, not the translator: `BehaviorIngressSystem` substitutes a TEMPLATE-DEFAULT SOP (origin Sop) with the table's `Sop` row for a stochastic unit, through `StochasticSopRouting.Resolver` — set by the host (`CgfLogicPack`, which every brain host builds, = `TacticalIntentResolutionSystem.SopFor`; a forwarding rail pins it). The translator runs before `AggregateUnit` need exist on the entity; the ingress starts every SOP and sees the unit as it is. An explicit SOP assignment is never replaced | a unit whose resolution flips AFTER spawn (a merge) — see finding F-5 |
+
+**As built — ST-1 / ST-2**
+
+| what | where | deviation |
+|---|---|---|
+| the shared drive step (order once, watch, re-request, `Stopped`/elsewhere ⇒ re-order) | `Brains/StochasticUnitMovePlays.cs` `StochasticUnitMoves.Step` / `Drive` / `Deactivate_Drive` | — |
+| `StochasticUnitMove` (Params `MoveOrder`, Fulfils Move) | same file `StochasticUnitMoveBehavior` | — |
+| `StochasticUnitBreakContact` (Params `BreakContactOrder`) | same file `StochasticUnitBreakContactBehavior.AwayFromContact` | R-8309 fallback behind the heading |
+| `StochasticUnitHold` (no params, no kind) | same file `StochasticUnitHoldBehavior` | a 5th play the brief did not list: a SOP acts only by React, so "hold" needs one |
+| `StochasticUnitDefend` approach | `Brains/StochasticUnitDefendBehavior.cs` `Hold`, `Deactivate_Hold` | the immediate teleport is gone (kept only for a unit with no `AggregateUnit`) |
+| `StochasticUnitSop` | `Brains/StochasticUnitSop.cs` | — |
+| the seam | `Behavior/StochasticSopRouting.cs` · `BehaviorIngressSystem.ApplySopEvents` · `TacticalIntentResolutionSystem.SopFor` · `CgfLogicPack` ctor | translator → ingress (R-8311) |
+| rails | `SquadManeuverTests.AggregateMoves.cs` (11) + the ST-0 acceptance now runs the follower (its defence point is 75 m off) | — |
+
 ### 23.6 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 
 **INVENTORY** *(graph: `search_graph name_pattern ".*(UnitStrength|CombatEffective|ObjectiveCensus|AmmoOf).*"` + grep — the four readers RV-5 names, each a roster walk)*

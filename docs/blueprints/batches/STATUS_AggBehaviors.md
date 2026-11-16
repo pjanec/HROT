@@ -21,13 +21,15 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 | ST-0 ⑦ the flip (sites → `Route`, R-8305) + ST-0 ③ `StochasticUnitDefend` (R-8306) | ✅ built (agg-backend merged at `d767196c9`) | see §3 | `ST0_Acceptance_…` (SquadManeuverTests.Aggregate.cs) · the physical plays' suites green · red-proofs: `Route` never routing ⇒ acceptance red; the staff's stochastic walk dropped ⇒ red; the Prepared time dropped ⇒ red | §23.5 (D-2) |
 | ST-0 ① the four readers' slot-table branch (`AggregateUnits`) | ✅ built | see §3 | `SquadManeuverTests.ST0_*` ×3 · `ScenarioRulesTests.ST0_TheCensus_…` · red-proofs: each reader's branch / the roster-sum arm / the census add / the StrengthOf guard / an allocation in the slot walk ⇒ the matching rail red | §23.6 |
 | ST-0 (the whole slice) | ✅ done — except ⛔ the SITREP ammo colour (finding F-1) | | the acceptance rail, plain and `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` | |
-| ST-1 … ST-5 | ⏳ | | | |
+| ST-1 (`StochasticUnitMove`, Defend's approach, R-8307/8308) | ✅ built | see git | `ST1_*` ×6 (acceptance: arrival within ±10 % of `PredictSeconds`) | §23.5 |
+| ST-2 (`StochasticUnitBreakContact`, `StochasticUnitSop`, `StochasticUnitHold`, the ingress seam; R-8309…8311) | ✅ built | see git | `ST2_*` ×5 (acceptance: under fire it breaks contact) | §23.5 |
+| ST-3 … ST-5 | ⏳ | | | |
 
 ## 2. Lane decisions (for the user's review)
 
 | id | decision | would change it |
 |---|---|---|
-| R-8300…R-8304 | see the design §23.5 | — |
+| R-8300…R-8311 | see the design §23.5 (R-8307…R-8311: ST-1 / ST-2) | — |
 
 ## 3. Gates
 
@@ -47,7 +49,7 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 
 ## 4. Ids allocated
 
-R-8300…R-8306 (R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
+R-8300…R-8311 (R-8307 arrival radius / line depth; R-8308 retries; R-8309 break point; R-8310 the SOP rows; R-8311 the SOP seam; R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
 
 ## 5. Findings
 
@@ -57,3 +59,6 @@ R-8300…R-8306 (R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared 
 | F-2 | the staff composer served only rostered units: a roster-less stochastic unit never flushed its outbox (no SITREP / Set / the refusal's TaskFailed). Fixed here (`StaffComposerSystem._stochastic`) — agg-backend's `CE8002` rail asserted the QUEUE, never the delivery | agg-backend (aware; no action unless it prefers an empty `UnitRoster` on every stochastic unit) |
 | F-3 | `TheOfferedBehavioursFitTheEntityTests.CE4350…` golden is STALE from other lanes (26 `ClearObstacle` rows, 21 new TKB types, …) before this batch; a regenerate would also take `StochasticUnitDefend` (7 rows). Not regenerated here | whoever regenerates it |
 | F-4 | pre-existing reds, not touched: `TheTaskPickerTests.H5_…`, the `S0*RailTests` (Terrain / Orchestration / ReplayBrowser members), `BTreeHostsBTreeTests.U0_R5_…` + `MissionDirector…` + gizmo alloc rails (Toolkits); under the parallel env `HoldTheLine…CE2241`, `TacticsTrees…CE3170`, `StationWeapon…CE2238` ×2; `LoadPhaseChainTests.CE3345` flaky (green alone) | their lanes |
+| F-5 | ST-2: the SOP is substituted when the template SOP is ASSIGNED; a unit that becomes stochastic LATER (a merge, ST-5) keeps its physical SOP until something re-assigns it | ST-5 (the merge must publish the table's SOP) |
+| F-6 | `March` / `Dash` resolve to `StochasticUnitMove` but carry `SquadMarch`-shaped JSON, which the strict `MoveOrder` parse refuses (R-8303 increment 2: a neutral March DTO) | agg-behaviors increment 2 |
+| F-7 | the staff also reports Set / TaskFailed when a commander's TASK ends, so a Move play's own Set duplicates it (same kind, newest wins) — harmless; the play reports explicitly so it holds without a staff | — |
