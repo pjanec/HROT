@@ -272,6 +272,13 @@ weapon-systems fixture: a gunner fires the mortar he mans, nothing before `FireA
 `NedTkbBuilderCombatTests.IF1_*` · `HrotEnvironmentTests.IF1_*` · the LR-1 explosive set and the type-picker golden re-pinned on purpose.
 Report: [`REPORT_Backend_Indirect_Fire.md`](../../blueprints/batches/REPORT_Backend_Indirect_Fire.md).
 
+⭐ **AS BUILT `2026-11-15` (`CE-2436` R-2118, behaviors lane — cross-lane into I1):** `FireSolution.For` first lifts the aim point onto the TOP
+surface over it (`FireSolution.OnTop`, the last of `IWorldQuery.SurfacesAt`) — a point inside a building is aimed at its roof, where the round
+bursts (`BallisticsSystem` stops a round at a roof and bursts an area warhead there). 📌 Measured: `cc-battalion` #13 / #15 — the company's
+request was the centre of the reported posts, inside Objective 1's office; every arc was "masked" by that roof and the 81 mm never fired.
+⛔ SUPERSEDED: the arc judged clear to the ground point under the roof. A point in the open (behind a wall, in a courtyard) is unchanged —
+`IF1_BehindAWall_AndIntoAWalledCourtyard_…` still pins the wall in front masking the low arc. Rail: `FireSolutionTests.CE2436_APointInsideARoofedHouse_…`.
+
 ### 3.7 IF-2 as built — behaviors, `2026-10-15`
 
 | piece | where it landed | deviation from §3.2 / §5, and why |
