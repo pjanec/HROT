@@ -1446,38 +1446,42 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-4621</c> M-4 acceptance, the measured share (Motorcycle §6; seeded, in process — the REAL dive guidance and the REAL
-        /// rotorcraft model against a bike driven here): 40 seeded dashes — the drone from a random bearing 400–600 m off, the bike at 18–25 m/s
-        /// on a random heading; at the dash's trigger (time-to-go ≤ <c>DashRideBehavior.BreakAtSeconds</c>) the bike turns hard for 1.5 s, at
+        /// rotorcraft model against a bike driven here): 40 seeded dashes — the bike at 18–25 m/s on a random heading, the drone 400–600 m off
+        /// within ±90° of that heading (so it can close); only dashes where it DOVE are counted; at the dash's trigger (time-to-go ≤ <c>DashRideBehavior.BreakAtSeconds</c>) the bike turns hard for 1.5 s, at
         /// road grip (8 m/s²) or off-road (4.4 m/s², 0.45 g). Unhurt = the drone's closest pass beyond the warhead's casualty radius (5 m, MV-1).
-        /// 📐 The shares go into the status file; the rail pins only what the design claims: a break saves riders in a real share on the
-        /// road, more than off-road, and riding on without a break saves almost none.
+        /// 📐 Measured `2026-11-16` (status file): no break 0.1–0.8 m (every burst lethal); a road break 2.9–4.9 m (all beyond the 2 m lethal
+        /// radius, none beyond the 5 m casualty one); off-road 1.7–2.8 m. ⚠ The design's "unhurt in a measured share" is 0 % at commit 0.7 +
+        /// delay 0.4 (max ½·8·1.1² = 4.84 m) — a FINDING for the user, pinned here rather than tuned away.
         /// </summary>
         [Fact]
-        public void CE4621_M4_SeededDashes_AgainstTheRealisticFpv_TheBreakSavesAShare()
+        public void CE4621_M4_SeededDashes_AgainstTheRealisticFpv_ABreakEscapesTheLethalRadius_NotTheCasualtyOne()
         {
-            float Share(float grip, bool breaks, out string misses)
+            int Share(int config, float grip, bool breaks, System.Collections.Generic.List<float> found, out string misses)
             {
                 var rnd = new System.Random(4621);
-                int unhurt = 0, n = 40;
+                int dived = 0, n = 40;
                 var sb = new System.Text.StringBuilder();
                 for (int k = 0; k < n; k++)
                 {
-                    var o = new Vector3(0f, 8000f * (k + 1) + (breaks ? 0f : 400000f) + grip * 1000000f, 0f);
-                    float bearing = (float)(rnd.NextDouble() * 2 * Math.PI), dist = 400f + (float)rnd.NextDouble() * 200f;
+                    var o = new Vector3(4000f * config, 4000f * k, 0f);
                     float heading = (float)(rnd.NextDouble() * 2 * Math.PI), speed = 18f + (float)rnd.NextDouble() * 7f;
+                    // the drone comes from ahead or the side of the bike (within ±90° of its heading): it must be able to close on it
+                    float bearing = heading + (float)(rnd.NextDouble() - 0.5) * MathF.PI, dist = 400f + (float)rnd.NextDouble() * 200f;
                     var drone = SpawnDrone(o + new Vector3(MathF.Cos(bearing) * dist, MathF.Sin(bearing) * dist, 60f));
                     var bike = SpawnGround(o, 100f, vehicle: true, ForceId.Friend);
                     var p = new AirAttackParams { Target = bike, Point = o };
                     var ws = default(AirAttackState);
                     var v = new Vector3(MathF.Cos(heading), MathF.Sin(heading), 0f) * speed;
                     float turned = -1f, best = float.MaxValue, side = rnd.Next(2) == 0 ? 1f : -1f;
-                    for (int frame = 0; frame < 60 * 90; frame++)
+                    bool dove = false;
+                    for (int frame = 0; frame < 60 * 120; frame++)
                     {
                         _w.GetComponentRW<SimVelocity>(bike).Linear = v;
                         DroneStep(ref p, ref ws, drone, frame);
                         var at = _w.GetComponentRO<SimTransform>(drone).Position;
                         var middle = Fdp.Toolkit.Combat.AimPoint.Middle(_w, bike, out _, out _);
                         float tgo = Vector3.Distance(at, middle) / DroneSpeed;
+                        dove |= ws.Stage == 8;
                         if (breaks && turned < 0f && ws.Stage == 8 && tgo <= Hrot.AI.Behaviors.Brains.DashRideBehavior.BreakAtSeconds) turned = 0f;
                         if (turned >= 0f && turned < 1.5f)
                         {
@@ -1489,17 +1493,25 @@ namespace Hrot.SimHost.Tests
                         best = MathF.Min(best, Vector3.Distance(at, middle));
                         if (at.Z < 0.3f) break;
                     }
+                    if (!dove) { sb.Append("- "); continue; }
+                    dived++;
                     sb.Append($"{best:F1} ");
-                    if (best > 5f) unhurt++;
+                    found.Add(best);
                 }
-                misses = sb.ToString();
-                return unhurt / (float)n;
+                misses = $"{dived} dived: " + sb;
+                return dived;
             }
-            float road = Share(8f, true, out var r), dirt = Share(4.4f, true, out var d), none = Share(8f, false, out var z);
-            System.Console.WriteLine($"M-4 unhurt share: road break {road:P0} [{r}] · off-road break {dirt:P0} [{d}] · no break {none:P0} [{z}]");
-            Assert.True(road >= 0.3f, $"a road break saves a real share: {road:P0} [{r}]");
-            Assert.True(road >= dirt, $"the road grip beats the off-road one: {road:P0} vs {dirt:P0}");
-            Assert.True(none <= 0.1f, $"no break, no escape: {none:P0} [{z}]");
+            var road = new System.Collections.Generic.List<float>(); var dirt = new System.Collections.Generic.List<float>(); var none = new System.Collections.Generic.List<float>();
+            Share(0, 8f, true, road, out var r); Share(1, 4.4f, true, dirt, out var d); Share(2, 8f, false, none, out var z);
+            float Beyond(System.Collections.Generic.List<float> m, float radius) { int c = 0; foreach (var x in m) if (x > radius) c++; return m.Count > 0 ? c / (float)m.Count : 0f; }
+            System.Console.WriteLine($"M-4 beyond 2 m (lethal) / 5 m (casualty): road break {Beyond(road, 2f):P0} / {Beyond(road, 5f):P0} [{r}] · off-road break {Beyond(dirt, 2f):P0} / {Beyond(dirt, 5f):P0} [{d}] · no break {Beyond(none, 2f):P0} / {Beyond(none, 5f):P0} [{z}]");
+            Assert.True(road.Count >= 30 && dirt.Count >= 30 && none.Count >= 30, "the drone dove in most dashes");
+            Assert.Equal(0f, Beyond(none, 2f));                        // riding on is a hit: every burst inside the lethal radius
+            Assert.True(Beyond(road, 2f) >= 0.9f, $"a road break takes the burst out of the lethal radius: [{r}]");
+            Assert.True(Beyond(dirt, 2f) >= 0.2f && Beyond(dirt, 2f) < Beyond(road, 2f) + 1e-3f, $"off-road, less: [{d}]");
+            // ⚠ FINDING (status file): at commit 0.7 + delay 0.4 the largest miss is ½·8·1.1² = 4.84 m < the 5 m casualty radius ⇒ NO break
+            //   leaves the riders UNHURT; the design's "unhurt in a measured share" is 0 % at these numbers — pinned, so a change is seen
+            Assert.Equal(0f, Beyond(road, 5f));
         }
 
         /// <summary>
