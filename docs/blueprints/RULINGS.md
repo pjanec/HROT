@@ -935,6 +935,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2123** | ✅ **LANE DECISION — APPROVED by the user `2026-11-16`** *("approved, behaviors are not working on minefields yet, pls ammend their handoff")* (behaviors, `2026-11-16`, CE-4621 M-4): the dash — `GreyZoneDash` (commander over bikes) and each bike's `DashRide`, both `Fulfils = Dash`; bikes released 80 m apart; the lookout reads the riders' memory (TargetMemory declared as a last-tick brain read) and at time-to-go ≤ 1.0 s turns HARD off the bike's own heading away from the drone; riders out at the edge; riding at > 5 m/s masks hearing × 0.25 (any vehicle — backend had not built it). 📄 `docs/designs/vehicle-tactics/DESIGN_Motorcycle.md` §9a |
 | ⭐ **R-2124** | ✅ **LANE DECISION — APPROVED by the user `2026-11-16`** *("approved, behaviors are not working on minefields yet, pls ammend their handoff")* (behaviors, `2026-11-16`, CE-2436 close-out AU-4): a vehicle supporting by fire that sees nothing itself fires 5-round cannon bursts every 15 s on the REPORTED posts' centre the company gives it, and keeps supporting (before, its support ended at once). 📄 `docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md` §9.4 |
 | ⭐ **R-2125** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B1): the MineStrike drill HOLDS IN PLACE (no per-mover breadcrumbs exist to back out on); the unit goes on when its side marks the field or after 120 s; MineStrike is the one reaction that declares LeavesRoute. 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
+| ⭐ **R-2126** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B3): the clearer's tool switch is one seam (a stand-in until terrain names it); the brain raises no LaneCleared; a squad crosses a lane in single file along its axis from an assembly point 10 m short; the breach's roles come from the roster (vehicle clears, last foot unit crosses, the rest support). 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1300,6 +1301,7 @@ R-2122 | docs/designs/vehicle-tactics/DESIGN_FPV_Drone.md | ½·a·(commit + del
 R-2123 | docs/designs/vehicle-tactics/DESIGN_Motorcycle.md | a HARD TURN off the bike's own heading, AWAY from the drone
 R-2124 | docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md | BLIND FIRE as built
 R-2125 | docs/designs/minefields/DESIGN_Minefields.md | NO back-out along breadcrumbs
+R-2126 | docs/designs/minefields/DESIGN_Minefields.md | the equipment switch is a STAND-IN
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians
