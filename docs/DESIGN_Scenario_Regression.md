@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
 updated: 2026-10-27 (§10-3a / §10-4 re-run after backend's fixes — H5 and H1b green on ua-civ-melee) · 2026-10-27 (§7 the run after the 10-25/26 merges — a layout change at t = 0 hides later drift) · 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
-current-answer: §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
+current-answer: ⭐ §11 the two-tier suite (DESIGN, awaiting the user) · §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
@@ -844,6 +844,149 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 | **H2** | the seek phase | shuffled seeks equal playback on the four |
 | **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
 | **H4** | §10 RH-8, written then | — |
+
+## 11. ✅ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: READY-TO-BUILD — RT-1…RT-3, RT-5…RT-8 APPROVED (R-4279), RT-4 and RT-9 WITHDRAWN; dispatched to `backend`)*
+
+🔒 User, `2026-11-16`, verbatim: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully
+deterministic run; the networkless editor where everything is easier and faster (networkless) could be used for quicker tests and overnight
+(slow and long) we migh need to test also the replication (clusterruneer -m all or something like that) as that can reveal lots of issues not
+seen in the editor."* · *"then we can remove 1/4/8 thread test which is other kind of test"* · *"i am happy with a nightly scheduled task to run
+the cluster tier."* · R-4277 (a feature works only when its scenarios pass, judged by the machine).
+
+### 11.1 INVENTORY *(graph: `search_graph name_pattern=".*(Verify|Regression|Golden|AnchorBook|DirectorRunner|CheckBook|Expect).*" label=Class`
+⇒ 15 production classes; grep for `checks.json`, `--verify`, `utility-demo-check`, `.github/workflows`; ⚠ index coverage cannot be checked through the CLI)*
+
+| piece | where | state |
+|---|---|---|
+| the verify run (editor, stepped, deterministic) | `DirectorRunner` (`Hrot.Presentation/Map3D/Director/DirectorRunner.cs:142`) Verify mode; `ScenarioVerification` / `ConditionBook` / `ScenarioGolden` (`Hrot.Editor/Director/ScenarioVerification.cs:65, :321, :670`) | ✅ built (§8) |
+| the world seam it reads | `IVerifyWorld` (`ScenarioVerification.cs:18-48`): `Named`, `Components`, `Shots`, `Blasts`, `SetComponent` — implemented by `EditorVerifyWorld` (the debug service) and `RecordedRunWorld` (a recording) | ✅ — ⭐ the cluster tier is a THIRD implementation |
+| fresh process per scenario | `FreshVerifyJobs`, `VerifyCommand` (`Hrot.ClusterRunner/VerifyCommand.cs`) | ✅ |
+| the command line | `scripts/scenario-regression.sh` → `--mode editor --headless --verify a,b` (junit + summary) | ✅ — ⛔ `--verify` REFUSES any mode but editor (`Program.cs:143`) |
+| the scenarios | 142 `scenario.json`; 101 with a `checks.json` | ⚠ 41 without |
+| the cluster's own checks | `scripts/utility-demo-check.py` — 81 scenarios, conditions in PYTHON, real time, `--mode all` | ⛔ a SECOND condition set beside `checks.json` (ruling 9) |
+| CI | `docs/ci/scenario-regression.workflow.yml` (a TEMPLATE: nightly cron, one matrix job per scenario); `.github/workflows/system-tests.yml` (manual only) | ⛔ nothing runs on a schedule |
+| determinism | `scripts/stepped-hash.py` (1 / 4 / 8 threads) | ✅ — ⭐ NOT part of a scenario's verdict (user, `2026-11-16`); the parallel rule's own gate |
+
+📐 **Measured `2026-11-16`** (`farm-under-fire`, `ua-drone-shelter`, this VM): 54 s and 29 s wall each; every expectation PASSED (8 / 8, 11 / 11);
+both FAILED on the golden — every difference an internal hash (`BlueprintBlackboard1024`, `BrainDiagnostics`, `BehaviorStartRecord`) or a
+component added since the capture (`RadarSignature`), none a visible state. ⭐ And the FIRST attempt crashed at start-up on a component-id clash
+(`PlacementGroup` / `Fear` both 500) that a 0-error full-solution build had passed — a running scenario is the only gate that sees it.
+
+### 11.2 The tiers
+
+| | ⭐ FAST tier — the editor, deterministic | ⭐ NIGHTLY tier — the cluster, with replication |
+|---|---|---|
+| question | does the feature work, and did anything change? | does it still work when the nodes talk over the wire? |
+| run | the editor's stepped preview, a fresh process per scenario (built) | `--mode all` (every node in one process, real DDS), and a multi-process cluster for a named handful |
+| verdict | the `checks.json` expectations (pass / fail) + the golden (RT-3) | the SAME `checks.json` expectations, judged in sim time with the time windows they already carry; ⛔ no golden (a real-time networked run does not repeat); + the replication sanity (RT-6) |
+| who / when | a lane on its feature's scenarios, as it sees fit (how a lane proves its work is its own business — user); all of them nightly | nightly only |
+
+### 11.3 UML
+
+```mermaid
+classDiagram
+  class IVerifyWorld {
+    <<existing, ScenarioVerification.cs 18>>
+    Named()
+    Components()
+    Shots()
+    Blasts()
+    SetComponent()
+  }
+  class EditorVerifyWorld {
+    <<existing - the debug service>>
+  }
+  class RecordedRunWorld {
+    <<existing - a recording>>
+  }
+  class ClusterVerifyWorld {
+    <<new - the cluster's debug HTTP, every node>>
+  }
+  class ConditionBook {
+    <<existing - the checks evaluator>>
+  }
+  class ScenarioGolden {
+    <<existing - grows a VISIBLE-state mode, RT-3>>
+  }
+  class DirectorRunner {
+    <<existing - Verify mode, stepped>>
+  }
+  class ClusterVerifyRunner {
+    <<new - load, unpause, sample in sim time, stop>>
+  }
+  class ReplicationSanity {
+    <<new - sent vs received, swallowed exceptions>>
+  }
+  class VerifyCommand {
+    <<existing - accepts mode all, RT-5>>
+  }
+  IVerifyWorld <|.. EditorVerifyWorld
+  IVerifyWorld <|.. RecordedRunWorld
+  IVerifyWorld <|.. ClusterVerifyWorld
+  DirectorRunner ..> ConditionBook
+  DirectorRunner ..> ScenarioGolden
+  ClusterVerifyRunner ..> ConditionBook : the SAME checks
+  ClusterVerifyRunner ..> ClusterVerifyWorld
+  ClusterVerifyRunner ..> ReplicationSanity
+  VerifyCommand ..> DirectorRunner : mode editor
+  VerifyCommand ..> ClusterVerifyRunner : mode all
+```
+*What it shows that prose hid: the cluster tier needs NO second evaluator — `ConditionBook` already reads the world only through `IVerifyWorld`,
+so the cluster is one more implementation of that seam; the 81 Python conditions retire into the same `checks.json` (RT-7).*
+
+```mermaid
+sequenceDiagram
+  participant GH as nightly job
+  participant V as VerifyCommand
+  participant C as cluster mode all
+  participant W as ClusterVerifyWorld
+  participant B as ConditionBook
+  participant R as ReplicationSanity
+  GH->>V: --mode all --verify a
+  V->>C: start a fresh cluster, load scenario a
+  C-->>V: idle, paused
+  V->>C: unpause
+  loop every sample, in SIM time
+    V->>W: components, shots, blasts
+    W->>C: debug HTTP on the owning node
+    V->>B: judge the expectations
+  end
+  V->>R: per-translator sent and received, exceptions
+  V-->>GH: verdicts + replication report, junit
+```
+*What it shows: the cluster run is judged by the same expectations at the same sim times as the editor; only the world behind the seam changes.*
+
+```mermaid
+graph TD
+  CRON[nightly schedule] --> BUILD[one build job - the binaries as an artifact]
+  BUILD --> FAST[editor tier - every checks.json scenario, a matrix job each]
+  BUILD --> CL[cluster tier - every checks.json scenario under mode all]
+  BUILD --> MP[multi-process cluster - a named handful]
+  FAST --> SUM[one summary - junit and STATUS_Nightly_Regression.md]
+  CL --> SUM
+  MP --> SUM
+  SUM --> CAP[CAPABILITIES marks from the last run]
+```
+*What it shows: everything runs on GitHub's runners (free for a public repository, RT-8) — one build, then one job per scenario, each on its own
+fresh virtual machine, up to 20 at a time; the result is the Actions view and its junit. Nothing here is a foreground blocker for a lane.*
+
+### 11.4 ⭐ RT-1…RT-9 — ✅ APPROVED `2026-11-16` (R-4279; user: *"approved. pls write handoffs"*), RT-4 and RT-9 withdrawn
+
+| # | question | ⭐ lean | why |
+|---|---|---|---|
+| RT-1 | what decides pass / fail | the `checks.json` expectations, in BOTH tiers | they state intent and survive any correct change; measured: 19 / 19 passed while the golden failed on internals |
+| RT-2 | the thread test | ⛔ out of the scenario verdict; stays the parallel rule's own gate (`stepped-hash.py`) | user, `2026-11-16` |
+| RT-3 | the golden | ONLY in the editor tier, comparing VISIBLE state (position, health, modes, the fields the checks read); a difference is a WARNING with a one-command re-capture; internal blackboards and diagnostics left out | today it fails on every correct change ⇒ a suite that is always red |
+| ~~RT-4~~ | ⛔ WITHDRAWN `2026-11-16` — no merge smoke | 🔒 user: *"RT-4 not necessary, would slow everything down, its the responsibility of each lane to provide working stuff, and how they achieve that is their business"* |
+| RT-5 | the cluster tier | `--verify` accepts `--mode all`: a `ClusterVerifyRunner` + `ClusterVerifyWorld` over the cluster's debug HTTP, the same `ConditionBook` | no second evaluator (ruling 9) |
+| RT-6 | replication sanity | per run: every translator's sent vs received samples (`/diagnostics/architecture`), and any exception the module host swallowed ⇒ FAIL | the runbook's traps: a control plane threw every frame while the API answered `ok:true` |
+| RT-7 | the 81 Python live checks | move their conditions into `checks.json`; `utility-demo-check.py` keeps only the launch helpers | one condition set per scenario |
+| RT-8 | where it runs | ⭐ GitHub Actions: free for a public repository on standard runners, 20 jobs in parallel; build ONCE and share the binaries; a matrix job per scenario (each < 75 min) | the template exists; a Claude session would only wait on builds |
+| ~~RT-9~~ | ⛔ WITHDRAWN `2026-11-16` — no nightly Claude task | 🔒 user: *"no nightly claude task"* — the night's result is GitHub's own Actions view (one red / green per scenario, junit) |
+| — | the 41 scenarios with no checks | each gets a `checks.json`, or moves to `scenarios/showcases/` marked "demo, not a test" | §0: "not all scenarios are checking a concrete feature" |
+
+⚠ **Unverified, to measure on the first night:** a standard runner's cores / memory against `--mode all` + Xvfb; a scheduled workflow's
+behaviour when the repository is quiet for weeks; DDS multicast on a GitHub runner (the multi-process row may need loopback-only settings).
 
 ## ⛔ HISTORY
 

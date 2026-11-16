@@ -589,6 +589,37 @@ planner.*
 | the unit phases (sensing, A, B) are `ICoarseJob`s, 2 units a batch | a battalion's 18 units were one batch of 32 — ST-4's red-proof found it | CE-8011 |
 | ⚠ ST-1's follower runs where `AggregateUnit` is owned (the Brain group) and plans with THAT node's navmesh / roads; a split cluster's brain node holds no navmesh (`MuscleRoleInputs.cs:69`) ⇒ roads, else the straight leg | the path-request side is fenced this run (another lane's) | CE-8005 (finding) |
 
+### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
+
+🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —
+📐 measured: NOT covered. The three `exp/agg-*` branches hold no aggregate scenario; §23.3 asked for ONE (ST-4's battalion fight).
+
+⭐ Each is a regression test (R-4277): a What / Judge `description`, `checks.json` expect rows, a golden (editor tier); the nightly cluster tier
+runs the same rows. ⭐ **Lean: agg-behaviors authors them** (it owns ST-4's scenario and the plays); a red that is an engine defect goes to
+agg-backend. ⭐ A slice is DONE when ITS rows pass.
+
+| slice | scenario (`scenarios/demos/aggregates/…`) | the Judge lines (each an `expect` row) |
+|---|---|---|
+| ST-0 | `agg-platoon-under-company` | a stochastic platoon under a physical company reads Green in the company's SITREP · counts in the objective's census · a Defend order resolves to its play |
+| ST-0 | `agg-refused-order` | an order the table has no row for (Strike) reaches the commander as TaskFailed, and nothing else happens |
+| ST-0 | `agg-recorded` | a run recorded and replayed shows the same slot table at every keyframe |
+| ST-1 | `agg-march-open` | a dismounted platoon marches 2 km as a column; arrives within ± 10 % of M-2's predicted time |
+| ST-1 | `agg-march-mounted` | a mounted company keeps to roads, never enters a wood, arrives in its window |
+| ST-1 | `agg-route-dropped` | the route is cut mid-march: re-requested at most 3 times, then TaskFailed |
+| ST-2 | `agg-detect-by-range` | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
+| ST-2 | `agg-sees-physical` | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
+| ST-2 | `agg-break-contact` | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
+| ST-3 | `agg-platoon-duel` | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
+| ST-3 | `agg-shelled-unit` | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
+| ST-3 | `agg-prepared-defence` | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
+| ST-3 | `agg-out-of-ammo` | a unit fires until its derived ammunition is spent, then stops firing and reports it |
+| ST-4 | `agg-battalion-fight` | a battalion against a battalion runs to an end; the census and every SITREP agree with the slot tables |
+| ST-5 | `agg-split-on-contact` | a physical patrol closes in: the unit de-aggregates into soldiers and vehicles with stable `<unit>/<slot>` keys, in sensible positions |
+| ST-5 | `agg-squad-holds-house` | a squad holding a house splits into men at its window and door posts (§16) |
+| ST-5 | `agg-merge-back` | after contact ends the men merge back; the slot table keeps every loss and every identity |
+| ST-5 | `agg-forced-handover` | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
+| mixed | `agg-mixed-company-attack` | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
+
 ## 21. ⛔ The review of §18–§20 — `2026-11-15` *(three independent reviewers: combat model, engine fit, behaviours and chain; every load-bearing claim re-checked by the coordinator — ✔)* — ✅ ALL APPROVED, user `2026-11-15`: *"Approved"* — RV-1…RV-17 APPROVED (R-4257), folded into §18–§20 and §22
 
 ⭐ 33 raw findings, merged into 17. ✔ = re-measured by the coordinator at the line cited.
