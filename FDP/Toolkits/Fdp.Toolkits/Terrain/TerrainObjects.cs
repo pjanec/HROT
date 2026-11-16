@@ -68,7 +68,11 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; }
+
+        /// <summary>⭐ <c>CE-4624</c> MS-T2 (KR-8) — what every side knows of every minefield, as this view sees it (<see cref="PlaceKnowledgeTable"/>): rides here like the craters, so
+        /// every route / sight caller has it with no new parameter; the same instance while nothing changed.</summary>
+        public PlaceKnowledgeTable Knowledge { get; }
 
         /// <summary>⭐ <c>CE-4603</c> (B-6) — the lone trunks this view has felled (null = none): sight, fire and the hull skip them at query time.</summary>
         public FelledTrees? Trees { get; }
@@ -119,7 +123,9 @@ namespace Fdp.Toolkit.Terrain
             var damage = world.Panels.Count > 0 ? BuildingDamageTable.Of(view, world) : null;   // ⭐ CE-4599 — free walls too
             var craters = CraterTable.Of(view);   // ⭐ CE-4591 (D-1) — the craters, the same way: their own stamp, the same instance while unchanged
             var trees = FelledTrees.Of(view);   // ⭐ CE-4603 (B-6) — the felled trunks, the same way
-            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees)) r = t_last = new DoorStates(r._states, damage, craters, trees);   // a new instance over the SAME door array
+            var knowledge = PlaceKnowledgeTable.Of(view);   // ⭐ CE-4624 (KR-8) — the sides' minefield knowledge, the same way
+            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge))
+                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }
