@@ -33,7 +33,7 @@ ClearObstacle | hostedInput=Hrot.AI.Behaviors.Brains.ClearObstacleOrder | inputB
 ClearRoom | hostedInput=Hrot.Map.Definitions.Behavior.ClearRoomParamsJsonDto | inputBytes=1584
 CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJsonDto | inputBytes=1544
 CombatShowcase | hostedInput=- | inputBytes=0
-CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=192
+CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=208
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184

@@ -93,6 +93,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 | id | decision | would change it |
 |---|---|---|
+| R-2121 | close-out item 5 (A-9 as built): the company's base of fire moves into the enterable building nearest the fixed 250 m point, 120–450 m from the objective, inside the ±30° arc of the line of fire (a world survey, 5 s bound; none ⇒ the fixed point) | a live run where the chosen building has no line of sight to the posts (then: a LOS test from its near face) |
 | R-2120 | close-out item 2: the PL deadlines re-timed to the suppression-first attack — PL 1 by 700 s (≈ 15 % over the slowest passing run's 608 s), PL 2 by 1000 s (the authored 300 s after PL 1; past the 900 s end, so never judged) | a run that passes AU-6 yet misses PL 1 at 700 s · a longer run window that would judge PL 2 |
 | R-2119 | AU-6 (the scenario's end): Red broken ends the exercise only once Blue HOLDS Objective 1 (≥ 4 men in the 35 m block, no enemy, 30 s); Objective 2 held or 15 min end it as before; the check keys on the scenario's own "The end" and judges AU-6 by that hold | a run where Red survivors scattered in the block keep the end away for good (then: maxEnemy 1, or the block radius) |
 | R-2118 | AU-6 (Indirect Fire IF-1, cross-lane): an indirect round aimed at a point under a roof is aimed at the ROOF (the top surface over the point, `FireSolution.OnTop`) — it bursts there; the arc is no longer refused as masked by the target's own building. Points in the open are unchanged | a live run where roof bursts do no harm to the defenders inside (then: the building's damage / the burst through the roof) |
@@ -116,7 +117,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | hygiene | ✅ R-2093…R-2105 in `RULINGS.md` with probes (674 / 674 verify) | — | — |
 | AU-1 | ✅ `883f9d6df` — A-2 the M249 / PKM in every squad; A-1 `SupportByFire`; A-3 the SHIFT at the assault, the LIFT at the foothold (AT-6 superseded) | `CE2436_SupportByFire_…` (new), `CE2277_AnOpenObjective_…` (shift), `CE2277_AnAreaWithABuilding…` (lift), 3 updated; six mutants red | Assault Under Fire §9.1 · Defend & Attack AT-6 marked superseded |
 | AU-2 | ✅ A-7 fire and movement in contact (bounding before), the crossing smoke (BreakContact's rule); A-8 SET = suppression established (time + rounds spent) — ⚠ the drone half of A-8 waits for AU-5 | `CE2436_SupportByFire_SuppressionIsEstablished_…`, `CE2436_FireAndMovement_OneCoveringManThrowsCrossingSmoke…`, `CE2436_PlatoonAttack_BeforeContact…`; CE2277 ×3, CE2346, CE2284 updated; five mutants red | Assault Under Fire §9.2 |
-| AU-3 | ✅ A-5 sustained mission (Count → Rounds), the screen on the crossing, the shift beyond; A-1 at the company (`PlatoonSupportByFire`) · ⛔ **A-9 not built** (covered position — next) | `CE2436_CompanyAttack_Sustained…`, `CE2436_ASustainedRequest…`, `CE2436_PlatoonSupportByFire…`; CE7023 ×2, CE7005 updated; six mutants red | Assault Under Fire §9.3 |
+| AU-3 | ✅ A-5 sustained mission (Count → Rounds), the screen on the crossing, the shift beyond; A-1 at the company (`PlatoonSupportByFire`) · ✅ **A-9 built `2026-11-16`** (R-2121, `CoverChoice.Pick`) | `CE2436_CompanyAttack_Sustained…`, `CE2436_ASustainedRequest…`, `CE2436_PlatoonSupportByFire…`; CE7023 ×2, CE7005 updated; six mutants red | Assault Under Fire §9.3 |
 | AU-4 | ✅ `VehicleSupportByFire`; the company's `Vehicle` role; IFVs under the company · 🔴 **defect fixed**: the SOPs paused a base of fire (`Supporting` in both `NotDefending` guards) · ⚠ no blind cannon fire on reported points | `CE2436_CompanyAttack_AVehicleSupportsByFire…`, `CE2436_TheSops_DoNotPauseABaseOfFire_OnAContact` | Assault Under Fire §9.4 |
 | AU-5 | ✅ A-6 the company's DRONE TEAM (`Drones` role → `DroneTeam`: the recon drone circles the objective, the operator flies the bombers at the posts); the unjammable rule (AU-4's commit); a Blue drone team in `cc-battalion` | `CE2436_AU5_…` (two), `CE7014_…` | §9.6 |
 | AU-7 | ✅ A-10a the SHOTGUN (`Pellets` on the mount: N ordinary rounds over a 2-D pattern, spent past the range; types 212 / 213, one a squad); A-10 fire at the air spread in height and widened by speed (R-2110); A-10b `CanEngageDrone` + the shelter's gate; A-10c the drone gunners engage | `CE2436_AU7_…` ×3 (`AirDefenceNodesTests`), `CE2436_ARifleman_…` (`ShelterFromAirNodesTests`), `CE2436_AShotgun_…` (`FireProcessingSystemTests`), `CE2436_APellet_…` (`BallisticsSystemTests`), `CE2436_AU7_UnderADrone_…` | §9.5 |
@@ -158,6 +159,8 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 | R-2114 red-proof (`mutate10.py`) | — | the re-order guard never dirties ⇒ 2 / 2 RED; restored, the tree clean |
 | R-2112 + `FlightGround`: FDP `--filter Motion\|Perception\|Combat` · SimHost touched suites plain · PAR + checks | ✓ | 807 / 807 · 518 / 518 · 514 / 518 (the four pre-existing `BasicInfantrySopTests`) |
 | R-2112 + `FlightGround` red-proofs (`mutate8.py`, `mutate9.py`) | — | the base of fire not considered · the reserve judged on colour alone (the rail-found defect, `SlotLost`) · the ground test dropped from `IsAir` ⇒ each RED; restored 40 / 40 + 57 / 57 |
+| A-9: the rail `CE2436_A9_TheBaseOfFire_…` · SimHost `Company` + `SquadManeuverTests` + `BehaviourHostingSnapshot` plain · PAR + READ_CHECK + WORLD_GUARD | ✓ | 1 / 1 · 284 / 285 → 285 / 285 after re-recording the hosting golden (ONE moved line: `CompanyAttack` 192 → 208, the plan's cover fields) · 282 / 282 |
+| A-9 red-proof (`mutate16.py`) | — | `CoverChoice.Pick` never finds ⇒ 1 / 1 RED; restored, the tree clean |
 | AU-1 red-proofs (six compiling mutations, `scratchpad/mutate.py`) | — | arrival dropped · man i on post 0 · SET dropped · shift dropped · lift dropped · AT-6's lift back ⇒ each RED; restored 16 / 16 |
 
 ## 4. Dynamism thresholds and ids
@@ -169,4 +172,4 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 **Ids allocated this batch:** tracker `CE-2437` (the read check on a round born this tick) · `CE-2438` (the editor run does not repeat on
 pc-defend-house) · `CE-2439` (NavigationStatus read undeclared, hill attack) · `CE-2440` (the blueprint blackboard races at 8 threads) ·
-rulings `R-2106`…`R-2119` (all LANE DECISIONS for your review, §1).
+rulings `R-2106`…`R-2121` (all LANE DECISIONS for your review, §1).

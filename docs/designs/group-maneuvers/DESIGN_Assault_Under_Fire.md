@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT but A-9 (§9)
+build-state: BUILDING — A-1…A-10 APPROVED (user 2026-11-15: "Approved" — R-4254); slices AU-1…AU-7 — AU-1, AU-2, AU-4, AU-5, AU-7 BUILT, AU-3 BUILT incl. A-9 (§9, R-2121)
 updated: 2026-11-15 (first version — coordinator)
 current-answer: the whole file — §1 the request · §2 measured · §3 the proven solution, modern · §4 the diagrams · §5 decisions · §6 slices · §7 acceptance · §8 design docs checked · §9 as built
 stale-below: nothing
@@ -213,10 +213,11 @@ grenade does not cover the crossing.
 | A-5 the screen | the half-deadline smoke (CE-7025) lands **50 m from the objective toward where the company came from** — on the crossing, ⛔ never on the objective (📌 it blinded the own base of fire) | `ScreenPoint` |
 | A-5 shift beyond | objective k taken (`NextObjective`) ⇒ a sustained HE request on objective k + 1; the last one taken asks nothing | `NextObjective` |
 | A-1 company | the company's base of fire is `PlatoonSupportByFire`: every squad `SupportByFire` on the company's posts (≤ 4 fresh elements near the objective), spread 20 m across the line of fire; the platoon reports SET once every live squad has (= each squad's suppression established) | `PlatoonSupportByFireBehavior`, `CompanyAttack.SupportByFire` |
-| ⛔ A-9 covered position | **NOT BUILT** — the base of fire still stands at the fixed 250 m; a cover query for the company (a world survey round the support point, the near face of a building on the line of fire) is the next step | — |
+| ⭐ A-9 covered position *(as built `2026-11-16`, R-2121)* | during Support the company asks a world survey (`WorldSurveyChildSensor`, 100 m round the fixed 250 m point); `CoverChoice.Pick` takes the ENTERABLE building 120–450 m from the objective inside the ±30° arc of the objective→fixed-point line, nearest the fixed point, and moves the base of fire there (its slot re-ordered). No building, no reply in 5 s ⇒ the fixed point stands. ⚠ Distance bounds stay the weapon's effective range (450 m), not a cover-to-posts line-of-sight test — that is the next refinement if a live run puts the base of fire behind a wall it cannot shoot through | `CompanyBehaviors.Cover` (:282), `CoverChoice.Pick` (:1005) |
+| ⛔ HISTORY (A-9 row before `2026-11-16`) | *NOT BUILT — the base of fire still stands at the fixed 250 m* | — |
 
 **Rails:** `CE2436_CompanyAttack_SustainedFireOnThePosts_TheSmokeScreensTheCrossing_TheFireShiftsBeyond` · `CE2436_ASustainedRequest_IsFiredAsASustainedMission`
-· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red.
+· `CE2436_PlatoonSupportByFire_EverySquadFiresOnThePosts_Spread_SetWhenAllAre` · `CE7023` ×2, `CE7005` updated (the base of fire's order). Six mutants red. · A-9: `CE2436_A9_TheBaseOfFire_TakesTheCoveredBuildingOnTheLine_NotTheOneOffIt_NorASolidOne` (mutant: never finds ⇒ red).
 
 ### 9.4 AU-4 — the vehicles support by fire; the SOPs spare a base of fire; A-6's unjammable rule *(R-2109, lane decision — for the user's review)*
 
