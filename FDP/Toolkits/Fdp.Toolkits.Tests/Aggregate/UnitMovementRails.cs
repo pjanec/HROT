@@ -122,6 +122,62 @@ namespace Fdp.Toolkits.Tests.Aggregate
             }
         }
 
+        /// <summary>
+        /// ⭐ CE-8005 — a node with NO navmesh (a split cluster's Brain-only node) asks the SOLVER over the path-request topic: the request leaves
+        /// stamped with this node, the unit waits (AwaitingRoute) and follows the solver's route when it arrives (the pool's copy released); a
+        /// solver that never answers costs <see cref="StochasticUnitMovementSystem.RemoteWaitSeconds"/>, then the unit plans with what the node has.
+        /// ✅ Red-proof: the request not stamped with the node ⇒ red (the Brain egress forwards only its own).
+        /// </summary>
+        [Fact]
+        public void CE8005_ANodeWithoutANavmesh_AsksTheSolver_AndFallsBackWhenItIsSilent()
+        {
+            var (w, e) = World(new Vector3(0, 0, 0), new AggregateUnit { Resolution = AggregateResolution.Stochastic });
+            using (w)
+            {
+                w.RegisterComponent<GlobalTime>();
+                w.RegisterEvent<Fdp.Toolkit.Navigation.PathfindingRequestEvent>();
+                w.SetSingleton(new Fdp.Toolkit.Navigation.PathfindingBatchData
+                {
+                    Results = new Fdp.Core.Collections.NativeArray<Fdp.Toolkit.Navigation.PathResult>(Fdp.Toolkit.Navigation.PathfindingBatchData.DefaultCapacity, Fdp.Core.Collections.Allocator.Persistent),
+                });
+                using var pool = new global::CarKinem.Trajectory.TrajectoryPoolManager();
+                var sys = new StochasticUnitMovementSystem { RemoteRoutes = () => pool, LocalNodeId = 3 };
+                double t = 0;
+                void Step(float dt) { t += dt; w.SetSingleton(new GlobalTime { TotalTime = t }); sys.Execute(w, dt); w.Bus.SwapBuffers(); }
+
+                UnitMoves.Order(ref w.GetComponentRW<AggregateUnit>(e), new WorldPoint(0, 300, 0), UnitFormation.Column, 0f, SimInstant.Zero);
+                Step(0.1f);
+                var asked = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Navigation.PathfindingRequestEvent>();
+                Assert.Equal(1, asked.Length);
+                Assert.Equal(3, (int)asked[0].SourceNodeId);                                          // the Brain egress forwards its own only
+                Assert.Equal(300f, asked[0].End.Y, 2);
+                Assert.Equal(UnitMoveState.AwaitingRoute, w.GetComponentRO<AggregateUnit>(e).Move);   // waits — never the straight leg at once
+                long id = asked[0].RequestId;
+
+                // the solver answers: a dog-leg round an obstacle the brain cannot see
+                int handle = pool.RegisterTrajectory(new[] { new Vector3(0, 0, 0), new Vector3(80, 150, 0), new Vector3(0, 300, 0) });
+                ref var batch = ref w.GetSingleton<Fdp.Toolkit.Navigation.PathfindingBatchData>();
+                batch.Results[(int)((uint)id % (uint)Fdp.Toolkit.Navigation.PathfindingBatchData.DefaultCapacity)] =
+                    new Fdp.Toolkit.Navigation.PathResult { RequestId = id, IsReachable = true, RouteHandle = handle };
+                Step(0.1f);
+                Assert.Equal(UnitMoveState.OnRoute, w.GetComponentRO<AggregateUnit>(e).Move);
+                var route = w.GetComponent<UnitRoute>(e);
+                Assert.Equal(3, route.Points.Length);
+                Assert.Equal(80f, route.Points[1].X, 2);                                                // the solver's route, followed
+                Assert.False(pool.TryGetTrajectory(handle, out _));                                    // its copy released
+
+                // a new order, and a solver that stays silent: after the wait, the unit plans with what this node has (the straight leg)
+                UnitMoves.Order(ref w.GetComponentRW<AggregateUnit>(e), new WorldPoint(200, 0, 0), UnitFormation.Column, 0f, (SimInstant)t);
+                Step(0.1f);
+                for (int i = 0; i < 40; i++) Step(0.1f);
+                Assert.Equal(UnitMoveState.AwaitingRoute, w.GetComponentRO<AggregateUnit>(e).Move);   // 4 s: still waiting
+                for (int i = 0; i < 15; i++) Step(0.1f);
+                Assert.Equal(UnitMoveState.OnRoute, w.GetComponentRO<AggregateUnit>(e).Move);
+                Assert.Equal(2, w.GetComponent<UnitRoute>(e).Points.Length);
+                w.GetSingleton<Fdp.Toolkit.Navigation.PathfindingBatchData>().Results.Dispose();
+            }
+        }
+
         [Fact]
         public void ST1_APhysicalUnit_IsNeverMovedByTheFollower()
         {

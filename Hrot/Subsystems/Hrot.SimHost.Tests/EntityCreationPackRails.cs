@@ -288,12 +288,13 @@ namespace Hrot.SimHost.Tests
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
                 creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
                 creation.MacroExpansionSystem,                                                       // ⭐ EIGHT since macros S3a ④ — the expander's driver
+                creation.HeldChildParticipant,                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
             }));
 
             var missingRequest = creation.Unserviceable(new object[]
             {
                 creation.SpawnSystem, creation.FinalizationSystem, creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,
-                creation.SpawnLevelSystem, creation.MacroExpansionSystem,
+                creation.SpawnLevelSystem, creation.MacroExpansionSystem, creation.HeldChildParticipant,
             });
             Assert.Contains("RequestSystem", missingRequest);
 
@@ -473,6 +474,7 @@ namespace Hrot.SimHost.Tests
                 creation.PromotionSystem, creation.ObstacleBakeSystem, creation.SeatPresetSystem,   // ⭐ SIX since WS-4 — the seat presets' boarder
                 creation.SpawnLevelSystem,                                                           // ⭐ SEVEN since CE-3271 — the birth level
                 creation.MacroExpansionSystem,                                                       // ⭐ EIGHT since macros S3a ④ — the expander's driver
+                creation.HeldChildParticipant,                                                       // ⭐ NINE since CE-8013 ② — a split's children held until the handover
             }));
         }
 

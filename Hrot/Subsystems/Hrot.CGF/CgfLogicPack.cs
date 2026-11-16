@@ -135,7 +135,10 @@ namespace Hrot.CGF
             BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
             bool                                 gateOnAuthority = false,
-            Fdp.Core.FdpEventBus?                nodeBus = null)
+            Fdp.Core.FdpEventBus?                nodeBus = null,
+            Func<Fdp.Toolkit.Lifecycle.EntityLifecycleModule?>? lifecycle = null,
+            Func<CarKinem.Trajectory.TrajectoryPoolManager?>? remoteRoutes = null,
+            int                                  localNodeId = 0)
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
@@ -272,12 +275,24 @@ namespace Hrot.CGF
             simList.Add(new Hrot.Core.Tkb.StochasticUnitFillSystem(gateOnAuthority));
             // ⭐ CE-8004 (ST-1, M-4; DESIGN_Stochastic_Units_And_Resolution §14) — the stochastic units' path follower, beside the stress phase
             //   (§22's module diagram): every CGF node runs it by construction; it moves only the units this node owns.
-            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority));
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority) { RemoteRoutes = remoteRoutes, LocalNodeId = localNodeId });   // ⭐ CE-8005
             // ⭐ CE-8006 (ST-2, N-1 … N-5) — the stochastic units' sensing, a per-entity phase; writes each observer's own detections and pool
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitSensorSystem(gateOnAuthority));
             // ⭐ CE-8007 (ST-3, C-2) — the attrition step: phase A (each firer's allocation) then phase B (each victim's draw), per-entity phases
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticFirePhase(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticLossPhase(gateOnAuthority));
+            // ⭐ CE-8013 (ST-5 production wiring; §16b) — the resolution manager: a split's children are the TKB composite's slots
+            //   (StochasticUnitFill.ChildType, the same leaves the fill keyed), held until the handover (EntityCreation's HeldChildParticipant),
+            //   and leave through the node's lifecycle (lazy: the creation pack is built after this pack). The policy is agg-behaviors' seam.
+            simList.Add(new Fdp.Toolkit.Aggregate.ResolutionManagerSystem(new Fdp.Toolkit.Aggregate.BusResolutionSwitch
+            {
+                ChildType = static (repo, unit, slot) =>
+                    repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
+                        ? Hrot.Core.Tkb.StochasticUnitFill.ChildType(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType, slot)
+                        : default,
+                Lifecycle = lifecycle,
+            }, gateOnAuthority));
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));

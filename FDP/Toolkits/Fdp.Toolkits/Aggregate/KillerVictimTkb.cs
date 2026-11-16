@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Aggregate
             var p = t.GetDescriptor<CombatPlatformDefDto>();
             if (p == null) return false;
             float radius = p.PresentedAreaM2 > 0f ? MathF.Sqrt(p.PresentedAreaM2 / MathF.PI) : FallbackHullRadius;
-            numbers = new TargetNumbers(type, radius, p.MaxHealth, p.ArmorFront, p.ArmorSide, p.ArmorRear, p.ArmorTop);
+            numbers = new TargetNumbers(type, radius, p.MaxHealth, p.ArmorFront, p.ArmorSide, p.ArmorRear, p.ArmorTop, ArmourBottom: p.ArmorBottom);   // ⭐ CE-8017 — MS-T1's belly (CE-4624)
             return true;
         }
 

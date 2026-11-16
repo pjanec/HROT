@@ -46,7 +46,6 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.True(back.TryGet(Rifle, KillerVictimTable.Personnel, out var again));
             Assert.Equal(men.PHitByBand, again.PHitByBand);
             Assert.Equal(Rifle, back.PersonalWeapon(SlotRole.Rifleman));
-            Assert.Contains("MS-T1", KillerVictimGenerator.BottomFacingTodo);                                                  // the named TODO
         }
 
         [Fact]
@@ -67,6 +66,10 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.True(thick.MKillShare > 0f);                                                                   // a belly blast still immobilises
             Assert.True(t.TryGet(mine, KillerVictimTable.Personnel, out var man));
             Assert.Equal(ArmorModel.HitDamage(40f, 300f, 0f), man.DamagePerHit, 4);                               // no zone mix under a man
+            // ⭐ the same belly the physical model meets: ArmorModel.ArmourFor(Facing.Bottom)
+            var p = new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { ArmorFront = 60f, ArmorSide = 30f, ArmorRear = 20f, ArmorBottom = 80f };
+            Assert.Equal(ArmorModel.ArmourFor(p, Facing.Bottom), bellied.BellyArmour);
+            Assert.Equal(ArmorModel.ArmourFor(p with { ArmorBottom = 0f }, Facing.Bottom), bare.BellyArmour);
         }
 
         private static EntityRepository World()
