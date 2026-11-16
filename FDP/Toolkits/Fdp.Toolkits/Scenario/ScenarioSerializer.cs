@@ -297,6 +297,9 @@ namespace Fdp.Toolkit.Scenario
             //   what the terrain authored. Door ENTITIES are ScenarioIgnoreTag'd above; this is where their state lives (§3b K5).
             if (!selecting && Fdp.Toolkit.Terrain.TerrainObjectsSection.Write(repo) is { } terrainObjects)
                 root[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = terrainObjects;
+            // ⭐ CE-4624 MS-T2 (KR-15) — what the sides learned of places + each field's struck mines and cleared lanes (records the deciding node owns; never saved as entities)
+            if (!selecting && Fdp.Toolkit.Terrain.PlaceKnowledgeSection.Write(repo) is { } knowledge)
+                root[Fdp.Toolkit.Terrain.PlaceKnowledgeSection.Name] = knowledge;
             JsonEnvelope.Write(root, new DocumentMeta(header.SubsystemType, CurrentSchemaVersion));
             return root;
         }

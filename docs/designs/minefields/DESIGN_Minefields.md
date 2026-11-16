@@ -246,6 +246,18 @@ node writes another node's entity.*
 
 *Rails (`MineTriggerTests`, `ArmorModelTests`, `DamageCalculationSystemTests`, `BodyPartDamageTests`): a man on AP ⇒ one strike and one burst at the mine; a man over AT ⇒ nothing; a tank over AT ⇒ strike, burst on its BOTTOM, a light car nothing; a fast step across a mine ⇒ fires (a point test would not); birds never, livestock AP; livestock AT rarely and the same every run; once per mine; a body another node owns ⇒ nothing; a turned jittered field; 0 B steady frames.*
 
+### 3d. As built — MS-T2 save *(`2026-11-16`, terrain, CE-4624, KR-15)*
+
+| piece | as built | decision · what would change it |
+|---|---|---|
+| the section | a top-level scenario section **`Knowledge`** (`PlaceKnowledgeSection`, `FDP/Toolkits/Fdp.Toolkits/Terrain/Minefields/PlaceKnowledgeSection.cs`), NOT `TerrainObjects` (a field is an entity, KR-15): `"<guid>\|<side+1>\|<kind>\|<chunk>": { "cells": [[row, col, level], …], "marked", "learnedAt", "source" }` · `"<guid>\|strikes": { "mines": [[row, col, how]] }` · `"<guid>\|lanes": { "lanes": [[ax, ay, bx, by, width, side+1]] }` | ⭐ only the non-unknown cells are written (a 60 × 64 grid is 1 KB, a typical field a few cells); strikes and lanes of ALL chunks of a field are ONE entry (the chunking is a record limit, not a file shape); a future kind or a missing record is ignored / absent |
+| save | `ScenarioSerializer` writes it beside `TerrainObjects`: every knowledge / strikes / lanes record this host OWNS (the record writer's own `OwnsRecord` gate — a distributed save writes each entity once), merged per key | known-at-start is not a record (R-5046) so it is not saved: the field's own `KnownAtStartSides` is |
+| merge | `ScenarioMergeCore` merges two slices carrying one key by the kind's policy (`PlaceKnowledgeSection.MergeInto`: lattice max per cell, `Marked` OR, `LearnedAt` max; strikes — union, `cleared` outranks `struck`; lanes — union by endpoints) and **never throws on a duplicate key** (two deciding nodes writing one (field, side) is the normal case, MR-2); the merged section is written in the single-node save's key order | KR-4: a future non-monotone kind (a bridge) adds a `case` to `MergeInto` (newest `LearnedAt` wins) |
+| load | `ScenarioLoadStep` reads it on `Prepare` (a malformed entry refuses the load on every node, naming its key) and, on `Commit`, publishes one transient untargeted creation request per saved record (`TerrainObjectRequests.ForPlaceKnowledge`: TKB 7206 / 7207 / 7208; strikes re-chunked by 96, lanes by 8) — the loading node owns them, as the craters; a family that already has an entity is not loaded twice | a record the loader owns stays the loader's (a muscle's NEW strike opens its own record beside it — the same rule as the breaches, R-4196) |
+| recorded | the three records are unmanaged: a keyframe restored over a live world serves the keyframe's knowledge, strikes and lanes (the `BuildingBreachTests` seek precedent) | — |
+
+*Rails (`MinefieldSaveTests` 11 in `Fdp.Toolkits.Tests`, `TerrainObjectRequestsTests.CE4624_SavedPlaceKnowledge_…` in `Hrot.Core.Tests`): the round trip through TEXT (owned only, blanks and replicas absent), the two-slice merge in both orders (no throw), seven malformed entries, a future kind ignored, a seek B → A → B, the load requests and the re-commit guard.*
+
 ## 4. Slices — ✅ dispatched `2026-11-16` *(backend busy with the animals ⇒ the ENGINE work goes to `terrain`, which built the record family, the crater table on `DoorStates` and the navmesh areas)*
 
 | lane | slices | needs first |

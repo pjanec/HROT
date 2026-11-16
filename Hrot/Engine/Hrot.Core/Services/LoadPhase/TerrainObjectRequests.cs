@@ -171,4 +171,62 @@ public static class TerrainObjectRequests
             }
         return requests;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T2 (KR-15) — the saved place knowledge as creation requests: one <see cref="MinefieldKnowledge"/> per saved (field, side, kind, chunk), the fields' struck / cleared
+    /// mines as <see cref="MinefieldStrikes"/> chunks and their lanes as <see cref="MinefieldLanes"/> chunks (96 / 8 each, more ⇒ several), untargeted (the loading node makes and owns
+    /// them — the craters' rule). ⛔ A record family that already has an entity in the world is not loaded again (a re-commit never doubles).
+    /// </summary>
+    public static List<EntityCreationRequest> ForPlaceKnowledge(EntityRepository world, SavedPlaceKnowledge saved, INetworkIdAllocator idAllocator)
+    {
+        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
+        var requests = new List<EntityCreationRequest>();
+        if (saved == null || saved.IsEmpty) return requests;
+        static bool Holds<T>(EntityRepository w) where T : unmanaged
+        {
+            if (!w.IsComponentTypeRegistered<T>()) return false;
+            foreach (var _ in w.Query().With<T>().WithLifecycle(Fdp.Core.EntityLifecycle.All).Build()) return true;
+            return false;
+        }
+        EntityCreationRequest Req(long tkb, object record) => new()
+        {
+            RequestId = Guid.NewGuid(), TkbType = (Fdp.Core.TkbTypeId)tkb, PreAllocatedNetworkId = idAllocator.AllocateId(), IsTransient = true,
+            InitialComponents = new List<object> { new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity }, record },
+        };
+
+        if (!Holds<MinefieldKnowledge>(world))
+            foreach (var k in saved.Knowledge)
+            {
+                var r = new MinefieldKnowledge();
+                r.Header.SubjectKind = SubjectKind.Entity; r.Header.Subject = k.Subject; r.Header.ObjectIndex = -1; r.Header.SidePlus1 = k.SidePlus1;
+                r.Header.Kind = k.Kind; r.Header.Chunk = k.Chunk; r.Header.Marked = (byte)(k.Marked ? 1 : 0); r.Header.LearnedAt = (SimInstant)k.LearnedAt; r.Header.Source = k.Source;
+                foreach (var ((row, col), level) in k.Cells) r.Set(col, row, (MineCellKnowledge)level);
+                requests.Add(Req(MinefieldKnowledge.TkbType, r));
+            }
+        if (!Holds<MinefieldStrikes>(world))
+            foreach (var (field, mines) in saved.Strikes)
+            {
+                var chunk = new MinefieldStrikes { Field = field };
+                ushort n = 0;
+                foreach (var ((row, col), how) in mines)
+                {
+                    if (chunk.IsFull) { requests.Add(Req(MinefieldStrikes.TkbType, chunk)); chunk = new MinefieldStrikes { Field = field, Chunk = ++n }; }
+                    chunk.TryAdd(new StrikeItem(field, row, col, how));
+                }
+                if (chunk.Count > 0) requests.Add(Req(MinefieldStrikes.TkbType, chunk));
+            }
+        if (!Holds<MinefieldLanes>(world))
+            foreach (var (field, lanes) in saved.Lanes)
+            {
+                var chunk = new MinefieldLanes { Field = field };
+                ushort n = 0;
+                foreach (var (a, b, w, side) in lanes)
+                {
+                    if (chunk.IsFull) { requests.Add(Req(MinefieldLanes.TkbType, chunk)); chunk = new MinefieldLanes { Field = field, Chunk = ++n }; }
+                    chunk.TryAdd(new LaneItem(field, a, b, w, side));
+                }
+                if (chunk.Count > 0) requests.Add(Req(MinefieldLanes.TkbType, chunk));
+            }
+        return requests;
+    }
 }
