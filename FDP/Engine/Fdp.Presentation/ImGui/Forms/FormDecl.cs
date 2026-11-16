@@ -61,6 +61,10 @@ public sealed class FormField
     public IReadOnlyList<string>? Choices { get; init; }
     /// <summary>The attribute value a choice writes for an index (default: the index as an int, or the option's word for a string attribute).</summary>
     public Func<int, AttributeValue>? ChoiceValue { get; init; }
+    /// <summary>⭐ CE-8614 (DESIGN_Stochastic_Unit_UI UI-1) — a choice drawn as GLYPH TOGGLES (one per choice, the chosen word after them) instead of a combo; null = a combo.</summary>
+    public IReadOnlyList<NodeEditor.Core.Widgets.IconGlyph>? ChoiceIcons { get; init; }
+    /// <summary>⭐ CE-8614 — a dim note after the choice (e.g. what an unset value reads as); null = none.</summary>
+    public Func<EntityRepository, Entity, string?>? ChoiceNote { get; init; }
     /// <summary>A row for experts: drawn inside <i>Details for experts</i> (§2.3).</summary>
     public bool Expert { get; init; }
     /// <summary>⭐ U-23 fidelity (details-forms-visual.svg) — this field STARTS a captioned section (<i>Identity</i>, <i>State</i>, <i>Character</i>); null = continues the current one.</summary>

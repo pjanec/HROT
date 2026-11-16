@@ -783,6 +783,67 @@ public sealed class TheUnitFormDrawsTests
     }
 
     /// <summary>
+    /// ⭐ CE-8614 (DESIGN_Stochastic_Unit_UI UI-1, mockup ①; the attribute rows are agg-backend's CE-8015) — a unit carrying AggregateUnit gets the RESOLUTION
+    /// section on its Unit tab, between Identity and State: the resolution as three glyph toggles (the dice violet when stochastic) + the word, the echelon
+    /// (read-only), the formation, frontage × depth and heading (read-only), the prepared level; a toggle click writes the AUTHORED resolution through the
+    /// one attribute path. A unit without AggregateUnit has no such rows. 🔴 Red-proof (compiles): <c>IsAggregate</c> answering false ⇒ no Resolution rows ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8614_AnAggregateUnitsUnitTab_HasTheResolutionSection()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit
+        {
+            Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, Formation = Fdp.Toolkit.Aggregate.UnitFormation.Line,
+            Width = 200f, Depth = 80f, Heading = new Bearing(45f), Prepared = Fdp.Toolkit.Aggregate.PreparedLevel.Hasty,
+        });
+        HrotForms.EnsureRegistered();
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        view.View.CaptureLayout = true;
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(560, 380));
+            ImGui.Begin("Details##resolution");
+            view.View.Draw(HrotForms.Unit, world, new[] { unit }, editable: true);
+            ImGui.End();
+        });
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-resolution.png"));
+        var rows = view.View.Rows.ToList();
+        foreach (var want in new[] { "Resolution = Stochastic", "Echelon = Platoon", "Formation = Line", "Frontage = 200 m  ×  80 m", "Heading = 045°", "Prepared = Hasty" })
+            Assert.Contains(want, rows);
+        int res = rows.FindIndex(r => r.StartsWith("Resolution", StringComparison.Ordinal)), strength = rows.FindIndex(r => r.StartsWith("Strength", StringComparison.Ordinal));
+        Assert.True(strength < 0 || res < strength, "the Resolution section comes before State");
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            var violet = NodeEditor.Core.Widgets.IconPalette.Violet;
+            int n = 0;
+            for (int y = 0; y < shot.Height; y++)
+                for (int x = 0; x < shot.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                    if (Math.Abs(c.R - violet.X * 255f) < 30 && Math.Abs(c.G - violet.Y * 255f) < 30 && Math.Abs(c.B - violet.Z * 255f) < 30) n++;
+                }
+            Assert.True(n > 15, $"the stochastic toggle's dice is drawn in violet ({n} px)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
+
+        var other = world.CreateEntity();
+        world.AddComponent(other, new EntityInfo { Name = new FixedString64("1 Sqn"), ForceId = ForceId.Friend });
+        world.AddComponent(other, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(other, new Fdp.Core.CommandHierarchy.UnitRoster());
+        Assert.False(UnitFacts.IsAggregate(world, other));   // no AggregateUnit: no Resolution rows
+    }
+
+    /// <summary>
     /// ⭐ CE-8612 (DESIGN_Stochastic_Unit_UI UI-7, mockup ②) — a STOCHASTIC unit gets the SLOTS tab (a physical one does not): the suppressed share, the morale
     /// (the standing men, "1 slot broken") and the prepared level as gauges, then one table row per slot with its health / ammo / stress bars and its flag —
     /// measured in a real frame: the leader's full health bar is green, the down man's row carries the red skull flag. 🔴 Red-proof (compiles): <c>FlagOf</c>

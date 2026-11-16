@@ -43,6 +43,17 @@ public static class HrotForms
 
     private static readonly string[] Stances = { "Standing", "Crouched", "Prone" };
 
+    // ⭐ CE-8614 (UI-1) — the Resolution section's closed sets (AggregateComponents' enums, in their order)
+    private static readonly string[] Resolutions = { "Physical", "Fusion", "Stochastic" };
+    private static readonly string[] Formations = { "None", "Column", "Line", "Assault" };
+    private static readonly NodeEditor.Core.Widgets.IconGlyph[] ResolutionIcons =
+    {
+        new("\uf0c0", NodeEditor.Core.Widgets.IconPalette.Blue),     // Users — physical: every man an entity
+        new("\uf247", NodeEditor.Core.Widgets.IconPalette.Teal),     // ObjectGroup — fusion
+        new("\uf522", NodeEditor.Core.Widgets.IconPalette.Violet),   // Dice — stochastic
+    };
+    private static readonly string[] PreparedLevels = { "Unprepared", "Hasty", "Prepared", "Fortified" };
+
     // ⭐ before Unit: static fields initialise in textual order
     private static readonly string[] WeaponPostures = { "At ease", "Ready", "Aimed" };
     private static readonly string[] HeldItems = { "Nothing", "Weapon", "Throwable", "Phone", "Binoculars" };
@@ -121,6 +132,23 @@ public static class HrotForms
                 Label = "Side", Kind = FieldKind.Choice, Attribute = "Affiliation", Choices = Sides,
                 ChoiceValue = SideChoiceValue,
             },
+            // ⭐ CE-8614 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-1; the attribute rows are agg-backend's CE-8015, NOTE_AggBackend_To_Agg_Contract §3e) — the
+            //   RESOLUTION section of a unit that carries AggregateUnit: its AUTHORED start resolution (saved; live, the instructor changes it through the Pin —
+            //   UI-9), the echelon (read-only), the formation, the frontage × depth and heading (read-only: no attribute rows yet), the prepared level. Each row patches through the ONE attribute path (component + wire).
+            new FormField
+            {
+                Label = "Resolution", Section = "Resolution", Kind = FieldKind.Choice, Attribute = "Aggregate.Resolution", Choices = Resolutions,
+                Has = UnitFacts.IsAggregate,
+                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Effective - 1,   // unset reads as Physical
+                ChoiceValue = i => AttributeValue.FromInt(i + 1),
+                ChoiceIcons = ResolutionIcons,   // mockup ①: three glyph toggles, the chosen word after them
+                ChoiceNote = UnitFacts.ResolutionNote,
+            },
+            new FormField { Label = "Echelon", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.EchelonText },
+            new FormField { Label = "Formation", Kind = FieldKind.Choice, Attribute = "Aggregate.Formation", Choices = Formations, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
+            new FormField { Label = "Frontage", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.FrontageText },
+            new FormField { Label = "Heading", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.HeadingText },
+            new FormField { Label = "Prepared", Kind = FieldKind.Choice, Attribute = "Aggregate.Prepared", Choices = PreparedLevels, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
             new FormField
             {
                 Label = "Posture", Section = "State", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -76,6 +77,51 @@ public static class UnitFacts
         StatusColour.Black => "Black",
         _ => "unknown",
     };
+
+    // ── ⭐ CE-8614 (UI-1) — the Resolution section: shown for a unit that carries AggregateUnit ──
+    public static bool IsAggregate(EntityRepository w, Entity e)
+        => w.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>() && w.HasComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(e);
+
+    private static readonly FixedString64[] Echelons = { new("Squad"), new("Platoon"), new("Company") };
+
+    /// <summary>The echelon (0 squad · 1 platoon · 2 company), read-only: the type decides it.</summary>
+    public static FixedString64 EchelonText(EntityRepository w, Entity e)
+    {
+        int ech = w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Echelon;
+        return ech >= 0 && ech < Echelons.Length ? Echelons[ech] : default;
+    }
+
+    /// <summary>The note after the resolution toggles: an UNSET resolution reads as physical.</summary>
+    public static string? ResolutionNote(EntityRepository w, Entity e)
+        => w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Resolution == Fdp.Toolkit.Aggregate.AggregateResolution.Unset ? "(not set: Physical)" : null;
+
+    private static readonly Dictionary<ulong, (long Key, FixedString64 Text)> Frontages = new(), Headings = new();
+
+    /// <summary>"200 m  ×  80 m" — the frontage and the depth (read-only here).</summary>
+    public static FixedString64 FrontageText(EntityRepository w, Entity e)
+    {
+        ref readonly var u = ref w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e);
+        int width = (int)MathF.Round(u.Width), depth = (int)MathF.Round(u.Depth);
+        long key = ((long)width << 32) | (uint)depth;
+        lock (Frontages)
+        {
+            if (!Frontages.TryGetValue(e.PackedValue, out var c) || c.Key != key)
+                Frontages[e.PackedValue] = c = (key, new FixedString64(string.Create(CultureInfo.InvariantCulture, $"{width} m  ×  {depth} m")));
+            return c.Text;
+        }
+    }
+
+    /// <summary>"045°" — the unit's heading (read-only here: dragged on the map).</summary>
+    public static FixedString64 HeadingText(EntityRepository w, Entity e)
+    {
+        int deg = ((int)MathF.Round(w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Heading.Degrees) % 360 + 360) % 360;
+        lock (Headings)
+        {
+            if (!Headings.TryGetValue(e.PackedValue, out var c) || c.Key != deg)
+                Headings[e.PackedValue] = c = (deg, new FixedString64(deg.ToString("000", CultureInfo.InvariantCulture) + "°"));
+            return c.Text;
+        }
+    }
 
     // ── ⭐ CE-8606 (UI-10, mockup ①) — the GAUGES: the same numbers, drawn as a bar in the SITREP colour + a status chip ──
     public static readonly Vector4 GreenColour = new(0.357f, 0.816f, 0.416f, 1f), AmberColour = new(0.949f, 0.753f, 0.200f, 1f),

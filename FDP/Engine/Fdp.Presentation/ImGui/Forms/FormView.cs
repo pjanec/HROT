@@ -377,6 +377,19 @@ public sealed class FormView
         {
             case FieldKind.Number: DrawNumber(i, field, s, world, sel); break;
             case FieldKind.Text: DrawText(i, field, s, world, sel); break;
+            case FieldKind.Choice when field.ChoiceIcons is { } icons:
+            {
+                // ⭐ CE-8614 (UI-1, mockup ①) — the glyph toggles (neutral background, the glyph in its colour — Colour Icons §3), then the chosen word and a note
+                var choices = field.Choices ?? Array.Empty<string>();
+                for (int c = 0; c < icons.Count && c < choices.Count; c++)
+                {
+                    if (c > 0) ImGui.SameLine(0f, 4f);
+                    if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle(choices[c], icons[c], !s.Mixed && (int)s.Number == c, choices[c])) Commit(i, world, sel, c, null);
+                }
+                ImGui.SameLine(); ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted(s.Shown);
+                if (sel.Count == 1 && field.ChoiceNote?.Invoke(world, sel[0]) is { } note) { ImGui.SameLine(); ImGui.TextDisabled(note); }
+                break;
+            }
             case FieldKind.Choice:
                 if (ImGui.BeginCombo("##c", s.Shown))
                 {
