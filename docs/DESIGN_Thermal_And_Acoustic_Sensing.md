@@ -9,6 +9,7 @@ known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - designs/thermal/DESIGN_Thermal_Drivers.md — OWNS the thermal DRIVERS every node and an external infrared image generator compute heat from (CE-4646); re-bases this sensor's per-frame heat on them (TD-10)
   - docs/blueprints/Architect_Question_106_Sound_Paths.md — sound round corners / through openings (v2 of §8.8), R-3050
   - docs/DESIGN_Node_Roles_And_Policies.md §3.0a — who hears (Perception only), who makes sound (every 3-D-map node, from replicated state)
   - DESIGN_Checkpoint_And_Dry_Run_Restore.md — OWNS checkpoint restore and R1 (§1k), which found that a restored world stopped hearing; §8.3a here is the fix

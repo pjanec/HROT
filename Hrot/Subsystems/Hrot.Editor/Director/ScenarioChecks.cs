@@ -89,6 +89,9 @@ namespace Hrot.Editor.Director
         public IReadOnlyList<string> Later { get; init; } = Array.Empty<string>();
 
         /// <summary>Every unit a cue or an action names (to validate against the scenario's cast).</summary>
+        /// <summary>⭐ RT-3 — the component paths the expectations read (a golden keeps them as visible state).</summary>
+        public IEnumerable<string> Paths() => Expect.Select(e => e.Cue.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.Ordinal);
+
         public IEnumerable<string> Names() =>
             Anchors.Values.SelectMany(a => a.Names())
                 .Concat(Expect.SelectMany(e => e.Cue.Names()))

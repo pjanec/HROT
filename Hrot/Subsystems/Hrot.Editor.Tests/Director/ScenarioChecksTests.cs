@@ -382,4 +382,46 @@ public sealed class ScenarioChecksTests
         var mood = ScenarioGolden.Compare(golden, Run(1.0, 2.0, "angry"));
         Assert.Contains(mood, l => l.Contains("units.B.components.Mood"));
     }
+
+    /// <summary>
+    /// ⭐⭐ RT-3 (R-4279) — the golden compares VISIBLE state: an internal blackboard / diagnostics component that differs (or a component
+    /// added since the capture) is NOT a difference; a visible mode (<c>AnimalState</c>), a field the checks read (<c>Fuel.Litres</c>) and a
+    /// position ARE; a golden from before the visible mode asks to be re-captured; and a golden difference is a WARNING — the run still
+    /// PASSES. 🔴 Red-proofs: compare with <c>Compare</c> (the full one) ⇒ the blackboard line appears; keep the golden in <c>Passed</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void RT3_TheGolden_ComparesVisibleState_AndADifferenceIsAWarning()
+    {
+        var checks = Parse("""{ "runFor": 1, "golden": {"every": 1}, "expect": [{"name": "fuel", "on": "field", "who": "A", "path": "Fuel.Litres", "op": ">", "value": 0}] }""", out _);
+        JsonObject Run(string blackboard, string mode, double litres, double x, bool addedComponent = false)
+        {
+            var w = new FakeWorld().Unit("A", 1, 100, x);
+            w.Comps[1]["BlueprintBlackboard1024"] = new JsonObject { ["Bytes"] = blackboard };
+            w.Comps[1]["AnimalState"] = new JsonObject { ["Mode"] = mode };
+            w.Comps[1]["Fuel"] = new JsonObject { ["Litres"] = litres, ["Internal"] = blackboard };
+            if (addedComponent) w.Comps[1]["RadarSignature"] = new JsonObject { ["Rcs"] = 3 };
+            var g = new ScenarioGolden(w, checkPaths: checks.Paths());
+            g.Snapshot(0);
+            var book = new ConditionBook(checks, w, 0);
+            book.Finish(0);
+            return g.ToJson("s", 60, book);
+        }
+        var golden = Run("aa", "Calm", 10, 0);
+        Assert.Empty(ScenarioGolden.CompareVisible(golden, Run("bb", "Calm", 10, 0, addedComponent: true)));   // internals and a new component: same
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Flee", 10, 0)), l => l.Contains("visible.AnimalState"));
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Calm", 4, 0)), l => l.Contains("visible.Fuel.Litres"));
+        Assert.Contains(ScenarioGolden.CompareVisible(golden, Run("aa", "Calm", 10, 2)), l => l.Contains("units.A.position"));
+
+        // a golden captured before the visible mode: compared on what it has, and asked to be re-captured
+        var old = (JsonObject)golden.DeepClone();
+        foreach (var snap in old["snapshots"]!.AsArray()) foreach (var u in snap!["units"]!.AsObject()) u.Value!.AsObject().Remove("visible");
+        Assert.StartsWith("the golden predates", ScenarioGolden.CompareVisible(old, golden)[0]);
+
+        // a difference is a WARNING: the run passes and says so
+        var result = new VerifyResult { Golden = "different" };
+        result.Verdicts.Add(new Verdict("fuel", true, 0, "field"));
+        Assert.True(result.Passed);
+        Assert.Single(result.Warnings);
+        Assert.Single(result.ToJson()["warnings"]!.AsArray());
+    }
 }

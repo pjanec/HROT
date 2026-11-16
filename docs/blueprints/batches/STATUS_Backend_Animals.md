@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — in progress, overnight unattended
+state: DONE — reported; lane decisions APPROVED (R-4278)
 updated: 2026-11-16
 current-answer: the whole file (the task table first, then "Next step")
 related-designs:
@@ -25,7 +25,7 @@ Started at `c24f127cb` (merged `coordinator@d367b6a04`). Contract note to ui: `3
 | **AB-9** animal area | ✅ built | TKB 712 registered; its `AnimalArea` (species, count, seed, Enclosed) authored; `AnimalAreaSystem` populates it ONCE at run start on its owner — transient creation requests with GUIDs derived from the area's (a flock area: one flock of that many birds), the area marked `AnimalAreaPopulated` (recorded, never saved) so a restore or replay never repopulates, and made the herd its animals join; an Enclosed pen holds a frightened animal |
 | **AB-10** demo | ✅ built | `scenarios/demos/animals/farm-under-fire` on a new hand-authored terrain `farm` (pasture fence, walled pig pen, farmhouse, 25-tree orchard): 8 / 8 named checks pass — the tank panics the herd (33 s), it flees, a cow BREAKS THROUGH the pasture fence (39 s), the birds stay perched through the tank, the shots flush the flock and the birdsong stops (41 s), the pigs stay penned. ✅ three seeds (the areas' seeds ×2 more: fence broken at 34 s / 32 s), golden captured and SAME in a fresh process, ✅ `stepped-hash.py --threads 1,4,8` STATE EQUAL. ⭐ The demo found FOUR product defects the rails could not: nothing registered the animal components, a bird had no navigation contract (the node crashed on the flock's first flight), a planned flight goes ROUND every fence (the panic breach never happened live), and area animals had no names |
 
-## Lane decisions (for the user's review — each says what would change it)
+## Lane decisions — ✅ APPROVED by the user (R-4278, `NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md`): L-A1, L-A3…L-A30; L-A8 (two fear storages) as an INTERIM — CE-4628 (civilians' fear onto `Fear`) filed, not scheduled
 
 | # | decision | why · what would change it |
 |---|---|---|
