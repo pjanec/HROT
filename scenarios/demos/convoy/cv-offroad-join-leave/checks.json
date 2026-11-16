@@ -1,0 +1,71 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md \u00a75 S-6): mode 2, an off-road start joins the road net, drives its lane, leaves it to an off-road target, unsplit. No golden yet (first run).",
+  "runFor": 150,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Convoy 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "a follower runs the convoy",
+      "on": "task",
+      "who": "Convoy 3",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead drives the road in its lane",
+      "on": "near",
+      "who": "Convoy 1",
+      "point": [
+        330,
+        950.7
+      ],
+      "within": 2.5
+    },
+    {
+      "name": "the lead reaches the off-road target",
+      "on": "near",
+      "who": "Convoy 1",
+      "point": [
+        560,
+        995
+      ],
+      "within": 20
+    },
+    {
+      "name": "the tail drives the road too",
+      "on": "near",
+      "who": "Convoy 4",
+      "point": [
+        330,
+        950.7
+      ],
+      "within": 3
+    },
+    {
+      "name": "the column never splits",
+      "never": {
+        "on": "field",
+        "who": "Convoy 1",
+        "path": "ConvoyTrail.TailLag",
+        "op": ">",
+        "value": 40
+      },
+      "before": "the lead reaches the off-road target"
+    },
+    {
+      "name": "the tail ends near the target",
+      "on": "near",
+      "who": "Convoy 4",
+      "point": [
+        560,
+        995
+      ],
+      "within": 80,
+      "atEnd": true
+    }
+  ]
+}

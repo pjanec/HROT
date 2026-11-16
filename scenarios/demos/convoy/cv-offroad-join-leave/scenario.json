@@ -1,0 +1,165 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "city-battle",
+    "description": "What: On city-battle, four APCs ('Convoy 1'..'Convoy 4', 15 m apart) stand OFF the road at (100..55, 915), 39 m south of the east-west road at y 954; 'Convoy 1' leads a road convoy (ConvoyOrder, Mode Route \u2014 our own route) to (560, 995), 41 m north of the same road; the other three follow it (Rank 1..3, Gap 15). Judge: (1) the lead runs PlatformConvoy; (2) it joins the road and drives it in its lane (the outer lane on the right: y ~950.5 going east); (3) it leaves the road and reaches the target off-road; (4) the column never splits \u2014 the tail's lag behind its place stays under 40 m all the way; (5) the tail ends near the target too. Fail: a follower routes on its own, the column stretches apart, or the lead drives the centre line. Check: scripts/scenario-regression.sh cv-offroad-join-leave"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          915,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            560,
+            995,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          85,
+          915,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            560,
+            995,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          70,
+          915,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            560,
+            995,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          55,
+          915,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 4",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            560,
+            995,
+            0
+          ],
+          "Rank": 3,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}
