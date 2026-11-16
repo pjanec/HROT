@@ -45,3 +45,14 @@ related-designs:
 | L-9 | a flock changing mode (perched -> flying) snaps between layouts (no blend): the flock entity itself moves away at once | the take-off looks wrong live (a 0.4 s blend is one line in `DrawFlock`) |
 | L-10 | no saddle drawn on the horse kit (a herd horse would wear one) | a "tack" flag on the riding type |
 | L-11 | the area form's temporary component id is 511 (506-511 unallocated; ui's block 460-475 is exhausted) | backend declares the real one: delete `AnimalAreaDef`, rebind `AnimalAreaOps` |
+
+## Gate report (rule 8)
+| gate | command | result | base |
+|---|---|---|---|
+| T-1 the animals' own rails | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build --filter AnimalModelRail\|CE4623` (test project built, `--no-restore` after a restore) | `AnimalModelRail` 18/0/0 (frame tests ran, not skipped), `AudioTests.CE4623_*` 4/0/0 | new |
+| area form | `xvfb-run -a dotnet test Hrot.Editor.AiShared.Tests --filter AnimalAreaDetailsViewTests` | 2/0/0 (the frame test ran) | new |
+| T2 the whole Presentation suite | `xvfb-run -a dotnet test Hrot.Presentation.Tests --no-build` | 2206 pass / 8 fail / 11 skip. Pre-existing at the base sha `5c60f4d75` (clean worktree, isolated): CE1309, CE1086, CE4388. Four frame rails (CE1039, CE4582, P7B, TheBuildingDamagePlan) fail only inside the full run and pass alone, also in my tree. E2b (road vertices 1.1 m off the ground) fails in my tree and was SKIPPED at base - terrain code, no animal code touched, base unverified | |
+| T2 AiShared | `dotnet test Hrot.Editor.AiShared.Tests --no-build` | 2355 pass / 4 fail: `NoFileKeepsAPrivateRepoRootWalkUp` and `NoProductionFileSpellsANewContentRoot` and `SaveSlot R8` fail at base too (MotorcycleModelRail and the terrain files are the offenders; mine was fixed); `EngineEditorTheme...NoContext` passes alone | |
+| red-proofs | walk's four leg offsets flattened to 0 -> `TheGait_*` FAILS (restored) | | |
+| working tree | clean after the runs; only intended files committed | | |
+| ids | no tracker rows allocated; component id 511 claimed TEMPORARILY (`AnimalAreaDef`); sound ids 7800-7895 are backend's | | |
