@@ -33,7 +33,7 @@ public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, s
         Fdp.Toolkit.Terrain.TerrainFeature.Wall or Fdp.Toolkit.Terrain.TerrainFeature.Fence or Fdp.Toolkit.Terrain.TerrainFeature.Hedge => "terrain/walls",
         Fdp.Toolkit.Terrain.TerrainFeature.Wood => "terrain/trees",
         Fdp.Toolkit.Terrain.TerrainFeature.Scrub => "terrain/orchard",
-        Fdp.Toolkit.Terrain.TerrainFeature.Tree => "terrain/vegetation",
+        Fdp.Toolkit.Terrain.TerrainFeature.Tree or Fdp.Toolkit.Terrain.TerrainFeature.Row or Fdp.Toolkit.Terrain.TerrainFeature.Group => "terrain/vegetation",
         Fdp.Toolkit.Terrain.TerrainFeature.Water => "terrain/water",
         Fdp.Toolkit.Terrain.TerrainFeature.Bridge => "terrain/bridge",
         Fdp.Toolkit.Terrain.TerrainFeature.Scatter => "terrain/clutter",
@@ -87,6 +87,8 @@ public static class TerrainPickCatalog
             F(Vegetation, TerrainFeature.Wood, "Wood", "", TerrainShape.Area, "an area of trees"),
             F(Vegetation, TerrainFeature.Scrub, "Scrub", "", TerrainShape.Area, "an area of bushes"),
             F(Vegetation, TerrainFeature.Tree, "Tree", "", TerrainShape.Point, "one tree"),
+            F(Vegetation, TerrainFeature.Row, "Tree row", "tree", TerrainShape.Line, "lone trees along a line, every 8 m"),       // ⭐ CE-5008 (TE-3) — lone trunks, never a wood
+            F(Vegetation, TerrainFeature.Group, "Tree group", "tree", TerrainShape.Area, "lone trees in an area"),
             F(Walls, TerrainFeature.Wall, "Wall", "", TerrainShape.Line, "a brick or concrete wall, 2 m"),
             F(Walls, TerrainFeature.Fence, "Fence", "", TerrainShape.Line, "a wooden fence, 1.6 m"),
             F(Walls, TerrainFeature.Hedge, "Hedge", "", TerrainShape.Line, "a hedge, 1.5 m"),

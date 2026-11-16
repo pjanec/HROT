@@ -105,9 +105,12 @@ internal sealed class TerrainToolsWindow : ToolStripWindow
             if (list.Count > 0) _entries.Add(Entry(id, name, list));
         }
         Family("wood", "Wood", "terrain/trees", feature.Where(p => p.FeatureKind is TerrainFeature.Wood or TerrainFeature.Scrub));
-        Family("trees", "Trees", "terrain/vegetation", feature.Where(p => p.FeatureKind == TerrainFeature.Tree));
+        Family("trees", "Trees", "terrain/vegetation", feature.Where(p => p.FeatureKind is TerrainFeature.Tree or TerrainFeature.Row or TerrainFeature.Group));   // ⭐ CE-5008 (TE-3): One · Row · Group
         Family("walls", "Walls", "terrain/walls", feature.Where(p => p.FeatureKind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge));
         var obstacles = ObstacleMembers.Select(o => new ToolStripMember(Icons.Get(o.IconKey), o.Label, "Place a " + o.Label.ToLowerInvariant() + " (an obstacle entity)", () => { _lastArmed = "obstacles"; _spawn()?.StartPlacementMode(o.Type); })).ToList();
+        // ⭐ CE-5008 (TE-5, R-4264 / R-5041) — the row: a LINE tool whose commit makes N obstacle entities in one undo step; its panel picks the type, the gap and the facing
+        obstacles.Add(new ToolStripMember(Icons.Get("clutter/block"), "Row of obstacles…", "Drag a line: a row of obstacle entities, one undo step, selected as one group",
+            () => { _lastArmed = "obstacles"; _spawn()?.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(ObstacleRowOptions.Spec)); }));
         _entries.Add(Entry("obstacles", "Obstacles", obstacles));
         Family("earthworks", "Earthworks", "terrain/source", feature.Where(p => p.Group == TerrainPickCatalog.Earthworks));
         Family("water", "Water", "terrain/water", feature.Where(p => p.FeatureKind is TerrainFeature.Water or TerrainFeature.Bridge));

@@ -337,5 +337,25 @@ namespace Fdp.Toolkit.Terrain.Tests
             foreach (var t in parts) { var (x, _) = Centre(t); Assert.False(x >= 125f && x <= 175f, $"a tree at x {x} stands in the water"); }
             Assert.Equal("k/5", (string)((JsonObject)parts[5]["properties"]!)["label"]!);
         }
+
+        /// <summary>⭐ CE-5008 — the draw panel's tree count (<c>CountAlong</c>) is the expander's own: the Row of the 124.5 m line makes exactly that many trees, and an obstacle row's spacing places the same points. 🔴 Red-proof: <c>CountAlong</c> with <c>spacing + 1</c> ⇒ red.</summary>
+        [Fact]
+        public void TheDrawPanelsCount_IsTheExpandersOwn()
+        {
+            var line = new[] { new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.5f) };
+            Assert.Equal(16, FeatureExpander.CountAlong(line, 8f));
+            Assert.Equal(Of(TerrainFeature.Row, 8f, 0, line).Count, FeatureExpander.CountAlong(line, 8f));
+            Assert.Equal(FeatureExpander.CountAlong(line, 5f), Of(TerrainFeature.Row, 5f, 0, line).Count);
+            Assert.Equal(0, FeatureExpander.CountAlong(new[] { new Vector2(1, 1) }, 8f));
+        }
+
+        /// <summary>⭐ CE-5008 (R-5041) — a placement group id is non-zero and never repeats; the component is the small unmanaged saved one.</summary>
+        [Fact]
+        public void APlacementGroupId_IsNonZero_AndFreshEachTime()
+        {
+            uint a = PlacementGroup.NewId(), b = PlacementGroup.NewId(), c = PlacementGroup.NewId();
+            Assert.True(a != 0 && b > a && c > b);
+            Assert.True(System.Runtime.CompilerServices.Unsafe.SizeOf<PlacementGroup>() == 4);
+        }
     }
 }

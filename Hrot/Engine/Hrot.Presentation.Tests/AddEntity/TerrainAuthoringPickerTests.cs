@@ -411,6 +411,45 @@ public sealed class TerrainAuthoringPickerTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-5008 (TE-3, mockup B) — the Trees family gains <i>Tree row</i> (a LINE, Pad = the spacing, default 8 m) and <i>Tree group</i> (an AREA, Pad = the count, default 10): both are drawn through the area tool, are lone trunks (never a Wood),
+    /// and the panel's tree count is the expander's own. 🔴 Red-proof: <c>Born</c> writing <c>Pad = Height</c> for a row ⇒ the spacing assert fails.
+    /// </summary>
+    [Fact]
+    public void CE5008_TheTreeRowAndGroupPicks_AreBornWithTheirSpacingAndCount()
+    {
+        var picks = TerrainPickCatalog.FeaturePicks();
+        var row = picks.Single(p => p.Name == "Tree row"); var group = picks.Single(p => p.Name == "Tree group");
+        Assert.Equal((TerrainFeature.Row, TerrainShape.Line, "tree", TerrainPickCatalog.Vegetation), (row.FeatureKind, row.Shape, row.Template, row.Group));
+        Assert.Equal((TerrainFeature.Group, TerrainShape.Area, "tree", TerrainPickCatalog.Vegetation), (group.FeatureKind, group.Shape, group.Template, group.Group));
+        Assert.Equal("lone trees along a line, every 8 m", row.Line); Assert.Equal("lone trees in an area", group.Line);
+
+        var spawn = new RecordingSpawn();
+        Assert.True(PlacementToolRegistry.ArmTerrain(spawn, row)); Assert.True(PlacementToolRegistry.ArmTerrain(spawn, group));
+        Assert.Equal(2, spawn.Calls.Count(c => c.StartsWith("area-")));   // both are DRAWN, not one click
+
+        var r = TerrainDrawOptions.From(row.Spec)!;
+        Assert.True(r.IsTreeRow && r.HasPanel);
+        var born = new List<object>(); r.Born(born);
+        Assert.Equal((TerrainFeature.Row, 8f), (born.OfType<TerrainFeature>().Single().Kind, born.OfType<TerrainFeature>().Single().Pad));   // the default spacing
+        r.Spacing = 5f; born.Clear(); r.Born(born);
+        Assert.Equal(5f, born.OfType<TerrainFeature>().Single().Pad);
+
+        var g = TerrainDrawOptions.From(group.Spec)!;
+        Assert.True(g.IsTreeGroup && g.HasPanel);
+        born.Clear(); g.Born(born);
+        Assert.Equal((TerrainFeature.Group, 10f, g.Seed), (born.OfType<TerrainFeature>().Single().Kind, born.OfType<TerrainFeature>().Single().Pad, born.OfType<TerrainFeature>().Single().Seed));   // the default count; the seed the panel shows
+        g.Count = 11; born.Clear(); g.Born(born);
+        Assert.Equal(11f, born.OfType<TerrainFeature>().Single().Pad);
+
+        // the panel's "16 trees" is the expander's own placement
+        var line = new[] { new Vector2(100, 250), new Vector2(160, 250), new Vector2(160, 314.5f) };
+        r.Spacing = 8f;
+        Assert.Equal(16, r.TreesAlong(line));
+        Assert.Equal(Fdp.Toolkit.Terrain.FeatureExpander.CountAlong(line, 8f), r.TreesAlong(line));
+        Assert.Equal(0, r.TreesAlong(new[] { new Vector2(1, 1) }));
+    }
+
+    /// <summary>
     /// ⭐ Gap C (mockup 3, the Clutter tiles) — every clutter type has its OWN glyph key from the shared icon table (a car, a barrel, a crate, a block, a barrier, sandbags, a booth), none the generic one; walls, woods, bridges and water have theirs; blocks and houses (pictures) have none.
     /// 🔴 Mutation: <c>TerrainPick.GlyphKey</c> returning null ⇒ red.
     /// </summary>

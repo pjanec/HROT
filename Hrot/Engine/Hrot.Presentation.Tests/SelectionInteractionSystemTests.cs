@@ -970,4 +970,57 @@ public class SelectionInteractionSystemTests
         Release();
         Assert.True(Sel(a) && Sel(b) && Sel(c));        // dragged: the whole selection stays for the group move
     }
+
+    // ── ⭐ CE-5008 (TE-5, R-5041) — a placed obstacle row selects as ONE group ────────────────────────────────────────────
+
+    private List<Entity> Row(uint id, params float[] xs)
+    {
+        var l = new List<Entity>();
+        foreach (var x in xs) { var e = UnitAt(x, 0); _world.AddComponent(e, new Fdp.Toolkit.Terrain.PlacementGroup { Id = id }); l.Add(e); }
+        return l;
+    }
+
+    /// <summary>
+    /// A click on ONE member of a placed row selects every live member of its <c>PlacementGroup</c> (and nothing else); Shift adds the whole group, Ctrl toggles it whole; ⭐ Alt-click still picks the single unit (cycling is per unit, P5).
+    /// 🔴 Red-proof: <c>GroupOf</c> returning null ⇒ only the clicked member is selected ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE5008_AClickOnOneMemberOfARow_SelectsTheWholeGroup_AltClickPicksOne()
+    {
+        var row = Row(9, 0, 4, 8, 12);
+        var other = Row(10, 100, 104);
+        var lone = UnitAt(50, 0);
+
+        Click(row[1], MapMouseButton.Left);
+        Assert.All(row, e => Assert.True(Sel(e)));
+        Assert.False(Sel(other[0]) || Sel(other[1]) || Sel(lone));
+
+        Click(lone, MapMouseButton.Left);
+        Assert.True(Sel(lone)); Assert.All(row, e => Assert.False(Sel(e)));
+
+        Click(other[0], ShiftLeft);                                   // Shift adds the whole group
+        Assert.True(Sel(lone) && Sel(other[0]) && Sel(other[1]));
+
+        Click(other[1], CtrlLeft);                                    // Ctrl toggles it whole: both leave
+        Assert.True(Sel(lone)); Assert.False(Sel(other[0]) || Sel(other[1]));
+
+        Click(row[2], AltLeft, new Vector3(8, 0, 0));                 // Alt: the single unit
+        Assert.Equal(1, row.Count(Sel));
+    }
+
+    /// <summary>A member that is no longer alive is not selected with the group; a group of one (or id 0) selects itself alone.</summary>
+    [Fact]
+    public void CE5008_ADeadMemberIsSkipped_AndAGroupOfOneSelectsItself()
+    {
+        var row = Row(21, 0, 4, 8);
+        _world.DestroyEntity(row[2]); _world.Tick();
+        Click(row[0], MapMouseButton.Left);
+        Assert.True(Sel(row[0]) && Sel(row[1]));
+        var single = Row(22, 200)[0];
+        Click(single, MapMouseButton.Left);
+        Assert.True(Sel(single)); Assert.False(Sel(row[0]));
+        var zero = Row(0, 300, 304);
+        Click(zero[0], MapMouseButton.Left);
+        Assert.True(Sel(zero[0])); Assert.False(Sel(zero[1]));        // id 0 = no group
+    }
 }

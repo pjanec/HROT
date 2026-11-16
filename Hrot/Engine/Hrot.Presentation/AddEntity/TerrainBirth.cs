@@ -17,6 +17,10 @@ public static class TerrainBirth
     /// <summary>The placement JSON's key for the pick spec (not a component attribute).</summary>
     public const string Key = "$terrain";
 
+    /// <summary>The placement JSON of a bare spec (the obstacle row tool's, <see cref="ObstacleRowOptions.Spec"/>).</summary>
+    public static string PlacementJson(string spec)
+        => JsonSerializer.Serialize(new Dictionary<string, string> { [Key] = spec }, FdpJsonOptionsRegistry.DefaultRelaxed);
+
     public static string PlacementJson(TerrainPick pick)
         => JsonSerializer.Serialize(new Dictionary<string, string> { [Key] = pick.Spec }, FdpJsonOptionsRegistry.DefaultRelaxed);
 
@@ -66,7 +70,7 @@ public static class TerrainBirth
         => f.Kind == TerrainFeature.Clutter && f.Template.Length > 0 ? TerrainPickCatalog.Title(f.Template) : f.Kind switch
         {
             TerrainFeature.Wall => "Wall", TerrainFeature.Fence => "Fence", TerrainFeature.Hedge => "Hedge", TerrainFeature.Wood => "Wood", TerrainFeature.Tree => "Tree",
-            TerrainFeature.Scrub => "Scrub", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter",
+            TerrainFeature.Scrub => "Scrub", TerrainFeature.Row => "Tree row", TerrainFeature.Group => "Tree group", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter",
             TerrainFeature.Ground => f.Template switch { "level" => "Level ground", "lower" => "Lowered ground", "ditch" => "Ditch", "at-ditch" => "Anti-tank ditch", "foxhole" => "Foxhole", _ => "Raised ground" },   // ⭐ CE-4592
             _ => "Terrain feature",
         };

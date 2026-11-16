@@ -90,9 +90,9 @@ public sealed class EditorToolStripsTests : IDisposable
         string[] Names(string id) => w.StripEntries.Single(e => e.Id == "##ts_t_" + id).Family!.Select(m => m.Label).ToArray();
         Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());
         Assert.Equal(new[] { "Wood", "Scrub" }, Names("wood"));
-        Assert.Equal(new[] { "Tree" }, Names("trees"));
+        Assert.Equal(new[] { "Tree", "Tree row", "Tree group" }, Names("trees"));   // ⭐ CE-5008 (TE-3): One · Row · Group
         Assert.Equal(new[] { "Wall", "Fence", "Hedge" }, Names("walls"));
-        Assert.Equal(new[] { "Car", "Sandbag wall", "Concrete block", "Crate" }, Names("obstacles"));
+        Assert.Equal(new[] { "Car", "Sandbag wall", "Concrete block", "Crate", "Row of obstacles…" }, Names("obstacles"));   // ⭐ CE-5008 (TE-5): the row tool is the fifth member
         Assert.Contains("Level", Names("earthworks")); Assert.DoesNotContain("Crater", Names("earthworks"));   // the disabled pick is not offered
         Assert.Equal(new[] { "Water", "Bridge" }, Names("water"));
         Assert.Equal(new[] { "Street clutter", "Undergrowth" }, Names("scatter"));
@@ -111,6 +111,12 @@ public sealed class EditorToolStripsTests : IDisposable
         spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.TerrainFeature, It.IsAny<string?>()), Times.Once);
         E("obstacles").Pick(1);
         spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.Obstacle_SandbagWall, null), Times.Once);
+        E("trees").Pick(1);   // ⭐ CE-5008 — the tree Row is DRAWN (a line), the Group too
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:14:tree:Line"))), Times.Once);
+        E("trees").Pick(2);
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:15:tree:Area"))), Times.Once);
+        E("obstacles").Pick(4);   // the obstacle ROW: a line tool whose spec is the row's, never a terrain feature
+        spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains(ObstacleRowOptions.Spec))), Times.Once);
         E("scatter").Pick(1);
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("undergrowth"))), Times.Once);
         Assert.Equal(1, E("scatter").Selected);

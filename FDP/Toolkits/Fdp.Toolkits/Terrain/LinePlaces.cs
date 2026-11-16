@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>
         /// Places every <paramref name="spacing"/> metres along the polyline, the first half a spacing from its start (distance <c>spacing · (i + 0.5)</c> for every <c>i</c> that lies before the end), at most <paramref name="cap"/> of them.
         /// </summary>
-        internal static List<(Vector2 P, float Deg)> LinePlacesSpaced(IReadOnlyList<Vector2> pts, float spacing, int cap)
+        public static List<(Vector2 P, float Deg)> LinePlacesSpaced(IReadOnlyList<Vector2> pts, float spacing, int cap)
         {
             float total = 0f;
             for (int i = 1; i < pts.Count; i++) total += (pts[i] - pts[i - 1]).Length();
@@ -38,6 +38,9 @@ namespace Fdp.Toolkit.Terrain
                 }
             return LinePlacesAt(pts, fractions.ToArray());
         }
+
+        /// <summary>⭐ CE-5008 — how many places <see cref="LinePlacesSpaced"/> makes along <paramref name="pts"/> at <paramref name="spacing"/> (the drawing panel's "16 trees"), by the SAME routine; capped at <see cref="MaxScatterItems"/>.</summary>
+        public static int CountAlong(IReadOnlyList<Vector2> pts, float spacing) => LinePlacesSpaced(pts, spacing, MaxScatterItems).Count;
 
         /// <summary>The places at each <paramref name="fractions"/> entry (0..1 of the polyline's length, ascending), with the direction of the segment each lies on.</summary>
         private static List<(Vector2 P, float Deg)> LinePlacesAt(IReadOnlyList<Vector2> pts, float[] fractions)

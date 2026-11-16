@@ -47,6 +47,8 @@ namespace Hrot.UI.Common.Adapters
         // ⭐ Terrain authoring follow-up 2 — what the user chose for the terrain feature being drawn (the drawing panel edits it, the commit reads it)
         private Hrot.UI.Common.AddEntity.TerrainDrawOptions? _terrainDraw;
         Hrot.UI.Common.AddEntity.TerrainDrawOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Options => _terrainDraw;
+        private Hrot.UI.Common.AddEntity.ObstacleRowOptions? _obstacleRow;   // ⭐ CE-5008 (TE-5) — the armed obstacle-row tool's options
+        Hrot.UI.Common.AddEntity.ObstacleRowOptions? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Row => _obstacleRow;
         IReadOnlyList<System.Numerics.Vector2> Hrot.UI.Common.AddEntity.ITerrainDrawSource.Points => (IReadOnlyList<System.Numerics.Vector2>?)_areaArm?.ActiveGizmo?.Session.Points ?? System.Array.Empty<System.Numerics.Vector2>();
         Hrot.UI.Common.AddEntity.TerrainGhostContext? Hrot.UI.Common.AddEntity.ITerrainDrawSource.Context => TerrainContext?.Invoke();   // ⭐ CE-4592 — the ghost's context: the ground read-outs
         void Hrot.UI.Common.AddEntity.ITerrainDrawSource.Finish() => _areaArm?.ActiveGizmo?.OnKeyEvent(Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapKeyboardKey.Enter, true);
@@ -231,43 +233,7 @@ namespace Hrot.UI.Common.Adapters
                     if (terrainPlacement is not null)                                                              // ⭐ Terrain authoring U-2 — a block / house is born with its TerrainBlock / TerrainFeature: the seed its ghost showed, the heading the drag and R gave
                         Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(cmd.TkbType, terrainSpec, cmd.InitialTransform?.Rotation ?? Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth, cmd.InitialComponents, terrainPlacement.Seed, terrainPlacement.RotationDeg);
 
-                    // Seed a baseline EntityInfo so the entity is guaranteed to appear
-                    // in the ORBAT tree even when no Name property is supplied in JSON.
-                    string defaultName = "New Unit";
-                    if (_tkbDb != null
-                     && _tkbDb.TryGetByType(cmd.TkbType, out var template)
-                     && !string.IsNullOrWhiteSpace(template.Name))
-                    {
-                        defaultName = template.Name;
-                    }
-
-                    // ⭐ G2 — a resolver-supplied name (the gizmo put an EntityInfo on the command) replaces the TKB default.
-                    if (!cmd.InitialComponents.Exists(c => c is EntityInfo))
-                        cmd.InitialComponents.Add(new EntityInfo
-                        {
-                            Name    = new Fdp.Core.FixedString64(defaultName),
-                            ForceId = ForceId.Neutral,
-                        });
-
-                    // Apply JSON overrides (e.g. Affiliation) on top of the baseline.
-                    if (!string.IsNullOrEmpty(cmd.InitialAttributesJson) && _jsonCompiler != null)
-                    {
-                        var ctx = new ListPatchContext(cmd.InitialComponents);
-                        _jsonCompiler.Compile(cmd.InitialAttributesJson, ctx);
-                        cmd.InitialComponents = ctx.FlushComponents();
-                    }
-
-                    // ⭐⭐ CE-4312 (lifecycle LC-2) — a unit still carrying its TYPE's bare name is NUMBERED, unique in the scenario ("Rifleman 3");
-                    //   a resolver's or the JSON's own name is kept. The names handed out this placement count until they are in the world.
-                    int infoAt = cmd.InitialComponents.FindIndex(c => c is EntityInfo);
-                    if (infoAt >= 0 && cmd.InitialComponents[infoAt] is EntityInfo info && info.Name.ToString() == defaultName)
-                    {
-                        string numbered = Hrot.Common.EntityCreation.EntityNames.Next(_creation.World, defaultName, _handedOut);
-                        _handedOut.Add(numbered);
-                        if (_handedOut.Count > 256) _handedOut.RemoveAt(0);
-                        info.Name = new Fdp.Core.FixedString64(numbered);
-                        cmd.InitialComponents[infoAt] = info;
-                    }
+                    NameNew(ref cmd);
 
                     Request(cmd);
                 },
@@ -285,6 +251,49 @@ namespace Hrot.UI.Common.Adapters
                 terrain:               terrainPlacement);
             _globalGizmoManager!.Register(id, gizmo);
             return Hrot.ScenarioEditor.Tools.ToolActivationOutcome.Armed;
+        }
+
+        /// <summary>The name a placed unit is born with: its TKB type's name, numbered unique in the scenario (a resolver's or the JSON's own name is kept), and the JSON overrides applied — shared by a click and by an obstacle row.</summary>
+        private void NameNew(ref SpawnEntityCommand cmd)
+        {
+            cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
+            // Seed a baseline EntityInfo so the entity is guaranteed to appear
+            // in the ORBAT tree even when no Name property is supplied in JSON.
+            string defaultName = "New Unit";
+            if (_tkbDb != null
+             && _tkbDb.TryGetByType(cmd.TkbType, out var template)
+             && !string.IsNullOrWhiteSpace(template.Name))
+            {
+                defaultName = template.Name;
+            }
+
+            // ⭐ G2 — a resolver-supplied name (the gizmo put an EntityInfo on the command) replaces the TKB default.
+            if (!cmd.InitialComponents.Exists(c => c is EntityInfo))
+                cmd.InitialComponents.Add(new EntityInfo
+                {
+                    Name    = new Fdp.Core.FixedString64(defaultName),
+                    ForceId = ForceId.Neutral,
+                });
+
+            // Apply JSON overrides (e.g. Affiliation) on top of the baseline.
+            if (!string.IsNullOrEmpty(cmd.InitialAttributesJson) && _jsonCompiler != null)
+            {
+                var ctx = new ListPatchContext(cmd.InitialComponents);
+                _jsonCompiler.Compile(cmd.InitialAttributesJson, ctx);
+                cmd.InitialComponents = ctx.FlushComponents();
+            }
+
+            // ⭐⭐ CE-4312 (lifecycle LC-2) — a unit still carrying its TYPE's bare name is NUMBERED, unique in the scenario ("Rifleman 3");
+            //   a resolver's or the JSON's own name is kept. The names handed out this placement count until they are in the world.
+            int infoAt = cmd.InitialComponents.FindIndex(c => c is EntityInfo);
+            if (infoAt >= 0 && cmd.InitialComponents[infoAt] is EntityInfo info && info.Name.ToString() == defaultName)
+            {
+                string numbered = Hrot.Common.EntityCreation.EntityNames.Next(_creation.World, defaultName, _handedOut);
+                _handedOut.Add(numbered);
+                if (_handedOut.Count > 256) _handedOut.RemoveAt(0);
+                info.Name = new Fdp.Core.FixedString64(numbered);
+                cmd.InitialComponents[infoAt] = info;
+            }
         }
 
         /// <summary>⭐ CE-4244 — the preview of <paramref name="macroPath"/> (anchored at <paramref name="anchor"/>, default the origin), from THIS node's one expander (<c>EntityCreation.MacroExpansionSystem.Expander</c>). Pure: nothing is created.</summary>
@@ -406,6 +415,22 @@ namespace Hrot.UI.Common.Adapters
 
             // ⭐ Terrain authoring U-7 — a LINE / AREA terrain feature rides its spec in the style JSON: a line needs 2 points and is open, an area 3 and closed; the entity is born a TerrainFeature (and loses the area fill style)
             var (styleJson, terrainSpec) = Hrot.UI.Common.AddEntity.TerrainBirth.Split(_pendingStyleJson);
+            // ⭐ CE-5008 (TE-5, R-4264) — the OBSTACLE ROW: a line whose commit makes N obstacle ENTITIES in one undo step, not a polyline entity
+            if (tkbType == TkbEntityTypes.TerrainFeature && Hrot.UI.Common.AddEntity.ObstacleRowOptions.From(terrainSpec) is { } rowOptions)
+            {
+                var rowOutcome = arm.Arm(new Hrot.ScenarioEditor.Tools.AreaAuthoringRequest(
+                    TkbType:    (Fdp.Core.TkbTypeId)(tkbType),
+                    StyleJson:  "",
+                    OnCommit:   cmd => CommitObstacleRow(cmd, rowOptions),
+                    MinPoints:  2,
+                    Closed:     false,
+                    OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_obstacleRow, rowOptions)) _obstacleRow = null; },
+                    Repeat:     true));   // ⭐ TE-2 — the tool stays armed for the next row
+                _activeSequenceId = arm.ActiveGizmoId;
+                _terrainDraw = null; _obstacleRow = rowOptions;
+                return rowOutcome;
+            }
+            _obstacleRow = null;
             var feature = tkbType == TkbEntityTypes.TerrainFeature ? Hrot.UI.Common.AddEntity.TerrainBirth.FeatureOf(terrainSpec) : null;
             var drawOptions = feature is null ? null : Hrot.UI.Common.AddEntity.TerrainDrawOptions.From(terrainSpec);
             if (drawOptions is not null)
@@ -435,6 +460,22 @@ namespace Hrot.UI.Common.Adapters
             _activeSequenceId = arm.ActiveGizmoId;
             _terrainDraw = drawOptions;   // ⭐ after the arm: arming first disarms the previous tool, whose OnDisarmed clears the field
             return outcome;
+        }
+
+        /// <summary>
+        /// ⭐ CE-5008 (TE-5, R-4264, R-5041) — the obstacle row's commit: the drawn line (the anchor + its relative polyline) becomes N obstacle entities of the panel's type at the shared line places, every one in the same
+        /// <see cref="Fdp.Toolkit.Terrain.PlacementGroup"/>, all sent inside ONE edit step (one undo). Each is named like any placed unit ("Concrete block 3").
+        /// </summary>
+        private void CommitObstacleRow(SpawnEntityCommand drawn, Hrot.UI.Common.AddEntity.ObstacleRowOptions row)
+        {
+            var polyline = drawn.InitialComponents?.OfType<EditablePolyline>().FirstOrDefault();
+            if (polyline?.Points is not { Count: >= 2 } rel) return;
+            var anchor = drawn.InitialTransform?.Position ?? System.Numerics.Vector3.Zero;
+            var world = new System.Collections.Generic.List<System.Numerics.Vector2>(rel.Count);
+            foreach (var p in rel) world.Add(new System.Numerics.Vector2(anchor.X + p.X, anchor.Y + p.Y));
+            var commands = row.Commands(world, anchor.Z, Fdp.Toolkit.Terrain.PlacementGroup.NewId());
+            for (int i = 0; i < commands.Count; i++) { var c = commands[i]; NameNew(ref c); commands[i] = c; }
+            Hrot.UI.Common.AddEntity.ObstacleRowOptions.Place(_creation.World, commands, Request);
         }
 
         /// <inheritdoc/>
