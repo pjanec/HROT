@@ -11,7 +11,7 @@ import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, text_width, render
 
-W, H = 1660, 1500
+W, H = 1660, 1880
 s = Svg(W, H, "Stochastic unit - the look (exp/agg-ui, CE-8600)",
         "Grey annotations are not drawn by the app. Scope: Resolution section, Slots tab, 2-D footprint + label rows, loss marks, detection overlay, Resolution menu + progress. Everything else is context, unchanged.")
 
@@ -56,13 +56,28 @@ s.field(fx + LW, cy, 70, "200 m"); s.text(fx + LW + 78, cy + 14, "x  depth", C.S
 s.form_row(fx, cy, "Heading", LW, "field", 70, "045°"); s.text(fx + LW + 80, cy + 14, "drag the footprint's arrow on the map", C.DIS, 11.5); cy += 25
 s.form_row(fx, cy, "Prepared", LW, "combo", 120, "Hasty"); cy += 34
 s.separator_text(fx, cy, "State", wx + ww - 12); cy += 24
-# Strength reads UnitStrength.Of — the slot table for a stochastic unit
-# as built (CE-8601): read-only form rows (FormView draws a derived field disabled) — the SITREP's own words
-s.form_row(fx, cy, "Strength", LW, "field", 320, "26 / 30 men  ·  Green", dis=True); cy += 25
-s.form_row(fx, cy, "Ammunition", LW, "field", 320, "62 %  ·  Amber", dis=True); cy += 25
-s.text(fx, cy + 14, "Vehicles"); s.text(fx + LW, cy + 14, "3 / 4 IFV operational", C.TXT)
+# ⭐ the GAUGE rows (UI-10, user 2026-11-16: "more colored and visualized ... not so ugly as basic imgui text field"): a bar in the status colour
+#   with the numbers ON it, the SITREP word as a coloured chip with its glyph (never colour alone, Details forms §6.3), the thresholds as ticks
+def gauge(x, y, w, frac, fill, text, chip, chip_col, chip_glyph, ticks=()):
+    s.rect(x, y, w, 19, C.FRAME, rx=2)
+    s.rect(x, y, w * frac, 19, fill, rx=2, op=0.9)
+    for t in ticks: s.line(x + w * t, y - 2, x + w * t, y + 21, "#E8E8EE", 1)
+    s.text(x + 6, y + 14, text, "#0F0F0F" if frac > 0.35 else C.TXT, 12.5, weight="bold")
+    cw = text_width(chip, 11) + 26
+    s.rect(x + w + 8, y + 1, cw, 17, "#1C1C22", stroke=chip_col, rx=8, sw=1.2)
+    s.glyph(chip_glyph, x + w + 14, y + 3.5, chip_col, 11)
+    s.text(x + w + 29, y + 14, chip, chip_col, 11, weight="bold")
+s.text(fx, cy + 14, "Strength")
+gauge(fx + LW, cy, 210, 26 / 30, AMBER, "26 / 30 men", "AMBER", AMBER, FA.WARNING, ticks=(0.7, 0.9)); cy += 27
+s.text(fx, cy + 14, "Ammunition")
+gauge(fx + LW, cy, 210, 0.62, GREEN, "62 %  ·  1 860 rds", "GREEN", GREEN, FA.CIRCLE_CHECK, ticks=(0.25, 0.5)); cy += 27
+s.text(fx, cy + 14, "Vehicles")
+for i in range(4):
+    s.glyph(FA.VAN, fx + LW + i * 22, cy + 2, C.TEAL if i < 3 else RED, 14, op=1 if i < 3 else 0.8)
+s.glyph(FA.XMARK, fx + LW + 3 * 22 + 4, cy + 3, RED, 9)
+s.text(fx + LW + 96, cy + 14, "3 / 4 operational", C.TXT)
 s.callout(wx + ww, Y0 + 165, wx + ww + 18, Y0 + 150, ["NEW - a unit with", "AggregateUnit only;", "dashed = new rows"])
-s.callout(wx + ww, Y0 + 400, wx + ww + 18, Y0 + 370, ["NEW for EVERY unit", "(physical too): men", "via UnitStrength.Of,", "ammo via AmmoOf"])
+s.callout(wx + ww - 120, Y0 + 452, wx + ww + 18, Y0 + 370, ["GAUGES (UI-10):", "SITREP-colour bar,", "numbers on it,", "threshold ticks,", "word + glyph chip"])
 
 # ───────────────────────── ② the Slots tab ─────────────────────────
 X1 = 650
@@ -142,23 +157,41 @@ def frame_symbol(cx, cy, side, echelon, mech=False):
     s.text(cx, cy - 18, marks, "#000", 13, weight="bold")
 
 
-def strength_row(cx, y, frac, label):
-    """AS BUILT: one label row on a backdrop, starting at the unit's point, coloured by the SITREP strength (no bar)."""
+CARD_W = 156
+
+
+def card(x, y, side, name, frac, ammo, info=(), alarm=None):
+    """THE CARD (UI-11): one per unit, the SAME card as a soldier's — row 10 is the STRENGTH bar (in place of health), row 13 a thin ammo bar, row 20 the
+    name (unchanged), row 64 ONE info line: present/authorized in the strength colour · what it does · one alarm. ≤ 3 lines. (x, y) = the card's top-left."""
+    edge = FRIEND if side == "F" else HOSTILE
     col = GREEN if frac >= 0.9 else AMBER if frac >= 0.7 else RED
-    w = text_width(label, 11.5) + 10
-    s.rect(cx, y + 2, w, 17, "#000", op=0.6, rx=3)
-    s.text(cx + 5, y + 15, label, col, 11.5)
+    acol = GREEN if ammo >= 0.5 else AMBER if ammo >= 0.25 else RED
+    h = 46 if not info and not alarm else 60
+    s.rect(x, y, CARD_W, h, "#000", op=0.6, rx=2); s.rect(x, y, CARD_W, h, "none", stroke=edge, rx=2, sw=1)
+    s.rect(x + 5, y + 5, CARD_W - 10, 6, "#3A3A3A"); s.rect(x + 5, y + 5, (CARD_W - 10) * frac, 6, col)
+    for t in (0.7, 0.9): s.line(x + 5 + (CARD_W - 10) * t, y + 4, x + 5 + (CARD_W - 10) * t, y + 12, "#DDD", 1)
+    s.rect(x + 5, y + 13, CARD_W - 10, 3, "#3A3A3A"); s.rect(x + 5, y + 13, (CARD_W - 10) * ammo, 3, acol)
+    s.text(x + 6, y + 31, name, "#FFFFFF", 12.5, weight="bold")
+    s.text(x + CARD_W - 6, y + 31, "~", C.VIOLET, 13, "end", weight="bold")
+    if info or alarm:
+        tx = x + 6
+        for txt, c in info:
+            s.text(tx, y + 50, txt, c, 11.5); tx += text_width(txt, 11.5) + 4
+        if alarm:
+            g, c, txt = alarm
+            s.glyph(g, tx + 2, y + 41, c, 10.5); s.text(tx + 16, y + 50, txt, c, 11.5, weight="bold")
+    return h
 
 
 # a friend platoon in LINE (deployed): footprint + symbol + strength + losses
 footprint(mx + 230, my + 190, 200, 80, 35, FRIEND, FRIEND, "6 4")
 frame_symbol(mx + 230, my + 190, "F", "platoon", mech=True)
-strength_row(mx + 230, my + 207, 26 / 30, "2 Plt · 26/30 · ~")
-s.text(mx + 330, my + 150, "−2", RED, 13, weight="bold"); s.glyph(FA.SKULL, mx + 344, my + 139, RED, 11)
+card(mx + 245, my + 150, "F", "2 Plt", 26 / 30, 0.62, [("26/30", AMBER), ("· Defend", C.TEAL)])
+s.text(mx + 330, my + 128, "−2", RED, 13, weight="bold"); s.glyph(FA.SKULL, mx + 344, my + 117, RED, 11)
 # a hostile company in line, in the wood
 footprint(mx + 470, my + 110, 260, 90, 215, HOSTILE, HOSTILE, "6 4")
 frame_symbol(mx + 470, my + 110, "H", "company")
-strength_row(mx + 470, my + 132, 0.55, "3 Coy · 55/100 · ~")
+card(mx + 485, my + 125, "H", "3 Coy", 0.55, 0.3, [("55/100", RED)], alarm=(FA.WARNING, AMBER, "supp 60%"))
 s.text(mx + 380, my + 70, "−5", RED, 13, weight="bold"); s.glyph(FA.SKULL, mx + 396, my + 59, RED, 11)
 # a friend company in COLUMN along the road: a segment of its path
 pts = [(mx + 120, my + 352), (mx + 230, my + 343), (mx + 330, my + 360), (mx + 400, my + 378)]
@@ -167,7 +200,7 @@ s.raw(f"<path d='{path}' stroke='{FRIEND}' stroke-width='14' stroke-opacity='0.3
 s.raw(f"<path d='{path}' stroke='{FRIEND}' stroke-width='2' stroke-dasharray='6 4' fill='none'/>")
 frame_symbol(mx + 400, my + 378 - 30, "F", "company", mech=True)
 s.line(mx + 400, my + 378 - 18, mx + 400, my + 378, FRIEND, 1.5)
-strength_row(mx + 400, my + 378 - 50 + 60, 1.0, "A Coy · 100/100 · ~")
+card(mx + 420, my + 300, "F", "A Coy", 1.0, 0.95, [("100/100", GREEN), ("· March", C.TEAL)])
 s.text(mx + 108, my + 340, "tail", C.SUB, 11); s.text(mx + 412, my + 395, "head", C.SUB, 11)
 # a PHYSICAL squad for contrast (its men, the existing look)
 for i, (dx, dy) in enumerate([(0, 0), (12, 6), (-12, 7), (24, 12), (-24, 13)]):
@@ -175,10 +208,10 @@ for i, (dx, dy) in enumerate([(0, 0), (12, 6), (-12, 7), (24, 12), (-24, 13)]):
 s.text(mx + 120, my + 135, "1 Sqn (physical - its men, unchanged)", "#FFFFFF", 11, "middle")
 # annotations
 s.callout(mx + 330, my + 200, mx + mw + 12, my + 175, ["FOOTPRINT: width x depth x heading", "(AggregateUnit), dashed = stochastic", "side colour fill 22 %, arrow = heading"])
-s.callout(mx + 260, my + 230, mx + mw + 12, my + 225, ["label rows: strength bar (UnitStrength),", "name · present/authorized · ~ = stochastic"])
-s.callout(mx + 340, my + 150, mx + mw + 12, my + 270, ["LOSS MARK: −n + skull, at the footprint's", "edge, fades in 4 s (ST-3)"])
+s.callout(mx + 260, my + 230, mx + mw + 12, my + 225, ["the unit's CARD (⑥): strength bar in place", "of health, ammo, name, one info line"])
+s.callout(mx + 340, my + 128, mx + mw + 12, my + 270, ["LOSS MARK: −n + skull, at the footprint's", "edge, fades in 4 s (ST-3)"])
 s.callout(mx + 330, my + 362, mx + mw + 12, my + 320, ["COLUMN: a band along its path,", "head to tail = Depth (M-3)"])
-s.note(mx + mw + 12, my + 380, ["⛔ 3-D: nothing - no bodies (the unit stays", "hidden; the 3-D map draws no footprint)", "", "zoomed out (ST-4): footprints + frames only,", "label rows drop below 40 px per unit"], C.SUB, 11.5)
+s.note(mx + mw + 12, my + 380, ["⛔ 3-D: nothing - no bodies (the unit stays", "hidden; the 3-D map draws no footprint)", "", "zoomed out (ST-4): footprints + frames only,", "cards drop below 40 px per unit"], C.SUB, 11.5)
 
 # ───────────────────────── ④ detection overlay ─────────────────────────
 Y3 = 1110
@@ -223,7 +256,7 @@ panel_title(X5, Y5, "⑤", "De- / re-aggregate: the request (right-click, ST-5) 
 mx, my = X5, Y5 + 12
 s.rect(mx, my, 640, 470, MAP)
 footprint(mx + 150, my + 120, 200, 80, 35, FRIEND, FRIEND, "6 4"); frame_symbol(mx + 150, my + 120, "F", "platoon", mech=True)
-strength_row(mx + 150, my + 137, 26 / 30, "2 Plt · 26/30 · ~")
+card(mx + 60, my + 160, "F", "2 Plt", 26 / 30, 0.62)
 # context menu (context: its other items unchanged)
 menu_items = [("Orders", None, FA.ROUTE, C.GREEN), ("Designate", None, FA.CROSSHAIRS, C.ORANGE), "---",
               ("Resolution", None, DICE, C.VIOLET), "---",
@@ -275,6 +308,38 @@ for i, (st, done) in enumerate(stages):
     sx += 132
 s.text(ux + 12, uy + 118, "Progress"); s.text(ux + 132, uy + 118, "2 of 3 squads posted  ·  19 of 26 men created  ·  deadline 14 s", C.TXT, 12)
 s.button(ux + 132, uy + 124, 90, "Cancel", FA.XMARK, C.RED)
+
+# ───────────────────────── ⑥ the CARD ─────────────────────────
+Y6 = 1500
+panel_title(X0, Y6, "⑥", "The unit's CARD (2-D and 3-D, the Labels layer): STRENGTH in place of health - 3 lines max, for a quick overview")
+mx, my = X0, Y6 + 12
+s.rect(mx, my, 1600, 330, MAP)
+# context: a soldier's card as it is today (health bar + name)
+s.rect(mx + 30, my + 40, 110, 32, "#000", op=0.6, rx=2); s.rect(mx + 30, my + 40, 110, 32, "none", stroke=FRIEND, rx=2)
+s.rect(mx + 35, my + 45, 100, 5, "#3A3A3A"); s.rect(mx + 35, my + 45, 80, 5, GREEN)
+s.text(mx + 36, my + 66, "Pvt Novak", "#FFF", 12.5, weight="bold")
+s.raw(f"<circle cx='{mx + 85}' cy='{my + 95}' r='5' fill='{FRIEND}' stroke='#000'/>")
+s.note(mx + 30, my + 130, ["context, unchanged:", "a soldier's card -", "health bar + name"], C.SUB)
+states = [
+    ("healthy, defending", "F", "2 Plt", 0.97, 0.9, [("29/30", GREEN), ("· Defend", C.TEAL), ("· Fortified", C.INFO)], None),
+    ("losses, suppressed", "F", "2 Plt", 26 / 30, 0.62, [("26/30", AMBER), ("· Attack", C.TEAL)], (FA.WARNING, AMBER, "supp 35%")),
+    ("breaking, low ammo", "H", "3 Coy", 0.55, 0.18, [("55/100", RED)], (FA.SKULL, RED, "BROKEN 12")),
+    ("marching, quiet", "F", "A Coy", 1.0, 1.0, [], None),
+    ("splitting (ST-5)", "F", "2 Plt", 26 / 30, 0.62, [("26/30", AMBER)], (SPLIT, C.BLUE, "split 2/3")),
+]
+x = mx + 200
+for title, side, name, f, a, info, alarm in states:
+    s.text(x, my + 28, title, C.SUB, 11.5)
+    card(x, my + 40, side, name, f, a, info, alarm)
+    fx_ = x + CARD_W / 2
+    s.rect(fx_ - 14, my + 120, 28, 18, FRIEND_FILL if side == "F" else HOSTILE_FILL, stroke="#000", sw=1.2)
+    x += CARD_W + 50
+s.callout(mx + 200 + 4, my + 49, mx + 200, my + 190, ["line 1 - STRENGTH bar (row 10, where a man's health is): present / authorized in the SITREP colour",
+                                                     "(green >= 90 %, amber >= 70 %, red); ticks at 70 / 90 %; a thin AMMO bar under it (green >= 50 %, amber >= 25 %, red)"])
+s.callout(mx + 200 + 8, my + 71, mx + 200, my + 230, ["line 2 - the NAME (row 20, unchanged) + ~ in violet = not physical"])
+s.callout(mx + 200 + 8, my + 90, mx + 200, my + 258, ["line 3 - ONE info line (row 64): present/authorized in the strength colour · what it does (teal) · the prepared level",
+                                                     "(blue) or ONE alarm, the worst first: BROKEN n (red, skull) > supp nn% (amber) > out of ammo > split n/m; nothing when quiet"])
+s.note(mx + 200, my + 300, ["Same card machinery and Labels layer as every entity (one card per unit) - in 3-D too, the only place a stochastic unit shows there. Hidden behind terrain like every card."], C.SUB)
 
 s.save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"))
 if len(sys.argv) > 1: render(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"), sys.argv[1], W, H)
