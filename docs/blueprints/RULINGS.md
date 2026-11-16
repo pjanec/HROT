@@ -945,6 +945,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2125** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B1): the MineStrike drill HOLDS IN PLACE (no per-mover breadcrumbs exist to back out on); the unit goes on when its side marks the field or after 120 s; MineStrike is the one reaction that declares LeavesRoute. 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
 | ⭐ **R-2126** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B3): the clearer's tool switch is one seam (a stand-in until terrain names it); the brain raises no LaneCleared; a squad crosses a lane in single file along its axis from an assembly point 10 m short; the breach's roles come from the roster (vehicle clears, last foot unit crosses, the rest support). 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
 | ⭐ **R-2127** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4624 MS-B4): a minefield ahead is its OWN SOP row, never a crossing drill; the squad halts in place (every man holds) and asks for engineers ONCE at the field's near side (a new `RequestKind.Engineers`, appended); it goes on when the area is gone or after 900 s; no HQ answers the request yet (CE-2442). 📄 `docs/designs/minefields/DESIGN_Minefields.md` §11 |
+| ⭐ **R-2128** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-4622 K-1): the vehicle impact's "one shared swept test" is a shared PRIMITIVE beside the flyer's (`SweptFrontMeetsCircle` next to `SegmentInCircle`); harm in bands by closing speed × √(mass / 1500), ±15 % seeded; no harm under 2 m/s (boarding exempt by it); animals struck like people; no knock-back. 📄 `docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md` §5 |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1312,6 +1313,7 @@ R-2124 | docs/designs/group-maneuvers/DESIGN_Assault_Under_Fire.md | BLIND FIRE 
 R-2125 | docs/designs/minefields/DESIGN_Minefields.md | NO back-out along breadcrumbs
 R-2126 | docs/designs/minefields/DESIGN_Minefields.md | the equipment switch is a STAND-IN
 R-2127 | docs/designs/minefields/DESIGN_Minefields.md | `DangerAreaAhead` is FALSE for a minefield (never crossed as a drill)
+R-2128 | docs/blueprints/batches/STATUS_Behaviors_Checkpoint.md | the "ONE shared swept test" is a shared PRIMITIVE beside the flyer's
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians
