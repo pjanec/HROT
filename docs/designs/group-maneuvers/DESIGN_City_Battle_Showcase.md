@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy; its contact hand-off (C-10) leads into §11's convoy-under-contact plays
   - DESIGN_Assault_Under_Fire.md — the modern assault: support by fire, the shift, vehicles at covered stand-off, drones in the attack (revises §6a's tempo smoke and base-of-fire stand-off)
   - DESIGN_Command_Chain_Battalion_Test.md — the chain's PROOF at ~60 real men (rung ③/④ of §12, replacing CE-7034's 250-man slice): a battalion slice with fires and the reserve, three variants, causal live checks
   - ../../DESIGN_Vehicle_Breaching.md — blasts will breach garden walls and fences (more gaps, more movement); a player-possessed tank may break weak barriers — the AI's never do; ⭐ §7.6 (R-4242) extends §6c's `ClearObstacle` with a world POINT (a wall cut or a lone tree felled; the Muscle decides)

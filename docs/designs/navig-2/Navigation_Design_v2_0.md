@@ -7,6 +7,7 @@ stale-below: §3.1's ASCII flow and §7.1's pseudo-code key a MoveTo on ActiveAc
   the as-built keys it on NavigationIntent.Mode == PathToPoint + IntentId (the Brain's channel never leaves the Brain).
 known-rot: the top banner supersedes any Y-up wording (CE-3011).
 related-designs:
+  - ../vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy; its mode 2 offsets §5.2a's road points to the outer lane (C-7)
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it: §Concepts 16 documents every bit of the path request's layer mask (incl. the mover's side, bits 14–18, R-5047)
   - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the crater (a GEOMETRY change under R-218) and its navmesh areas priced per mover; one road-blockage step that cuts road-graph segments
   - ../../DESIGN_Terrain_Import_UTM.md — the importer pre-fills NavTileCache per inset (offline bake)

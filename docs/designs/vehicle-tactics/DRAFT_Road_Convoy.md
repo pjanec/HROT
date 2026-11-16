@@ -1,5 +1,6 @@
 <!--STATUS
-state: LIVE — a DRAFT (the direction agreed with the user; not a design: no UML, no decisions ruled, no ids)
+state: SUPERSEDED
+superseded-by: DESIGN_Road_Convoy.md (2026-11-16, the convoy lane — every row of this draft is carried there, measured)
 updated: 2026-11-16
 current-answer: the whole file
 stale-below: nothing
