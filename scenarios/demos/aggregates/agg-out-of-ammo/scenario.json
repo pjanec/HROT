@@ -1,0 +1,422 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a BLUE stochastic squad (8 riflemen, 12 rounds each - an authored slot table, so the spawn fill leaves it) under a physical 'Blue Company' fires at a RED stochastic platoon 300 m north (30 men, Fortified, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its ammunition Black (StaffComposerSystem.AmmoOf over UnitAmmunition.TryShare). Check: scripts/scenario-regression.sh agg-out-of-ammo"
+  },
+  "entities": {
+    "a9000013-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "CompanyAttack",
+        "Params": {
+          "Objective1": [
+            1000,
+            500,
+            0
+          ],
+          "Objective2": [
+            1000,
+            560,
+            0
+          ],
+          "DeadlineSeconds": 300.0,
+          "Radius": 40
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000013-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic",
+        "Echelon": 0
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000013-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "UnitSlotTable": {
+        "Count": 8,
+        "Chunk": 0,
+        "Slots": [
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 1
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 2
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 3
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 4
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 5
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 6
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 7
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 12,
+            "Role": "Rifleman",
+            "CompositeSlot": 8
+          }
+        ]
+      },
+      "UnitHoldings": {
+        "Count": 0,
+        "Items": []
+      }
+    },
+    "a9000013-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Unarmed Platoon",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic",
+        "Echelon": 1,
+        "Prepared": "Fortified"
+      },
+      "UnitSlotTable": {
+        "Count": 30,
+        "Chunk": 0,
+        "Slots": [
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 1
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 2
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 3
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 4
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 5
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 6
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 7
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 8
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 9
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 10
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 11
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 12
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 13
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 14
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 15
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 16
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 17
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 18
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 19
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 20
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 21
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 22
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 23
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 24
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 25
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 26
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 27
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 28
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 29
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 0,
+            "Role": "Rifleman",
+            "CompositeSlot": 30
+          }
+        ]
+      },
+      "UnitHoldings": {
+        "Count": 0,
+        "Items": []
+      }
+    },
+    "a9000013-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          9000,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Spare Squad",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    }
+  }
+}

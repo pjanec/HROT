@@ -816,16 +816,16 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | ST-2 | `agg-detect-by-range` ✅ BUILT | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
 | ST-2 | `agg-sees-physical` 🔴 RED (F-10) | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
 | ST-2 | `agg-break-contact` ✅ BUILT | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
-| ST-3 | `agg-platoon-duel` | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
-| ST-3 | `agg-shelled-unit` | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
-| ST-3 | `agg-prepared-defence` | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
-| ST-3 | `agg-out-of-ammo` | a unit fires until its derived ammunition is spent, then stops firing and reports it |
-| ST-4 | `agg-battalion-fight` | a battalion against a battalion runs to an end; the census and every SITREP agree with the slot tables |
+| ST-3 | `agg-platoon-duel` ✅ BUILT (band row waits for CE-8009) | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
+| ST-3 | `agg-shelled-unit` ✅ BUILT | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
+| ST-3 | `agg-prepared-defence` ✅ BUILT | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
+| ST-3 | `agg-out-of-ammo` ✅ BUILT | a unit fires until its derived ammunition is spent, then stops firing and reports it |
+| ST-4 | `agg-battalion-fight` ✅ BUILT | a battalion against a battalion runs to an end; the census and every SITREP agree with the slot tables |
 | ST-5 | `agg-split-on-contact` | a physical patrol closes in: the unit de-aggregates into soldiers and vehicles with stable `<unit>/<slot>` keys, in sensible positions |
 | ST-5 | `agg-squad-holds-house` | a squad holding a house splits into men at its window and door posts (§16) |
 | ST-5 | `agg-merge-back` | after contact ends the men merge back; the slot table keeps every loss and every identity |
 | ST-5 | `agg-forced-handover` | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
-| mixed | `agg-mixed-company-attack` | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
+| mixed | `agg-mixed-company-attack` ✅ BUILT | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
 
 
 #### 23.6a As built — agg-behaviors, the nine of ST-0 … ST-2 *(`2026-11-16`; each in `scenarios/demos/aggregates/<name>/`, written by [`scripts/gen-agg-scenarios.py`](../../../scripts/gen-agg-scenarios.py))*
@@ -842,9 +842,28 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | `agg-sees-physical` | basic-desert | 🔴 1 / 3 — filed as **F-10** (N-3 is not built: a stochastic observer never targets a physical unit) | the third row (*the physical squad never contacts the stochastic unit*) holds; the other two turn green when agg-backend builds N-3 |
 | `agg-break-contact` | berlin | ✅ 6 / 6 (+ golden) — the SOP orders BreakContact at 1.25 s, the destination is 300 m south of where it stood (away from the contact), it arrives at 259 s | the squad stands with no order; the Red squad defends 200 m north and fires |
 
+#### 23.6b As built — agg-behaviors, the six of ST-3 / ST-4 / mixed *(`2026-11-16`, R-8321 … R-8325; same generator, same folder)*
+
+| scenario | terrain | result (`scripts/scenario-regression.sh <name>`, editor tier) | where it departs from the Judge line above, and why |
+|---|---|---|---|
+| `agg-platoon-duel` | basic-desert | ✅ 6 / 6 (+ golden, SAME on a fresh run) — Blue platoon (30) vs Red squad (10 slots) 300 m apart, both defending: a Blue slot down at 1.25 s, eight Red slots down by 3.25 s, Red suppressed > 0.5 and four slots at the break level, Blue never breaks | ⛔ **"losses inside the C-8 band" is NOT judged**: the band needs the physical runs (agg-backend CE-8009, not built) and no band is invented (R-8321); losses on both sides, suppression and who breaks first are |
+| `agg-shelled-unit` | indirect-fire-range | ✅ 5 / 5 (+ golden) — a physical battery (three M109, `ArtilleryUnitStrike`, 6 rounds, as `ua-indirect-fire`) on a stochastic platoon: bursts on the aim point, all slots of the platoon in the open down at 33.75 s, suppressed; a second platoon 600 m away is NEVER hit (no slot below 24.9, never suppressed) | "never hit by a round that missed its footprint" = the clear platoon's slots stay whole (health 25) and `SuppressedShare` stays 0, the whole run |
+| `agg-prepared-defence` | berlin | ✅ 3 / 3 (+ golden) — two identical fights 7 km apart, a Blue COMPANY (90) against a 30-man defender: Prepared loses 6 men by 90 s, Fortified 5 (never 6) | ⛔ the levels are **authored** (`AggregateUnit.Prepared`), not earned: StochasticUnitDefend climbs Hasty → Prepared → Fortified by sim time (600 s / 3600 s, R-8306), a 3700 s run; the cover factor is read from the component (0.45 / 0.25); the play's ladder is its own rail's (R-8322). The margin is one man — deterministic, but thin |
+| `agg-out-of-ammo` | berlin | ✅ 5 / 5 (+ golden) — first round at 1.25 s, every slot empty at 6.25 s, no firing line at the end, SITREP ammunition Red at 3.25 s and **Black at 18.25 s** | an AUTHORED slot table (8 riflemen, 12 rounds) so the load is spent in seconds; the Red platoon is authored with 0 rounds (cannot shoot back); a spare filled squad far away teaches the engine the riflemen's personal weapon; the company attacks (asks the SITREPs) (R-8323) |
+| `agg-battalion-fight` | berlin | ✅ 20 / 20 (+ golden, SAME) — Blue HQ `CompanyAttack` over three 90-man stochastic companies, Red HQ `CompanyDefend` over three, 600 m apart. Census: 270 = 3 x 90 slot-table men for each HQ (Achieved at 1.25-1.5 s); Red's three run `StochasticUnitDefend`, the assault company `StochasticUnitAttack`; the assault company is destroyed within 7 s of contact (~335 s), its HQ hears TaskFailed and reads it Black, the rest read Green with no slot down; no physical play on any of the six | ⛔ the gap is 600 m, not ~2 km: at 1.35 m/s 2 km is 19 min of sim per run, 17 min of wall (measured once, same result). **The end is "the assault company is lost"**, not ObjectiveSecure and not a side broken: the base-of-fire company only Sets and the reserve never engages (finding F-15). Companies are ordered by the HQs' plays (the HQ must ask the SITREPs: nothing else does) (R-8324) |
+| `agg-mixed-company-attack` | demo-city | ✅ 9 / 9 (no golden: 26 entities, physical squads) — `CompanyAttack` over a STOCHASTIC platoon + two PHYSICAL ones: the stochastic runs `StochasticUnitAttack` (from 59.5 s), the physicals `PlatoonSupportByFire` and `PlatoonDefend` (10.25 s), never crossed; the stochastic platoon reaches Objective 1 (180.5 s) and its HoldArea (25 men: only its 30 slot-table men can meet it) reads Achieved (190.5 s) | the company gives the assault to the FIRST platoon on its roster, the base of fire to the second and holds the third; the stochastic platoon is created first, so **`PlatoonAttack` is not exercised** here (R-8325). No enemy: F-10 (a stochastic observer cannot target a physical unit) and ST-5 (a physical weapon cannot hit a stochastic one) would make a fight judge the engine, not the routing |
+
+| # | lane decision (for the user's review) | would change it |
+|---|---|---|
+| **R-8321** | the duel encodes only what is checkable without CE-8009: losses on both sides, suppression, the weaker side breaking first; the C-8 band row waits | CE-8009 built: add the band from its runs |
+| **R-8322** | prepared-defence authors the levels (no play): a play-driven version needs a 3700 s run | a faster sim-time ladder, or a scenario clock verb |
+| **R-8323** | out-of-ammo authors the slot table (8 x 12 rounds) and an unarmed target; a TKB basic load is not spent in a scenario's time | a per-unit ammunition scale in the spawn fill |
+| **R-8324** | the battalion is two HQs with plays over three stochastic companies each, 600 m apart, 450 s; the end judged is "the assault company is lost" | the base-of-fire / reserve companies engaging (F-15) |
+| **R-8325** | the mixed scenario has no enemy and a stochastic platoon first on the roster | ST-5 + N-3 built: add the fight |
+
 ⭐ **Grammar added (R-8320, [`DESIGN_Scenario_Regression.md`](../../DESIGN_Scenario_Regression.md) §3):** a `field` cue's path may carry ONE `*` part (`UnitSlotTable.Slots.*.Health`) with `"elements": n` (at least n of the array's elements satisfy the comparison) and `"where": {…}` filtering the elements first — a slot table's unused slots are all zeros. Rail `ScenarioChecksTests.R8320_…` (red-proved twice: `elements` ignored, `where` ignored).
 
-⏳ The other ten (ST-3 … ST-5, mixed) wait for their slices.
+⏳ The other four (ST-5: `agg-split-on-contact`, `agg-squad-holds-house`, `agg-merge-back`, `agg-forced-handover`) wait for their slice.
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

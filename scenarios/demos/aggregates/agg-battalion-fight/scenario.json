@@ -1,0 +1,332 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a BLUE battalion HQ (a physical unit, no body: CompanyAttack on (700,500)) over THREE stochastic companies (90 men each, from the TKB composite) attacks a RED battalion HQ (CompanyDefend on (700,500), facing west) over three stochastic companies, the two lines 600 m apart. Judge: (1) every company is ordered by KIND - Red's three run the generic Defend, the assault company the generic Attack; no stochastic company is given a physical play; (2) the census agrees with the slot tables: a HoldArea objective round each HQ's three companies (300 m) needs 270 men = 3 x 90 slot-table men present, and reads Achieved; (3) each company's SITREP colour agrees with its slot table (the assault company wiped out reads Black at its HQ, the ones with no loss Green); (4) the fight runs to an end: the assault company is lost (PROGRESS TaskFailed at its HQ) and the others hold. Fail: a physical play on a stochastic unit, a census that does not equal the slot tables, a colour that disagrees with them, or no end. Check: scripts/scenario-regression.sh agg-battalion-fight"
+  },
+  "entities": {
+    "a9000014-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          40,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Battalion HQ",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "CompanyAttack",
+        "Params": {
+          "Objective1": [
+            700,
+            500,
+            0
+          ],
+          "Objective2": [
+            800,
+            500,
+            0
+          ],
+          "DeadlineSeconds": 900.0,
+          "Radius": 60
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          760,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Red Battalion HQ",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "CompanyDefend",
+        "Params": {
+          "Position": [
+            700,
+            500,
+            0
+          ],
+          "Threat": [
+            100,
+            500,
+            0
+          ],
+          "Frontage": 300.0,
+          "Depth": 150.0
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          700,
+          350,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Red Company 1",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          700,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Red Company 2",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          700,
+          650,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Red Company 3",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          100,
+          350,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company 1",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          100,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company 2",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          100,
+          650,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company 3",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000014-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000009": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Blue Battalion Census",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": {
+          "common": {
+            "title": "Blue census 270",
+            "subject": "a9000014-0000-4000-8000-000000000001"
+          },
+          "area": {
+            "circle": {
+              "center": [
+                100,
+                500,
+                0
+              ],
+              "radius": 300
+            }
+          },
+          "minMen": 270,
+          "maxEnemy": 0,
+          "holdSeconds": 1
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000014-0000-4000-8000-000000000010": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Red Battalion Census",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": {
+          "common": {
+            "title": "Red census 270",
+            "subject": "a9000014-0000-4000-8000-000000000002"
+          },
+          "area": {
+            "circle": {
+              "center": [
+                700,
+                500,
+                0
+              ],
+              "radius": 300
+            }
+          },
+          "minMen": 270,
+          "maxEnemy": 0,
+          "holdSeconds": 1
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

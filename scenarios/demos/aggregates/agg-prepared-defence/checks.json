@@ -1,0 +1,57 @@
+{
+  "$doc": "\u00a723.6 ST-3. The levels are authored: StochasticUnitDefend stamps Hasty at occupation and climbs by sim time (600 s / 3600 s), so a play-driven version would need a 3700 s run; the combat reads AggregateUnit.Prepared directly (StochasticCombat.CoverFactor: 0.45 Prepared, 0.25 Fortified). The attackers are COMPANIES (90 men) against 30-man defenders so the losses are not one or two slots. Measured at 90 s: the Prepared defender has 6 slots down (7 damaged), the Fortified one 5 - the order the rows pin; both sides' fight is over by then.",
+  "runFor": 90,
+  "golden": {
+    "every": 15
+  },
+  "expect": [
+    {
+      "name": "the Fortified defender is fought: a slot is down",
+      "on": "field",
+      "who": "Red Fortified Defender",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    },
+    {
+      "name": "the Prepared defender loses at least 6 men",
+      "on": "field",
+      "who": "Red Prepared Defender",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 6
+    },
+    {
+      "name": "the Fortified defender never loses 6 men (it loses fewer than the Prepared one)",
+      "never": {
+        "on": "field",
+        "who": "Red Fortified Defender",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 6
+      }
+    }
+  ]
+}

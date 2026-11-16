@@ -305,8 +305,206 @@ def agg_break_contact():
     write(s, "berlin", desc, checks)
 
 
+
+# ───────────────────────────────────────────── ST-3 ─────────────────────────────────────────────
+def slot_table(n, ammo, role="Rifleman"):
+    """An AUTHORED slot table (so the spawn fill leaves it alone): n whole riflemen with `ammo` rounds each."""
+    return {"Count": n, "Chunk": 0, "Slots": [{"Health": 25.0, "Stress": 0.0, "Ammo": ammo, "Role": role, "CompositeSlot": k + 1} for k in range(n)]}
+
+
+BROKEN = 0.75      # AggregateUnits.BrokenAt = TemperamentOf.TrainedNerve: a standing slot with Stress >= this has broken (fled / collapsed)
+LIVE = {"CompositeSlot": [">", 0]}
+
+
+def agg_platoon_duel():
+    s = Scn("agg-platoon-duel", "a9000010")
+    s.unit("Blue Stochastic Platoon", BLUE, (300, 200), PLATOON, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, 200)), "SearchRadius": 30}))
+    s.unit("Red Stochastic Squad", RED, (300, 500), SQUAD, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, 500)), "SearchRadius": 30}))
+    desc = ("What: on basic-desert a BLUE stochastic platoon (30 men) and a RED stochastic squad (4 men - the weaker side) face each other 300 m apart, both defending; they fire on each other "
+            "(agg-backend's phase A). Judge: (1) losses on BOTH sides (a slot of each is down); (2) suppression rises on both (AggregateUnit.SuppressedShare > 0); (3) the weaker side breaks first - a Red slot's "
+            "stress reaches the break level before any Blue slot's does. NOT judged: 'losses inside the C-8 band' - the band needs the physical runs (agg-backend CE-8009, not built), so that row waits; "
+            "no band is invented. Check: scripts/scenario-regression.sh agg-platoon-duel")
+    checks = {"$doc": "§23.6 ST-3. The C-8 band row (the stochastic loss rate vs the physical Monte Carlo) waits for CE-8009; what is checkable without it is encoded: losses on both sides, suppression, and who breaks first. "
+                      "Slot health is 25 when whole (UnitSplits.SlotFullHealth); 'down' = Health < 0.5 (UnitSlotTable.DownBelow); 'broken' = Stress >= 0.75 (AggregateUnits.BrokenAt). A Red squad is 10 slots; "
+                      "measured: by 3.25 s eight of its slots are down and four have broken, while the platoon loses one or two slots and never breaks.",
+              "runFor": 60, "golden": {"every": 10}, "expect": [
+        field("the fight reaches the Blue platoon (a slot is down)", "Blue Stochastic Platoon", "UnitSlotTable.Slots.*.Health", "<", 0.5, before=30, where=LIVE),
+        field("the fight reaches the Red squad (most of it is down)", "Red Stochastic Squad", "UnitSlotTable.Slots.*.Health", "<", 0.5, before=30, where=LIVE, elements=8),
+        field("Blue is suppressed", "Blue Stochastic Platoon", "AggregateUnit.SuppressedShare", ">", 0, before=30),
+        field("Red is suppressed hard", "Red Stochastic Squad", "AggregateUnit.SuppressedShare", ">", 0.5, before=30),
+        field("the weaker side (Red) breaks: four slots at the break level", "Red Stochastic Squad", "UnitSlotTable.Slots.*.Stress", ">=", BROKEN, before=30, where=LIVE, elements=4),
+        never("the stronger side (Blue) has not broken when Red has", {"on": "field", "who": "Blue Stochastic Platoon", "path": "UnitSlotTable.Slots.*.Stress", "op": ">=", "value": BROKEN, "where": LIVE}),
+    ]}
+    write(s, "basic-desert", desc, checks)
+
+
+def agg_shelled_unit():
+    s = Scn("agg-shelled-unit", "a9000011")
+    bat = s.unit("Blue Battery", BLUE, (-3800, 0), ARTILLERY_BATTERY, behavior=("ArtilleryUnitStrike", {"Location": pt((340, 300)), "Control": "TimeOnTarget", "Sheaf": "Parallel", "Rounds": 6}))
+    for i in range(3):
+        s.unit(f"M109 {i + 1}", BLUE, (-3500, -40 + 40 * i), 107, bat, designation="SquadLeader")
+    s.unit("Red Platoon In The Open", RED, (340, 300), PLATOON, aggregate={})
+    s.unit("Red Platoon Clear", RED, (340, 900), PLATOON, aggregate={})   # 600 m from the aim point: no round of the sheaf can reach it
+    desc = ("What: on indirect-fire-range a physical 'Blue Battery' (three M109s, 3.8 km back) is ordered ArtilleryUnitStrike, 6 rounds on (340,300), TimeOnTarget. A STOCHASTIC 'Red Platoon In The Open' "
+            "(30 men) stands on the aim point; a second stochastic 'Red Platoon Clear' stands 600 m north of it, clear of the sheaf. Judge: (1) the guns fire and bursts land on the aim point; (2) the area sink "
+            "hits the platoon in the open - a slot is down - and suppresses it; (3) the platoon 600 m away is never hit: not one slot of it loses health, it is never suppressed. Fail: no hit on the target, or a hit "
+            "(health, suppression) on the platoon the rounds missed. Check: scripts/scenario-regression.sh agg-shelled-unit")
+    checks = {"$doc": "§23.6 ST-3. The mission is the ArtilleryUnitStrike of ua-indirect-fire (a physical battery fires on a point; no observer needed). 'Never hit by a round that missed its footprint' = the clear platoon's slots all "
+                      "stay whole (Health 25, none below 24.9) and its SuppressedShare stays 0 for the whole run.",
+              "runFor": 150, "golden": {"every": 25}, "expect": [
+        {"name": "the guns fire bursts on the aim point", "on": "blast", "by": "*M109", "n": 3, "where": {"burst.0": [">", 240], "burst.1": ["<", 400]}},
+        field("the platoon in the open takes a hit (a slot is down)", "Red Platoon In The Open", "UnitSlotTable.Slots.*.Health", "<", 0.5, before=145, where=LIVE),
+        field("it is suppressed", "Red Platoon In The Open", "AggregateUnit.SuppressedShare", ">", 0, before=145),
+        never("the platoon the rounds missed loses no health", {"on": "field", "who": "Red Platoon Clear", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 24.9, "where": LIVE}),
+        never("the platoon the rounds missed is never suppressed", {"on": "field", "who": "Red Platoon Clear", "path": "AggregateUnit.SuppressedShare", "op": ">", "value": 0}),
+    ]}
+    write(s, "indirect-fire-range", desc, checks)
+
+
+def agg_prepared_defence():
+    s = Scn("agg-prepared-defence", "a9000012")
+    rows = []
+    for tag, level, y in (("Prepared", "Prepared", 200), ("Fortified", "Fortified", 7200)):
+        s.unit(f"Red {tag} Defender", RED, (1000, y), PLATOON, aggregate={"Prepared": level})
+        s.unit(f"Blue Attacker {tag}", BLUE, (1000, y - 350), COMPANY, aggregate={}, behavior=("StochasticUnitAttack", {"Position": pt((1000, y))}))
+    desc = ("What: on berlin two identical fights 7 km apart (out of each other's sight): a BLUE stochastic platoon (30 men) attacks a RED stochastic platoon (30 men) 500 m north of it. "
+            "One Red defender has been in position long enough to be PREPARED (>= 600 s), the other FORTIFIED (>= 3600 s) - authored as the level they would have reached (no play: the cover factor is read from "
+            "AggregateUnit.Prepared, 0.45 / 0.25; the Defend play's own time-in-position ladder is its rail's, R-8306). Judge: the Fortified defender loses fewer men than the Prepared one "
+            "(its down-slot count stays below the Prepared one's). Check: scripts/scenario-regression.sh agg-prepared-defence")
+    checks = {"$doc": "§23.6 ST-3. The levels are authored: StochasticUnitDefend stamps Hasty at occupation and climbs by sim time (600 s / 3600 s), so a play-driven version would need a 3700 s run; the combat reads "
+                      "AggregateUnit.Prepared directly (StochasticCombat.CoverFactor: 0.45 Prepared, 0.25 Fortified). The attackers are COMPANIES (90 men) against 30-man defenders so the losses are not one or two slots. "
+                      "Measured at 90 s: the Prepared defender has 6 slots down (7 damaged), the Fortified one 5 - the order the rows pin; both sides' fight is over by then.",
+              "runFor": 90, "golden": {"every": 15}, "expect": [
+        field("the Fortified defender is fought: a slot is down", "Red Fortified Defender", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE),
+        field("the Prepared defender loses at least 6 men", "Red Prepared Defender", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=6),
+        never("the Fortified defender never loses 6 men (it loses fewer than the Prepared one)", {"on": "field", "who": "Red Fortified Defender", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 6}),
+    ]}
+    write(s, "berlin", desc, checks)
+
+
+def agg_out_of_ammo():
+    s = Scn("agg-out-of-ammo", "a9000013")
+    co = s.unit("Blue Company", BLUE, (1000, 100), COMPANY, behavior=("CompanyAttack", {"Objective1": pt((1000, 500)), "Objective2": pt((1000, 560)), "DeadlineSeconds": 300.0, "Radius": 40}))
+    s.unit("Blue Stochastic Squad", BLUE, (1000, 200), SQUAD, co, aggregate={"Echelon": 0}, extra={"UnitSlotTable": slot_table(8, 12), "UnitHoldings": {"Count": 0, "Items": []}})
+    s.unit("Red Unarmed Platoon", RED, (1000, 500), PLATOON, aggregate={"Echelon": 1, "Prepared": "Fortified"}, extra={"UnitSlotTable": slot_table(30, 0), "UnitHoldings": {"Count": 0, "Items": []}})
+    s.unit("Red Spare Squad", RED, (1000, 9000), SQUAD, aggregate={})   # a FILLED unit: the fill is what teaches the engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers)
+    desc = ("What: on berlin a BLUE stochastic squad (8 riflemen, 12 rounds each - an authored slot table, so the spawn fill leaves it) under a physical 'Blue Company' fires at a RED stochastic platoon 300 m "
+            "north (30 men, Fortified, with NO ammunition: it cannot fire back). Judge: the squad fires until its rounds are spent, then stops (no slot holds a round, it fires no more), and the company's SITREP shows its "
+            "ammunition Black (StaffComposerSystem.AmmoOf over UnitAmmunition.TryShare). Check: scripts/scenario-regression.sh agg-out-of-ammo")
+    checks = {"$doc": "§23.6 ST-3. The squad's slot table is AUTHORED (8 riflemen, Ammo 12: 96 rounds) because a TKB basic load lasts too long to spend in a scenario; a spare, filled stochastic squad far away is what teaches the "
+                      "engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers is filled by the first spawn fill). The Red platoon is authored with 0 rounds, so it cannot fire back, and the company attacks it (CompanyAttack asks "
+                      "the squad for SITREPs). Measured: the first round goes at 1.25 s, every slot is empty at 6.25 s, the SITREP ammunition reads Red at 3.25 s and Black at 18.25 s (the report's delay).",
+              "runFor": 60, "golden": {"every": 10}, "expect": [
+        field("it fires: rounds leave the slots", "Blue Stochastic Squad", "UnitSlotTable.Slots.*.Ammo", "<", 12, before=5, where=LIVE),
+        field("it fires until the rounds are spent: every slot is empty", "Blue Stochastic Squad", "UnitSlotTable.Slots.*.Ammo", "==", 0, before=30, where=LIVE, elements=8),
+        field("and then it fires no more: no firing line at the end", "Blue Stochastic Squad", "FireAllocation.Count", "==", 0, atEnd=True),
+        field("the SITREP ammunition reads Black at its commander", "Blue Company", "CommandPicture.Subordinates.0.Ammo", "==", "Black", before=40),
+        never("the squad is not destroyed (the Red platoon has no ammunition)", {"on": "field", "who": "Blue Stochastic Squad", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE}),
+    ]}
+    write(s, "berlin", desc, checks)
+
+
+# ───────────────────────────────────────────── ST-4 ─────────────────────────────────────────────
+
+GAP = 600            # metres between the two lines
+YS = (350, 500, 650)
+
+
+def agg_battalion_fight(rows=None):
+    s = Scn("agg-battalion-fight", "a9000014")
+    hq_b = s.unit("Blue Battalion HQ", BLUE, (40, 500), COMPANY, behavior=("CompanyAttack", {"Objective1": pt((100 + GAP, 500)), "Objective2": pt((100 + GAP + 100, 500)), "DeadlineSeconds": 900.0, "Radius": 60}))
+    hq_r = s.unit("Red Battalion HQ", RED, (100 + GAP + 60, 500), COMPANY, behavior=("CompanyDefend", {"Position": pt((100 + GAP, 500)), "Threat": pt((100, 500)), "Frontage": 300.0, "Depth": 150.0}))
+    for i, y in enumerate(YS):
+        s.unit(f"Red Company {i + 1}", RED, (100 + GAP, y), COMPANY, hq_r, aggregate={})
+    for i, y in enumerate(YS):
+        s.unit(f"Blue Company {i + 1}", BLUE, (100, y), COMPANY, hq_b, aggregate={})
+    for side, force, hq, x in (("Blue", BLUE, hq_b, 100), ("Red", RED, hq_r, 100 + GAP)):
+        for k, minmen in (CENSUS_PROBES if rows == "probe" else [("270", 270)]):
+            s.objective(f"{side} Battalion Census" if rows != "probe" else f"{side} census {k}", force, "HoldArea", {"common": {"title": f"{side} census {k}", "subject": hq},
+                        "area": {"circle": {"center": pt((x, 500)), "radius": 300}}, "minMen": minmen, "maxEnemy": 0, "holdSeconds": 1})
+    if rows == "probe":
+        probe = []
+        for side, hq in (("Blue", "Blue Battalion HQ"), ("Red", "Red Battalion HQ")):
+            for i in range(3):
+                co = f"{side} Company {i + 1}"
+                for n in (5, 15, 30, 45, 60, 75, 85, 90):
+                    probe.append(field(f"{co} dead x{n}", co, "UnitSlotTable.Slots.*.Health", "<", 0.5, where=LIVE, elements=n))
+                for n in (10, 30, 60):
+                    probe.append(field(f"{co} broken x{n}", co, "UnitSlotTable.Slots.*.Stress", ">=", BROKEN, where=LIVE, elements=n))
+                for c in ("Green", "Amber", "Red", "Black", "ColourUnknown"):
+                    probe.append(field(f"{hq} sees {co} {c}", hq, f"CommandPicture.Subordinates.{i}.Strength", "==", c, atEnd=True))
+                    probe.append(field(f"{hq} sees {co} {c} ever", hq, f"CommandPicture.Subordinates.{i}.Strength", "==", c))
+                for pg in ("Set", "PhaseLine", "ObjectiveSecure", "TaskFailed"):
+                    probe.append(field(f"{hq} progress of {co} {pg}", hq, f"CommandPicture.Subordinates.{i}.Progress", "==", pg))
+        write(s, "berlin", "probe", {"runFor": 1000, "golden": False, "expect": probe})
+        return
+    desc = ("What: on berlin a BLUE battalion HQ (a physical unit, no body: CompanyAttack on (700,500)) over THREE stochastic companies (90 men each, from the TKB composite) attacks a RED battalion HQ (CompanyDefend on (700,500), facing west) "
+            "over three stochastic companies, the two lines 600 m apart. Judge: (1) every company is ordered by KIND - Red's three run the generic Defend, the assault company the generic Attack; no stochastic company is given a physical play; "
+            "(2) the census agrees with the slot tables: a HoldArea objective round each HQ's three companies (300 m) needs 270 men = 3 x 90 slot-table men present, and reads Achieved; (3) each company's SITREP colour agrees with its slot table "
+            "(the assault company wiped out reads Black at its HQ, the ones with no loss Green); (4) the fight runs to an end: the assault company is lost (PROGRESS TaskFailed at its HQ) and the others hold. "
+            "Fail: a physical play on a stochastic unit, a census that does not equal the slot tables, a colour that disagrees with them, or no end. Check: scripts/scenario-regression.sh agg-battalion-fight")
+    expect = [
+        task("the Blue HQ runs CompanyAttack", "Blue Battalion HQ", "CompanyAttack", before=10),
+        task("the Red HQ runs CompanyDefend", "Red Battalion HQ", "CompanyDefend", before=10),
+        task("the assault company is ordered by KIND: the generic Attack play", "Blue Company 2", "StochasticUnitAttack", before=10),
+        field("the census: the Blue HQ's three companies hold 270 slot-table men in the area", "Blue Battalion Census", "ObjectiveStatus.State", "==", "Achieved", before=20),
+        field("the census: the Red HQ's three companies hold 270 slot-table men in the area", "Red Battalion Census", "ObjectiveStatus.State", "==", "Achieved", before=20),
+        field("the HQ hears the assault company is lost (PROGRESS TaskFailed): the fight has run to an end", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Progress", "==", "TaskFailed", before=440),
+        field("the assault company's slot table agrees: every slot is down", "Blue Company 2", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=90),
+        field("... and its SITREP colour at the HQ is Black", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Black", atEnd=True),
+        field("the base-of-fire company has lost nobody: its SITREP colour is Green", "Blue Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
+        never("... and its slot table agrees (no slot down)", {"on": "field", "who": "Blue Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE}),
+        field("Red's SITREP colours: company 1 Green", "Red Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
+        field("Red's SITREP colours: company 3 Green", "Red Battalion HQ", "CommandPicture.Subordinates.2.Strength", "==", "Green", atEnd=True),
+        never("... and company 1's slot table agrees (fewer than 5 down)", {"on": "field", "who": "Red Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 5}),
+        never("... and company 3's slot table agrees (fewer than 5 down)", {"on": "field", "who": "Red Company 3", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 5}),
+    ] + [never(f"no physical play on {c}", {"on": "task", "who": c, "is": ["PlatoonAttack", "PlatoonDefend", "CompanyAttack", "CompanyDefend", "PlatoonSupportByFire"]})
+         for c in ("Blue Company 1", "Blue Company 2", "Blue Company 3", "Red Company 1", "Red Company 2", "Red Company 3")]
+    checks = {"$doc": "§23.6 ST-4. 'A side broken' is the measured end: the Blue assault company (Blue Company 2) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), "
+                      "its HQ hears TaskFailed and reads it Black; the base-of-fire company (1) Sets and the reserve (3) never engage. The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+              "runFor": 450, "golden": {"every": 50}, "expect": expect}
+    write(s, "berlin", desc, checks)
+
+
+CENSUS_PROBES = [("270", 270), ("271", 271)]
+
+
+def agg_mixed_company_attack():
+    s = Scn("agg-mixed-company-attack", "a9000015")
+    co = s.unit("Blue Company", BLUE, (240, 405), COMPANY)
+    s.unit("Blue Stochastic Platoon", BLUE, (260, 405), PLATOON, co, aggregate={})
+    s.physical_platoon("Blue 1st Platoon", BLUE, (240, 360), co)
+    s.physical_platoon("Blue 2nd Platoon", BLUE, (210, 450), co)
+    s.objective("Blue holds Objective 1", BLUE, "HoldArea", {
+        "common": {"title": "Blue holds Objective 1", "subject": co},
+        "area": {"circle": {"center": pt((425, 425)), "radius": 80}}, "minMen": 25, "maxEnemy": 0, "holdSeconds": 10})
+    s.trigger("Blue Company attacks", BLUE, {"common": {"title": "Blue Company attacks"}, "when": {"$type": "ScenarioTime", "fromSeconds": 10},
+              "do": [{"act": "Order", "args": {"target": co, "behavior": "CompanyAttack", "params": {"Objective1": pt((425, 425)), "Objective2": pt((645, 445)), "DeadlineSeconds": 300.0, "Radius": 35}}}]})
+    desc = ("What: on demo-city a physical 'Blue Company' (CompanyAttack at 10 s: Objective 1 (425,425), then Objective 2 (645,445)) with THREE platoons: one STOCHASTIC (30 men from the TKB composite, no bodies; first on the roster, so the "
+            "company gives it the assault) and two PHYSICAL (two squads of four men each: a base of fire and a reserve). No enemy: the routing is what is tested. Judge: every order reaches the right KIND of unit - the stochastic "
+            "platoon runs the generic StochasticUnitAttack, the physical ones their physical plays (PlatoonSupportByFire, PlatoonDefend), never the other way round - and the attack completes: the stochastic platoon reaches Objective 1, "
+            "and the HoldArea objective there (80 m, 25 men - only the stochastic platoon's 30 slot-table men can meet it) reads Achieved. Fail: a platoon given the wrong kind of play, or the objective never held. Check: scripts/scenario-regression.sh agg-mixed-company-attack")
+    checks = {"$doc": "§23.6 mixed. No enemy on purpose: a stochastic observer cannot yet target a physical unit (F-10) and a physical weapon cannot hit a stochastic unit before the handover (ST-5, C-7), so a fight would judge the engine, "
+                      "not the routing. CompanyAttack gives the assault to the first platoon on its roster, the base of fire to the second and holds the third: the stochastic platoon is created first so the physical play PlatoonAttack "
+                      "is not exercised here (the cc-battalion scenarios are its rails) - the physical platoons' plays are pinned as measured.",
+              "runFor": 230, "golden": False, "expect": [
+        task("the company runs CompanyAttack", "Blue Company", "CompanyAttack", before=20),
+        task("the stochastic platoon is ordered by KIND: the generic Attack play", "Blue Stochastic Platoon", "StochasticUnitAttack", before=100),
+        task("the 1st physical platoon is the base of fire (its own physical play)", "Blue 1st Platoon", "PlatoonSupportByFire", before=20),
+        task("the 2nd physical platoon holds (its own physical play)", "Blue 2nd Platoon", "PlatoonDefend", before=20),
+        never("the stochastic platoon is never given a physical play", {"on": "task", "who": "Blue Stochastic Platoon", "is": ["PlatoonAttack", "PlatoonDefend", "PlatoonSupportByFire", "CompanyAttack"]}),
+        never("a physical platoon is never given a stochastic play", {"on": "task", "who": "Blue 1st Platoon", "is": ["StochasticUnitAttack", "StochasticUnitDefend", "StochasticUnitMove"]}),
+        never("... nor the other", {"on": "task", "who": "Blue 2nd Platoon", "is": ["StochasticUnitAttack", "StochasticUnitDefend", "StochasticUnitMove"]}),
+        {"name": "the stochastic platoon reaches Objective 1", "on": "near", "who": "Blue Stochastic Platoon", "point": pt((425, 425)), "within": 80, "before": 225},
+        field("the objective is held (25 men inside)", "Blue holds Objective 1", "ObjectiveStatus.State", "==", "Achieved", before=225),
+    ]}
+    write(s, "demo-city", desc, checks)
+
+
 GENERATORS = {"agg-march-mounted": lambda: agg_march_mounted(381.25, 350, 60 / 3.6), "agg-platoon-under-company": agg_platoon_under_company, "agg-refused-order": agg_refused_order, "agg-recorded": agg_recorded, "agg-march-open": agg_march_open,
-              "agg-route-dropped": agg_route_dropped, "agg-detect-by-range": agg_detect_by_range, "agg-sees-physical": agg_sees_physical, "agg-break-contact": agg_break_contact}
+              "agg-route-dropped": agg_route_dropped, "agg-detect-by-range": agg_detect_by_range, "agg-sees-physical": agg_sees_physical, "agg-break-contact": agg_break_contact,
+              "agg-platoon-duel": agg_platoon_duel, "agg-shelled-unit": agg_shelled_unit, "agg-prepared-defence": agg_prepared_defence, "agg-out-of-ammo": agg_out_of_ammo,
+              "agg-battalion-fight": agg_battalion_fight, "agg-mixed-company-attack": agg_mixed_company_attack}
 
 if __name__ == "__main__":
     names = sys.argv[1:] or list(GENERATORS)

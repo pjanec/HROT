@@ -35,3 +35,11 @@ related-designs:
 |---|---|---|
 | **F-13** | a captured golden of `agg-march-mounted` differed ONCE in five fresh-process runs: the unit's position was one follower step off from t = 15 s — the Move play / follower started a frame later (the other six goldened scenarios repeat). Not reproduced in three more runs | `/tmp`-only run logs; hashes of `AggregateUnit`, `SimTransform`, `FireAllocation`, `SopState` differed at the first differing snapshot. The scenario therefore carries no golden |
 
+### ST-3 / ST-4 / mixed scenarios (`2026-11-16`) — observations for you
+
+| # | observation | evidence |
+|---|---|---|
+| **F-15** | `agg-battalion-fight` (Blue HQ `CompanyAttack` / Red HQ `CompanyDefend`, three 90-man companies each, 600 m apart) ends one-sided: the assault company is wiped out within 7 s of contact (all 90 slots down 328-335 s) while Red's front company loses 5; its stress is at the break level on 60 slots at the first contact. The duel (`agg-platoon-duel`: a platoon against a 10-slot squad) shows the same first-second stress. A balance question for the C-8 band (CE-8009), not a scenario defect | `scenarios/demos/aggregates/agg-battalion-fight`, `agg-platoon-duel`; `scripts/scenario-regression.sh <name>` |
+| **F-16** | the personal-weapon map `KillerVictimTkb.PersonalSoldiers` is filled ONLY by `StochasticUnitFillSystem` from a unit it fills (first seen wins); a world whose stochastic units all carry authored `UnitSlotTable`s has an empty map and nobody fires. `agg-out-of-ammo` carries a spare filled squad for it | `StochasticUnitFill.cs:202` |
+| **CE-8011** | stepped-hash on `agg-battalion-fight` (`--threads 1,4,8`): STATE EQUAL at 1, 4 and 8 threads (0 type(s) differ, 0 SimTransform rows) — ⚠ the gate steps only 6 chunks of 20 (~2 s of sim): before any contact, so it proves the setup + the first fills and orders, not the fight; a longer window would need the gate's --chunk raised | `python3 scripts/stepped-hash.py --threads 1,4,8 --scenario agg-battalion-fight` |
+
