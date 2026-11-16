@@ -83,6 +83,7 @@ namespace Fdp.Toolkit.Civilians
             }
             if (!first) return changed;
             if (repo.HasComponent<EntityInfo>(actor) && repo.GetComponentRO<EntityInfo>(actor).ForceId == ForceId.Hostile) return changed;
+            if (Fdp.Toolkit.Animals.Animals.IsAnimal(repo, actor)) return changed;   // ⭐ CE-4623 (AR-6): an animal NEVER changes side (its attack is AnimalFlags.Dangerous)
             EntityWriteRouter.For(repo).Write(actor, new[]
             {
                 new EntityAttributeChange

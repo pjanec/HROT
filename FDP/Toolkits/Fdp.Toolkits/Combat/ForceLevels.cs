@@ -60,6 +60,7 @@ namespace Fdp.Toolkit.Combat
         {
             if (target.IsNull || !world.IsAlive(target)) return false;
             if (Fdp.Toolkit.Civilians.HostileActs.Of(world, target) == Fdp.Toolkit.Civilians.HostileActKind.Lethal) return true;
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(world, target)) return true;   // ⭐ CE-4623 AB-5 (AR-6) — an attacking animal (the guard dog's bite)
             return AimsAt(world, target, unit);
         }
 
@@ -74,6 +75,7 @@ namespace Fdp.Toolkit.Combat
         public static bool ConductPermits(EntityRepository world, Entity unit, Entity target, bool lethal)
         {
             if (!lethal || target.IsNull || !world.IsAlive(target) || Armament.IsCombatant(world, target)) return true;
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(world, target)) return true;   // ⭐ CE-4623 AB-5 — an attacking animal: no conduct hold
             if (Armament.Judge(world, unit, target) == ArmedJudgement.IdentifiedLethal) return true;
             return AimsAt(world, target, unit);
         }

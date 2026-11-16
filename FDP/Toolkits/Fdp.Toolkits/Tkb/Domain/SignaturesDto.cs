@@ -167,5 +167,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         Explosion     = 6,
         /// <summary>⭐ M7 (DESIGN_FPV_Drone §2) — rotors: a drone or a helicopter, heard while it flies (hovering included).</summary>
         Rotor         = 7,
+        /// <summary>⭐ CE-4623 AB-8 (Animals AR-7) — an animal's ALARM or a bark: heard by everyone, a fright to other animals (never to a civilian).</summary>
+        Animal        = 8,
     }
 }

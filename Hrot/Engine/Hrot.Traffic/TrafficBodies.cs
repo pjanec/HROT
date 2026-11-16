@@ -142,6 +142,9 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
     {
         LocomotionClass.Pedestrian => TrafficBodyKind.Person,
         LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Amphibious => TrafficBodyKind.Vehicle,
+        // ⭐ CE-4623 AB-2 (AR-17) — an animal on the road: a body SUMO's cars brake for, at its own footprint (a cow 2.4 × 0.9 m, a hen 0.4 m);
+        //   a bird is in the air (null). A herd crossing a road holds the traffic.
+        LocomotionClass.Quadruped => TrafficBodyKind.Vehicle,
         _ => null,
     };
 }

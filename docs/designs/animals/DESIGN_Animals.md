@@ -136,7 +136,7 @@ classDiagram
     PanicZoneM
     FleeSpeed
     FleeDistanceM
-    RecoverySeconds
+    Recovery (SimDuration)
     HerdCohesion
     Fearless
   }
@@ -349,6 +349,111 @@ a "person" in this engine is its MOVEMENT CLASS (`VehicleClass.Pedestrian`), not
 ⭐ **Found sound:** the civilians' "flee away from the fright" shape; the shelter search for pigs; the HSM framework for a separate animal brain; the
 fear system is one serial pass; `Melee` crosses nodes; *Drive* / *Board*, the seat eye and the rider pose work for an animal carrier; window sill
 data exists on template buildings; the mixer degrades by priority; Kind 3 itself is mostly harmless (no civilian-class collision).
+
+## 9. As-built — backend *(folded per task; `CE-4623`; the morning report is `docs/blueprints/batches/STATUS_Backend_Animals.md`)*
+
+| task | as built | deviates from §5 / §6 because |
+|---|---|---|
+| **AB-1** taxonomy | `AnimalTkbCatalog` (`Hrot.Core/Tkb`) — the species table AR-21 as ONE `Row[]`; `AnimalTemperamentDto` (`Gen.Animal`); `AnimalTkbTranslator` gives `AnimalState` (+ `FlockState` for a flock, + `Fear`) on every node at spawn; THE question `Animals.IsAnimal` = carries `AnimalState` | `AirAnimal` is `3.2.*.205-209` (a range — the class table refuses two classes on one mask, and `Bird` is exactly `3.2.*.205`) |
+| **AB-2** movement | `VehicleClass.Quadruped` (a legged CarKinematics preset — steers while it moves, no reverse) for land animals; `BirdFlightModel` (`LocomotionClass.Bird`, never an aircraft) for birds; the infantry nav layer; SUMO sees an animal as a body at its footprint | no `QuadrupedGait` component on the sim side — gaits by speed are ui's (§6.3) |
+| **AB-3** fear | ⭐ the ONE fear system (`CivilianFearSystem`) keeps both: civilians on `CivilianState` (unchanged), animals on `Fear` (id 500) through `AnimalFear` — the same sound-impulse table, the species temperament for the zones and the recovery, and the FLIGHT ZONE look (every person and vehicle in the fight, not aboard, ~5 Hz per animal, staggered; 0 B in the steady state). The band goes to the replicated `AnimalState.FearBand` only when it changes; `AnimalState` and `FlockState` replicate as `dtAnimalState` (189) / `dtFlockState` (190), Brain group, on change | civilians do NOT move onto `Fear` yet (L-A8 — a large blast radius for an overnight run; filed). ⭐ "Approaching" = closing AND heading at it (its track passes within half the flight zone): a car on the road beside the field passes by and leaves the herd only UNEASY — measured in `AnimalFearTests` |
+
+| **AB-4** brain, herds | ⭐ `AnimalHsm` (`Hrot.AI.Behaviors/Brains/AnimalBehavior.cs`) — Graze · Rest · Alert · Flee · Recover · Casualty, its numbers read once from the temperament; started by every animal type (`DefaultBehavior`). ⭐ `HerdSystem` (FDP, SERIAL, before the brains — registered in `CgfLogicPack` after the fear system): the herd's centre and lead, its mode (most afraid member, else REST at night, else calm), the next grazing spot (in its home; after a flight the candidate farthest from the fright), and herd CONTAGION through the crowd's rule (`CrowdRules.ContagionPull` / `Contagion` — extracted, the crowd calls the same two) × 2 × (0.5 + cohesion). The brain reads `HerdState` (declared in `BrainReads`) and writes only its own `AnimalState.Mode`, on change | ⚠ no GRASS: the terrain has no meadow / pasture / orchard / park surface (only Open, Forest, Water, Scrub) — grazing spots are in the home area, away from a recent fright (L-A12). Night is the herd's only (L-A13) |
+
+| **AB-5** species plays | ⭐ the GUARD DOG (`Bark` / `Attack` states of the same `AnimalHsm`): the fear system finds its INTRUDER (the nearest person inside its home + 15 m) on the zone look; it barks (`Guard`, `Calling`) standing between him and its ground, kept inside its home and its chain (`AnimalHome.TetherMetres`); a man close INSIDE its home ⇒ it attacks and BITES (`Melee.Strike`, `MeleeBite`, 8 damage, 0.3 s stagger) marked `Dangerous` — `ThreatDanger.IsNeutral` is false and `ForceLevels.SelfDefence` true while it is. ⭐ BIRDS: a flock / lone bird perches (no wander), flushes (`Flying`) on a fright, lands, perches again. ⭐ The RIDDEN HORSE: past its `BoltFear` the fear system marks it `Bolting` for 6 s (replicated; the `ActionStatus` row says `Bolting`) and the kinematics' MANUAL path takes the rider's controls (`AnimalFear.BoltDrive`: full gallop, wheeling away from the fright, never backing). Cats, hens, pigs, goats: the common brain with their numbers | the cat's sill and the horse's jump wait for AB-6's jump links; perching on TREES (and "a felled tree flushes them") needs a tree / orchard layer — filed with L-A12; the AI does not yet CHOOSE to shoot a biting dog (its danger to a man is 0 — it carries no weapon); self-defence only PERMITS it (L-A16) |
+
+| **AB-7** panic breach | ⭐ the ONE contact rule (`ContactBreach.OnContact`) with its own row `panicked-animal` in `contact-breach.json` (`animal: true`; small max strength 8, a ram at ≥ 2 m/s, speed kept 0.7): a big species that breaks fences (`Breaks`), fleeing in panic (mode Flee, band 3) — `AnimalFear.PanicBreaks` — is let into the kinematics' contact gate beside the possessed hull; the breach, its record and its Broke cue (the break sound) are the vehicle's, unchanged. ⭐ An animal takes ONLY the animal row; no vehicle takes it | the strength line 8 is measured off the material table: wire ≈ 0.1, a wooden fence ≈ 4, sheet ≈ 1 break; a hedge ≈ 30 and a brick wall ≈ 200 hold |
+
+| **AB-8** sounds (sim side) | ⭐ the ONE voice path: `UtteranceKind` gains `AnimalCall` 26 · `AnimalAlarm` 27 · `Bark` 28 (an animal has its `Utterance` from spawn — the brain only writes it). `AnimalCalls.Heard` gives each its range and class to `AcousticPerception`'s shout line (call 300 m, a quiet `Footsteps`-class sound; alarm 600 m and bark 800 m, the new `SoundSourceClass.Animal` = 8), so a sentry hears a bark at its range and the operator hears the same `Utterance`. An `Animal`-class sound frightens ANIMALS (`AnimalFear.AlarmImpulse`), never a civilian. ⭐ The CLOSED-FORM schedule `AnimalCalls.CallDue(index, now, interval, herdSize)`: the k-th call at k·I + jitter(index, k), I stretched by herd size / 3 (the per-herd throttle) — the presentation can play the same calls from the same numbers. The alarm as it bolts (Flee); the bark on every re-aim. Hooves and wings: the movement sound (AB-1) | ranges are per CALL KIND, not per species (`CallRangeM` / `AlarmRangeM` in the temperament are not read yet): the hearing solve can run on a snapshot with no TKB at hand (L-A20) |
+
+| **AB-9** the animal area | ⭐ TKB **712** `AnimalArea` (defaults `Gen.AnimalArea`: species, count 12) — an area drawn with the ONE area tool (its `EditablePolyline`); its `AnimalArea` (506: species, count, seed, Enclosed) is AUTHORED and saved. ⭐ `AnimalAreaSystem` (`Hrot.Core`, CGF, serial, sim time moving, the area's owner, never in replay) POPULATES it once: count animals (a flock: ONE flock entity of that many birds) by its seed inside the outline, through the ONE creation path in `MacroInsertion`'s shape — TRANSIENT, each GUID derived from the area's GUID and the slot — then marks it `AnimalAreaPopulated` (507, recorded, never saved: a restore or replay never repopulates). Every animal's `AnimalHome` is the area (centre, reach, Enclosed); the area entity is the HERD of a herding species (its own `HerdState` + `AnimalHome`), and `HerdSystem` links the arriving animals to it BY VALUE (species + home centre — the creating node may hold another handle). An ENCLOSED pen clamps a flight to its edge | populate builds its own request rather than calling `MacroInsertion.Request` (that one asks for a ScenarioMacro instance; this asks for a TKB type) — the SHAPE is shared, the code is ~15 lines, filed to fold into one helper; the area TOOL and its Details form are ui's |
+| **AB-10** the demo + what it found | ⭐ `farm-under-fire` on the new terrain `farm`: 8 named checks, three seeds, golden repeats, 1/4/8 threads equal. ⭐ It found four PRODUCT defects no rail had: ① nothing registered `Fear` / `HerdState` / `HerdMember` / `AnimalHome` / `AnimalArea` / `AnimalAreaPopulated` (now: the area in `HrotSharedComponentRegistry`, the rest in `CognitiveComponentRegistry`; run-time ones `NoScenario`) ② a bird had no `NavigationIntent` (the animal translator now gives every animal the navigation contract) ③ the STAMPEDE: a planned flight goes round every fence (infantry navmesh), so a panicked fence-breaker now runs STRAIGHT away from the fright in the kinematics (`AnimalFear.Stampede`) while in panic ④ area animals are NAMED after their area | the stampede replaces a planned flight only while the animal is in panic; its path is kept and resumes |
+| **AB-6** jump links | ⭐ as §9a, built: `JumpLinks` (Fdp.Toolkits/Navigation — the kinematics need its height limit) bakes BIDIRECTIONAL off-mesh links at every FREE wall / fence ≤ 1.2 m, `ceil(len/4)` per panel spread evenly, ends at ±(thickness/2 + 1 m), area 63, flag `NavPolyFlags.Jump` = 2, infantry layer only; `DoorAwareQueryFilter` excludes Jump unless `WithJump()`; `NavLayerSelection.JumpModifier` (1 << 13) for a Quadruped whose type `Jumps`; an off-mesh straight-path point ⇒ `TraversalKind.Jump`; the kinematics gate lets a jumper clear a low FREE barrier (`AnimalFear.JumpsOver`) | deviations: ⓐ no bake-format bump — a tile with links adds them to its cache key (only fence tiles re-bake); ⓑ the link ends sit outside the fence's thickness; ⓒ ⏳ the cat's SILL hop is not built (a sill is no navmesh polygon — L-A28) |
+
+```mermaid
+sequenceDiagram
+  participant F as the fear system
+  participant H as HerdSystem (serial)
+  participant B as AnimalHsm (parallel brain phase)
+  F->>F: Fear of each member (heard, felt, the flight zone)
+  F->>H: members' Fear
+  H->>H: centre, lead, mode (night: Rest), next grazing spot
+  H->>H: contagion: the most afraid member pulls the others (the crowd rule)
+  H-->>B: HerdState (declared read)
+  B->>B: Graze / Rest / Alert / Flee / Recover on its own Fear
+  B-->>B: LocomotionMoveTo (graze spot, away from the fright)
+```
+*What it shows that the prose hid: the herd is written ONCE, serially, before the brains; the brains never write each other — the only
+cross-entity write (one cow frightening another) happens in the serial herd step.*
+
+```mermaid
+sequenceDiagram
+  participant S as AcousticPerception (every force, for an animal)
+  participant F as CivilianFearSystem (the one fear system)
+  participant A as AnimalFear (the animal half)
+  participant W as dtAnimalState egress
+  S->>F: SoundContactEvent (shot, blast)
+  F->>A: Frighten(impulse from the one table, temperament)
+  F->>A: StepAnimals: LookRound (flight zone, ~5 Hz) · Fade (recovery time)
+  A-->>F: Fear.Value
+  F->>F: AnimalState.FearBand, only when the band changes
+  F-->>W: AnimalState changed
+  W-->>W: one sample per change, every other node's pose / gait
+```
+*What it shows: an animal's fear has ONE writer (the fear system, on its brain node) and ONE replicated face (the band); nothing per frame crosses the wire.*
+
+## 9a. AB-6 jump links — the design *(backend, `2026-11-16`; build-state: READY-TO-BUILD; INVENTORY: `search_graph name_pattern=".*OffMesh.*" label=Class` ⇒ 6 classes, all fake-navmesh / test-only (`OffMeshLink`, `OffMeshLinkDetectionSystem` unregistered, `FakeNavmeshProvider`); grep `offMeshCon` over the repo ⇒ 0; graph coverage could not be checked through the CLI)*
+
+📐 **Measured:** the real bake (`RecastNavmeshBaker.BakeTile`) sets no `offMeshCon*`; every polygon gets flag 1; the ONE filter (`DoorAwareQueryFilter`, wrapping Detour's default) includes EVERY flag (0xFFFF); `FindStraightPath`'s flags are never read; the kinematics hold any hull or animal at a free wall it cannot breach. `TraversalKind.Jump` already exists (`NavigationComponents.cs:131`).
+
+```mermaid
+classDiagram
+  class RecastNavmeshBaker { BakeTile(geom, p, cs, ax, az) +offMeshCon from JumpLinks }
+  class JumpLinks { <<new, static>> For(TerrainWorld, tileBounds) ; MaxHeightM 1.2 ; SpacingM 4 ; ReachM 1.0 ; Flag 2 }
+  class TerrainWallPanel { <<existing>> Building == -1 is a free wall ; height ; base }
+  class DoorAwareQueryFilter { <<existing>> excludes NavPolyFlags.Jump unless MayJump }
+  class LayerState { <<existing>> FilterFor(doors, layerMask) +a jumping variant }
+  class NavLayerSelection { <<existing>> For() ; +JumpModifier = 1 << 13 for a Quadruped whose type Jumps }
+  class DotRecastNavmeshProvider { <<existing>> straight path OFFMESH point -> Traversal Jump }
+  class CarKinematicsSystem { <<existing>> the barrier gate: a JUMPER over a low barrier passes (AnimalFear.MayJump) }
+  RecastNavmeshBaker --> JumpLinks : asks per tile
+  JumpLinks --> TerrainWallPanel : low free walls / fences
+  LayerState --> DoorAwareQueryFilter : shared + jumping variant
+  NavLayerSelection ..> LayerState : the JumpModifier bit picks the filter
+  DotRecastNavmeshProvider --> LayerState
+  CarKinematicsSystem ..> TerrainWallPanel : barrier height
+```
+*What it shows that prose hid: ONE new class (`JumpLinks`); everything else is an existing seam gaining one branch — and the jump flag must be EXCLUDED by default, or every infantry path would start vaulting garden walls.*
+
+```mermaid
+sequenceDiagram
+  participant B as RecastNavmeshBaker (terrain load)
+  participant P as DotRecastNavmeshProvider (path solve)
+  participant K as CarKinematicsSystem (every frame)
+  B->>B: BakeTile: JumpLinks.For(world, tile) -> offMeshCon (both ways, flag Jump)
+  Note over B: the bake cache key carries the jump-link version, so a cached tile is re-baked
+  P->>P: mask has JumpModifier ? jumping filter : default (Jump excluded)
+  P->>P: FindStraightPath: OFFMESH point -> waypoint Traversal = Jump
+  K->>K: a step crosses a low barrier: a jumper passes (no hold), others are held as today
+```
+
+```mermaid
+graph TD
+  TL[terrain load - RecastNavmeshFactory] -->|once per tile| BK[RecastNavmeshBaker.BakeTile]
+  NS[NavigationSolver module - PathfindingSolverSystem, per request] --> PR[DotRecastNavmeshProvider.PlanPathCore]
+  SIM[SimHost Muscle - CarKinematicsSystem, every frame] --> GATE[the barrier gate]
+  ODS[OffMeshLinkDetectionSystem]:::dead
+  classDef dead fill:#fdd,stroke:#c00
+```
+*The red box is NOT used: the detection system is unregistered in production and its traversal-ended event has no publisher; the jump is done where the hold happens (the kinematics' barrier gate), so nothing new needs registering.*
+
+| decision | why · what would change it |
+|---|---|
+| links only at FREE walls / fences (building = −1) of height ≤ 1.2 m, every 4 m, 1 m each side, both ways | AN-13's "a low obstacle up to ~1.2 m"; a ditch has no terrain feature yet (filed) |
+| links on the INFANTRY layer only (animals plan there, L-A6) | an animal layer would carry them alone |
+| the jump flag EXCLUDED by every filter except a jumper's (`JumpModifier`) | soldiers' paths must not change; ⭐ rail: the same infantry path before and after the bake |
+| the kinematics pass a jumper over a low barrier; the arc is the presentation's (ui AU-3 "the jump's tucked legs") | sim height stays on the ground; a jump arc in the sim would need a vertical state no animal has |
+| ⏳ the cat's SILL hop is NOT in AB-6 v1 | a sill is no navmesh polygon (a window ledge), so an off-mesh link has no far end; it is a perch for the brain — filed (L-A25) |
 
 ## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
 

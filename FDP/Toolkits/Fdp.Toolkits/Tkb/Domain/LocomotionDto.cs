@@ -26,6 +26,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         Rope = 8,
         /// <summary>⭐ Airborne insertion B-2 (D-2) — a man under (or falling before) a canopy (<c>ParachuteModel</c>). Never a type's class.</summary>
         Parachute = 9,
+        /// <summary>⭐ <c>CE-4623</c> AB-2 (Animals AR-1) — a four-legged ANIMAL on the ground (cattle, horses, dogs …): turns while it moves
+        /// (no human turn-then-walk), never a PERSON to the hit band, the fire hold, gas or the crowd. Its own ground model row.</summary>
+        Quadruped = 10,
+        /// <summary>⭐ <c>CE-4623</c> AB-2 (Animals AR-2) — a BIRD in the air (a flock entity or a lone bird): a light point-mass model, ⛔ NOT an
+        /// aircraft (radar, the radar warning, air contacts and air defence never see it).</summary>
+        Bird = 11,
     }
 
     /// <summary>⭐ CE-2168 (MD-A) — the TKB descriptor <c>Gen.Locomotion</c>: the type's <see cref="LocomotionClass"/>.</summary>

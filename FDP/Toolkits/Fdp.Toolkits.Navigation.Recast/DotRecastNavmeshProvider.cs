@@ -80,7 +80,14 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
             TrackedFilter = Filter.WithWoodsCost(DoorAwareQueryFilter.TrackedWoodsCost);
             var tracked = TrackedFilter;
             _workingTracked = new ThreadLocal<DoorAwareQueryFilter>(() => tracked.WorkingCopy());
+            JumpFilter = Filter.WithJump();
+            var jump = JumpFilter;
+            _workingJump = new ThreadLocal<DoorAwareQueryFilter>(() => jump.WorkingCopy());
         }
+
+        /// <summary>⭐ CE-4623 AB-6 — the filter for a jumper (a mask carrying <see cref="NavLayerSelection.JumpModifier"/>): the jump links are open to it.</summary>
+        public DoorAwareQueryFilter JumpFilter { get; }
+        private readonly ThreadLocal<DoorAwareQueryFilter> _workingJump;
 
         /// <summary>⭐ CE-4369 — the filter for a tracked mover (a query whose mask carries <see cref="NavLayerSelection.TrackedModifier"/>).</summary>
         public DoorAwareQueryFilter TrackedFilter { get; }
@@ -101,6 +108,8 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
         /// else the tracked rule; else the shared filter. Allocation-free after each factor's first ask.</summary>
         public DoorAwareQueryFilter FilterFor(DoorStates? doors, uint layerMask)
         {
+            // ⭐ CE-4623 AB-6 — a JUMPER (always on the infantry layer, never tracked, no woods factor): the filter that includes the jump links
+            if ((layerMask & NavLayerSelection.JumpModifier) != 0) return doors == null ? JumpFilter : _workingJump.Value!.JudgeBy(doors);
             uint q = (layerMask & NavLayerSelection.WoodsFactorMask) >> NavLayerSelection.WoodsFactorShift;
             if (q == 0) return FilterFor(doors, (layerMask & NavLayerSelection.TrackedModifier) != 0);
             var shared = Volatile.Read(ref _byWoodsFactor[q]) ?? MakeWoodsFactorFilter(q, layerMask);
@@ -670,7 +679,9 @@ public sealed class DotRecastNavmeshProvider : INavmeshProvider, INavmeshDebugGe
                 {
                     Position  = ToVector3(straightBuf[i].pos),
                     // ⭐ Stage 5c — a corner on a doorway polygon is a door crossing (N4: carried to the agent in 5d)
-                    Traversal = filter.DoorOf(straightBuf[i].refs) >= 0 ? TraversalKind.Door : TraversalKind.Walk,
+                    // ⭐ CE-4623 AB-6 — a point where the corridor takes an off-mesh JUMP link is a jump waypoint
+                    Traversal = filter.DoorOf(straightBuf[i].refs) >= 0 ? TraversalKind.Door
+                        : (straightBuf[i].flags & DtStraightPathFlags.DT_STRAIGHTPATH_OFFMESH_CONNECTION) != 0 ? TraversalKind.Jump : TraversalKind.Walk,
                 };
             }
             return count;

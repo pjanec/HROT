@@ -97,6 +97,10 @@ namespace Fdp.Toolkit.Perception.Systems
                     _list[n++] = entity;
                 }
                 if (_threatsOut.Length < n) _threatsOut = new int[System.Math.Max(n, _threatsOut.Length * 2)];
+                // ⭐ CE-4623 (found at AB-3) — the ranking reads its targets' side, place and health: the BRAINS' common read set (one list,
+                //   BrainReads). Declared here too (idempotent), so this phase never leans on another phase having declared it first in the
+                //   process — under HROT_READ_CHECK that was an order-dependent red (CE2233 alone, ThreatEvaluationParallelRail).
+                Fdp.Toolkit.Behavior.BrainReads.Declare();
                 Fdp.Core.Jobs.ParallelEntities.Run(liveRepo, _list, n, new EvaluateJob { Owner = this, Repo = liveRepo, DeltaTime = deltaTime, Tick = tick, Now = now });
                 for (int i = 0; i < n; i++) _nextThreats[_list[i]] = _threatsOut[i];
             }
@@ -127,7 +131,10 @@ namespace Fdp.Toolkit.Perception.Systems
                 .Unmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>()
                 .Unmanaged<Fdp.Toolkit.Perception.Signatures.AcousticEmitter>()
                 .Unmanaged<global::CarKinem.Core.VehicleParams>()
-                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
+                .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
+                // ⭐ CE-4623 (found at AB-5) — is the target an aircraft (V8's air threat): its movement class, written at spawn only
+                .Unmanaged<Fdp.Toolkit.Motion.Locomotion>()
+                .Unmanaged<Fdp.Toolkit.Motion.Descent>();   // — and a man coming down a rope / under a canopy (Locomotions.Of reads it first)
             public ThreatEvaluationSystem Owner;
             public EntityRepository Repo;
             public float DeltaTime;

@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 for (int i = 0; i < k; i++)
                 {
                     var e = sounds[i];
-                    bool own = e.Source == unit.PackedValue || e.Force == ourForce;
+                    bool own = e.Source == unit.PackedValue || (e.Force == ourForce && !Fdp.Toolkit.Animals.Animals.IsAnimal(view, unit));   // ⭐ CE-4623 — an animal hears every force
                     Add(into, in ears, e.Source, (SoundKind)e.Kind, e.Class, false, e.At, e.Carry, now - e.Time, own);
                 }
             }

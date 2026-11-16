@@ -985,4 +985,71 @@ public sealed class RecastNavmeshFactoryTests
         Assert.Equal(0, nav.PathCostFallbacks);   // the search never outgrew its buffer here
         Console.WriteLine($"[CE3279] test-town: {compared} points compared, {unreachable} unreachable (both agree), cost ratio mean {ratioSum / compared:F3}, worst {worst:F3}");
     }
+
+    // ── ⭐ CE-4623 AB-6 — the jump links ───────────────────────────────────────
+
+    private static string FenceWorld(float height, string kind = "wall", float y0 = 5f, float y1 = 55f)
+        => "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,60,60],\"groundZ\":0},\"features\":["
+         + "{\"type\":\"Feature\",\"properties\":{\"kind\":\"" + kind + "\",\"label\":\"f\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture)
+         + ",\"thickness\":0.2,\"material\":\"fence-wood\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[30," + y0.ToString(System.Globalization.CultureInfo.InvariantCulture)
+         + "],[30," + y1.ToString(System.Globalization.CultureInfo.InvariantCulture) + "]]}}]}";
+
+    /// <summary>
+    /// ⭐ <c>CE-4623</c> AB-6 — <see cref="JumpLinks.For"/>: a 1 m free fence gets links on both sides (each ±1 m from its line), spaced at most 4 m along it, one per share at least;
+    /// a 2 m wall gets none; a building's wall panel gets none. 🔴 Red-proof: drop the <c>Building != -1</c> test or the height test ⇒ the building / 2 m rows get links.
+    /// </summary>
+    [Fact]
+    public void CE4623_JumpLinks_AreAtLowFreeFencesOnly_EveryFourMetres()
+    {
+        var links = JumpLinks.For(TerrainWorldParser.Parse(FenceWorld(1.0f)));          // a 50 m fence along x = 30
+        Assert.Equal(13, links.Count);                                                   // ceil(50 / 4)
+        foreach (var l in links)
+        {
+            Assert.Equal(29f - 0.1f, MathF.Min(l.X0, l.X1), 0.01f); Assert.Equal(31f + 0.1f, MathF.Max(l.X0, l.X1), 0.01f);   // ±(thickness / 2 + 1 m) either side of x = 30
+            Assert.Equal(l.Z0, l.Z1, 0.01f);                                                  // parallel to the wall's normal
+        }
+        for (int i = 1; i < links.Count; i++) Assert.InRange(links[i].Z0 - links[i - 1].Z0, 0.1f, 4.0f + 1e-3f);
+        var short1 = JumpLinks.For(TerrainWorldParser.Parse(FenceWorld(1.0f, y0: 20f, y1: 22f)));
+        Assert.Single(short1);                                                           // a 2 m fence: one link, at its middle
+        Assert.Equal(21f, short1[0].Z0, 0.01f);
+
+        Assert.Empty(JumpLinks.For(TerrainWorldParser.Parse(FenceWorld(2.0f))));         // too high
+        Assert.Empty(JumpLinks.For(TerrainWorldParser.Parse(BlockWorld)));               // a building (its walls are building panels)
+        // a building with wall panels (the template form): none either
+        var tp = TerrainWorldParser.Parse(BlockWorld);
+        Assert.All(tp.Panels, p => Assert.True(p.Building >= 0 || p.TopZ - p.BaseZ > JumpLinks.MaxHeightM));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4623</c> AB-6 — a 50 m, 1 m high fence between A and B: a path with <c>Infantry | JumpModifier</c> CROSSES it (short, one waypoint with Traversal Jump); the plain
+    /// <c>Infantry</c> mask never uses a link — it goes round, with no Jump waypoint — and its path is identical to the one on a bake whose fence is too high for links (so
+    /// soldiers are unchanged by the bake). 🔴 Red-proofs: (1) <c>offMeshCon*</c> not set in BakeTile ⇒ the jumper goes round; (2) <c>PassFilter</c> without the Jump exclusion ⇒ the plain mask crosses.
+    /// </summary>
+    [Fact]
+    public void CE4623_AJumper_CrossesALowFence_ASoldierGoesRound_AndIsUnchangedByTheLinks()
+    {
+        var low = Bake(FenceWorld(1.0f));
+        var tall = Bake(FenceWorld(1.3f));   // the same footprint, too high for links: the bake a soldier always had
+        var a = new Vector3(25, 30, 0); var b = new Vector3(35, 30, 0);
+        const uint Inf = (uint)NavLayerMask.Infantry;
+        var wps = new NavWaypoint[64];
+
+        int nj = low.PlanPath(a, b, wps, Inf | NavLayerSelection.JumpModifier);
+        Assert.True(nj >= 2, "the jumper found a path");
+        float jl = 0f; int jumps = 0;
+        for (int i = 0; i < nj; i++) { if (wps[i].Traversal == TraversalKind.Jump) jumps++; if (i > 0) jl += Vector3.Distance(wps[i - 1].Position, wps[i].Position); }
+        Assert.Equal(1, jumps);
+        Assert.InRange(jl, 9f, 14f);                                                      // across, not round (round is ~60 m)
+        Assert.Equal(b.X, wps[nj - 1].Position.X, 0.6f);
+
+        int ns = low.PlanPath(a, b, wps, Inf);
+        float sl = 0f;
+        for (int i = 0; i < ns; i++) { Assert.NotEqual(TraversalKind.Jump, wps[i].Traversal); if (i > 0) sl += Vector3.Distance(wps[i - 1].Position, wps[i].Position); }
+        Assert.True(sl > 40f, $"a soldier goes round the fence: {sl:F1} m");
+
+        var baseline = new NavWaypoint[64];
+        int nb = tall.PlanPath(a, b, baseline, Inf);
+        Assert.Equal(nb, ns);
+        for (int i = 0; i < nb; i++) { Assert.Equal(baseline[i].Position.X, wps[i].Position.X, 0.05f); Assert.Equal(baseline[i].Position.Y, wps[i].Position.Y, 0.05f); }
+    }
 }

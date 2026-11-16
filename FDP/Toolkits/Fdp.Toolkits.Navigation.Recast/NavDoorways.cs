@@ -204,6 +204,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     private DoorStates? _doors;   // ⛔ written only on a working copy (JudgeBy) — a published filter never changes
     private readonly bool _canOpenDoors;
     private readonly bool _isWorkingCopy;
+    private readonly bool _allowJump;    // ⭐ CE-4623 AB-6 — a JUMPER's filter includes the off-mesh jump links (NavPolyFlags.Jump); every other filter excludes them
     private readonly float _woodsCost;   // ⭐ CE-4369 — the cost factor on a woods polygon; ≤ 0 ⇒ the mover may not enter it
 
     /// <summary>⭐ CE-4369 (R-4190 T-3 / Q-T1 / Q-T2) — what a woods polygon costs each mover, as a factor on its length: infantry a little,
@@ -218,8 +219,9 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     public DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, float woodsCost)
         : this(doorPolys, doors, canOpenDoors, isWorkingCopy: false, woodsCost) { }
 
-    private DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, bool isWorkingCopy, float woodsCost)
+    private DoorAwareQueryFilter(IReadOnlyDictionary<long, int> doorPolys, DoorStates? doors, bool canOpenDoors, bool isWorkingCopy, float woodsCost, bool allowJump = false)
     {
+        _allowJump = allowJump;
         _doorPolys = doorPolys;
         _doors = doors;
         _canOpenDoors = canOpenDoors;
@@ -228,15 +230,18 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     }
 
     /// <summary>⭐ CE-4369 — the same doorways and doors, priced for another mover's woods cost.</summary>
-    public DoorAwareQueryFilter WithWoodsCost(float woodsCost) => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: false, woodsCost);
+    public DoorAwareQueryFilter WithWoodsCost(float woodsCost) => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: false, woodsCost, _allowJump);
+
+    /// <summary>⭐ CE-4623 AB-6 — the same filter for a JUMPER: the navmesh's off-mesh jump links are open to it.</summary>
+    public DoorAwareQueryFilter WithJump() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: false, _woodsCost, allowJump: true);
 
     /// <summary>The same doorway polygons and agent class, judged by <paramref name="doors"/> instead. ⚠ Allocates — a per-query
     /// caller uses a <see cref="WorkingCopy"/> (R-220).</summary>
-    public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors, isWorkingCopy: false, _woodsCost);
+    public DoorAwareQueryFilter With(DoorStates? doors) => ReferenceEquals(doors, _doors) ? this : new(_doorPolys, doors, _canOpenDoors, isWorkingCopy: false, _woodsCost, _allowJump);
 
     /// <summary>⭐ R-220 — a copy whose doors one THREAD re-points per query (<see cref="JudgeBy"/>): the provider keeps one per
     /// thread and layer, so a query judged by its caller's doors allocates nothing.</summary>
-    public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true, _woodsCost);
+    public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true, _woodsCost, _allowJump);
 
     /// <summary>⭐ R-220 — judge by <paramref name="doors"/> from now on. Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
     public DoorAwareQueryFilter JudgeBy(DoorStates? doors)
@@ -258,6 +263,7 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     public bool PassFilter(long refs, DtMeshTile tile, DtPoly poly)
     {
         if (!Base.PassFilter(refs, tile, poly)) return false;
+        if ((poly.flags & Fdp.Toolkit.Navigation.NavPolyFlags.Jump) != 0 && !_allowJump) return false;   // ⭐ CE-4623 AB-6 — a jump link is for a jumper alone
         if (poly.GetArea() == WoodsAreaId && _woodsCost <= 0f) return false;   // ⭐ CE-4369 — a wheeled vehicle never enters a wood (Q-T1)
         if (poly.GetArea() == NavDoorways.CraterArea && !_canOpenDoors) return false;   // ⭐ CE-4591 (D-2) — no vehicle drives through a crater; infantry crosses
         if (!_doorPolys.TryGetValue(refs, out int door)) return true;

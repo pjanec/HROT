@@ -182,6 +182,7 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         {
             TileMetres = TileMetres, Cache = TileCache, Seed = seed, Progress = Progress, Cancel = Cancel,
             Previous = same ? _previousKeys : null, Dirty = same ? dirty : null,
+            JumpLinkList = Fdp.Toolkit.Navigation.JumpLinks.For(world),   // ⭐ CE-4623 AB-6 — the low free walls' jump links (infantry layer; excluded by every filter but a jumper's)
         };
         // ⭐ CE-4369 (L-7) — the woods first, the doorways after (a doorway's area wins where both overlap); the provider gets the doorways only
         var woods = NavDoorways.Woods(world);

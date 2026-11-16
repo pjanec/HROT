@@ -279,6 +279,8 @@ namespace CarKinem.Systems
                 bool hasDrive = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>()
                                 && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity);
                 var drive = hasDrive ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity) : default;
+                // ⭐ CE-4623 AB-5 (AR-10) — a BOLTING horse: its fear overrides the rider for a while (full gallop, away from the fright)
+                if (@params.Class == VehicleClass.Quadruped && Fdp.Toolkit.Animals.AnimalFear.BoltDrive(repo, entity, pos2D, fwd2D, ref drive)) hasDrive = true;
                 bool walker = @params.Class == VehicleClass.Pedestrian;
                 Vector2 planar;
                 float turnRate;
@@ -313,11 +315,13 @@ namespace CarKinem.Systems
             //   checked first — a hull parked nose to a wall whose way on is not clear backs out before it touches it.
             // ⭐⭐ CE-3287 (R-3026; Motion Domains §5g) — a WRECK has no driver: no move, no recovery, no push (📐 one man 4 m off pushed a
             //   destroyed M1 ~10 m). Belt and braces with CE-3091, which ends the move on the brain at death.
-            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
+            bool wreck = _health && @params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped   // ⭐ CE-4623 (AB-2): a dead animal is a body, no wreck
+                         && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(repo, entity);
             // ⭐⭐ CE-2321 (R-3027; Motion Domains §5h) — a MAN DOWN (incapacitated or dead) lies where he fell: no move, no push, no turn.
             //   📌 Live: whoever came close pushed and turned a lying body. He moves only carried or dragged (embarked, so not driven here);
             //   others still walk round him.
-            bool down = _health && @params.Class == VehicleClass.Pedestrian && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, entity);
+            bool down = _health && (@params.Class == VehicleClass.Pedestrian || @params.Class == VehicleClass.Quadruped)   // ⭐ CE-4623 (AB-2): an animal down lies still too
+                        && !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, entity);
             bool recoverable = !wreck && _recovery && _terrain != null && HullClearance.HasHull(in @params) && HullRecovery.Driving(in nav)
                                && repo.HasComponent<FrustrationTicks>(entity);
             FrustrationTicks ft = recoverable ? repo.GetComponent<FrustrationTicks>(entity) : default;
@@ -482,7 +486,17 @@ namespace CarKinem.Systems
             if (wreck || down) targetSpeed = 0f;   // ⭐ CE-3287 / CE-2321 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
-            if (@params.Class == VehicleClass.Pedestrian && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;
+            if ((@params.Class == VehicleClass.Pedestrian || @params.Class == VehicleClass.Quadruped) && Fdp.Toolkit.Combat.Effects.IsStunned(repo, entity)) targetSpeed = 0f;   // ⭐ CE-4623: a stunned animal stands too
+            // ⭐ CE-4623 AB-10 (AR-5) — a STAMPEDE: a panicked fence-breaker runs straight away from the fright, not round its path (the fence it
+            //   meets is the panic breach's, below); its path and progress are kept for when the panic ends
+            else if (@params.Class == VehicleClass.Quadruped && !wreck && !down && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo)
+                     && Fdp.Toolkit.Animals.AnimalFear.Stampede(repo, entity, pos2D, out var stampede, out float stampedeSpeed))
+            {
+                targetPos = pos2D + stampede * 10f;
+                targetHeading = stampede;
+                targetSpeed = MathF.Min(stampedeSpeed, @params.MaxSpeedFwd);
+                progressTangent = null;
+            }
 
             // ⭐⭐ CE-3195 (R-3003, docs/DESIGN_Weapon_Layers.md W-14b–e) — an AIMED person (his weapon brain's replicated WeaponPosture)
             //   turns his body to the aim — snapping beyond his twist, smoothly inside it — and moves along his way independently of
@@ -766,7 +780,7 @@ namespace CarKinem.Systems
             // ⭐ CE-3145 (R-247) — A PERSON NEVER STEPS OFF A LEDGE: standing on a floor, a step whose floor is more than
             //   HumanGait.MaxStepDown lower is not taken (he stays, stopped). Stairs and ramps descend in small steps, so they pass.
             //   📐 bt-window-duel: the path skirts House A's stairwell by 5 cm and a cut corner dropped A 3 m to the ground floor.
-            if (person && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
+            if ((person || hull.Class == VehicleClass.Quadruped) && _terrain != null && z < tf.Position.Z - HumanGait.MaxStepDown)
             {
                 var here = new Vector2(tf.Position.X, tf.Position.Y);
                 if (MathF.Abs(_terrain.SurfaceZ(here.X, here.Y, tf.Position.Z) - tf.Position.Z) <= HumanGait.OnFloorTolerance)
@@ -810,9 +824,21 @@ namespace CarKinem.Systems
                     wall = HullClearance.StepBarrier(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
                                                      sized ? hull.Length : 0f, sized ? hull.Width : 0f, out barrier);
                 }
+                // ⭐ CE-4623 AB-6 — a JUMPER (a horse; a temperament that Jumps) clears a LOW FREE wall / fence (≤ JumpLinks.MaxHeightM) where it stands: not held, no break,
+                //   no speed lost (the arc is the presentation's). Any other animal, a building's wall and a taller one hold as before. Not in a replay (as the breach).
+                if (wall && !person && _terrainWorld != null && hull.Class == VehicleClass.Quadruped
+                    && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo)
+                    && Fdp.Toolkit.Animals.AnimalFear.JumpsOver(repo, entity, _terrainWorld, in barrier, tf.Position.Z))
+                {
+                    wall = false;
+                    if (barrier.Rise) z = MathF.Min(z, _terrain.GroundHeightAt(pos2D.X, pos2D.Y));   // the fence's top is not the ground it lands on
+                }
                 // ⭐⭐ CE-4600 (B-3; 📄 docs/DESIGN_Vehicle_Breaching.md §3.2) — a hull a PLAYER drives (the B-1 gate: the Manual branch, a live possession, no replay)
                 //   meets a barrier: the contact rule decides — a small one broken lets the step go on at a speed loss; a building's bump or a too strong one holds it
-                if (wall && !person && _terrainWorld != null && HullClearance.HasHull(in hull) && HullBreakGate.MayBreak(repo, entity, in nav))
+                // ⭐ CE-4623 AB-7 (Animals AR-5) — and a PANICKED big animal (a herd in flight) through the same rule, its own row: a small fence, never a wall
+                if (wall && !person && _terrainWorld != null
+                    && ((HullClearance.HasHull(in hull) && HullBreakGate.MayBreak(repo, entity, in nav))
+                        || (hull.Class == VehicleClass.Quadruped && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo) && Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, entity))))
                 {
                     float throttle = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>() && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity)
                         ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward : 0f;
@@ -868,7 +894,7 @@ namespace CarKinem.Systems
         /// arrival is judged in 2-D, and a man standing under a point one floor up was "arrived" (Peek and Fire §12.7, 160 s). A vehicle
         /// keeps the 2-D rule.</summary>
         private bool OnLevelOf(in VehicleParams @params, Vector3 at, Vector3 destination)
-            => @params.Class != VehicleClass.Pedestrian || Fdp.Toolkit.World.Levels.Same(_terrain, at, destination);
+            => (@params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped) || Fdp.Toolkit.World.Levels.Same(_terrain, at, destination);   // ⭐ CE-4623: a cat indoors arrives on its floor
 
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav, in VehicleParams @params, Vector2 pos2D,
                                                                                Vector2 fwd2D, float speedNow, float posZ)

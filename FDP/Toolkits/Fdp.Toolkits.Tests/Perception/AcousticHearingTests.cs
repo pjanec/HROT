@@ -223,6 +223,22 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(heard ? 1 : 0, Solve(w, Vector3.Zero, speaker));
         }
 
+        /// <summary>⭐⭐ <c>CE-4623</c> AB-8 (Animals AR-7) — ANIMAL calls on the voice path, each at its own range: a soldier (a 100 m ear) hears a
+        /// guard dog's BARK and a cow's CALL at 80 m, where a man's shouted challenge (40 m) is lost; through the same door the operator hears.
+        /// 🔴 Red-proof: the shout line back to the man's voice range for every kind ⇒ the bark unheard ⇒ red.</summary>
+        [Theory]
+        [InlineData(UtteranceKind.Bark, 80f, true)]
+        [InlineData(UtteranceKind.AnimalCall, 80f, true)]
+        [InlineData(UtteranceKind.AnimalAlarm, 80f, true)]
+        [InlineData(UtteranceKind.Challenge, 80f, false)]
+        public void CE4623_ABark_AndACall_AreHeardAtTheirOwnRange(UtteranceKind kind, float distance, bool heard)
+        {
+            using var w = World(house: false);
+            var dog = Man(w, new Vector3(distance, 0f, 0f), ForceId.Neutral);
+            w.AddComponent(dog, new Utterance { Kind = kind, Until = (SimInstant)5.0 });
+            Assert.Equal(heard ? 1 : 0, Solve(w, Vector3.Zero, dog));
+        }
+
         /// <summary>⭐ AQ105 D — the shouted kinds: everything but talk, and nothing when silent.</summary>
         [Fact]
         public void AQ105D_EveryKindButTalk_IsShouted()

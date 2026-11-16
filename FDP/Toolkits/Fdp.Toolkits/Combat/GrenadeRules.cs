@@ -104,6 +104,7 @@ namespace Fdp.Toolkit.Combat
                 if (mem.EntityIds[i] <= 0 || TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
                 if (!world.IsAlive(e) || !ThreatDanger.IsNeutral(world, e) || ThreatDanger.IsOutOfTheFight(world, e)) continue;
+                if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, e)) continue;   // ⭐ CE-4623 (AR-6): a hen is no civilian in the burst
                 var at = new Vector2(mem.PositionsX[i], mem.PositionsY[i]);
                 if (Vector2.DistanceSquared(at, new Vector2(point.X, point.Y)) < r2) return true;
                 if (terrain != null && InsideTest.IsInside(terrain, at, out int theirs) && theirs == building) return true;

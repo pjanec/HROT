@@ -36,6 +36,8 @@ namespace Fdp.Toolkit.Motion
         public static MotionDomain DomainOf(LocomotionClass c) => c switch
         {
             LocomotionClass.Pedestrian or LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Amphibious => MotionDomain.Ground,
+            LocomotionClass.Quadruped => MotionDomain.Ground,   // ⭐ CE-4623 AB-2 (AR-1) — an animal on legs
+            LocomotionClass.Bird => MotionDomain.Air,            // ⭐ CE-4623 AB-2 (AR-2) — moved in the air, never an aircraft (IsAircraft)
             LocomotionClass.Rotorcraft or LocomotionClass.FixedWing => MotionDomain.Air,
             LocomotionClass.Rope or LocomotionClass.Parachute => MotionDomain.Air,   // ⭐ airborne insertion D-2 — moved by AirMotionSystem
             LocomotionClass.Surface => MotionDomain.Naval,
@@ -47,6 +49,7 @@ namespace Fdp.Toolkit.Motion
         {
             VehicleClass.Pedestrian => LocomotionClass.Pedestrian,
             VehicleClass.Tank => LocomotionClass.Tracked,
+            VehicleClass.Quadruped => LocomotionClass.Quadruped,   // ⭐ CE-4623 AB-2
             _ => LocomotionClass.Wheeled,
         };
 
@@ -59,7 +62,7 @@ namespace Fdp.Toolkit.Motion
         public static bool IsAircraft(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
             var c = Of(view, e);
-            return DomainOf(c) == MotionDomain.Air && c is not (LocomotionClass.Rope or LocomotionClass.Parachute);
+            return DomainOf(c) == MotionDomain.Air && c is not (LocomotionClass.Rope or LocomotionClass.Parachute or LocomotionClass.Bird);
         }
 
         /// <summary>The body's class: ⭐ airborne insertion D-1 — a <see cref="Descent"/> FIRST (it replicates, so every node agrees), then its
@@ -89,7 +92,7 @@ namespace Fdp.Toolkit.Motion
         public static bool IsVehicle(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
         {
             var c = Of(view, e);
-            if (c != LocomotionClass.Unknown) return DomainOf(c) == MotionDomain.Ground && c != LocomotionClass.Pedestrian;
+            if (c != LocomotionClass.Unknown) return DomainOf(c) == MotionDomain.Ground && c != LocomotionClass.Pedestrian && c != LocomotionClass.Quadruped;   // ⭐ CE-4623: an animal is no vehicle
             return Has<VehicleState>(view, e);
         }
 

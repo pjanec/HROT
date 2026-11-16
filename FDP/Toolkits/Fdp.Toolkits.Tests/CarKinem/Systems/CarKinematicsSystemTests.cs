@@ -627,6 +627,33 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-2 (Animals AR-1) — a COW sent along a path at a right angle to it turns WHILE it moves (it steers round, the legged
+        /// preset), never the person's turn-on-the-spot: by the time it faces its path it has walked several metres. 🔴 Red-proof: treat the
+        /// Quadruped as a person in the steering (<c>person</c>) ⇒ it pivots in place ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4623_ACow_TurnsWhileItMoves_NeverOnTheSpot()
+        {
+            var north = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // its path runs east: a quarter turn to make
+            var (repo, e, pool) = TrajectoryWorld(6f, startSpeed: 0f, facing: north, vehicle: VehiclePresets.GetPreset(VehicleClass.Quadruped));
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            var start = repo.GetComponent<SimTransform>(e).Position;
+            float movedWhenFacing = -1f;
+            for (int i = 0; i < 20 * 60 && movedWhenFacing < 0f; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                var tf = repo.GetComponent<SimTransform>(e);
+                var fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+                if (fwd.X > MathF.Cos(30f * MathF.PI / 180f)) movedWhenFacing = Vector3.Distance(start, tf.Position);
+            }
+            Assert.True(movedWhenFacing > 0.5f, $"a cow turns while it walks (moved {movedWhenFacing:F1} m by the time it faced its path)");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4621</c> MC-2 (R-2084) — reading the surface grid costs nothing per frame: a factored body's steady move allocates 0 B.
         /// </summary>
         [Fact]
@@ -2742,6 +2769,121 @@ namespace CarKinem.Tests.Systems
             Assert.Empty(ifvBreaches);
             Assert.Contains(ifvCues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.TooStrong);
             ifv.Dispose();
+        }
+
+        /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
+        /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
+        private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
+        {
+            CarKinem.Controllers.ContactBreach.Reset();
+            var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
+            repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Mode = mode, FearBand = band });
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("Cattle", 700);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 0, Breaks = breaks, Jumps = jumps, FleeSpeed = 9f });
+            db.Register(t);
+            repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+            repo.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" + geojsonFeatures + "]}"));
+            return (repo, e);
+        }
+
+        private static string FenceAtX15(string material, float thickness, float height)
+            => "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"f\",\"height\":" + height.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+               ",\"thickness\":" + thickness.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"material\":\"" + material + "\"},\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[15,-20],[15,20]]}}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-7 (Animals AR-5) — the PANIC BREACH: a panicked cow (a species that breaks fences, fleeing in panic) running into a wire
+        /// fence or a wooden one BREAKS it through the ONE contact rule (its "panicked-animal" row) and runs on through — a breach and a Broke cue (the break
+        /// sound); a brick garden wall or a hedge holds it; a CALM cow, or a panicked SHEEP (it does not break fences), is held at the wire.
+        /// 🔴 Red-proof: the animal arm dropped from the guard's gate ⇒ the panicked cow is held at the wire.
+        /// </summary>
+        [Theory]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData("fence-wood", 0.05f, 1.2f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData("brick", 0.3f, 1.0f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        [InlineData("hedge", 0.6f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, true, Fdp.Toolkit.Animals.AnimalMode.Calm, (byte)0, false)]
+        [InlineData("fence-chainlink", 0.01f, 1.5f, false, Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, false)]
+        public void CE4623_APanickedHerd_BreaksASmallFence_NeverAWall(string material, float thickness, float height, bool species, Fdp.Toolkit.Animals.AnimalMode mode, byte band, bool breaks)
+        {
+            var (repo, e) = RunningAnimal(species, mode, band, FenceAtX15(material, thickness, height));
+            var (nose, breaches, cues) = DriveInto(repo, e, 8f);
+            Assert.Equal(breaks, breaches.Count > 0);
+            if (breaks)
+            {
+                Assert.True(nose > 15f + 3f, $"it ran on through: nose x={nose:F2}");
+                Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
+            }
+            else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-6 — a JUMPING animal (a horse: its temperament Jumps) walking into a FREE fence up to <c>JumpLinks.MaxHeightM</c> (1.2 m) CLEARS it — no hold,
+        /// no breach; a cow (Jumps false) is held at the same fence; a horse is held by a wall above 1.2 m and by a building's wall.
+        /// 🔴 Red-proof: drop the AB-6 jump arm from the barrier gate (CarKinematicsSystem) ⇒ the horse is held at the 1 m fence.
+        /// </summary>
+        [Theory]
+        [InlineData("fence-wood", 0.05f, 1.0f, true, true)]
+        [InlineData("fence-wood", 0.05f, 1.2f, true, true)]
+        [InlineData("fence-wood", 0.05f, 1.0f, false, false)]
+        [InlineData("brick", 0.3f, 2.0f, true, false)]
+        public void CE4623_AJumpingHorse_ClearsALowFence_ACowIsHeld_AHighWallHoldsBoth(string material, float thickness, float height, bool jumps, bool clears)
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15(material, thickness, height), jumps);
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Empty(breaches);   // it cleared the fence, it did not break it
+            if (clears) Assert.True(nose > 15f + 3f, $"it cleared the fence: nose x={nose:F2}");
+            else Assert.True(nose < 15f + 1.5f, $"held at the barrier: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-10 (AR-5) — the STAMPEDE: an AI-driven cow whose planned flight goes NORTH (round the fence, as the navmesh plans it),
+        /// frightened from the WEST, in panic, runs STRAIGHT east away from the fright — into the wooden fence at x = 15, breaking it and running on;
+        /// the same cow calm follows its path north and never comes near the fence. 🔴 Red-proof: no stampede arm in the autonomous drive ⇒ the
+        /// panicked cow follows its path north, no breach.
+        /// </summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Animals.AnimalMode.Flee, (byte)3, true)]
+        [InlineData(Fdp.Toolkit.Animals.AnimalMode.Calm, (byte)0, false)]
+        public void CE4623_APanickedAiCow_StampedesStraightAway_ThroughTheFence_ACalmOneFollowsItsPath(Fdp.Toolkit.Animals.AnimalMode mode, byte band, bool stampedes)
+        {
+            var (repo, e) = RunningAnimal(true, mode, band, FenceAtX15("fence-wood", 0.05f, 1.2f));
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 40f, 0f), TargetSpeed = 3f, ArrivalRadius = 3f });
+            repo.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 });
+            var (nose, breaches, _) = DriveInto(repo, e, 8f);
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            if (stampedes)
+            {
+                Assert.NotEmpty(breaches);
+                Assert.True(nose > 15f + 3f, $"it ran east through the fence: nose x={nose:F2}");
+            }
+            else
+            {
+                Assert.Empty(breaches);
+                Assert.True(nose < 5f && at.Y > 20f, $"it followed its path north: at ({at.X:F1}, {at.Y:F1})");
+            }
+            repo.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-4623</c> AB-7 — the animal row is for a panicked animal ONLY: a possessed CAR at full throttle into the same wire fence a
+        /// panicked cow breaks still breaks nothing (wheeled vehicles break nothing, B-3). 🔴 Red-proof: let any vehicle take an animal row ⇒ red.</summary>
+        [Fact]
+        public void CE4623_APossessedCar_StillBreaksNoWireFence()
+        {
+            var (repo, e) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, FenceAtX15("fence-chainlink", 0.01f, 1.5f));
+            var (_, breaches, _) = DriveInto(repo, e, 8f);
+            Assert.Empty(breaches);
+            repo.Dispose();
         }
 
         /// <summary>

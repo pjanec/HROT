@@ -44,6 +44,12 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Squad.CalloutState>();   // ⭐ CE-2372 (AQ105) — a man's last squad call and the edges his calls watch
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();   // ⭐ CE-2235 — a civilian's fear and mode (brain-local, never replicated)
             world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
+            // ⭐ CE-4623 AB-10 — the animals' brain-local state. 📐 Measured: until now only the RAILS registered these, so in the product every
+            //   'is it registered' guard was false — no fear, no herds, no areas populated (the silent-default pattern)
+            world.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
+            world.RegisterComponent<Fdp.Toolkit.Animals.HerdState>();
+            world.RegisterComponent<Fdp.Toolkit.Animals.HerdMember>();
+            world.RegisterComponent<Fdp.Toolkit.Animals.AnimalHome>();
             world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
             world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();

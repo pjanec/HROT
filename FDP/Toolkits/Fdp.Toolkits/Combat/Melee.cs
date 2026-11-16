@@ -11,6 +11,8 @@ namespace Fdp.Toolkit.Combat
         MeleeFist = 0,
         MeleeBaton = 1,
         MeleeKnife = 2,
+        /// <summary>⭐ <c>CE-4623</c> AB-5 — an animal's bite (the guard dog). Appended.</summary>
+        MeleeBite = 3,
     }
 
     /// <summary>

@@ -1332,5 +1332,24 @@ namespace Fdp.Core
         /// <summary><c>ChargeTimer</c> — ⭐ CE-4621 M-5 (MV-9): a charge's timer (<c>SimInstant DetonateAt</c>), recorded; ticked by <c>ChargeSystem</c>.
         /// ⚠ The backend block (434–449) is full; 486 measured free in backend, behaviors, ui and coordinator 2026-11-15.</summary>
         public const int ChargeTimer = 486;
+
+        // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
+        //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
+        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
+        public const int Fear = 500;
+        /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
+        public const int AnimalState = 501;
+        /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
+        public const int FlockState = 502;
+        /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
+        public const int HerdMember = 503;
+        /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
+        public const int AnimalHome = 504;
+        /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
+        public const int HerdState = 505;
+        /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
+        public const int AnimalArea = 506;
+        /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
+        public const int AnimalAreaPopulated = 507;
     }
 }

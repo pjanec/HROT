@@ -54,6 +54,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0) { suspected = true; continue; }   // heard: somebody is in there
                 var e = new Entity((ulong)pool[c].EntityId);
                 if (!world.IsAlive(e) || ThreatDanger.IsOutOfTheFight(world, e)) continue;
+                if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, e)) continue;   // ⭐ CE-4623 (AR-6): a cat in the room is no civilian (and no threat)
                 if (ThreatDanger.IsNeutral(world, e)) { civilians = true; continue; }
                 suspected = true;
                 known = true;

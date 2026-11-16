@@ -76,6 +76,23 @@ namespace Fdp.Toolkit.Civilians
         public static float RiotAtFor(float riotAt, float attitude) => riotAt - AttitudeWeight * Math.Clamp(attitude, -1f, 1f);
 
         /// <summary>The modes a member SHOWS fear in — the ones his neighbours catch it from.</summary>
+        /// <summary>
+        /// ⭐ THE contagion rule (one place — a crowd and a herd call it, <c>CE-4623</c> AB-4): how hard a frightened neighbour
+        /// <paramref name="distance"/> m away pulls a fear of <paramref name="mine"/> toward <see cref="ContagionShare"/> of
+        /// <paramref name="theirs"/> (half as hard at <paramref name="reach"/>); 0 when it would not raise it. <paramref name="target"/> is the level
+        /// the pull rises toward.
+        /// </summary>
+        public static float ContagionPull(float mine, float theirs, float distance, float reach, out float target)
+        {
+            target = ContagionShare * theirs;
+            if (target <= mine || reach <= 0f) return 0f;
+            float near = 1f - 0.5f * distance / reach;
+            return near * (target - mine);
+        }
+
+        /// <summary>The fear after <paramref name="dt"/> s of the strongest pull: up at <see cref="ContagionRate"/> × the pull, never past the target.</summary>
+        public static float Contagion(float mine, float target, float pull, float dt) => MathF.Min(target, mine + ContagionRate * pull * dt);
+
         public static bool ShowsFear(CivilianMode mode)
             => mode is CivilianMode.Alarmed or CivilianMode.Panic or CivilianMode.Shelter or CivilianMode.Cower or CivilianMode.Dispersing;
 
@@ -236,7 +253,7 @@ namespace Fdp.Toolkit.Civilians
             _incidentOf.Clear();
             if (repo.IsComponentTypeRegistered<Health>() && repo.IsComponentTypeRegistered<InjuryThresholds>())
                 foreach (var e in repo.Query().With<Health>().With<InjuryThresholds>().With<SimTransform>().Build())
-                    if (Injury.StateOf(repo, e) != InjuryState.Ok)
+                    if (Injury.StateOf(repo, e) != InjuryState.Ok && !Fdp.Toolkit.Animals.Animals.IsAnimal(repo, e))   // ⭐ CE-4623 (AR-18): a shot cow draws no crowd
                     {
                         _incidents.Add(repo.GetComponentRO<SimTransform>(e).Position);
                         _incidentOf.Add(e);
@@ -416,10 +433,8 @@ namespace Fdp.Toolkit.Civilians
                         if (j == i || !CrowdRules.ShowsFear(_mode[j])) continue;
                         float d2 = Flat2(_at[i], _at[j]);
                         if (d2 > reach) continue;
-                        float target = CrowdRules.ContagionShare * repo.GetComponentRO<CivilianState>(_civs[j]).Fear;
-                        if (target <= me.Fear) continue;
-                        float near = 1f - 0.5f * MathF.Sqrt(d2) / CrowdRules.ContagionMetres;
-                        float pull = near * (target - me.Fear);
+                        float pull = CrowdRules.ContagionPull(me.Fear, repo.GetComponentRO<CivilianState>(_civs[j]).Fear, MathF.Sqrt(d2),
+                                                              CrowdRules.ContagionMetres, out float target);
                         if (pull <= bestPull) continue;
                         bestPull = pull;
                         bestTarget = target;
@@ -427,7 +442,7 @@ namespace Fdp.Toolkit.Civilians
                     }
                     if (source < 0) continue;
                     ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
-                    mind.Fear = MathF.Min(bestTarget, mind.Fear + CrowdRules.ContagionRate * bestPull * dt);
+                    mind.Fear = CrowdRules.Contagion(mind.Fear, bestTarget, bestPull, dt);
                     ref readonly var src = ref repo.GetComponentRO<CivilianState>(_civs[source]);
                     if (src.HasFrightFrom != 0)
                     {

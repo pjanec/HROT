@@ -1070,6 +1070,7 @@ namespace Hrot.Map.Common.Tests
             foreach (var t in db.GetAll())
             {
                 if (t.DisType.Kind != 3 || t.GetDescriptor<VehicleParametersDto>() is not { } v || t.TkbType >= 1000) continue;   // BDC lifeforms
+                if (v.VehicleClass != CarKinem.Core.VehicleClass.Pedestrian) continue;   // ⭐ CE-4623 — a PERSON is a pedestrian; an animal (Kind 3 too) is not
                 people++;
                 Assert.True(v.MaxSpeedFwd >= 5f, $"{t.Name} runs at {v.MaxSpeedFwd} m/s");
             }

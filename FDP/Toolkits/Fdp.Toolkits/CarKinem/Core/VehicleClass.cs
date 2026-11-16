@@ -9,7 +9,10 @@ namespace CarKinem.Core
         Truck = 1,        // Delivery truck
         Bus = 2,          // Large bus
         Tank = 3,         // Military tank (slow, heavy, small turn radius)
-        Pedestrian = 4    // Person on foot (very small, tight turns)
+        Pedestrian = 4,   // Person on foot (very small, tight turns)
+        /// <summary>⭐ CE-4623 AB-2 (Animals AR-1) — a four-legged ANIMAL: steers while it moves (the bicycle model, a short body), no reverse; never a
+        /// person (the hit band, the fire hold, gas, the crowd). The species' TKB numbers override the preset's size and speed.</summary>
+        Quadruped = 5
     }
     
     /// <summary>
@@ -113,6 +116,24 @@ namespace CarKinem.Core
                     AccelGain = 1.8f
                 },
                 
+                VehicleClass.Quadruped => new VehicleParams
+                {
+                    Length = 2.2f,
+                    Width = 0.8f,
+                    WheelBase = 1.4f,
+                    MaxSpeedFwd = 12.0f,
+                    MaxSpeedRev = 0.0f,                       // an animal does not back up (AR-10: no reverse)
+                    MaxAccel = 4.0f,
+                    MaxDecel = 6.0f,
+                    MaxSteerAngle = (Fdp.Core.Angle)(0.9f),   // turns tight while it moves (the radius grows with speed through MaxLatAccel)
+                    MaxSteerRate = 2.5f,
+                    MaxLatAccel = 5.0f,
+                    AvoidanceRadius = 1.5f,
+                    LookaheadTimeMin = 0.4f,
+                    LookaheadTimeMax = 1.5f,
+                    AccelGain = 2.5f
+                },
+
                 VehicleClass.Pedestrian => new VehicleParams
                 {
                     Length = 0.6f,

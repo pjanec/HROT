@@ -1,0 +1,498 @@
+{
+ "type": "FeatureCollection",
+ "hrot": {
+  "schemaVersion": 1,
+  "bounds": [
+   0,
+   0,
+   300,
+   200
+  ],
+  "groundZ": 0,
+  "description": "A small farm for the animals demo (CE-4623 AB-10, docs/designs/animals/DESIGN_Animals.md \u00a76.2): a lane along y = 10 with a track north at x = 150 into the pasture; the pasture (x 105-195, y 38-62) with a wooden rail fence along its north side (y = 63, x 60-240); a farmhouse at (40, 125); a walled pig pen (x 12-28, y 72-88); an orchard of 25 trees (x 222-258, y 102-138). Local metres, X east, Y north, Z up."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "fence",
+    "height": 1.2,
+    "label": "pasture fence (north)",
+    "material": "fence-wood",
+    "thickness": 0.03
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      60,
+      63
+     ],
+     [
+      240,
+      63
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 1.0,
+    "label": "pig pen wall 1",
+    "material": "brick",
+    "thickness": 0.25
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      12,
+      72
+     ],
+     [
+      28,
+      72
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 1.0,
+    "label": "pig pen wall 2",
+    "material": "brick",
+    "thickness": 0.25
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      28,
+      72
+     ],
+     [
+      28,
+      88
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 1.0,
+    "label": "pig pen wall 3",
+    "material": "brick",
+    "thickness": 0.25
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      28,
+      88
+     ],
+     [
+      12,
+      88
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "wall",
+    "height": 1.0,
+    "label": "pig pen wall 4",
+    "material": "brick",
+    "thickness": 0.25
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      12,
+      88
+     ],
+     [
+      12,
+      72
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "building",
+    "template": "house-2f",
+    "label": "Farmhouse",
+    "baseZ": 0,
+    "rotation": 0
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     40,
+     125
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 1"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     222,
+     102
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 2"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     231,
+     102
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 3"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     240,
+     102
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 4"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     249,
+     102
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 5"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     258,
+     102
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 6"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     222,
+     111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 7"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     231,
+     111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 8"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     240,
+     111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 9"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     249,
+     111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 10"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     258,
+     111
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 11"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     222,
+     120
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 12"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     231,
+     120
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 13"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     240,
+     120
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 14"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     249,
+     120
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 15"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     258,
+     120
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 16"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     222,
+     129
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 17"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     231,
+     129
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 18"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     240,
+     129
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 19"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     249,
+     129
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 20"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     258,
+     129
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 21"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     222,
+     138
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 22"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     231,
+     138
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 23"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     240,
+     138
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 24"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     249,
+     138
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "kind": "tree",
+    "label": "orchard tree 25"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     258,
+     138
+    ]
+   }
+  }
+ ]
+}
