@@ -126,6 +126,67 @@ namespace Hrot.AI.Behaviors.Orders
         public bool Smoke;
     }
 
+    /// <summary>
+    /// ⭐ agg-behaviors R-8300 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.4) — the DEFEND order: hold
+    /// <see cref="Position"/> (the engagement area's origin). The ONE neutral DTO of the kind — the union of what the commanders send;
+    /// ⭐ every play that fulfils Defend (<c>SquadDefend</c>, <c>PlatoonDefend</c>, <c>CompanyDefend</c>) accepts every field strictly (a
+    /// rail walks the pairs), a field its echelon does not use is accepted and documented as unused there. A zero field keeps the
+    /// fulfilling play's own default. Field names and types are the plays' own, so the JSON is the same whichever resolves it.
+    /// </summary>
+    [Order(nameof(OrderKind.Defend))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DefendOrder
+    {
+        /// <summary>The position defended (local metres).</summary>
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>Posts / the line are looked for within this distance of the position (m); 0 = the play's default.</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>Shoot and move between posts after this many seconds at one (CE-7007); 0 = the play's default.</summary>
+        [JsonPropertyName("ShootAndMoveSeconds")]
+        public float ShootAndMoveSeconds;
+
+        /// <summary>The engagement area's left compass bearing (°, 0 = north, clockwise); Left = Right = 0 ⇒ the unit's own sector.</summary>
+        [JsonPropertyName("Left")]
+        public Fdp.Core.Bearing Left;
+
+        /// <summary>The engagement area's right compass bearing (°).</summary>
+        [JsonPropertyName("Right")]
+        public Fdp.Core.Bearing Right;
+
+        /// <summary>Where to fall back to when the position fails (local metres); zero = the play's own choice.</summary>
+        [JsonPropertyName("FallBackTo")]
+        public Fdp.Toolkit.Replication.PointLink FallBackTo;
+
+        /// <summary>Where the enemy comes from (local metres); zero = the play's own choice.</summary>
+        [JsonPropertyName("Threat")]
+        public Fdp.Toolkit.Replication.PointLink Threat;
+    }
+
+    /// <summary>
+    /// ⭐ agg-behaviors R-8300 — the BREAK CONTACT order: withdraw (to <see cref="To"/>, else to a point the enemy cannot see). The neutral
+    /// DTO of the kind; <c>BreakContact</c> accepts it strictly.
+    /// </summary>
+    [Order(nameof(OrderKind.BreakContact))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BreakContactOrder
+    {
+        /// <summary>Where to fall back to (local metres); zero = ask the terrain for a point the enemy cannot see.</summary>
+        [JsonPropertyName("To")]
+        public Fdp.Toolkit.Replication.PointLink To;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+    }
+
     /// <summary>⭐ <c>CE-2173</c> slice 6c (W1, R-2020) — the reason a point is struck (Air Operations §7b, §9e).</summary>
     public enum StrikeTargetKind : byte
     {

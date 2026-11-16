@@ -1693,6 +1693,38 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.CombatPosture, s.Clears.First(c => c.Entity.Equals(s.Members[0])).IntentId);
         }
 
+        /// <summary>⭐⭐ agg-behaviors <c>R-8301</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.4) — a routed ORDER records its intent and its json on the
+        /// commander's entry, so an unchanged re-send is recognised (<c>CommandOrders.Gave</c> by <c>Order.&lt;K&gt;</c>), and its release is still the
+        /// UNNAMED clear — while a concrete <c>Assign</c> releases NAMED. ✅ Red-proofs: <c>Order</c> recording "" again ⇒ ① red · the <c>Order.</c> test dropped
+        /// from <c>SubordinateOrders.Release</c> ⇒ ② red (the clear names <c>Order.Defend</c>) · every release made unnamed ⇒ ③ red.</summary>
+        [Fact]
+        public void R8301_ARoutedOrder_RecordsItsIntentAndJson_ReleasesUnnamed_AnAssignReleasesNamed()
+        {
+            Assert.Equal(Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentPrefix, SubordinateOrders.OrderIntentPrefix);
+            var s = new Squad(members: 2);
+            s.Order("{\"DurationSeconds\":0}", BehaviorNames.SquadHold);   // the commander's run the orders belong to
+            Ticks(s, 3);
+            const string json = "{\"Speed\":2}";
+            string intent = Hrot.Map.Definitions.Behavior.Orders.OrderAttribute.IntentFor("Defend");
+            CommandOrders.Order(s.Repo, s.Commander, s.Members[0], "Defend", json);
+            CommandOrders.Assign(s.Repo, s.Commander, s.Members[1], BehaviorNames.CombatPosture, "{}");
+            var held = SubordinateOrders.Of(s.Repo, s.Commander)!.Orders;
+            var routed = held.Single(e => e.Member.Equals(s.Members[0]));
+            // ① recorded: the intent and the json
+            Assert.Equal(intent, routed.Behavior);
+            Assert.Equal(json, routed.Json);
+            Assert.True(CommandOrders.Gave(s.Repo, s.Commander, s.Members[0], intent, json));
+            Assert.False(CommandOrders.Gave(s.Repo, s.Commander, s.Members[0], intent, "{\"Speed\":3}"));
+            // ② its release is the unnamed clear · ③ the Assign's is named
+            s.Repo.Bus.SwapBuffers();
+            s.Repo.Bus.ReadManaged<AssignTacticalIntentEvent>().Count();   // drain what the orders published
+            Assert.Equal(2, SubordinateOrders.Release(s.Repo, s.Commander, routed.Run));
+            s.Repo.Bus.SwapBuffers();
+            var clears = s.Repo.Bus.ReadManaged<AssignTacticalIntentEvent>().Where(c => c.Kind == TacticalIntentKind.Clear).ToList();
+            Assert.Equal(string.Empty, clears.Single(c => c.Entity.Equals(s.Members[0])).IntentId);
+            Assert.Equal(BehaviorNames.CombatPosture, clears.Single(c => c.Entity.Equals(s.Members[1])).IntentId);
+        }
+
         /// <summary>⭐ D2-H — a unit member told to MOVE gets <c>Order.Move</c> with the point as a geodetic Location.</summary>
         [Fact]
         public void CE2141_AUnitMemberToldToMove_GetsOrderMove_WithAGeodeticLocation()

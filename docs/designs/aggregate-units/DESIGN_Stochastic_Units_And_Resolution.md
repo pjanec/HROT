@@ -503,7 +503,7 @@ them by construction); the red edge is today's dead path — the area effect nev
 | **ST-4** | determinism at 1 / 4 / 8 threads | the battalion-vs-battalion scenario, its named checks | the scenario's map picture |
 | **ST-5** | the resolution manager, de-aggregation (children from the TKB composite, stable `<unit>/<slot>` keys), re-aggregation, the Held participant, C-7's forced handover | the policy (§16b), the planners' plan / assign split (D-P3) | the user's de- / re-aggregate request and the process's progress |
 
-### 23.4 agg-behaviors — ST-0 ⑦: the commanders' orders ROUTED *(exp/agg-behaviors, `2026-11-16`; build-state: DESIGN → BUILDING; lane decisions R-8300…R-8304 "for the user's review")*
+### 23.4 agg-behaviors — ST-0 ⑦: the commanders' orders ROUTED *(exp/agg-behaviors, `2026-11-16`; build-state: BUILDING — increment 1 BUILT; lane decisions R-8300…R-8304 "for the user's review")*
 
 **INVENTORY** *(`scripts/cbm.sh search_graph name_pattern ".*(UnitStrength|CombatEffective|ObjectiveCensus|AmmoOf|CommandOrders|OrderKinds|CurrentOrders).*"` — 8 rows, the index stale (no `UnitStrength`), re-indexed; + grep `CommandOrders.Assign(` outside tests — **23 sites in 14 files**; ⚠ coverage not checkable through the CLI)*
 
@@ -542,6 +542,18 @@ them by construction); the red edge is today's dead path — the area effect nev
 | **R-8302** | the physical rows of agg-backend's routing table, proposed (a NOTE, never built here): (InfantrySquad, Physical, Defend) → `SquadDefend` · (InfantryPlatoon, Physical, Defend) → `PlatoonDefend` · (InfantryCompany, Physical, Defend) → `CompanyDefend` · (InfantrySquad, Physical, BreakContact) → `BreakContact` — i.e. each concrete play's `Fulfils` IS its row; the table can be BUILT from `Fulfils` + the play's echelon class, never hand-listed | agg-backend's table shape |
 | **R-8303** | ⏳ increment 2 (after the table lands): Attack on a POSITION (`AttackOrder` gains an optional `Position` — Target OR Position required), March, Recover, Bound, FireAndMovement, ClearBuilding, Embark, and a new `OrderKind.SupportByFire` (B-8 names it) | the user preferring a separate "AttackPosition" kind |
 | **R-8304** | ⭐ a site FLIPS from `Assign(<play>)` to `Order(<K>)` only once the table resolves K for every class it sends to — until then increment 1 ships the DTOs and the rail (the plays accept the neutral DTOs; the commanders already SERIALISE them) and the flip is one line per site | the table landing with a different resolve API |
+
+**✅ INCREMENT 1 BUILT** *(`2026-11-16`, R-8300 + R-8301 only — no site flipped, R-8304 stands)* — the UML below is as built, with these as-built rows:
+
+| what | where |
+|---|---|
+| `DefendOrder` · `BreakContactOrder` (`[Order]`, no gesture; fields = the plays' own types) | `Orders/OrderDtos.cs:138` · `:179` |
+| ⭐ deviation D-1: `Left` / `Right` are `Fdp.Core.Bearing` (what `PlatoonDefendParamsJsonDto` already holds, a bare number in JSON), not `float` — the commanders' `dto.Left = (Bearing)…` serialise identically | `OrderDtos.cs:138` |
+| the plays accept the neutral fields (documented *unused at this echelon*; no behaviour changed) | `SquadDefendParamsJsonDto` (Left, Right, FallBackTo, Threat) · `PlatoonDefendParamsJsonDto` (Threat) · `CompanyDefendParamsJsonDto` (SearchRadius, Left, Right, FallBackTo); `BreakContactParamsJsonDto` already held To + Speed |
+| the CONTRACT RAIL — ⭐ walks ALL kinds with a neutral DTO (7 kinds, 26 plays: all green, so not restricted to Defend / BreakContact); entity-link fields stay default (no literal) | `BehaviorParamsValidationTests.R8300_…` |
+| R-8301: `CommandOrders.Order` records `Order.<K>` + json; `Release` unnamed for an `Order.` entry; `SubordinateOrders.OrderIntentPrefix` (= `OrderAttribute.IntentPrefix`, pinned by the rail) | `CommandNodes.cs:41` · `SubordinateOrders.cs:50, :98` · `SquadManeuverTests.R8301_…` (+ the existing `CE2141_AMemberThatIsAUnit…` now exercises the release path) |
+| ⭐ the order MENU does not offer them yet: `OrderMenu.OfferedFor` keeps only orders the `<Class><Order>` name rule resolves (`OrderMenu.cs:274`), and no `InfantrySquadDefend` / `…BreakContact` exists — they appear when the routing table resolves them | `OrderMenu.cs:267-275` |
+| ⚠ side effects of the two `[Order]` DTOs (they join `OrderMenu.Orders`): `OrderMenu` action ids are by NAME order, so every order sorting after `BreakContact` (Hold 401→403, Move 402→404, …) moved — the two menu goldens (`Goldens/menus.golden.txt`, `menus.station.golden.txt`) regenerated, 8 lines each, ids only · `MapMenuActions.OrderShortcuts` declares letters `D` (Defend) / `B` (BreakContact) (rail `K2_OrderLettersAreDeclaredAndDistinct` demands one per order) | `OrderMenu.cs:111-124` · `MapMenuActions.cs:217-222` |
 
 ```mermaid
 classDiagram

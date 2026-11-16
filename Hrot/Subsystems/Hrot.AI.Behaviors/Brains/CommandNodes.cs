@@ -31,12 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>An ABSTRACT order to <paramref name="member"/>. Its release is an unnamed clear (the commander cannot know what it
-        /// resolved to). <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
+        /// resolved to). ⭐ agg-behaviors R-8301 — the entry RECORDS the order's intent (<c>Order.&lt;name&gt;</c>) and its json, so
+        /// <see cref="Gave"/> / <see cref="StillRunning"/> / <see cref="Stands"/> recognise an unchanged re-send of a routed order
+        /// (CE-2304); <see cref="SubordinateOrders.Release"/> turns such an entry back into the unnamed clear. <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
         /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
         public static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json, bool newOrder = false)
         {
             var id = IdFor(world, commander, member);
-            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior, requestId: id);
+            SubordinateOrders.Record(world, commander, member, OrderAttribute.IntentFor(orderName), BehaviorOrigin.Superior, json, id);
             if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
             world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {

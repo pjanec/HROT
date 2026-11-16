@@ -60,4 +60,46 @@ public sealed class BehaviorParamsValidationTests
         var noWhen = BehaviorParamsValidation.Validate(r, BehaviorNames.Trigger, "{\"do\":[]}");
         Assert.Contains(noWhen, s => s.Contains("'when' is required"));
     }
+
+    /// <summary>
+    /// ⭐⭐ agg-behaviors <c>R-8300</c> (DESIGN_Stochastic_Units_And_Resolution.md §23.4) — THE CONTRACT RAIL: for EVERY registered play whose order kind
+    /// has a neutral <c>[Order(K)]</c> DTO (its <c>Fulfils</c>, else its params DTO's <c>[Order]</c> — <c>ParamsDtoRegistry.OrderNameOf</c>), a FULLY
+    /// populated neutral DTO (every float / bool / int / enum / bearing / point field non-default; entity-link fields stay default — an entity ref has no
+    /// literal) validates STRICTLY against that play's params ⇒ no problems. So the receiver resolving <c>Order.K</c> to ANY fulfilling play reads every
+    /// neutral field. Measured green over all 7 kinds / 26 plays; not vacuous (Defend 3 plays, BreakContact 1, Move ≥ 4).
+    /// ✅ Red-proof: a neutral field removed from one play's DTO (<c>CompanyDefendParamsJsonDto.FallBackTo</c>) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void R8300_EveryPlayThatFulfilsAnOrderKind_AcceptsTheKindsNeutralDto_Strictly()
+    {
+        var registry = Production();
+        var defaults = ParamsDtoRegistry.Default;
+        var perKind = new System.Collections.Generic.Dictionary<string, int>();
+        foreach (var neutral in typeof(Hrot.AI.Behaviors.Orders.OrderKind).Assembly.GetTypes())
+        {
+            var order = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<Hrot.Map.Definitions.Behavior.Orders.OrderAttribute>(neutral);
+            if (order == null) continue;
+            var dto = System.Activator.CreateInstance(neutral)!;
+            foreach (var f in neutral.GetFields())
+            {
+                object? v = f.FieldType == typeof(float) ? 7f : f.FieldType == typeof(int) ? 3 : f.FieldType == typeof(bool) ? true
+                    : f.FieldType == typeof(Fdp.Core.Bearing) ? new Fdp.Core.Bearing(45f)
+                    : f.FieldType == typeof(Fdp.Toolkit.Replication.PointLink) ? (Fdp.Toolkit.Replication.PointLink)new System.Numerics.Vector3(11f, 22f, 3f)
+                    : f.FieldType.IsEnum ? System.Enum.GetValues(f.FieldType).GetValue(System.Enum.GetValues(f.FieldType).Length - 1)
+                    : f.FieldType == typeof(Fdp.Toolkit.Replication.EntityLink) ? null
+                    : throw new Xunit.Sdk.XunitException($"{neutral.Name}.{f.Name}: the rail has no non-default value for {f.FieldType.Name}");
+                if (v != null) f.SetValue(dto, v);
+            }
+            string json = System.Text.Json.JsonSerializer.Serialize(dto, neutral, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            foreach (var play in defaults.Behaviors.Where(b => defaults.OrderNameOf(b.Name) == order.Name).Select(b => b.Name))
+            {
+                perKind[order.Name] = perKind.GetValueOrDefault(order.Name) + 1;
+                var problems = BehaviorParamsValidation.Validate(registry, play, json);
+                Assert.True(problems.Count == 0, $"{play} (fulfils {order.Name}) refuses the neutral {neutral.Name}: " + string.Join("; ", problems) + "  JSON=" + json);
+            }
+        }
+        Assert.Equal(3, perKind["Defend"]);          // SquadDefend, PlatoonDefend, CompanyDefend
+        Assert.Equal(1, perKind["BreakContact"]);
+        Assert.True(perKind["Move"] >= 4 && perKind["Attack"] >= 4 && perKind["Hold"] >= 4, "the walk finds the plays (not vacuous)");
+    }
 }
