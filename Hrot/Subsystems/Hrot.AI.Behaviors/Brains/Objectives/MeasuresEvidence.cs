@@ -89,7 +89,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                     if (credited.IsNull) continue;
                     var victimSide = ObjectiveCensus.SideOf(world, e.HitEntity);
                     if (KillZone.Hostile(side, victimSide)) { t.Hits++; t.Helped.Put(e.HitEntity, now); }   // the man's last harm on it: an assist if another downs it soon
-                    else if (victimSide == ForceId.Neutral) { if (e.HitEntity != credited) t.Civilians++; }
+                    else if (victimSide == ForceId.Neutral) { if (e.HitEntity != credited && !Fdp.Toolkit.Animals.Animals.IsAnimal(world, e.HitEntity)) t.Civilians++; }   // ⭐ CE-4623 (AR-6): a shot cow is no civilian casualty
                     else if (victimSide == side && e.HitEntity != credited) t.Fratricide++;
                 }
             }

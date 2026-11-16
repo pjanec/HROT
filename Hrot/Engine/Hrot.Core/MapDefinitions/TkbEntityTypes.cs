@@ -38,6 +38,22 @@ namespace Hrot.Map.Common
         /// class <c>"Motorcycle"</c>, SUMO class <c>motorcycle</c>. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Motorcycle = 115;
 
+        // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
+        //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.
+        public const long Animal_Cattle = 700;
+        public const long Animal_Sheep = 701;
+        public const long Animal_HorseHerd = 702;
+        public const long Animal_HorseRiding = 703;
+        public const long Animal_HorseWar = 704;
+        public const long Animal_Dog = 705;
+        public const long Animal_Cat = 706;
+        public const long Animal_BirdFlock = 707;
+        public const long Animal_Bird = 708;
+        public const long Animal_Hen = 709;
+        public const long Animal_Pig = 710;
+        public const long Animal_Goat = 711;
+        public const long AnimalArea = 712;
+
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;
         public const long WeaponSystem_DshkHmg = 601;

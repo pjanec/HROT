@@ -224,6 +224,19 @@ namespace Hrot.Core.Tkb
             // ⭐ CE-3220 (civilians B-2, CV-1, R-3013) — the civilian family and the security forces (CivilianTkbCatalog), HROT's own categories
             yield return C("Civilian", "Civilian (HROT)", "3.1.*.2");
             yield return C("SecurityForce", "Security Force (HROT)", "3.1.*.3");
+            // ⭐ CE-4623 AB-1 (DESIGN_Animals §4a, AR-19) — the ANIMALS: parents split by domain (a range below "LandPerson" in rank would lose to
+            //   it — these are more specific, so they win, R-279), then the species. ⛔ Never "Person": nothing that means a man may match an animal.
+            yield return C("LandAnimal", "Land Animal (HROT)", "3.1.*.200-209");
+            yield return C("AirAnimal", "Air Animal (HROT)", "3.2.*.205-209");   // ⚠ a range (L-A1): "Bird" holds the exact 3.2.*.205 and two classes may not share a mask
+            yield return C("Cattle", "Cattle (HROT)", "3.1.*.200");
+            yield return C("Sheep", "Sheep (HROT)", "3.1.*.201");
+            yield return C("Horse", "Horse (HROT)", "3.1.*.202");
+            yield return C("Dog", "Dog (HROT)", "3.1.*.203");
+            yield return C("Cat", "Cat (HROT)", "3.1.*.204");
+            yield return C("Poultry", "Poultry (HROT)", "3.1.*.206");
+            yield return C("Pig", "Pig (HROT)", "3.1.*.207");
+            yield return C("Goat", "Goat (HROT)", "3.1.*.208");
+            yield return C("Bird", "Bird (HROT)", "3.2.*.205");
 
             // ⭐ CE-2139 (C3, R-278) — UNITS, under their own Kind (UnitDis): Category = arm, Subcategory = echelon. The Kind's
             //   display name is the picker's units folder (EntityTypeCatalog.UnitsFolder, which ExCon's ORBAT list keys on).

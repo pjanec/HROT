@@ -13,6 +13,20 @@ namespace Hrot.Traffic.Tests;
 /// <summary>⭐ AQ93 §13 F2/F3 — which of our bodies SUMO is told about, and as what.</summary>
 public sealed class TrafficBodyFeedTests
 {
+    /// <summary>⭐ <c>CE-4623</c> AB-2 (Animals AR-17) — a cow on the road is a body SUMO's cars brake for, at its own footprint; a bird in the air
+    /// is nothing to traffic. 🔴 Red-proof: drop the Quadruped arm of <c>KindOf</c> ⇒ the cow is not sent ⇒ red.</summary>
+    [Fact]
+    public void CE4623_ACowOnTheRoad_IsABodyCarsBrakeFor_ABirdIsNothing()
+    {
+        using var world = World();
+        Body(world, new Vector3(30, 0, 0), LocomotionClass.Quadruped, new VehicleParams { Class = VehicleClass.Quadruped, Length = 2.4f, Width = 0.9f });
+        Body(world, new Vector3(0, 0, 20), LocomotionClass.Bird, vp: null);
+        var bodies = TrafficBodyFeedSystem.Gather(world, Anchored());
+        var cow = Assert.Single(bodies);
+        Assert.Equal(TrafficBodyKind.Vehicle, cow.Kind);
+        Assert.Equal((2.4f, 0.9f), (cow.Length, cow.Width));
+    }
+
     [Fact]
     public void F2_F3_ARiflemanIsAPerson_ATruckAVehicle_AnAircraftAndASumoCarNothing()
     {

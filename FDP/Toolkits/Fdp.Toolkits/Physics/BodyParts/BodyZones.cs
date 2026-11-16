@@ -104,6 +104,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
         {
             var own = t.GetDescriptor<BodyZonesDto>();
             var dis = t.DisType;
+            if (Fdp.Toolkit.Animals.Animals.IsAnimalDis(dis) && own == null) return null;   // ⭐ CE-4623 AB-1 (AR-19): an animal is hit as a whole body, never a man's zones
             var (profile, pattern) = Match(dis);
             if (profile == null && dis.Kind != 3 && own == null) return null;   // ⛔ a profile never adds a body to a non-person
             var plan = profile?.Plan ?? BodyPlan.Person;

@@ -56,6 +56,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
                 {
                     ref readonly var e = ref events[i];
                     if (e.TotalDamage <= 0f || e.HitEntity.IsNull || ObjectiveCensus.SideOf(world, e.HitEntity) != b.Protected) continue;
+                    if (b.Protected == ForceId.Neutral && Fdp.Toolkit.Animals.Animals.IsAnimal(world, e.HitEntity)) continue;   // ⭐ CE-4623 (AR-6): "no harm to civilians" — an animal is not one
                     if (b.AnySide == 0 && !Attributed(world, in e, b.Attribute, bySide)) continue;
                     Count(ref b, (long)e.HitEntity.PackedValue);
                 }

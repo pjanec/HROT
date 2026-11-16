@@ -225,5 +225,45 @@ namespace Hrot.Map.Common.Tests
             var ex = Assert.Throws<ArgumentException>(() => b.AsLandUnit(9003, UnitArm.Armor, CountryTable.UnitedStates));
             Assert.Contains("Platon", ex.Message);
         }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-4623</c> AB-1 (DESIGN_Animals §4a, AR-19) — every animal type 700…711 is in the built-in TKB with its DIS, its MOST SPECIFIC class is
+        /// its species (never a person class), its chain holds <c>LandAnimal</c> or <c>AirAnimal</c> and NEVER <c>Infantry</c> / <c>Civilian</c> /
+        /// <c>SecurityForce</c>; it moves as a <c>Quadruped</c> or a <c>Bird</c> (never <c>Pedestrian</c> — AR-1), spawns NEUTRAL (AR-6) and carries its
+        /// temperament row; the riding horse has a rider seat that fires WHILE riding and a second firing seat; no class ties. 🔴 Red-proof: drop the
+        /// <c>LandAnimal</c> row ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4623_EveryAnimalType_IsAnAnimalByClassAndMovement_Neutral_NeverAPerson()
+        {
+            var tkb = new TkbDatabase();
+            Hrot.Map.Common.HrotEnvironment.RegisterBuiltInTkb(tkb);
+            var table = EntityClassTable.Default;
+            string[] species = { "Cattle", "Sheep", "Horse", "Horse", "Horse", "Dog", "Cat", "Bird", "Bird", "Poultry", "Pig", "Goat" };
+            for (int i = 0; i < 12; i++)
+            {
+                long type = 700 + i;
+                var t = tkb.GetByType(type);
+                Assert.True(t != null, $"type {type}");
+                var dis = t!.DisType;
+                Assert.Equal(3, dis.Kind);
+                Assert.Equal(species[i], table.MostSpecific(dis)!.Name);
+                bool air = type is 707 or 708;
+                Assert.True(table.ChainContains(dis, air ? "AirAnimal" : "LandAnimal"), $"{type} is an animal by class");
+                foreach (var man in new[] { "Infantry", "Civilian", "SecurityForce" }) Assert.False(table.ChainContains(dis, man), $"{type} is no {man}");
+                var loco = t.GetDescriptor<LocomotionDto>();
+                Assert.Equal(air ? LocomotionClass.Bird : LocomotionClass.Quadruped, loco!.Class);
+                if (!air) Assert.Equal(CarKinem.Core.VehicleClass.Quadruped, t.GetDescriptor<VehicleParametersDto>()!.VehicleClass);
+                Assert.Equal(ForceId.Neutral, t.GetDescriptor<BehaviorProfileDto>()!.Faction);
+                Assert.Equal((byte)i, t.GetDescriptor<AnimalTemperamentDto>()!.Species);
+            }
+            var riding = tkb.GetByType(703)!.GetDescriptor<CarrierDefDto>()!;
+            Assert.Equal(2, riding.Seats.Count);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Driver, riding.Seats[0].Role);
+            Assert.False(riding.Seats[0].FiresStoppedOnly);                     // R-4269: the rider fires WHILE riding
+            Assert.True(riding.Seats[0].TraverseMaxDeg > riding.Seats[0].TraverseMinDeg);
+            Assert.Single(tkb.GetByType(704)!.GetDescriptor<CarrierDefDto>()!.Seats);   // the war horse: the rider only
+            Assert.Empty(table.Ties());
+        }
     }
 }

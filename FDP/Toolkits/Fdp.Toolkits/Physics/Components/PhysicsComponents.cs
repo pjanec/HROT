@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Physics.Components
         public static float BlockerHeight(ISimulationView view, Entity e)
         {
             float h = Height(view, e);
-            if (!IsPedestrian(view, e) || global::Fdp.Toolkit.Combat.Injury.IsInTheFight(view, e)) return h;
+            if (!IsLegged(view, e) || global::Fdp.Toolkit.Combat.Injury.IsInTheFight(view, e)) return h;   // ⭐ CE-4623: a dead cow lies low
             return h > 0f ? MathF.Min(h, LyingBlockerHeight) : LyingBlockerHeight;
         }
 
@@ -85,6 +85,12 @@ namespace Fdp.Toolkit.Physics.Components
             => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>())
                && view.HasComponent<global::CarKinem.Core.VehicleParams>(e)
                && view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class == global::CarKinem.Core.VehicleClass.Pedestrian;
+
+        /// <summary>⭐ CE-4623 (AB-2) — a body on LEGS (a man or an animal): lies low when down. ⛔ Not <see cref="IsPerson"/> (an animal is no person).</summary>
+        private static bool IsLegged(ISimulationView view, Entity e)
+            => IsPedestrian(view, e)
+               || (view.HasComponent<global::CarKinem.Core.VehicleParams>(e)
+                   && view.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class == global::CarKinem.Core.VehicleClass.Quadruped);
     }
 
     // ── RaycastRequest ────────────────────────────────────────────────────────────
