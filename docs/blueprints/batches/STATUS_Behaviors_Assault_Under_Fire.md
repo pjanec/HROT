@@ -93,6 +93,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 | id | decision | would change it |
 |---|---|---|
+| R-2120 | close-out item 2: the PL deadlines re-timed to the suppression-first attack — PL 1 by 700 s (≈ 15 % over the slowest passing run's 608 s), PL 2 by 1000 s (the authored 300 s after PL 1; past the 900 s end, so never judged) | a run that passes AU-6 yet misses PL 1 at 700 s · a longer run window that would judge PL 2 |
 | R-2119 | AU-6 (the scenario's end): Red broken ends the exercise only once Blue HOLDS Objective 1 (≥ 4 men in the 35 m block, no enemy, 30 s); Objective 2 held or 15 min end it as before; the check keys on the scenario's own "The end" and judges AU-6 by that hold | a run where Red survivors scattered in the block keep the end away for good (then: maxEnemy 1, or the block radius) |
 | R-2118 | AU-6 (Indirect Fire IF-1, cross-lane): an indirect round aimed at a point under a roof is aimed at the ROOF (the top surface over the point, `FireSolution.OnTop`) — it bursts there; the arc is no longer refused as masked by the target's own building. Points in the open are unchanged | a live run where roof bursts do no harm to the defenders inside (then: the building's damage / the burst through the roof) |
 | R-2117 | AU-6 (Building Clearing CB-55): Entering gets a bound — 20 s after every entry man is released, a man short of his point covers from where he stands; the room then clears on the 3 s quiet as before | a live run where the bound clears a room with a defender hidden where the short man would have looked |
@@ -161,7 +162,7 @@ losses (2 / 4). ⚠ 12 attackers against 12 defenders in prepared houses is belo
 
 ## 4. Dynamism thresholds and ids
 
-⛔ **NOT LOCKED** — the handoff locks X / Y from THREE clean runs, and there is one (#18). 📐 Measured over the twelve live runs since R-2112
+⭐ **LOCKED `2026-11-16` (close-out item 3): `CC_MOVED_MIN = 0.45` (the FIRST window only), `CC_CONTACTS_MIN = 90`** — three passes exist since R-4265 (#18–#20). ⛔ SUPERSEDED: *"NOT LOCKED — there is one (#18)"*. 📐 Measured over the twelve live runs since R-2112
 (#6…#21): moved > 50 m in the first 300 s window **47–64 %** (min 47, #7) · contacts **99–123 / min** (min 99.1, #15). ⭐ **Proposal:
 `CC_MOVED_MIN = 0.45`, `CC_CONTACTS_MIN = 90`** (≈ 5 % / 10 % under the worst run) — to lock with 3 / 3. ⚠ The later windows (300–600 s:
 12–43 %) fall as the attack goes firm on the objective — judge the first window only.

@@ -910,6 +910,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | ⭐ **R-2117** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6): a room entry is bounded — 20 s after every entry man is released, a man short of his point covers from where he stands. 📄 `docs/designs/group-maneuvers/DESIGN_Building_Clearing.md` §7.1a |
 | ⭐ **R-2118** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-15`, CE-2436 AU-6; cross-lane into backend's IF-1): indirect fire on a point under a roof aims at the roof, where it bursts, instead of refusing the arc as masked. 📄 `docs/designs/indirect-fire/DESIGN_Indirect_Fire.md` §3.6 |
 | ⭐ **R-2119** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-2436 AU-6): cc-battalion ends on Red broken only once Blue holds Objective 1; AU-6's "taken" is that hold. 📄 `STATUS_Behaviors_Assault_Under_Fire.md` §1 |
+| ⭐ **R-2120** | 🟡 **LANE DECISION — for the user's review** (behaviors, `2026-11-16`, CE-2436 close-out): cc-battalion's PL 1 / PL 2 deadlines 700 / 1000 s (were 420 / 720 s), re-timed to the suppression-first attack. 📄 `docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md` §5 |
 
 ## ⛔⛔⛔ §M — MEASURE, DON'T MEMORISE *(added `2026-08-18`, user ruling)*
 
@@ -1269,6 +1270,7 @@ R-2116 | docs/designs/group-maneuvers/DESIGN_Building_Clearing.md | hostile coun
 R-2117 | docs/designs/group-maneuvers/DESIGN_Building_Clearing.md | Entering has a bound
 R-2118 | docs/designs/indirect-fire/DESIGN_Indirect_Fire.md | lifts the aim point onto the TOP
 R-2119 | docs/blueprints/batches/STATUS_Behaviors_Assault_Under_Fire.md | Red broken ends the exercise only once Blue HOLDS Objective 1
+R-2120 | docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md | PL 1 by **700 s**
 R-3050 | docs/blueprints/Architect_Question_106_Sound_Paths.md | sound round the corners and through windows and doors
 R-3051 | docs/DESIGN_Entity_Creation_Unification.md | EntityConstructionCompleted, EntityDestructionCompleted. Long but expressive.
 R-3052 | docs/DESIGN_Http_Control_Through_The_Cluster_Master.md | do not rebuild map every frame there can be thousands of traffic cars and pedestrians

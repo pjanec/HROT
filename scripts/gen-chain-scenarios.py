@@ -32,6 +32,11 @@ OUTPOST = (296.0, 388.0)       # ⭐ R-2103: Red's outpost INSIDE the one house 
 RED_RESERVE = (720.0, 620.0)   # Red's battalion reserve, north-east, out of the fight
 BLUE_HQ = (60.0, 400.0)
 RED_HQ = (760.0, 640.0)
+# ⭐ R-2120 (lane decision, CE-2436 close-out item 2) — the phase-line deadlines re-timed to the SUPPRESSION-FIRST attack (Set ≈ 113 s, then fire and
+#   movement): Objective 1 reached / taken at 517–608 s in the three passing runs (#18–#20) ⇒ PL 1 by 700 s (≈ 15 % slack over the slowest);
+#   PL 2 keeps the authored 300 s after PL 1. ⚠ 1000 s is past the 900 s end ⇒ PL 2 is closed by the end, never judged in a run (R-2104).
+#   ⛔ SUPERSEDED: 420 / 720 s — set for the attack before it waited for suppression, missed in every run since.
+PL1_DEADLINE, PL2_DEADLINE = 700, 1000
 DEADLINE = 300.0               # CompanyAttack's tempo (R-2097 rev. 2: the lean 180 s bypassed Objective 1 at 270 s, before the assault could arrive)
 FRONTAGE, DEPTH = 160.0, 220.0  # the Red line: blocks at y ≈ 385 / 465, its reserve at x ≈ 535, the fall-back at x ≈ 645
 
@@ -189,9 +194,9 @@ def build(name, v):
     # ── the scripted top: phase lines, objectives, the attack order, the end ──
     s.add(line("PL 1", F, [(OBJ1[0], OBJ1[1] - 150), (OBJ1[0], OBJ1[1] + 150)]))
     s.add(line("PL 2", F, [(OBJ2[0], OBJ2[1] - 150), (OBJ2[0], OBJ2[1] + 150)]))
-    pl1 = s.add(objective("Blue reaches PL 1", F, "ReachArea", {"common": {"title": "Blue reaches PL 1", "subject": bco, "deadlineSeconds": 420},
+    pl1 = s.add(objective("Blue reaches PL 1", F, "ReachArea", {"common": {"title": "Blue reaches PL 1", "subject": bco, "deadlineSeconds": PL1_DEADLINE},
                                                                "area": circle(OBJ1, 60), "minMen": 4}))
-    pl2 = s.add(objective("Blue reaches PL 2", F, "ReachArea", {"common": {"title": "Blue reaches PL 2", "subject": bco, "deadlineSeconds": 720},
+    pl2 = s.add(objective("Blue reaches PL 2", F, "ReachArea", {"common": {"title": "Blue reaches PL 2", "subject": bco, "deadlineSeconds": PL2_DEADLINE},
                                                                "area": circle(OBJ2, 60), "minMen": 4}))
     hold = s.add(objective("Blue holds Objective 2", F, "HoldArea", {"common": {"title": "Blue holds Objective 2", "subject": bco, "required": True},
                                                                     "area": circle(OBJ2, 60), "minMen": 4, "maxEnemy": 0, "holdSeconds": 120}))

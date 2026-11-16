@@ -5854,7 +5854,7 @@ class Dynamism:
             if judge_lines:   # ⚠ a variant built to STALL misses its lines by design: printed, not judged
                 c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
         if moved_min is not None:
-            for a, b, s in wins:
+            for a, b, s in wins[:1]:   # ⭐ the FIRST window only (the lock's basis): later ones fall as the attack goes firm on the objective
                 c.ok(s >= moved_min, f"DYNAMISM: [{a:.0f}–{b:.0f}] {s * 100:.0f} % of the men moved > {self.MOVED_M:.0f} m (≥ {moved_min * 100:.0f} %)")
         if contacts_min is not None:
             c.ok(cpm >= contacts_min, f"DYNAMISM: {cpm:.2f} contacts / min (≥ {contacts_min})")
@@ -5865,8 +5865,10 @@ class Dynamism:
 
 # the dynamism thresholds, set from the first three clean base runs and then LOCKED (Battalion Test §5.2) — None = measure only
 CC_FIRE_NEAR_M = 60.0   # ③ a mortar burst / its smoke within this of the requested point (an 81 mm sheaf + the report's error); was 120
-CC_MOVED_MIN = None
-CC_CONTACTS_MIN = None
+# ⭐ LOCKED `2026-11-16` (CE-2436 close-out item 3, the morning report's §4 proposal; three passes #18–#20 exist): ≈ 5 % / 10 % under the worst of the
+#   twelve live runs since R-2112 (47 %, 99.1 / min). The FIRST 300 s window only — the later ones fall as the attack goes firm on the objective.
+CC_MOVED_MIN = 0.45
+CC_CONTACTS_MIN = 90
 
 
 def _reports_of(log, frm=None, kind=None, subtype=None, after=-1.0):
