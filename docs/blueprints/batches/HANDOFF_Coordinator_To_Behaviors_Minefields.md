@@ -8,7 +8,7 @@ related-designs:
 
 # HANDOFF — coordinator → `behaviors`: minefields, the BEHAVIOURS (CE-4624, slices MS-B1…MS-B4)
 
-**For:** the `behaviors` lane. **From:** coordinator. **Dispatched at `8b02d1a2a`**; ⛔ scope FROZEN there — later documents are FYI; one that
+**For:** the `behaviors` lane. **From:** coordinator. **Dispatched at `8b02d1a2a`, ⭐ RE-STAMPED at `b0393bbbb`** *(rule 1a: amended before the lane started — §0a added)*; ⛔ scope FROZEN there — later documents are FYI; one that
 invalidates a slice ⇒ STOP that slice, do the rest (R-106).
 
 🔒 User, `2026-11-16`: *"approved both, fold it in and write the handoffs to the lanes that are free"* · decisions R-4270…R-4274.
@@ -30,6 +30,16 @@ reworded); no change to the numbers. Fold it into your status and close that row
 `git fetch origin coordinator behaviors terrain ui`; on `behaviors`, merge `origin/coordinator`; restore; push `chore: started minefields at
 <sha>`. Status: `STATUS_Behaviors_Minefields.md`. Read the design END TO END first (R-129). ⭐ The ENGINE is the `terrain` lane's: merge
 `origin/terrain` as soon as `NOTE_Terrain_To_All_Minefield_Contract.md` lands; until then build against stand-ins with the §6.1 names.
+
+## 0a. ⭐ Your open lane decisions — ANSWERED *(amended `2026-11-16`, before you started)*
+
+🔒 User, `2026-11-16`: *"approved, behaviors are not working on minefields yet, pls ammend their handoff"* — every one of your 🟡 lane decisions is
+✅ **APPROVED as built**: **R-2106…R-2121 and R-2124** (the assault under fire, CE-2436) and **R-2122, R-2123** (the realistic FPV and the riding
+hearing mask, CE-4621 M-4). The ledger rows are promoted. ⭐ Plus **R-4275**: the M-4 acceptance reads *"a break escapes the LETHAL radius"*.
+⚠ R-2114 (re-order a failed approach): add a cooldown only if a run shows it looping. Still OPEN and yours: CE-2440 (the 8-thread race, not
+reproduced) and CE-2441 (`StationWeapon` writes another entity's embarked flag in the phase) — fix CE-2441 before the minefield slices if it
+is small (it breaks the per-entity rule your new behaviours run under).
+⇒ mark the decisions approved in your two status files, close the dash row, then start §1.
 
 ## 1. The slices — §4, in order
 - **MS-B1** `MineStrike` (MF-5 as amended by MR-5, MR-6, MR-16): declares `Halts | LeavesRoute` (R-4263) — a dismounted squad on a Dash presses

@@ -463,3 +463,15 @@ field's own rotated lattice).
 knowledge and the side through the shared pack; the record family (serial writer, stops in replay, recorded by bytes) fits; avoid vs cross-with-care
 and the shelled area kept apart agree with AQ101; observations as events respect R-4212. ⚠ TKB 7206 is free in production (a test-local constant
 in `EjectionSystemTests.cs:26` only).
+
+## 11. As-built deviations approved — `2026-11-16` *(R-4278)*
+
+🔒 User, verbatim: *"approved the work for the lanes (not yet RT-1…RT-9) but do not write handoff yet, firrst we finish the RT-1…RT-9 and then we write all at once"*
+
+| lane decision | supersedes | now |
+|---|---|---|
+| terrain **R-5047** | KR-13 / MR-4's carrier (the path request's pad byte) | ⭐ the route's SIDE rides in the navmesh layer mask's spare bits 14…18; `NavLayerSelection.For` adds it, so every route caller and the wire carry it with no API or wire change. Side + 1, 0 = no knowledge, as KR-13 |
+| terrain **R-5043** | MR-9's "drop the bit-0 hack" | `DangerAreaKinds` is `ushort`; `Shelled` stays on bit 0 — no recorded or saved value changes |
+| terrain **R-5045 / R-5046 / R-5048** | §3a, MF-15, MR-11 | the strikes record has its own TKB 7207; known-at-start is the field's `KnownAtStartSides`, never a record; a runtime lane is the deciding node's `MinefieldLanes` record |
+| behaviors **R-2125** | MR-5 (back out on breadcrumbs) — ⚠ INTERIM only | the struck unit HOLDS IN PLACE until terrain's per-mover breadcrumb record lands (MS-T2); then it backs out along it — MR-5 stands |
+| behaviors **R-2126 / R-2127** | MR-11, KG-7 | the clearer's tool switch is one seam (`ClearerEquipment.SetActive`) re-bound to terrain's switch; a minefield ahead is its own SOP row — halt, one `Engineers` request |
