@@ -81,6 +81,16 @@ namespace GizmoMap.Presentation
 
         private static readonly Dictionary<long, (float, float, float, float)> _boxes = new();
 
+        /// <summary>
+        /// ⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13) — the cached texture of a symbol for an ImGui image (an ORBAT row): its id (rlImGui's raylib texture id)
+        /// and its width over its height. The SAME texture the map draws — one geometry, one cache.
+        /// </summary>
+        public static (nint TextureId, float Aspect) TextureOf(in SymbolCode s, float heightPx)
+        {
+            var e = Get(s, heightPx);
+            return ((nint)e.Texture.Id, e.Height > 0f ? e.Width / e.Height : 1f);
+        }
+
         private static Entry Get(in SymbolCode s, float heightPx)
         {
             int h = Math.Clamp((int)MathF.Round(heightPx), 6, 256);

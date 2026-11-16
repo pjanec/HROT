@@ -360,6 +360,79 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — the ORBAT row's icon by WHAT the entity is: a UNIT its derived NATO symbol
+    /// (<c>symbol/SFGPUCI----D---</c> for a friend infantry platoon), a MAN his role (leader crown, rifleman), a VEHICLE its class (a tank, a truck); and the
+    /// real panel paints the unit's symbol as an IMAGE wider than a glyph, in the 2525 friend fill. 🔴 Red-proof (compiles): the adapter's unit branch
+    /// answering <c>orbat/unit</c> ⇒ no symbol key ⇒ red. Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>orbat-symbols.png</c>.</summary>
+    [SkippableFact]
+    public void CE8611_TheOrbatShowsAUnitsNatoSymbol_AManByHisRole_AVehicleByItsClass()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityInfo>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>(); w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); w.RegisterComponent<NetworkIdentity>();
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
+        w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        w.CreateEntity();   // index 0 is no entity
+        Entity Make(string name, ForceId side = ForceId.Friend) { var e = w.CreateEntity(); w.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = side }); return e; }
+        var plt = Make("2 Plt");
+        w.AddComponent(plt, new Fdp.Core.CommandHierarchy.UnitRoster()); w.AddComponent(plt, new Fdp.Core.CommandHierarchy.UnitEntity());
+        w.AddComponent(plt, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)Hrot.Map.Common.TkbEntityTypes.Unit_InfantryPlatoon });
+        Entity Member(string name, DISEntityType dis, Fdp.Core.CommandHierarchy.TacticalDesignation role)
+        {
+            var e = Make(name);
+            w.SetDisType(e, dis);
+            w.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = plt, Designation = role });
+            return e;
+        }
+        Member("Sgt Dvorak", new DISEntityType { Kind = 3, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader);
+        Member("Pvt Svoboda", new DISEntityType { Kind = 3, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+        Member("M1 #1", new DISEntityType { Kind = 1, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+        Member("HMMWV", new DISEntityType { Kind = 1, Domain = 1, Category = 6 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+
+        var adapter = new ScenarioOrbatAdapter(w, w.Bus, _spawn.Object);
+        var panel = new SharedOrbatPanel();
+        panel.Expand(plt.Index);
+        using var frame = UiFrameHarness.Begin(480, 240);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        panel.Relation = EntityTreeRelation.Command;
+        for (int i = 0; i < 6; i++)
+            frame.Step(() =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                ImGui.SetNextWindowSize(new Vector2(420, 200), ImGuiNET.ImGuiCond.Always);
+                ImGui.Begin("ORBAT##ce8611");
+                panel.DrawContent(adapter, adapter);
+                ImGui.End();
+            });
+        var expect = new Dictionary<string, string>
+        {
+            ["2 Plt"] = "symbol/SFGPUCI----D---", ["Sgt Dvorak"] = "orbat/leader", ["Pvt Svoboda"] = "orbat/soldier", ["M1 #1"] = "orbat/vehicle", ["HMMWV"] = "orbat/truck",
+        };
+        Assert.Equal(expect.Count, panel.DrawnRows.Count);
+        foreach (var row in panel.DrawnRows) Assert.Equal(expect[row.Text], row.IconKey);
+
+        string path = Shot("orbat-symbols.png");
+        frame.Screenshot(path);
+        var image = Raylib.LoadImage(path);
+        try
+        {
+            var unitRow = panel.DrawnRows.First(r => r.Text == "2 Plt");
+            float slot = ImGui.GetTreeNodeToLabelSpacing(), size = ImGui.GetFontSize();
+            int friend = 0, maxX = 0;
+            for (int x = (int)(unitRow.Min.X + slot - 1); x < (int)(unitRow.Min.X + slot + 3f * size); x++)
+                for (int y = (int)unitRow.Min.Y; y < (int)unitRow.Max.Y; y++)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    if (Math.Abs(c.R - 128) < 30 && Math.Abs(c.G - 224) < 30 && Math.Abs(c.B - 255) < 30) { friend++; maxX = Math.Max(maxX, x); }
+                }
+            Assert.True(friend >= 20, $"the platoon's row shows its symbol in the friend fill ({friend} px)");
+            Assert.True(maxX > unitRow.Min.X + slot + size, $"the symbol is wider than a glyph's square (fill to x {maxX}, the square ends at {unitRow.Min.X + slot + size})");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
     /// <summary>⭐ U-4 (CE-4334, docs/UX/DESIGN_UI_Conventions.md §2 — CHEVRON · ICON · LABEL; the user's report: "the ORBAT tree draws no icons") — the REAL panel over the REAL adapter in all three relations: EVERY row it drew carries an icon, the
     /// glyph the adapter named (a unit that takes subordinates, a vehicle's part, a macro instance, a Scenario-view group, any other entity), painted in that glyph's own colour between the chevron's slot and the label. Read off a real frame (real fonts).
     /// 🔴 Red-proof (compiles): the adapter returning <c>""</c> from <c>IconKeyOf</c> ⇒ no row has an icon ⇒ red. Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>orbat-icons-{command,structure,scenario}.png</c>.</summary>

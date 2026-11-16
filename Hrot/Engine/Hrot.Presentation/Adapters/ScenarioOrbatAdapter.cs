@@ -1,3 +1,4 @@
+using System;
 using Hrot.Common;
 using System.Collections.Generic;
 using Fdp.Core;
@@ -252,12 +253,50 @@ namespace Hrot.UI.Common.Adapters
 
         /// <summary>⭐ U-4 (CE-4334, UI Conventions §2) — the row's icon by what the entity IS, from its components (one string constant per kind: nothing is built per frame): a macro instance → the Scenario puzzle piece,
         /// a part of a vehicle → a gear, a unit that takes subordinates → the unit's people, anything else → the entity cube.</summary>
+        /// <para>⭐ <c>CE-8611</c> (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — a UNIT shows its NATO symbol (<c>symbol/&lt;code&gt;</c>, the same derived
+        /// symbol as the map — <see cref="Hrot.Common.Diagnostics.Gizmos.UnitSymbols"/>); a MAN his role (leader crown · medic · rifleman), a VEHICLE its class
+        /// (by its DIS type), a dead or destroyed one the skull. One cached string per distinct symbol: nothing per frame.</para>
         private string IconKeyOf(Entity entity)
         {
             if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.MacroExpansionStatus>() && _world.HasComponent<Fdp.Toolkit.Scenario.MacroExpansionStatus>(entity)) return "orbat/scenario";
             if (_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>() && _world.HasComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(entity)) return "orbat/part";
-            if (_world.IsComponentTypeRegistered<UnitRoster>() && _world.HasComponent<UnitRoster>(entity)) return "orbat/unit";
+            bool unit = (_world.IsComponentTypeRegistered<UnitRoster>() && _world.HasComponent<UnitRoster>(entity))
+                     || (_world.IsComponentTypeRegistered<UnitEntity>() && _world.HasComponent<UnitEntity>(entity));
+            if (unit) return Hrot.Common.Diagnostics.Gizmos.UnitSymbols.TryOf(_world, entity, out var symbol) ? SymbolKeyOf(symbol) : "orbat/unit";
+            if (IsDestroyed(entity)) return "orbat/down";
+            var dis = _world.GetDisType(entity);
+            if (dis.Kind == 3)
+            {
+                var role = _world.IsComponentTypeRegistered<UnitSubordinate>() && _world.HasComponent<UnitSubordinate>(entity)
+                    ? _world.GetComponentRO<UnitSubordinate>(entity).Designation : TacticalDesignation.Undefined;
+                return role switch
+                {
+                    TacticalDesignation.Commander or TacticalDesignation.SquadLeader or TacticalDesignation.TeamLeader => "orbat/leader",
+                    TacticalDesignation.Medic => "orbat/medic",
+                    _ => "orbat/soldier",
+                };
+            }
+            if (dis.Kind == 1)
+                return dis.Domain == 2 ? "orbat/aircraft"
+                     : dis.Category is 5 or 10 or 50 ? "orbat/weapon"
+                     : dis.Category is 6 or 7 or 80 or 81 ? "orbat/truck"
+                     : "orbat/vehicle";
             return "thing/entity";
+        }
+
+        private static readonly Dictionary<int, string> _symbolKeys = new();
+
+        /// <summary>⭐ CE-8611 — <c>symbol/&lt;the code&gt;</c>, one string per distinct symbol (the panel draws it as the symbol's image).</summary>
+        public static string SymbolKeyOf(in GizmoMap.Contracts.Symbology.SymbolCode symbol)
+        {
+            int h = symbol.GetHashCode();
+            lock (_symbolKeys)
+            {
+                if (_symbolKeys.TryGetValue(h, out var key)) return key;
+                Span<char> code = stackalloc char[GizmoMap.Contracts.Symbology.SymbolCode.MaxLength];
+                int n = symbol.Format(code);
+                return _symbolKeys[h] = "symbol/" + code.Slice(0, n).ToString();
+            }
         }
 
         private bool IsDestroyed(Entity entity)

@@ -261,7 +261,19 @@ public sealed class SharedOrbatPanel
 
     /// <summary>⭐ U-4 (CE-4334, UI Conventions §2) — the row's coloured glyph (CHEVRON · ICON · LABEL), through the ONE icon map (<c>Icons</c>): a key the adapter named; none ⇒ no icon. A struct built from the static map: nothing allocated.</summary>
     private static NodeEditor.Core.Widgets.RowIcon RowIconOf(OrbatNodeViewModel node)
-        => node.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(node.IconKey, out var glyph) ? NodeEditor.Core.Widgets.RowIcon.OfGlyph(glyph) : NodeEditor.Core.Widgets.RowIcon.None;
+    {
+        // ⭐ CE-8611 (UI-13) — a unit's row: its NATO symbol, the map's own cached texture (one geometry, one cache), row-sized (no echelon marks below 15 px)
+        if (node.IconKey.StartsWith("symbol/", StringComparison.Ordinal)
+            && GizmoMap.Contracts.Symbology.SymbolCode.TryParse(node.IconKey.AsSpan(7), out var symbol))
+        {
+            var (texture, aspect) = GizmoMap.Presentation.SymbolRenderer.TextureOf(symbol, OrbatSymbolHeightPx);
+            return NodeEditor.Core.Widgets.RowIcon.Image(texture, System.Numerics.Vector2.Zero, System.Numerics.Vector2.One, aspect);
+        }
+        return node.IconKey.Length > 0 && NodeEditor.Core.Widgets.Icons.TryGet(node.IconKey, out var glyph) ? NodeEditor.Core.Widgets.RowIcon.OfGlyph(glyph) : NodeEditor.Core.Widgets.RowIcon.None;
+    }
+
+    /// <summary>⭐ CE-8611 — the frame height a unit's symbol is rasterised at for an ORBAT row (drawn the row's height tall).</summary>
+    public const float OrbatSymbolHeightPx = 12f;
 
     /// <summary>The row's constant id string (cached per entity: nothing is concatenated per frame).</summary>
     private readonly Dictionary<int, string> _rowIds = new();

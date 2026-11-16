@@ -16,13 +16,13 @@ internal static class RowPaint
         {
             var p = new Vector2(x, cy - size * 0.5f);
             if (icon.IsImage)
-                dl.AddImage(icon.Texture, p, new Vector2(p.X + size, p.Y + size), icon.Uv0, icon.Uv1);
+                dl.AddImage(icon.Texture, p, new Vector2(p.X + size * icon.Aspect, p.Y + size), icon.Uv0, icon.Uv1);
             else
             {
                 var gw = ImGui.CalcTextSize(icon.Glyph!).X;
                 dl.AddText(new Vector2(x + (size - gw) * 0.5f, cy - lineH * 0.5f), ImGui.GetColorU32(icon.Color), icon.Glyph!);
             }
-            x += size + ImGui.GetStyle().ItemInnerSpacing.X;
+            x += size * (icon.IsImage ? icon.Aspect : 1f) + ImGui.GetStyle().ItemInnerSpacing.X;   // ⭐ CE-8611 — a wide image takes its width
         }
         dl.AddText(new Vector2(x, cy - lineH * 0.5f), textColor, label);
         return x;

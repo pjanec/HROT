@@ -30,6 +30,15 @@ public static class Icons
             case "orbat/unit": icon = new("\uf0c0", IconPalette.Teal); return true;   // Users — a unit that takes subordinates
             case "orbat/part": icon = new("\uf013", IconPalette.Grey); return true;   // Gear — a part of a vehicle (sensor, weapon mount)
             case "orbat/group": icon = new("\uf07c", IconPalette.Amber); return true;   // FolderOpen — Saved / Transient
+            // ⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — a MAN by his role, a VEHICLE by its class, a DOWN one; a unit draws its NATO symbol instead
+            case "orbat/leader": icon = new("\uf521", IconPalette.Amber); return true;   // Crown — a commander / squad or team leader
+            case "orbat/soldier": icon = new("\ue54e", IconPalette.Blue); return true;   // PersonRifle — every other man
+            case "orbat/medic": icon = new("\uf479", IconPalette.Green); return true;   // KitMedical — the squad's medic
+            case "orbat/vehicle": icon = new("\uf5b6", IconPalette.Teal); return true;   // VanShuttle — a combat vehicle or a carrier
+            case "orbat/truck": icon = new("\uf0d1", IconPalette.Teal); return true;   // Truck — a utility vehicle
+            case "orbat/aircraft": icon = new("\uf533", IconPalette.Teal); return true;   // Helicopter — anything in the air domain
+            case "orbat/weapon": icon = new("\uf05b", IconPalette.Orange); return true;   // Crosshairs — a crew-served weapon (a mortar, a tripod)
+            case "orbat/down": icon = new("\uf54c", IconPalette.Red); return true;   // Skull — dead or destroyed
             // ⭐ CE-4325 (E7, recording-marks-visual.svg) — a MARK (a checkpoint, blue flag) and a NOTE at a bare time (an AAR note, amber sticky note)
             case "mark/flag": icon = new("\uf024", IconPalette.Blue); return true;   // Flag
             case "mark/note": icon = new("\uf249", IconPalette.Amber); return true;   // NoteSticky
@@ -186,6 +195,14 @@ public static class Icons
         "orbat/unit",
         "orbat/part",
         "orbat/group",
+        "orbat/leader",
+        "orbat/soldier",
+        "orbat/medic",
+        "orbat/vehicle",
+        "orbat/truck",
+        "orbat/aircraft",
+        "orbat/weapon",
+        "orbat/down",
         "details/layout-stacked",
         "details/layout-tabs",
         "details/float",
