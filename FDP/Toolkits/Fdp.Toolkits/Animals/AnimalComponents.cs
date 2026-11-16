@@ -47,7 +47,7 @@ namespace Fdp.Toolkit.Animals
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.Fear)]
-    [DataPolicy(DataPolicy.Default)]   // world state: recorded, saved, snapshotted
+    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
     public struct Fear
     {
         /// <summary>0 = calm … 1 = blind panic.</summary>
@@ -109,7 +109,7 @@ namespace Fdp.Toolkit.Animals
     /// <summary>⭐ <c>CE-4623</c> (AR-9) — an animal's herd (a light herd entity, NEVER a <c>UnitRoster</c>). 8 bytes.</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.HerdMember)]
-    [DataPolicy(DataPolicy.Default)]
+    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
     public struct HerdMember
     {
         public Entity Herd;
@@ -121,7 +121,7 @@ namespace Fdp.Toolkit.Animals
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimalHome)]
-    [DataPolicy(DataPolicy.Default)]
+    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
     public struct AnimalHome
     {
         public WorldPoint Centre;
@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Animals
     /// <summary>⭐ <c>CE-4623</c> (AR-9) — a herd entity's state: its centre, the grazing spot it is heading for, its lead animal, its mode.</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.HerdState)]
-    [DataPolicy(DataPolicy.Default)]
+    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
     public struct HerdState
     {
         public WorldPoint Centre;

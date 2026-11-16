@@ -100,6 +100,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();             // ⭐ CE-1223 — when a man was last under fire (dtUnderFire); idempotent beside CombatComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();                     // ⭐ CE-4623 AB-3 — an animal's state (dtAnimalState), on every node
         world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();                      // ⭐ CE-4623 AB-3 — a bird flock's state (dtFlockState)
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalArea>();                      // ⭐ CE-4623 AB-10 — an animal area's species / count / seed (AUTHORED: every node that loads a scenario)
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalAreaPopulated>();             // ⭐ CE-4623 AB-10 — the area has made its animals (recorded, never saved)
         world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)

@@ -95,6 +95,26 @@ namespace Hrot.SimHost.Tests
             w.Dispose(); w2.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-4623</c> AB-10 — the PRODUCT registers every animal component: the shared registry the area (every node loads it with a
+        /// scenario), the brain's registry the fear, herds and homes. 📐 Found by the demo: only the rails registered them, so in the product every
+        /// "is it registered" guard was false — the scenario failed to load (<c>unknown component type name 'AnimalArea'</c>), and fear, herds and
+        /// population were silently off. 🔴 Red-proof: drop the brain registry's animal lines ⇒ red.</summary>
+        [Fact]
+        public void CE4623_TheProductRegistries_RegisterEveryAnimalComponent()
+        {
+            using var w = new EntityRepository();
+            Hrot.Map.Common.HrotSharedComponentRegistry.RegisterAll(w);
+            Hrot.SimHost.CognitiveComponentRegistry.RegisterAll(w);
+            Assert.True(w.IsComponentTypeRegistered<AnimalArea>());
+            Assert.True(w.IsComponentTypeRegistered<AnimalAreaPopulated>());
+            Assert.True(w.IsComponentTypeRegistered<AnimalState>());
+            Assert.True(w.IsComponentTypeRegistered<FlockState>());
+            Assert.True(w.IsComponentTypeRegistered<Fear>());
+            Assert.True(w.IsComponentTypeRegistered<HerdState>());
+            Assert.True(w.IsComponentTypeRegistered<HerdMember>());
+            Assert.True(w.IsComponentTypeRegistered<AnimalHome>());
+        }
+
         [Fact]
         public void CE4623_ARestoredArea_AndAReplay_NeverRepopulate_AFlockAreaAsksForOneFlock()
         {
