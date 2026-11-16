@@ -5,6 +5,7 @@ using CarKinem.Core;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
