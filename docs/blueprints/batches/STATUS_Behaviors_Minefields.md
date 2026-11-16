@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — MS-B1…MS-B4 built and gated; the acceptance demo STOPPED on terrain (CE-2443)
+state: LIVE — REPORTED: MS-B1…MS-B4 built and gated; 3 of 4 runnable feature scenarios pass (mf-at-vs-vehicle on terrain, CE-2444); 3 wait on terrain
 updated: 2026-11-16
 current-answer: the slice table, then §1 decisions, §2 gates
 related-designs:
@@ -59,7 +59,7 @@ collision 500 that broke every SimHost world after the coordinator merge).
 | MS-B3: same, plain · PAR | ✓ | 325 / 325 · 325 / 325; golden additive `+Breach` 56 B, `+ClearLane` 44 B, `+CrossLane` 48 B; red-proofs (`mutate22.py`): the lane at the driving speed ⇒ RED · the 5 m spacing wait dropped ⇒ RED · the crossing ordered with the clearing ⇒ RED |
 | MS-B4: `--filter SquadManeuverTests\|MineStrike…\|ReconMinefield…\|MinefieldBreach…\|BasicSquadSop` (+ the hosting golden plain) plain · PAR | ✓ | 294 / 294 · 291 / 291; golden additive `+MinefieldAhead` 0 B; red-proofs (`mutate23.py`): the SOP row's condition swapped ⇒ RED · the crossing exclusion dropped ⇒ RED · the hold dropped ⇒ RED · the request's kind changed ⇒ RED · the march's `Minefield` kind dropped ⇒ RED · the resume dropped (never Success) ⇒ RED (`mutate23b.py`) — 6 / 6 |
 | the switch re-bind: `MinefieldBreachBehaviorTests` + the SquadManeuver / SOP / tree suites, plain · PAR | ✓ | 331 / 331 · 328 / 328; golden `ClearLane` 44 → 48 B (the `Tool` byte); red-proof: the switch-on dropped ⇒ RED. ⚠ The MS-B4 gate had MISSED `ShippedTreesAreCSharpTests` (BasicSquadSop's new row): re-recorded, purely additive (the row's 4 lines) |
-| the `knowledge` cue: `Hrot.Editor.Tests` `ScenarioChecksTests` | ✓ | 11 / 11; red-proof (`mutate26.py`): the side ignored ⇒ KNOWLEDGE_MUTANT |
+| the `knowledge` cue: `Hrot.Editor.Tests` `ScenarioChecksTests` | ✓ | 11 / 11; red-proof (`mutate26.py`): the side ignored ⇒ RED |
 | terrain's distance fix: `Fdp.Toolkits.Tests` `DangerAreaSensorSystemTests` | ✓ | 30 / 30; red-proof: the distance left unset ⇒ RED |
 | the scenarios: `scripts/scenario-regression.sh mf-recon-and-mark,mf-no-way-round,mf-strike-and-halt,mf-at-vs-vehicle` | — | 3 PASS, 1 FAIL (`mf-at-vs-vehicle`, terrain's AT effects) — the table above |
 
