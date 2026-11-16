@@ -195,6 +195,8 @@ namespace Fdp.Toolkit.Combat
         public fixed long Occupants[4];
         public byte OccupantCount, ConcealedAtDemand;
         public long LastSearched;
+        /// <summary>⭐ K-6 — the man out of the vehicle the men's searcher is sent to now (0 = none yet): a change re-issues his order.</summary>
+        public long SearchMan;
         /// <summary>⭐ K-5 — 1 while the stopper shows the signal.</summary>
         public byte Signalling;
     }

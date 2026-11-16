@@ -133,7 +133,7 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(f.Posts[f.Men[2]].X, 5f, 11f);
             Assert.Equal(CheckpointBehavior.DefaultStandOffM, f.Posts[f.Men[4]].X, 1);                                   // the MG at the stand-off
             Assert.Equal(CheckpointBehavior.DefaultStandOffM, f.Posts[f.Men[3]].X, 1);                                   // the reaction too, the other side
-            Assert.True(f.Posts[f.Men[3]].Y > 0f && f.Posts[f.Men[4]].Y < 0f);
+            Assert.True(f.Posts[f.Men[4]].Y > 0f && f.Posts[f.Men[3]].Y < 0f);   // the MG on the far side of the lane from the stopper (y −4)
             Assert.Null(f.W.Finished);                                                                                   // a checkpoint holds
         }
 

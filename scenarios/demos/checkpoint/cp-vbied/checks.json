@@ -20,17 +20,27 @@
    "value": 1
   },
   {
-   "name": "the ladder reaches disabling fire",
+   "name": "the ladder climbs past the signal (a warning shot or more)",
    "on": "field",
    "who": "Checkpoint",
    "path": "CheckpointWatch.MaxRung",
    "op": ">=",
-   "value": 3
+   "value": 2
   },
   {
    "name": "the Gunner fires",
    "on": "shot",
    "by": "Gunner"
+  },
+  {
+   "name": "it never reaches the rear posts",
+   "never": {
+    "on": "field",
+    "who": "VBIED",
+    "path": "SimTransform.Position.0",
+    "op": ">",
+    "value": 410
+   }
   },
   {
    "name": "no burst among the rear posts",

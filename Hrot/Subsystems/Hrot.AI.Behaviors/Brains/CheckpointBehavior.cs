@@ -216,6 +216,15 @@ namespace Hrot.AI.Behaviors.Brains
             var men = InRole(ref p, in ctx, CheckpointManeuver.RoleSearcher, 0);
             var boot = InRole(ref p, in ctx, CheckpointManeuver.RoleSearcher, 1);
             if (boot.IsNull) boot = men;
+            // the men's searcher goes to the first man OUT not yet searched — re-sent when that man changes (📐 cp-routine-car: sent once, while the
+            //   driver was still aboard, he stood at the car's other side and the man's search aborted)
+            long next = 0;
+            for (int k = 0; k < now.OccupantCount && next == 0; k++)
+            {
+                var man = new Entity((ulong)now.Occupants[k]);
+                if (world.IsAlive(man) && !IsAboard(world, man) && !Searched(world, man)) next = now.Occupants[k];
+            }
+            if (next != now.SearchMan) { now.SearchMan = next; ws.Reissue = 1; }
             bool allMen = true;
             for (int k = 0; k < now.OccupantCount; k++)
             {
@@ -397,13 +406,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (w.SearchStage == 1 && !sv.IsNull && ctx.World.IsAlive(sv) && ctx.World.HasComponent<SimTransform>(sv))
                 {
                     Vector3 to = ctx.World.GetComponentRO<SimTransform>(sv).Position + right * 2.5f;
-                    if (slot == 0)
-                        for (int k = 0; k < w.OccupantCount; k++)
-                        {
-                            var man = new Entity((ulong)w.Occupants[k]);
-                            if (!ctx.World.IsAlive(man) || !ctx.World.HasComponent<SimTransform>(man) || CheckpointBehavior.IsAboard(ctx.World, man)) continue;
-                            to = ctx.World.GetComponentRO<SimTransform>(man).Position; break;
-                        }
+                    var next = w.SearchMan != 0 ? new Entity((ulong)w.SearchMan) : Entity.Null;
+                    if (slot == 0 && !next.IsNull && ctx.World.IsAlive(next) && ctx.World.HasComponent<SimTransform>(next))
+                        to = ctx.World.GetComponentRO<SimTransform>(next).Position;
                     return new MemberOrder { Kind = MemberOrderKind.Watch, Point = to, Speed = p.Speed, ArrivalRadius = 1f, Post = new MemberPost { Set = 1, Radius = 1f },
                                              RoleId = role };
                 }
@@ -412,8 +417,10 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 CheckpointManeuver.RoleStopper => stop + right * CheckpointBehavior.StopperOffsetM,
                 CheckpointManeuver.RoleSearcher => p.Bay + ahead * (slot == 0 ? -2f : 2f),
-                CheckpointManeuver.RoleOverwatch => rear + right * CheckpointBehavior.RearOffsetM,
-                _ => rear - right * (CheckpointBehavior.RearOffsetM + 3f * slot),
+                // the MG on the FAR side of the lane from the stopper and the searchers, so none of them stands on its line to the road (📐 cp-vbied:
+                //   on the stopper's side the burst was held — a direct round never flies through a friend)
+                CheckpointManeuver.RoleOverwatch => rear - right * CheckpointBehavior.RearOffsetM,
+                _ => rear + right * (CheckpointBehavior.RearOffsetM + 3f * slot),
             };
             // ⭐ K-5 (CP-3) — the rung's fire: the warning shot into the ground ahead and disabling fire at the engine are the MACHINE GUN's;
             //   lethal fire at the vehicle is everyone's
