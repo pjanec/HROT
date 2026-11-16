@@ -162,6 +162,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+        world.RegisterComponent<CarKinem.Core.RamOrder>();   // ⭐ CE-4622 K-2 — a hull's ram order (Brain group, dtRamOrder): read by the mover's avoidance and breach gate
         world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();

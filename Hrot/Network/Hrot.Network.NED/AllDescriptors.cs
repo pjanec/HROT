@@ -220,6 +220,8 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
         dtMinefieldLanes              = 194,
         dtMineClearing                = 195,
+        // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).
+        dtRamOrder                    = 196,
         // etc., all known descriptor types here
     }
 

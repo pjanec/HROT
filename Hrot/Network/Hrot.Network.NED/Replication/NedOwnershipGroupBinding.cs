@@ -128,6 +128,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
+        map.RegisterMapping((long)EDescriptorType.dtRamOrder, GlobalComponentIds.RamOrder);                  // ⭐ CE-4622 K-2 — the hull's ram order: the Brain group's, read by the mover
         map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
         map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);   // ⭐ CE-4603 (B-6) — the same shape
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its

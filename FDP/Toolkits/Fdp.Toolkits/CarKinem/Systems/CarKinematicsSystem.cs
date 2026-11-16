@@ -841,7 +841,9 @@ namespace CarKinem.Systems
                         || (hull.Class == VehicleClass.Quadruped && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo) && Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, entity))))
                 {
                     float throttle = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>() && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity)
-                        ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward : 0f;
+                        && nav.Mode == KinematicsMode.Manual
+                        ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward
+                        : RamOrder.On(repo, entity, out _) ? 1f : 0f;   // ⭐ CE-4622 K-2 (RM-5) — a ramming AI hull PUSHES (full throttle in contact)
                     var stepVelocity = dt > 0f ? (pos2D - here) / dt : planar;
                     if (ContactBreach.OnContact(repo, entity, _terrainWorld, in hull, in barrier, here, FacingOf(tf.Rotation), tf.Position.Z, stepVelocity, throttle, dt, out float kept))
                     {
@@ -1152,6 +1154,10 @@ namespace CarKinem.Systems
             
             // Convert to (pos, vel) format for RVO
             Span<(Vector2 pos, Vector2 vel)> neighborData = stackalloc (Vector2, Vector2)[count];
+            // ⭐ CE-4622 K-2 (Checkpoint RM-2, KV-6) — a hull on a RAM order does not give way to its target — to no person at all when the target is a crowd
+            RamOrder ramOrder = default;
+            bool ram = @params.Class != VehicleClass.Pedestrian && RamOrder.On(repo, self, out ramOrder);
+            Entity ramTarget = ram && !ramOrder.Target.IsNone ? ramOrder.Target.Resolve(repo) : Entity.Null;
             // ⭐ CE-3110 I-2c (R-271) — an EMBARKED neighbour rides inside some hull (an exposed passenger stays in the collider hash so it
             //   can be seen and hit): avoiding the hull covers it, and avoiding it too would make a vehicle swerve around its own riders.
             int k = 0;
@@ -1159,6 +1165,8 @@ namespace CarKinem.Systems
             {
                 var (neighborEntity, pos) = neighbors[i];
                 if (!neighborEntity.IsNull && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(neighborEntity)) continue;
+                if (ram && !neighborEntity.IsNull && (neighborEntity == ramTarget
+                    || (ramOrder.Crowd != 0 && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)))) continue;
                 // ⭐ CE-2304 — another storey is not a neighbour
                 if (!neighborEntity.IsNull && repo.HasComponent<SimTransform>(neighborEntity)
                     && MathF.Abs(repo.GetComponentRO<SimTransform>(neighborEntity).Position.Z - selfZ) > AvoidanceStoreyGapM) continue;

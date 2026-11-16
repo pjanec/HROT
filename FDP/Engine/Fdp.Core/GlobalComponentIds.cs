@@ -353,6 +353,11 @@ namespace Fdp.Core
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
         public const int EffectAnchor            = 125;
 
+        /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
+        /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
+        /// ⚠ 126 fixed by the coordinator (127, 128 held for this feature).</summary>
+        public const int RamOrder                = 126;
+
         // IDs 124â€“139 are reserved for future IG components.
 
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
