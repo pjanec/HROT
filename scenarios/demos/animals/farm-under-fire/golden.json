@@ -225,6 +225,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "CullingState": "9c97051fd4b28240",
@@ -247,6 +252,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "CullingState": "9c97051fd4b28240",
@@ -269,6 +279,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 0,
+            "SimTransform.Position.1": 10,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "bd9d09c99dfa9a7a",
             "ActionStatus": "88f697cab6962087",
@@ -329,6 +357,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "CullingState": "9c97051fd4b28240",
@@ -351,6 +384,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "CullingState": "9c97051fd4b28240",
@@ -373,6 +411,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "CullingState": "9c97051fd4b28240",
@@ -395,6 +438,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -467,6 +528,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -495,6 +561,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -518,6 +589,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 39.296,
+            "SimTransform.Position.1": 112.911,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "85e01f29b75a4222",
             "ActionStatus": "f23825ca1134d755",
@@ -584,6 +682,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -609,6 +712,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 71.886,
+            "SimTransform.Position.1": 114.663,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8cb0937fac594d27",
             "ActionStatus": "695f6e5716905caa",
@@ -676,6 +806,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 71.34,
+            "SimTransform.Position.1": 110.828,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "28b1c1feb89991ed",
             "ActionStatus": "695f6e5716905caa",
@@ -743,6 +900,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 74.176,
+            "SimTransform.Position.1": 111.994,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ba1095229e8192a1",
             "ActionStatus": "695f6e5716905caa",
@@ -810,6 +994,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 69.229,
+            "SimTransform.Position.1": 108.657,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5bf72c84d60279a9",
             "ActionStatus": "695f6e5716905caa",
@@ -877,6 +1088,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 66.329,
+            "SimTransform.Position.1": 116.767,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3cfcdc9978dc662c",
             "ActionStatus": "695f6e5716905caa",
@@ -944,6 +1182,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 74.84,
+            "SimTransform.Position.1": 114.885,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "de885f8f8871e9df",
             "ActionStatus": "695f6e5716905caa",
@@ -1011,6 +1276,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 47.203,
+            "SimTransform.Position.1": 14.295,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2f6f0052358a57a3",
             "ActionStatus": "adf6d58c3aa355ac",
@@ -1078,6 +1361,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -1101,6 +1389,40 @@
             0
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Perched"
+            },
+            "FlockState.Mode": "Perched",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 240.921,
+            "SimTransform.Position.1": 108.948,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d8305c6c55ac3899",
             "ActionStatus": "88f697cab6962087",
@@ -1161,6 +1483,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -1186,6 +1513,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 132.773,
+            "SimTransform.Position.1": 53.118,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "93dccae1043e7438",
             "ActionStatus": "695f6e5716905caa",
@@ -1253,6 +1607,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 155.118,
+            "SimTransform.Position.1": 36.564,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e49bc148342b8bd0",
             "ActionStatus": "695f6e5716905caa",
@@ -1320,6 +1701,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 168.418,
+            "SimTransform.Position.1": 54.057,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "cf0d07cab8782402",
             "ActionStatus": "695f6e5716905caa",
@@ -1387,6 +1795,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 133.569,
+            "SimTransform.Position.1": 35.468,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "fec85c21a97a7cc9",
             "ActionStatus": "695f6e5716905caa",
@@ -1454,6 +1889,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 115.171,
+            "SimTransform.Position.1": 54.459,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e826e5e7486ae8c1",
             "ActionStatus": "695f6e5716905caa",
@@ -1521,6 +1983,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 162.593,
+            "SimTransform.Position.1": 43.932,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "0a0d793bcfa1b766",
             "ActionStatus": "695f6e5716905caa",
@@ -1588,6 +2077,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 164.686,
+            "SimTransform.Position.1": 41.932,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dfd79c0c11673e74",
             "ActionStatus": "695f6e5716905caa",
@@ -1655,6 +2171,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 167.584,
+            "SimTransform.Position.1": 43.966,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b3616e196170065d",
             "ActionStatus": "695f6e5716905caa",
@@ -1722,6 +2265,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -1747,6 +2295,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 14.805,
+            "SimTransform.Position.1": 83.36,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f050a352359d8301",
             "ActionStatus": "530aaa2e18265a85",
@@ -1812,6 +2387,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 23.394,
+            "SimTransform.Position.1": 75.636,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "26e950c4f2656694",
             "ActionStatus": "695f6e5716905caa",
@@ -1879,6 +2481,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 23.176,
+            "SimTransform.Position.1": 80.546,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f2f888b1fab8b3c2",
             "ActionStatus": "530aaa2e18265a85",
@@ -1944,6 +2573,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "72e2e5e74d74d429",
             "ActionStatus": "88f697cab6962087",
@@ -2025,6 +2672,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -2053,6 +2705,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -2076,6 +2733,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 39.305,
+            "SimTransform.Position.1": 112.916,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2f69b1a1ec71a93c",
             "ActionStatus": "f23825ca1134d755",
@@ -2142,6 +2826,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -2167,6 +2856,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 73.694,
+            "SimTransform.Position.1": 115.854,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "88dbab15e6931b52",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -2234,6 +2950,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 71.073,
+            "SimTransform.Position.1": 114.399,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "21092301a6f5e807",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -2301,6 +3044,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 75.545,
+            "SimTransform.Position.1": 111.557,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6ee43bc20be38ecf",
             "ActionStatus": "ff90f0dda6e90181",
@@ -2368,6 +3138,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 72.69,
+            "SimTransform.Position.1": 109.38,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "95d4503bc771e2e0",
             "ActionStatus": "04ebdce1999665a0",
@@ -2435,6 +3232,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 66.581,
+            "SimTransform.Position.1": 120.769,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3e1f07b607c29979",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -2502,6 +3326,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 76.297,
+            "SimTransform.Position.1": 114.416,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "78c11377abed416b",
             "ActionStatus": "69163eccac7097f6",
@@ -2569,6 +3420,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 96.105,
+            "SimTransform.Position.1": 24.754,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3868aab1a250f1cc",
             "ActionStatus": "12fb67ef02b0de0d",
@@ -2636,6 +3505,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -2659,6 +3533,40 @@
             0
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Perched"
+            },
+            "FlockState.Mode": "Perched",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 240.921,
+            "SimTransform.Position.1": 108.948,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d8305c6c55ac3899",
             "ActionStatus": "88f697cab6962087",
@@ -2719,6 +3627,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -2744,6 +3657,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 133.592,
+            "SimTransform.Position.1": 43.162,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "25512e715aad8239",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -2811,6 +3751,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 145.81,
+            "SimTransform.Position.1": 34.095,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "72b8e3b7bdb9ad23",
             "ActionStatus": "768d3a9ba7d03508",
@@ -2878,6 +3845,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 160.764,
+            "SimTransform.Position.1": 47.637,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "0fe8fd4479e9b835",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -2945,6 +3939,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 139.044,
+            "SimTransform.Position.1": 27.112,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b3fcd499760144f6",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3012,6 +4033,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 121.142,
+            "SimTransform.Position.1": 46.449,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0d84e9f51f3607c",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3079,6 +4127,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 154.466,
+            "SimTransform.Position.1": 36.85,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8c49bfe95ac3b0f0",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3146,6 +4221,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 156.036,
+            "SimTransform.Position.1": 40.412,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "7bbaf81fda39827a",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3213,6 +4315,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 159.589,
+            "SimTransform.Position.1": 38.884,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e497c2b5e2c97ee8",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3280,6 +4409,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -3305,6 +4439,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 19.546,
+            "SimTransform.Position.1": 82.136,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "9b8de5df92c2c9ce",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3372,6 +4533,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 19.801,
+            "SimTransform.Position.1": 76.587,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c32151ebb898e9d8",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3439,6 +4627,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 23.352,
+            "SimTransform.Position.1": 80.353,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "4467ab9e48287d9f",
             "ActionStatus": "2d4497bb2f3069a3",
@@ -3506,6 +4721,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "72e2e5e74d74d429",
             "ActionStatus": "88f697cab6962087",
@@ -3588,6 +4821,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -3616,6 +4854,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -3639,6 +4882,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 38.914,
+            "SimTransform.Position.1": 103.183,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b65dc8ff0428e480",
             "ActionStatus": "da1754412dd1f7c8",
@@ -3705,6 +4975,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -3730,6 +5005,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 76.466,
+            "SimTransform.Position.1": 116.404,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "696e02ccfdc74712",
             "ActionStatus": "aa05f95e258d2cd9",
@@ -3797,6 +5099,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 71.008,
+            "SimTransform.Position.1": 118.378,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ad1d73a38c02194d",
             "ActionStatus": "da1754412dd1f7c8",
@@ -3864,6 +5193,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 77.969,
+            "SimTransform.Position.1": 110.653,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e2f8c1a0979c6cd7",
             "ActionStatus": "da1754412dd1f7c8",
@@ -3931,6 +5287,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 72.702,
+            "SimTransform.Position.1": 109.38,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c07a8c7ef0b434b6",
             "ActionStatus": "04ebdce1999665a0",
@@ -3998,6 +5381,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 66.781,
+            "SimTransform.Position.1": 124.69,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "68a74ce42fae81f2",
             "ActionStatus": "8258eb2ccbd43377",
@@ -4065,6 +5475,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 76.206,
+            "SimTransform.Position.1": 113.08,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f9b50017031baff4",
             "ActionStatus": "69163eccac7097f6",
@@ -4132,6 +5569,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 144.445,
+            "SimTransform.Position.1": 35.855,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8d265a73bae493f1",
             "ActionStatus": "92d4f3cef7f376fa",
@@ -4199,6 +5654,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -4222,6 +5682,40 @@
             0
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Perched"
+            },
+            "FlockState.Mode": "Perched",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 240.921,
+            "SimTransform.Position.1": 108.948,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d8305c6c55ac3899",
             "ActionStatus": "88f697cab6962087",
@@ -4282,6 +5776,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -4307,6 +5806,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 144.686,
+            "SimTransform.Position.1": 47.82,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "88f4e9f699e0dd48",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4374,6 +5900,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 154.543,
+            "SimTransform.Position.1": 35.48,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "504f48123c0ef8a0",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4441,6 +5994,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 168.852,
+            "SimTransform.Position.1": 49.988,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "facf62a8b5c1297f",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4508,6 +6088,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 152.603,
+            "SimTransform.Position.1": 26.266,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6643cc37739bda1a",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4575,6 +6182,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 129.752,
+            "SimTransform.Position.1": 54.851,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "363256abe69b655d",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4642,6 +6276,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 163.641,
+            "SimTransform.Position.1": 37.876,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "45e40674ab6a7d5b",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4709,6 +6370,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 163.612,
+            "SimTransform.Position.1": 42.815,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "78b9f2b4b85d4e58",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4776,6 +6464,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Alert",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Alert",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 167.918,
+            "SimTransform.Position.1": 40.121,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "81df7bd7b5ef3ede",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4843,6 +6558,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -4868,6 +6588,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 26.319,
+            "SimTransform.Position.1": 80.266,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "1fe9d943e64e0021",
             "ActionStatus": "da1754412dd1f7c8",
@@ -4935,6 +6682,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 14.248,
+            "SimTransform.Position.1": 78.81,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "13bfe22febba93dd",
             "ActionStatus": "e289540871c600bb",
@@ -5002,6 +6776,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 18.175,
+            "SimTransform.Position.1": 79.082,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d064c0beda825426",
             "ActionStatus": "da1754412dd1f7c8",
@@ -5069,6 +6870,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "72e2e5e74d74d429",
             "ActionStatus": "88f697cab6962087",
@@ -5151,6 +6970,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -5179,6 +7003,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -5202,6 +7031,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 38.894,
+            "SimTransform.Position.1": 102.665,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "213432304df3b901",
             "ActionStatus": "fc96edb3cf35e19a",
@@ -5268,6 +7124,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -5293,6 +7154,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 78.327,
+            "SimTransform.Position.1": 114.528,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c2f07be913f1bb77",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5360,6 +7248,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 70.816,
+            "SimTransform.Position.1": 122.365,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "412369318ff2eec9",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5427,6 +7342,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 81.937,
+            "SimTransform.Position.1": 110.616,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "150bd76108edc589",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5494,6 +7436,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 71.098,
+            "SimTransform.Position.1": 111.193,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "1e33bfb12479b24e",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5561,6 +7530,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 66.783,
+            "SimTransform.Position.1": 124.741,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8a9559a44da796ce",
             "ActionStatus": "8258eb2ccbd43377",
@@ -5628,6 +7624,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 77.114,
+            "SimTransform.Position.1": 109.466,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6e2706e87e1b81c2",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5695,6 +7718,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 160.107,
+            "SimTransform.Position.1": 39.03,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "485fd51fb6f6d3a7",
             "ActionStatus": "bf1e7c81ef6c13cb",
@@ -5762,6 +7803,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -5785,6 +7831,40 @@
             0
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Perched"
+            },
+            "FlockState.Mode": "Perched",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 240.921,
+            "SimTransform.Position.1": 108.948,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d8305c6c55ac3899",
             "ActionStatus": "88f697cab6962087",
@@ -5845,6 +7925,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -5870,6 +7955,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 102.383,
+            "SimTransform.Position.1": 65.782,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c7b24a69f9d5e35b",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -5937,6 +8049,33 @@
             0.002
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 199.35,
+            "SimTransform.Position.1": -4.708,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3fae323491d39ef9",
             "ActionStatus": "952f3eafbeefbb35",
@@ -6004,6 +8143,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 176.423,
+            "SimTransform.Position.1": 53.058,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "292c9ae5d57c5cb0",
             "ActionStatus": "e29c52b61944c860",
@@ -6071,6 +8237,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 156.227,
+            "SimTransform.Position.1": 25.161,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c2898a31dfa76219",
             "ActionStatus": "44a63df8454fa08b",
@@ -6138,6 +8331,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 131.865,
+            "SimTransform.Position.1": 58.985,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ae7d99ca2e274237",
             "ActionStatus": "44a63df8454fa08b",
@@ -6205,6 +8425,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 171.119,
+            "SimTransform.Position.1": 37.702,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "4867397a0686bf23",
             "ActionStatus": "44a63df8454fa08b",
@@ -6272,6 +8519,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 173.894,
+            "SimTransform.Position.1": 43.695,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ec2061952d7887c5",
             "ActionStatus": "44a63df8454fa08b",
@@ -6339,6 +8613,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 175.928,
+            "SimTransform.Position.1": 40.842,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d9c3fd025c81b30f",
             "ActionStatus": "e29c52b61944c860",
@@ -6406,6 +8707,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -6431,6 +8737,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.395,
+            "SimTransform.Position.1": 79.949,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "1b78da34d9d8d2b2",
             "ActionStatus": "8abdec88e7a15133",
@@ -6498,6 +8831,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 14.067,
+            "SimTransform.Position.1": 78.877,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "edb0eada90c25b28",
             "ActionStatus": "e289540871c600bb",
@@ -6565,6 +8925,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 13.759,
+            "SimTransform.Position.1": 75.563,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ffc604e0441b69fb",
             "ActionStatus": "ebd71753c7cf3e75",
@@ -6632,6 +9019,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "72e2e5e74d74d429",
             "ActionStatus": "88f697cab6962087",
@@ -6714,6 +9119,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -6742,6 +9152,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -6765,6 +9180,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 42.472,
+            "SimTransform.Position.1": 105.432,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "16750413825575b3",
             "ActionStatus": "63352d18a2c906bb",
@@ -6831,6 +9273,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -6856,6 +9303,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 56.397,
+            "SimTransform.Position.1": 104.156,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "eb252d45a194ed44",
             "ActionStatus": "63352d18a2c906bb",
@@ -6923,6 +9397,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 47.844,
+            "SimTransform.Position.1": 115.279,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "a0a27e2cd9ad462c",
             "ActionStatus": "63352d18a2c906bb",
@@ -6990,6 +9491,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 61.89,
+            "SimTransform.Position.1": 99.401,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "27da509c6d8423c5",
             "ActionStatus": "63352d18a2c906bb",
@@ -7057,6 +9585,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 48.025,
+            "SimTransform.Position.1": 103.587,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e1eba5d376cfbb75",
             "ActionStatus": "63352d18a2c906bb",
@@ -7124,6 +9679,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 43.146,
+            "SimTransform.Position.1": 120.166,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3308721378e29eb7",
             "ActionStatus": "63352d18a2c906bb",
@@ -7191,6 +9773,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 54.507,
+            "SimTransform.Position.1": 101.082,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c40993cd544aee67",
             "ActionStatus": "63352d18a2c906bb",
@@ -7258,6 +9867,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 209.164,
+            "SimTransform.Position.1": 9.066,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "af4049afc9fb8927",
             "ActionStatus": "17f9ac04bd4db20d",
@@ -7325,6 +9952,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -7348,6 +9980,40 @@
             24.991
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Flying"
+            },
+            "FlockState.Mode": "Flying",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 310.349,
+            "SimTransform.Position.1": 24.642,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "025c48afe711f3d1",
             "ActionStatus": "63352d18a2c906bb",
@@ -7408,6 +10074,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -7433,6 +10104,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 42.766,
+            "SimTransform.Position.1": 10.392,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "989718e93c6dc99c",
             "ActionStatus": "63352d18a2c906bb",
@@ -7500,6 +10198,33 @@
             0.602
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 198.478,
+            "SimTransform.Position.1": -80.291,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6f9f78a70ede394a",
             "ActionStatus": "a53b35ec806a559f",
@@ -7567,6 +10292,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 190.159,
+            "SimTransform.Position.1": 45.181,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5ccd168c602a4006",
             "ActionStatus": "a53b35ec806a559f",
@@ -7634,6 +10386,33 @@
             0.126
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 124.308,
+            "SimTransform.Position.1": -27.545,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "98552582d261bf9e",
             "ActionStatus": "a53b35ec806a559f",
@@ -7701,6 +10480,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 90.827,
+            "SimTransform.Position.1": 5.575,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6bc9f8591b9626fa",
             "ActionStatus": "a53b35ec806a559f",
@@ -7768,6 +10574,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 177.757,
+            "SimTransform.Position.1": 49.58,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "fb1433015d742e42",
             "ActionStatus": "a53b35ec806a559f",
@@ -7835,6 +10668,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 193.291,
+            "SimTransform.Position.1": 58.255,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "39e48652452feff1",
             "ActionStatus": "a53b35ec806a559f",
@@ -7902,6 +10762,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 198.344,
+            "SimTransform.Position.1": 45.346,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "4e8e09adfcb4ecb1",
             "ActionStatus": "a53b35ec806a559f",
@@ -7969,6 +10856,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -7994,6 +10886,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.875,
+            "SimTransform.Position.1": 79.45,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e9830690180c8778",
             "ActionStatus": "63352d18a2c906bb",
@@ -8061,6 +10980,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 12.125,
+            "SimTransform.Position.1": 78.36,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e811375ba6fed3f5",
             "ActionStatus": "63352d18a2c906bb",
@@ -8128,6 +11074,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 12.126,
+            "SimTransform.Position.1": 76.203,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6257effc126a1666",
             "ActionStatus": "63352d18a2c906bb",
@@ -8195,6 +11168,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 200,
+            "SimTransform.Position.1": 160,
+            "WeaponPosture": {
+              "Kind": "Ready",
+              "Target": "null",
+              "Point": [
+                285,
+                185,
+                1
+              ],
+              "IdleSeconds": 0.417,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f5dca2c5f3b67e40",
             "ActionStatus": "c2e1e127e584e141",
@@ -8278,6 +11269,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -8306,6 +11302,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -8329,6 +11330,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 44.652,
+            "SimTransform.Position.1": 107.171,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6566498a4978b212",
             "ActionStatus": "cd99f544ca5cf76b",
@@ -8395,6 +11423,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -8420,6 +11453,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 41.49,
+            "SimTransform.Position.1": 97.242,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b5b97986edc59df4",
             "ActionStatus": "c8bd5121f933135d",
@@ -8487,6 +11547,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 32.245,
+            "SimTransform.Position.1": 110.181,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "56f6fda949d981af",
             "ActionStatus": "6e3b4b6a139a2ebc",
@@ -8554,6 +11641,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 46.395,
+            "SimTransform.Position.1": 92.187,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e1a76543936f3031",
             "ActionStatus": "343d06fd02a7bed9",
@@ -8621,6 +11735,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 32.237,
+            "SimTransform.Position.1": 99.029,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e6891b31a6974b80",
             "ActionStatus": "c8bd5121f933135d",
@@ -8688,6 +11829,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 26.985,
+            "SimTransform.Position.1": 117.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022e687e2a851c8f",
             "ActionStatus": "6e3b4b6a139a2ebc",
@@ -8755,6 +11923,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 39.389,
+            "SimTransform.Position.1": 94.703,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "a625e52be97b54a8",
             "ActionStatus": "6e3b4b6a139a2ebc",
@@ -8822,6 +12017,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 288.651,
+            "SimTransform.Position.1": 9.924,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "362e90d128b1be4c",
             "ActionStatus": "4e25cb50b2eee7d9",
@@ -8889,6 +12102,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -8912,6 +12130,40 @@
             19.805
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Flying"
+            },
+            "FlockState.Mode": "Flying",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 387.364,
+            "SimTransform.Position.1": -67.38,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "88daf2a431b45894",
             "ActionStatus": "cd99f544ca5cf76b",
@@ -8972,6 +12224,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -8997,6 +12254,33 @@
             1.705
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": -13.236,
+            "SimTransform.Position.1": -59.453,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "7333416f4e3be23e",
             "ActionStatus": "cd99f544ca5cf76b",
@@ -9064,6 +12348,33 @@
             3.411
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 191.8,
+            "SimTransform.Position.1": -169.978,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "75e4b0c4e01e2e71",
             "ActionStatus": "a53b35ec806a559f",
@@ -9131,6 +12442,33 @@
             0.113
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 182.176,
+            "SimTransform.Position.1": -44.45,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "faf5d022d7068012",
             "ActionStatus": "a53b35ec806a559f",
@@ -9198,6 +12536,33 @@
             0.9
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 88.371,
+            "SimTransform.Position.1": -109.799,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "695c94bbbeae8b45",
             "ActionStatus": "a53b35ec806a559f",
@@ -9265,6 +12630,33 @@
             1.673
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 30.88,
+            "SimTransform.Position.1": -61.302,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b4ae4fb1791e0b29",
             "ActionStatus": "a53b35ec806a559f",
@@ -9332,6 +12724,33 @@
             0.118
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 152.52,
+            "SimTransform.Position.1": -36.437,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "eb38f9836c34b727",
             "ActionStatus": "a53b35ec806a559f",
@@ -9399,6 +12818,33 @@
             0.071
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 185.238,
+            "SimTransform.Position.1": -28.857,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ab3e5a1fa6d1abac",
             "ActionStatus": "a53b35ec806a559f",
@@ -9466,6 +12912,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 155.531,
+            "SimTransform.Position.1": 91.909,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b45c816e2dac7a1f",
             "ActionStatus": "1a761fcab32d3e49",
@@ -9533,6 +13006,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -9558,6 +13036,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.875,
+            "SimTransform.Position.1": 79.45,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e9830690180c8778",
             "ActionStatus": "d3c417f1588af2f3",
@@ -9625,6 +13130,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 12.125,
+            "SimTransform.Position.1": 78.36,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e811375ba6fed3f5",
             "ActionStatus": "bb43040ea8f23bb3",
@@ -9692,6 +13224,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 12.126,
+            "SimTransform.Position.1": 76.203,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6257effc126a1666",
             "ActionStatus": "37682019c6ff6dac",
@@ -9759,6 +13318,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 201.462,
+            "SimTransform.Position.1": 161.452,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "83ec347588336058",
             "ActionStatus": "c2e1e127e584e141",
@@ -9844,6 +13421,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -9872,6 +13454,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -9895,6 +13482,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 34.648,
+            "SimTransform.Position.1": 106.967,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "5edb5c93a61fe972",
             "ActionStatus": "5d8257b7c5368448",
@@ -9961,6 +13575,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -9986,6 +13605,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 42.007,
+            "SimTransform.Position.1": 96.838,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "87a39980385232fe",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10053,6 +13699,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 32.904,
+            "SimTransform.Position.1": 109.946,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f9f3a1701eda26ef",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10120,6 +13793,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 46.385,
+            "SimTransform.Position.1": 92.778,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c9e9cac3282f0772",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10187,6 +13887,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 32.67,
+            "SimTransform.Position.1": 98.56,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6e2de221ff8803af",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10254,6 +13981,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.389,
+            "SimTransform.Position.1": 116.861,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "aec6aef449ddae29",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10321,6 +14075,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 38.946,
+            "SimTransform.Position.1": 95.093,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c0e895aa2a2aedd8",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10388,6 +14169,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 295.553,
+            "SimTransform.Position.1": 10.006,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "22afbfe8873c3abd",
             "ActionStatus": "4ecbbf7b387f943c",
@@ -10455,6 +14254,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -10478,6 +14282,40 @@
             20.949
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 3,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 3,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Flying"
+            },
+            "FlockState.Mode": "Flying",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 464.38,
+            "SimTransform.Position.1": -159.4,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "45ba080ed7e3e64e",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10538,6 +14376,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -10563,6 +14406,33 @@
             2.256
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": -41.118,
+            "SimTransform.Position.1": -69.12,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b81bf956dc493532",
             "ActionStatus": "5b981cd097a27bd9",
@@ -10630,6 +14500,33 @@
             1.283
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 188.107,
+            "SimTransform.Position.1": -219.569,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6202b2c42c77d763",
             "ActionStatus": "a53b35ec806a559f",
@@ -10697,6 +14594,33 @@
             0.415
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 177.765,
+            "SimTransform.Position.1": -93.983,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "defd3e6d979b4d73",
             "ActionStatus": "a53b35ec806a559f",
@@ -10764,6 +14688,33 @@
             1.49
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 68.46,
+            "SimTransform.Position.1": -155.368,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "aa261fb0c8cecc75",
             "ActionStatus": "a53b35ec806a559f",
@@ -10831,6 +14782,33 @@
             4.423
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": -2.313,
+            "SimTransform.Position.1": -98.333,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c238d1b07886794d",
             "ActionStatus": "a53b35ec806a559f",
@@ -10898,6 +14876,33 @@
             -0.175
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 138.516,
+            "SimTransform.Position.1": -84.154,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "8598766b39263726",
             "ActionStatus": "a53b35ec806a559f",
@@ -10965,6 +14970,33 @@
             0.262
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 180.968,
+            "SimTransform.Position.1": -78.403,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "daa508df0904ddc8",
             "ActionStatus": "a53b35ec806a559f",
@@ -11032,6 +15064,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 125.255,
+            "SimTransform.Position.1": 132.488,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "71fd6d3397f2618d",
             "ActionStatus": "1a761fcab32d3e49",
@@ -11099,6 +15158,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -11124,6 +15188,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.875,
+            "SimTransform.Position.1": 79.45,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e9830690180c8778",
             "ActionStatus": "d3c417f1588af2f3",
@@ -11191,6 +15282,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 12.125,
+            "SimTransform.Position.1": 78.36,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e811375ba6fed3f5",
             "ActionStatus": "bb43040ea8f23bb3",
@@ -11258,6 +15376,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 12.126,
+            "SimTransform.Position.1": 76.203,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6257effc126a1666",
             "ActionStatus": "37682019c6ff6dac",
@@ -11325,6 +15470,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 200.112,
+            "SimTransform.Position.1": 160.111,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6f9da64e21d42f58",
             "ActionStatus": "c2e1e127e584e141",
@@ -11410,6 +15573,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
@@ -11438,6 +15606,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 40,
+            "SimTransform.Position.1": 108
+          },
           "components": {
             "AnimalArea": "bb47e68ba634ada2",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -11461,6 +15634,33 @@
             0
           ],
           "health": 80,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Dog",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Dog",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 35.518,
+            "SimTransform.Position.1": 110.141,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "23edd7518eca6c73",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11527,6 +15727,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 70,
+            "SimTransform.Position.1": 112
+          },
           "components": {
             "AnimalArea": "3966a8f0209a3c6d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -11552,6 +15757,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 45.98,
+            "SimTransform.Position.1": 96.907,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "08ccfa5d48134e30",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11619,6 +15851,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 38.234,
+            "SimTransform.Position.1": 109.052,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "a220f28963bf4a31",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11686,6 +15945,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 49.372,
+            "SimTransform.Position.1": 95.396,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6bd5bd0918411067",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11753,6 +16039,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 36.624,
+            "SimTransform.Position.1": 98.177,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "4ba63c4aa37c2e6d",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11820,6 +16133,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 31.209,
+            "SimTransform.Position.1": 115.764,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c5ab723fc9c2da78",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11887,6 +16227,33 @@
             0
           ],
           "health": 15,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Calm",
+              "FearBand": 0,
+              "Species": "Hen",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 0,
+            "AnimalState.Mode": "Calm",
+            "AnimalState.Species": "Hen",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 42.66,
+            "SimTransform.Position.1": 96.511,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e875085df5734630",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -11954,6 +16321,24 @@
             0
           ],
           "health": 3000,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 295.571,
+            "SimTransform.Position.1": 10.006,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "9398c7776440acae",
             "ActionStatus": "4ecbbf7b387f943c",
@@ -12021,6 +16406,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 240,
+            "SimTransform.Position.1": 120
+          },
           "components": {
             "AnimalArea": "f3cce6d2c6b0f07d",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -12044,6 +16434,40 @@
             4.028
           ],
           "health": 40,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 2,
+              "Species": "BirdFlock",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "BirdFlock",
+            "EntityInfo.ForceId": "Neutral",
+            "FlockState": {
+              "Count": 30,
+              "InitialCount": 30,
+              "Seed": 4628,
+              "Mode": "Flying"
+            },
+            "FlockState.Mode": "Flying",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 499.594,
+            "SimTransform.Position.1": -201.4,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ba2dcc54d1bef8bf",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -12104,6 +16528,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 50
+          },
           "components": {
             "AnimalArea": "64f0ed88af9aabe1",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -12129,6 +16558,33 @@
             0.083
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Flee",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Flee",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": -24.079,
+            "SimTransform.Position.1": 19.242,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "641f1044b196b287",
             "ActionStatus": "6d4ef10afb6ea1d6",
@@ -12196,6 +16652,33 @@
             1.282
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 188.107,
+            "SimTransform.Position.1": -219.579,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "add2f87ed783b5a4",
             "ActionStatus": "a53b35ec806a559f",
@@ -12263,6 +16746,33 @@
             0.415
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 177.765,
+            "SimTransform.Position.1": -93.993,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "c76b548b2256a6e1",
             "ActionStatus": "a53b35ec806a559f",
@@ -12330,6 +16840,33 @@
             1.49
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 68.456,
+            "SimTransform.Position.1": -155.377,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "80146ee994e64028",
             "ActionStatus": "a53b35ec806a559f",
@@ -12397,6 +16934,33 @@
             4.424
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": -2.32,
+            "SimTransform.Position.1": -98.342,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "66c3084b43b959b0",
             "ActionStatus": "a53b35ec806a559f",
@@ -12464,6 +17028,33 @@
             -0.175
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 138.516,
+            "SimTransform.Position.1": -84.163,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "a6139460839ad3c8",
             "ActionStatus": "a53b35ec806a559f",
@@ -12531,6 +17122,33 @@
             0.262
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 180.968,
+            "SimTransform.Position.1": -78.412,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "ba1025137fa08139",
             "ActionStatus": "a53b35ec806a559f",
@@ -12598,6 +17216,33 @@
             0
           ],
           "health": 400,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 2,
+              "Species": "Cattle",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 2,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Cattle",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 125.25,
+            "SimTransform.Position.1": 132.497,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "67ebc7faafae6270",
             "ActionStatus": "1a761fcab32d3e49",
@@ -12665,6 +17310,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 20,
+            "SimTransform.Position.1": 80
+          },
           "components": {
             "AnimalArea": "b50292159872e151",
             "AnimalAreaPopulated": "6350988717ad93c0",
@@ -12690,6 +17340,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 1,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 1,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 27.875,
+            "SimTransform.Position.1": 79.45,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e9830690180c8778",
             "ActionStatus": "d3c417f1588af2f3",
@@ -12757,6 +17434,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 1,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 1,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 12.125,
+            "SimTransform.Position.1": 78.36,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e811375ba6fed3f5",
             "ActionStatus": "bb43040ea8f23bb3",
@@ -12824,6 +17528,33 @@
             0
           ],
           "health": 200,
+          "visible": {
+            "AnimalState": {
+              "Mode": "Recover",
+              "FearBand": 1,
+              "Species": "Pig",
+              "Flags": "None"
+            },
+            "AnimalState.FearBand": 1,
+            "AnimalState.Mode": "Recover",
+            "AnimalState.Species": "Pig",
+            "EntityInfo.ForceId": "Neutral",
+            "NavigationStatus.Phase": "Idle",
+            "SimTransform.Position.0": 12.126,
+            "SimTransform.Position.1": 76.203,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "6257effc126a1666",
             "ActionStatus": "37682019c6ff6dac",
@@ -12891,6 +17622,24 @@
             0
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Following",
+            "SimTransform.Position.0": 200.097,
+            "SimTransform.Position.1": 160.096,
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "df76c9cb30344746",
             "ActionStatus": "c2e1e127e584e141",
@@ -12976,6 +17725,11 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "SimTransform.Position.0": 150,
+            "SimTransform.Position.1": 10
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "cc975b87acdbe8a1",
