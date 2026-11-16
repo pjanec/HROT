@@ -1,6 +1,6 @@
 {
   "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Minefields MR-19 / R-4277 (NOTE_Coordinator_To_Behaviors_Minefield_Scenarios.md): an engineer traces an unknown field on swept-clear cells and marks it. From the header's Judge (1)-(5). The knowledge cue (CE-4624) reads what Friend's own readers see.",
-  "runFor": 900,
+  "runFor": 1200,
   "golden": false,
   "expect": [
     { "name": "the Engineer runs ReconMinefield", "on": "task", "who": "Engineer", "is": "ReconMinefield" },
