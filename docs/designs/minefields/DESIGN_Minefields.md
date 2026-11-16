@@ -329,3 +329,28 @@ field's own rotated lattice).
 ## 10. ⏳ The independent review of the generalization (MF-17) — `2026-11-16`
 
 🔒 User, verbatim: *"approved, fold it in. Mark ready to build only after one more independent review of the knowledge generalization."*
+
+⭐ One independent reviewer; 15 findings (3 blockers). ✔ = re-measured by the coordinator. ⏳ AWAITING RULINGS — not READY-TO-BUILD.
+
+| # | sev | the defect | evidence | ⭐ lean |
+|---|---|---|---|---|
+| KR-1 | ⛔ BLOCKER | no 64-bit stable scenario key exists: `EntityGuid` is a 128-bit `Guid`, a terrain-object key is a STRING | ✔ `EntityGuid.cs:18-20`, `TerrainObjects.cs:29-31`; precedent `BuildingDamage.cs:51-59` (an `int` building index, saved by the string) | the subject is (subject kind byte + a 16-byte `EntityGuid`, or a terrain-object index); saved as the guid or the string |
+| KR-2 | ⛔ BLOCKER | header + 62 × 64 × 2 bits = ~1032 B > 1024 | `EntityCommandBuffer.cs:39`; `SimInstant` is 8 B | the grid ≤ 60 × 64; the size asserted by a rail (`Unsafe.SizeOf`) |
+| KR-3 | ⛔ BLOCKER | the UML puts `StruckLattice` in the per-side payload — ground truth duplicated per side | §3b vs §3a / MR-1 | the payload is the 2-bit grid only; struck mines stay in the per-field `MinefieldStrikes` |
+| KR-4 | SHOULD | "lattice max" is a minefield property; a bridge (intact → destroyed → repaired) or a building (cleared → re-occupied) is not monotone; the header has no merge rule | — | the merge is a per-kind POLICY (lattice max · newest by `LearnedAt`); the header: `LearnedAt` max, `Marked` OR |
+| KR-5 | SHOULD | two deciding nodes ⇒ two entities per key; the diagrams show one writer | `CellRecordSystem.cs:26-31, :64-81`, `ScenarioLoadStep.cs:272-284` | `PlaceKnowledgeSystem` on EVERY deciding node (SimHost, CGF), writing its own entities; `Knows` and the table read the UNION (merge over every entity of a key); drawn |
+| KR-6 | SHOULD | a THIRD copy of the record writer (`CellRecordSystem`, `BuildingDamageSystem` already duplicate the pending / drain / owns core) | `BuildingDamageSystem.cs:61-173` vs `CellRecordSystem.cs:41-125` | extract a key-generic record-writer core; the knowledge system uses it; folding the other two onto it filed as a tracker row |
+| KR-7 | SHOULD | one union component with a raw payload costs ~1 KB per record for every future kind and makes readers reinterpret bytes | `CellRecordSystem<TRecord,TItem>` is generic over component TYPES | ⭐ the generic part is the shared HEADER struct, the writer core, the union reader, `Knows` and the table builder; each kind is its OWN unmanaged component — only `MinefieldKnowledge` (header + grid) is built (supersedes KG-1's single `PlaceKnowledge` component; the concept keeps the name) |
+| KR-8 | SHOULD | "VERSIONED like `DoorStates.Of`" is wrong: it is never keyed on a version (a write in the tick would be stale); it re-reads per thread and returns the previous table when equal | ✔ `TerrainObjects.cs:108-111`; craters ride on it (`GroundDamage.cs:240-245`) | a `PlaceKnowledgeTable` (per side) rides on `DoorStates` like `Craters` — reaches every path / sight caller with no new parameter, 0 B on a steady frame; `JudgeBy(doors, side)`; KG-6 reworded |
+| KR-9 | SHOULD | the danger solve plans its route with NO side, so it would watch a different route than the unit drives | ✔ `DangerAlongRouteSolve.cs:53-56` | the side in `RouteQuery`; the solver and the danger solve read the carrier's `ForceId` (replicated `EntityInfo`) |
+| KR-10 | SHOULD | if known-mined cells are CLOSED, a plan through a field FAILS and the danger sensor never reports the field (KG-7 unreachable) | `DangerAlongRouteSolve.cs:57-61` | known-mined cells PRICED very high (not closed) ⇒ the route goes round when it can, and through only when nothing else exists — the sensor then reports the Minefield area and the squad halts |
+| KR-11 | SHOULD | the per-side DISPLAY ignores P-3's feature gate (side-limited map is OFF by default, Zeus) | `PLAN_Training_And_Gameplay_Engine.md:39` | the minefield gizmo follows P-3's gate: off ⇒ every field drawn (as truth, Zeus); on ⇒ the seat's side knowledge; the AI always uses its side's knowledge |
+| KR-12 | SHOULD | the module diagram omits the navigation solver (10 Hz snapshot), the EQS danger solve, the writer on both nodes, the table builder | `NavigationSolverModule.cs:28`, `DamageAssessmentModule.cs:32` | drawn |
+| KR-13 | NIT | side 0 is `Neutral` — an unset pad would price with the civilians' knowledge | `ForceId.cs:13`, `PathfindingEvents.cs:30` | store side + 1; 0 = no knowledge applied |
+| KR-14 | NIT | "one lookup per polygon" — the table knows no polygons | — | the polygon → (field, cells) map is static at bake; the side's cell state is read per cell |
+| KR-15 | NIT | saved under `terrainObjects`, but a minefield guid is not a terrain object; a merge throws on a duplicate key | `ScenarioMergeCore.cs:181-206` | a `knowledge` entry keyed (subject, side, kind, chunk) with a merge arm applying the kind's policy |
+
+⭐ **Found sound:** no prior art for per-side knowledge of a place (P-3 is entities and display only); the navigation node receives the
+knowledge and the side through the shared pack; the record family (serial writer, stops in replay, recorded by bytes) fits; avoid vs cross-with-care
+and the shelled area kept apart agree with AQ101; observations as events respect R-4212. ⚠ TKB 7206 is free in production (a test-local constant
+in `EjectionSystemTests.cs:26` only).
