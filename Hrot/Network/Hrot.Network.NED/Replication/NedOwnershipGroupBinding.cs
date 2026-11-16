@@ -124,6 +124,11 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtBuildingDamage, GlobalComponentIds.BuildingDamage);
         // ⭐ CE-4591 (P-4) — no group: the node that decided a cell's craters keeps its ground-damage entity (the breach's shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtGroundDamage, GlobalComponentIds.GroundDamage);
+        map.RegisterMapping((long)EDescriptorType.dtMinefield, GlobalComponentIds.Minefield);                 // ⭐ CE-4624 MS-T2
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
+        map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
+        map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
         map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);   // ⭐ CE-4603 (B-6) — the same shape
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
         //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.

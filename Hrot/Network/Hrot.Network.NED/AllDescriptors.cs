@@ -217,6 +217,9 @@ namespace Hrot.NED.Descriptors
         dtMinefieldKnowledge          = 193,
         // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
         //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
+        // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
+        dtMinefieldLanes              = 194,
+        dtMineClearing                = 195,
         // etc., all known descriptor types here
     }
 

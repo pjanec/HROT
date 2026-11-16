@@ -581,6 +581,31 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.False(BodyPartHit.Segment(new[] { unit }, Vector3.Zero, Quaternion.Identity, 1f, new Vector3(float.NaN, 0f, 0f), b, out _));
             Assert.False(BodyPartHit.Segment(new[] { unit }, new Vector3(0f, float.PositiveInfinity, 0f), Quaternion.Identity, 1f, a, b, out _));
         }
-}
-}
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4624</c> (MR-10) — the zone armour table has a fifth face, the BOTTOM: a zone with no belly figure takes its REAR (a soldier's torso 5 mm vest-back…), a platform's
+        /// <c>ArmorBottom</c> is a person's torso belly, a tank's inheriting zone keeps inheriting (NaN, the platform's by <c>ArmorModel</c>); the part-hit face for a normal pointing DOWN is the Bottom
+        /// (it read a side), and a part-frame round travelling UP enters the Bottom. The parameters list names <c>Armour.Bottom</c>.
+        /// 🔴 Red-proof: leave <c>Armour[4]</c> unset (0) ⇒ the soldier's belly reads 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4624_TheBottomFace_OfAZone_AndOfAPartHit()
+        {
+            var body = BodyZones.Of(_db.GetByType(Soldier))!;
+            var torso = body.ZoneOf(PersonPart.Torso)!;
+            Assert.Equal(torso.ArmourOn(Facing.Rear), torso.ArmourOn(Facing.Bottom));
+            Assert.Equal(5f, torso.ArmourOn(Facing.Bottom));                                 // the soldier's vest, every face but the open ones
+            var tank = BodyZones.Of(_db.GetByType(Tank))!;
+            Assert.True(float.IsNaN(tank.ZoneOf(VehiclePart.Turret)!.ArmourOn(Facing.Bottom)));   // inherited: ArmorModel reads ArmorBottom ⇒ the rear
+            var resolved = ParameterResolver.ResolveAll(_db.GetByType(Tank));
+            Assert.Contains(resolved, p => p.Name == "Body.Turret.Armour.Bottom");
+
+            Assert.Equal(Facing.Bottom, BodyPartHit.FaceOf(new System.Numerics.Vector3(0, 0, -1)));
+            Assert.Equal(Facing.Top, BodyPartHit.FaceOf(new System.Numerics.Vector3(0, 0, 1)));
+            Assert.Equal(Facing.Front, BodyPartHit.FaceOf(new System.Numerics.Vector3(1, 0, 0)));
+            Assert.Equal(Facing.Bottom, BodyPartHit.ArcFaceOf(new System.Numerics.Vector3(0, 0, 1)));   // travelling up
+            Assert.Equal(Facing.Top, BodyPartHit.ArcFaceOf(new System.Numerics.Vector3(0, 0, -1)));
+            Assert.Equal(Facing.Front, BodyPartHit.ArcFaceOf(new System.Numerics.Vector3(-1, 0, 0)));
+        }
+    }
+}

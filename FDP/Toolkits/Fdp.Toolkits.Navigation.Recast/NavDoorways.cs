@@ -243,13 +243,23 @@ public sealed class DoorAwareQueryFilter : IDtQueryFilter
     /// thread and layer, so a query judged by its caller's doors allocates nothing.</summary>
     public DoorAwareQueryFilter WorkingCopy() => new(_doorPolys, _doors, _canOpenDoors, isWorkingCopy: true, _woodsCost, _allowJump);
 
-    /// <summary>⭐ R-220 — judge by <paramref name="doors"/> from now on. Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
-    public DoorAwareQueryFilter JudgeBy(DoorStates? doors)
+    /// <summary>⭐ R-220 — judge by <paramref name="doors"/> from now on (no side: no minefield knowledge applied). Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
+    public DoorAwareQueryFilter JudgeBy(DoorStates? doors) => JudgeBy(doors, 0);
+
+    /// <summary>⭐ CE-4624 MS-T3 (MR-4, KR-8) — judge by <paramref name="doors"/> AND price minefields by what side <paramref name="sidePlus1"/> − 1 knows (<see cref="DoorStates.Knowledge"/>);
+    /// 0 = no knowledge applied. Only on a <see cref="WorkingCopy"/>, owned by one thread.</summary>
+    public DoorAwareQueryFilter JudgeBy(DoorStates? doors, byte sidePlus1)
     {
         if (!_isWorkingCopy) throw new InvalidOperationException("Only a WorkingCopy may be re-pointed — a shared filter never changes.");
         _doors = doors;
+        _sidePlus1 = sidePlus1;
         return this;
     }
+
+    private byte _sidePlus1;   // ⛔ written only on a working copy (JudgeBy)
+
+    /// <summary>⭐ CE-4624 — the side + 1 this filter prices minefields for (0 = none).</summary>
+    public byte SidePlus1 => _sidePlus1;
 
     /// <summary>How many doorway polygons this filter knows.</summary>
     public int DoorPolyCount => _doorPolys.Count;

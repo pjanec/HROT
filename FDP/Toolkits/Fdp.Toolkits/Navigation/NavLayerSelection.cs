@@ -54,7 +54,30 @@ namespace Fdp.Toolkit.Navigation
             return q == 0 ? 0f : 15f / q;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-4, KR-9, KR-13; lane decision R-5047) — the mover's SIDE + 1 (0 = no knowledge applied) in bits 14…18 of the mask: the
+        /// mask already travels everywhere a route is asked (the request, the wire, <c>RouteQuery.LayerMask</c>, the solver, the EQS path costs, the danger solve), so the side reaches
+        /// the navmesh filter with no new parameter. Like the other modifiers, no mesh carries these bits.
+        /// </summary>
+        public const int SideShift = 14;
+        public const uint SideMask = 0x1Fu << SideShift;
+
+        /// <summary>The side bits of <paramref name="force"/> (a <c>ForceId</c>; &lt; 0 ⇒ none).</summary>
+        public static uint SideBits(int force) => force < 0 || force > 30 ? 0u : (uint)(force + 1) << SideShift;
+
+        /// <summary>The side + 1 a mask carries (0 = none).</summary>
+        public static byte SidePlus1Of(uint layerMask) => (byte)((layerMask & SideMask) >> SideShift);
+
+        /// <summary>The layer mask of <paramref name="entity"/>'s route requests — ⭐ CE-4624 with its SIDE (so its routes are priced by what its side knows of minefields).</summary>
         public static NavLayerMask For(EntityRepository repo, Entity entity, uint explicitMask)
+        {
+            var mask = (uint)ForMover(repo, entity, explicitMask);
+            if ((mask & SideMask) == 0 && repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(entity))
+                mask |= SideBits((int)repo.GetComponentRO<EntityInfo>(entity).ForceId);
+            return (NavLayerMask)mask;
+        }
+
+        private static NavLayerMask ForMover(EntityRepository repo, Entity entity, uint explicitMask)
         {
             if (explicitMask != 0) return (NavLayerMask)explicitMask;
             if (repo.HasComponent<NavAgentProfile>(entity))
