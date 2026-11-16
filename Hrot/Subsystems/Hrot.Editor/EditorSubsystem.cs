@@ -66,7 +66,6 @@ using Hrot.UI.Common.Adapters;
 using Hrot.Editor.AiShared.Adapters;
 using Hrot.Editor.Modules;
 using Hrot.Editor.Rendering;
-using Hrot.Editor.UI;
 using Hrot.Player.Systems;
 using Hrot.Player.Modules;
 using Hrot.Map.Common;
@@ -543,7 +542,6 @@ namespace Hrot.Editor
 
         // ?? UI panels (legacy, always created) ????????????????????????????????
 
-        private EditorToolbarPanel?   _toolbarPanel;
 
         // ?? Shared UI panels (skipped in headless) ????????????????????????????
 
@@ -2159,7 +2157,6 @@ namespace Hrot.Editor
             }
 
             // ?? 11. UI panels ?????????????????????????????????????????????????
-            _toolbarPanel = new EditorToolbarPanel(() => _editorToolController?.ActiveModal?.Id);   // ⭐ B-17 P1 — the armed tool is lit
 
             if (!_headless)
             {
@@ -5675,7 +5672,24 @@ namespace Hrot.Editor
             if (_editorLogic == null) return;
 
             // ?? Legacy editor-specific windows ????????????????????????????????
-            windowManager.RegisterWindow(new EditorToolbarWindow(_toolbarPanel!, _editorLogic));
+            // ⭐ CE-5006 W2 (TE-1, TE-19) — the Editor Toolbar is replaced by two dockable tool strips (Scenario tools, open; Terrain, closed — its being open is what unlocks placed terrain) and two main-toolbar icons
+            var scenarioTools = new ScenarioToolsWindow(
+                () => _editorMapInteraction is { } mi && Hrot.Common.Interactions.HostActions.For(mi.InteractionBus) is { } host ? host.Actions : null,
+                () => _world, () => _editorToolController?.ActiveModal?.Id);
+            IReadOnlyList<Hrot.UI.Common.AddEntity.TerrainPick> terrainPicks = Hrot.UI.Common.AddEntity.TerrainPickCatalog.FeaturePicks();
+            IReadOnlyList<(string Id, string Name, float Density)> scatterRecipes = Array.Empty<(string, string, float)>();
+            try { scatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
+            catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
+            var terrainTools = new TerrainToolsWindow(() => _world, () => _spawnAdapter, () => _editorToolController?.ActiveModal?.Id, terrainPicks, scatterRecipes);
+            windowManager.RegisterWindow(scenarioTools);
+            windowManager.RegisterWindow(terrainTools);
+            var toolbarsSection = new EditorToolbarsSection(new Fdp.Presentation.WindowManager.ToolStripWindow[] { scenarioTools, terrainTools },
+                () => _editorMapInteraction is { } mi && Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(mi.Buffer) is { } lc && lc.IsEditing,
+                () => _editorMapInteraction?.InteractionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));
+            windowManager.MainToolbar?.RegisterEntry(EditorToolbarsSection.ToolbarsEntryId, EditorToolbarsSection.ToolbarsSortOrder, Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, toolbarsSection.DrawToolbars);
+            windowManager.MainToolbar?.RegisterEntry(EditorToolbarsSection.LayersEntryId, EditorToolbarsSection.LayersSortOrder, Fdp.Presentation.WindowManager.MainToolbarManager.DefaultEntryHeight, toolbarsSection.DrawLayers);
+            // ⭐ CE-5006 W2 — the old toolbar's "Reload BTrees" button lives in the AI menu now
+            MenuCommandAdapter.RegisterAction(windowManager.GlobalMenu, windowManager.ShellCommands, "ai.rebuild-reload-behaviours", "AI/Rebuild & Reload Behaviours", () => _editorLogic?.RebuildAndReloadAI(), "Scenario");
             if (_orchestratorCore != null)
             {
                 windowManager.RegisterWindow(new Hrot.Orchestrator.Windows.ClusterControlWindow(

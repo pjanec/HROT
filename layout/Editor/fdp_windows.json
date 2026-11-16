@@ -170,7 +170,11 @@
       "IsOpen": false,
       "IsPinned": false
     },
-    "editor_toolbar": {
+    "scenario_tools": {
+      "IsOpen": true,
+      "IsPinned": false
+    },
+    "terrain_tools": {
       "IsOpen": false,
       "IsPinned": false
     },

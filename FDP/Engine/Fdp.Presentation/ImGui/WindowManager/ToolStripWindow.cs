@@ -5,8 +5,8 @@ using NodeEditor.Core.Widgets;
 
 namespace Fdp.Presentation.WindowManager;
 
-/// <summary>One member of a <see cref="ToolStripEntry"/> family: its glyph (own colour), tooltip and action.</summary>
-public sealed record ToolStripMember(IconGlyph Glyph, string Tooltip, Action OnClick);
+/// <summary>One member of a <see cref="ToolStripEntry"/> family: its glyph (own colour), the label of its popup row, tooltip and action.</summary>
+public sealed record ToolStripMember(IconGlyph Glyph, string Label, string Tooltip, Action OnClick);
 
 /// <summary>
 /// ⭐ CE-5006 W1 — one icon of a <see cref="ToolStripWindow"/>: a coloured glyph (docs/UX/DESIGN_Colour_Icons.md — the glyph wears its colour; lit = framed and full strength), a tooltip, whether it is lit, what a click does.
@@ -26,6 +26,14 @@ public sealed class ToolStripEntry
     public IReadOnlyList<ToolStripMember>? Family { get; init; }
     /// <summary>The chosen member of <see cref="Family"/>.</summary>
     public int Selected { get; set; }
+
+    /// <summary>A family row was picked: it becomes the face AND runs.</summary>
+    public void Pick(int index)
+    {
+        if (Family is null || index < 0 || index >= Family.Count) return;
+        Selected = index;
+        Family[index].OnClick();
+    }
 
     public ToolStripEntry(string id, IconGlyph glyph, string tooltip) { Id = id; MenuId = id + "_menu"; Glyph = glyph; Tooltip = tooltip; }
 }
@@ -71,10 +79,16 @@ public abstract class ToolStripWindow : ManagedWindow
             if (GlyphWidgets.GlyphToggle(e.Id, fam[sel].Glyph, lit, fam[sel].Tooltip)) Gui.OpenPopup(e.MenuId);
             if (Gui.BeginPopup(e.MenuId))
             {
+                // ⭐ a VERTICAL list: each row the member's glyph in its own colour, its label, a ✓ on the chosen one; each row has its own id scope (no clash with the face)
                 for (int i = 0; i < fam.Count; i++)
                 {
-                    if (GlyphWidgets.GlyphToggle(e.Id, fam[i].Glyph, i == sel, fam[i].Tooltip)) { e.Selected = i; fam[i].OnClick(); Gui.CloseCurrentPopup(); }
-                    if (i + 1 < fam.Count) Gui.SameLine();
+                    Gui.PushID(i);
+                    Gui.TextColored(fam[i].Glyph.Color, fam[i].Glyph.Glyph);
+                    Gui.SameLine();
+                    bool picked = Gui.MenuItem(fam[i].Label, null, i == sel);
+                    if (Gui.IsItemHovered() && fam[i].Tooltip.Length > 0) Gui.SetTooltip(fam[i].Tooltip);
+                    Gui.PopID();
+                    if (picked) e.Pick(i);
                 }
                 Gui.EndPopup();
             }
