@@ -9,11 +9,12 @@ using Fdp.Toolkit.Aggregate;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Tkb;
 using Hrot.Core.Tkb;
+using Hrot.Map.Definitions.Tkb;
 
 namespace Hrot.Map.Common.Tests
 {
     /// <summary>
-    /// ⭐ <c>CE-8009</c> (C-8, RV-3) — the STOCHASTIC side of the ladder's rung 1: 9 v 9 riflemen (the InfantrySoldier, 2002, the type the physical
+    /// ⭐ <c>CE-8009</c> (C-8, RV-3) — the STOCHASTIC side of the ladder's rung 1: 9 v 9 riflemen (the standard rifleman, Infantry_Rifleman, the type the physical
     /// rungs <c>scenarios/tests/c8-ladder/c8-open-*</c> use) in the open at 100 / 200 / 300 m, 30 run seeds each, through the real phases
     /// (sensing, fire, losses) and the table generated from the SAME TKB. Records, per run, the first time 1…9 men of each side are down — the
     /// physical rungs' check rows, read the same way by <c>scripts/c8-ladder.py</c>. With <c>HROT_C8_OUT</c> set the rows are written there (JSON).
@@ -25,7 +26,7 @@ namespace Hrot.Map.Common.Tests
     {
         public const int Seeds = 30, RunFor = 120;
         private static readonly int[] Ranges = { 100, 200, 300 };
-        private static readonly TkbTypeId Soldier = (TkbTypeId)UrbanCombatTkbCatalog.TkbInfantrySoldier;
+        private static readonly TkbTypeId Soldier = (TkbTypeId)TkbEntityTypes.Infantry_Rifleman;   // ⭐ the STANDARD rifleman (500 m eye, 25 HP), as the physical rungs
 
         /// <summary>One run: the first second at which k men of Blue / Red are down (k = 1…9; −1 = never).</summary>
         public static (int[] Blue, int[] Red) Run(ITkbDatabase db, int range, uint seed)
@@ -92,7 +93,7 @@ namespace Hrot.Map.Common.Tests
         public void C8_Rung1_TheStochasticSide_FightsAndIsMeasured()
         {
             var db = new TkbDatabase();
-            UrbanCombatTkbCatalog.RegisterAll(db);
+            NedTkbCatalog.RegisterAll(db);
             Assert.True(UnitAmmunition.BasicLoad(db, Soldier) > 0, "the soldier carries a basic load");
             var json = new StringBuilder("{\"resolution\":\"stochastic\",\"runFor\":").Append(RunFor).Append(",\"rungs\":{");
             var meanLosses = new Dictionary<int, double>();
@@ -127,8 +128,7 @@ namespace Hrot.Map.Common.Tests
             Assert.True(winnerLosses100 / Seeds >= 2.0, $"the winner loses men too (mean {(winnerLosses100 / Seeds).ToString("0.00", CultureInfo.InvariantCulture)})");
             // ⭐ the first man falls early (the physical 5.1 s): hits CONCENTRATE on the man under fire — spread evenly, nobody falls for ~9 s
             Assert.True(firstLoss100 / Seeds <= 7.0, $"the first loss comes early (mean {(firstLoss100 / Seeds).ToString("0.0", CultureInfo.InvariantCulture)} s)");
-            // ⭐ and nobody sees past the soldier's own eye (the TKB VisionRange, 150 m): at 200 m there is no fight, as there is none physically
-            Assert.Equal(0.0, meanLosses[200]);
+            // ⭐ and nobody sees past the soldier's own eye (the TKB VisionRange — 500 m for the standard rifleman): pinned in UnitSensingRails
             var again = Run(db, 100, 7); var first = Run(db, 100, 7);
             Assert.Equal(first.Blue, again.Blue);                                               // a seed is a seed (C-8: the run seed)
             Assert.Equal(first.Red, again.Red);

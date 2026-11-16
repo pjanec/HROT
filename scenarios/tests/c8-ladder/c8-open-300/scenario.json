@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red riflemen (InfantrySoldier) in two squads, abreast 5 m apart, face each other 300 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (Health below 2); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
+  "description": "What: CE-8009 (C-8 ladder, rung 1) - on basic-desert, 9 Blue and 9 Red standard riflemen (Infantry_Rifleman) in two squads, abreast 5 m apart, face each other 300 m apart across open ground and fight it out (their SOPs, no orders). Judge: a MEASUREMENT - the checks record the first time 1..9 men of each side are down (Health below 2 %); scripts/c8-ladder.py runs 30 seeds and compares the loss-exchange ratio and the time to 50 % losses with the stochastic resolution's."
  },
  "entities": {
   "c8300000-0000-4000-8000-000000000001": {
@@ -47,11 +47,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 1",
@@ -80,11 +80,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 2",
@@ -113,11 +113,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 3",
@@ -146,11 +146,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 4",
@@ -179,11 +179,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 5",
@@ -212,11 +212,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 6",
@@ -245,11 +245,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 7",
@@ -278,11 +278,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 8",
@@ -311,11 +311,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Blue 9",
@@ -366,11 +366,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 1",
@@ -399,11 +399,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 2",
@@ -432,11 +432,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 3",
@@ -465,11 +465,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 4",
@@ -498,11 +498,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 5",
@@ -531,11 +531,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 6",
@@ -564,11 +564,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 7",
@@ -597,11 +597,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 8",
@@ -630,11 +630,11 @@
     ]
    },
    "Health": {
-    "Current": 100,
-    "Max": 100
+    "Current": 25,
+    "Max": 25
    },
    "TkbIdentity": {
-    "TkbType": 2002
+    "TkbType": 200
    },
    "EntityInfo": {
     "Name": "Red 9",

@@ -281,6 +281,7 @@ namespace Hrot.CGF
             // ⭐ CE-8007 (ST-3, C-2) — the attrition step: phase A (each firer's allocation) then phase B (each victim's draw), per-entity phases
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticFirePhase(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticLossPhase(gateOnAuthority));
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem(gateOnAuthority));   // ⭐ CE-8005 (R-171) — a burst on a unit, applied by its owner
             // ⭐ CE-8013 (ST-5 production wiring; §16b) — the resolution manager: a split's children are the TKB composite's slots
             //   (StochasticUnitFill.ChildType, the same leaves the fill keyed), held until the handover (EntityCreation's HeldChildParticipant),
             //   and leave through the node's lifecycle (lazy: the creation pack is built after this pack). The policy is agg-behaviors' seam.
