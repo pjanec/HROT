@@ -38,4 +38,4 @@ Findings: `CE4271_TheShippedAtlas` was OUR stale count (the 11 animal thumbnails
 Ids allocated: R-1054, R-1055 · CE-1955.
 
 ## Waiting on terrain
-MS-T1 munition rows 6051–6053 (the burst looks, VE-D) · MS-T4 the clearer's TKB 116 + class `MineClearer` (`FamilyOfClass`, thumbnail, `FlailActivity.IsOn`) · TKB template 8830 (placing a field in the editor).
+~~MS-T1 munitions, TKB 8830~~ landed and bound (bursts: `EffectTkbCatalog`; the field placeable) · ~~MS-T4 `MineClearing`~~ bound (`FlailActivity`) · ~~runtime lanes~~ drawn · ⏳ MS-T4's TKB 116 template + class `MineClearer` (`FamilyOfClass`, the thumbnail).

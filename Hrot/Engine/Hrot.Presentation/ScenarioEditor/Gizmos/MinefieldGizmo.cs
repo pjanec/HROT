@@ -75,11 +75,12 @@ public sealed class MinefieldGizmo : IStatelessGizmo
         var c = CacheOf(repo, entity, in f);
         if (c == null) return;
         int? side = ViewerSide(view);
-        if (side is null) { DrawTruth(repo, entity, in f, c, draw); Pick(view, entity, c, draw); return; }
+        if (side is null) { DrawTruth(repo, entity, in f, c, draw); DrawRuntimeLanes(repo, entity, c, -1, draw); Pick(view, entity, c, draw); return; }
         int s = side.Value;
         bool full = (s >= 0 && s < 16 && (f.KnownAtStartSides & (1 << s)) != 0) || PlaceKnowledgeTable.Of(view).Marked(s, entity);
         if (full) { DrawKnown(in f, c, s, draw); Pick(view, entity, c, draw); }
         else DrawCells(view, entity, c, s, draw);   // ⛔ no pick: a side that has not seen the field cannot select it
+        DrawRuntimeLanes(repo, entity, c, s, draw);   // a side sees the lanes it cut, known field or not
     }
 
     // ── the three pictures ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -181,18 +182,47 @@ public sealed class MinefieldGizmo : IStatelessGizmo
         {
             var lane = f.Lane(i);
             if (side >= 0 && (side >= 16 || (lane.KnownToSides & (1 << side)) == 0)) continue;
-            var d = lane.B - lane.A; float len = d.Length();
-            if (len < 0.1f) continue;
-            var dir = d / len; var n = new Vector2(-dir.Y, dir.X) * (lane.Width * 0.5f);
-            foreach (float sg in Sides)
-            {
-                var a = lane.A + n * sg; var b = lane.B + n * sg;
-                draw.DrawLine(c.Lift(a), c.Lift(b), LaneColour, 1.6f, style: LineStyle.Dashed);
-            }
-            Chevron(draw, c, lane.A + d * 0.08f, dir, lane.Width);
-            Chevron(draw, c, lane.A + d * 0.92f, dir, lane.Width);
+            DrawLane(c, lane.A, lane.B, lane.Width, draw);
         }
     }
+
+    /// <summary>One lane: its two marked edges and the entry / exit chevrons.</summary>
+    private static void DrawLane(FieldCache c, Vector2 a0, Vector2 b0, float width, IDebugDrawBuilder draw)
+    {
+        var d = b0 - a0; float len = d.Length();
+        if (len < 0.1f) return;
+        var dir = d / len; var n = new Vector2(-dir.Y, dir.X) * (width * 0.5f);
+        foreach (float sg in Sides)
+        {
+            var a = a0 + n * sg; var b = b0 + n * sg;
+            draw.DrawLine(c.Lift(a), c.Lift(b), LaneColour, 1.6f, style: LineStyle.Dashed);
+        }
+        Chevron(draw, c, a0 + d * 0.08f, dir, width);
+        Chevron(draw, c, a0 + d * 0.92f, dir, width);
+    }
+
+    /// <summary>⭐ The RUNTIME lanes a clearer cut (terrain's <see cref="MinefieldLanes"/> records, MS-T4), every node's union: all of them for the truth, only those the
+    /// viewer's side cut for a side (MF-10: the lane is marked and known to the clearing side). A cached query, 0 B a steady frame.</summary>
+    private void DrawRuntimeLanes(EntityRepository repo, Entity field, FieldCache c, int side, IDebugDrawBuilder draw)
+    {
+        if (!repo.IsComponentTypeRegistered<MinefieldLanes>() || !repo.IsComponentTypeRegistered<EntityGuid>() || !repo.HasComponent<EntityGuid>(field)) return;
+        var guid = repo.GetComponentRO<EntityGuid>(field).Value;
+        if (!ReferenceEquals(repo, _lanesRepo)) { _lanesRepo = repo; _lanes = repo.Query().With<MinefieldLanes>().Build(); }
+        foreach (var e in _lanes!)
+        {
+            ref readonly var r = ref repo.GetComponentRO<MinefieldLanes>(e);
+            if (r.Field != guid) continue;
+            for (int i = 0; i < r.Count && i < MinefieldLanes.Capacity; i++)
+            {
+                var l = r.Get(i);
+                if (side >= 0 && l.SidePlus1 != side + 1) continue;
+                DrawLane(c, l.A, l.B, l.Width, draw);
+            }
+        }
+    }
+
+    private EntityRepository? _lanesRepo;
+    private EntityQuery? _lanes;
 
     private static readonly float[] Sides = { 1f, -1f };
 

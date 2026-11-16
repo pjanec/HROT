@@ -157,7 +157,15 @@ public sealed class MineClearerModelRail
 
         using var world = new EntityRepository();
         var ent = world.CreateEntity();
-        Assert.False(FlailActivity.IsOn(world, ent), "the stand-in: off until terrain's flail-active state is bound in FlailActivity.IsOn");
+        Assert.False(FlailActivity.IsOn(world, ent), "no MineClearing registered: off");
+        // ⭐ bound to terrain's MineClearing (MS-T4): only an ACTIVE FLAIL turns the drum — a plough or an idle flail does not
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+        world.AddComponent(ent, new Fdp.Toolkit.Terrain.MineClearing { Active = 1, Tool = Fdp.Toolkit.Terrain.MineClearingTool.Flail, WidthM = 4.5f });
+        Assert.True(FlailActivity.IsOn(world, ent));
+        world.SetComponent(ent, new Fdp.Toolkit.Terrain.MineClearing { Active = 1, Tool = Fdp.Toolkit.Terrain.MineClearingTool.Plough, WidthM = 4.5f });
+        Assert.False(FlailActivity.IsOn(world, ent));
+        world.SetComponent(ent, new Fdp.Toolkit.Terrain.MineClearing { Active = 0, Tool = Fdp.Toolkit.Terrain.MineClearingTool.Flail, WidthM = 4.5f });
+        Assert.False(FlailActivity.IsOn(world, ent));
         FlailActivity.Override = (w, x) => ReferenceEquals(w, world) && x == ent;
         try
         {
