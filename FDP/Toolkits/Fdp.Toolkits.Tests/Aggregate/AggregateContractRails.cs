@@ -72,3 +72,57 @@ namespace Fdp.Toolkits.Tests.Aggregate
         }
     }
 }
+
+namespace Fdp.Toolkits.Tests.Aggregate
+{
+    /// <summary>⭐⭐ <c>CE-8001</c> (CE-4616 ST-0 ③, SV-12) — a recording round-trips the stochastic unit: the slot table, holdings, unit state
+    /// and run seed come back byte for byte at the scrubbed frame. 🔴 Red-proof: drop a component's registration on the recording side ⇒ the
+    /// sandbox has none at frame 1.</summary>
+    public sealed class AggregateRecordingRails
+    {
+        [Fact]
+        public void ARecording_GivesBackTheUnit_ItsSlots_ItsHoldings_AndTheRunSeed()
+        {
+            using var harness = new Fdp.Toolkit.ReplayBrowser.Support.FdpRecordingHarness();
+            var repo = harness.Repository;
+            repo.RegisterComponent<AggregateUnit>(); repo.RegisterComponent<UnitSlotTable>(); repo.RegisterComponent<UnitHoldings>();
+            repo.RegisterComponent<RunSeed>();
+            var unit = repo.CreateEntity();
+            var slots = new UnitSlotTable { Count = 2 };
+            slots.Slots[0] = new UnitSlot { Role = SlotRole.Leader, Health = (Half)25f, Ammo = 210 };
+            slots.Slots[1] = new UnitSlot { Role = SlotRole.MachineGunner, Health = (Half)25f, Ammo = 800 };
+            var holdings = new UnitHoldings { Count = 1 };
+            holdings.Items[0] = new UnitHolding { Type = new TkbTypeId(212), Count = 4, Operational = 4, Kind = HoldingKind.Vehicle, Mobility = HoldingMobility.Tracked };
+            repo.AddComponent(unit, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Echelon = 1, Width = 300f, Heading = 45f });
+            repo.AddComponent(unit, slots);
+            repo.AddComponent(unit, holdings);
+            harness.Tick().RecordKeyframe(100_000L);
+            repo.GetComponentRW<UnitSlotTable>(unit).Slots[1].Health = (Half)12.5f;                 // a wound
+            repo.GetComponentRW<UnitSlotTable>(unit).Slots[1].Ammo = 650;
+            repo.GetComponentRW<AggregateUnit>(unit).SuppressedShare = 0.25f;
+            repo.GetComponentRW<UnitHoldings>(unit).Items[0].Operational = 3;                      // a K-kill
+            harness.Tick().RecordDelta(200_000L);
+            harness.BuildToTempFile(out var path);
+
+            using var sandbox = new EntityRepository();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessPosition>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessVelocity>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessTransform>();
+            sandbox.RegisterComponent<Fdp.Toolkit.ReplayBrowser.Support.HarnessEntityInfo>();
+            sandbox.RegisterComponent<AggregateUnit>(); sandbox.RegisterComponent<UnitSlotTable>(); sandbox.RegisterComponent<UnitHoldings>();
+            sandbox.RegisterComponent<RunSeed>();
+            using var playback = new Fdp.Core.FlightRecorder.PlaybackController(path);
+            Assert.True(playback.StepForward(sandbox));
+            Assert.Equal(25f, (float)sandbox.GetComponentRO<UnitSlotTable>(unit).Slots[1].Health);
+            Assert.True(playback.StepForward(sandbox));
+            var t = sandbox.GetComponentRO<UnitSlotTable>(unit);
+            Assert.Equal((12.5f, (ushort)650, SlotRole.MachineGunner), ((float)t.Slots[1].Health, t.Slots[1].Ammo, t.Slots[1].Role));
+            Assert.Equal(2, t.Present());
+            var u = sandbox.GetComponentRO<AggregateUnit>(unit);
+            Assert.Equal((AggregateResolution.Stochastic, 300f, 0.25f), (u.Resolution, u.Width, u.SuppressedShare));
+            Assert.Equal(45f, u.Heading.Degrees);
+            var h = sandbox.GetComponentRO<UnitHoldings>(unit);
+            Assert.Equal(((ushort)3, new TkbTypeId(212)), (h.Items[0].Operational, h.Items[0].Type));
+        }
+    }
+}

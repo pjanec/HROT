@@ -1361,6 +1361,9 @@ namespace Fdp.Core
         public const int UnitDetections = 285;
         /// <summary><c>RunSeed</c> — the run's seed, a recorded singleton mixed into <c>SimRng</c> (C-8).</summary>
         public const int RunSeed = 286;
+        /// <summary><c>UnitRoute</c> — a stochastic unit's planned route (waypoints, per-segment speed factor), managed, immutable, node-local
+        /// (NoScenario | NoReplay: re-planned from the destination when missing — M-4, CE-8004).</summary>
+        public const int UnitRoute = 287;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
