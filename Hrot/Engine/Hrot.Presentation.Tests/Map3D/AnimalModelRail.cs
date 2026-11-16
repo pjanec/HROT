@@ -427,6 +427,9 @@ public sealed class AnimalModelRail
         }
         var legs = BlockFigure.Mounted(true, true).Take(4).ToArray();
         Assert.True(legs.Min(p => p.Centre.Z) < BlockFigure.Riding(true, true).Take(4).Min(p => p.Centre.Z) - 0.1f, "the shins hang lower than astride a bike: the stirrups");
+        // ⭐ round the barrel, not through it: each shin hangs outside the horse's ±0.35 m flank
+        Assert.All(new[] { legs[1], legs[3] }, shin => Assert.True(MathF.Abs(shin.Centre.Y * BlockFigure.FigureBox.Y) >= BlockFigure.MountLegClear - 0.01f,
+            $"a shin at y {shin.Centre.Y * BlockFigure.FigureBox.Y:0.00} m is inside the horse"));
         var db = WithRidingHorse(out long type);
         using var world = new EntityRepository();
         world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>(); world.RegisterComponent<IsEmbarkedTag>(); world.RegisterComponent<PassengerBuffer>(); world.RegisterComponent<AnimalState>();

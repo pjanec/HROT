@@ -72,8 +72,25 @@ public static partial class BlockFigure
 
     // ── ⭐ CE-4623 (animals, AU-6) — a man MOUNTED on a horse: the same parts in the same order, the thighs round the barrel and the shins hanging in the stirrups ────────────────────────
 
-    private static KitPart[] MountLegs()
-        => Legs(new(0f, 0.12f, 0f), new(0.08f, 0.30f, -0.70f), new(0f, -0.12f, 0f), new(0.08f, -0.30f, -0.70f), swings: false, bend: new Vector3(0.8f, 0.12f, 0.1f));
+    /// <summary>The mounted legs, thigh then shin per side (the order <see cref="Legs"/> gives). 📐 A horse's barrel is ±0.35 m wide at the
+    /// saddle (the 0.7 m TKB width), so the thighs SPLAY over it — out to the knee at ±0.46, 0.25 m below the hips — and the shins hang
+    /// down the flank to the stirrup. ⛔ The first legs went straight down from ±0.12 to ±0.30 and drew inside the horse's body.</summary>
+    private static KitPart[] MountLegs() => [.. MountLeg(+1f), .. MountLeg(-1f)];
+
+    /// <summary>Half the width the mounted legs clear (m): the barrel's half-width plus a limb's half-thickness.</summary>
+    public const float MountLegClear = 0.42f;
+
+    /// <summary>The figure's box (m) its parts are normalised by — a rail turns a part's centre back into metres with it.</summary>
+    public static Vector3 FigureBox => S;
+
+    private static KitPart[] MountLeg(float side)
+    {
+        var hip = new Vector3(0f, 0.17f * side, 0.02f);
+        var knee = new Vector3(0.28f, 0.46f * side, -0.25f);
+        var ankle = new Vector3(0.10f, 0.45f * side, -0.72f);
+        return [Limb(hip, knee, 0.13f, 0.15f, ColourRole.Dark, PartRole.Hull, null) with { Upper = false },
+                Limb(knee, ankle, 0.12f, 0.14f, ColourRole.Dark, PartRole.Hull, null) with { Upper = false, KneePivot = knee / S }];
+    }
 
     private static readonly Vector3 ReinHand = new(0.42f, 0.12f, 0.10f);
 

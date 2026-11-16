@@ -17,7 +17,7 @@ related-designs:
 | AU-3 gaits | built | `AnimalModelRail.TheGait_*`, `TheTracker_*` (0 B); red-proof: the walk's offsets flattened fails `TheGait_*` |
 | AU-4 flock | built | `AnimalModelRail.TheFlock_*` + the frame rail (60 birds, 40 after the count falls, the same picture after a seek) |
 | AU-5 dead animal | built | frame rail: `DeadAnimalsDrawn`, no wreck colour; `Burns()` excludes animals |
-| AU-6 rider | built (live drive waits for backend's type 703 + possession) | `TheMountedRider_*`, `TheRider_IsDrawnInTheSaddle_*` (fires from the saddle), the bolt cue `IsBolted` (0 B) |
+| AU-6 rider | built (live drive waits for backend's type 703 + possession); ⭐ review fix: the mounted legs SPLAY over the ±0.35 m barrel to the stirrups (`BlockFigure.MountLeg`) — the first legs went straight down inside the horse's body; the seat height was right (the rail measures it against the back) | `TheMountedRider_*`, `TheRider_IsDrawnInTheSaddle_*` (fires from the saddle), the bolt cue `IsBolted` (0 B) |
 | AU-7 area tool + form | built against a TEMPORARY stand-in component (id 511) | `AnimalAreaDetailsViewTests`, `TheAnimalArea_*`; arming the tool needs backend's TKB 712 |
 | AU-8 sound as heard | built | `AudioTests.CE4623_*` (4) |
 
