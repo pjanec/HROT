@@ -78,6 +78,32 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(open.Ok && open.High && open.Elevation >= 45f);
         }
 
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2118) — a point INSIDE a roofed house: the mortar aims at the roof (its rounds burst there) instead of
+        /// refusing the mission as masked by that roof. 📌 cc-battalion #13 / #15: a request inside Objective 1's office ⇒ the mortars never fired.
+        /// The open-ground points of the other rails have no surface over them and are unchanged. 🔴 Red-proof: <c>OnTop</c> dropped ⇒ Masked.</summary>
+        [Fact]
+        public void CE2436_APointInsideARoofedHouse_IsAimedAtTheRoof_NotRefusedAsMasked()
+        {
+            var w = TerrainWorldParser.Parse("""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 1200, 1200], "groundZ": 0 },
+                  "features": [ { "type": "Feature",
+                    "properties": { "kind": "building", "label": "H",
+                      "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                        "storeys": [ { "height": 3, "walls": [
+                          { "from": [0,0], "to": [10,0], "thickness": 0.3, "material": "brick" },
+                          { "from": [10,0], "to": [10,8], "thickness": 0.3, "material": "brick" },
+                          { "from": [10,8], "to": [0,8], "thickness": 0.3, "material": "brick" },
+                          { "from": [0,8], "to": [0,0], "thickness": 0.3, "material": "brick" } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [100, 600] } } ] }
+                """, "if-house");
+            var q = new TerrainWorldQuery(w, DoorStates.Authored(w));
+            var inside = new Vector3(105f, 604f, 0f);
+            Assert.True(FireSolution.OnTop(q, inside).Z > 2f, "the aim goes onto the roof");
+            var s = FireSolution.For(q, Gun, inside, Mortar, Charges);
+            Assert.True(s.Ok, $"the mortar fires on the house: {s.Refusal}");
+            Assert.Equal(0f, FireSolution.OnTop(q, new Vector3(100f, 700f, 0f)).Z);   // the open ground keeps its point
+        }
+
         [Fact]
         public void IF1_NoCharges_UsesTheMountsOneSpeed_AsChargeZero()
         {

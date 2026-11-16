@@ -92,6 +92,7 @@ namespace Fdp.Toolkit.Combat
         public static Solution For(Fdp.Toolkit.World.IWorldQuery? world, Vector3 from, Vector3 to, WeaponMountDto mount,
                                    IReadOnlyList<float>? charges, ArcPreference preference = ArcPreference.Auto, float penetration = 0f)
         {
+            if (world != null) to = OnTop(world, to);   // ⭐ CE-2436 R-2118 — a point under a roof is aimed at the roof
             bool lowAllowed = mount.Arc != IndirectArc.HighOnly && preference != ArcPreference.High;
             bool highAllowed = mount.Arc != IndirectArc.LowOnly && preference != ArcPreference.Low;
             bool reached = false, inLimits = false;
@@ -135,6 +136,21 @@ namespace Fdp.Toolkit.Combat
             elevationDeg = MathF.Atan2(launch.Z, horizontal) * 180f / MathF.PI;
             timeOfFlight = horizontal > 1e-3f ? d / horizontal : 0f;
             return true;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2436</c> AU-6 (R-2118, lane decision; cross-lane — backend's IF-1) — the aim point lifted onto the TOP surface standing over it
+        /// (a building's roof), never below where it was: an indirect round aimed at a point INSIDE a building bursts on the roof, and an arc
+        /// judged clear to the ground point under it was "masked" by that very roof. 📌 cc-battalion runs #13 / #15: the company's fire request
+        /// was the centre of the reported posts, inside Objective 1's office ⇒ "no round left the tubes in 30 s — the point is masked", the
+        /// mortars never fired. A point in the open (behind a wall, in a courtyard) has no surface over it and is unchanged.
+        /// </summary>
+        public static Vector3 OnTop(Fdp.Toolkit.World.IWorldQuery world, Vector3 to)
+        {
+            var surfaces = world.SurfacesAt(to.X, to.Y, out _);
+            if (surfaces.Count == 0) return to;
+            float top = surfaces[surfaces.Count - 1];
+            return top > to.Z + 0.5f ? new Vector3(to.X, to.Y, top) : to;
         }
 
         /// <summary>Within the mount's elevation limits (0 = no limit on that side).</summary>

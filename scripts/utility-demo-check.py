@@ -14,7 +14,7 @@ previous one); the script verifies the loaded cast.
 Design and the expected behaviour of each scenario: docs/DESIGN_Utility_AI_Demo_Scenarios.md §4.
 How to run, what to watch, what a failure means: docs/RUNBOOK_Utility_AI_Demos.md.
 """
-import argparse, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
+import argparse, collections, json, math, os, re, signal, subprocess, sys, time, urllib.error, urllib.request
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a proxy (RUNBOOK §2)
 BASE = "http://localhost:8111"                                            # the HOSTNAME — 127.0.0.1 404s (RUNBOOK §2)
@@ -108,6 +108,7 @@ def _log_size():
 #   entered PAUSED (zero steps, CE-4570) and advanced by run-to's FIXED steps — deterministic, so a failure replays exactly. 📐 measured on
 #   cc-battalion, 4 cores: step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× (the cluster ≈ 0.37×).
 EDITOR_HOST = False
+SCENARIO_OF = {"pc-assault": "pc-defend-house"}   # a check that runs another scenario's file
 RUNTO_CHUNK = 5.0
 RUNTO_STEP = 1.0 / 6.0
 
@@ -4599,6 +4600,87 @@ def run_pc_defend_house(c, timeout):
 
 
 
+
+def run_pc_assault(c, timeout):
+    """⭐ CE-2436 AU-6 — the FOCUSED assault (user, 2026-11-15: "iterations taking more than 1 hour seem too long"): pc-defend-house's cast
+    (Blue Platoon 3 x 4 attacking Red Platoon's 12 in OBJ, H1, H4) run to its OUTCOME, not to the first assault. ⭐ Best on the editor host
+    (`--host editor`: deterministic, a failure replays exactly). Judged: ① the base of fire is Set before the assault moves · ② the assault
+    closes and clears (a Blue BuildingClear or ObjectiveSecure report) · ③ the platoon consolidates (its squads SquadDefend after the clear)
+    or ④ breaks off — the log names which, with every Blue squad's task change, its reports and the platoon's journal."""
+    ids = ids_by_name()
+    bpl, rpl = ids.get("Blue Platoon"), ids.get("Red Platoon")
+    blue = {f"B{i}": ids.get(f"Blue Squad {i}") for i in (1, 2, 3)}
+    red = {n: ids.get(n) for n in ("Red Squad 1", "Red Squad 2", "Red Reserve")}
+    if not c.ok(bpl and rpl and None not in list(blue.values()) + list(red.values()), "both platoons and their squads are loaded"):
+        return
+    seconds = float(os.environ.get("PC_SECONDS", "600"))
+    if not EDITOR_HOST:
+        call("POST", "/sim/play", {})
+    men = {k: v for k, v in ids.items() if k and (" Leader" in k or " Rifleman" in k)}
+    reports, last, log, drill, stuck = {}, {}, [], {}, {}
+    t = sim_time() or 0.0
+    while t < seconds:
+        if EDITOR_HOST:
+            advance_to(t + RUNTO_CHUNK)
+        else:
+            time.sleep(2.0)
+        t = sim_time() or 0.0
+        for name, nid in list(blue.items()) + list(red.items()) + [("Blue Platoon", bpl), ("Red Platoon", rpl)]:
+            k = task_name(nid)
+            if last.get(name, "?") != k:
+                last[name] = k
+                log.append((t, name, k))
+                print(f"   t={t:6.1f}  {name:12s} {k}", flush=True)
+        for name, nid in blue.items():   # ⭐ a stall explains itself from the run that hit it: the clearing squad's drill phase and orders
+            if last.get(name) == "ClearBuilding":
+                m = ((data(call("GET", f"/entities/{nid}/squad")) or {}).get("maneuver") or {})
+                sig = (m.get("phaseName"), tuple((x.get("order") or {}).get("kind") for x in m.get("members") or []))
+                if m.get("phaseSince") is not None and t - m["phaseSince"] > 30 and not stuck.get((name, m["phaseSince"])):
+                    stuck[(name, m["phaseSince"])] = True   # ⭐ once per stuck phase: is it a man short of his point, or an enemy still seen in the room?
+                    sq = data(call("GET", f"/entities/{nid}/squad")) or {}
+                    now_tick = sq.get("lastMergeTick") or 0
+                    for x in m.get("members") or []:
+                        o = x.get("order") or {}
+                        at = position(x.get("networkId")) or (0, 0, 0)
+                        pt = o.get("point") or at
+                        print(f"   t={t:6.1f}  {name} STUCK {m.get('phaseName')} {x.get('name')}: {o.get('kind')} to {pt} — {math.dist(at[:2], pt[:2]):.1f} m away, live {_live(x.get('networkId'))}", flush=True)
+                    centre = [sum(c) / max(1, len(m.get("members") or [])) for c in zip(*[(position(x.get("networkId")) or (0, 0, 0)) for x in m.get("members") or []])] or [0, 0, 0]
+                    for cn in sq.get("contacts") or []:
+                        p_ = cn.get("position") or [0, 0, 0]
+                        if math.dist(p_[:2], centre[:2]) < 15:
+                            print(f"   t={t:6.1f}  {name} STUCK contact {cn.get('name') or 'heard'} at {p_} seen {(now_tick - (cn.get('lastSeenTick') or 0)) / 60:.1f} s ago, live {_live(cn.get('networkId')) if cn.get('networkId') else '?'}", flush=True)
+                    if m.get("gates") is not None:
+                        print(f"   t={t:6.1f}  {name} STUCK gates {m.get('gates')}", flush=True)
+                if drill.get(name) != sig:
+                    drill[name] = sig
+                    pos = [tuple(round(v) for v in (position(x.get("networkId")) or (0, 0, 0))) for x in m.get("members") or []]
+                    live = [_live(x.get("networkId")) for x in m.get("members") or []]
+                    print(f"   t={t:6.1f}  {name} drill {sig[0]} since {m.get('phaseSince')} orders {list(sig[1])} live {live} at {pos}", flush=True)
+        for r in squad_reports(last=256):
+            if r.get("serial") not in reports:
+                reports[r.get("serial")] = r
+                if r.get("kind") in ("Progress", "Request") and r.get("from") in set(blue.values()) | {bpl}:
+                    print(f"   t={t:6.1f}  REPORT {r.get('kind')}/{r.get('subtype')} from {r.get('fromName') or r.get('from')}", flush=True)
+        if last.get("Blue Platoon") not in ("PlatoonAttack",) and t > 60:
+            break
+    alive = {}
+    for n, nid in men.items():
+        unit = " ".join(n.split()[:3])
+        alive[unit] = alive.get(unit, 0) + (1 if _live(nid) else 0)
+    kinds = collections.Counter((r.get("kind"), r.get("subtype")) for r in reports.values() if r.get("from") in set(blue.values()) | {bpl})
+    print(f"   ran to {t:.1f} s · Blue Platoon ends on {last.get('Blue Platoon')} · alive {alive}")
+    print(f"   Blue's reports: {sorted(kinds.items(), key=str)}")
+    j = data(call("GET", f"/entities/{bpl}/journal")) or {}
+    for e in (j.get("entries") or [])[-12:]:
+        print(f"   J Blue Platoon {e.get('at')}: {e.get('text')}")
+    set_t = min([lt for lt, n, k in log if n in blue and k == "SupportByFire"], default=None)
+    moved = min([lt for lt, n, k in log if n in blue and k in ("FireAndMovement", "BoundingOverwatch")], default=None)
+    cleared = kinds.get(("Progress", "BuildingClear"), 0) + kinds.get(("Progress", "ObjectiveSecure"), 0)
+    c.ok(set_t is not None and moved is not None and set_t <= moved, f"① the base of fire is up ({set_t}) before the assault moves ({moved})")
+    c.ok(cleared > 0, f"② the assault clears the objective (BuildingClear / ObjectiveSecure reports: {cleared})")
+    broke = any(k == "BreakContact" for _, n, k in log if n in blue)
+    c.ok(cleared > 0 or broke, f"③/④ the attack ends in consolidation or a break-off (cleared {cleared}, broke {broke})")
+
 # ── Urban Battle §6 L2 — uc-convoy-hit (demo-city): the trigger man, the IED, the carrier's reaction (CE-2306, CE-2307) ──────────
 def _detonations():
     call("POST", "/perspective", {"name": "SimHost"})
@@ -5782,6 +5864,7 @@ class Dynamism:
 # ── CE-4615 — THE COMMAND CHAIN ON A BATTALION SLICE (DESIGN_Command_Chain_Battalion_Test.md §3.2) ────────────────────────────────
 
 # the dynamism thresholds, set from the first three clean base runs and then LOCKED (Battalion Test §5.2) — None = measure only
+CC_FIRE_NEAR_M = 60.0   # ③ a mortar burst / its smoke within this of the requested point (an 81 mm sheaf + the report's error); was 120
 CC_MOVED_MIN = None
 CC_CONTACTS_MIN = None
 
@@ -5827,6 +5910,7 @@ def run_cc_battalion(c, timeout):
     end_wall = time.time() + window * 4 + 600
     last_dyn = -1e9
     last_t, stalled_since = None, time.time()
+    took1 = None   # ⭐ R-2119 — the sim time "Blue holds Objective 1" was first seen Achieved (Objective 1 TAKEN: held, no enemy, 30 s)
     while time.time() < end_wall:
         t = sim_time() or 0.0
         for n, nid in u.items():
@@ -5844,8 +5928,9 @@ def run_cc_battalion(c, timeout):
         for d in _detonations():
             if d.get("shooter") in shooters and d.get("burst") and d.get("seq") not in bursts:
                 bursts[d.get("seq")] = (t, d.get("burst"))
-        for cid, (cx, cy, _src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
-            clouds.setdefault(cid, (t, (cx, cy)))
+        for cid, (cx, cy, src) in clouds_on("SimHost").items():   # a SMOKE mission makes a cloud, not a detonation (CE-7025: smoke first)
+            if src in shooters:   # ⭐ only the mortars' smoke — 📌 #13 / #15 passed ③ on the platoons' own grenade smoke while the tubes never fired
+                clouds.setdefault(cid, (t, (cx, cy)))
         o3 = ((data(call("GET", f"/entities/{u['Red 3rd Platoon']}/order")) or {}).get("task") or {})   # R-2102: the reserve's order point
         pos3 = (o3.get("params") or {}).get("Position")
         if pos3 and len(pos3) >= 2:
@@ -5855,9 +5940,13 @@ def run_cc_battalion(c, timeout):
         for r in squad_reports(last=256):   # ⚠ the log is a 256-entry RING (SITREPs and SPOTs push the early reports out): keep every one seen
             seen_reports.setdefault(r.get("serial"), r)
         objs = data(call("GET", "/objectives")) or {}
-        for o in objs.get("objectives") or []:
-            if o.get("title") in ("Blue holds Objective 2", "Red below 30 %") and o.get("state") == "Achieved" and not ended:
-                ended = (o.get("title"), t)
+        states = {o.get("title"): o.get("state") for o in objs.get("objectives") or []}
+        if states.get("Blue holds Objective 1") == "Achieved":
+            took1 = took1 or t
+        # ⭐ R-2119 — the end is the scenario's own "The end" (Objective 2 held · Red < 30 % WITH Objective 1 held · 15 min); its cause named
+        if states.get("The end") == "Achieved" and not ended:
+            ended = ("Blue holds Objective 2" if states.get("Blue holds Objective 2") == "Achieved"
+                     else "Red below 30 % with Objective 1 held" if states.get("Red below 30 %") == "Achieved" and took1 else "15 min", t)
         # ⭐ R-2104 — the end (Red below 30 %, Objective 2 held) can come BEFORE the assault reports its objective taken: keep watching up to
         #   180 s more for the chain's last report (PhaseLine) rather than judging an arrow the run stopped too early to see (base run 9)
         pl_seen = any(r.get("kind") == "Progress" and r.get("subtype") == "PhaseLine" and r.get("from") in blue_ids for r in seen_reports.values())
@@ -5925,7 +6014,7 @@ def run_cc_battalion(c, timeout):
         p = req[0].get("at") or [0, 0, 0]
         after = [(bt, b) for bt, b in sorted(list(bursts.values()) + list(clouds.values()), key=lambda x: x[0]) if bt >= t_req]
         near = min((math.hypot(b[0] - p[0], b[1] - p[1]) for _, b in after), default=None)
-    arrows.append(("③ REQUEST FireSupport → bursts / smoke on the reported point", t_req, near is not None and near <= 120,
+    arrows.append(("③ REQUEST FireSupport → bursts / smoke on the reported point", t_req, near is not None and near <= CC_FIRE_NEAR_M,
                    f"request {t_req} at {req[0].get('at') if req else None}, nearest later burst {near if near is None else round(near)} m"))
     # ④ a Red block LOST (TaskFailed / Black) → the company reserve counter-attacks
     lost = [r for n in ("Red 1st Platoon", "Red 2nd Platoon") for r in _reports_of(log, frm=u[n])
@@ -5959,11 +6048,13 @@ def run_cc_battalion(c, timeout):
                    f"{[(blue_chain[r.get('from')], r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
     # ⑧ the end
     arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
+    # ⭐ CE-2436 AU-6 / R-2119 — the acceptance itself: Objective 1 TAKEN (Blue holds it: ≥ 4 men in the block, no enemy, 30 s)
+    arrows.append(("AU-6 Objective 1 TAKEN (held: ≥ 4 men, no enemy, 30 s)", took1, took1 is not None, f"held from {took1}"))
 
     print("   THE CHAIN (sim s):")
     for label, t, ok, ev in arrows:
         print(f"     {'✓' if ok else '·'} {label:<55} {t if t is None else round(t, 1)!s:>7}   {ev}")
-    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧"],
+    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧", "AU-6"],
                 "stall": ["②", "③", "⑦"],
                 "collapse": ["④", "⑤", "⑥"]}[variant]
     for label, t, ok, ev in arrows:
@@ -6069,7 +6160,7 @@ SCENARIOS = {"ua-posture": run_posture, "il-idle-life": run_il_idle_life, "ts-fi
              # ⭐ CE-1118 H-2 — airborne insertion (Airborne Insertion §8)
              "ua-fast-rope-roof": run_fast_rope_roof,
              "ua-airborne-drop": run_airborne_drop,
-             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage, "cc-battalion": run_cc_battalion, "cc-battalion-stall": run_cc_battalion, "cc-battalion-collapse": run_cc_battalion}
+             "sq-defend-house": run_sq_defend_house, "pc-defend-dry": run_pc_defend_dry, "pc-attack-dry": run_pc_attack_dry, "pc-defend-house": run_pc_defend_house, "pc-assault": run_pc_assault, "uc-convoy-hit": run_uc_convoy_hit, "uc-convoy-hit-ifv": run_uc_convoy_hit, "uc-request-chain": run_uc_request_chain, "uc-request-chain-dry": run_uc_request_chain_dry, "uc-a10-zu23-dry": run_uc_a10_zu23_dry, "uc-reinforce-dry": run_uc_reinforce_dry, "uc-urban-battle": run_uc_urban_battle, "ua-eject": run_eject, "ua-car-bomb": run_car_bomb, "ua-m2-engage": run_m2_engage, "ua-air-assault": run_air_assault, "ua-air-rescue": run_air_rescue, "ua-drone-shelter": run_drone_shelter, "morale-barrage-green": run_morale_barrage, "morale-barrage-veteran": run_morale_barrage, "cc-battalion": run_cc_battalion, "cc-battalion-stall": run_cc_battalion, "cc-battalion-collapse": run_cc_battalion}
 
 
 def main():
@@ -6099,12 +6190,13 @@ def main():
         print(f"== {a.scenario}")
         # the scenario's own statement of what it shows and how to judge it (header.description — the backend handoff of 2026-10-20)
         try:
-            with open(scenario_path(a.scenario)) as fh:
+            with open(scenario_path(SCENARIO_OF.get(a.scenario, a.scenario))) as fh:
                 desc = (json.load(fh).get("header") or {}).get("description")
             if desc: print(f"   {desc}")
         except (OSError, ValueError):
             pass
-        load_edit_paused(a.scenario) if EDITOR_HOST else load(a.scenario)
+        scen = SCENARIO_OF.get(a.scenario, a.scenario)
+        load_edit_paused(scen) if EDITOR_HOST else load(scen)
         c = Check()
         t0 = sim_time()
         SCENARIOS[a.scenario](c, a.timeout)

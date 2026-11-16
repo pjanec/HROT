@@ -95,6 +95,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FlowSeconds = 0.6f;
         /// <summary>CB-55 — at his point: this close (m); the room clear after this long with every man there and no hostile in it (s).</summary>
         public const float AtPointMetres = PostureNodes.OccupiedMetres, ClearSeconds = 3f;
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2117) — once every entry man is released, an entry man still short of his point after this long (s)
+        /// covers from where he stands: a point on another storey or behind furniture held the squad in Entering for good (as stacking has
+        /// <see cref="StackTimeoutSeconds"/> and breaching <see cref="BreachTimeoutSeconds"/>).</summary>
+        public const float EnterTimeoutSeconds = 20f;
         /// <summary>⭐ CE-2334 — the threshold is crossed this far past the way in (m) · reached within this (m) · the door front reached
         /// within this (m).</summary>
         public const float CrossedMetres = 0.5f, ThresholdArrival = 0.4f, DoorFrontMetres = 0.6f;
@@ -180,7 +184,9 @@ namespace Hrot.AI.Behaviors.Brains
                     evt = PhaseEventKind.Abort;
                     return true;
                 case StackAndRoomEntryManeuver.PhaseEntering:
-                    if (!AllAt(ref d, in ctx, stack: false, AtPointMetres) || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
+                    bool placed = AllAt(ref d, in ctx, stack: false, AtPointMetres)
+                                  || (d.Released >= d.Plan.Entry && ctx.Now - d.EnterSince >= EnterTimeoutSeconds);   // R-2117
+                    if (!placed || HostileInRoom(ref d, in ctx)) { d.ClearSince = (SimInstant)0; return false; }
                     if (d.ClearSince == 0) { d.ClearSince = (SimInstant)ctx.Now; return false; }
                     if (ctx.Now - d.ClearSince < ClearSeconds) return false;
                     evt = PhaseEventKind.FarSideReached;
@@ -678,9 +684,17 @@ namespace Hrot.AI.Behaviors.Brains
             return s == TerrainDoorState.Open || s == TerrainDoorState.Destroyed;
         }
 
-        /// <summary>CB-55 — a pooled HOSTILE inside the room's quad at its storey, alive and still in the fight (a neutral is not one).</summary>
+        /// <summary>⭐ <c>CE-2436</c> AU-6 (R-2116; CB-55 as designed) — a pooled hostile holds the room uncleared only while FRESH: seen within this many
+        /// ticks (3 s at 60 Hz).</summary>
+        public const uint ClearFreshTicks = 180;
+
+        /// <summary>CB-55 — a pooled HOSTILE inside the room's quad at its storey, alive and still in the fight (a neutral is not one), and FRESH
+        /// (<see cref="ClearFreshTicks"/>). ⭐ <c>CE-2436</c> R-2116 — CB-55 said "no fresh (≤ 3 s) pooled hostile"; as built it had no freshness
+        /// filter, trusting the pool to forget — 📌 measured (pc-assault, editor): the entry men stood at their points in an empty room for 290 s,
+        /// held by a defender LAST SEEN there who had fallen back. The men are in the room looking: not seeing him for 3 s refutes him.</summary>
         private static unsafe bool HostileInRoom(ref RoomDrillState d, in SquadPlayContext ctx)
         {
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(ctx.World);   // the clock LastSeenTick is stamped in (CE-3292)
             ref readonly var squad = ref ctx.World.GetComponentRO<SquadCognitiveState>(ctx.Commander);
             var pool = MemoryMarshal.CreateReadOnlySpan(
                 ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
@@ -690,6 +704,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
             {
                 if ((pool[c].Flags & SquadContact.AnonymousFlag) != 0) continue;
+                if (pool[c].LastSeenTick > now || now - pool[c].LastSeenTick > ClearFreshTicks) continue;   // R-2116 — not seen lately: not there
                 if (pool[c].PositionZ < d.FloorZ - 1f || pool[c].PositionZ > d.FloorZ + 2.8f) continue;
                 if (!RoomEntryPlan.Inside(corners, new Vector2(pool[c].PositionX, pool[c].PositionY))) continue;
                 var e = new Entity((ulong)pool[c].EntityId);
