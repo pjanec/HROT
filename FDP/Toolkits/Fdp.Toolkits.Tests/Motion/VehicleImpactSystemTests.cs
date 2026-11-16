@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Tests.Motion
             _w.AddComponent(v, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // facing +X
             _w.AddComponent(v, new VehicleParams { Class = VehicleClass.PersonalCar, Length = 4.5f, Width = 1.8f });
             _w.AddComponent(v, new VehicleState { Speed = speed });
-            _w.AddComponent(v, new TkbIdentity { TkbType = type });
+            _w.AddComponent(v, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)type });
             return v;
         }
 
