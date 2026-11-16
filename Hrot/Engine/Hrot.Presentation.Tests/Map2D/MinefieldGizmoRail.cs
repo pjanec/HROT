@@ -25,7 +25,7 @@ public sealed class MinefieldGizmoRail
     private static (EntityRepository W, Entity Field) World(MineType type = MineType.Mixed, float spacing = 14f, ushort knownAtStart = 0, int? seatSide = null)
     {
         var w = new EntityRepository();
-        w.RegisterComponent<SimTransform>(); w.RegisterComponent<Minefield>(); w.RegisterComponent<MinefieldStrikes>(); w.RegisterComponent<EntityGuid>();
+        w.RegisterComponent<SimTransform>(); w.RegisterComponent<Minefield>(); w.RegisterComponent<MinefieldStrikes>(); w.RegisterComponent<EntityGuid>(); w.RegisterComponent<MinefieldLanes>();
         w.RegisterManagedComponent<EditablePolyline>();
         var e = w.CreateEntity();
         w.AddComponent(e, new SimTransform { Position = new Vector3(1000f, 2000f, 0f), Rotation = Quaternion.Identity });
@@ -149,5 +149,27 @@ public sealed class MinefieldGizmoRail
         var centre = (a + cc) / 2f;
         Assert.True(MinefieldKnowledgeOps.CellOf(c.Grid, centre, out int col, out int row));
         Assert.Equal((2, 3), (col, row));
+    }
+
+    [Fact]
+    public void ARuntimeLane_TheClearerCut_IsDrawnForTheTruth_AndForTheSideThatCutIt_NotForTheOther()
+    {
+        var (w, field) = World(knownAtStart: 1 << (int)ForceId.Friend, seatSide: (int)ForceId.Hostile);
+        var rec = new MinefieldLanes { Field = w.GetComponentRO<EntityGuid>(field).Value };
+        Assert.True(rec.TryAdd(new LaneItem(rec.Field, new Vector2(1050, 1990), new Vector2(1060, 2150), 4.5f, (byte)(ForceId.Friend + 1))));
+        var r = w.CreateEntity(); w.AddComponent(r, rec);
+        var buffer = new DebugPrimitiveBuffer(capacity: 1 << 16);
+        new MinefieldGizmo(Settings(false)).Draw(w, field, buffer);
+        Assert.Equal(12, Lines(buffer, MinefieldGizmo.LaneColour));   // the authored lane + the runtime one, 6 lines each
+        buffer.Clear();
+        new MinefieldGizmo(Settings(true)).Draw(w, field, buffer);    // Red's seat: Blue cut it
+        Assert.Equal(0, Lines(buffer, MinefieldGizmo.LaneColour));
+        var (w2, field2) = World(seatSide: (int)ForceId.Friend);         // Blue's seat, the field NOT known: only Blue's own runtime lane
+        var rec2 = new MinefieldLanes { Field = w2.GetComponentRO<EntityGuid>(field2).Value };
+        rec2.TryAdd(new LaneItem(rec2.Field, new Vector2(1050, 1990), new Vector2(1060, 2150), 4.5f, (byte)(ForceId.Friend + 1)));
+        var r2 = w2.CreateEntity(); w2.AddComponent(r2, rec2);
+        buffer.Clear();
+        new MinefieldGizmo(Settings(true)).Draw(w2, field2, buffer);
+        Assert.Equal(6, Lines(buffer, MinefieldGizmo.LaneColour));
     }
 }

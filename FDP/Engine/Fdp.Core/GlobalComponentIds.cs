@@ -1337,6 +1337,11 @@ namespace Fdp.Core
         /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
         public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
 
+        /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
+        /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
+        /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
+        public const int MinefieldLanes = 324, MineClearing = 325;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>

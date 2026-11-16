@@ -329,6 +329,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Facing.Front => new Vector3(0.5f, a, b),
                     Facing.Rear  => new Vector3(-0.5f, a, b),
                     Facing.Side  => new Vector3(a, 0.5f, b),
+                    Facing.Bottom => new Vector3(a, b, -0.5f),   // ⭐ CE-4624 MR-10
                     _            => new Vector3(a, b, 0.5f),
                 };
                 Fdp.Toolkit.Physics.BodyParts.HitMarksWriter.Mark(repo, body, part, local, (byte)face, Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Fragment);

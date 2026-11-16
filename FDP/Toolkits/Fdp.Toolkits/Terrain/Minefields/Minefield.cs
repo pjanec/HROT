@@ -82,6 +82,6 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ TKB 116 the mine-clearing vehicle, DIS 1.1.*.9.2, class <c>"MineClearer"</c>.</summary>
         public const long ClearerTkbType = 116;
         /// <summary>The DDS ordinals (<c>EDescriptorType</c> in the NED assembly, which this toolkit cannot reference; a rail pins them).</summary>
-        public const long MinefieldDescriptorOrdinal = 191, StrikesDescriptorOrdinal = 192, KnowledgeDescriptorOrdinal = 193;
+        public const long MinefieldDescriptorOrdinal = 191, StrikesDescriptorOrdinal = 192, KnowledgeDescriptorOrdinal = 193, LanesDescriptorOrdinal = 194, ClearingDescriptorOrdinal = 195;
     }
 }

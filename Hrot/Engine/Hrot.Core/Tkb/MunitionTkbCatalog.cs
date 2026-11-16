@@ -155,6 +155,9 @@ namespace Hrot.Core.Tkb
         public const int TkbRadarSamMissile = 6050;
         /// <summary>⭐ CE-4624 (minefields §3a, MR-17) — the mines' bursts: anti-personnel, anti-tank, the line charge (registered in MS-T1 / MS-T4). ⛔ Permanent wire values.</summary>
         public const int TkbMineAntiPersonnel = 6051, TkbMineAntiTank = 6052, TkbLineCharge = 6053;
+        public const string MineAntiPersonnelName = "anti-personnel mine", MineAntiTankName = "anti-tank mine", LineChargeName = "line charge";
+        /// <summary>⭐ CE-4624 (MS-T1) — an anti-tank mine's burst against the BELLY: penetration (mm RHA) and damage of its direct hit on the hull's bottom (starter values, tune with the armour's <c>ArmorBottom</c>).</summary>
+        public const float AntiTankMinePenetrationMm = 120f, AntiTankMineDamage = 250f;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
@@ -319,6 +322,11 @@ namespace Hrot.Core.Tkb
             //   DIS kind 2 (munition), domain 8 (anti-personnel), category 2 (ballistic); a generic round names no country ⇒ 0.
             Register(tkb, BatonRoundName, TkbBatonRound, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Blunt, EffectSeconds = 4f }, damage: 5f);
+            // ⭐ CE-4624 (minefields §3a, MS-T1, MR-17) — the mines' bursts, their blast from the library by name: an anti-personnel mine a small frag blast at the foot (no direct
+            //   hit), an anti-tank mine a large blast whose direct hit lands on the hull's BOTTOM (the trigger sends it travelling UP), the line charge (MS-T4) a big one.
+            Register(tkb, MineAntiPersonnelName, TkbMineAntiPersonnel, Dis(8, 0, 2));
+            Register(tkb, MineAntiTankName, TkbMineAntiTank, Dis(2, 0, 2), penetrationMm: AntiTankMinePenetrationMm, damage: AntiTankMineDamage);
+            Register(tkb, LineChargeName, TkbLineCharge, Dis(9, 0, 2));
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc

@@ -54,6 +54,19 @@ bind. The behaviour of the read API arrives slice by slice (MS-T1 … MS-T4) —
 | `MinefieldKnowledgeOps.Grid(in Minefield, anchor, outline)` → `KnowledgeGrid`; `CellOf(grid, point, out col, out row)`; `CentreOf` | where the knowledge cells lie (≥ 10 m, coarsened to fit 60 × 64) — ⭐ REAL now |
 | `PlaceKnowledgeTable.Of(view).Knows(side, field, col, row)` · `.Marked(side, field)` | ⚠ STUB until MS-T2: answers Unknown / false |
 
+## ⭐ Added since the first commit (`2026-11-16`)
+
+| what | value / shape | for |
+|---|---|---|
+| component `MinefieldLanes` · `MineClearing` | **324 · 325**; DDS **194 · 195**; TKB **7208** (the lanes record) | MS-T4 |
+| `MineClearing` (unmanaged, Brain group) | `byte Active` · `MineClearingTool Tool` (1 plough, 2 flail, 3 line charge) · `float WidthM` · `Vector3 LineTo` — ⭐ **the `ClearLane` brain sets it** (the bulldozer's `BladeCut` pattern); the Muscle clears | behaviors (MS-B3), ui (the kit) |
+| `LaneCleared` | + `Ax, Ay, Bx, By, Width` (a runtime lane; `Lane = 255`) | the lanes record |
+| `MinefieldLanes` / `MinefieldLanesSystem.LanesOf(view, fieldGuid, into)` | the lanes a node cleared (segment, width, the clearing side + 1) | ui (draw lanes), the navmesh |
+| ⭐ **the side of a route** | rides in the route LAYER MASK, bits 14…18 = side + 1 (`NavLayerSelection.SideBits / SidePlus1Of`); `NavLayerSelection.For(repo, entity, …)` adds it from `EntityInfo.ForceId` — **every route request of an entity already carries it**; no pad byte (lane decision R-5047) | behaviors: nothing to do |
+| ⭐ `PlaceKnowledgeTable` | REAL now: `DoorStates.Of(view, world).Knowledge` (or `PlaceKnowledgeTable.Of(view)`); `Knows(side, fieldEntity, col, row)`, `Marked(side, field)`, `KnowsAny(side, field)` | behaviors (recon), ui (the gizmo) |
+| ⭐ the `Minefield` danger area | `DangerAlongRouteSolve` reports ONE area per field the unit's side knows on its route: `Center` = the entry, `NearSideHandle` = the last safe point (halt there). Ask with `DangerAreaKinds.Minefield` | behaviors (MS-B4) |
+| writers | `PlaceKnowledgeSystem` on the SimHost AND the CGF node; raise `MinefieldCellsSwept` / `MinefieldMarked` from a brain through the batch buffer | behaviors (MS-B2) |
+
 ## What changes when
 
 MS-T1 the field type, trigger, strikes, bursts, armour bottom · MS-T2 the knowledge writer + the real `PlaceKnowledgeTable` (on `DoorStates`) +

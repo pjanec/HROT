@@ -156,6 +156,15 @@ public static class HrotSharedComponentRegistry
         //   DoorStates.Craters (the cratered ground, D-1). The event is the local "a burst made this crater" the deciding node's system turns into the component.
         world.RegisterComponent<Fdp.Toolkit.Terrain.GroundDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.CraterEvent>();
+        // ⭐ CE-4624 (minefields §3a, MS-T1) — the minefield (authored: parameters + lanes), its ground-truth strikes record and the per-side knowledge record (every node: KG-9),
+        //   and the local events the trigger and the recon brain raise for the writers (§6.1)
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldStrikes>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.LaneCleared>();
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();

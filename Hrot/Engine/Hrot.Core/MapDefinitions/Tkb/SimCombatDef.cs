@@ -138,6 +138,9 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ M6 (DESIGN_Armour_Hit_Model §2) — the roof, mm RHA; 0 ⇒ the rear value.</summary>
         public float ArmorTop { get; init; }
 
+        /// <summary>⭐ CE-4624 (MR-10) — the belly (a mine's burst), mm RHA; 0 ⇒ the rear value.</summary>
+        public float ArmorBottom { get; init; }
+
         /// <summary>⭐ M6 — each face against a SHAPED CHARGE (composite, ERA), mm RHA; 0 ⇒ that face's kinetic value.</summary>
         public float ArmorFrontCe { get; init; }
         /// <inheritdoc cref="ArmorFrontCe"/>
@@ -203,6 +206,7 @@ namespace Hrot.Map.Definitions.Tkb
         public float ArmorSide { get; set; }
         public float ArmorRear { get; set; }
         public float ArmorTop { get; set; }
+        public float ArmorBottom { get; set; }   // ⭐ CE-4624 (MR-10) — 0 ⇒ the rear value
         public float ArmorFrontCe { get; set; }
         public float ArmorSideCe { get; set; }
         public float ArmorRearCe { get; set; }
@@ -225,6 +229,7 @@ namespace Hrot.Map.Definitions.Tkb
                 ArmorSide = ArmorSide,
                 ArmorRear = ArmorRear,
                 ArmorTop = ArmorTop,
+                ArmorBottom = ArmorBottom,
                 ArmorFrontCe = ArmorFrontCe,
                 ArmorSideCe = ArmorSideCe,
                 ArmorRearCe = ArmorRearCe,

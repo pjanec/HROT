@@ -224,5 +224,40 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(PlaceKnowledgeTable.Of(rig.W).Marked(Red, rig.Field));
             Assert.Equal(0, second.Requested);
         }
-    }
+    
+        /// <summary>⭐ MS-T4 (MR-11, MR-18, R-5048) — a cleared lane is a RECORD of the deciding node (never a write to the authored field): a <see cref="LaneCleared"/> with its segment
+        /// becomes one lane of the field's <see cref="MinefieldLanes"/>; the same lane twice is one. 🔴 Red-proof: ignore the width test ⇒ an authored-lane event (width 0) writes too.</summary>
+        [Fact]
+        public void ALaneCleared_IsARecordOfTheDecidingNode_OnceEach()
+        {
+            var rig = new Rig();
+            rig.W.RegisterComponent<MinefieldLanes>();
+            var lanes = new MinefieldLanesSystem();
+            void Frame()
+            {
+                rig.W.Bus.SwapBuffers();
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    lanes.Execute(rig.W, 0.016f);
+                    rig.W.Bus.SwapBuffers();
+                    foreach (var r in rig.W.Bus.ReadManaged<EntityCreationRequest>().ToList())
+                    {
+                        var e = rig.W.CreateEntity();
+                        foreach (var c in r.InitialComponents!) if (c is MinefieldLanes l) rig.W.AddComponent(e, l); else if (c is SimTransform t) rig.W.AddComponent(e, t);
+                    }
+                }
+                rig.W.Tick();
+            }
+            var lane = new LaneCleared { Field = rig.Field, Lane = 255, SidePlus1 = Blue + 1, Ax = -100, Ay = 0, Bx = 100, By = 0, Width = 4.5f };
+            rig.W.Bus.Publish(lane); Frame();
+            rig.W.Bus.Publish(lane); Frame();
+            rig.W.Bus.Publish(new LaneCleared { Field = rig.Field, Lane = 0, SidePlus1 = Blue + 1 }); Frame();   // an authored lane: no geometry, no record
+            var got = new List<LaneItem>();
+            MinefieldLanesSystem.LanesOf(rig.W, FieldGuid, got);
+            Assert.Single(got);
+            Assert.Equal(new Vector2(-100, 0), got[0].A);
+            Assert.Equal(4.5f, got[0].Width);
+            Assert.Equal(Blue + 1, got[0].SidePlus1);
+        }
+}
 }

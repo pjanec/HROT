@@ -209,6 +209,34 @@ public sealed class BridgeClosureTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-16) — a minefield across the east road closes it to the cars only once it is MARKED on the ground (here: known at
+    /// start — an own field, marked by its owners): an unknown field leaves the road open (cars drive in and set mines off). 🔴 Red-proof: drop <c>AddMinefields</c> from the
+    /// closure ⇒ the known field never closes the road.
+    /// </summary>
+    [Fact]
+    public void CE4624_AMarkedMinefieldAcrossARoad_ClosesIt_AnUnknownOneDoesNot()
+    {
+        using var w = Build();
+        var r = w.Repo;
+        if (!r.IsComponentTypeRegistered<Minefield>()) r.RegisterComponent<Minefield>();
+        if (!r.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>()) r.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+        if (!r.IsComponentTypeRegistered<MinefieldKnowledge>()) r.RegisterComponent<MinefieldKnowledge>();
+        r.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        system.Execute(r, 0.1f);
+        var field = r.CreateEntity();
+        r.AddComponent(field, new SimTransform { Position = new Vector3(270, 200, 0), Rotation = Quaternion.Identity });
+        r.AddComponent(field, new Minefield { Type = MineType.AntiTank, SpacingM = 6f });
+        r.AddComponent(field, new Fdp.Toolkit.Scenario.EntityGuid(Guid.NewGuid()));
+        r.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline { Points = new[] { new Vector2(-10, -10), new Vector2(10, -10), new Vector2(10, 10), new Vector2(-10, 10) } });
+        r.Tick(); system.Execute(r, 0.1f);
+        Assert.Equal(0, system.Blocked);                                   // unknown, unmarked: the road stays open
+        var f = r.GetComponentRO<Minefield>(field); f.KnownAtStartSides = 1 << 1; r.SetComponent(field, f);
+        r.Tick(); system.Execute(r, 0.1f);
+        Assert.Equal(1, system.Blocked);                                   // marked: closed like a roadblock
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4590</c> (G-10, V-19; acceptance §6 item 2) — a BARRIER across the east road (6 m across a 3.5 m road) cuts its segment from the vehicles' net: a
     /// route from the east bank's start to its end no longer exists, and a vehicle whose way crossed it re-plans; REMOVING the barrier (the charge, CE-6003)
     /// RE-OPENS the road — the net is rebuilt from the base, all five segments back. 🔴 Red-proof: publish only when segments are ADDED to the cut (the old

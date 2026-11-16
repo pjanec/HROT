@@ -50,7 +50,10 @@ namespace Fdp.Toolkit.Terrain
     public struct LaneCleared
     {
         public Entity Field;
+        /// <summary>The authored lane's index when an authored lane was cleared, else 255 (a new runtime lane: the geometry below).</summary>
         public byte Lane;
         public byte SidePlus1;
+        // ⭐ MS-T4 (MR-18) — the runtime lane's straight segment and width (world metres); additive to the §6.1 shape
+        public float Ax, Ay, Bx, By, Width;
     }
 }

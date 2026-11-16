@@ -1392,6 +1392,11 @@ namespace Hrot.Map.Definitions.Tkb
             var terrainFeature = new TkbTemplate("Terrain Feature", TkbEntityTypes.TerrainFeature);
             terrainFeature.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(terrainFeature);
+            // ⭐ CE-4624 (minefields §3a, MS-T1) — the MINEFIELD: one authored entity per field (DIS 5.0.0.91, class "Minefield"), a map graphic like a terrain feature;
+            //   its Minefield component and its ONE EditablePolyline outline arrive when it is placed / loaded (the mines are derived, never entities).
+            var minefield = new TkbTemplate("Minefield", TkbEntityTypes.Minefield) { DisType = new DISEntityType { Kind = 5, Category = 91 } };
+            minefield.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(minefield);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);
