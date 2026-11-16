@@ -582,11 +582,12 @@ public sealed class TerrainEditorFrameRail
     }
 
     /// <summary>
-    /// ⭐ A3 — A CLICK RIGHT AFTER A BAKE (a candidate for "drawn fences are almost always shifted"): a live bake replaces the terrain geometry, and the terrain picker's grid is rebuilt on a worker (R-1046) — while it builds a pick MISSES, and the camera falls back to the plane at the
-    /// look-at height, which on a slope is metres off the relief. Measured: the XY error of a pick taken at once after a bake, and how long the picker stays blind. (A finding, reported — asserts only that the settled pick is exact.)
+    /// ⭐ A3 / CE-5016 — A CLICK RIGHT AFTER A BAKE (the user: "drawn fences are almost always shifted"): a live bake replaces the terrain geometry and the picker's grid is rebuilt on a worker (R-1046). 📐 Measured before the fix: the pick MISSED for 1–3 frames
+    /// and fell to the look-at plane, 6.8 m (basic-desert) / 12.9 m (city-battle) off in XY. Now the previous grid answers until the new one lands: the pick at once after the bake is ON the relief, within a few cm of the settled one.
+    /// 🔴 Red-proof: drop the stale grids (Bind / Current returning null while building) ⇒ the first pick is Ground, metres off.
     /// </summary>
     [SkippableFact]
-    public void A3_APickRightAfterABake_FallsToTheLookAtPlane_UntilThePickersGridIsRebuilt()
+    public void A3_APickRightAfterABake_IsStillOnTheRelief_ThePreviousGridAnswersMeanwhile()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         foreach (var terrain in new[] { Terrain, Steep })
@@ -603,6 +604,8 @@ public sealed class TerrainEditorFrameRail
             Say($"A3 {terrain}: a pick at once after the bake answers {first.Kind} at {first.Point}; the settled pick is {now.Kind} at {now.Point} — the early pick is {err:0.00} m off in XY (z {first.Point.Z:0.0} vs {now.Point.Z:0.0}); the picker was blind for {frames} frames / {clock.ElapsedMilliseconds} ms");
             Assert.Equal(PickKind.Terrain, now.Kind);
             Assert.True(MathF.Abs(now.Point.Z - s.Ground(now.Point.X, now.Point.Y)) < 0.05f, "the settled pick is on the relief");
+            Assert.Equal(PickKind.Terrain, first.Kind);                                          // ⭐ CE-5016 — never blind after a bake
+            Assert.True(err < 0.1f, $"the pick at once after the bake is {err:0.00} m from the settled one");
         }
     }
 
