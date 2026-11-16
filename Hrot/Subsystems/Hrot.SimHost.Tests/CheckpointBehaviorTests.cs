@@ -196,8 +196,8 @@ namespace Hrot.SimHost.Tests
             Assert.DoesNotContain(f.Fire, x => x.Who != f.Men[4] && x.T - t0 < 14.8);                                                  // nobody else earlier
         }
 
-        /// <summary>⭐ K-5 — a car that SLOWS after the signal (to 2 m/s by the warning-shot time) is never shot at: signal only.
-        /// ✅ Red-proof: the slowing test dropped ⇒ red.</summary>
+        /// <summary>⭐ K-5 — a car that SLOWS on the signal (15 → 7 m/s, then holds) is never shot at, though it comes inside the warning-shot time at
+        /// over 3 m/s: signal only (to 15 m out, where 7 m/s still stops with an ordinary brake). ✅ Red-proof: the slowing test dropped ⇒ red.</summary>
         [Fact]
         public void CE4622_K5_ACarThatSlowsOnTheSignal_IsNeverShotAt()
         {
@@ -206,10 +206,10 @@ namespace Hrot.SimHost.Tests
             f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
             f.Tick(3);
             var car = f.Car(new Vector3(-250f, 0f, 0f), new Vector3(15f, 0f, 0f));
-            for (int i = 0; i < 300 && f.W.Repo.GetComponentRO<SimTransform>(car).Position.X < -8f; i++)
+            for (int i = 0; i < 400 && f.W.Repo.GetComponentRO<SimTransform>(car).Position.X < -15f; i++)
             {
                 ref var v = ref f.W.Repo.GetComponentRW<SimVelocity>(car);
-                if (f.Watch.Signalling != 0 && v.Linear.X > 3f) v.Linear = new Vector3(v.Linear.X - 0.2f, 0f, 0f);   // brakes ~2 m/s² on the signal
+                if (f.Watch.Signalling != 0 && v.Linear.X > 7f) v.Linear = new Vector3(v.Linear.X - 0.2f, 0f, 0f);   // brakes ~2 m/s² on the signal, to 7 m/s
                 f.Drive(car);
                 f.Tick();
             }
