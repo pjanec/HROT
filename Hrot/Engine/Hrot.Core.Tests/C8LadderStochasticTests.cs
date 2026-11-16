@@ -18,7 +18,7 @@ namespace Hrot.Map.Common.Tests
     /// (sensing, fire, losses) and the table generated from the SAME TKB. Records, per run, the first time 1…9 men of each side are down — the
     /// physical rungs' check rows, read the same way by <c>scripts/c8-ladder.py</c>. With <c>HROT_C8_OUT</c> set the rows are written there (JSON).
     /// ⭐ The rail itself asserts only what is not the calibration: both sides lose men at 100 m, the closer fight is the bloodier, and a seed is
-    /// a seed (the same seed twice gives the same run).
+    /// a seed (the same seed twice gives the same run); and CE-8009's calibration — the winner loses men too, and nobody fights past the eye.
     /// </summary>
     [Collection("FdpWorkerPool")]
     public sealed class C8LadderStochasticTests
@@ -96,6 +96,7 @@ namespace Hrot.Map.Common.Tests
             Assert.True(UnitAmmunition.BasicLoad(db, Soldier) > 0, "the soldier carries a basic load");
             var json = new StringBuilder("{\"resolution\":\"stochastic\",\"runFor\":").Append(RunFor).Append(",\"rungs\":{");
             var meanLosses = new Dictionary<int, double>();
+            double winnerLosses100 = 0, firstLoss100 = 0;
             for (int ri = 0; ri < Ranges.Length; ri++)
             {
                 int range = Ranges[ri];
@@ -105,6 +106,11 @@ namespace Hrot.Map.Common.Tests
                 {
                     var (b, r) = Run(db, range, seed);
                     losses += Count(b) + Count(r);
+                    if (range == 100)
+                    {
+                        winnerLosses100 += Math.Min(Count(b), Count(r));
+                        firstLoss100 += Math.Min(b[0] < 0 ? RunFor : b[0], r[0] < 0 ? RunFor : r[0]);
+                    }
                     json.Append(seed == 1 ? "" : ",").Append("{\"seed\":").Append(seed)
                         .Append(",\"Blue\":[").Append(string.Join(",", b)).Append("],\"Red\":[").Append(string.Join(",", r)).Append("]}");
                 }
@@ -117,6 +123,12 @@ namespace Hrot.Map.Common.Tests
 
             Assert.True(meanLosses[100] >= 2.0, $"at 100 m both sides lose men (mean {meanLosses[100].ToString("0.0", CultureInfo.InvariantCulture)} down in all)");
             Assert.True(meanLosses[100] >= meanLosses[300], "the closer fight is not the less bloody");
+            // ⭐ CE-8009's calibration, pinned: the winner PAYS (the physical 3.3 men — focused hits, a broken side still fires from the ground)
+            Assert.True(winnerLosses100 / Seeds >= 2.0, $"the winner loses men too (mean {(winnerLosses100 / Seeds).ToString("0.00", CultureInfo.InvariantCulture)})");
+            // ⭐ the first man falls early (the physical 5.1 s): hits CONCENTRATE on the man under fire — spread evenly, nobody falls for ~9 s
+            Assert.True(firstLoss100 / Seeds <= 7.0, $"the first loss comes early (mean {(firstLoss100 / Seeds).ToString("0.0", CultureInfo.InvariantCulture)} s)");
+            // ⭐ and nobody sees past the soldier's own eye (the TKB VisionRange, 150 m): at 200 m there is no fight, as there is none physically
+            Assert.Equal(0.0, meanLosses[200]);
             var again = Run(db, 100, 7); var first = Run(db, 100, 7);
             Assert.Equal(first.Blue, again.Blue);                                               // a seed is a seed (C-8: the run seed)
             Assert.Equal(first.Red, again.Red);

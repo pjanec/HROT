@@ -37,6 +37,17 @@ namespace Fdp.Toolkit.Aggregate
             return hp > 0f ? hp : FallbackSoldierHealth;
         }
 
+        /// <summary>⭐ CE-8009 — how far the soldiers a slot stands for SEE with the naked eye (the personal soldiers' <c>VisionRange</c>, the
+        /// largest; 0 = unknown, no cap). The physical soldier sees nothing past it, so a stochastic eye looks no further (one source).</summary>
+        public static float SoldierEyeReach(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal)
+        {
+            float reach = 0f;
+            if (personal != null)
+                foreach (var kv in personal)
+                    if (db.TryGetByType(kv.Value, out var t) && t?.GetDescriptor<SensorCapabilitiesDto>() is { VisionRange: > 0f } c) reach = MathF.Max(reach, c.VisionRange);
+            return reach;
+        }
+
         /// <summary>The effective aimed rate (rounds / s) of <paramref name="mount"/>: a magazine at one aimed round per aim, then the reload.</summary>
         public static float EffectiveRate(WeaponMountDto mount)
         {

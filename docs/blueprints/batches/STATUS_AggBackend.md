@@ -33,7 +33,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | CE-8005 route half | ✅ built | *(round 3)* | a navmesh-less node asks the solver over the path-request topic (5 s, then local); the Brain-only CGF node composes the pair with its pool — ⏳ the position-ownership half |
 | CE-8018 N-3 | ✅ built | *(round 3)* | a stochastic observer sees physical bodies (one way); `UnitSensingRails.N3_…` 47 / 0 plain, 37 / 0 under the parallel checks; red-proofs: bodies not gathered · `Health` undeclared (read check) — 2 / 2 red |
 | CE-8019 4× lethality | ✅ fixed | *(round 3)* | found by the C-8 ladder's first stochastic run; red-proved |
-| CE-8009 C-8 ladder rung 1 | 🟡 running | *(round 3)* | physical rungs `scenarios/tests/c8-ladder/c8-open-{100,200,300}` (`scripts/gen-c8-ladder.py`), 30 seeds each via `scripts/c8-ladder.py physical` (real-time runs, 3 at a time); stochastic side `C8LadderStochasticTests` (HROT_C8_OUT); verdict `scripts/c8-ladder.py compare` |
+| CE-8009 C-8 ladder rung 1 | ✅ rung 1 PASS — ⚠ 200 / 300 m only vacuously (CE-8020) | *(round 3)* | physical rungs `scenarios/tests/c8-ladder/c8-open-{100,200,300}` (`scripts/gen-c8-ladder.py`), 30 seeds each via `scripts/c8-ladder.py physical` (90 real-time runs, 3 at a time, ~1 h); stochastic side `C8LadderStochasticTests` (HROT_C8_OUT); verdict `scripts/c8-ladder.py compare` — table §5. ⭐ First compare NOT MET; diagnosed by a per-step trace and calibrated (R-8005, R-8006); rungs 2–4 (MG, building, IFV / ATGM) not built |
 | ST-5 resolution | 🟡 built (engine), not wired → see CE-8013 above | *(ST-5 commit)* | `CE-8012` the manager, the process stages, `BusResolutionSwitch` (derived identities, held children, X-4 both ways), pins, C-7, hysteresis; ⛔ `CE-8013` production wiring (the TKB composite resolver, the held lifecycle participant, ammunition, UNOBSERVED, the planners' posts) |
 
 ## 2. Lane decisions — ✅ ALL APPROVED by the user `2026-11-16` (R-4278, [NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md](NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md))
@@ -44,6 +44,8 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | **R-8001** ✅ approved | the routing table: **Stochastic with no row ⇒ refused** (never the physical `<Class><Order>` play); **Fusion with no row ⇒ the physical rule**; Physical ⇒ `OrderResolver` untouched; the SOP is the row `"Sop"` | RV-7: a memberless unit must never run a physical play; X-1: a FusionSquad plays the squad's plays | the behaviors lane needs a Fusion-specific refusal |
 | **R-8003** ✅ approved | the run seed is a **process-wide** `SimRng.RunSeed` (env `HROT_RUN_SEED`, synced with the recorded `RunSeed` singleton), mixed into `FromSim` only when non-zero | ⭐ 0 keeps every existing number (no golden / scenario-check churn); `FromSim` is static with ~30 callers and no world in reach — a per-world seed would change every call site; every world of one process runs one scenario | two scenarios in one process needing different seeds |
 | **R-8004** ✅ approved | a stochastic unit's ammunition CAPACITY is DERIVED from the TKB (each mount's `InitialAmmunition`), not a recorded field (agg-behaviors' F-1) | the recorded layout stays (SV-12); the same numbers as a spawned physical soldier; no second source of a basic load | a per-unit loadout that differs from its TKB types' (then a capacity column in a NEW component, never in the slot) |
+| **R-8005** 🔵 for the user's review | ⭐ C-3's hit placement, CALIBRATED by the C-8 ladder: a share of the hits (`FocusShare` 0.3) lands on the man ALREADY under fire; a BROKEN man (stress ≥ the break level) has gone to ground — the unit's incoming λ × the mean of 1 (standing) / `BrokenExposure` 0.5 (down) — and still fires at `BrokenFireShare` 0.6 | 📐 measured, a per-step trace: with hits spread by exposure and broken men silent, both sides took ~3 hits / s for 10 s and NOBODY fell (the mean damage, 6.4 of 25, spread evenly), then the first side to break stopped firing and was wiped out without loss to the winner (winner 0.2 down vs the physical 3.3; LER 7.8 vs 1.9). Each constant is load-bearing, red-proved: no focus ⇒ first loss 9.4 s (physical 5.1); broken men silent ⇒ winner 0.8 down | a physical measurement of who shoots whom (a target-selection trace) — the focus share is a stand-in for it; rung 2+ (the MG) disagreeing |
+| **R-8006** 🔵 for the user's review | the stochastic NAKED EYE sees no further than the soldiers' own TKB `VisionRange` (the personal soldiers', the largest — `KillerVictimTkb.SoldierEyeReach`); the R50 curve applies inside it; optics / thermal / radar holdings are not capped | ⭐ one source: the physical soldier's `VisualPerception` stops at that range (150 m for 2002), so the stochastic one now does too; before, its eye R50 of 400 m fought at 200 / 300 m where the physical squads never saw each other (0 losses in 60 runs) | the TKB soldier's open-ground vision corrected (CE-8020) — both follow it then |
 | **R-8002** ✅ approved | `FireLine.Hits` is written **already × the FIRER's suppression** (phase A owns it); phase B multiplies only by the VICTIM's cover | the firer's suppression is its own state ⇒ phase B needs no read of the firer's `AggregateUnit` (one fewer cross-entity read to declare) | — (equivalent maths) |
 
 ## 3. Gates *(per rule 8 — filled per slice)*
@@ -68,6 +70,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | ⚠ reds found by round 3 | ① `TheEntityKeyedSetIsExactlyTheProtocolsEntityKeyedRows` (NED): the minefield wire types (`EntityMineClearing`, `EntityMinefield`, `EntityMinefieldKnowledge` …) have no row in `NED_DDS_Protocol.md` — ⚠ **red on coordinator `341ae8ad6` too** (its doc has 0 such rows), the minefield lane's; not edited here · ② `CgfLogicPackTests` pinned 39 / 47 on coordinator while its pack has 42 (`MineStrikeReflexSystem`, `PlaceKnowledgeSystem`, `MineBreadcrumbSystem`) — re-pinned to the measured 48 / 56 here (cross-lane pin, said) · ③ mine: `EveryComponentTheVocabularyWritesIsCoveredByATranslator` — CE-8015's rows lacked the test's production mirror pairing (`FakeDescriptorTranslator`: dtAggregateUnit → AggregateUnit); production declared it already | ⚠ CE-8015's gate MISSED ③ (its filter did not include `TheDescriptorMapIsWired`) |
 | round 3 red-proofs (compiling mutants; two first tries did not compile and were redone) | the participant acking a held child at once · no abandon · UNOBSERVED ignored · the launcher not scaled · the request not stamped with the node | ✅ 5 / 5 red |
 | round 3 gates, final | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Lifecycle\|~NetworkGateway\|~Pathfinding` · `Hrot.SimHost.Tests --filter TheDescriptorMapIsWired\|CgfLogicPackTests\|EntityCreationPackRails\|TheFourRoutingTablesAgree\|AggregateUnitReplication\|TacticalIntent\|NodeBootstrapper` · builds `Hrot.CGF`, `Hrot.Editor` | ✅ 144 / 0 · ✅ 427 / 0 · ✅ |
+| CE-8009 calibration gates | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Lifecycle` · the same `~Aggregate` under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` · `Hrot.Core.Tests --filter C8LadderStochasticTests\|StochasticUnitFillTests` | ✅ 84 / 0 · ✅ 37 / 0 · ✅ 5 / 0. Red-proofs (compiling mutants): `BrokenFireShare` 0 ⇒ "the winner loses men too (mean 0.80)" red · the eye cap never fires ⇒ 200 m `Expected 0, Actual 12.17` red · `FocusShare` 0 ⇒ "the first loss comes early (mean 9.4 s)" red |
 | ⭐ T2 (once, at the end) | `Fdp.Toolkits.Tests --filter ~Aggregate\|~Combat\|~Squad\|~Navigation.RoutePlanner\|~Replay` · `Hrot.Core.Tests` (all) · `Hrot.Network.NED.Tests` (all) · `Hrot.SimHost.Tests --filter` the eight touched feature suites | ✅ 1156 / 0 (1 skip) · ✅ 380 / 0 · ✅ 198 / 0 after the fix below · ✅ 102 / 0 (1 skip) |
 | ⛔ a gate MISS, fixed | `TheEntityKeyedWireTypesAreReadableByReflectionTests` was red from the ST-0 commit (`d45dfa77a`) to the last: the three new entity-keyed wire types had no row in `docs/reference/NED_DDS_Protocol.md` — ST-0 gated NED on `RoleGroupOwnershipStrategyTests` only. Rows added | ⚠ the lesson: a new wire type ⇒ run the WHOLE `Hrot.Network.NED.Tests` (4 s) |
 | ⚠ pre-existing red fixed | `CgfLogicPackTests` pinned 37 / 45 while the pack had 39 / 47 (the animals lane's `HerdSystem`, `AnimalAreaSystem`) — now 40 / 48 with the follower | cross-lane edit of a pin, said |
@@ -75,4 +78,25 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 ## 4. Ids allocated
 
-`CE-8000` … `CE-8019` (Area AGG-B in the tracker) · `R-8000`…`R-8004` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+`CE-8000` … `CE-8020` (Area AGG-B in the tracker) · `R-8000`…`R-8006` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+
+## 5. C-8 ladder, rung 1 — the verdict *(CE-8009, `2026-11-16`, after R-8005 / R-8006)*
+
+| rung | metric | physical mean [95 % CI] (n) | stochastic mean (n) | band (CI ± 15 %) | verdict |
+|---|---|---|---|---|---|
+| c8-open-100 | total down | 11.87 [11.30, 12.44] (30) | 12.37 (30) | [9.60, 14.30] | ✅ |
+| c8-open-100 | loss-exchange ratio | 1.94 [1.27, 2.61] (30) | 1.92 (30) | [1.08, 3.00] | ✅ |
+| c8-open-100 | time to 50 % (s) | 22.70 [16.39, 29.01] (30) | 23.23 (30) | [13.93, 33.36] | ✅ |
+| c8-open-100 | first loss (s) — informative | 5.12 [4.77, 5.46] (30) | 4.27 (30) | — | ℹ |
+| c8-open-200 | total down | 0.00 [0.00, 0.00] (30) | 0.00 (30) | [0.00, 0.00] | ✅ |
+| c8-open-200 | loss-exchange ratio | 1.00 [1.00, 1.00] (30) | 1.00 (30) | [0.85, 1.15] | ✅ |
+| c8-open-200 | time to 50 % (s) | 120.00 [120.00, 120.00] (30) | 120.00 (30) | [102.00, 138.00] | ✅ |
+| c8-open-300 | total down | 0.00 [0.00, 0.00] (30) | 0.00 (30) | [0.00, 0.00] | ✅ |
+| c8-open-300 | loss-exchange ratio | 1.00 [1.00, 1.00] (30) | 1.00 (30) | [0.85, 1.15] | ✅ |
+| c8-open-300 | time to 50 % (s) | 120.00 [120.00, 120.00] (30) | 120.00 (30) | [102.00, 138.00] | ✅ |
+
+C-8 rung 1: PASS
+
+⚠ **200 / 300 m pass VACUOUSLY** — neither resolution sees past the soldier's 150 m eye, so nobody fights (CE-8020). ⭐ The first compare (before
+R-8005 / R-8006) was NOT MET: 100 m LER 7.84 vs 1.94, total 9.20 vs 11.87; 200 / 300 m 9.17 men down vs 0. Physical data: `artifacts/c8-ladder/round3`
+(90 reports, not committed — regenerate with `scripts/c8-ladder.py physical --seeds 30 --out <dir>`).

@@ -58,6 +58,11 @@ namespace Fdp.Toolkit.Aggregate
             return r;
         }
 
+        /// <summary>⭐ CE-8009 — is <paramref name="range"/> past the naked eye's reach? Only when the observer's best sensor IS the eye
+        /// (<paramref name="sensorR50"/> = <see cref="EyeR50"/>) and the reach is known (&gt; 0): the soldiers' own TKB <c>VisionRange</c>, the
+        /// same hard limit the physical soldier sees to (<c>VisualPerception</c>) — one source, so the two resolutions see equally far.</summary>
+        public static bool BeyondEye(float sensorR50, float range, float eyeReach) => sensorR50 == EyeR50 && eyeReach > 0f && range > eyeReach;
+
         /// <summary>⭐ N-1's curve: the step's chance at <paramref name="range"/> for half-chance range <paramref name="r50"/> (already × signature,
         /// weather), × the line's transmittance.</summary>
         public static float StepChance(float range, float r50, float transmittance = 1f)
@@ -98,6 +103,9 @@ namespace Fdp.Toolkit.Aggregate
         /// <summary>⭐ N-3 — one physical body as a stochastic observer sees it: where, which side, how big (the signature), whether a vehicle.</summary>
         internal struct PhysicalTarget { public Entity Entity; public Vector3 At; public ForceId Force; public float Signature; public bool Vehicle; }
         private SimInstant _lastStep = (SimInstant)(-1.0);
+        // ⭐ CE-8009 — the naked eye's reach (the personal soldiers' TKB VisionRange; 0 = no cap), resolved serially, once per database
+        private float _eyeReach;
+        private object? _eyeReachFor;
 
         public StochasticUnitSensorSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
@@ -128,7 +136,8 @@ namespace Fdp.Toolkit.Aggregate
             }
             if (n == 0) return;
             GatherPhysical(repo);
-            var job = new SenseJob { Repo = repo, All = _all, AllCount = _allCount, Physical = _physical, PhysicalCount = _physicalCount, Now = now, World = Fdp.Toolkit.World.WorldQuery.Of(repo),
+            ResolveEyeReach(repo);
+            var job = new SenseJob { Repo = repo, EyeReach = _eyeReach, All = _all, AllCount = _allCount, Physical = _physical, PhysicalCount = _physicalCount, Now = now, World = Fdp.Toolkit.World.WorldQuery.Of(repo),
                                      Terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null };
             if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _observers, n, in job);
             else for (int i = 0; i < n; i++) job.Execute(_observers[i], i, null!);
@@ -145,6 +154,7 @@ namespace Fdp.Toolkit.Aggregate
             public PhysicalTarget[] Physical;
             public int PhysicalCount;
             public SimInstant Now;
+            public float EyeReach;
             public Fdp.Toolkit.World.IWorldQuery? World;
             public Fdp.Toolkit.Terrain.TerrainWorld? Terrain;
 
@@ -156,13 +166,13 @@ namespace Fdp.Toolkit.Aggregate
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
 
             public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx)
-                => SenseOne(Repo, self, All, AllCount, Now, World, Terrain, Physical, PhysicalCount);
+                => SenseOne(Repo, self, All, AllCount, Now, World, Terrain, Physical, PhysicalCount, EyeReach);
         }
 
         /// <summary>One observer's step (the test seam).</summary>
         internal static void SenseOne(EntityRepository repo, Entity self, Entity[] all, int allCount, SimInstant now,
                                       Fdp.Toolkit.World.IWorldQuery? world, Fdp.Toolkit.Terrain.TerrainWorld? terrain,
-                                      PhysicalTarget[]? physical = null, int physicalCount = 0)
+                                      PhysicalTarget[]? physical = null, int physicalCount = 0, float eyeReach = 0f)
         {
             ref readonly var me = ref repo.GetComponentRO<AggregateUnit>(self);
             var myForce = repo.GetComponentRO<EntityInfo>(self).ForceId;
@@ -188,7 +198,9 @@ namespace Fdp.Toolkit.Aggregate
                 var th = repo.HasComponent<UnitHoldings>(t) ? repo.GetComponentRO<UnitHoldings>(t) : default;
                 float sig = UnitDetection.Signature(in tu, repo.GetComponentRO<UnitSlotTable>(t), in th);
                 if (sig <= 0f) continue;
-                float r50 = UnitDetection.SensorR50(in myHoldings, th.HasVehicles(), out bool thermal) * sig;
+                float eye = UnitDetection.SensorR50(in myHoldings, th.HasVehicles(), out bool thermal);
+                bool beyond = UnitDetection.BeyondEye(eye, range, eyeReach);   // ⭐ CE-8009 — the naked eye stops where the soldier's does
+                float r50 = eye * sig;
                 if (weather) r50 = thermal ? Fdp.Toolkit.Perception.Sensors.PerceptionWeather.ThermalRange(r50, in w)
                                            : Fdp.Toolkit.Perception.Sensors.PerceptionWeather.VisionRange(r50, in w);
                 Footprint(in tu, tAt, theirs);
@@ -202,6 +214,7 @@ namespace Fdp.Toolkit.Aggregate
                         float tr = terrain?.Woods != null ? terrain.Woods.Transmittance(from, to, terrain, out _) : 1f;
                         if (tr > best) best = tr;
                     }
+                if (beyond) best = 0f;
                 Accumulate(repo, self, ref det, t, tAt, best, UnitDetection.StepChance(range, r50, best), MathF.Min(1f, sig * 0.5f), now);
             }
             // ⭐ CE-8018 (N-3) — the PHYSICAL bodies, one way: the same curve, a body's own signature, one sample point (no footprint)
@@ -211,7 +224,9 @@ namespace Fdp.Toolkit.Aggregate
                 if (b.Force == myForce || b.Force == ForceId.Neutral) continue;
                 float range = Vector2.Distance(new Vector2(myAt.X, myAt.Y), new Vector2(b.At.X, b.At.Y));
                 if (range > UnitDetection.MaxRange) continue;
-                float r50 = UnitDetection.SensorR50(in myHoldings, b.Vehicle, out bool thermal) * b.Signature;
+                float eye = UnitDetection.SensorR50(in myHoldings, b.Vehicle, out bool thermal);
+                bool beyond = UnitDetection.BeyondEye(eye, range, eyeReach);
+                float r50 = eye * b.Signature;
                 if (weather) r50 = thermal ? Fdp.Toolkit.Perception.Sensors.PerceptionWeather.ThermalRange(r50, in w)
                                            : Fdp.Toolkit.Perception.Sensors.PerceptionWeather.VisionRange(r50, in w);
                 var to = b.At + new Vector3(0, 0, 1f);
@@ -223,6 +238,7 @@ namespace Fdp.Toolkit.Aggregate
                     float tr = terrain?.Woods != null ? terrain.Woods.Transmittance(from, to, terrain, out _) : 1f;
                     if (tr > best) best = tr;
                 }
+                if (beyond) best = 0f;
                 Accumulate(repo, self, ref det, b.Entity, b.At, best, UnitDetection.StepChance(range, r50, best), MathF.Min(1f, b.Signature * 0.5f), now);
             }
 
@@ -260,6 +276,19 @@ namespace Fdp.Toolkit.Aggregate
                 pair.Reported = 1;
                 Report(repo, self, t, tAt, threat, now);
             }
+        }
+
+        /// <summary>⭐ CE-8009 — the personal soldiers' naked-eye reach from the TKB (serial; once per database and soldier map).</summary>
+        private void ResolveEyeReach(EntityRepository repo)
+        {
+            var personal = KillerVictimTkb.PersonalSoldiers;
+            if (!repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) { _eyeReach = 0f; _eyeReachFor = null; return; }
+            var db = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (db == null) { _eyeReach = 0f; _eyeReachFor = null; return; }
+            var key = (object?)personal ?? db;
+            if (ReferenceEquals(key, _eyeReachFor)) return;
+            _eyeReachFor = key;
+            _eyeReach = KillerVictimTkb.SoldierEyeReach(db, personal);
         }
 
         /// <summary>

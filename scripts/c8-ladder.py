@@ -52,6 +52,12 @@ def metrics(rows):
     return b + r, ler, (min(t50) if t50 else float(RUN_FOR))
 
 
+def first_loss(rows):
+    """The first second either side lost a man (None when nobody did)."""
+    ts = [x for x in (rows["Blue"][0], rows["Red"][0]) if x is not None]
+    return min(ts) if ts else None
+
+
 def ci95(xs):
     m = statistics.mean(xs)
     if len(xs) < 2: return m, m, m
@@ -106,6 +112,12 @@ def compare(args):
             ok = blo <= sm <= bhi
             allpass &= ok
             print(f"| {rung} | {name} | {pm:.2f} [{lo:.2f}, {hi:.2f}] ({len(phys)}) | {sm:.2f} ({len(st)}) | [{blo:.2f}, {bhi:.2f}] | {'✅' if ok else '⛔'} |")
+        # informative (not C-8's verdict): the time to the FIRST loss — the metrics above cannot see whether hits concentrate (CE-8009)
+        pf = [p for p in (first_loss(first_times(json.load(open(rep)))) for rep in sorted(glob.glob(os.path.join(args.physical, rung, "seed-*", rung + ".json")))) if p is not None]
+        sf = [p for p in (first_loss({"Blue": [t if t >= 0 else None for t in r["Blue"]], "Red": [t if t >= 0 else None for t in r["Red"]]}) for r in sto.get(rung, [])) if p is not None]
+        if pf and sf:
+            pm, lo, hi = ci95(pf)
+            print(f"| {rung} | first loss (s) — informative | {pm:.2f} [{lo:.2f}, {hi:.2f}] ({len(pf)}) | {statistics.mean(sf):.2f} ({len(sf)}) | — | ℹ |")
     print("\nC-8 rung 1:", "PASS" if allpass else "NOT MET")
     return 0 if allpass else 1
 
