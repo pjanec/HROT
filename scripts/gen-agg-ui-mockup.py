@@ -9,7 +9,7 @@ Tactical Map Layers panel's other rows and the context menu's other items are dr
 """
 import math, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mockup_kit import Svg, C, FA, text_width, render
+from mockup_kit import Svg, C, FA, text_width, render, nato as _kit_nato
 
 W, H = 1660, 3300
 s = Svg(W, H, "Stochastic unit - the look (exp/agg-ui, CE-8600)",
@@ -161,32 +161,8 @@ UNKNOWN_FILL = "#FFFF80"; NEUTRAL_FILL = "#AAFFAA"
 
 
 def nato(cx, cy, aff, arm, ech, w=34, h=22, sw=1.4):
-    """⭐ UI-12 — the composed APP-6 / 2525 land-unit symbol, centre (cx, cy): the FRAME by affiliation (friend rectangle, hostile diamond, neutral square,
-    unknown quatrefoil) in the standard's pale fill, the ARM icon inside, the ECHELON marks above. Screen pixels — the same geometry in the card, alone on the
-    map and in ImGui panels."""
-    fill = {"F": FRIEND_FILL, "H": HOSTILE_FILL, "N": NEUTRAL_FILL, "U": UNKNOWN_FILL}[aff]
-    if aff == "F":
-        s.rect(cx - w / 2, cy - h / 2, w, h, fill, stroke="#000", sw=sw); bx, by = w / 2, h / 2
-    elif aff == "H":
-        r = h * 0.8
-        s.raw(f"<polygon points='{cx},{cy - r} {cx + r},{cy} {cx},{cy + r} {cx - r},{cy}' fill='{fill}' stroke='#000' stroke-width='{sw}'/>"); bx, by = r * 0.5, r * 0.5
-    elif aff == "N":
-        s.rect(cx - h / 2 - 2, cy - h / 2 - 2, h + 4, h + 4, fill, stroke="#000", sw=sw); bx, by = h / 2, h / 2
-    else:
-        r = h * 0.36
-        s.raw("".join(f"<circle cx='{cx + dx}' cy='{cy + dy}' r='{r}' fill='{fill}' stroke='#000' stroke-width='{sw}'/>" for dx, dy in ((0, -r), (r, 0), (0, r), (-r, 0))))
-        s.raw(f"<circle cx='{cx}' cy='{cy}' r='{r * 1.3}' fill='{fill}'/>"); bx, by = r, r
-    k = "#000"
-    if arm in ("inf", "mech"):
-        s.line(cx - bx, cy - by, cx + bx, cy + by, k, sw); s.line(cx - bx, cy + by, cx + bx, cy - by, k, sw)
-    if arm in ("armour", "mech"):
-        s.raw(f"<ellipse cx='{cx}' cy='{cy}' rx='{bx * 0.62}' ry='{by * 0.55}' fill='none' stroke='{k}' stroke-width='{sw}'/>")
-    if arm == "recon": s.line(cx - bx, cy + by, cx + bx, cy - by, k, sw)
-    if arm == "arty": s.raw(f"<circle cx='{cx}' cy='{cy}' r='{by * 0.38}' fill='{k}'/>")
-    top = cy - (h * 0.8 if aff == "H" else h / 2 + (2 if aff == "N" else 0) if aff != "U" else h * 0.72)
-    if h < 15: return   # a row-sized symbol (the ORBAT): no echelon marks - the tree's depth says it
-    marks = {"team": "Ø", "squad": "•", "section": "••", "platoon": "•••", "company": "|", "battalion": "||"}[ech]
-    s.text(cx, top - 2, marks, "#000" if aff != "H" else "#000", 11 if ech not in ("company", "battalion") else 12, "middle", "bold")
+    """⭐ UI-12 — the composed APP-6 / 2525 land-unit symbol (the kit's ONE drawing, mockup_kit.nato)."""
+    _kit_nato(s, cx, cy, aff, arm, ech, w, h, sw)
 
 
 CARD_W = 156

@@ -13,6 +13,7 @@ related-designs:
   - ../../UX/DESIGN_Details_Forms.md — OWNS the forms (FormDecl / FormView, §3) the Resolution section and the Strength rows extend
   - ../../DESIGN_Command_Display.md — OWNS the command picture's echelon diamonds and the layer-bit precedent (§8) the detection overlay follows
   - ../../GUIDE_Debug_Gizmos.md — the Tactical Map Layers panel and gizmo families the overlay row joins
+  - ../../UX/DESIGN_Unit_Symbols.md — OWNS when and where a PHYSICAL unit shows its NATO symbol (the layer cases A–G); this file owns the symbol itself (§6)
 -->
 
 # DESIGN — the stochastic unit's UI *(exp/agg-ui, CE-8600; handoff [HANDOFF_Coordinator_To_AggUi.md](../../blueprints/batches/HANDOFF_Coordinator_To_AggUi.md))*
