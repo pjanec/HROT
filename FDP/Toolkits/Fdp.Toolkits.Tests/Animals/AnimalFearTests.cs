@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Animals.Tests
         private const long CattleType = 700, DogType = 705, HorseType = 703;
         private static readonly AnimalTemperamentDto Cattle = new()
         {
-            Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f, RecoverySeconds = 60f,
+            Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f, Recovery = 60f,
         };
 
         private static EntityRepository World()
@@ -44,10 +44,10 @@ namespace Fdp.Toolkit.Animals.Tests
             var db = new TkbDatabase();
             var cow = new TkbTemplate("Cattle", CattleType); cow.AddDescriptor(Cattle); db.Register(cow);
             var dog = new TkbTemplate("Dog", DogType);
-            dog.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, RecoverySeconds = 20f });
+            dog.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, Recovery = 20f });
             db.Register(dog);
             var horse = new TkbTemplate("HorseRiding", HorseType);
-            horse.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.HorseRiding, FlightZoneM = 15f, PanicZoneM = 6f, RecoverySeconds = 30f, BoltFear = 0.75f });
+            horse.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.HorseRiding, FlightZoneM = 15f, PanicZoneM = 6f, Recovery = 30f, BoltFear = 0.75f });
             db.Register(horse);
             w.SetSingletonManaged<ITkbDatabase>(db);
             return w;
@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Animals.Tests
             }
             Assert.Equal(1, worst);                         // uneasy — head up — never frightened, never panicked
             foreach (var c in cars) w.DestroyEntity(c);     // the traffic stops
-            for (int i = 0; i < (int)(Cattle.RecoverySeconds / dt); i++) Frame(w, sys, dt);
+            for (int i = 0; i < (int)(Cattle.Recovery / dt); i++) Frame(w, sys, dt);
             Assert.Equal(0, Band(w, cow));
             Assert.Equal(0f, w.GetComponentRO<Fear>(cow).Value);
         }

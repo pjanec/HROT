@@ -1,3 +1,4 @@
+using Fdp.Core;
 using Fdp.Toolkit.Tkb.Attributes;
 
 namespace Fdp.Toolkit.Tkb.Domain
@@ -21,7 +22,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>How far it runs before it stops to look back.</summary>
         public float FleeDistanceM { get; init; }
         /// <summary>From the last fright back to calm.</summary>
-        public float RecoverySeconds { get; init; }
+        public SimDuration Recovery { get; init; }
         /// <summary>0 = loose (each its own way) … 1 = one tight mass (sheep).</summary>
         public float HerdCohesion { get; init; }
         /// <summary>Not frightened by anything (a guard dog, a war horse) — a blast still makes it flinch.</summary>
@@ -33,7 +34,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>Clears low obstacles on a jump link (horses, goats, cats — AN-13, AN-17, AN-11).</summary>
         public bool Jumps { get; init; }
         /// <summary>Mean interval between calls at rest (a moo, a baa — AN-19), seconds; 0 = silent at rest.</summary>
-        public float CallIntervalSeconds { get; init; }
+        public SimDuration CallInterval { get; init; }
         /// <summary>How far a call carries (m).</summary>
         public float CallRangeM { get; init; }
         /// <summary>How far an alarm call (a bellow, a squeal, the bark) carries (m).</summary>

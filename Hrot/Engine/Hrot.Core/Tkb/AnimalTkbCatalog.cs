@@ -46,8 +46,8 @@ namespace Hrot.Core.Tkb
             float callRange = 0f, float alarmRange = 0f, float walk = 1f, float bolt = 0f)
             => new()
             {
-                Species = species, FlightZoneM = flight, PanicZoneM = panic, FleeSpeed = flee, FleeDistanceM = fleeDist, RecoverySeconds = recover,
-                HerdCohesion = cohesion, Fearless = fearless, Territorial = territorial, Breaks = breaks, Jumps = jumps, CallIntervalSeconds = call,
+                Species = species, FlightZoneM = flight, PanicZoneM = panic, FleeSpeed = flee, FleeDistanceM = fleeDist, Recovery = recover,
+                HerdCohesion = cohesion, Fearless = fearless, Territorial = territorial, Breaks = breaks, Jumps = jumps, CallInterval = call,
                 CallRangeM = callRange, AlarmRangeM = alarmRange, WalkSpeed = walk, BoltFear = bolt,
             };
 

@@ -49,12 +49,14 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct AnimalParams
         {
-            public float Walk, FleeSpeed, FleeMetres, RecoverySeconds, Cohesion;
+            public float Walk, FleeSpeed, FleeMetres, Cohesion;
+            /// <summary>⭐ S0 — the recovery time (a duration, one float: the layout is unchanged).</summary>
+            public SimDuration Recovery;
             public byte Fearless;
             /// <summary>⭐ AB-5 — guards its ground (the dog); a bird (a flock or a lone bird: perches, flies off).</summary>
             public byte Territorial, Bird;
             /// <summary>⭐ AB-8 — its mean interval between calls at rest (s); 0 = silent.</summary>
-            public float CallInterval;
+            public SimDuration CallInterval;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -113,12 +115,12 @@ namespace Hrot.AI.Behaviors.Brains
                     Walk = t is { WalkSpeed: > 0f } ? t.WalkSpeed : 1f,
                     FleeSpeed = t is { FleeSpeed: > 0f } ? t.FleeSpeed : 4f,
                     FleeMetres = t is { FleeDistanceM: > 0f } ? t.FleeDistanceM : 30f,
-                    RecoverySeconds = t is { RecoverySeconds: > 0f } ? t.RecoverySeconds : 30f,
+                    Recovery = t != null && t.Recovery > 0f ? t.Recovery : 30f,
                     Cohesion = t?.HerdCohesion ?? 0f,
                     Fearless = (byte)(t is { Fearless: true } ? 1 : 0),
                     Territorial = (byte)(t is { Territorial: true } ? 1 : 0),
                     Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird) ? 1 : 0),
-                    CallInterval = t?.CallIntervalSeconds ?? 0f,
+                    CallInterval = t?.CallInterval ?? SimDuration.Zero,
                 },
             };
         }
@@ -286,7 +288,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Started == 0)
             {
                 ws.Started = 1;
-                ws.Until = (SimInstant)(world.SimulationTime + p.RecoverySeconds * LookBackShare);
+                ws.Until = (SimInstant)(world.SimulationTime + p.Recovery * LookBackShare);
                 LocomotionMoveTo.Stop(world, self);
             }
             return NodeStatus.Running;

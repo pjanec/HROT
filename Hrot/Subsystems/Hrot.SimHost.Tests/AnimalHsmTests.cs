@@ -36,16 +36,16 @@ namespace Hrot.SimHost.Tests
         private static readonly AnimalTemperamentDto Cattle = new()
         {
             Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f,
-            RecoverySeconds = 8f, HerdCohesion = 0.4f, WalkSpeed = 1f,
+            Recovery = 8f, HerdCohesion = 0.4f, WalkSpeed = 1f,
         };
         private static readonly AnimalTemperamentDto Dog = new()
         {
             Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, FleeSpeed = 10f,
-            FleeDistanceM = 30f, RecoverySeconds = 20f, WalkSpeed = 1.2f,
+            FleeDistanceM = 30f, Recovery = 20f, WalkSpeed = 1.2f,
         };
         private static readonly AnimalTemperamentDto Flock = new()
         {
-            Species = (byte)AnimalSpecies.BirdFlock, FlightZoneM = 40f, PanicZoneM = 15f, FleeSpeed = 12f, FleeDistanceM = 400f, RecoverySeconds = 8f,
+            Species = (byte)AnimalSpecies.BirdFlock, FlightZoneM = 40f, PanicZoneM = 15f, FleeSpeed = 12f, FleeDistanceM = 400f, Recovery = 8f,
             HerdCohesion = 1f, WalkSpeed = 5f,
         };
 
@@ -216,7 +216,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(AnimalMode.Recover, w.Mode(w.A));
             w.Repo.GetComponentRW<Fear>(w.A).Value = 0f;
             w.Repo.GetComponentRW<Fear>(w.B).Value = 0f;
-            w.Run(Cattle.RecoverySeconds * AnimalBehavior.LookBackShare + 1.0);
+            w.Run(Cattle.Recovery * AnimalBehavior.LookBackShare + 1.0);
             Assert.Equal(AnimalMode.Calm, w.Mode(w.A));
             var next = w.Repo.GetComponentRO<HerdState>(w.Herd).NextGrazing;
             var home = new Vector2(0, 0);
@@ -300,7 +300,7 @@ namespace Hrot.SimHost.Tests
             w.Run(0.3);
             Assert.Equal(FlockMode.Landed, w.Repo.GetComponentRO<FlockState>(flock).Mode);
             w.Repo.GetComponentRW<Fear>(flock).Value = 0f;
-            w.Run(Flock.RecoverySeconds * AnimalBehavior.LookBackShare + 0.5);
+            w.Run(Flock.Recovery * AnimalBehavior.LookBackShare + 0.5);
             Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
         }
 

@@ -135,7 +135,7 @@ namespace Fdp.Toolkit.Animals
         public static void Fade(ref Fear f, AnimalTemperamentDto? t, double now, float dt)
         {
             if (f.LastFrightAt == now || f.Value <= 0f) return;
-            float recovery = t != null && t.RecoverySeconds > 0f ? MathF.Max(MinRecoverySeconds, t.RecoverySeconds) : MinRecoverySeconds;
+            float recovery = t != null && t.Recovery > 0f ? MathF.Max(MinRecoverySeconds, t.Recovery) : MinRecoverySeconds;
             f.Value = MathF.Max(0f, f.Value - dt / recovery);
         }
 
