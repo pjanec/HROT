@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using ImGuiNET;
 using NodeEditor.Core.Widgets;
 
 namespace Fdp.Presentation.WindowManager;
@@ -58,25 +59,61 @@ public abstract class ToolStripWindow : ManagedWindow
     {
         var entries = Entries;
         if (entries.Count > _positions.Length) _positions = new Vector2[Math.Max(entries.Count, _positions.Length * 2)];
-        float h = Gui.GetFrameHeight(), w = h;
-        for (int i = 0; i < entries.Count; i++) { float ew = GlyphWidgets.WidthOf(entries[i].Glyph); if (ew > w) w = ew; }
+        float scale = Gui.GetFontSize() / 14f;   // ⭐ the tile is the mockup's 30 × 26 px at the default font size
+        var tile = new Vector2(TileWidth * scale, TileHeight * scale);
         float spacing = Gui.GetStyle().ItemSpacing.X;
-        LastOrientation = ToolStripLayout.Compute(entries.Count, new Vector2(w, h), spacing, Gui.GetContentRegionAvail(), _positions, out _);
+        LastOrientation = ToolStripLayout.Compute(entries.Count, tile, spacing, Gui.GetContentRegionAvail(), _positions, out _);
         var origin = Gui.GetCursorPos();
         for (int i = 0; i < entries.Count; i++)
         {
             Gui.SetCursorPos(origin + _positions[i]);
-            DrawEntry(entries[i]);
+            DrawEntry(entries[i], tile, scale);
         }
     }
 
-    private static void DrawEntry(ToolStripEntry e)
+    /// <summary>The pin does not fit beside a narrow strip's title.</summary>
+    protected override bool ShowPinButton => false;
+
+    /// <summary>⭐ The tile of the mockup's <c>glyph_toggle</c> (docs/UX/terrain-editor.svg panel A, scripts/mockup_kit.py): 30 × 26 at the default font size.</summary>
+    internal const float TileWidth = 30f, TileHeight = 26f, GlyphPx = 15f;
+
+    private static readonly Vector4 Neutral = Rgb(0x1C, 0x1C, 0x22), NeutralLit = Rgb(0x34, 0x34, 0x3E), Border = Rgb(0x2E, 0x2E, 0x36), BorderLit = Rgb(0xC8, 0xC8, 0xD4);
+    private static Vector4 Rgb(int r, int g, int b) => new(r / 255f, g / 255f, b / 255f, 1f);
+
+    /// <summary>
+    /// One framed tile like <c>glyph_toggle</c>: the neutral fill and a dim border, the glyph in its own colour at 65 % — LIT is the lighter fill, a 1.4 px light border and the glyph at full strength. A dropdown gets a tiny ▾ in its bottom-right corner.
+    /// Returns true on a click. Allocates nothing.
+    /// </summary>
+    private static bool Tile(string id, in IconGlyph glyph, bool lit, bool hasMenu, string tooltip, Vector2 size, float scale)
+    {
+        var pos = Gui.GetCursorScreenPos();
+        bool clicked = Gui.InvisibleButton(id, size);
+        bool hovered = Gui.IsItemHovered();
+        var dl = Gui.GetWindowDrawList();
+        float rounding = 4f * scale;
+        dl.AddRectFilled(pos, pos + size, Gui.GetColorU32(lit ? NeutralLit : Neutral), rounding);
+        dl.AddRect(pos, pos + size, Gui.GetColorU32(lit ? BorderLit : Border), rounding, ImDrawFlags.None, lit ? 1.4f * scale : 1f);
+        var c = glyph.Color; if (!lit) c.W *= 0.65f;
+        float px = GlyphPx * scale;
+        float gw = Gui.CalcTextSize(glyph.Glyph).X * (px / Gui.GetFontSize());
+        dl.AddText(Gui.GetFont(), px, new Vector2(pos.X + (size.X - gw) * 0.5f, pos.Y + (size.Y - px) * 0.5f), Gui.GetColorU32(c), glyph.Glyph);
+        if (hasMenu)
+        {
+            float m = 3.5f * scale; var br = pos + size - new Vector2(3f * scale, 3f * scale);
+            dl.AddTriangleFilled(br + new Vector2(-2f * m, -m), br + new Vector2(0f, -m), br + new Vector2(-m, 0f), Gui.GetColorU32(new Vector4(0.78f, 0.78f, 0.83f, 0.9f)));
+        }
+        IconButtonChrome.DrawHoverFrame(dl, pos, size, hovered);
+        if (hovered && tooltip.Length > 0) Gui.SetTooltip(tooltip);
+        return clicked;
+    }
+
+    private static void DrawEntry(ToolStripEntry e, Vector2 tile, float scale)
     {
         bool lit = e.IsLit?.Invoke() ?? false;
         if (e.Family is { Count: > 0 } fam)
         {
             int sel = Math.Clamp(e.Selected, 0, fam.Count - 1);
-            if (GlyphWidgets.GlyphToggle(e.Id, fam[sel].Glyph, lit, fam[sel].Tooltip)) Gui.OpenPopup(e.MenuId);
+            if (Tile(e.Id, fam[sel].Glyph, lit, true, fam[sel].Tooltip, tile, scale)) Gui.OpenPopup(e.MenuId);
             if (Gui.BeginPopup(e.MenuId))
             {
                 // ⭐ a VERTICAL list: each row the member's glyph in its own colour, its label, a ✓ on the chosen one; each row has its own id scope (no clash with the face)
@@ -93,6 +130,6 @@ public abstract class ToolStripWindow : ManagedWindow
                 Gui.EndPopup();
             }
         }
-        else if (GlyphWidgets.GlyphToggle(e.Id, e.Glyph, lit, e.Tooltip)) e.OnClick?.Invoke();
+        else if (Tile(e.Id, e.Glyph, lit, false, e.Tooltip, tile, scale)) e.OnClick?.Invoke();
     }
 }

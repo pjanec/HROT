@@ -133,32 +133,38 @@ public sealed class EditorToolStripsTests : IDisposable
     }
 
     /// <summary>
-    /// 🔑 THE KEY: an OPEN Terrain strip, drawn, makes placed terrain selectable on the editor's CURRENT world; closed, it does not — and a reloaded world is followed (the world is read each frame). A real frame under <c>xvfb-run -a</c>.
-    /// 🔴 Red-proof: drop the <c>SetOpen(world, false)</c> in <c>OnRenderWhileClosed</c> ⇒ the closed assert fails; drop the <c>SetOpen(w, true)</c> in <c>DrawClientArea</c> ⇒ the open assert.
+    /// 🔑 THE KEY — ONE per-frame rule: placed terrain is selectable on the editor's CURRENT world only while the Terrain strip is open AND its perspective is the active one. Open + Scenario ⇒ unlocked; another perspective ⇒ locked; back ⇒ unlocked;
+    /// closed ⇒ locked; a reloaded world is followed. 🔴 Red-proof: drop the <c>BelongsTo</c> term ⇒ the other-perspective assert fails; always <c>false</c> ⇒ the open asserts.
     /// </summary>
-    [SkippableFact]
-    public void TheTerrainStrip_OpenMeansTheLockIsOpen_ClosedMeansLocked()
+    [Fact]
+    public void TheTerrainLock_FollowsOpenAndThePerspective_OnTheCurrentWorld()
     {
-        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var first = new EntityRepository(); var second = new EntityRepository();
         try
         {
             EntityRepository current = first;
-            var spawn = new Mock<ISpawnController>();
-            var w = new TerrainToolsWindow(() => current, () => spawn.Object, () => _armed, TerrainPickCatalog.FeaturePicks(), Array.Empty<(string, string, float)>());
-            Assert.False(TerrainLock.IsOpen(first));
-            using var frame = UiFrameHarness.Begin();
+            var w = new TerrainToolsWindow(() => current, () => null, () => _armed, TerrainPickCatalog.FeaturePicks(), Array.Empty<(string, string, float)>());
+            w.UpdateLock("Scenario");
+            Assert.False(TerrainLock.IsOpen(first));                 // closed by default
             w.IsOpen = true;
-            frame.StepN(2, () => w.Render("Scenario", null!));
-            Assert.True(TerrainLock.IsOpen(first));
-            current = second;   // a reload swaps the world
-            frame.Step(() => w.Render("Scenario", null!));
-            Assert.True(TerrainLock.IsOpen(second));
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(first));
+            w.UpdateLock("Review");   Assert.False(TerrainLock.IsOpen(first));   // open, but its perspective is not the active one
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(first));
+            current = second;                                        // a reload swaps the world
+            w.UpdateLock("Scenario"); Assert.True(TerrainLock.IsOpen(second));
             w.IsOpen = false;
-            frame.Step(() => w.Render("Scenario", null!));
-            Assert.False(TerrainLock.IsOpen(second));
+            w.UpdateLock("Scenario"); Assert.False(TerrainLock.IsOpen(second));
         }
         finally { first.Dispose(); second.Dispose(); }
+    }
+
+    /// <summary>A narrow tool strip draws no pin in its title bar (it would cover the title); the title stays "Terrain".</summary>
+    [Fact]
+    public void AToolStrip_HasNoTitleBarPin_AndKeepsItsTitle()
+    {
+        var (w, _) = Terrain();
+        Assert.Equal("Terrain", w.Title);
+        Assert.False((bool)typeof(ToolStripWindow).GetProperty("ShowPinButton", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(w)!);
     }
 
     /// <summary>A real frame of both strips: the Scenario strip wide ⇒ a ROW, the Terrain strip tall ⇒ a COLUMN (and a screenshot when <c>HROT_RAIL_SHOTS</c> names a folder). 🔴 Red-proof: flip the orientation test in <c>ToolStripLayout.Compute</c> ⇒ red.</summary>
@@ -167,6 +173,7 @@ public sealed class EditorToolStripsTests : IDisposable
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var scenario = Scenario(); var (terrain, _) = Terrain(); terrain.IsOpen = true;
+        terrain.StripEntries.Single(e => e.Id == "##ts_t_walls").Pick(0); _armed = ScenarioToolIds.Spawn;   // Walls lit, as in panel A
         using var frame = UiFrameHarness.Begin();
         frame.StepN(3, () =>
         {

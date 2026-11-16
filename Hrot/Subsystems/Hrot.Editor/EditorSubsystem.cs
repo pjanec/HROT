@@ -5683,6 +5683,7 @@ namespace Hrot.Editor
             var terrainTools = new TerrainToolsWindow(() => _world, () => _spawnAdapter, () => _editorToolController?.ActiveModal?.Id, terrainPicks, scatterRecipes);
             windowManager.RegisterWindow(scenarioTools);
             windowManager.RegisterWindow(terrainTools);
+            windowManager.RegisterFrameOverlay(() => terrainTools.UpdateLock(windowManager.CurrentPerspective));   // 🔑 the lock's ONE writer (TE-17)
             var toolbarsSection = new EditorToolbarsSection(new Fdp.Presentation.WindowManager.ToolStripWindow[] { scenarioTools, terrainTools },
                 () => _editorMapInteraction is { } mi && Hrot.ScenarioEditor.Map.MapInteractionPack.LayerControlFor(mi.Buffer) is { } lc && lc.IsEditing,
                 () => _editorMapInteraction?.InteractionBus.Publish(new Hrot.Common.Diagnostics.Gizmos.OpenLayerEditorEvent()));

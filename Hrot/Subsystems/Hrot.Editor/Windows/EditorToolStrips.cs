@@ -133,17 +133,12 @@ internal sealed class TerrainToolsWindow : ToolStripWindow
     /// <summary>The entries (for tests).</summary>
     internal IReadOnlyList<ToolStripEntry> StripEntries => _entries;
 
-    protected override void DrawClientArea()
+    /// <summary>
+    /// 🔑 THE ONE per-frame lock rule (the editor calls it every frame — one writer): placed terrain is selectable on the editor's CURRENT world only while this strip is open AND its perspective is the active one.
+    /// (The world is read each frame: it changes on a reload.)
+    /// </summary>
+    internal void UpdateLock(string currentPerspective)
     {
-        if (_world() is { } w) TerrainLock.SetOpen(w, true);   // 🔑 the lock's key: read the CURRENT world each frame (it changes on a reload)
-        base.DrawClientArea();
+        if (_world() is { } w) TerrainLock.SetOpen(w, IsOpen && BelongsTo(currentPerspective));
     }
-
-    protected override void OnRenderWhileClosed()
-    {
-        if (_world() is { } w) TerrainLock.SetOpen(w, false);
-    }
-
-    /// <summary>The lock's state for a frame the window is (not) drawn — what <c>Render</c> does (for tests that run without ImGui).</summary>
-    internal void ApplyLock(bool open) { if (_world() is { } w) TerrainLock.SetOpen(w, open); }
 }
