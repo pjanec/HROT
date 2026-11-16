@@ -48,6 +48,12 @@ Started at `c24f127cb` (merged `coordinator@d367b6a04`). Contract note to ui: `3
 | toolkit: motion + kinematics + navigation + physics + animals + civilians + crowds (AB-2) | 925 / 925; rails red-proved: Bird dropped from IsAircraft's exclusions · the yaw cap lifted · the cow steered as a person ⇒ each red |
 | Hrot.Traffic (whole) | 86 / 86 (the cow-on-the-road rail red-proved: no Quadruped arm ⇒ red) |
 | toolkit: taxonomy + body zones + crowd + hostile acts + grenade rules + hidden throw | 74 / 74 (the taxonomy rail red-proved: the animal skip dropped from `FriendlyInBurst` ⇒ red) |
+| **AB-3** toolkit: animals + civilians + perception + crowd (`--filter`), with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` AND without | 276 / 276 both. New `AnimalFearTests` (4) red-proved: the flight-zone look skipped ⇒ the tank rail red; the heading-at-me test dropped ⇒ the road rail red; the fearless rule dropped ⇒ the hearing rail red. **0 B per steady frame** (the animal-pass rail, 20 animals × 20 people) |
+| **AB-3** `Hrot.Network.NED.Tests` (whole) | 198 / 198. ⚠ **two reds at base fixed, not mine**: the protocol doc lacked the rows of `EntityBladeCut` / `EntityGroundDamage` / `EntityTreeDamage` / `EntityRadarEmission`; the role-group rail lacked `dtBladeCut` / `dtRadarEmission` (base sha `5c797b66e`: `dtBladeCut` absent from the rail) |
+| **AB-3** `Hrot.SimHost.Tests` filtered: `AnimalStateWireTests` (3, new) + descriptor map + UnderFire wire + `CivilianHsmTests` + crowd, with the three checks | 56 / 56 |
+| **AB-3** `Hrot.Traffic.Tests` (whole) | 86 / 86 — vehicles unchanged |
+| **AB-3** ⚠ a pre-existing ORDER-DEPENDENT red, fixed | `SensorChangedEventTests.CE2233_…` and `ThreatEvaluationParallelRailTests.P1_…` threw under `HROT_READ_CHECK=1` when run alone — **also at base** (worktree at `5c797b66e`): the threat phase read its targets' `EntityInfo` / `SimTransform` / `Health` without declaring them and passed only when some brain phase had declared the brains' set first in the process. Fix: the threat phase calls `BrainReads.Declare()` itself (idempotent) |
+| civilian / crowd / vehicle SCENARIO re-runs and `stepped-hash.py --threads 1,4,8` | ⏳ batched into AB-10 (one cluster run covers the demo and the regression scenarios); the unit-level civilian, crowd and traffic suites above are unchanged |
 
 ## Next step
 AB-4: `AnimalHsm` (Graze / Wander / Rest → Alert → Flee → Recover), temperament-driven; herds as `HerdMember` + a herd entity; grazing / perching; night.

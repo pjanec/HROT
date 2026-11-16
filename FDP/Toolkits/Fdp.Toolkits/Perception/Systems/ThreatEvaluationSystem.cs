@@ -97,6 +97,10 @@ namespace Fdp.Toolkit.Perception.Systems
                     _list[n++] = entity;
                 }
                 if (_threatsOut.Length < n) _threatsOut = new int[System.Math.Max(n, _threatsOut.Length * 2)];
+                // ⭐ CE-4623 (found at AB-3) — the ranking reads its targets' side, place and health: the BRAINS' common read set (one list,
+                //   BrainReads). Declared here too (idempotent), so this phase never leans on another phase having declared it first in the
+                //   process — under HROT_READ_CHECK that was an order-dependent red (CE2233 alone, ThreatEvaluationParallelRail).
+                Fdp.Toolkit.Behavior.BrainReads.Declare();
                 Fdp.Core.Jobs.ParallelEntities.Run(liveRepo, _list, n, new EvaluateJob { Owner = this, Repo = liveRepo, DeltaTime = deltaTime, Tick = tick, Now = now });
                 for (int i = 0; i < n; i++) _nextThreats[_list[i]] = _threatsOut[i];
             }
