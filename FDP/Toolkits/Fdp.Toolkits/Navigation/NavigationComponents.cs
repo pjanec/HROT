@@ -189,6 +189,10 @@ namespace Fdp.Toolkit.Navigation
         /// lights and queues) and follows it to the destination; ownership never moves. <c>MoveToExecutor</c> asks
         /// <see cref="NavigationMode.Traffic"/> instead of planning a path.</summary>
         InTraffic = 5,
+        /// <summary>⭐ CE-9000 (C-1, R-9000; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — <see cref="InTraffic"/> with its BEACON AND SIREN ON: a convoy's
+        /// escort. SUMO drives it as a priority vehicle (red ignored, junctions forced, cars ahead give way — upstream H14); until H14 is vendored it is
+        /// handed over as an ordinary car.</summary>
+        InTrafficPriority = 6,
     }
 
     /// <summary>

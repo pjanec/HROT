@@ -127,6 +127,32 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         }
     }
 
+    /// <summary>⭐ <c>CE-9000</c> (C-1) — a body moving <c>InTrafficPriority</c> (a convoy's escort, beacon and siren on) is handed over FLAGGED priority; plain
+    /// <c>InTraffic</c> is not. 🔴 Red-proof: drop the flag in <c>TrafficHandoverSystem.Gather</c> ⇒ red.</summary>
+    [Fact]
+    public void CE9000_TheEscortsHandover_CarriesItsPriority_APlainOneDoesNot()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        TrafficHandover[] Hand(Fdp.Toolkit.Navigation.RoadUse use)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(10, 10, 0), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new NetworkIdentity(7000 + e.Index));
+            world.AddComponent(e, new Fdp.Toolkit.Navigation.NavigationIntent
+            {
+                Mode = Fdp.Toolkit.Navigation.NavigationMode.Traffic, IntentId = 1,
+                Flags = Fdp.Toolkit.Navigation.NavigationConstants.WithRoadUse(0, use),
+            });
+            var all = TrafficHandoverSystem.Gather(world, SumoNetPlacement.For(Sim.Ingest.NetworkParser.ParseXml("<net/>"), new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null));
+            world.DestroyEntity(e);
+            return all;
+        }
+        Assert.True(Assert.Single(Hand(Fdp.Toolkit.Navigation.RoadUse.InTrafficPriority)).Priority);
+        Assert.False(Assert.Single(Hand(Fdp.Toolkit.Navigation.RoadUse.InTraffic)).Priority);
+    }
+
     private static TrafficCarPose Shadow(float x, float y, float yaw)
         => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: (Fdp.Core.TkbTypeId)(0), Color: 0,
                X: x, Y: y, Z: 0f, YawRad: yaw, Length: 5f, Width: 2f);

@@ -222,6 +222,8 @@ public sealed class TrafficSession : IDisposable
 
     // ⭐ SumoSharp H13 (f252ddc): SpawnExternalVehicle routes "hrot:<id>" from the vehicle's lane to the destination's lane offset;
     //   DespawnExternalVehicle takes it back. Ownership never moves — the body's owner follows the shadow (TrafficShadowFollowSystem).
+    private readonly HashSet<int> _toldNoPriority = new();
+
     private void ApplyHandovers()
     {
         var want = _handovers;
@@ -239,6 +241,11 @@ public sealed class TrafficSession : IDisposable
             }
             if (_refused.TryGetValue(h.NetworkId, out var at) && _sim.Time - at < RetrySeconds) continue;
             string id = TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId);
+            // ⭐ CE-9000 (C-2) — a PRIORITY handover needs SumoSharp H14 (`SpawnExternalVehicle(…, priority)`, the blue-light twin type). ⛔ The vendored
+            //   copy predates it (R-4046: changed upstream, then synced; docs/blueprints/batches/H14_SumoSharp_Convoy_Priority.patch) ⇒ it is spawned as an
+            //   ordinary car and said once. Swap in the priority overload when H14 is synced.
+            if (h.Priority && _toldNoPriority.Add(h.NetworkId))
+                Fdp.Core.Logging.FdpLog<TrafficSession>.Warn("[Traffic] {0} asked for a PRIORITY handover; this SumoSharp has no priority vehicle type yet (H14) — handed over as an ordinary car", id);
             bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t)
                       || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY);   // an unmapped type: SUMO's default car
             if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); }

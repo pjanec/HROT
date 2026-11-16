@@ -11,7 +11,7 @@ namespace Hrot.Traffic;
 /// <summary>⭐ AQ93 §14 G3 — one of our vehicles handed to SUMO, as the stepping thread spawns its shadow: NET coordinates; (X, Y) is the
 /// FRONT BUMPER (SumoSharp H13's position convention); heading in radians, 0 = east, counter-clockwise (atan2).</summary>
 public readonly record struct TrafficHandover(int NetworkId, uint IntentId, double X, double Y, double Heading, double Speed,
-                                              double DestX, double DestY, string? VType);
+                                              double DestX, double DestY, string? VType, bool Priority = false);
 
 /// <summary>
 /// ⭐ AQ93 §14 G2/G3 (R-4023) — each frame on a SERVING node's main thread: every body whose <see cref="NavigationIntent"/> says
@@ -64,8 +64,9 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
                 ? new Vector2(world.GetComponentRO<SimVelocity>(e).Linear.X, world.GetComponentRO<SimVelocity>(e).Linear.Y).Length() : 0f;
             string? vType = typed && world.HasComponent<TkbIdentity>(e)
                 ? world.GetComponentRO<TkbIdentity>(e).TkbType.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+            bool priority = NavigationConstants.RoadUseOf(intent.Flags) == RoadUse.InTrafficPriority;   // ⭐ CE-9000 (C-1) — the escort's beacon and siren
             into.Add(new TrafficHandover(world.GetComponentRO<NetworkIdentity>(e).Value, intent.IntentId,
-                nx, ny, Math.Atan2(ay - ny, ax - nx), speed, dx, dy, vType));
+                nx, ny, Math.Atan2(ay - ny, ax - nx), speed, dx, dy, vType, priority));
         }
         return into.ToArray();
     }
