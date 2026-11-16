@@ -22,7 +22,7 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | ST-0 ④ routing wired | ✅ built | *(ST-0 commit)* | `TacticalIntentResolutionSystem` resolves through `ResolutionRoutingTable` with the unit's resolution |
 | ST-0 ⑤ refused ⇒ TaskFailed | ✅ built | *(ST-0 commit)* | `CE-8002`, generic (every unit) |
 | ST-0 ⑥ run seed | ✅ built | *(ST-0 commit)* | `CE-8003`, R-8003 |
-| ST-1 movement | ⏳ | | |
+| ST-1 movement | ✅ built | *(ST-1 commit)* | `CE-8004`; follower in `CgfLogicPack`; ⚠ `CE-8005` split-cluster navmesh (finding) |
 | ST-2 sensors | ⏳ | | |
 | ST-3 combat | ⏳ (harness only until minefield MS-T1 is in coordinator) | | |
 | ST-4 determinism | ⏳ | | |
@@ -46,7 +46,9 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | ST-0 ③ replication + recording | `Fdp.Toolkits.Tests --filter ~Aggregate` · `Hrot.SimHost.Tests --filter AggregateUnitReplicationTests` | ✅ 6 / 0 · ✅ 3 / 0 |
 | ST-0 ③ wiring | `Hrot.Core.Tests` (routing + registry + ownership groups) · `Hrot.Network.NED.Tests --filter RoleGroupOwnershipStrategyTests` · `Hrot.SimHost.Tests --filter TheDescriptorMapIsWiredTests` | ✅ 20 / 0 · ✅ 8 / 0 · ✅ (in the 78 below) |
 | ST-0 ④⑤⑥ feature suites | `Hrot.SimHost.Tests --filter TacticalIntentResolutionSystemTests\|SimRngRails\|TheDescriptorMapIsWiredTests\|BodyPartReplicationTests\|AggregateUnitReplicationTests` | ✅ 78 / 0 |
-| red-proofs (compiling mutants, each reddened its rail) | ReportRefusal skipped · `ResolutionOf` → Physical · the run-seed mix skipped · slot egress drops Stress · holdings ingress loses the type | ✅ 5 / 5 red |
+| red-proofs (compiling mutants, each reddened its rail) | ReportRefusal skipped · `ResolutionOf` → Physical · the run-seed mix skipped · slot egress drops Stress · holdings ingress loses the type · (ST-1) the follower ignores the segment factor · the recording side drops the slot table | ✅ 7 / 7 red |
+| ST-1 rails | `Fdp.Toolkits.Tests --filter ~Aggregate` (incl. `UnitMovementRails`: arrival within ± 10 % of M-2's prediction, 0 B steady, a lost route re-planned) · `Hrot.SimHost.Tests --filter CgfLogicPackTests\|SimHostComponentRegistration` | ✅ 10 / 0 · ✅ 24 / 0 (1 skip, pre-existing) |
+| ⚠ pre-existing red fixed | `CgfLogicPackTests` pinned 37 / 45 while the pack had 39 / 47 (the animals lane's `HerdSystem`, `AnimalAreaSystem`) — now 40 / 48 with the follower | cross-lane edit of a pin, said |
 | S0 type rails | `--filter ~S0` (Toolkits) | 6 red, ALL pre-existing (the known S0 set + `S0WalkerTests.Resolve_AtLoad`); none names an aggregate type |
 
 ## 4. Ids allocated

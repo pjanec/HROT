@@ -135,11 +135,22 @@ Attack · ClearBuilding · Bound · FireAndMovement · SupportByFire ⇒ `Stocha
 Sop ⇒ `StochasticUnitSop`. ⛔ No row (refused): Strike, ObserveFire, Recover. Embark / Dismount: added with ST-3 (the posture, S-9).
 ⭐ The play behaviours are agg-behaviors'; until a play is registered, `isBehaviour` is false and the order resolves to `NoBehaviour`.
 
+## 3a. Movement — what a play calls *(ST-1, CE-8004; added after the first NOTE commit)*
+
+```csharp
+ref var u = ref world.GetComponentRW<AggregateUnit>(unit);       // the play's OWN unit (safe in a per-entity phase)
+UnitMoves.Order(ref u, destination, UnitFormation.Column, UnitMoves.ColumnDepth(in u, in holdings, in slots), now);
+// then read u.Move: AwaitingRoute → OnRoute → Arrived (Set, B-2) · RouteFailed (re-order it — B-2's "a dropped route re-requested")
+UnitMoves.Stop(ref u);
+```
+⭐ The follower (`StochasticUnitMovementSystem`, in `CgfLogicPack`) owns everything after the order: the plan, the speed (`UnitSpeedModel`),
+the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play never writes those.
+
 ## 4. Ids allocated by this commit
 
 | | |
 |---|---|
-| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` (own) — 287–289 free |
+| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) — 288–289 free |
 | descriptors | 220 `dtAggregateUnit` · 221 `dtUnitSlotTable` · 222 `dtUnitHoldings` — 223–229 free |
 | tracker / rulings | `CE-8000` (the contract) · `R-8000`, `R-8001` (lane decisions, `STATUS_AggBackend.md`) |
 

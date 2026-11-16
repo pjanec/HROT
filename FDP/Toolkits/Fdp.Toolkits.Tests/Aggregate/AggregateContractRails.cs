@@ -76,8 +76,8 @@ namespace Fdp.Toolkits.Tests.Aggregate
 namespace Fdp.Toolkits.Tests.Aggregate
 {
     /// <summary>⭐⭐ <c>CE-8001</c> (CE-4616 ST-0 ③, SV-12) — a recording round-trips the stochastic unit: the slot table, holdings, unit state
-    /// and run seed come back byte for byte at the scrubbed frame. 🔴 Red-proof: drop a component's registration on the recording side ⇒ the
-    /// sandbox has none at frame 1.</summary>
+    /// and run seed come back byte for byte at the scrubbed frame. ✅ Red-proof: the slot table not added on the recording side ⇒ the
+    /// sandbox has none at frame 1 ⇒ red.</summary>
     public sealed class AggregateRecordingRails
     {
         [Fact]

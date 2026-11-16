@@ -265,6 +265,9 @@ namespace Hrot.CGF
             // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
+            // ⭐ CE-8004 (ST-1, M-4; DESIGN_Stochastic_Units_And_Resolution §14) — the stochastic units' path follower, beside the stress phase
+            //   (§22's module diagram): every CGF node runs it by construction; it moves only the units this node owns.
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority));
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));
