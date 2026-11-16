@@ -587,6 +587,61 @@ namespace Hrot.Map.Definitions.Tkb
         /// radar and its launcher share it. The launcher fires a salvo of two, 2 s apart (<c>RoundsInFlight</c> / <c>SalvoIntervalS</c>);
         /// the lock is the aim time. Unarmoured-ish (splinter protection). Starter values — lane decisions L-7…L-10.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> (MC-1, MC-2, PF-1; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2 / §2a) — the MOTORCYCLE: a ~200 kg trail bike,
+        /// ~28 m/s on a road, slowed off it by its OWN factors (open 0.6 · scrub 0.45 · forest 0.3 — MC-2; a wood is open to its route at that
+        /// factor, MC-2a). Seat 0 the RIDER (Driver: keeps CanShoot, holds fire on the move — PF-4); seat 1 the PILLION, a FIRING seat whose arc is
+        /// both sides and the rear — never forward across the rider (PF-1: 30°…330° measured from the bike's nose, wrapping through the rear). Both
+        /// exposed. No faction: the side comes from the scenario. SUMO drives it as a <c>motorcycle</c> with weight 0 (never spawned by SUMO; OUR
+        /// bike handed to traffic drives as itself, MV-10). Starter values — lane decisions.
+        /// </summary>
+        private static void Motorcycle(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Motorcycle;
+            builder
+                .DefineVehicle(type, "Motorcycle")
+                .WithVisual(type, v => { v.IconName = "_motorcycle"; v.SymbolCode = "SHGPEVC--------"; v.ColorHex = "#5C5C5C"; v.Scale = 0.6f; })   // ⭐ ui (CE-4621): IconName = its own picker glyph (assets/icons/_motorcycle)
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 200; p.Length = 2.1f; p.Width = 0.8f; p.Height = 1.2f;
+                    p.MaxSpeed = 28f; p.MaxSpeedRev = 2f; p.Acceleration = 4.5f; p.TurnRate = 60f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                    p.Preset = CarKinem.Core.VehicleClass.PersonalCar;   // nimble: a car's steering, not the Wheeled ⇒ Truck preset
+                    p.OffRoadOpen = 0.6f; p.OffRoadScrub = 0.45f; p.OffRoadForest = 0.3f;   // ⭐ MC-2
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 0; c.ArmorSide = 0; c.ArmorRear = 0; c.ArmorTop = 0;
+                    c.MaxHealth = 80;
+                    c.BlastSusceptibility = 1f;   // nothing between the riders and a burst
+                    c.MobilityKillBelowFraction = 0.6f;
+                    c.EyeHeight = 1.6f;   // a seated rider's eye
+                    c.SensorRange = 1500;
+                })
+                .WithCarrier(type, new CarrierDefDto
+                {
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open,   // both men sit in the open: seen and hit
+                    Seats =
+                    {
+                        // ⭐ PF-4 — the rider: a firing seat (front and sides) that fires only while the bike is STOPPED — he drives
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Driver, Exposed = true,
+                                      X = 0.1f, Z = 0.75f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,   // ⭐ ui (CE-4621 U-2): astride, the 3-D map's figure
+                                      TraverseMinDeg = -120f, TraverseMaxDeg = 120f, FiresStoppedOnly = true },
+                        // ⭐ PF-1 — the pillion: a passenger seat with a traverse arc ⇒ a FIRING seat (his own weapon, inside the arc)
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Exposed = true,
+                                      X = -0.45f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,
+                                      TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
+                    },
+                })
+                .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
+                {
+                    MovingAudibleRange = 150f, MovingClass = SoundSourceClass.WheeledEngine,
+                } })
+                .WithTraffic(type, new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "motorcycle", Weight = 0f })   // ⭐ MV-10
+                .WithBehavior(type)
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 80, Subcategory = 1 });   // 1.1.*.80.1 SISO Motorcycle
+        }
+
         private static void RadarSam(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.AirDefence_RadarSam;
@@ -922,6 +977,7 @@ namespace Hrot.Map.Definitions.Tkb
             if (tkbDb.TryGetByType(TkbEntityTypes.Ew_DroneJammer, out var jammer) && jammer != null)
                 jammer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.JammerDto { RadiusM = 400f });
             RadarSam(builder);
+            Motorcycle(builder);   // ⭐ CE-4621 MC-1
             
             // T-72 (OPFOR)
             builder

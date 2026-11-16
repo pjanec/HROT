@@ -527,6 +527,14 @@ namespace Hrot.UI.Common.Map3D
                 uy += HudLineHeight;
             }
             else LastContactCue = null;
+            // ⭐ CE-4621 (PL-2, U-3) — a pillion's crosshair outside his seat's arc: say so before he pulls the trigger
+            if (OutsideSeatArc(w, _driver.Unit, _driver.AimAt))
+            {
+                int sw = (int)HudText.Measure(font, OutOfSeatArcText);
+                Raylib.DrawRectangle(cx - sw / 2 - 6, uy - 3, sw + 12, HudLineHeight, new Color(0, 0, 0, 130));
+                HudText.Draw(font, OutOfSeatArcText, cx - sw / 2, uy, Color.Orange);
+                uy += HudLineHeight;
+            }
             // ⭐ CE-1359 (W-8c) — the gun cannot turn to the crosshair: say so, where he looks
             if (BeyondTraverse(w, _driver.Unit, _driver.Mount, _driver.AimAt))
             {
@@ -901,6 +909,41 @@ namespace Hrot.UI.Common.Map3D
             var dto = Fdp.Toolkit.Combat.CombatTkb.MountOf(w, unit, mount);
             return dto is { TurretIndex: >= 0 } && Fdp.Toolkit.Combat.CombatTkb.TurretOf(w, unit, dto.TurretIndex) is { } turret
                 && Fdp.Toolkit.Combat.BallisticAim.BeyondTraverse(w, unit, turret, dto, aimAt);
+        }
+
+        /// <summary>⭐ <c>CE-4621</c> (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md PL-2, U-3) — the text under the crosshair while it points outside the FIRING SEAT's arc (a pillion's).</summary>
+        public const string OutOfSeatArcText = "OUT OF ARC - this seat cannot fire there, fire held";
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> (PL-2, U-3) — the crosshair's point lies OUTSIDE the arc of the FIRING SEAT <paramref name="unit"/> sits in (a pillion's: a seat that states a
+        /// traverse arc and holds no station, PF-1). The arc is the seat's own <c>TraverseMinDeg</c> … <c>TraverseMaxDeg</c>, counter-clockwise from the host's forward, READ
+        /// from Min round to Max (so both sides and the rear is <c>70 … 290</c>, or <c>70 … -70</c> through ±180°) — the same reading backend's seat arc (M-2) takes; the cue
+        /// shows it BEFORE the shot, where the executor's refusal (<c>OutOfArc</c> on the unit's ActionStatus, the HUD's WEAPON line) only speaks after one. False for any unit
+        /// not in such a seat, or a seat with no arc. Zero allocation.
+        /// </summary>
+        public static bool OutsideSeatArc(EntityRepository w, Entity unit, Vector3 aimAt)
+        {
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(unit)) return false;
+            var tag = w.GetComponentRO<IsEmbarkedTag>(unit);
+            if (!w.IsAlive(tag.VehicleEntity) || !w.HasComponent<SimTransform>(tag.VehicleEntity)) return false;
+            var tkb = w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+            if (Carriage.SeatOf(w, tag.VehicleEntity, tag.Seat, tkb) is not { TraverseMinDeg: { } min, TraverseMaxDeg: { } max } seat
+                || seat.Role == SeatRole.Station) return false;
+            var host = w.GetComponentRO<SimTransform>(tag.VehicleEntity);
+            Vector3 from = host.Position;
+            if (SeatSwitch.TryEye(w, unit, tkb, out var eye)) from = eye;
+            var local = Vector3.Transform(aimAt - from, Quaternion.Inverse(host.Rotation));
+            if (local.X * local.X + local.Y * local.Y < 0.01f) return false;
+            return !InArc(MathF.Atan2(local.Y, local.X) * 180f / MathF.PI, min, max);
+        }
+
+        /// <summary>⭐ CE-4621 — <paramref name="azimuthDeg"/> (counter-clockwise from the host's forward) lies on the arc running counter-clockwise from <paramref name="minDeg"/> to <paramref name="maxDeg"/> (wrapping through ±180° when Max is below Min).</summary>
+        public static bool InArc(float azimuthDeg, float minDeg, float maxDeg)
+        {
+            // ⭐ CE-4621 (backend, at the ui merge) — ONE arc rule: the sim's (WeaponSystems.InTraverse, ccw min → max, a full circle all round),
+            //   so the HUD's out-of-arc cue and the seat's hold (AimAndFireExecutor.SeatHold) cannot disagree (ruling 9). Was a degrees copy here.
+            const float D = MathF.PI / 180f;
+            return Fdp.Toolkit.Combat.WeaponSystems.InTraverse(azimuthDeg * D, minDeg * D, maxDeg * D);
         }
 
         public static Vector3? BarrelPoint(EntityRepository w, Entity unit, int mount, Vector3 aimAt)

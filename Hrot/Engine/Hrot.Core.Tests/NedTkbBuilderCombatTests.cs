@@ -831,6 +831,38 @@ namespace Hrot.Map.Common.Tests
             Assert.NotNull(missileType.GetDescriptor<MunitionVisualDto>());   // the placeholder look ui tunes
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> MC-1 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a — the ids fixed for BOTH lanes) — the MOTORCYCLE is type 115,
+        /// DIS 1.1.*.80.1, class <c>"Motorcycle"</c> (ui's 3-D family key); seat 0 the rider (Driver), seat 1 the pillion with a firing arc that
+        /// wraps through the rear (30°…330°), both exposed; its OWN off-road factors (open 0.6 · scrub 0.45 · forest 0.3); SUMO drives it as a
+        /// <c>motorcycle</c> with weight 0 (registered, never spawned by SUMO).
+        /// </summary>
+        [Fact]
+        public void CE4621_TheMotorcycle_IsType115_Dis80_ClassMotorcycle_RiderAndAFiringPillion_ItsOwnOffRoadFactors_AndASumoMotorcycle()
+        {
+            var db = BuildDatabase();
+            Assert.Equal(115L, TkbEntityTypes.Motorcycle);   // a permanent wire value
+            var bike = db.GetByType(TkbEntityTypes.Motorcycle)!;
+            Assert.Equal((1, 1, 80, 1), ((int)bike.DisType.Kind, (int)bike.DisType.Domain, (int)bike.DisType.Category, (int)bike.DisType.Subcategory));
+            Assert.Equal("Motorcycle", Hrot.Core.Tkb.EntityClassTable.Default.MostSpecific(bike.DisType)!.Name);
+
+            var seats = bike.GetDescriptor<CarrierDefDto>()!.Seats;
+            Assert.Equal(2, seats.Count);
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Driver, true, true), (seats[0].Role, seats[0].Exposed == true, seats[0].FiresStoppedOnly));
+            Assert.Equal((Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, true, 30f, 330f),
+                         (seats[1].Role, seats[1].Exposed == true, seats[1].TraverseMinDeg, seats[1].TraverseMaxDeg));
+
+            var p = bike.GetDescriptor<VehicleParametersDto>()!;
+            Assert.Equal((28f, 0.6f, 0.45f, 0.3f), (p.MaxSpeedFwd, p.OffRoadOpen, p.OffRoadScrub, p.OffRoadForest));
+            var traffic = bike.GetDescriptor<Fdp.Toolkit.Traffic.TrafficVehicleDto>()!;
+            Assert.Equal(("motorcycle", 0f), (traffic.VClass, traffic.Weight));
+
+            // ⭐ every OTHER type is unchanged: none authors an off-road factor (0 = 1.0)
+            foreach (var t in db.GetAll())
+                if (t.TkbType != TkbEntityTypes.Motorcycle && t.GetDescriptor<VehicleParametersDto>() is { } other)
+                    Assert.True(other.OffRoadOpen == 0f && other.OffRoadScrub == 0f && other.OffRoadForest == 0f, $"{t.Name} authors an off-road factor");
+        }
+
         /// <summary>⭐ <c>CE-7021</c> (City Battle §11 C-1a) — the INFANTRY COMPANY: a land unit of the infantry arm at company echelon whose roster
         /// is three platoon commanders, a brain with NO standing orders (lane default R-7000: its work is its task).</summary>
         [Fact]

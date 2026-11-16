@@ -37,11 +37,17 @@ namespace Hrot.Map.Definitions.Behavior
         /// (<c>ComponentRequirements</c>). Null/empty ⇒ none.</summary>
         public Type[]? Requires { get; set; }
 
-        /// <summary>⭐ <c>CE-4359</c> — one plain sentence for the task picker's preview pane (what the behaviour does, for an instructor); null ⇒ the pane shows none. ONE field, on the behaviour.</summary>
         /// <summary>⭐ <c>CE-4612</c> (R-2089; DESIGN_Orders_Params_Entity_Classes.md §15) — the ORDER KIND this behaviour fulfils, an
         /// <c>OrderKind</c> member's name (<c>"Defend"</c>), for a concrete play whose params DTO is not an order (an order DTO's behaviour gets
         /// its kind from the DTO). Readers ask the unit's <c>CurrentOrder.Kind</c>, never its behaviour name. A name that is no kind fails the load.</summary>
         public string? Fulfils { get; set; }
+
+        /// <summary>⭐ <c>CE-4359</c> — one plain sentence for the task picker's preview pane (what the behaviour does, for an instructor); null ⇒ the pane shows none. ONE field, on the behaviour.</summary>
         public string? Description { get; set; }
+
+        /// <summary>⭐ <c>CE-4621</c> M-3 (CD-1, R-4263; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §8a) — what this behaviour DOES when it
+        /// runs as a REACTION, as categories (halts · dismounts · leaves the route · seeks cover). An order kind that forbids one of them
+        /// (<c>OrderConduct</c>) makes THE ONE GATE refuse the reaction (<c>ForbiddenByOrder</c>). ⭐ Firing is not a conduct (CD-6).</summary>
+        public Fdp.Toolkit.Behavior.Conduct Conduct { get; set; }
     }
 }

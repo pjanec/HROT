@@ -171,7 +171,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (!repo.IsComponentTypeRegistered<CarrierStations>() || !repo.HasComponent<CarrierStations>(vehicle)) return null;
             ref readonly var stations = ref repo.GetComponentRO<CarrierStations>(vehicle);
-            return stations.IsStation(seat) ? stations.Seats[seat] : null;
+            // ⭐ CE-4621 PF-1 — a FIRING seat's man sits at its place too (his eye and muzzle are where the seat is, not the hull's ground point)
+            return stations.IsStation(seat) || stations.IsFiringSeat(seat) ? stations.Seats[seat] : null;
         }
 
         /// <summary>⭐ CE-2152 (R-2011 C9) — the type's passengers survive its destruction (<c>Gen.Carrier.DiesWithCarrier = false</c>).</summary>

@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: READY-TO-BUILD (2026-11-15) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
-current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review
+build-state: BUILDING (2026-11-15; backend M-1/M-2/M-3 built, §9) — R-4261 decisions, R-4262 the review, R-4263 conduct categories + the player; slices §6 (backend M-1 / M-2, ui M-1v / M-2p, behaviors M-3…M-6)
+current-answer: §1 inventory · §2 decisions · §3 UML · §4 the dash in time · §5 the plays · §6 slices and acceptance · §8 the review · §9 as built (backend M-1, M-2, M-3, M-5, M-6)
 stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the review record, folded into §2–§6
 known-rot: none
 known-conflict: none
@@ -251,9 +251,9 @@ where it owns the charge), the masking where perception solves, the gate where t
 | # | lane | builds | ⭐ done when (a rail each, red-proved) |
 |---|---|---|---|
 | **M-1** | backend | MC-2 / MC-2a (per-type factors, the surface-class grid, the nav pricing) + MC-1 the type (SUMO vType) | a bike crosses open ground at 0.6 × its road speed and may route through a wood; every existing vehicle suite and scenario hash unchanged; 0 B per frame |
-| **M-1v** | ui | the motorcycle family + kit (two wheels, seated riders), mockup first | drawn in 2-D and 3-D; a frame rail under `xvfb-run -a` |
+| **M-1v** | ui | the motorcycle family + kit (two wheels, seated riders), mockup first | drawn in 2-D and 3-D; a frame rail under `xvfb-run -a` — ✅ **AS-BUILT `2026-11-15` (ui, against a stand-in; binding waits for type 115 / the class):** [mockup](motorcycle-visuals.svg) · [`DESIGN_Map_3D_Mode.md` §6al.2](../../DESIGN_Map_3D_Mode.md) (family, kit, bank, `SeatPose.Ride` riders, the firing pillion, `SeatArcGizmo`) · [STATUS](../../blueprints/batches/STATUS_Ui_Motorcycle_Visuals.md). ⭐ **Asks of backend's seats:** `Pose = SeatPose.Ride` on both; hips at ≈ (0.02, 0, 0.90) and (−0.52, 0, 0.90); the pillion's arc READ counter-clockwise from `TraverseMinDeg` to `TraverseMaxDeg` (both sides + rear = `70 … 290` or `70 … -70`) |
 | **M-2** | backend | PF-1…PF-4 the firing seat (the generalised arc, seat placement, the capability paths) | a pillion fires inside his arc, not ahead; the arc wraps through ±180°; the rider never fires moving; a pickup-bed rifleman fires too |
-| **M-2p** | ui + backend | PL-1…PL-3 the player: drive, and ride pillion firing in first person | possess → Drive → the bike drives and is slowed off-road; possess → Board pillion → fire inside the arc only, the HUD's *out of arc* outside it |
+| **M-2p** | ui + backend | PL-1…PL-3 the player: drive, and ride pillion firing in first person | possess → Drive → the bike drives and is slowed off-road; possess → Board pillion → fire inside the arc only, the HUD's *out of arc* outside it — ✅ **ui half AS-BUILT `2026-11-15`:** measured WIRING (the seat's eye and free look already existed — `SeatSwitch.TryEye`, CE-1210); built the crosshair cue `PossessionStation.OutsideSeatArc` ("OUT OF ARC - this seat cannot fire there"); the fire path for an embarked man is backend's M-2 (`Embarkation.StrippedOn`); the live checks wait for type 115 |
 | **M-3** | behaviors | CD-1…CD-6 conduct + the gate | a squad on a `Dash` under fire does not dismount and its bike does not shelter; the next row runs; a disabled bike's men dismount; the journal shows `ForbiddenByOrder` |
 | **M-4** | behaviors (+ the FPV design) | MC-4a the realistic FPV guidance; MC-3…MC-7 the dash; the hearing mask | seeded runs on open ground vs two FPV operators: the riders are UNHURT (miss beyond the casualty radius) in a measured share; existing drone scenarios re-run and their rails reconciled |
 | **M-5** | behaviors | `DriveBy`, `ParkedBomb`, `ChargeTimer` | the drive-by fires from the pillion and escapes; the parked bomb goes off on its timer after the rider has left |
@@ -305,6 +305,68 @@ what it DOES to the unit.
 | CD-4 | the dash's carriers get the SAME order kind: the dash play orders each bike with kind `Dash`, so the bike and the squad each read ONLY their own current order (no cross-entity read) | the parallel rule |
 | CD-5 | the forbidding YIELDS when the unit cannot comply — immobile (a mobility kill), or its carrier dead: then halting / dismounting is allowed | a disabled bike's men must get off |
 | CD-6 | firing is not a conduct — the pillion still fires, a self-defence shot is never refused | the dash fights on the move |
+
+## 9. As built — backend, `2026-11-15` (CE-4621; overnight, unattended; ⭐ lane decisions in `docs/blueprints/batches/STATUS_Backend_Motorcycle.md`)
+
+```mermaid
+classDiagram
+  class BehaviorIngressSystem {
+    <<existing, THE ONE GATE>>
+    AdmitsWithReactions(…, behaviorId)
+    RefusalOf(…, behaviorId) ForbiddenByOrder
+  }
+  class SopActions {
+    <<existing>>
+    React(name) asks the gate WITH the id
+  }
+  class BehaviorConduct {
+    <<new, FDP, immutable after load>>
+    Install(does, forbids)
+    Of(hash) Conduct
+    ForbiddenBy(orderHash) Conduct
+    OrderHashOf(unit) running or paused order
+    Forbids(unit, reaction) bool
+    CannotComply(unit) CD-5
+  }
+  class Conduct {
+    <<new enum, FDP>>
+    Halts Dismounts LeavesRoute SeeksCover
+  }
+  class OrderConduct {
+    <<new, beside OrderKind>>
+    Forbids(OrderKind) Dash All, Defend Hold LeavesRoute
+  }
+  class OrderKinds {
+    <<existing, Build() at load>>
+  }
+  class BehaviorAttribute {
+    <<existing>>
+    Conduct
+  }
+  SopActions --> BehaviorIngressSystem
+  BehaviorIngressSystem --> BehaviorConduct : Forbids
+  OrderKinds --> BehaviorConduct : Install once
+  OrderKinds --> OrderConduct
+  OrderKinds ..> BehaviorAttribute : via ParamsDtoRegistry
+```
+*What the picture shows that prose hid:* FDP (the gate) cannot see `OrderKind`, so the Hrot loader that already builds the kind table
+(`OrderKinds.Build`, called at load by `CgfBehaviorSetup`) hands the gate a hash-keyed table — the gate compares DATA, never a behaviour name.
+
+| piece | as built | deviation from §2 / §8a |
+|---|---|---|
+| MC-2 / MC-2a | `VehicleParametersDto.OffRoadOpen/Scrub/Forest` → `VehicleParams` (0 = 1.0); `SurfaceClassGrid` (5 m cells; forest from `TerrainWoods`, scrub from the scrub surfaces, road = the road network's carriageways stamped last) built once in `CarKinematicsSystem`'s serial pre-pass, only when a factored type moves; the factor × `MaxSpeedFwd` and a 0.45 g lateral cap off-road | the grid is 5 m, not the woods' 25 m (a 25 m cell cannot tell a carriageway) |
+| MC-2a nav | `NavLayerSelection` bits 9…12 = the forest factor in fifteenths; `DotRecastNavmeshProvider.FilterFor(doors, mask)` keeps one woods-cost filter per factor (cost 15 / q) | — |
+| MC-1 | `TkbEntityTypes.Motorcycle = 115`, DIS 1.1.*.80.1, class `Motorcycle`; seat 0 rider (Driver, arc −120…120, fires stopped only), seat 1 pillion (arc 30…330 through the rear); SUMO `motorcycle`, weight 0 | the traffic catalogue now registers zero-weight types (never spawned) |
+| PF-1…PF-3 | `CarrierStations.FiringMask` / `StoppedOnlyMask`: a person's seat with an arc; `StrippedOn` keeps CanShoot there; `InStationArc` → `ArcSeat` + the wrapping `InTraverse`; the man sits at the seat; `RestoreHitCapabilities` follows the seat; the AI path (`HoldOf`) and the operator path (`OperatorFire`) both ask ONE `SeatHold` | — |
+| PF-4 | ⚠ `SeatDto.FiresStoppedOnly` grows the existing `HoldMoving` gate | the mount's `FiresOnTheMove` cannot hold a RIFLE; only a seat rule can |
+| CD-1…CD-3 | `[Behavior(Conduct = …)]` → `BehaviorDeclaration.Conduct`; `OrderConduct` beside `OrderKind` (+ `OrderKind.Dash = 14`); `OrderKinds.Build` installs `BehaviorConduct`; `AdmitsWithReactions` refuses a reaction the current (running or paused) order forbids; `SopActions.React` asks WITH the reaction's id ⇒ Failure, the next row runs, journaled `ForbiddenByOrder` ("its order forbids it") | the check sits in `AdmitsWithReactions` (the shared check the SOP asks first), not only `Admit` — a refusal only `Admit` saw would arrive after the row had already "won" |
+| CD-2 / `HoldsFirm` | `HoldsFirm` = the current order forbids `LeavesRoute` (Defend, Hold, and now Dash) | ⚠ no current reaction declares `LeavesRoute` (`ShelterFromAir` = Halts \| SeeksCover, not the §8a example) ⇒ a Defend / Hold unit refuses NO reaction: existing scenarios unchanged |
+| CD-5 | `BehaviorConduct.CannotComply`: the unit cannot move and rides nothing; it rides a dead / immobile carrier; or (a roster) a live member rides one | — |
+| MV-9 `ChargeTimer` | unmanaged, recorded `ChargeTimer { SimInstant DetonateAt }` (component id 486), registered with the weapon system; `ChargeTimers.Arm` (a follow-up inside the parallel phase); `ChargeSystem` ticks the timers it holds and asks `Charges.Ask(charge, Null)` once due (0 B while waiting; never in a replay) | the timer ticks where it was ARMED (no replication needed): the ask reaches the position owner through the interaction transport, as every ask does |
+| IM-2 `ParkedBomb` | run by the VEHICLE: ride to the spot → stop → arm the cargo charge's timer → `EjectPassengersCommand` → Success | ⚠ the riders leave by their own SOP; a getaway bike and a secondary device are not built (L-13) |
+| IM-1 `DriveBy` | run by the BIKE: ride up at speed → within the pass distance order the pillion (`PillionOf`: the firing seat) `FireAtTarget` and pass 30 m beyond at 2–5 m/s → escape to the pre-chosen point at speed | ⚠ the traffic handover before the act and the re-blend after it are not built (L-14) |
+| IM-5 `SwarmRaid` | a COMMANDER's play over bikes: approach ring (bearing 2π·i/N) → converge → fight (held, stopped — the rider fires too) → out on divergent bearings → rally; each phase waits for every live bike (or 180 s) | ⚠ mounted fight only: no dismount, no casualty pick-up, no night rule (L-15) |
+| `UnderFireMove` | ⚠ not gated — it is a component + reflex system, never a behaviour, so it has no conduct | a dash bike's under-fire reflex is the behaviors lane's (M-4) |
 
 ## ⛔ HISTORY — §2–§6 as first written (R-4261), before the review and the conduct categories — ⛔ do not quote
 

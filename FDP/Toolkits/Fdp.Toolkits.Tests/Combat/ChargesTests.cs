@@ -136,6 +136,43 @@ namespace Fdp.Toolkit.Tests.Combat
         /// position does nothing (the transport carries the ask, kind 12); a rifle is no charge. ✅ Red-proofs: <c>Detonate</c> without the
         /// ownership check ⇒ a replica bursts too ⇒ red; without the charge check ⇒ the rifle bursts ⇒ red.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-4621</c> M-5 (MV-9) — a charge's TIMER: armed, it waits; once sim time reaches its instant <c>ChargeSystem</c> asks the
+        /// charge with no one (a timer needs no phone), the timer goes, and the next frame the charge bursts; re-arming replaces the time; a
+        /// non-charge cannot be armed; and a waiting timer costs 0 B per frame. 🔴 Red-proof: drop <c>TickTimers</c> from <c>Execute</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4621_AChargeTimer_AsksTheChargeOnceDue_AndCostsNothingWhileItWaits()
+        {
+            _world.RegisterComponent<ChargeTimer>();
+            var placed = Spawn(ChargeType, new Vector3(5f, 0f, 0f));
+            var rifle = Spawn(RifleType, Vector3.Zero);
+            _world.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            Assert.False(ChargeTimers.Arm(_world, rifle, (SimDuration)5f));
+            Assert.True(ChargeTimers.Arm(_world, placed, (SimDuration)60f));
+            Assert.True(ChargeTimers.Arm(_world, placed, (SimDuration)5f));   // re-armed: 15 s, not 70 s
+            Assert.Equal(15.0, (double)_world.GetComponentRO<ChargeTimer>(placed).DetonateAt, 3);
+
+            var system = new ChargeSystem();
+            for (int i = 0; i < 3; i++) { _world.Bus.SwapBuffers(); system.Execute(_world, 0.1f); }   // warm
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) { _world.Bus.SwapBuffers(); system.Execute(_world, 0.1f); }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(ChargeTimers.IsArmed(_world, placed));
+            Assert.Equal(0, system.TimersFired);
+
+            _world.SetSingleton(new GlobalTime { TotalTime = 15.05 });
+            system.Execute(_world, 0.1f);
+            Assert.Equal(1, system.TimersFired);
+            Assert.False(ChargeTimers.IsArmed(_world, placed));
+            Assert.True(_world.IsAlive(placed));            // asked: it goes off on the next frame, where the position is owned
+            _world.Bus.SwapBuffers();
+            system.Execute(_world, 0.1f);
+            Assert.Equal(1, system.Detonated);
+            Assert.False(_world.IsAlive(placed));
+            Assert.Equal(1, system.TimersFired);            // never twice
+        }
+
         [Fact]
         public void CE3233_OnlyThePositionOwner_SetsACharge_Off_AndOnlyACharge()
         {

@@ -48,6 +48,7 @@
     "Marksman__SVD_": [0, 3, 6],
     "MilitaryAPC": [0, 4, 6],
     "MortarTeam": [0, 5, 6],
+    "Motorcycle": [1, 0, 2],
     "NLAW": [0, 0, 7],
     "NlawGunner": [0, 1, 7],
     "Officer": [0, 2, 7],

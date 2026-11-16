@@ -1,3 +1,4 @@
+using System;
 using CarKinem.Core;
 using Fdp.Core;
 
@@ -28,6 +29,25 @@ namespace Fdp.Toolkit.Navigation
         /// woods are priced for it rather than closed. Every provider tests layers by bit, so the extra bit selects nothing else.</summary>
         public const uint TrackedModifier = 1u << 8;
 
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> MC-2a (MV-5) — modifier bits 9…12: the mover TYPE's authored forest factor, quantised to fifteenths (0 = not authored ⇒ the
+        /// class rule above). The provider prices a woods polygon at 1 / factor for such a mover — the SAME per-type table the integrator reads, so a
+        /// bike may route through a wood it can drive through. Like <see cref="TrackedModifier"/>, no mesh carries these bits.
+        /// </summary>
+        public const int WoodsFactorShift = 9;
+        public const uint WoodsFactorMask = 0xFu << WoodsFactorShift;
+
+        /// <summary>The quantised forest factor (1…15) of <paramref name="forestFactor"/>, 0 when not authored.</summary>
+        public static uint WoodsFactorBits(float forestFactor)
+            => forestFactor <= 0f ? 0u : (uint)Math.Clamp((int)MathF.Round(forestFactor * 15f, MidpointRounding.AwayFromZero), 1, 15) << WoodsFactorShift;
+
+        /// <summary>The woods cost a mask's factor bits ask for (1 / factor), or 0 when the mask carries none.</summary>
+        public static float WoodsCostOf(uint layerMask)
+        {
+            uint q = (layerMask & WoodsFactorMask) >> WoodsFactorShift;
+            return q == 0 ? 0f : 15f / q;
+        }
+
         public static NavLayerMask For(EntityRepository repo, Entity entity, uint explicitMask)
         {
             if (explicitMask != 0) return (NavLayerMask)explicitMask;
@@ -38,12 +58,14 @@ namespace Fdp.Toolkit.Navigation
             }
             if (repo.HasComponent<VehicleParams>(entity))
             {
-                var cls = repo.GetComponent<VehicleParams>(entity).Class;
+                var vp = repo.GetComponent<VehicleParams>(entity);
+                var cls = vp.Class;
                 if (cls == VehicleClass.Pedestrian) return NavLayerMask.Infantry;
+                uint woods = WoodsFactorBits(vp.OffRoadForest);   // ⭐ CE-4621 MC-2a — the type's own forest factor prices the woods
                 // ⭐ CE-4369 (R-4190 Q-T1 / Q-T2) — a TRACKED vehicle plans on the vehicle layer with the tracked modifier: woods open to
                 //   it at a high cost, closed to a wheeled one (the provider's per-mover filter). The ONE locomotion rule decides.
                 return Fdp.Toolkit.Motion.Locomotions.Of(repo, entity) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
-                    ? (NavLayerMask)((uint)NavLayerMask.Vehicle | TrackedModifier) : NavLayerMask.Vehicle;
+                    ? (NavLayerMask)((uint)NavLayerMask.Vehicle | TrackedModifier | woods) : (NavLayerMask)((uint)NavLayerMask.Vehicle | woods);
             }
             return repo.HasComponent<VehicleState>(entity) ? NavLayerMask.Vehicle : NavLayerMask.Infantry;
         }

@@ -67,6 +67,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         IsTheSop,
         /// <summary>Its parameters did not parse.</summary>
         ParseFailed,
+        /// <summary>⭐ <c>CE-4621</c> M-3 (CD-3) — the unit's current order forbids what the reaction does (<c>BehaviorConduct</c>).</summary>
+        ForbiddenByOrder,
     }
 
     /// <summary>⭐ CE-4306 (edit framework F5) — the user's words for a <see cref="BrainRefusal"/>: the ONE text an order's refusal outcome carries.</summary>
@@ -82,6 +84,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             BrainRefusal.SameAsTask => "it is the task it would pause",
             BrainRefusal.IsTheSop => "it is the unit's SOP",
             BrainRefusal.ParseFailed => "its parameters did not parse",
+            BrainRefusal.ForbiddenByOrder => "its order forbids it",
             _ => "refused",
         };
     }

@@ -346,7 +346,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.CasualtyCare, Params = typeof(CasualtyCareParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.CasualtyCare, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts,   /* CE-4621 M-3 (CD-1) */ Params = typeof(CasualtyCareParamsJsonDto), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.CasualtyCare, Curated = true, Group = "Library/Casualties and engineering", ParamsType = typeof(CasualtyCareBlackboard))]
         public static BTreeBuilder<CasualtyCareBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<CasualtyCareBlackboard, BTreeContext>()

@@ -49,6 +49,7 @@ DestroyTargets | hostedInput=- | inputBytes=192
 DetonateCharge | hostedInput=Hrot.Map.Definitions.Behavior.DetonateChargeParamsJsonDto | inputBytes=16
 Disembark | hostedInput=Hrot.Map.Definitions.Behavior.DisembarkParamsJsonDto | inputBytes=20
 DoorLocksmith | hostedInput=Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto | inputBytes=236
+DriveBy | hostedInput=Hrot.Map.Definitions.Behavior.DriveByParamsJsonDto | inputBytes=44
 DroneOperator | hostedInput=Hrot.AI.Behaviors.Brains.DroneOperatorOrder | inputBytes=72
 DroneRecon | hostedInput=Hrot.AI.Behaviors.Brains.DroneReconOrder | inputBytes=48
 DroneTeam | hostedInput=Hrot.Map.Definitions.Behavior.DroneTeamParamsJsonDto | inputBytes=28
@@ -93,6 +94,7 @@ MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJ
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 PackUpWeapon | hostedInput=Hrot.Map.Definitions.Behavior.PackUpWeaponParamsJsonDto | inputBytes=104
+ParkedBomb | hostedInput=Hrot.Map.Definitions.Behavior.ParkedBombParamsJsonDto | inputBytes=28
 PersonAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=1544
 PersonHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=36
 PersonMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=20
@@ -145,6 +147,7 @@ SupportCommand | hostedInput=Hrot.AI.Behaviors.Orders.SupportCommandParamsJsonDt
 Suppress | hostedInput=Hrot.Map.Definitions.Behavior.SuppressParamsJsonDto | inputBytes=56
 SuppressAndManeuver | hostedInput=Hrot.Map.Definitions.Behavior.SuppressAndManeuverParamsJsonDto | inputBytes=1216
 Surrender | hostedInput=Hrot.Map.Definitions.Behavior.SurrenderParamsJsonDto | inputBytes=16
+SwarmRaid | hostedInput=Hrot.Map.Definitions.Behavior.SwarmRaidParamsJsonDto | inputBytes=56
 T01_Sequence | hostedInput=- | inputBytes=0
 T02_Selector | hostedInput=- | inputBytes=0
 T03_Parallel | hostedInput=- | inputBytes=0

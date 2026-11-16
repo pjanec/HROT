@@ -521,11 +521,26 @@ namespace Fdp.Toolkit.Behavior
         /// crew seat is unchanged: there the HOST fires and the man fires nothing (W-I). 📐 Measured live (IF-4 ①): with CanShoot stripped the
         /// weapon dispatcher failed every gunner's FireAtPoint before its executor ran — the section never fired.
         /// </summary>
+        /// <remarks>⭐⭐ <c>CE-4621</c> PF-1 — and a FIRING seat (<see cref="CarrierStations.IsFiringSeat"/>: a person's seat with an arc — the
+        /// motorcycle's pillion, a pickup bed's rifleman): its man fires his OWN weapon inside the seat's arc, so he keeps CanShoot too.</remarks>
         public static ActorCapabilities StrippedOn(EntityRepository repo, Entity vehicle, int seat)
-            => IsWeaponSystem(repo, vehicle) && Has<CarrierSeats>(repo, vehicle) && seat >= 0 && seat < PassengerBuffer.Capacity
-               && repo.GetComponentRO<CarrierSeats>(vehicle).Roles[seat] == SeatRole.Gunner
+            => (IsWeaponSystem(repo, vehicle) && Has<CarrierSeats>(repo, vehicle) && seat >= 0 && seat < PassengerBuffer.Capacity
+                && repo.GetComponentRO<CarrierSeats>(vehicle).Roles[seat] == SeatRole.Gunner)
+               || IsFiringSeat(repo, vehicle, seat)
                 ? ActorCapabilities.CanMove
                 : StrippedAboard;
+
+        /// <summary>⭐ <c>CE-4621</c> PF-1 — is seat <paramref name="seat"/> of <paramref name="vehicle"/> a firing seat?</summary>
+        public static bool IsFiringSeat(EntityRepository repo, Entity vehicle, int seat)
+            => Has<CarrierStations>(repo, vehicle) && repo.GetComponentRO<CarrierStations>(vehicle).IsFiringSeat(seat);
+
+        /// <summary>⭐ <c>CE-4621</c> PF-4 — does <paramref name="unit"/> sit in a firing seat that fires only while its vehicle is stopped (the rider)?</summary>
+        public static bool FiresStoppedOnly(EntityRepository repo, Entity unit)
+        {
+            if (!Has<IsEmbarkedTag>(repo, unit)) return false;
+            ref readonly var tag = ref repo.GetComponentRO<IsEmbarkedTag>(unit);
+            return Has<CarrierStations>(repo, tag.VehicleEntity) && repo.GetComponentRO<CarrierStations>(tag.VehicleEntity).FiresStoppedOnly(tag.Seat);
+        }
 
         /// <summary>⭐ <c>CE-2152</c> — is <paramref name="carrier"/> a PERSON who carries or drags (its type declares <c>Gen.Carrier.Person</c>)?</summary>
         public static bool IsPersonCarrier(EntityRepository repo, Entity carrier) => Has<PersonCarrier>(repo, carrier);

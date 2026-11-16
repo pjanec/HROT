@@ -173,6 +173,9 @@ namespace Hrot.Core.Tkb
             yield return C("AirDefenceVehicle", "Air Defence Vehicle", "1.1.*.28");
             yield return C("Mortar", "Mortar", "1.1.*.10");
             yield return C("Car", "Car", "1.1.*.81");
+            // ⭐ CE-4621 (MC-1, DESIGN_Motorcycle §2a) — the motorcycle: SISO category 80 "Motorcycle"; ui maps the class to its 3-D family
+            //   (VisualFamily.Motorcycle) — the ONE key both lanes share
+            yield return C("Motorcycle", "Motorcycle", "1.1.*.80");
             // ⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §5) — a weapon that is an entity: Category 50
             //   (HROT; free on land), subcategories by kind.
             yield return C("WeaponSystem", "Weapon System (HROT)", "1.1.*.50");

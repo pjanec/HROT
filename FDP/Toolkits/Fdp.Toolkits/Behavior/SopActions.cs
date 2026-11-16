@@ -56,8 +56,16 @@ namespace Fdp.Toolkit.Behavior
                 return NodeStatus.Success;
             // ⭐ CE-1250 (BV-12) — the sense this row matched (SopConditions noted it this frame), taken so a later row does not inherit it
             var cause = (Fdp.Toolkit.Perception.Events.SensorChange)Diagnostics.BrainJournalOf.TakeReactionCause(world, self);
-            if (!BehaviorIngressSystem.AdmitsWithReactions(world, self, BehaviorOrigin.Reaction, urgency, task, out _))
+            // ⭐ CE-4621 M-3 (CD-3) — the gate is asked WITH the reaction's identity, so an order that forbids its conduct refuses it HERE:
+            //   Failure, the Selector's next row runs (never a re-try loop), and the journal says why (the journal folds a repeat).
+            int reaction = BehaviorHash.FromName(behavior);
+            if (!BehaviorIngressSystem.AdmitsWithReactions(world, self, BehaviorOrigin.Reaction, urgency, task, out _, reaction))
+            {
+                if (BehaviorConduct.Forbids(world, self, task, reaction))
+                    Diagnostics.BrainJournalOf.Write(world, self, Diagnostics.BrainJournalKind.TaskRefused, a: reaction,
+                        origin: (byte)BehaviorOrigin.Reaction, urgency: (byte)urgency, cause: (byte)Diagnostics.BrainRefusal.ForbiddenByOrder);
                 return NodeStatus.Failure;
+            }
             return Publish(world, self, behavior, json, BehaviorOrigin.Reaction, urgency, cause);
         }
 

@@ -145,6 +145,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-3233</c> (B-11, §7.13 ST-2/ST-6) — a station nobody sees into (under a coat, a suicide vest): what it holds arms
         /// nobody (R-2025), and a carrier's free-station search never fills it unasked (ST-3). Appended.</summary>
         public bool Concealed { get; init; }
+
+        /// <summary>⭐ <c>CE-4621</c> PF-4 (DESIGN_Motorcycle §2) — a FIRING seat (a person's seat with a traverse arc, PF-1) whose man fires only
+        /// while the vehicle is stopped — the rider, who drives. Grows the weapon brain's existing <c>HoldMoving</c> gate. Appended.</summary>
+        public bool FiresStoppedOnly { get; init; }
     }
 
     /// <summary>⭐ CE-1083 — how a rider sits in a seat (the 3-D map's figure).</summary>
@@ -159,5 +163,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Stand = 2,
         /// <summary>⭐ CE-1088 — KNEELING at a weapon, hands on its grips; the seat's place is where he kneels.</summary>
         Kneel = 3,
+        /// <summary>⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — ASTRIDE a two-wheeler: legs apart, feet on the pegs, leaning to the bars (the Driver)
+        /// or sitting upright behind him (a pillion); the seat's place is his hips. Appended (a wire value).</summary>
+        Ride = 4,
     }
 }

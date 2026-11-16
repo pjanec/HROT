@@ -363,7 +363,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Order.Care.EvacuateMetres = Math.Max(0f, authored.EvacuateMetres);   // ⭐ CE-7009
             block.State = default;
         }
-[Behavior(BehaviorNames.ReactToContact, Params = typeof(global::Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
+[Behavior(BehaviorNames.ReactToContact, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover,   /* CE-4621 M-3 (CD-1) */ Params = typeof(global::Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto), Categories = BehaviorCategory.Commander)]   // ⭐ CE-2134
 
         [BTreeDefinition(BehaviorNames.ReactToContact, Curated = true, Group = "Library/Reactions", ParamsType = typeof(ReactToContactBlackboard))]
         public static BTreeBuilder<ReactToContactBlackboard, BTreeContext> BuildTree()
@@ -387,8 +387,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <remarks>⭐⭐ <c>CE-4612</c> / <c>CE-4609</c> (R-2088) — the squad's ORDER, typed: a Defend or a Hold, by any behaviour that fulfils it
         /// (<c>SquadDefend</c>, <c>SquadHold</c>, the routed <c>InfantrySquadHold</c> — which the two names missed: a squad given <c>Order.Hold</c>
         /// broke contact).</remarks>
+        /// <remarks>⭐ <c>CE-4621</c> M-3 (CD-2, R-4263) — folded into the ONE order-conduct table: an order that forbids leaving the route or
+        /// position holds firm (Defend, Hold — and a Dash).</remarks>
         public static bool HoldsFirm(EntityRepository world, Entity self)
-            => Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).IsOneOf(Hrot.AI.Behaviors.Orders.OrderKind.Defend, Hrot.AI.Behaviors.Orders.OrderKind.Hold);
+            => (Hrot.AI.Behaviors.Orders.OrderConduct.Forbids(Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind)
+                & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) != 0;
 
         private static void Firm(ref UtilityChoice choice, Entity self, EntityRepository world)
         {

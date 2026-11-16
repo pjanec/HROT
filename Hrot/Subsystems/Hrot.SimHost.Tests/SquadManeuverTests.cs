@@ -1107,6 +1107,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.Hold, Hrot.AI.Behaviors.Orders.OrderKinds.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.InfantrySquadHold)));
         }
 
+        /// <summary>⭐⭐ <c>CE-4621</c> M-3 (CD-1/CD-2, R-4263) — the ONE conduct table THE ONE GATE reads is built from the real declarations:
+        /// a reaction's <c>[Behavior(Conduct = …)]</c> and its order kind's row in <c>OrderConduct</c> (a Dash forbids all four; Defend / Hold the
+        /// leaving of the position, which <c>HoldsFirm</c> reads too). ✅ Red-proof: drop the <c>Install</c> call in <c>OrderKinds.Build</c> ⇒ red.</summary>
+        [Fact]
+        public void CE4621_TheConductTable_IsBuiltFromTheDeclarations_AndTheOrderKinds()
+        {
+            Hrot.AI.Behaviors.Orders.OrderKinds.Build();
+            int H(string n) => Fdp.Toolkit.Behavior.BehaviorHash.FromName(n);
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.Dismounts | Fdp.Toolkit.Behavior.Conduct.Halts, Fdp.Toolkit.Behavior.BehaviorConduct.Of(H(BehaviorNames.SquadDismount)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover, Fdp.Toolkit.Behavior.BehaviorConduct.Of(H(BehaviorNames.ShelterFromAir)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.SeeksCover, Fdp.Toolkit.Behavior.BehaviorConduct.Of(H(BehaviorNames.ReactToContact)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.None, Fdp.Toolkit.Behavior.BehaviorConduct.Of(H(BehaviorNames.PushThrough)));   // drives on: nothing to forbid
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.LeavesRoute, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.SquadDefend)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.LeavesRoute, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.InfantrySquadHold)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.None, Fdp.Toolkit.Behavior.BehaviorConduct.ForbiddenBy(H(BehaviorNames.SquadMarch)));
+            Assert.Equal(Fdp.Toolkit.Behavior.Conduct.All, Hrot.AI.Behaviors.Orders.OrderConduct.Forbids(Hrot.AI.Behaviors.Orders.OrderKind.Dash));
+            // ⭐ no current reaction declares LeavesRoute ⇒ a Defend / Hold order refuses no reaction (lane decision; HoldsFirm keeps its job)
+            foreach (var d in Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors)
+                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0, $"{d.Name} leaves the route: a Defend / Hold order would now refuse it");
+        }
+
         /// <summary>⭐ <c>CE-2276</c> E-3a (DA-68) — <c>BreakContact {To}</c>: told where to go, the squad asks no terrain and needs no contact;
         /// element 0 goes there while element 1 covers, then element 1; both there ⇒ Success. ✅ Red-proof: the <c>To</c> arm dropped ⇒
         /// no contact, so the play fails at once.</summary>

@@ -87,6 +87,10 @@ namespace CarKinem.Systems
             
             // Get all vehicles (owned only -- skip ghost entities to enforce split-authority)
             var query = MovedBodies(repo);
+
+            // ⭐ CE-4621 MC-2 (MV-4) — the surface-class grid, built HERE in the serial pre-pass, once per terrain + road network, and only once a
+            //   type with authored off-road factors moves (a scenario without one never pays the build); the parallel move only reads it.
+            PrepareSurfaceGrid(repo, query, in roadNetwork);
             
             // We use FDP Kernel's optimized ForEachParallel which handles load balancing
             // and avoids allocations.
@@ -161,6 +165,30 @@ namespace CarKinem.Systems
         private Fdp.Toolkit.World.IWorldQuery? _terrain;
         private Fdp.Toolkit.Terrain.TerrainWoods? _woods;
         private Fdp.Toolkit.Terrain.TerrainWorld? _terrainWorld;
+        // ⭐ CE-4621 MC-2 — the surface-class grid and what it was built from (the terrain world, the road network's segment count)
+        private Fdp.Toolkit.Terrain.SurfaceClassGrid? _surface;
+        private Fdp.Toolkit.Terrain.TerrainWorld? _surfaceWorld;
+        private int _surfaceRoads = -1;
+        private bool _surfaceBuilt;
+
+        /// <summary>⭐ CE-4621 MC-2 — the grid this tick's moves read (null: none built — no factored type, or no terrain and no roads).</summary>
+        internal Fdp.Toolkit.Terrain.SurfaceClassGrid? SurfaceGrid => _surface;
+
+        private void PrepareSurfaceGrid(EntityRepository repo, EntityQuery query, in RoadNetworkBlob roads)
+        {
+            int roadCount = roads.Segments.IsCreated ? roads.Segments.Length : 0;
+            if (!ReferenceEquals(_surfaceWorld, _terrainWorld) || _surfaceRoads != roadCount)
+            {
+                _surfaceWorld = _terrainWorld; _surfaceRoads = roadCount; _surface = null; _surfaceBuilt = false;
+            }
+            if (_surfaceBuilt) return;
+            bool needed = false;
+            foreach (var e in query)
+                if (Fdp.Toolkit.Terrain.OffRoad.Authored(in repo.GetComponentRO<VehicleParams>(e))) { needed = true; break; }
+            if (!needed) return;
+            _surface = Fdp.Toolkit.Terrain.SurfaceClassGrid.Build(_terrainWorld, in roads);
+            _surfaceBuilt = true;
+        }
         private bool _clampFlags;
         private bool _recovery;
         private bool _health;
@@ -220,6 +248,17 @@ namespace CarKinem.Systems
             {
                 @params.MaxSpeedFwd = @params.MaxSpeedFwd > 0f
                     ? MathF.Min(@params.MaxSpeedFwd, Fdp.Toolkit.Terrain.TerrainWoods.TrackedSpeedCap) : Fdp.Toolkit.Terrain.TerrainWoods.TrackedSpeedCap;
+            }
+            // ⭐⭐ CE-4621 MC-2 (MV-3, MV-4) — this TYPE's off-road factor on the ground under it (one array index); off the road its curvature limit is
+            //   the dirt's grip too. A type with no authored factor never reaches the grid (unchanged); a local copy — the component is not written back.
+            if (_surface != null && @params.Class != VehicleClass.Pedestrian && Fdp.Toolkit.Terrain.OffRoad.Authored(in @params))
+            {
+                var ground = _surface.ClassAt(tf.Position.X, tf.Position.Y);
+                if (ground != Fdp.Toolkit.Terrain.GroundClass.Road)
+                {
+                    @params.MaxSpeedFwd *= Fdp.Toolkit.Terrain.OffRoad.Factor(in @params, ground);
+                    @params.MaxLatAccel = MathF.Min(@params.MaxLatAccel > 0f ? @params.MaxLatAccel : float.MaxValue, Fdp.Toolkit.Terrain.OffRoad.GripG * 9.81f);
+                }
             }
             
             // Input conversion (bridge from SimTransform to 2D locals)
