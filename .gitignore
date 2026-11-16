@@ -91,6 +91,8 @@ assets/terrain/*
 !assets/terrain/city-battle/
 # the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
 assets/terrain/*/source/
+# ⭐ AQ112 A (R-4280): the old versions of a re-imported terrain (versions/<contentHash>/) live on disk and the content root, never in git — demos included
+assets/terrain/**/versions/
 # the content-hash cache TerrainContentHash writes beside terrain.json (per machine, by length + mtime) — never in git, demos included
 assets/terrain/*/terrain.hash
 **/terrain.hash

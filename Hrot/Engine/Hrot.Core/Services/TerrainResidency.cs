@@ -197,6 +197,17 @@ public sealed class TerrainResidency
 
         // ⭐ W12 — a terrain is a FOLDER, resolved by the one catalog (staging → shared → shipped).
         string? definitionPath = _catalog.ResolveDefinition(terrainName);
+        // ⭐⭐ AQ112 B (R-4280) — an overlay names the base it was compiled over by HASH: when the current terrain was re-imported since, the kept old version is the base
+        //   (the replay's recording opens its overlay through here too — its TerrainHash IS the overlay header's base hash)
+        if (definitionPath != null && !string.IsNullOrEmpty(overlayFolder)
+            && File.Exists(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))
+        {
+            string wantedBase = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder).BaseHash;
+            definitionPath = _catalog.ResolveDefinition(terrainName, wantedBase)
+                ?? throw new InvalidOperationException(
+                    $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{terrainName}' content hash '{wantedBase}', but that version is not available: the resident terrain "
+                  + $"('{definitionPath}') has content hash '{TerrainContentHash.OfTerrain(definitionPath!)}' and there is no '{TerrainCatalog.VersionsDirectoryName}/{wantedBase}' beside it. Recompile the overlay (save the scenario) against this terrain.");
+        }
         if (definitionPath == null)
             throw new FileNotFoundException(
                 $"[Terrain] Terrain '{terrainName}' was not found: no '{terrainName}/{TerrainCatalog.DefinitionFileName}' "

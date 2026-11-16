@@ -46,6 +46,43 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(kept, TerrainCatalog.ForNode(Path.GetDirectoryName(Terrains(f)), null).ResolveDefinition("base-t") ?? kept);   // ForNode builds the same catalogue
         }
 
+        /// <summary>
+        /// ⭐⭐ AQ112 B (R-4280) — <c>ResolveDefinition(name, hash)</c>: the current definition when its content hash matches (or none is asked for), else the kept old version <c>versions/&lt;hash&gt;/terrain.json</c> — which is what a re-imported
+        /// terrain's old overlay / recording asks — else null (the caller names the missing version); a hash that is a path is refused. 🔴 Red-proof: skip the <c>versions/</c> arm ⇒ the old hash resolves to null; skip the match check ⇒ the old hash resolves to the CURRENT definition.
+        /// </summary>
+        [Fact]
+        public void ResolveByHash_FindsTheCurrentThenTheKeptVersion_ElseNull()
+        {
+            using var f = new OverlayFixture();
+            var catalog = new TerrainCatalog(new[] { Terrains(f) });
+            string current = Path.Combine(f.TerrainFolder, "terrain.json");
+            string oldHash = TerrainContentHash.OfTerrain(current);
+
+            Assert.Equal(current, catalog.ResolveDefinition("base-t", oldHash));
+            Assert.Equal(current, catalog.ResolveDefinition("base-t", null));
+            Assert.Equal(current, catalog.ResolveDefinition("base-t", ""));
+
+            // the re-import: the whole old folder moves to versions/<oldHash>/, a new definition stands in its place
+            string moved = Path.Combine(Path.GetTempPath(), "rbh-" + Guid.NewGuid().ToString("N")[..8]);
+            Directory.Move(f.TerrainFolder, moved);
+            Directory.CreateDirectory(f.TerrainFolder);
+            Directory.CreateDirectory(Path.Combine(f.TerrainFolder, TerrainCatalog.VersionsDirectoryName));
+            Directory.Move(moved, Path.Combine(f.TerrainFolder, TerrainCatalog.VersionsDirectoryName, oldHash));
+            File.WriteAllText(current, """{"schemaVersion":2,"name":"base-t","world":"w.geojson"}""");
+            File.WriteAllText(Path.Combine(f.TerrainFolder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[]}""");
+            string newHash = TerrainContentHash.OfTerrain(current);
+            Assert.NotEqual(oldHash, newHash);
+
+            Assert.Equal(current, catalog.ResolveDefinition("base-t", newHash));                                              // the new one, by its own hash
+            string kept = Path.Combine(f.TerrainFolder, "versions", oldHash, "terrain.json");
+            Assert.Equal(kept, catalog.ResolveDefinition("base-t", oldHash));                                                 // the old one, by the hash an overlay / a recording holds
+            Assert.Equal(oldHash, TerrainContentHash.OfTerrain(kept));                                                        // and it IS that content
+            Assert.Null(catalog.ResolveDefinition("base-t", new string('e', 64)));                                            // a version nobody kept
+            Assert.Null(catalog.ResolveDefinition("no-such", oldHash));
+            Assert.Throws<ArgumentException>(() => catalog.ResolveDefinition("base-t", "../x"));
+            Assert.Equal(new[] { "base-t" }, catalog.List());                                                                 // ⭐ a kept version is not a terrain of its own: never listed
+        }
+
         private static TerrainWorld WorldOf(string definition, string name) => TerrainFolderWorld.ReadWorld(definition, TerrainFolderWorld.ReadDefinition(definition), name)!;
 
         /// <summary>

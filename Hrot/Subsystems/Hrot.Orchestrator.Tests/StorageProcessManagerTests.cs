@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
@@ -310,6 +311,88 @@ public sealed class StorageProcessManagerTests
             if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true);
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ AQ112 C (R-4280, D-4) — <i>Re-compile scenarios on this terrain</i>: after the terrain was re-imported (the old folder kept under <c>versions/&lt;hash&gt;/</c>), <see cref="StorageProcessManager.RecompileScenariosOnTerrain"/> moves every scenario whose overlay
+    /// names the OLD hash onto the new one through the save's one compile (the overlay's base hash is the new one, and the overlay is also kept by hash on the NAS), REPORTS a scenario that fails (its reason, its old overlay left alone — it still loads on the old version), skips a scenario
+    /// already on the current hash, one with no overlay and one on another terrain; a second run finds nothing to move. 🔴 Red-proof: make <c>RecompileScenariosOnTerrain</c> compile through <c>CompileTerrainOverlay</c> (which deletes a failed scenario's overlay) ⇒ the failed one's old
+    /// overlay is gone; compile against the old terrain (resolve with its old hash) ⇒ the base hash does not move.
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public void AQ112C_RecompileScenariosOnTerrain_MovesTheOldOnes_ReportsTheFailing_AndLeavesTheRest()
+    {
+        const string hut = "{\"footprint\":[[0,0],[10,0],[10,8],[0,8]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0]},{\"from\":[10,0],\"to\":[10,8]},{\"from\":[10,8],\"to\":[0,8]},{\"from\":[0,8],\"to\":[0,0]}]}]}";
+        string nas = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string terrainRoot = ContentLayout.TerrainAssets(nas), terrain = Path.Combine(terrainRoot, "base-t");
+            Directory.CreateDirectory(terrain); Directory.CreateDirectory(ContentLayout.BuildingAssets(nas)); Directory.CreateDirectory(ContentLayout.TerrainRecipeAssets(nas));
+            File.WriteAllText(Path.Combine(terrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.WriteAllText(Path.Combine(terrain, "w.geojson"), "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,300,300],\"groundZ\":0},\"features\":[]}");
+            File.WriteAllText(Path.Combine(ContentLayout.BuildingAssets(nas), "hut.building.json"), hut);
+            File.WriteAllText(Path.Combine(ContentLayout.TerrainRecipeAssets(nas), "village.recipe.json"), "{\"id\":\"village\",\"houses\":{\"templates\":[\"hut\"],\"count\":[4,4],\"radius\":40,\"minSpacing\":4}}");
+
+            void Save(string scenario, string terrainName, string recipe)
+            {
+                string scenarioDir = Path.Combine(nas, "scenarios", scenario), slicesDir = Path.Combine(scenarioDir, ".slices");
+                Directory.CreateDirectory(slicesDir);
+                var dom = System.Text.Json.Nodes.JsonNode.Parse("{\"Header\":{\"TerrainName\":\"" + terrainName + "\"},\"Entities\":{\"b1000000-0000-4000-8000-000000000001\":{\"TerrainBlock\":{\"Recipe\":\"" + recipe
+                    + "\",\"Seed\":3,\"HeadingDeg\":0,\"Fit\":15},\"SimTransform\":{\"Position\":[150,150,0]}}}}")!.AsObject();
+                Fdp.Core.Serialization.Migrations.JsonEnvelope.Write(dom, new Fdp.Core.Serialization.Migrations.DocumentMeta("Hrot.Scenario", 2));
+                File.WriteAllText(Path.Combine(slicesDir, "node_1.json"), dom.ToJsonString());
+                new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas).MergeScenarioSlices(scenario, new List<FileManifestEntry>
+                {
+                    new() { RelativeDest = Path.Combine("scenarios", scenario, ".slices", "node_1.json"), DocType = "Hrot.Scenario" },
+                });
+                OverlayCompileTracker.WaitAsync(scenario).GetAwaiter().GetResult();
+            }
+            string BaseHashOf(string scenario) => System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(nas, "scenarios", scenario, "terrain-overlay", "overlay.json")))!["base"]!["contentHash"]!.GetValue<string>();
+
+            Save("ok", "base-t", "village"); Save("broken", "base-t", "village"); Save("other", "base-t", "village");
+            string oldHash = Fdp.Toolkit.Terrain.TerrainContentHash.OfTerrain(Path.Combine(terrain, "terrain.json"));
+            Assert.Equal(oldHash, BaseHashOf("ok"));
+            // a scenario with no overlay at all, and one on ANOTHER terrain
+            Directory.CreateDirectory(Path.Combine(nas, "scenarios", "plain"));
+            File.WriteAllText(Path.Combine(nas, "scenarios", "plain", "scenario.json"), "{\"Header\":{\"TerrainName\":\"base-t\"},\"Entities\":{}}");
+            string otherTerrain = Path.Combine(terrainRoot, "other-t"); Directory.CreateDirectory(otherTerrain);
+            File.WriteAllText(Path.Combine(otherTerrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.Copy(Path.Combine(terrain, "w.geojson"), Path.Combine(otherTerrain, "w.geojson"));
+            Save("elsewhere", "other-t", "village");
+            string elsewhereHash = BaseHashOf("elsewhere");
+            // the scenario "broken" is edited to a recipe that does not exist (its overlay still sits on the old base)
+            File.WriteAllText(Path.Combine(nas, "scenarios", "broken", "scenario.json"), File.ReadAllText(Path.Combine(nas, "scenarios", "broken", "scenario.json")).Replace("\"village\"", "\"missing\""));
+
+            // the re-import: the old folder is kept by hash, a new terrain (another world byte) stands in its place
+            string moved = terrain + "-moving";
+            Directory.Move(terrain, moved); Directory.CreateDirectory(Path.Combine(terrain, "versions"));
+            Directory.Move(moved, Path.Combine(terrain, "versions", oldHash));
+            File.WriteAllText(Path.Combine(terrain, "terrain.json"), "{\"schemaVersion\":2,\"world\":\"w.geojson\"}");
+            File.WriteAllText(Path.Combine(terrain, "w.geojson"), "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,300,300],\"groundZ\":0},\"features\":[ ]}");
+            string newHash = Fdp.Toolkit.Terrain.TerrainContentHash.OfTerrain(Path.Combine(terrain, "terrain.json"));
+            Assert.NotEqual(oldHash, newHash);
+
+            var manager = new StorageProcessManager(new FdpEventBus(), new StorageGatewayModule(), nas);
+            var report = manager.RecompileScenariosOnTerrain("base-t");
+
+            Assert.Equal(newHash, report.CurrentHash);
+            Assert.Equal(new[] { "ok", "other" }, report.Moved.Select(m => m.Scenario).OrderBy(n => n, StringComparer.Ordinal).ToArray());
+            Assert.All(report.Moved, m => { Assert.Equal(oldHash, m.FromBaseHash); Assert.Equal(newHash, m.ToBaseHash); });
+            var failed = Assert.Single(report.Failed);
+            Assert.Equal("broken", failed.Scenario); Assert.Contains("missing", failed.Reason);
+            Assert.Equal(newHash, BaseHashOf("ok"));
+            Assert.Equal(oldHash, BaseHashOf("broken"));                               // the failing one keeps its old overlay: it still loads on the old version
+            Assert.Equal(elsewhereHash, BaseHashOf("elsewhere"));                      // another terrain: untouched
+            Assert.False(Directory.Exists(Path.Combine(nas, "scenarios", "plain", "terrain-overlay")));
+            Assert.False(Directory.Exists(Path.Combine(nas, "scenarios", "broken", "terrain-overlay.part")));
+            Assert.Equal(0, report.AlreadyCurrent);
+
+            var again = manager.RecompileScenariosOnTerrain("base-t");                 // idempotent: the moved ones are current now
+            Assert.Empty(again.Moved);
+            Assert.Equal(2, again.AlreadyCurrent);
+            Assert.Single(again.Failed);
+        }
+        finally { if (Directory.Exists(nas)) Directory.Delete(nas, recursive: true); }
     }
 
     /// <summary>

@@ -144,7 +144,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             }
             rep.OutputBytes = Directory.EnumerateFiles(tmp, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
 
-            Swap(tmp, target);
+            Swap(tmp, target, rep);
             return target;
         }
         catch
@@ -162,14 +162,41 @@ public sealed partial class TerrainImporter : ITerrainImporter
         public void Report(double value) => _report(value);
     }
 
-    private static void Swap(string tmp, string target)
+    /// <summary>
+    /// ⭐⭐ AQ112 A (R-4280) — a replace KEEPS the old terrain: its whole folder is moved to <c>&lt;target&gt;/versions/&lt;oldContentHash&gt;/</c> (the catalog finds it by hash —
+    /// <see cref="TerrainCatalog.ResolveDefinition(string, string?)"/>); an older <c>versions/</c> stays where it is, never nested into the new version. A folder with no
+    /// <c>terrain.json</c> (nothing to name a hash) is simply replaced. A failure while filing the old version leaves it in its <c>.old-</c> folder and warns — the new terrain is already in place.
+    /// </summary>
+    private void Swap(string tmp, string target, ImportReport rep)
     {
         if (!Directory.Exists(target)) { Move(tmp, target); return; }
+        string? oldHash = File.Exists(Path.Combine(target, TerrainCatalog.DefinitionFileName)) ? TerrainContentHash.OfTerrain(Path.Combine(target, TerrainCatalog.DefinitionFileName)) : null;
         string old = target + ".old-" + Guid.NewGuid().ToString("N")[..8];
         Move(target, old);
         try { Move(tmp, target); }
         catch { Move(old, target); throw; }
-        try { Directory.Delete(old, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        if (oldHash == null) { try { Directory.Delete(old, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } return; }
+        try
+        {
+            if (string.Equals(TerrainContentHash.OfTerrain(Path.Combine(target, TerrainCatalog.DefinitionFileName)), oldHash, StringComparison.Ordinal))
+            {   // the very same content again: nothing to keep — but an older versions/ folder is carried over all the same
+                string older = Path.Combine(old, TerrainCatalog.VersionsDirectoryName);
+                if (Directory.Exists(older)) Move(older, Path.Combine(target, TerrainCatalog.VersionsDirectoryName));
+                Directory.Delete(old, true);
+                return;
+            }
+            string versions = Path.Combine(target, TerrainCatalog.VersionsDirectoryName);
+            string oldVersions = Path.Combine(old, TerrainCatalog.VersionsDirectoryName);
+            if (Directory.Exists(oldVersions)) Move(oldVersions, versions); else Directory.CreateDirectory(versions);
+            string slot = Path.Combine(versions, oldHash);
+            if (Directory.Exists(slot)) Directory.Delete(old, true);   // the very same content was kept already
+            else Move(old, slot);
+            rep.KeptVersionHash = oldHash;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            rep.Warnings.Add($"the old terrain version {oldHash} could not be filed under versions/ ({e.Message}); it stays in '{old}'");
+        }
     }
 
     // Windows: a folder whose files were JUST written (or are open in a viewer) is briefly held by the virus scanner / indexer, and renaming it
