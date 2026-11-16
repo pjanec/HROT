@@ -8,6 +8,7 @@ known-rot: §10's table row "`StochasticInfantrySquad<Order>`" and §13 X-1's st
 known-conflict: none
 related-designs:
   - DESIGN_Aggregate_Squad.md — OWNS the FusionSquad (one FusionSoldier carries the squad) — the resolution built first, and the unit state, order routing and child keys this design's "binds now" items put there
+  - DESIGN_DP3_Planned_Posts.md — OWNS D-P3 / SV-5 for the squad leaf (R-8330's follow-up): SquadDefend's plan over a slot-table crew, PlannedPosts (138), the manager's Planning wait
   - MEASURED_Aggregate_Squad_Seams.md — OWNS the measurements (the no-member squad's weak points W-1…W-11 are this design's checklist; the calibration numbers S-5 uses)
   - ../group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS SquadDefend's plan (D-2f authored posts) that §16a D-P3 splits into plan-for-count + assign
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — §4b the World Environment settings precedent §16b's policy follows
