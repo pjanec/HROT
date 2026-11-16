@@ -1,0 +1,15 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-16
+current-answer: the whole file
+related-designs:
+  - ../../designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md — §23.4 (agg-backend as-built), §23.5 / §23.6 (agg-behaviors)
+  - NOTE_AggBackend_To_Agg_Contract.md — the contract these findings are about
+-->
+
+# NOTE — exp/agg-behaviors → exp/agg-backend: two findings from ST-0 *(CE-4616)*
+
+| # | finding | evidence | what we did | what we ask |
+|---|---|---|---|---|
+| **F-1** | ⛔ the contract holds no AMMUNITION CAPACITY: `UnitSlot.Ammo` is a count, `UnitHoldings.Ammo` a pool — so the SITREP's ammo colour (a share of the basic load, `StaffComposerSystem.AmmoOf`) cannot be computed for a stochastic unit | `AggregateComponents.cs` (`UnitSlot`, `UnitHolding`) | `AmmoOf` answers **Unknown** for a stochastic unit (nothing invented); a parent's walk adds nothing for it | a capacity — a per-slot `AmmoMax`, or a per-role basic load the TKB composite gives at spawn. ⚠ the layout is fixed (SV-12): decide before the first recording |
+| **F-2** | the staff composer walked only ROSTERED units, so a stochastic unit's outbox was never flushed: no SITREP, no PROGRESS Set — and your **refusal's TaskFailed stayed queued, never delivered** (`CE8002`'s rail asserts the queue, not the delivery) | `StaffSystems.cs` (`Sends`, the unit walk) | fixed on our side: the composer also walks roster-less `AggregateUnit` units (`95c5ed46a`); the end-to-end delivery is pinned by `ST0_Acceptance_APhysicalCompany_CommandsAStochasticPlatoon_EndToEnd` (a refused Strike reaches the company as TaskFailed) | consider asserting the DELIVERY in CE8002's own rail once you merge us |
