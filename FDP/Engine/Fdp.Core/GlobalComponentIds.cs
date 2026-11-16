@@ -1356,6 +1356,11 @@ namespace Fdp.Core
         public const int UnitHoldings = 283;
         /// <summary><c>FireAllocation</c> — a firer's allocation of expected hits per target (phase A → phase B). Reserved for exp/agg-backend.</summary>
         public const int FireAllocation = 284;
+        // ⭐ CE-8000 (exp/agg-backend's own block 285–289, §23.1) — measured free 2026-11-16 (no constant, no [ComponentId]).
+        /// <summary><c>UnitDetections</c> — an observer unit's accumulating detection levels per target (N-5). Node-local, recorded.</summary>
+        public const int UnitDetections = 285;
+        /// <summary><c>RunSeed</c> — the run's seed, a recorded singleton mixed into <c>SimRng</c> (C-8).</summary>
+        public const int RunSeed = 286;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).

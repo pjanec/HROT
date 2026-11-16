@@ -215,8 +215,12 @@ namespace Hrot.NED.Descriptors
         dtMinefield                   = 191,
         dtMinefieldStrikes            = 192,
         dtMinefieldKnowledge          = 193,
-        // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
-        //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
+        // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239: 220 dtAggregateUnit · 221 dtUnitSlotTable · 222 dtUnitHoldings
+        //   (the contract, DECLARED by exp/agg-backend CE-8000 — Fdp.Toolkit.Aggregate, the owner → every node); then agg-backend 223–229,
+        //   agg-behaviors 230–234, agg-ui 235–239 (reserved).
+        dtAggregateUnit               = 220,
+        dtUnitSlotTable               = 221,
+        dtUnitHoldings                = 222,
         // etc., all known descriptor types here
     }
 
