@@ -278,6 +278,16 @@ Rails: `ToolStripLayoutTests`, `IconWidgetsTests` (SplitArrow), `EditorToolStrip
 **As built — S-5 (CE-5010) + the obstacle types.** `TerrainFeatureDetailsView` (`Hrot.Editor.AiShared/Shell`) is the ONE *Terrain* tab (rank 39, beside Block 37 / Ground 38) for one selected NON-ground `TerrainFeature`, its writes in `TerrainFeatureOps` (`AddEntity/`, one edit step each, like `GroundFeatureOps`): Kind only within the shape's family (Wall · Fence · Hedge / Wood · Scrub — a line never becomes a point; a kind change resets material and height to the new kind's defaults), Material (the wall-material library), Height with "the kind's default" shown when Pad is 0, Density, Spacing, Count, Recipe, Seed + dice, Heading, then *Contents*. Deviation: the mockup's *Add gate here* hint is not drawn (the gate is TE-7).
 *Obstacle types:* `Obstacle_Barrel / JerseyBarrier / GuardBooth` = TKB **8820 / 8821 / 8822** (free in every origin branch), registered from the same `ClutterTypes` entries (starter MaxHealth 50 / 400 / 120), in `TkbEntityTypes.Obstacles` — seven types in the Terrain strip and the row's Item list.
 
+### As built — S-4 snapping (CE-5009) *(terrain lane `2026-11-16`)*
+
+`SnapHit` + the hook `PointSequenceGizmo.Snap` (FDP-generic; `SnapPoint` applies Shift's 15° step, then the hook unless Ctrl is held; a click on the ✓ or the first
+point is never snapped away); `AreaAuthoringRequest.Snap`, set by `ScenarioSpawnAdapter` for terrain LINE features only (R-5033); `TerrainSnap` — one per adapter, walls
+from the template houses' footprints AND the solid `Building` prisms (a rail found the solid ones missing), road edges = each corridor offset by half-width + `RoadOffset`,
+line ends of placed walls / fences / hedges / rows re-read on a world-version change; priority end > wall > road edge; 0 B per query (a rail). The mark: a ring at the
+snapped point, the target segment dashed. ⚠ Deviations from the build notes, said: the reach is a FIXED 3 m (not ~12 px by zoom); Ctrl / Shift are held-key checks in the
+gizmo (a modifier is no keymap chord); no hint-line text yet (the ring and the dashed target only); the draw panel's Snap row and offset field are NOT built — the offset is
+1 m. Rails: `TerrainSnapTests` (3), `AreaAuthoringArmTests.TE6_*` — red-proved (priority reversed; the click ignoring the snap).
+
 ## 7. Acceptance
 
 1. Three hedges are drawn after ONE click on the row's *Walls*; each has its own seed; one Esc drops a half-drawn hedge, a second disarms; the row lights *Walls* while armed.

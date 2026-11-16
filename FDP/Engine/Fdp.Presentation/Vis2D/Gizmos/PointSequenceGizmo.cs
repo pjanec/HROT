@@ -51,6 +51,37 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <summary>⭐ TE-2 — called after each repeated finish (the host rolls a new seed for the next shape).</summary>
     public Action? OnRepeat { get; set; }
 
+    /// <summary>⭐ CE-5009 TE-6 (R-5033) — the host's snap: a point and the reach (metres) in, what it snapped to out. Null = no snapping (every non-terrain-line
+    /// tool). Held Ctrl frees the next point; held Shift steps the segment's direction by 15° from the previous point. ⛔ It runs on every cursor move — it must
+    /// not allocate (R-2084).</summary>
+    public Func<Vector2, float, SnapHit>? Snap { get; set; }
+    /// <summary>The snap reach in metres (fixed: at the zooms a line is drawn at, 3 m is a few pixels to a few dozen).</summary>
+    public const float SnapReach = 3f;
+    /// <summary>What the cursor snapped to now (for the mark and the hint).</summary>
+    public SnapHit LastSnap { get; private set; }
+    /// <summary>The snap mark's colour (the map's accent blue).</summary>
+    public static readonly Rgba32 SnapColour = new(0x42, 0x96, 0xFA, 255);
+    private bool _snapSuspended, _angleStep;
+
+    /// <summary>The point a cursor / click at <paramref name="raw"/> becomes: the 15° step (Shift) from the previous point, then the host's snap (unless Ctrl).</summary>
+    public Vector2 SnapPoint(Vector2 raw)
+    {
+        var p = raw;
+        var pts = Session.Points;
+        if (_angleStep && pts.Count > 0)
+        {
+            var prev = pts[^1]; var d = p - prev; float len = d.Length();
+            if (len > 1e-3f)
+            {
+                const float step = MathF.PI / 12f;   // 15°
+                float a = MathF.Round(MathF.Atan2(d.Y, d.X) / step) * step;
+                p = prev + new Vector2(MathF.Cos(a), MathF.Sin(a)) * len;
+            }
+        }
+        LastSnap = Snap != null && !_snapSuspended ? Snap(p, SnapReach) : SnapHit.None;
+        return LastSnap.Hit ? LastSnap.Point : p;
+    }
+
     /// <inheritdoc/>
     public string? ToolMenuJson => Session.Menu?.Json;
 
@@ -136,6 +167,13 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
 
             ShapeDoneMark.Draw(draw, Session);   // the on-map Done button
         }
+        // ⭐ CE-5009 — the snap mark: a ring at the snapped point and the target dashed (a wall / road edge segment; an end is the ring alone)
+        if (LastSnap.Hit)
+        {
+            draw.DrawSphere(new Vector3(LastSnap.Point, 0f), 6f, SnapColour, thickness: 2f, sizeMode: SizeMode.ScreenPixels);
+            if (LastSnap.A != LastSnap.B)
+                draw.DrawLine(new Vector3(LastSnap.A, 0f), new Vector3(LastSnap.B, 0f), SnapColour, 1.5f, style: LineStyle.Dashed);
+        }
     }
 
     // ---- IEntityStatefulGizmo — interaction ---------------------------------
@@ -143,7 +181,9 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     /// <inheritdoc/>
     public void OnDragUpdate(Vector3 worldPos)
     {
-        _currentPos = worldPos;
+        if (Snap == null && !_angleStep) { _currentPos = worldPos; return; }
+        var p = SnapPoint(new Vector2(worldPos.X, worldPos.Y));   // ⭐ CE-5009 — the cursor shows where the click will land
+        _currentPos = new Vector3(p.X, p.Y, worldPos.Z);
     }
 
     /// <inheritdoc/>
@@ -155,6 +195,11 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     {
         if (button != MapMouseButton.Left || isPressed) return;
         var at = new Vector2(worldPos.X, worldPos.Y);
+        if (Snap != null || _angleStep)
+        {
+            // ⭐ CE-5009 — the click lands where the snap put it (the ✓ and the first point are hit-tested on the raw click: a snap never steals them)
+            if (!Session.HitDone(at) && !Session.HitsFirstPoint(at)) { var s = SnapPoint(at); worldPos = new Vector3(s.X, s.Y, worldPos.Z); at = s; }
+        }
         if (Session.HitDone(at) || Session.HitsFirstPoint(at)) { Resolve(Session.Finish()); return; }
 
         // ⭐ CE-1033 M22 — a point picked on a roof keeps the roof's height; one on the ground keeps 0 (draped).
@@ -164,7 +209,14 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
 
     /// <inheritdoc/>
     /// <remarks>Enter finishes · Backspace removes the last point · Esc cancels (all <see cref="ShapeEditSession.OnKey"/>).</remarks>
-    public void OnKeyEvent(MapKeyboardKey key, bool isPressed) => Resolve(Session.OnKey(key, isPressed));
+    public void OnKeyEvent(MapKeyboardKey key, bool isPressed)
+    {
+        // ⭐ CE-5009 — the snap modifiers are HELD keys (a modifier is no keymap chord): Ctrl frees the next point, Shift steps the angle
+        var code = (MapKeyboardKey)((int)key & 0xFFFF);
+        if (code is MapKeyboardKey.LeftControl or MapKeyboardKey.RightControl) { _snapSuspended = isPressed; return; }
+        if (code is MapKeyboardKey.LeftShift or MapKeyboardKey.RightShift) { _angleStep = isPressed; return; }
+        Resolve(Session.OnKey(key, isPressed));
+    }
 
     /// <inheritdoc/>
     /// <remarks>The drawing menu's rows (Finish · Remove last point · Cancel) — the SAME commands as the keys and the ✓.</remarks>

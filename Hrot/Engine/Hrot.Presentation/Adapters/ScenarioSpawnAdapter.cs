@@ -455,7 +455,9 @@ namespace Hrot.UI.Common.Adapters
                 OnDisarmed: () => { _activeSequenceId = null; if (ReferenceEquals(_terrainDraw, drawOptions)) _terrainDraw = null; },
                 // ⭐ CE-5006 TE-2 (docs/DESIGN_Terrain_Editor_UX.md §5) — a terrain line / area stays armed after a finish, with what the panel holds and a NEW seed each time
                 Repeat:     drawOptions is not null,
-                OnRepeated: drawOptions is null ? null : drawOptions.Reroll));
+                OnRepeated: drawOptions is null ? null : drawOptions.Reroll,
+                // ⭐ CE-5009 TE-6 (R-5033) — a terrain LINE snaps by default: road edges (+ an offset), house walls, the ends of placed lines; areas do not
+                Snap:       feature is { Shape: Hrot.UI.Common.AddEntity.TerrainShape.Line } ? SnapTerrain : null));
 
             _activeSequenceId = arm.ActiveGizmoId;
             _terrainDraw = drawOptions;   // ⭐ after the arm: arming first disarms the previous tool, whose OnDisarmed clears the field
@@ -476,6 +478,17 @@ namespace Hrot.UI.Common.Adapters
             var commands = row.Commands(world, anchor.Z, Fdp.Toolkit.Terrain.PlacementGroup.NewId());
             for (int i = 0; i < commands.Count; i++) { var c = commands[i]; NameNew(ref c); commands[i] = c; }
             Hrot.UI.Common.AddEntity.ObstacleRowOptions.Place(_creation.World, commands, Request);
+        }
+
+        // ⭐ CE-5009 — ONE snap index per adapter, re-prepared cheaply on each query (a reference / version check; cold rebuild only when the terrain or the features moved)
+        private readonly Hrot.UI.Common.AddEntity.TerrainSnap _terrainSnap = new();
+        /// <summary>⭐ CE-5009 — the snap index (the draw panel's offset field writes <see cref="Hrot.UI.Common.AddEntity.TerrainSnap.RoadOffset"/>).</summary>
+        public Hrot.UI.Common.AddEntity.TerrainSnap TerrainSnap => _terrainSnap;
+        private Fdp.Toolkit.Vis2D.Gizmos.SnapHit SnapTerrain(System.Numerics.Vector2 p, float reach)
+        {
+            _terrainSnap.Prepare(TerrainContext?.Invoke());
+            _terrainSnap.PrepareEnds(_creation.World);
+            return _terrainSnap.Snap(p, reach);
         }
 
         /// <inheritdoc/>

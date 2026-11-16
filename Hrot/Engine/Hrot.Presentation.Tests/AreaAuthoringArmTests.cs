@@ -573,4 +573,34 @@ public sealed class AreaAuthoringArmTests
         Assert.Equal(1, disarmed);
         Assert.Null(arm.ActiveGizmo);
     }
+
+    /// <summary>⭐ CE-5009 TE-6 — the snap hook moves a click to what it snapped to; held Ctrl places the next point free; held Shift steps the segment to 15°.
+    /// 🔴 Red-proof (compiles): <c>OnMouseEvent</c> appending the raw click ⇒ the first assert red.</summary>
+    [Fact]
+    public void TE6_TheSnapHook_MovesTheClick_CtrlFreesIt_ShiftStepsTheAngle()
+    {
+        var arm = new AreaAuthoringArm(MakeManager());
+        arm.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainFeature), string.Empty, _ => { }, MinPoints: 2, Closed: false,
+            Snap: (p, r) => new Fdp.Toolkit.Vis2D.Gizmos.SnapHit(new Vector2(p.X, 4f), new Vector2(0, 4f), new Vector2(100, 4f), Fdp.Toolkit.Vis2D.Gizmos.SnapKind.RoadEdge)));
+        var g = arm.ActiveGizmo!;
+        void Click(float x, float y) => g.OnMouseEvent(MapMouseButton.Left, false, new Vector3(x, y, 0f));
+
+        Click(10f, 5.2f);
+        Assert.Equal(new Vector2(10f, 4f), g.Session.Points[0]);           // snapped onto the road edge
+        Assert.Equal(Fdp.Toolkit.Vis2D.Gizmos.SnapKind.RoadEdge, g.LastSnap.Kind);
+
+        g.OnKeyEvent(MapKeyboardKey.LeftControl, true);
+        Click(20f, 5.2f);
+        g.OnKeyEvent(MapKeyboardKey.LeftControl, false);
+        Assert.Equal(new Vector2(20f, 5.2f), g.Session.Points[1]);         // Ctrl held: free
+
+        var free = new AreaAuthoringArm(MakeManager());
+        free.Arm(new AreaAuthoringRequest((Fdp.Core.TkbTypeId)(TkbEntityTypes.TerrainFeature), string.Empty, _ => { }, MinPoints: 2, Closed: false));
+        var f = free.ActiveGizmo!;
+        f.OnMouseEvent(MapMouseButton.Left, false, new Vector3(0f, 0f, 0f));
+        f.OnKeyEvent(MapKeyboardKey.LeftShift, true);
+        f.OnMouseEvent(MapMouseButton.Left, false, new Vector3(10f, 1f, 0f));   // ≈ 5.7° ⇒ stepped to 0°
+        Assert.Equal(0f, f.Session.Points[1].Y, 3);
+        Assert.Equal(MathF.Sqrt(101f), f.Session.Points[1].X, 3);
+    }
 }
