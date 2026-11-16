@@ -239,6 +239,13 @@ namespace Hrot.Editor.Director
 
         private IEnumerable<int> UnitsNamed(string who)
         {
+            // ⭐ R-8335 (agg-behaviors, cross-lane) — a NETWORK ID names the unit too, as the near / task cues already read it (WorldUnits.Resolve): an
+            //   UNNAMED entity (a stochastic unit's split children, which carry no name) is otherwise out of every field cue's reach
+            if (who.Length > 0 && char.IsAsciiDigit(who[0]) && int.TryParse(who, NumberStyles.None, CultureInfo.InvariantCulture, out int networkId))
+            {
+                yield return networkId;
+                yield break;
+            }
             if (who.StartsWith('*'))
             {
                 var part = who[1..];

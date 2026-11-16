@@ -1,0 +1,490 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 450 m north marches away north. The author's SetResolutionPolicy sets the quiet time to 20 s and the merge margin to 250 m (merge beyond 650 m - past the 600 m split trigger). Judge: (1) the platoon splits while the patrol is near (27 men: the dead are not created); (2) once the patrol is past 650 m and 20 s are quiet the men merge back - Stochastic; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact, a loss healed or invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back"
+  },
+  "entities": {
+    "a9000018-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            300,
+            300,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      },
+      "UnitSlotTable": {
+        "Count": 30,
+        "Chunk": 0,
+        "Slots": [
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 1
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 2
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 3
+          },
+          {
+            "Health": 0.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 4
+          },
+          {
+            "Health": 0.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 5
+          },
+          {
+            "Health": 0.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 6
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 7
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 8
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 9
+          },
+          {
+            "Health": 12.5,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 10
+          },
+          {
+            "Health": 12.5,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 11
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 12
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 13
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 14
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 15
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 16
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 17
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 18
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 19
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 20
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 21
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 22
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 23
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 24
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 25
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 26
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 27
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 28
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 29
+          },
+          {
+            "Health": 25.0,
+            "Stress": 0.0,
+            "Ammo": 200,
+            "Role": "Rifleman",
+            "CompositeSlot": 30
+          }
+        ]
+      }
+    },
+    "a9000018-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          -9000,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Spare Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          300,
+          750,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            300,
+            1500,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          297,
+          748,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000018-0000-4000-8000-000000000003",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          299,
+          748,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000018-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          301,
+          748,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000018-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          303,
+          748,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000018-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000018-0000-4000-8000-000000000008": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Resolution policy",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {
+          "common": {
+            "title": "Resolution policy"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 1
+          },
+          "do": [
+            {
+              "act": "SetResolutionPolicy",
+              "args": {
+                "quietSeconds": 20,
+                "mergeMargin": 250
+              }
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

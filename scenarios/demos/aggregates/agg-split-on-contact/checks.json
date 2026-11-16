@@ -1,0 +1,758 @@
+{
+  "$doc": "\u00a723.6 ST-5. Bands: ResolutionBands.Default (400 m + 200 m lead, forced 300 m). The posts are UnitSplits.FallbackPosts (D-P5): D-P3's planned posts are STOPPED (R-8330), so 'sensible positions' = the fallback rows round the unit. A rifle platoon (type 305) has no vehicles - the 'soldiers and vehicles' half of the Judge line is not exercised. The children carry no name (F-22): they are addressed by network id (measured: the children are 1008-1037 in slot order) (R-8335). The author's policy sets the merge margin to 250 m (merge beyond 650 m, past the 600 m trigger; F-23, R-8336).",
+  "runFor": 150,
+  "golden": {
+    "every": 25
+  },
+  "anchors": {
+    "band": {
+      "on": "near",
+      "who": "*Red Patrol",
+      "point": [
+        300,
+        300,
+        0
+      ],
+      "within": 600
+    },
+    "handover": {
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  },
+  "expect": [
+    {
+      "name": "the platoon stays stochastic while the patrol is beyond the band (400 m + 200 m lead)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "AggregateUnit.Splitting",
+        "op": "!=",
+        "value": "NotSplitting"
+      },
+      "before": "band"
+    },
+    {
+      "name": "the patrol inside the band starts the process: Planning (a step of its own - not forced)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Splitting",
+      "op": "==",
+      "value": "Planning",
+      "after": "band",
+      "before": "band+5"
+    },
+    {
+      "name": "... then Materialising (the children created, held)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Splitting",
+      "op": "==",
+      "value": "Materialising",
+      "after": "band",
+      "before": "band+10"
+    },
+    {
+      "name": "the handover: the platoon is Physical",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "after": "band",
+      "before": "band+20"
+    },
+    {
+      "name": "the slot table is untouched by the split (30 men up)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 30,
+      "atEnd": true
+    },
+    {
+      "name": "the patrol never comes within the forced range (300 m): this is the planned path, not C-7",
+      "never": {
+        "on": "near",
+        "who": "Red Patrol Leader",
+        "point": [
+          300,
+          300,
+          0
+        ],
+        "within": 300
+      }
+    },
+    {
+      "name": "split: child 0 (slot 1) carries the stable key uuid5(unit, child:1)",
+      "on": "field",
+      "who": "1008",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "726543ee-8b76-5913-9a62-6888c64ed25d",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 1 (slot 2) carries the stable key uuid5(unit, child:2)",
+      "on": "field",
+      "who": "1009",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "d973e6c5-2a6d-528a-a626-17e8bf31ac1f",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 2 (slot 3) carries the stable key uuid5(unit, child:3)",
+      "on": "field",
+      "who": "1010",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "9f61c165-e93f-5ec2-af32-90ade6f083ba",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 3 (slot 4) carries the stable key uuid5(unit, child:4)",
+      "on": "field",
+      "who": "1011",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "60fab220-84da-5480-996a-8bcfd1433977",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 4 (slot 5) carries the stable key uuid5(unit, child:5)",
+      "on": "field",
+      "who": "1012",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "84462d2c-d03e-5f27-942f-d074bfd09d15",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 5 (slot 6) carries the stable key uuid5(unit, child:6)",
+      "on": "field",
+      "who": "1013",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "afd8acfd-8241-56ac-b638-d8929fc03b32",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 6 (slot 7) carries the stable key uuid5(unit, child:7)",
+      "on": "field",
+      "who": "1014",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "30d34991-807e-58df-a005-3475be99e0ad",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 7 (slot 8) carries the stable key uuid5(unit, child:8)",
+      "on": "field",
+      "who": "1015",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a8fc58b5-fec7-5b51-83b0-0c3162df32e7",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 8 (slot 9) carries the stable key uuid5(unit, child:9)",
+      "on": "field",
+      "who": "1016",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "bace6fa2-f63a-5ed1-bddf-6a220b3880cf",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 9 (slot 10) carries the stable key uuid5(unit, child:10)",
+      "on": "field",
+      "who": "1017",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "fb29822c-2a28-58f9-a6b0-95c27f07bb88",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 10 (slot 11) carries the stable key uuid5(unit, child:11)",
+      "on": "field",
+      "who": "1018",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "77b4c502-eb81-59cf-8048-1f317cb85ac5",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 11 (slot 12) carries the stable key uuid5(unit, child:12)",
+      "on": "field",
+      "who": "1019",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "4a3e7164-9d67-5774-a8ff-07824a812502",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 12 (slot 13) carries the stable key uuid5(unit, child:13)",
+      "on": "field",
+      "who": "1020",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a7aadd40-2e62-5d26-862c-603e80c96973",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 13 (slot 14) carries the stable key uuid5(unit, child:14)",
+      "on": "field",
+      "who": "1021",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "205ddd90-ca59-5dbb-a5e3-ae615afb5997",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 14 (slot 15) carries the stable key uuid5(unit, child:15)",
+      "on": "field",
+      "who": "1022",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8b88ad35-e01e-5d89-89d2-35b7e548288b",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 15 (slot 16) carries the stable key uuid5(unit, child:16)",
+      "on": "field",
+      "who": "1023",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "3e1d358a-3f22-55d8-b389-1ece7362b07f",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 16 (slot 17) carries the stable key uuid5(unit, child:17)",
+      "on": "field",
+      "who": "1024",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "16ceefea-f270-5052-85a3-9271329dda58",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 17 (slot 18) carries the stable key uuid5(unit, child:18)",
+      "on": "field",
+      "who": "1025",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "6b19706d-82c0-5eb1-ae88-bcdb6c9d925f",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 18 (slot 19) carries the stable key uuid5(unit, child:19)",
+      "on": "field",
+      "who": "1026",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "1891b9c5-8406-5d6b-88d4-f84d0176eaca",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 19 (slot 20) carries the stable key uuid5(unit, child:20)",
+      "on": "field",
+      "who": "1027",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "49920b64-55e7-5d62-a00c-85c83ded51fa",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 20 (slot 21) carries the stable key uuid5(unit, child:21)",
+      "on": "field",
+      "who": "1028",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "93eb5146-9f7e-5bea-9047-340d6fa3b622",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 21 (slot 22) carries the stable key uuid5(unit, child:22)",
+      "on": "field",
+      "who": "1029",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "fe2934b5-66bd-5111-a63b-b9812b547343",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 22 (slot 23) carries the stable key uuid5(unit, child:23)",
+      "on": "field",
+      "who": "1030",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "84928c97-3f59-55fc-920c-d625a89b0b00",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 23 (slot 24) carries the stable key uuid5(unit, child:24)",
+      "on": "field",
+      "who": "1031",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a26b5616-6544-5104-9189-7959947b0c79",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 24 (slot 25) carries the stable key uuid5(unit, child:25)",
+      "on": "field",
+      "who": "1032",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "42a3f832-4ce5-5952-ba0f-986aafed4d5f",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 25 (slot 26) carries the stable key uuid5(unit, child:26)",
+      "on": "field",
+      "who": "1033",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "9e1678b6-853f-5506-bb16-17fd5c0ca765",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 26 (slot 27) carries the stable key uuid5(unit, child:27)",
+      "on": "field",
+      "who": "1034",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "244d3acc-2c99-5546-8602-3ca0284272f7",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 27 (slot 28) carries the stable key uuid5(unit, child:28)",
+      "on": "field",
+      "who": "1035",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "c26bd660-dde6-518d-9daa-15aa6487d58a",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 28 (slot 29) carries the stable key uuid5(unit, child:29)",
+      "on": "field",
+      "who": "1036",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "b103c605-4a87-51e1-98ff-db5d094da2d5",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 29 (slot 30) carries the stable key uuid5(unit, child:30)",
+      "on": "field",
+      "who": "1037",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "98206cc5-408d-5b88-aa2e-1c2fc8c425c7",
+      "after": "handover"
+    },
+    {
+      "name": "split: child 0 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1008",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 1 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1009",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 2 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1010",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 3 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1011",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 4 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1012",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 5 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1013",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 6 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1014",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 7 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1015",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 8 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1016",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 9 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1017",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 10 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1018",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 11 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1019",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 12 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1020",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 13 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1021",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 14 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1022",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 15 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1023",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 16 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1024",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 17 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1025",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 18 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1026",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 19 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1027",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 20 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1028",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 21 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1029",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 22 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1030",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 23 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1031",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 24 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1032",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 25 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1033",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 26 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1034",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 27 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1035",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 28 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1036",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    },
+    {
+      "name": "split: child 29 stands within 20 m of the unit's place",
+      "on": "near",
+      "who": "1037",
+      "point": [
+        300,
+        295,
+        0
+      ],
+      "within": 20,
+      "after": "handover",
+      "before": "handover+1"
+    }
+  ]
+}

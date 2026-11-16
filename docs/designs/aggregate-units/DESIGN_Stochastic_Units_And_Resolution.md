@@ -851,10 +851,10 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | ST-3 | `agg-prepared-defence` ✅ BUILT | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
 | ST-3 | `agg-out-of-ammo` ✅ BUILT | a unit fires until its derived ammunition is spent, then stops firing and reports it |
 | ST-4 | `agg-battalion-fight` ✅ BUILT | a battalion against a battalion runs to an end; the census and every SITREP agree with the slot tables |
-| ST-5 | `agg-split-on-contact` | a physical patrol closes in: the unit de-aggregates into soldiers and vehicles with stable `<unit>/<slot>` keys, in sensible positions |
-| ST-5 | `agg-squad-holds-house` | a squad holding a house splits into men at its window and door posts (§16) |
-| ST-5 | `agg-merge-back` | after contact ends the men merge back; the slot table keeps every loss and every identity |
-| ST-5 | `agg-forced-handover` | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
+| ST-5 | `agg-split-on-contact` ✅ BUILT (§23.6d) | a physical patrol closes in: the unit de-aggregates into soldiers and vehicles with stable `<unit>/<slot>` keys, in sensible positions |
+| ST-5 | `agg-squad-holds-house` ✅ BUILT as built — fallback posts, D-P3 STOPPED (§23.6d) | a squad holding a house splits into men at its window and door posts (§16) |
+| ST-5 | `agg-merge-back` ✅ BUILT (§23.6d) | after contact ends the men merge back; the slot table keeps every loss and every identity |
+| ST-5 | `agg-forced-handover` ✅ BUILT (§23.6d) | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
 | mixed | `agg-mixed-company-attack` ✅ BUILT | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
 
 
@@ -893,7 +893,7 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 
 ⭐ **Grammar added (R-8320, [`DESIGN_Scenario_Regression.md`](../../DESIGN_Scenario_Regression.md) §3):** a `field` cue's path may carry ONE `*` part (`UnitSlotTable.Slots.*.Health`) with `"elements": n` (at least n of the array's elements satisfy the comparison) and `"where": {…}` filtering the elements first — a slot table's unused slots are all zeros. Rail `ScenarioChecksTests.R8320_…` (red-proved twice: `elements` ignored, `where` ignored).
 
-⏳ The other four (ST-5: `agg-split-on-contact`, `agg-squad-holds-house`, `agg-merge-back`, `agg-forced-handover`) wait for their slice.
+⭐ The four of ST-5 are built — §23.6d.
 
 #### 23.6c As built — the four scenarios re-authored after agg-backend's round 3 *(`2026-11-16`, merge `a6ba7cf86`; R-8331 … R-8334; ⭐ supersedes the matching rows of §23.6a / §23.6b)*
 
@@ -913,6 +913,23 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | **R-8332** | a SITREP-agrees row is a BAND pair (the colour and the slot count landing in the same Green / Amber band), never a fixed loss count | a SITREP that carries the subordinate's name (then no roster-order reading) |
 | **R-8333** | out-of-ammo's target defends in place | — |
 | **R-8334** | sees-physical: optics at 700 m on berlin, unpinned (the production path) | F-19 / F-20 answered: then the eye-only, uneven-ground version |
+
+#### 23.6d As built — the four of ST-5 *(`2026-11-16`, R-8335 … R-8337; same generator, same folder; the manager is agg-backend's CE-8012 / CE-8013 with our policy seam CE-8300)*
+
+| scenario | terrain | result (`scripts/scenario-regression.sh <name>`, editor tier; golden captured and SAME on a fresh run) | where it departs from the Judge line, and why |
+|---|---|---|---|
+| `agg-split-on-contact` | berlin | ✅ 66 / 66 (wall 77 s) — a stochastic platoon (30) defending, a physical patrol marching in from 700 m: stochastic while the patrol is beyond 600 m; Planning 67.25 s, Materialising 68.25 s, Physical 69.25 s; each of the 30 men (ids 1008–1037) carries `uuid5(<platoon>, child:<slot>)` and stands within 20 m of the platoon at the handover | a rifle platoon has no vehicles — the "and vehicles" half is not exercised; "sensible positions" = the FALLBACK rows (D-P3 stopped); the author's policy sets `mergeMargin: 250` (F-23) |
+| `agg-squad-holds-house` | cqb-village | ✅ 42 / 42 (wall 25 s) — a stochastic squad (10) holding the house "OBJ" (125, 161), a physical squad 480 m off: Physical at 2.25 s; its 10 men (ids 1030–1039), each with its stable key, stand on ONE line across the squad's heading through the house's centre (y 161 ± 1 m), within 12 m of it, at the handover | ⛔ **judged AS BUILT**: no window / door posts — D-P3 is STOPPED (R-8330), so the men stand on `UnitSplits.FallbackPosts`; the window rows replace the line rows when D-P3 lands. The men then move on their own (their soldiers' SOP), so the positions are read AT the handover (anchor `split`) |
+| `agg-merge-back` | berlin | ✅ 63 / 63 (wall 164 s) — a platoon with an AUTHORED table (3 dead, 2 hurt) splits at 2.25 s (27 men: the dead are not created); the patrol walks away; merged at 179.25 s; the table keeps every loss (3 down and never a 4th, 27 up and never 28, the 2 hurt at 12.5); the instructor's `PinPhysical` (a do-set at 250 s) re-splits at 252.25 s and the SAME 27 keys come back (ids 1036–1062) | the policy (`SetResolutionPolicy` at 1 s: quiet 20 s, margin 250 m) keeps the run short and puts the merge past the split trigger (F-23). ⚠ a few whole men come back slightly hurt (≥ 13 of 25; source not traced) — the rows judge losses, not exact health |
+| `agg-forced-handover` | berlin | ✅ 6 / 6 (wall 30 s) — two platoons 7 km apart: a physical squad 250 m from the first (C-7) — Physical at 1.25 s, the Planning stage never seen, no stochastic fire line and no slot hurt; the control (450 m) shows Planning at 0.25 s and hands over at 2.25 s | "before any stochastic step fights it" is encoded as no stochastic fire line / no slot hurt while stochastic: the stochastic phases target only stochastic units, so a physical enemy is never fought stochastically anyway |
+
+⭐ **Grammar added (R-8335, [`DESIGN_Scenario_Regression.md`](../../DESIGN_Scenario_Regression.md) §3):** a `field` cue's `who` may be a NETWORK ID — a split's children carry no name (finding F-22). Rail `ScenarioChecksTests.R8335_…` (red-proved).
+
+| # | lane decision (for the user's review) | would change it |
+|---|---|---|
+| **R-8335** | the children are addressed by network id (measured per scenario, deterministic in a fresh run); each id's `EntityGuid` is checked against SV-4's `uuid5(<unit>, child:<composite slot>)` — so a re-keyed or missing man fails | F-22 answered (a child name): then by name |
+| **R-8336** | split-on-contact and merge-back set `mergeMargin: 250` by the author's policy — the default merge distance (500 m) lies inside the split trigger (600 m) and a unit flip-flops every ~63 s (F-23) | F-23 fixed in the manager: the policy line goes |
+| **R-8337** | agg-squad-holds-house judges the FALLBACK line (as built), its `$doc` says the window / door posts wait for D-P3 | D-P3 built |
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

@@ -408,6 +408,25 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ R-8335 (agg-behaviors) — a <c>field</c> cue's <c>who</c> may be a NETWORK ID (as the near / task cues read one): an UNNAMED entity — a
+    /// stochastic unit's split child — is judged by it. 🔴 Red-proof: drop the id branch of <c>UnitsNamed</c> ⇒ the unnamed child never holds.
+    /// </summary>
+    [Fact]
+    public void R8335_AFieldCueNamesAnUnnamedEntityByItsNetworkId()
+    {
+        var checks = Parse("""{"runFor": 1, "expect": [{"name": "the child's key", "on": "field", "who": "1007", "path": "EntityGuid.Value", "op": "==", "value": "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9"}, {"name": "a gone id", "on": "field", "who": "1099", "path": "EntityGuid.Value", "op": "==", "value": "x"}]}""", out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("A", 1, 100, 0);
+        w.Comps[1007] = new JsonObject { ["EntityGuid"] = new JsonObject { ["Value"] = "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9" } };   // no name: not in Named()
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0.5);
+        book.Finish(1);
+        var v = book.Verdicts();
+        Assert.True(v.Single(x => x.Name == "the child's key").Ok);
+        Assert.False(v.Single(x => x.Name == "a gone id").Ok);
+    }
+
+    /// <summary>
     /// ⭐⭐ RT-3 (R-4279) — the golden compares VISIBLE state: an internal blackboard / diagnostics component that differs (or a component
     /// added since the capture) is NOT a difference; a visible mode (<c>AnimalState</c>), a field the checks read (<c>Fuel.Litres</c>) and a
     /// position ARE; a golden from before the visible mode asks to be re-captured; and a golden difference is a WARNING — the run still

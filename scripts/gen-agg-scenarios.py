@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The stochastic-unit FEATURE-TEST scenarios (R-4277, design DESIGN_Stochastic_Units_And_Resolution.md §23.6): the nine of ST-0 ... ST-2.
+"""The stochastic-unit FEATURE-TEST scenarios (R-4277, design DESIGN_Stochastic_Units_And_Resolution.md §23.6): all nineteen, ST-0 ... ST-5 and mixed.
 Writes scenarios/demos/aggregates/<name>/{scenario.json,checks.json}; golden.json is CAPTURED (scripts/scenario-regression.sh's runner, --verify-capture).
-Re-runnable: `python3 scripts/gen-agg-scenarios.py [name ...]`.
+Re-runnable: `python3 scripts/gen-agg-scenarios.py [name ...]`; `--probe <name>` writes an ST-5 scenario's MEASURING rows (which network ids its split children get) instead of its own.
 
 Units are authored with ONLY `AggregateUnit { Resolution: Stochastic }` — agg-backend's spawn-time fill (CE-8016, StochasticUnitFillSystem) gives each its slot table
 and holdings from its TKB composite (305 platoon = 30 men, 302 squad = 4, 306 company, 301 tank platoon = tracked holdings). Enums are written by NAME.
@@ -532,12 +532,204 @@ def agg_mixed_company_attack():
     write(s, "demo-city", desc, checks)
 
 
+# ───────────────────────────────────────────── ST-5 ─────────────────────────────────────────────
+# The resolution manager (agg-backend CE-8012 / CE-8013, wired in CgfLogicPack with our policy seam, CE-8300). ⚠ A split's children carry NO name
+# (BusResolutionSwitch writes EntityInfo { ForceId } only - finding F-22), so a check addresses each by its NETWORK ID (WorldUnits.Resolve takes a
+# number): the scenario's units are numbered from 1000 in file order, the children after them in slot order - measured per scenario, deterministic
+# (the goldens repeat). Each child's identity is checked against SV-4's derivation, uuid5(<unit EntityGuid>, "child:<composite slot>") (R-8335).
+import uuid
+
+
+def child_guid(unit_guid, composite_slot):
+    return str(uuid.uuid5(uuid.UUID(unit_guid), f"child:{composite_slot}"))
+
+
+def child_rows(first_id, unit_guid, n, centre, within, after, label, slots=None, before=None):
+    slots = slots or list(range(1, n + 1))     # the composite slots of the UP slots, in table order (a down slot gets no child)
+    rows = []
+    for k in range(n):
+        rows.append(field(f"{label}: child {k} (slot {slots[k]}) carries the stable key uuid5(unit, child:{slots[k]})", str(first_id + k), "EntityGuid.Value", "==", child_guid(unit_guid, slots[k]), after=after))
+    if centre is None:
+        return rows
+    for k in range(n):
+        r = {"name": f"{label}: child {k} stands within {within} m of the unit's place", "on": "near", "who": str(first_id + k), "point": pt(centre), "within": within, "after": after}
+        if before is not None:
+            r["before"] = before
+        rows.append(r)
+    return rows
+
+
+def resolution_policy(s, args):
+    """A SetResolutionPolicy at t = 1 s (the author's path, R-8326; a ScenarioTime trigger from 0 s is armed at 0.27 s and never fires - measured) - on the World Environment."""
+    return s.trigger("Resolution policy", BLUE, {"common": {"title": "Resolution policy"}, "when": {"$type": "ScenarioTime", "fromSeconds": 1},
+                     "do": [{"act": "SetResolutionPolicy", "args": args}]})
+
+
+def agg_split_on_contact(probe=False):
+    s = Scn("agg-split-on-contact", "a9000016")
+    U = "Blue Stochastic Platoon"
+    pl = s.unit(U, BLUE, (300, 300), PLATOON, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, 300)), "SearchRadius": 30}))
+    sq = s.physical_squad("Red Patrol", RED, (300, 1000), None)
+    s.ents[sq]["Behavior"] = {"Name": "SquadMarch", "Params": {"Objective": pt((300, 500)), "Shape": 0, "Spacing": 4}, "Origin": "Superior"}
+    # the merge needs the enemy beyond band + margin (default 400 + 100 = 500 m) - INSIDE the 600 m split trigger, so a patrol walking through 500-600 m
+    # made the platoon merge and split again every ~63 s (finding F-23, measured): the author's policy puts the merge past the trigger (R-8336)
+    resolution_policy(s, {"mergeMargin": 250})
+    first = 1008
+    rows = [
+        never("the platoon stays stochastic while the patrol is beyond the band (400 m + 200 m lead)", {"on": "field", "who": U, "path": "AggregateUnit.Splitting", "op": "!=", "value": "NotSplitting"}, before="band"),
+        field("the patrol inside the band starts the process: Planning (a step of its own - not forced)", U, "AggregateUnit.Splitting", "==", "Planning", after="band", before="band+5"),
+        field("... then Materialising (the children created, held)", U, "AggregateUnit.Splitting", "==", "Materialising", after="band", before="band+10"),
+        field("the handover: the platoon is Physical", U, "AggregateUnit.Resolution", "==", "Physical", after="band", before="band+20"),
+        field("the slot table is untouched by the split (30 men up)", U, "UnitSlotTable.Slots.*.Health", ">=", 0.5, where=LIVE, elements=30, atEnd=True),
+        never("the patrol never comes within the forced range (300 m): this is the planned path, not C-7", {"on": "near", "who": "Red Patrol Leader", "point": pt((300, 300)), "within": 300}),
+    ] + child_rows(first, pl, 30, (300, 295), 20, "handover", "split", before="handover+1")
+    desc = ("What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 men from the TKB composite, defending at (300,300)) and a PHYSICAL 'Red Patrol' (four men) marching from 700 m north to 200 m. "
+            "Judge: (1) while the patrol is beyond the resolution manager's band (400 m + 200 m lead) the platoon stays stochastic; (2) when the patrol enters it, the platoon de-aggregates as a PROCESS - "
+            "Planning, Materialising (the men created and held), one-tick handover - and is Physical; (3) each of the 30 men carries the stable key uuid5(<platoon>, child:<slot>) (the same unit split twice "
+            "gives the same men); (4) the men stand where the platoon stood - the fallback posts, rows of 12 across its heading, within 20 m. Fail: a split before the band, a missing or re-keyed man, or a man far "
+            "from the platoon. Check: scripts/scenario-regression.sh agg-split-on-contact")
+    checks = {"$doc": "§23.6 ST-5. Bands: ResolutionBands.Default (400 m + 200 m lead, forced 300 m). The posts are UnitSplits.FallbackPosts (D-P5): D-P3's planned posts are STOPPED (R-8330), so 'sensible positions' "
+                      "= the fallback rows round the unit. A rifle platoon (type 305) has no vehicles - the 'soldiers and vehicles' half of the Judge line is not exercised. The children carry no name (F-22): "
+                      "they are addressed by network id (measured: the children are 1008-1037 in slot order) (R-8335). The author's policy sets the merge margin to 250 m (merge beyond 650 m, past the 600 m trigger; F-23, R-8336).",
+              "runFor": 150, "golden": {"every": 25},
+              "anchors": {"band": {"on": "near", "who": "*Red Patrol", "point": pt((300, 300)), "within": 600},
+                          "handover": {"on": "field", "who": U, "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}},
+              "expect": rows}
+    if probe:
+        checks["golden"] = False
+        probe_ids(checks, 1000, 1045, [field("phys", U, "AggregateUnit.Resolution", "==", "Physical"), field("stoch after 75", U, "AggregateUnit.Resolution", "==", "Stochastic", after=75)]
+                  + [{"name": f"patrol within {r} after 75", "on": "near", "who": "*Red Patrol", "point": pt((300, 300)), "within": r, "after": 75} for r in (250, 350, 450, 550, 650)]
+                  + [{"name": f"patrol beyond {r} after 75", "never": {"on": "near", "who": "*Red Patrol", "point": pt((300, 300)), "within": r}, "after": 75} for r in (250, 350, 450, 550)]
+                  + [field("red man dead", "*Red Patrol", "Health.Current", "<=", 0)])
+    write(s, "berlin", desc, checks)
+
+
+def probe_ids(checks, lo=1000, hi=1080, extra=()):
+    """--probe: which network ids are a split's children (measured once, then the rows are written with them)."""
+    checks["golden"] = False
+    checks["expect"] = [field(f"id {k} is a child", str(k), "AggregateChild.Held", "==", 0) for k in range(lo, hi)] + list(extra)
+
+
+def agg_squad_holds_house(probe=False):
+    s = Scn("agg-squad-holds-house", "a9000017")
+    U = "Blue Stochastic Squad"
+    house = (125, 161)                       # cqb-village's "OBJ" (house-3f), the building pc-defend-house's platoon holds
+    sq = s.unit(U, BLUE, house, SQUAD, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt(house), "SearchRadius": 10}))
+    s.physical_squad("Red Squad", RED, (house[0], house[1] + 480), None)     # inside the band (600 m), outside the forced range (300 m)
+    first, n = 1030, 10            # measured: cqb-village's terrain entities (doors, records) take the ids before the children
+    rows = [
+        field("the squad in the house de-aggregates: Physical", U, "AggregateUnit.Resolution", "==", "Physical", before=20),
+        field("its slot table is whole (10 men up)", U, "UnitSlotTable.Slots.*.Health", ">=", 0.5, where=LIVE, elements=n, atEnd=True),
+    ] + child_rows(first, sq, n, house, 12, "split", "house", before="split+1")
+    for k in range(n):
+        rows.append(field(f"house: child {k} stands on the fallback line across the squad's heading (y <= the house's {house[1]} + 1 m)", str(first + k), "SimTransform.Position.1", "<=", house[1] + 1, after="split", before="split+1"))
+        rows.append(field(f"house: child {k} ... (y >= {house[1]} - 1 m)", str(first + k), "SimTransform.Position.1", ">=", house[1] - 1, after="split", before="split+1"))
+    desc = ("What: on cqb-village a STOCHASTIC 'Blue Stochastic Squad' (10 men from the TKB composite) holds the village's three-storey house 'OBJ' at (125,161) (StochasticUnitDefend); a PHYSICAL 'Red Squad' "
+            "stands 480 m north - inside the resolution manager's band, so the squad de-aggregates. Judge, AS BUILT: the squad splits into its 10 men, each with its stable key, and each man is placed (at the handover) on the "
+            "FALLBACK posts - one line of 10, 2 m apart, across the squad's heading through the house's centre (UnitSplits.FallbackPosts), within 12 m of it. ⛔ NOT judged: the men at the house's window "
+            "and door posts (§16 / D-P3): the planners' plan / assign split is STOPPED (R-8330), so no window post exists to be judged. Check: scripts/scenario-regression.sh agg-squad-holds-house")
+    checks = {"$doc": "§23.6 ST-5, judged as built: D-P3 (planned posts from SquadDefend's window / door survey) is STOPPED (R-8330, design §23.5c), so a split squad's men stand on UnitSplits.FallbackPosts - "
+                      "a line across the heading (heading 0: along x) through the unit's position, rows of <= 12, width max(Width, 2 m x men). When D-P3 lands, the window / door rows replace the line rows. "
+                      "Children by network id (no name, F-22; R-8335): measured 1030-1039.",
+              "runFor": 40, "golden": {"every": 10}, "expect": rows,
+              "anchors": {"split": {"on": "field", "who": U, "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}}}
+    if probe:
+        probe_ids(checks)
+    write(s, "cqb-village", desc, checks)
+
+
+def merged_slot_table():
+    """A 30-man platoon's table with LOSSES: slots 4-6 down (dead), 10-11 hurt (half health) - authored so the merge's honesty is checkable."""
+    t = slot_table(30, 200)
+    for k in (3, 4, 5):
+        t["Slots"][k]["Health"] = 0.0
+    for k in (9, 10):
+        t["Slots"][k]["Health"] = 12.5
+    return t
+
+
+def agg_merge_back(probe=False):
+    s = Scn("agg-merge-back", "a9000018")
+    U = "Blue Stochastic Platoon"
+    pl = s.unit(U, BLUE, (300, 300), PLATOON, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, 300)), "SearchRadius": 30}),
+                extra={"UnitSlotTable": merged_slot_table()})
+    s.unit("Blue Spare Squad", BLUE, (300, -9000), SQUAD, aggregate={})   # a FILLED unit far away: teaches the personal weapons (F-16)
+    sq = s.physical_squad("Red Patrol", RED, (300, 750), None)            # 450 m: inside the band, outside the forced range
+    s.ents[sq]["Behavior"] = {"Name": "SquadMarch", "Params": {"Objective": pt((300, 1500)), "Shape": 0, "Spacing": 4}, "Origin": "Superior"}
+    resolution_policy(s, {"quietSeconds": 20, "mergeMargin": 250})
+    n = 27
+    UP = [k + 1 for k in range(30) if k not in (3, 4, 5)]      # the composite slots that get a child (4-6 are dead); measured ids 1009-1035, then 1036-1062
+    cut = lambda name, at: {"name": name, "at": at, "set": {"who": U, "component": "AggregateUnit", "patch": {"Pin": "PinPhysical"}}}
+    rows = [
+        field("contact: the platoon splits (the patrol 450 m off)", U, "AggregateUnit.Resolution", "==", "Physical", before=15),
+        field("contact ends (the patrol walks away past the band + margin, 650 m, and 20 s pass): the men merge back", U, "AggregateUnit.Resolution", "==", "Stochastic", after=20, before=240),
+        field("the merge kept every loss (the table at the end is the merged one - a split never writes it): the 3 dead slots are down", U, "UnitSlotTable.Slots.*.Health", "<", 0.5, where=LIVE, elements=3, atEnd=True),
+        never("... never a 4th (no man lost or invented by the round trip)", {"on": "field", "who": U, "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 4}),
+        field("... and the 2 hurt men come back hurt (health 12.5 of 25)", U, "UnitSlotTable.Slots.*.Health", "==", 12.5, where=LIVE, elements=2, atEnd=True),
+        field("... and 27 men up: none lost, none invented by the round trip", U, "UnitSlotTable.Slots.*.Health", ">=", 0.5, where=LIVE, elements=27, atEnd=True),
+        never("... never 28 up (a dead man is never re-created)", {"on": "field", "who": U, "path": "UnitSlotTable.Slots.*.Health", "op": ">=", "value": 0.5, "where": LIVE, "elements": 28}),
+        field("the instructor pins it Physical (t = 250 s): it splits AGAIN at once", U, "AggregateUnit.Resolution", "==", "Physical", after=250, before=255),
+        never("no second split before the pin: the merge lies past the split trigger (the author's 250 m margin)", {"on": "field", "who": U, "path": "AggregateUnit.Splitting", "op": "==", "value": "Materialising"}, after=30, before=250),
+    ] + child_rows(1009, pl, n, None, 0, 0, "first split", UP) + child_rows(1036, pl, n, None, 0, 250, "the pin's split: the SAME key", UP)
+    desc = ("What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 450 m north marches away north. "
+            "The author's SetResolutionPolicy sets the quiet time to 20 s and the merge margin to 250 m (merge beyond 650 m - past the 600 m split trigger). Judge: (1) the platoon splits while the patrol is near "
+            "(27 men: the dead are not created); (2) once the patrol is past 650 m and 20 s are quiet the men merge back - Stochastic; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at "
+            "half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact, a loss healed or "
+            "invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back")
+    checks = {"$doc": "§23.6 ST-5. Merge (§16b, D-P7): out of the band + margin and quiet for the quiet time (and UNOBSERVED); then BusResolutionSwitch.Merge sums each child back (X-4) - a slot with no child is down. "
+                      "The margin is raised to 250 m by the author's policy so the merge lies beyond the split trigger (with the default 100 m it does not: finding F-23). The second split is the instructor's pin, a do-set of "
+                      "AggregateUnit.Pin = PinPhysical (SV-14). Children by network id (F-22, R-8335). ⚠ Measured: at the end only 20-22 slots read exactly 25 - a few whole men come back "
+                      "slightly hurt (>= 13 of 25) from their time as soldiers; the source is not traced (the patrol walks away beyond rifle reach), so the rows judge the losses (3 down, never a 4th, 27 up, the 2 hurt still hurt), not exact health.",
+              "runFor": 280, "golden": {"every": 40}, "do": [cut("the instructor pins it Physical", 250)],
+              "expect": rows}
+    if probe:
+        probe_ids(checks, 1000, 1000, [field(f"phys after {a}", U, "AggregateUnit.Resolution", "==", "Physical", after=a) for a in (0, 10, 60, 120, 130, 160, 200, 240)]
+                  + [field(f"stoch after {a}", U, "AggregateUnit.Resolution", "==", "Stochastic", after=a) for a in (5, 60, 120, 130, 160, 200, 240, 255)]
+                  + [{"name": f"patrol within {r} after 100", "on": "near", "who": "*Red Patrol", "point": pt((300, 300)), "within": r, "after": 100} for r in (600, 650, 700)]
+                  + [field(f"id {k} child after {a}", str(k), "AggregateChild.Held", "==", 0, after=a) for a in (0, 130, 250) for k in (1009, 1035, 1036, 1062, 1063, 1089)])
+    write(s, "berlin", desc, checks)
+    return pl
+
+
+def agg_forced_handover(probe=False):
+    s = Scn("agg-forced-handover", "a9000019")
+    rows = []
+    for tag, rng, y in (("Forced", 250, 300), ("Planned", 450, 7300)):
+        U = f"Blue Platoon {tag}"
+        s.unit(U, BLUE, (300, y), PLATOON, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, y)), "SearchRadius": 30}))
+        s.physical_squad(f"Red Squad {tag}", RED, (300, y + rng), None)
+    U, V = "Blue Platoon Forced", "Blue Platoon Planned"
+    rows = [
+        field("C-7: a physical weapon 250 m off (inside the forced range, 300 m) - the platoon hands over", U, "AggregateUnit.Resolution", "==", "Physical", before=5),
+        never("... with NO planning time: the Planning stage is never seen (straight to Materialising)", {"on": "field", "who": U, "path": "AggregateUnit.Splitting", "op": "==", "value": "Planning"}),
+        never("... and no stochastic step fights before it: it fires no stochastic line", {"on": "field", "who": U, "path": "FireAllocation.Count", "op": ">", "value": 0}),
+        never("... nor loses a man to one", {"on": "field", "who": U, "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 24.9, "where": LIVE}),
+        field("the control: a physical enemy 450 m off (inside the band, outside the forced range) - the process plans first (Planning seen)", V, "AggregateUnit.Splitting", "==", "Planning", before=5),
+        field("... and hands over too", V, "AggregateUnit.Resolution", "==", "Physical", before=20),
+    ]
+    desc = ("What: on berlin two identical STOCHASTIC platoons (30 men, defending), 7 km apart. A PHYSICAL 'Red Squad Forced' (four armed men) stands 250 m from the first - inside C-7's forced range (300 m); "
+            "a 'Red Squad Planned' stands 450 m from the second - inside the band, outside the forced range. Judge: (1) the first platoon hands over at once, skipping the planning time (its Planning stage is never "
+            "seen), before any stochastic step fights it (no stochastic fire line, no slot hurt); (2) the control platoon goes through Planning first, then hands over. Fail: a stochastic step on the forced one, or "
+            "the forced one planning. Check: scripts/scenario-regression.sh agg-forced-handover")
+    checks = {"$doc": "§23.6 ST-5, C-7: ResolutionManagerSystem.Decide - an enemy within ForcedRange (300 m) skips straight from NotSplitting to Materialising in the same step (goto case Planning), so Planning "
+                      "is never at a step boundary; with the enemy in the band but not forced the stage is held one step. The stochastic fire phase targets only stochastic units, so 'before any stochastic "
+                      "step fights it' is encoded as: the platoon writes no fire line and loses no health while stochastic.",
+              "runFor": 30, "golden": {"every": 10}, "expect": rows}
+    if probe:
+        checks["golden"] = False
+    write(s, "berlin", desc, checks)
+
+
 GENERATORS = {"agg-march-mounted": lambda: agg_march_mounted(381.25, 350, 60 / 3.6), "agg-platoon-under-company": agg_platoon_under_company, "agg-refused-order": agg_refused_order, "agg-recorded": agg_recorded, "agg-march-open": agg_march_open,
               "agg-route-dropped": agg_route_dropped, "agg-detect-by-range": agg_detect_by_range, "agg-sees-physical": agg_sees_physical, "agg-break-contact": agg_break_contact,
               "agg-platoon-duel": agg_platoon_duel, "agg-shelled-unit": agg_shelled_unit, "agg-prepared-defence": agg_prepared_defence, "agg-out-of-ammo": agg_out_of_ammo,
-              "agg-battalion-fight": agg_battalion_fight, "agg-mixed-company-attack": agg_mixed_company_attack}
+              "agg-battalion-fight": agg_battalion_fight, "agg-mixed-company-attack": agg_mixed_company_attack,
+              "agg-split-on-contact": agg_split_on_contact, "agg-squad-holds-house": agg_squad_holds_house, "agg-merge-back": agg_merge_back,
+              "agg-forced-handover": agg_forced_handover}
 
 if __name__ == "__main__":
-    names = sys.argv[1:] or list(GENERATORS)
+    args = sys.argv[1:]
+    probe = "--probe" in args   # ST-5: write the measuring rows (which network ids are the children) instead of the scenario's own
+    names = [a for a in args if a != "--probe"] or list(GENERATORS)
     for n in names:
-        GENERATORS[n]()
+        GENERATORS[n](probe=True) if probe else GENERATORS[n]()
