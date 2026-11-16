@@ -86,6 +86,58 @@ namespace Fdp.Toolkits.Tests.Aggregate
             finally { KillerVictimTable.Current = was; }
         }
     
+        /// <summary>
+        /// ⭐ CE-8008 — the table follows the WORLD: steps on an EMPTY world (a node boots before its scenario arrives) build nothing and
+        /// allocate nothing; when a stochastic unit arrives the next step builds the table; a unit holding a NEW type later rebuilds it.
+        /// ✅ Red-proof: one try only (the old <c>_loadTried</c>) ⇒ no table once the unit arrives ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8008_ATableIsBuiltWhenUnitsArrive_AndRebuiltForANewType()
+        {
+            var was = KillerVictimTable.Current;
+            KillerVictimTable.Current = null;
+            try
+            {
+                using var w = new EntityRepository();
+                w.RegisterComponent<AggregateUnit>(); w.RegisterComponent<UnitHoldings>(); w.RegisterComponent<FireAllocation>();
+                w.RegisterComponent<UnitDetections>(); w.RegisterComponent<UnitSlotTable>(); w.RegisterComponent<SimTransform>(); w.RegisterComponent<GlobalTime>();
+                w.SetSingletonManaged<ITkbDatabase>(Db());
+                var fire = new StochasticFirePhase();
+                for (int s = 1; s <= 3; s++) { w.SetSingleton(new GlobalTime { TotalTime = s }); fire.Execute(w, 1f); }
+                Assert.Null(KillerVictimTable.Current);                                                    // nothing to build over yet
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int s = 4; s <= 20; s++) { w.SetSingleton(new GlobalTime { TotalTime = s }); fire.Execute(w, 1f); }
+                Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);                          // an empty world costs nothing
+
+                Entity Unit(long type, HoldingKind kind)
+                {
+                    var u = w.CreateEntity();
+                    var h = new UnitHoldings { Count = 1 };
+                    h.Items[0] = new UnitHolding { Type = new TkbTypeId(type), Count = 2, Operational = 2, Ammo = 100, Kind = kind, Mobility = HoldingMobility.Tracked };
+                    w.AddComponent(u, h);
+                    w.AddComponent(u, new AggregateUnit { Resolution = AggregateResolution.Stochastic });
+                    w.AddComponent(u, new UnitSlotTable());
+                    w.AddComponent(u, new UnitDetections());
+                    w.AddComponent(u, new SimTransform());
+                    return u;
+                }
+                Unit(Rifleman, HoldingKind.Weapon);                                                          // the scenario arrives
+                w.SetSingleton(new GlobalTime { TotalTime = 21 }); fire.Execute(w, 1f);
+                var first = KillerVictimTable.Current;
+                Assert.NotNull(first);
+                Assert.True(first!.TryGet(new TkbTypeId(Rifleman), KillerVictimTable.Personnel, out _));
+                Assert.False(first.TryGet(new TkbTypeId(Ifv), new TkbTypeId(Ifv), out _));
+                w.SetSingleton(new GlobalTime { TotalTime = 22 }); fire.Execute(w, 1f);
+                Assert.Same(first, KillerVictimTable.Current);                                              // nothing new: the same table
+
+                Unit(Ifv, HoldingKind.Vehicle);                                                              // a new type held
+                w.SetSingleton(new GlobalTime { TotalTime = 23 }); fire.Execute(w, 1f);
+                Assert.NotSame(first, KillerVictimTable.Current);
+                Assert.True(KillerVictimTable.Current!.TryGet(new TkbTypeId(Ifv), new TkbTypeId(Ifv), out _));
+            }
+            finally { KillerVictimTable.Current = was; }
+        }
+
         /// <summary>⭐ CE-8014 (agg-behaviors' F-1) — the ammunition share from the TKB's basic load, no capacity field: two IFVs that started with
         /// 2 × 0 rounds declared ⇒ unknown; a rifle squad at half its rounds ⇒ 0.5. ✅ Red-proof: the load summed over DOWN slots too ⇒ red.</summary>
         [Fact]

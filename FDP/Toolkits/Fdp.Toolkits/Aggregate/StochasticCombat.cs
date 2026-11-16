@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -62,7 +63,11 @@ namespace Fdp.Toolkit.Aggregate
         private EntityRepository? _queriesFor;
         private Entity[] _firers = new Entity[32];
         private SimInstant _last = (SimInstant)(-1.0);
-        private bool _loadTried;
+        // ⭐ CE-8008 — the table THIS phase built, the held types and the soldier map it was built over (a table someone else installed is left alone)
+        private KillerVictimTable? _mine;
+        private readonly HashSet<TkbTypeId> _builtOver = new();
+        private object? _personalAt;
+        private bool _tried;
 
         public StochasticFirePhase(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
@@ -70,10 +75,6 @@ namespace Fdp.Toolkit.Aggregate
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
                 || !repo.IsComponentTypeRegistered<FireAllocation>() || !repo.IsComponentTypeRegistered<UnitDetections>()) return;
-            // ⭐ CE-8008 — no table in force ⇒ build it ONCE from this world's TKB over the held types (KillerVictimTkb.LoadFor)
-            if (KillerVictimTable.Current == null && !_loadTried) { _loadTried = true; KillerVictimTable.Current = KillerVictimTkb.LoadFor(repo); }
-            var table = KillerVictimTable.Current;
-            if (table == null) return;
             SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
             if (!StochasticCombat.Due(now, _last)) return;
             _last = now;
@@ -83,6 +84,9 @@ namespace Fdp.Toolkit.Aggregate
                     .WithOwnedWhen<AggregateUnit>(_gateOnAuthority).Build();
                 _queriesFor = repo;
             }
+            // ⭐ CE-8008 — the table from this world's TKB over the held types (KillerVictimTkb.LoadFor): built when there is none, and REBUILT
+            //   when a unit holds a type it was not built over or the soldier map changed. ⛔ Before: tried ONCE, on the first frame — an empty
+            //   world at boot (the scenario arrives later) ⇒ no table, never retried ⇒ stochastic combat silently never fired.
             int n = 0;
             foreach (var e in _units!)
             {
@@ -91,7 +95,17 @@ namespace Fdp.Toolkit.Aggregate
                 if (n == _firers.Length) Array.Resize(ref _firers, n * 2);
                 _firers[n++] = e;
             }
-            if (n == 0) return;
+            if (n == 0) return;   // no stochastic unit: nothing built, nothing allocated
+            var table = KillerVictimTable.Current;
+            if ((table == null || ReferenceEquals(table, _mine)) && (!_tried || Stale(repo)))
+            {
+                _tried = true;
+                var built = KillerVictimTkb.LoadFor(repo);
+                if (built != null) { _mine = built; KillerVictimTable.Current = built; }
+                Remember(repo);   // a failed try waits for the world to change, never retried every step
+                table = KillerVictimTable.Current;
+            }
+            if (table == null) return;
             var job = new Job { Repo = repo, Now = now, Table = table };
             if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _firers, n, in job);
             else for (int i = 0; i < n; i++) job.Execute(_firers[i], i, null!);
@@ -113,6 +127,32 @@ namespace Fdp.Toolkit.Aggregate
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
 
             public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Allocate(Repo, self, Now, Table);
+        }
+
+        /// <summary>⭐ CE-8008 — does a unit hold a type the table was not built over, or did the soldier map change? (Serial; 0 B unless it did.)</summary>
+        private bool Stale(EntityRepository repo)
+        {
+            if (!ReferenceEquals(KillerVictimTkb.PersonalSoldiers, _personalAt)) return true;
+            foreach (var e in _units!)
+            {
+                if (!repo.HasComponent<UnitHoldings>(e)) continue;
+                ref readonly var h = ref repo.GetComponentRO<UnitHoldings>(e);
+                for (int i = 0; i < h.Count; i++)
+                    if (h.Items[i].Kind != HoldingKind.Sensor && !_builtOver.Contains(h.Items[i].Type)) return true;
+            }
+            return false;
+        }
+
+        private void Remember(EntityRepository repo)
+        {
+            _personalAt = KillerVictimTkb.PersonalSoldiers;
+            _builtOver.Clear();
+            foreach (var e in _units!)
+            {
+                if (!repo.HasComponent<UnitHoldings>(e)) continue;
+                ref readonly var h = ref repo.GetComponentRO<UnitHoldings>(e);
+                for (int i = 0; i < h.Count; i++) if (h.Items[i].Kind != HoldingKind.Sensor) _builtOver.Add(h.Items[i].Type);
+            }
         }
 
         /// <summary>One firer's allocation (the test seam).</summary>
