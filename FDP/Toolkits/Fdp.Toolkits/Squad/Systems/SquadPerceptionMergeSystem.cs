@@ -38,6 +38,11 @@ namespace Fdp.Toolkit.Squad.Systems
             // 1. Guard: both UnitRoster and Blackboard1024 must be present.
             if (!repo.HasComponent<UnitRoster>(commander)) return false;
             if (!repo.HasComponent<SquadCognitiveState>(commander)) return false;
+            // ⭐ CE-8006 (agg-backend ST-2, N-2) — a STOCHASTIC unit has no members to merge: its pool is written by its own sensing
+            //   (StochasticUnitSensorSystem). Merging its empty roster would wipe it every dwell.
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>() && repo.HasComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(commander)
+                && repo.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(commander).Effective == Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic)
+                return false;
 
             // 2. Project state.
             ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);

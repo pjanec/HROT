@@ -268,6 +268,8 @@ namespace Hrot.CGF
             // ⭐ CE-8004 (ST-1, M-4; DESIGN_Stochastic_Units_And_Resolution §14) — the stochastic units' path follower, beside the stress phase
             //   (§22's module diagram): every CGF node runs it by construction; it moves only the units this node owns.
             simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority));
+            // ⭐ CE-8006 (ST-2, N-1 … N-5) — the stochastic units' sensing, a per-entity phase; writes each observer's own detections and pool
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitSensorSystem(gateOnAuthority));
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));

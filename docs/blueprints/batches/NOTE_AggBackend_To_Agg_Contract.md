@@ -146,6 +146,14 @@ UnitMoves.Stop(ref u);
 ⭐ The follower (`StochasticUnitMovementSystem`, in `CgfLogicPack`) owns everything after the order: the plan, the speed (`UnitSpeedModel`),
 the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play never writes those.
 
+## 3b. Sensing — what reads it *(ST-2, CE-8006)*
+
+| reader | reads |
+|---|---|
+| the SOP, the staff's SPOT, every commander | the unit's own `SquadCognitiveState.Contacts` — unchanged readers (N-2) |
+| agg-ui's detection overlay | `UnitDetections.Pairs[i]` (`Target`, `Level` 0..2 — a contact at ≥ 1, `Reported`, `LastSeenAt`) on the observer |
+| tuning | `UnitDetection.StepChance(range, r50, transmittance)` — N-1's curve; `UnitDetection.Signature`, `SensorR50` |
+
 ## 4. Ids allocated by this commit
 
 | | |
