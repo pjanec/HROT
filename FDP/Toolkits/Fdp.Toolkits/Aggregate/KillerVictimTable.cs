@@ -109,8 +109,12 @@ namespace Fdp.Toolkit.Aggregate
     /// its health, the radius it presents) and the aspect mix it is seen from.</summary>
     public readonly record struct TargetNumbers(TkbTypeId Type, float Radius, float Health, float ArmourFront = 0f, float ArmourSide = 0f,
                                                 float ArmourRear = 0f, float ArmourTop = 0f, float FrontShare = 0.5f, float SideShare = 0.4f,
-                                                float RearShare = 0.1f, float ArmourBottom = 0f)
+                                                float RearShare = 0.1f, float ArmourBottom = 0f, float BodyHealth = 0f)
     {
+        /// <summary>⭐ CE-8019 — the physical models' damage is in the BODY's hit points (a soldier's <c>MaxHealth</c>, <see cref="BodyHealth"/>);
+        /// the table's is in the TARGET's (<see cref="Health"/> — a slot's 25 for men): × this. 1 when no body scale is given.</summary>
+        public float BodyScale => BodyHealth > 0f ? Health / BodyHealth : 1f;
+
         /// <summary>⭐ The belly a bottom attack meets — 0 ⇒ the rear (the rule <c>ArmorModel.ArmourFor(Facing.Bottom)</c> uses, CE-4624 MR-10).</summary>
         public float BellyArmour => ArmourBottom > 0f ? ArmourBottom : ArmourRear;
 
@@ -148,7 +152,7 @@ namespace Fdp.Toolkit.Aggregate
             float damage, kk = 0f, mk = 0f, suit;
             if (t.IsPersonnel)
             {
-                damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f) * MeanZoneFactor;
+                damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f) * MeanZoneFactor * t.BodyScale;   // ⭐ CE-8019 — in slot health
                 suit = 1f;
             }
             else
@@ -175,7 +179,7 @@ namespace Fdp.Toolkit.Aggregate
         public static KvEntry BottomAttack(in WeaponNumbers w, in TargetNumbers t)
         {
             float damage, kk = 0f, mk = 0f, suit = 1f;
-            if (t.IsPersonnel) damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f);
+            if (t.IsPersonnel) damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f) * t.BodyScale;   // ⭐ CE-8019 — in slot health
             else
             {
                 float pen = ArmorModel.PenetrationChance(w.Penetration, t.BellyArmour);

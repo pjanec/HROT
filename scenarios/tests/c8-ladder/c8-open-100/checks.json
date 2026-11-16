@@ -1,0 +1,169 @@
+{
+  "$doc": "CE-8009 (C-8) \u2014 a MEASUREMENT: each row's first time is when that many men of a side are down; scripts/c8-ladder.py reads them over 30 seeds. Not a verdict: a row that never holds is a side that lost fewer.",
+  "runFor": 120,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Blue down 1",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:1"
+    },
+    {
+      "name": "Blue down 2",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:2"
+    },
+    {
+      "name": "Blue down 3",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:3"
+    },
+    {
+      "name": "Blue down 4",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:4"
+    },
+    {
+      "name": "Blue down 5",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:5"
+    },
+    {
+      "name": "Blue down 6",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:6"
+    },
+    {
+      "name": "Blue down 7",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:7"
+    },
+    {
+      "name": "Blue down 8",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:8"
+    },
+    {
+      "name": "Blue down 9",
+      "on": "field",
+      "who": "*Blue ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:9"
+    },
+    {
+      "name": "Red down 1",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:1"
+    },
+    {
+      "name": "Red down 2",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:2"
+    },
+    {
+      "name": "Red down 3",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:3"
+    },
+    {
+      "name": "Red down 4",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:4"
+    },
+    {
+      "name": "Red down 5",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:5"
+    },
+    {
+      "name": "Red down 6",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:6"
+    },
+    {
+      "name": "Red down 7",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:7"
+    },
+    {
+      "name": "Red down 8",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:8"
+    },
+    {
+      "name": "Red down 9",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 2.0,
+      "quantifier": "atLeast:9"
+    }
+  ]
+}

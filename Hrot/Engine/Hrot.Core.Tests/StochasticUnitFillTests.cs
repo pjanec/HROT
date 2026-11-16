@@ -11,6 +11,7 @@ using Hrot.Map.Definitions.Tkb;
 namespace Hrot.Map.Common.Tests
 {
     /// <summary>⭐ CE-8016 (agg-behaviors' F-9) — a stochastic unit's slots and holdings from the SAME composite the physical units are built from.</summary>
+    [Collection("FdpWorkerPool")]   // ⚠ sets the process-wide KillerVictimTkb.PersonalSoldiers — serial with C8LadderStochasticTests
     public class StochasticUnitFillTests
     {
         private static TkbDatabase Db()

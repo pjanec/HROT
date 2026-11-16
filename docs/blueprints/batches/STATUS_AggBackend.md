@@ -32,6 +32,8 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 | CE-8013 ST-5 wiring | 🟡 ①②③④⑥ built | *(round 3)* | manager in `CgfLogicPack`; `HeldChildParticipant` (EntityCreationPack, per-entity ELM requirement, unbounded); ammo both ways; UNOBSERVED; lifecycle teardown — ⏳ ⑤ the planners' posts (agg-behaviors'), ⑦ CE-8005 |
 | CE-8005 route half | ✅ built | *(round 3)* | a navmesh-less node asks the solver over the path-request topic (5 s, then local); the Brain-only CGF node composes the pair with its pool — ⏳ the position-ownership half |
 | CE-8018 N-3 | ✅ built | *(round 3)* | a stochastic observer sees physical bodies (one way); `UnitSensingRails.N3_…` 47 / 0 plain, 37 / 0 under the parallel checks; red-proofs: bodies not gathered · `Health` undeclared (read check) — 2 / 2 red |
+| CE-8019 4× lethality | ✅ fixed | *(round 3)* | found by the C-8 ladder's first stochastic run; red-proved |
+| CE-8009 C-8 ladder rung 1 | 🟡 running | *(round 3)* | physical rungs `scenarios/tests/c8-ladder/c8-open-{100,200,300}` (`scripts/gen-c8-ladder.py`), 30 seeds each via `scripts/c8-ladder.py physical` (real-time runs, 3 at a time); stochastic side `C8LadderStochasticTests` (HROT_C8_OUT); verdict `scripts/c8-ladder.py compare` |
 | ST-5 resolution | 🟡 built (engine), not wired → see CE-8013 above | *(ST-5 commit)* | `CE-8012` the manager, the process stages, `BusResolutionSwitch` (derived identities, held children, X-4 both ways), pins, C-7, hysteresis; ⛔ `CE-8013` production wiring (the TKB composite resolver, the held lifecycle participant, ammunition, UNOBSERVED, the planners' posts) |
 
 ## 2. Lane decisions — ✅ ALL APPROVED by the user `2026-11-16` (R-4278, [NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md](NOTE_Coordinator_To_All_Lanes_Decisions_Approved.md))
@@ -73,4 +75,4 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 ## 4. Ids allocated
 
-`CE-8000` … `CE-8018` (Area AGG-B in the tracker) · `R-8000`…`R-8004` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).
+`CE-8000` … `CE-8019` (Area AGG-B in the tracker) · `R-8000`…`R-8004` · components 281–284 (contract) + 285 `UnitDetections`, 286 `RunSeed`, 287 `UnitRoute`, 288 `AggregateChild` (289 free) · descriptors 220–222 (contract; 223–229 free).

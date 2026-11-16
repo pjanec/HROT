@@ -23,6 +23,19 @@ namespace Fdp.Toolkit.Aggregate
         public const float FallbackAimSeconds = 0.8f;
         /// <summary>The radius a hull presents when its type declares no area (m).</summary>
         public const float FallbackHullRadius = 2f;
+        /// <summary>⭐ CE-8019 — a soldier's hit points when no personal-weapon soldier declares a platform (<c>CombatPlatformDefDto.MaxHealth</c>).</summary>
+        public const float FallbackSoldierHealth = 100f;
+
+        /// <summary>⭐ CE-8019 — the hit points of the soldiers a slot stands for (the personal-weapon soldiers' <c>MaxHealth</c>, the largest),
+        /// so a hit's damage, measured on a body, lands on a slot's <see cref="UnitSplits.SlotFullHealth"/> scale.</summary>
+        public static float SoldierHealth(ITkbDatabase db, IReadOnlyDictionary<SlotRole, TkbTypeId>? personal)
+        {
+            float hp = 0f;
+            if (personal != null)
+                foreach (var kv in personal)
+                    if (db.TryGetByType(kv.Value, out var t) && t?.GetDescriptor<CombatPlatformDefDto>() is { MaxHealth: > 0f } p) hp = MathF.Max(hp, p.MaxHealth);
+            return hp > 0f ? hp : FallbackSoldierHealth;
+        }
 
         /// <summary>The effective aimed rate (rounds / s) of <paramref name="mount"/>: a magazine at one aimed round per aim, then the reload.</summary>
         public static float EffectiveRate(WeaponMountDto mount)
@@ -73,7 +86,7 @@ namespace Fdp.Toolkit.Aggregate
             foreach (var f in firers)
                 if (TryWeapon(db, f, out var w)) weapons.Add(w);
                 else skipped?.Add($"{(long)f}: no weapon suite");
-            var targets = new List<TargetNumbers> { new(KillerVictimTable.Personnel, 0.3f, UnitSplits.SlotFullHealth) };
+            var targets = new List<TargetNumbers> { new(KillerVictimTable.Personnel, 0.3f, UnitSplits.SlotFullHealth, BodyHealth: SoldierHealth(db, personal)) };   // ⭐ CE-8019
             foreach (var h in hulls)
                 if (TryHull(db, h, out var t)) targets.Add(t);
                 else skipped?.Add($"{(long)h}: no platform record");

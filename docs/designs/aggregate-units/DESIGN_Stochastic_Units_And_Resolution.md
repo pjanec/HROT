@@ -586,6 +586,8 @@ planner.*
 | ST-3: phase B reads the enemy lines of THIS step (A ran first in the same frame), not last step's | the same determinism; one step less of delay | — |
 | ST-3: the run seed reaches the draw from the world's `RunSeed` singleton, else the process seed — passed explicitly | a phase never writes the static (and tests run in parallel) | R-8003 |
 | ⛔ ST-3: no host loads the killer–victim table yet; the C-8 ladder needs the physical runs | the TKB adapter + the measured rows are a separate job | CE-8008, CE-8009 |
+| ⭐ ST-3 units (CE-8019): the table's damage on MEN is in SLOT health — the physical hit (a body's HP) × `SlotFullHealth` ÷ the soldier's `MaxHealth` (`TargetNumbers.BodyScale`); before, a hit was 4× too lethal (found by the C-8 ladder) | one damage model, two scales — the conversion is X-4's | CE-8019 |
+| ST-3: 100 m BANDS — a weapon's last band holds its whole reach (the soldier's rifle reaches 300 m, so 200 m and 300 m share a P(hit)) | C-1's band; finer bands only if the ladder shows the need | — |
 | ST-3: the BOTTOM row (a mine under the hull) — P(hit) 1, the belly from the TKB's `ArmorBottom` (MS-T1), 0 ⇒ the rear exactly as `ArmorModel.ArmourFor(Facing.Bottom)`; a belly blast M-kills even without penetrating | one belly rule with the physical model | CE-8017 |
 | C-6: the sink takes the footprint as a circle of the same area (frontage × max(depth, 20 m)); a casualty in the lethal circle is DOWN, wounds below it folded into `LethalShare` | the overlap in closed form; one calibrated share | CE-8010 |
 | the unit phases (sensing, A, B) are `ICoarseJob`s, 2 units a batch | a battalion's 18 units were one batch of 32 — ST-4's red-proof found it | CE-8011 |
