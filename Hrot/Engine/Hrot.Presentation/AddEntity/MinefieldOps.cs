@@ -99,9 +99,6 @@ public static class MinefieldOps
 
     // ── the shape lock (MR-8) ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private static EntityRepository? _lockWorld;
-    private static EntityQuery? _strikes;
-
     /// <summary>
     /// ⭐ MR-8 — true when a mine of the field has GONE OFF (a <see cref="MinefieldStrikes"/> record whose <c>Field</c> is the field's <c>EntityGuid</c> holds a Struck entry): the outline may no longer change, because a
     /// struck (row, col) would silently move or vanish. <paramref name="reason"/> says so (invariant culture). Type, spacing and lanes stay editable.
@@ -127,8 +124,9 @@ public static class MinefieldOps
         struck = 0; cleared = 0;
         if (!w.IsAlive(field) || !w.IsComponentTypeRegistered<MinefieldStrikes>() || !w.IsComponentTypeRegistered<EntityGuid>() || !w.HasComponent<EntityGuid>(field)) return;
         var guid = w.GetComponentRO<EntityGuid>(field).Value;
-        if (!ReferenceEquals(w, _lockWorld)) { _lockWorld = w; _strikes = w.Query().With<MinefieldStrikes>().Build(); }
-        foreach (var e in _strikes!)
+        var st = StateOf(w);
+        lock (st)
+        foreach (var e in st.Strikes ??= w.Query().With<MinefieldStrikes>().Build())
         {
             ref readonly var s = ref w.GetComponentRO<MinefieldStrikes>(e);
             if (s.Field != guid) continue;
@@ -154,9 +152,19 @@ public static class MinefieldOps
         public MineCounts Counts;
     }
 
-    private static readonly Dictionary<Entity, CountCache> Caches = new();
-    private static readonly List<Vector2> Outline = new();
-    private static readonly List<Mine> Scratch = new();
+    /// <summary>⭐ The caches belong to ONE world (a static keyed by entity alone mixed worlds — the editor's UI world and its sim world, or parallel test worlds —
+    /// and raced: a red only in a full run). Per world, behind its own lock (uncontended on the presentation thread, 0 B).</summary>
+    private sealed class WorldState
+    {
+        public readonly Dictionary<Entity, CountCache> Caches = new();
+        public readonly List<Vector2> Outline = new();
+        public readonly List<Mine> Scratch = new();
+        public EntityQuery? Strikes;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, WorldState> States = new();
+
+    private static WorldState StateOf(EntityRepository w) => States.GetValue(w, static _ => new WorldState());
 
     /// <summary>
     /// The derived counts of <paramref name="field"/> (zeros when it has no outline). ⭐ Cold: rebuilt only when its parameters, its outline instance, its position or its strikes changed; a steady frame
@@ -170,12 +178,19 @@ public static class MinefieldOps
         var anchor = new Vector2(at.X, at.Y);
         Tally(w, field, out int struck, out int clearedListed);
         ref readonly var f = ref w.GetComponentRO<Minefield>(field);
+        var st = StateOf(w);
+        lock (st) return CountsLocked(w, field, st, source, anchor, struck, clearedListed, in f);
+    }
+
+    private static MineCounts CountsLocked(EntityRepository w, Entity field, WorldState st, object? source, Vector2 anchor, int struck, int clearedListed, in Minefield f)
+    {
+        var Caches = st.Caches; var Outline = st.Outline; var Scratch = st.Scratch;
         if (Caches.TryGetValue(field, out var c) && ReferenceEquals(c.Source, source) && c.Anchor == anchor && c.Struck == struck && c.Cleared == clearedListed && Same(in c.Params, in f)) return c.Counts;
         c ??= new CountCache();
         Caches[field] = c;
         c.Params = f; c.Source = source; c.Anchor = anchor; c.Struck = struck; c.Cleared = clearedListed;
         c.Counts = default;
-        if (Caches.Count > 256) PruneDead(w);
+        if (Caches.Count > 256) PruneDead(w, Caches);
         if (MinefieldKnowledgeOps.TryOutline(w, field, Outline, out var a))
         {
             var bare = f; bare.LaneCount = 0;
@@ -190,7 +205,7 @@ public static class MinefieldOps
         return c.Counts;
     }
 
-    private static void PruneDead(EntityRepository w)
+    private static void PruneDead(EntityRepository w, Dictionary<Entity, CountCache> Caches)
     {
         List<Entity>? dead = null;
         foreach (var k in Caches.Keys) if (!w.IsAlive(k)) (dead ??= new()).Add(k);
