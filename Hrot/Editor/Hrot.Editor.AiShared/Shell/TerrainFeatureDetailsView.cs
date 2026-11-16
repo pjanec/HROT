@@ -85,6 +85,7 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
 
     public void Draw(DetailsContext context, string idScope)
     {
+        if (context.Entities is { Count: > 1 } && _world() is { } many) { DrawMany(many, context.Entities, idScope); return; }
         if (context.Entities is not { Count: 1 } || _world() is not { } world) return;
         var e = context.Entities[0];
         if (!TerrainFeatureOps.IsEditable(world, e)) { ImGui.TextDisabled("Select one terrain feature."); return; }
@@ -165,6 +166,77 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
         ImGui.PopID(); ImGui.PopID();
     }
 
+    /// <summary>The line the tab shows over several selected features ("4 features — walls, fences and hedges").</summary>
+    public string ManyText { get; private set; } = "";
+
+    /// <summary>
+    /// ⭐ CE-5017 (TE-9) — SEVERAL selected features of ONE family: Kind (lit when they all share it), and for walls / fences / hedges Material and Height, for woods / scrub Trees per ha —
+    /// each change applied to every one as ONE undo step (<see cref="TerrainFeatureOps.Apply"/>). The fields show the first one's value.
+    /// </summary>
+    private void DrawMany(EntityRepository world, IReadOnlyList<Entity> entities, string idScope)
+    {
+        var family = TerrainFeatureOps.CommonFamily(world, entities);
+        if (family is null) { ImGui.TextDisabled("Select terrain features of one kind of shape."); return; }
+        var first = world.GetComponentRO<TerrainFeature>(entities[0]);
+        bool sameKind = true;
+        for (int i = 1; i < entities.Count; i++) if (world.GetComponentRO<TerrainFeature>(entities[i]).Kind != first.Kind) { sameKind = false; break; }
+        if (!ImGui.IsAnyItemActive()) _pad = TerrainFeatureOps.PadShown(first);
+        Rects.Clear(); HeightHint = "";
+        ManyText = $"{entities.Count} features — " + (family == TerrainFeatureOps.WallKinds ? "walls, fences and hedges" : "woods and scrub");
+        ImGui.PushID(idScope); ImGui.PushID("terrain-many");
+        float w = ImGui.GetFontSize() / 14f;
+        ImGui.TextUnformatted(ManyText);
+        Rects["many"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+
+        FormGrid.BeginField(Form, "Kind");
+        for (int i = 0; i < family.Length; i++)
+        {
+            if (i > 0) ImGui.SameLine();
+            byte k = family[i]; bool sel = sameKind && k == first.Kind;
+            if (sel) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonActive]);
+            if (ImGui.Button(TerrainFeatureOps.KindName(k) + "##k_" + k) && !sel) TerrainFeatureOps.Apply(world, entities, "Change terrain kind", (wr, e) => TerrainFeatureOps.SetKind(wr, e, k));
+            if (sel) ImGui.PopStyleColor();
+            Rects["kind:" + TerrainFeatureOps.KindName(k)] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        }
+        FormGrid.EndField();
+
+        if (family == TerrainFeatureOps.WallKinds)
+        {
+            FormGrid.BeginField(Form, "Material");
+            ImGui.SetNextItemWidth(160f * w);
+            string shown = first.Template.ToString() is { Length: > 0 } cur ? cur : TerrainFeatureOps.DefaultMaterial(first.Kind);
+            if (ImGui.BeginCombo("##material", shown))
+            {
+                foreach (var m in TerrainMaterialLibrary.Shared.All.OrderBy(m => m.Name, StringComparer.Ordinal))
+                    if (ImGui.Selectable(m.Name + "##mat_" + m.Name, m.Name == shown))
+                    {
+                        string name = m.Name;
+                        TerrainFeatureOps.Apply(world, entities, "Set material", (wr, e) => TerrainFeatureOps.SetMaterial(wr, e, name == TerrainFeatureOps.DefaultMaterial(wr.GetComponentRO<TerrainFeature>(e).Kind) ? "" : name));
+                    }
+                ImGui.EndCombo();
+            }
+            Rects["material"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            FormGrid.EndField();
+
+            FormGrid.BeginField(Form, "Height");
+            ImGui.SetNextItemWidth(70f * w);
+            ImGui.InputFloat("##height", ref _pad, 0f, 0f, "%.1f m");
+            if (ImGui.IsItemDeactivatedAfterEdit()) { float v = _pad; TerrainFeatureOps.Apply(world, entities, "Set height", (wr, e) => TerrainFeatureOps.SetPad(wr, e, v)); }
+            Rects["height"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            FormGrid.EndField();
+        }
+        else
+        {
+            FormGrid.BeginField(Form, "Trees per ha");
+            ImGui.SetNextItemWidth(70f * w);
+            ImGui.InputFloat("##density", ref _pad, 0f, 0f, "%.1f");
+            if (ImGui.IsItemDeactivatedAfterEdit()) { float v = _pad; TerrainFeatureOps.Apply(world, entities, "Set density", (wr, e) => TerrainFeatureOps.SetPad(wr, e, v)); }
+            Rects["density"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            FormGrid.EndField();
+        }
+        ImGui.PopID(); ImGui.PopID();
+    }
+
     private void PadRow(EntityRepository world, Entity e, string label, string key, string format, string note)
     {
         FormGrid.BeginField(Form, label);
@@ -224,7 +296,8 @@ public static class TerrainFeatureDetailsViewDescriptor
             Id:        ViewId,
             Title:     "Terrain",
             Rank:      Rank,
-            AppliesTo: ctx => DetailsViewPredicates.ExactlyOneEntity(ctx) && world() is { } w && TerrainFeatureOps.IsEditable(w, ctx.Entities[0]),
+            AppliesTo: ctx => world() is { } w && (DetailsViewPredicates.ExactlyOneEntity(ctx) ? TerrainFeatureOps.IsEditable(w, ctx.Entities[0])
+                                                                       : ctx.Entities is { Count: > 1 } many && TerrainFeatureOps.CommonFamily(w, many) is not null),   // ⭐ CE-5017 — several of one family
             Create:    () => instance)
         {
             Requires     = new[] { typeof(TerrainFeature) },

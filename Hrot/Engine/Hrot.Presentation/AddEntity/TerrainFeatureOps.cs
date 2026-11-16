@@ -23,6 +23,33 @@ public static class TerrainFeatureOps
         => world.IsAlive(e) && world.IsComponentTypeRegistered<TerrainFeature>() && world.HasComponent<TerrainFeature>(e)
            && world.GetComponentRO<TerrainFeature>(e).Kind is not (0 or TerrainFeature.Ground) && FeatureExpander.IsKnown(world.GetComponentRO<TerrainFeature>(e).Kind);
 
+    /// <summary>
+    /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — <paramref name="op"/> over every one of <paramref name="entities"/> as ONE edit step (the per-entity ops' own steps nest inside —
+    /// <c>WorldUndoRecorder</c>: only the outermost bracket is the step). Returns how many it changed.
+    /// </summary>
+    public static int Apply(EntityRepository world, IReadOnlyList<Entity> entities, string label, Func<EntityRepository, Entity, bool> op)
+    {
+        int n = 0;
+        EditSteps.Begin(world, label);
+        try { for (int i = 0; i < entities.Count; i++) if (op(world, entities[i])) n++; }
+        finally { EditSteps.End(world); }
+        return n;
+    }
+
+    /// <summary>⭐ CE-5017 — the ONE family every one of <paramref name="entities"/> belongs to (all editable features of the same family), or null — what the Terrain tab can edit together.</summary>
+    public static byte[]? CommonFamily(EntityRepository world, IReadOnlyList<Entity> entities)
+    {
+        byte[]? family = null;
+        for (int i = 0; i < entities.Count; i++)
+        {
+            if (!IsEditable(world, entities[i])) return null;
+            var fam = FamilyOf(world.GetComponentRO<TerrainFeature>(entities[i]).Kind);
+            if (fam is null || (family is not null && !ReferenceEquals(family, fam))) return null;
+            family = fam;
+        }
+        return family;
+    }
+
     /// <summary>The kinds <paramref name="kind"/> may be switched to (its whole family, itself included), or null when it has none — ⛔ never another shape.</summary>
     public static byte[]? FamilyOf(byte kind) => kind switch
     {

@@ -298,10 +298,11 @@ public sealed class SelectionInteractionSystem
                 toDestroy.Add(e);
             }
 
-            foreach (var e in toDestroy)
-            {
-                DeleteEntity(_world, e);
-            }
+            // ⭐ CE-5017 (TE-9) — deleting several is ONE undo step (a row of obstacles, ten trees), as the menu's Delete over the selection is
+            bool bracket = toDestroy.Count > 1;
+            if (bracket) Fdp.Toolkit.Replication.Edits.EditSteps.Begin(_world, "Delete");
+            try { foreach (var e in toDestroy) DeleteEntity(_world, e); }
+            finally { if (bracket) Fdp.Toolkit.Replication.Edits.EditSteps.End(_world); }
 
             if (toDestroy.Count > 0)
                 Request(SelectionChangeRequest.ClearAll("Map.DeleteKey"));

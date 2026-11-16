@@ -74,7 +74,7 @@ public sealed class TerrainFeatureDetailsViewTests
     /// The tab is offered for exactly ONE non-ground feature: a wall, a row, a lone tree, yes; a ground shape (its own tab), two selected, nothing, or a non-feature, no. Titled <i>Terrain</i>. 🔴 Red-proof: <c>IsEditable</c> not excluding Ground ⇒ the ground assert fails.
     /// </summary>
     [Fact]
-    public void TheTerrainTab_IsOfferedForOneNonGroundFeature_NotForGroundNorTwoSelected()
+    public void TheTerrainTab_IsOfferedForOneNonGroundFeature_OrSeveralOfOneFamily_NotForGround()
     {
         var w = World();
         var wall = Wall(w); var wall2 = Wall(w, TerrainFeature.Fence);
@@ -84,7 +84,10 @@ public sealed class TerrainFeatureDetailsViewTests
         Assert.Equal("Terrain", d.Title);
         Assert.True(d.AppliesTo(Context(wall)));
         Assert.False(d.AppliesTo(Context(ground)));
-        Assert.False(d.AppliesTo(Context(wall, wall2)));
+        Assert.True(d.AppliesTo(Context(wall, wall2)));                                // ⭐ CE-5017 — several of ONE family (a wall and a fence) are edited together
+        var wood = Feature(w, TerrainFeature.Wood, "", 0f, 3, "Wood", Vector2.Zero, new Vector2(0, 0), new Vector2(50, 0), new Vector2(50, 50));
+        Assert.False(d.AppliesTo(Context(wall, wood)));                                 // … never across shapes
+        Assert.False(d.AppliesTo(Context(wall, ground)));
         Assert.False(d.AppliesTo(Context()));
         Assert.False(d.AppliesTo(Context(plain)));
         Assert.True(GroundFeatureDetailsViewDescriptor.For(() => w, () => null).AppliesTo(Context(ground)));   // the ground shape keeps its own tab
@@ -251,5 +254,30 @@ public sealed class TerrainFeatureDetailsViewTests
         var tree = Feature(w, TerrainFeature.Tree, "", 0f, 0, "Tree", new Vector2(5, 5));
         shown = tree; frame.StepN(5, Draw);
         Assert.True(view.Rects.ContainsKey("heading")); Assert.False(view.Rects.ContainsKey("height"));
+    }
+
+    /// <summary>
+    /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — a change over SEVERAL selected features is ONE undo step: three walls set to Hedge, then their height, each as one bracket
+    /// (the per-entity steps nest inside); a feature of another family is not taken together. 🔴 Red-proof: <c>Apply</c> without its bracket ⇒ three "begin" per change.
+    /// </summary>
+    [Fact]
+    public void CE5017_SeveralWalls_ChangeKindAndHeightTogether_AsOneUndoStepEach()
+    {
+        var w = World();
+        var log = new Recorder();
+        EditSteps.Install(w, log);
+        var walls = new[] { Wall(w), Wall(w, TerrainFeature.Fence), Wall(w) };
+        Assert.Same(TerrainFeatureOps.WallKinds, TerrainFeatureOps.CommonFamily(w, walls));
+        Assert.Equal(3, TerrainFeatureOps.Apply(w, walls, "Change terrain kind", (wr, e) => TerrainFeatureOps.SetKind(wr, e, TerrainFeature.Hedge)));
+        Assert.All(walls, e => Assert.Equal(TerrainFeature.Hedge, w.GetComponentRO<TerrainFeature>(e).Kind));
+        Assert.Equal(3, TerrainFeatureOps.Apply(w, walls, "Set height", (wr, e) => TerrainFeatureOps.SetPad(wr, e, 2.5f)));
+        Assert.All(walls, e => Assert.Equal(2.5f, w.GetComponentRO<TerrainFeature>(e).Pad));
+        // the recorder sees the nesting; WorldUndoRecorder makes the OUTER pair the one step
+        Assert.Equal("begin Change terrain kind", log.Log[0]);
+        Assert.Equal("end", log.Log[7]);
+        Assert.Equal("begin Set height", log.Log[8]);
+        Assert.Equal(16, log.Log.Count);
+        var wood = Feature(w, TerrainFeature.Wood, "", 0f, 3, "Wood", Vector2.Zero, new Vector2(0, 0), new Vector2(50, 0), new Vector2(50, 50));
+        Assert.Null(TerrainFeatureOps.CommonFamily(w, new[] { walls[0], wood }));
     }
 }

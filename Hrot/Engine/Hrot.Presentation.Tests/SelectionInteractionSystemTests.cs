@@ -542,6 +542,39 @@ public class SelectionInteractionSystemTests
             commands[0].NetworkId);
     }
 
+    private sealed class StepLog : Fdp.Toolkit.Replication.Edits.IEditStepRecorder
+    {
+        public readonly List<string> Log = new();
+        public void Begin(EntityRepository repo, string label) => Log.Add("begin " + label);
+        public void End(EntityRepository repo) => Log.Add("end");
+        public void Cancel(EntityRepository repo) => Log.Add("cancel");
+    }
+
+    /// <summary>
+    /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — the Delete key over SEVERAL selected entities (a row of obstacles, ten trees) is ONE undo step: one bracket round
+    /// every delete; a single delete needs none. 🔴 Red-proof: drop the bracket ⇒ no "begin Delete".
+    /// </summary>
+    [Fact]
+    public void CE5017_DeletingSeveral_IsOneUndoStep()
+    {
+        var log = new StepLog();
+        Fdp.Toolkit.Replication.Edits.EditSteps.Install(_world, log);
+        var a = CreateSelectableEntity(); var b = CreateSelectableEntity(); var c = CreateSelectableEntity();
+        _world.SetComponent(a, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+        _world.SetComponent(b, new SelectionState { IsSelected = true });
+        _world.SetComponent(c, new SelectionState { IsSelected = true });
+        PublishKeyEvent(MapKeyboardKey.Delete, isPressed: false);
+        _system.Tick(0f);
+        _world.Bus.SwapBuffers();
+        int deletes = 0; foreach (var _ in _world.Bus.ReadManaged<DestroyEntityCommand>()) deletes++;
+        Assert.Equal(3, deletes);
+        // one OUTER bracket round the three deletes (each delete's own step nests inside: WorldUndoRecorder makes the outer pair the one undo step)
+        Assert.Equal(8, log.Log.Count);
+        Assert.Equal("begin Delete", log.Log[0]);
+        Assert.Equal("end", log.Log[^1]);
+        Assert.Equal(4, log.Log.Count(l => l.StartsWith("begin", StringComparison.Ordinal)));   // the outer one + one per delete
+    }
+
     // SIS-005: GizmoKeyEvent(Delete, isPressed=true) is ignored.
     [Fact]
     public void GizmoKeyEvent_Delete_Pressed_IsIgnored()
