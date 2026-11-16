@@ -142,74 +142,77 @@ deliberate dead paths — a stochastic unit has no body and draws nothing in 3-D
 | **UI-11** *(user, `2026-11-16`: "the Label/card of the aggregated unit should show it too (strength in place of usual health … 3 lines max — different colors, strength as a health bar")* | the unit's CARD (the one card per entity, Labels layer, 2-D and 3-D — §6am) carries: **line 1** the STRENGTH bar in ROW 10, where a man's health bar is (present / authorized, the SITREP colour, ticks at 70 / 90 %) with a thin AMMO bar under it (row 13); **line 2** the name (row 20, unchanged) + a violet `~` = not physical; **line 3** ONE info line (row 64): present / authorized in the strength colour · what it does (teal) · the prepared level (blue) — or ONE alarm, the worst first: `BROKEN n` (red, skull) > `supp nn%` (amber) > out of ammo > `split n/m`; nothing when quiet. ⛔ it REPLACES UI-5's label under the frame (one place for the unit's text) | a separate floating label — two texts about one unit (§6am already folded every free text into the card) · more lines — the user: 3 max, a quick overview; the details are the Slots tab | the card machinery not drawing in 3-D for a hidden unit (then 2-D only) |
 | **UI-12** *(user, `2026-11-16`: "we also do not have yet any true NATO symbols for aggregated units … let's design how to achieve that" · "best if these could be procedurally created - drawn as vectors from the actual content of the unit" · "if that requires extending tkb etc, so be it")* | a TRUE APP-6 / 2525 land-unit symbol, PROCEDURAL and VECTOR (§6): frame by side, icon by the unit's dominant ROLE, mobility indicator, one secondary mark, echelon marks — DERIVED from the unit's authored content; it is the card's LEFT CELL (part of the card, spanning its 3 lines), and the SAME symbol is drawn ALONE at the unit's point when no card shows (zoomed out, Labels off). ⭐ The TKB gains `SymbolRole` per system type | an image atlas (milsymbol-generated PNGs) — no images in git (R-4117 allows only thumbnails), and a combination per content would be a combinatorial atlas · a hand-picked SIDC per unit type — the user asked for it derived from the content; the TKB-authored SIDC stays only as an OVERRIDE · a symbol separate from the card — two things about one unit to place, declutter and hide (§6am: one card per unit) | ✅ ruled `2026-11-16`: physical units get it too (UI-14) |
 | **UI-13** *(user, `2026-11-16`: "the icons you suggested … i would like to have those in the orbat view … different icon for vehicles, squad, leaders etc")* | the ORBAT row's icon says WHAT the entity is: a UNIT ⇒ its NATO symbol (UI-12's geometry through the ImGui sink, row-sized, no echelon marks — the tree's depth says it), physical and stochastic alike; a MAN ⇒ by role (leader: amber crown; MG / AT / rifle: the blue rifleman, the role as the row's right-hand text); a VEHICLE ⇒ by its class (van / truck / tank glyph, Colour Icons §2); destroyed / down ⇒ dimmed with the red skull / fire. A STOCHASTIC unit lists its SLOTS as read-only child rows (it has no child entities) with the Slots tab's icons — ⭐ ONE role→icon map shared by the ORBAT and the Slots tab | today (measured): `ScenarioOrbatAdapter.IconKeyOf` (`:255-261`) gives a unit the teal "people" glyph and EVERY man and vehicle the same cube — the kind is invisible · a per-template authored icon — the content already says it | — |
-| **UI-14** *(user, `2026-11-16`: "physical unit should get the symbol too … turnable on/off from the layer panel … still thinking if the nato symbol (which might be expensive to render) should be part of the label … or … in place of the 2d map vector symbol")* | **physical units get it too** (ruled). ONE new layer row **Units ▸ NATO unit symbols** (on by default): Labels on ⇒ the symbol is the CARD's left cell; Labels off ⇒ the SAME symbol ALONE at the unit's point; off ⇒ none. Men and vehicles keep their silhouettes ("Entities"); NATO EQUIPMENT symbols for them are a separate later switch (Symbology §3.8's selectable path), not this row. ⭐ **Cost — the two placements cost the same**: cards and map symbols are both primitives of the ONE staggered gizmo pass (`StatelessGizmoSystem`: 256 entities fresh per frame, the rest HELD ≤ 3 frames — `MapInteractionPack.cs:193`) and both are DRAWN every frame; a symbol is ~10–20 vector segments, comparable to a silhouette, built from a cached `UnitSymbol` (no derivation per frame); and units are few (~1 per 8–30 men) | "in place of the vector symbol" — a UNIT has no vector symbol to replace (`EntityClassShapeLibrary.cs:81`: kind 11 draws nothing), so the question only arises for men / vehicles = the equipment switch · symbol ONLY inside the card — lost when Labels are off and on the zoomed-out picture | a Windows measurement showing the symbols cost a visible share of the frame (the build adds a rail: 500 symbols drawn, ms per frame) |
+| **UI-14** *(user, `2026-11-16`: "physical unit should get the symbol too … turnable on/off from the layer panel … still thinking if the nato symbol (which might be expensive to render) should be part of the label … or … in place of the 2d map vector symbol")* | **physical units get it too** (ruled). ONE new layer row **Units ▸ NATO unit symbols** (on by default): Labels on ⇒ the symbol is the CARD's left cell; Labels off ⇒ the SAME symbol ALONE at the unit's point; off ⇒ none. Men and vehicles keep their silhouettes ("Entities") — ⛔ no NATO mode for them (§6 S-8). ⭐ **Cost — the two placements cost the same**: cards and map symbols are both primitives of the ONE staggered gizmo pass (`StatelessGizmoSystem`: 256 entities fresh per frame, the rest HELD ≤ 3 frames — `MapInteractionPack.cs:193`) and both are DRAWN every frame; a symbol is ~10–20 vector segments, comparable to a silhouette, built from a cached `UnitSymbol` (no derivation per frame); units ≈ 165 per 1 000 soldiers with ONE level shown per zoom (§6 S-4), each a stamped atlas sprite (§6 S-6) | "in place of the vector symbol" — a UNIT has no vector symbol to replace (`EntityClassShapeLibrary.cs:81`: kind 11 draws nothing); men / vehicles keep theirs (§6 S-8) · symbol ONLY inside the card — lost when Labels are off and on the zoomed-out picture | a Windows measurement showing the symbols cost a visible share of the frame (the build adds a rail: 500 symbols drawn, ms per frame) |
 | **UI-6** | LOSSES on the map: `−n` + a skull at the footprint's front edge for 4 s, derived from a FALL in present strength between frames (no new event on the wire) | a casualty marker per man — there are no men · a new replicated loss event — the strength fall already says it | the backend publishing losses as events anyway (then the mark reads them) |
 | **UI-7** | the Slots tab (live, read-only): the unit's suppressed share, morale, prepared level as bars, then one row per slot — the system's icon, health / ammo / stress bars, a flag (suppressed / broken / down / K-kill); a down slot stays listed | rows in the raw Components column — unreadable at 34 slots · editable slots — losses come only from combat (C-3); the instructor's tools are the existing live actions | — |
 | **UI-8** | DETECTION LEVELS: a debug layer row in Tactical Map Layers ▸ AI (2-D only, off by default, the gizmo family's "selected only" honoured): a line per observer → target pair, a 5-box level meter at its middle — green = contact reported, amber = accumulating, grey = fading; hover shows Pd, range, LOS samples, woods, posture, signature | always-on lines — O(n²) clutter at battalion scale · a separate panel — the level is spatial | N-5's level count differing from 5 (the meter takes the threshold from the table) |
 | **UI-9** | the de- / re-aggregate REQUEST: a `Resolution ▸` group in the unit's right-click menu (Make physical / fusion now, Aggregate now, Pin, Unpin — each disabled with its reason); the PROGRESS: a chip under the frame (stage glyph · leaves posted n/m) + a Resolution block in the Unit tab (Planning › Materialising › Handover, counts, deadline, Cancel); held men drawn as dashed rings | a modal dialog — an instructor acts on many units mid-run · progress only in a panel — the instructor watches the map | §16a's stages changing (the chip shows whatever stages the process records) |
 
-## 6. NATO symbols — procedural, from the unit's content *(UI-12)*
+## 6. NATO symbols — procedural, from the unit's content, drawn ONCE and stamped *(UI-12; REVISED `2026-11-16` after the user's performance questions)*
+
+> 🔒 User, `2026-11-16`: *"units are not few in a scenario with 1000 soldier entities … (unless we render the squad symbol for the whole squad, not individual
+> men)" · "where (in what part of the sw)/how would we render the NATO icons? it is quite generic feature, should not be just in the 2d/3d map code" ·
+> "does it make sense to somehow cache the symbols instead of re-rendering them all the time?"*
 
 ```mermaid
 classDiagram
   class TkbSystemType {
-    <<existing TKB platform / weapon type, EXTENDED>>
+    <<existing TKB type, EXTENDED>>
     SymbolRole
     Mobility
+  }
+  class UnitSymbol {
+    <<new, Fdp.Toolkits Symbology, unmanaged 8 B>>
+    Affiliation Role Secondary Mobility Echelon
+    Key() atlas key
   }
   class UnitSymbolDeriver {
     <<new, Hrot.Core>>
     Of(view, unit) UnitSymbol
   }
-  class UnitSymbol {
-    <<new, unmanaged, 8 B>>
-    Affiliation
-    Role
-    SecondaryRole
-    Mobility
-    Echelon
-    Override
+  class SymbolGeometry {
+    <<new, Fdp.Toolkits Symbology, pure>>
+    Build(symbol, sink)
   }
-  class UnitSymbolGeometry {
-    <<new, pure, Fdp.Presentation>>
-    Build(symbol, sizePx, sink)
+  class SymbolAtlas {
+    <<new, Fdp.Presentation, ONE per process>>
+    Get(key, sizePx) sprite rect
+    rasterises a key ONCE into a RenderTexture
+  }
+  class DebugPrimitiveIcon {
+    <<existing primitive Icon, IconAtlasCoord - renderer stub draws a dot>>
+  }
+  class DebugPrimitiveRenderer2D {
+    <<existing, case Icon BUILT>>
   }
   class EntityCardRenderer {
-    <<existing, EntityCardRenderer.cs>>
-    rows stacked
-    NEW left symbol cell
+    <<existing, case Icon BUILT, left cell>>
   }
-  class StochasticUnitGizmo {
-    <<CE-8603>>
-    symbol alone when no card
-  }
-  class ImGuiSymbolSink {
-    <<new, ORBAT and Details>>
-  }
-  class MilStd2525Renderer {
-    <<existing stub, REPLACED>>
+  class ImGuiSymbol {
+    <<new, ORBAT, Slots, Details>>
+    ImGui.Image of the atlas sprite
   }
   UnitSymbolDeriver ..> TkbSystemType : weighs roles
-  UnitSymbolDeriver ..> UnitHoldings : authored content
   UnitSymbolDeriver --> UnitSymbol
-  UnitSymbolGeometry ..> UnitSymbol
-  EntityCardRenderer ..> UnitSymbolGeometry : raylib sink
-  StochasticUnitGizmo ..> UnitSymbolGeometry : raylib sink
-  ImGuiSymbolSink ..> UnitSymbolGeometry : ImGui draw list
-  MilStd2525Renderer ..> UnitSymbolGeometry : becomes a caller
+  SymbolAtlas ..> SymbolGeometry : rasterises once per key
+  DebugPrimitiveRenderer2D ..> SymbolAtlas : stamps a sprite
+  EntityCardRenderer ..> SymbolAtlas : stamps a sprite
+  ImGuiSymbol ..> SymbolAtlas : same texture
+  DebugPrimitiveIcon ..> UnitSymbol : carries Key()
 ```
-*What it shows that prose hid: ONE geometry builder and THREE sinks (the card, the map, ImGui) — the symbol cannot look different in two places by
-construction; the stub disc renderer becomes a caller instead of a second implementation; the only TKB change is two fields on the system type.*
+*What it shows that prose hid: the vectors are drawn ONCE per DISTINCT symbol into one atlas texture, and every place — map, card, ORBAT — STAMPS the
+same sprite; the map's existing `Icon` primitive (built in the protocol, a dot in both renderers today) carries the key, so nothing new crosses the wire.*
 
-| # | decision (lean) | why |
+| # | decision (lean) | why — measured where it can be |
 |---|---|---|
-| **S-1** | **`SymbolRole` on the TKB system type** (infantry · infantry-carrier · armour · anti-armour · mortar · artillery · recon · HQ · support), **unset ⇒ derived** from what the TKB already says (a tank platform ⇒ armour, a rifle ⇒ infantry, a tracked APC ⇒ carrier); mobility from `UnitHolding.Mobility` | the content decides; authoring is needed only where the derivation is wrong |
-| **S-2** | **the rule**: weigh the AUTHORED content (`UnitHoldings` + slot roles; a physical unit's roster the same way) by role ⇒ the dominant role is the ICON; carriers with men ⇒ mechanised (tracked) / motorised (wheeled); a second role above a share (lean 20 %) ⇒ ONE secondary mark; echelon from `AggregateUnit.Echelon` (or the DIS type) | the four examples in the mockup ⑧ |
-| **S-3** | ⚠ **from what the unit WAS MADE OF, never what it has left** — losing its IFVs does not turn a mechanised platoon into infantry | a symbol is the unit's identity; the losses are the card's strength bar |
-| **S-4** | **`UnitSymbol`**: an 8 B unmanaged value, computed once per unit and cached (recomputed when the authored content changes), carried in the card primitive's payload (no string on the wire); the 2525C SIDC is an EXPORT for IG / DIS only | 0 B per frame; nothing new crosses the wire for the card |
-| **S-5** | **`UnitSymbolGeometry.Build`**: polylines, polygons and circles in a unit box, scaled to pixels by the sink — frames (friend rectangle, hostile diamond, neutral square, unknown quatrefoil), the icon vocabulary of ⑦, the mobility indicator, the echelon marks drawn as vectors (no font glyph — the gizmo font has no •) | the 2-D layer cannot draw a pixel-sized cross around a world point today (§5's deviation) — the card renderer CAN (it is screen space), so the symbol lives there |
-| **S-6** | in the CARD: a left cell spanning the rows (the card's rows shift right; the leader line drops from the cell); ALONE at the unit's point when the card is not shown (Labels layer off, zoomed out — ST-4) | one card per unit (§6am), and the symbol never disappears |
-| ⏳ | the build: S-1 needs the TKB lane (or this lane, stated) for the field + its derivation; S-2…S-6 are this lane's | — |
+| **S-1** | `SymbolRole` on the TKB system type; unset ⇒ derived from the type's existing TKB data | the content decides; authoring only where the derivation is wrong |
+| **S-2** | the rule: the authored content (holdings / roster) weighed by role ⇒ icon, carriers ⇒ mechanised / motorised + mobility, a second role > 20 % ⇒ one secondary mark, echelon from the unit | mockup ⑧ |
+| **S-3** | ⚠ from what the unit WAS MADE OF, not what it has left | identity is stable; losses are the card's |
+| ⭐ **S-4** | **a symbol is a UNIT's, never a man's**: a squad draws ONE symbol for its nine men. 1 000 soldiers ≈ 111 squads + 37 platoons + 12 companies + 4 battalions ≈ **165 symbols**, and **ECHELON DECLUTTER** shows only one level per zoom (zoomed out: companies ≈ 12; mid: platoons ≈ 37; close: squads) | the user's worry is right for men (1 000) — it is not the design: the men keep their silhouettes |
+| ⭐ **S-5** | **WHERE: a generic SYMBOLOGY module, not map code** — `UnitSymbol` + `SymbolGeometry` (pure data and vectors, no renderer) in `Fdp.Toolkits` beside the components (so a sim node can derive it and an IG can export it); `SymbolAtlas` (the only raylib part) in `Fdp.Presentation`, ONE per process; the map, the card and ImGui are CALLERS | the user: "quite generic, should not be just in the 2d/3d map code"; and two map renderers + ImGui must look identical by construction |
+| ⭐ **S-6** | **CACHE: draw ONCE, stamp every frame** — the atlas rasterises each distinct `UnitSymbol` key (and size bucket: 16 / 24 / 40 px) the first time it is asked, into one `RenderTexture`; afterwards a symbol is ONE textured quad, all of them one batched texture. Distinct keys are few (side × role × mobility × secondary × echelon actually present — tens per scenario). The gizmo emits the existing `Icon` primitive with the key in `IconAtlasCoord` (64 B, already on the wire); the derivation is cached per unit and redone only when its authored content changes | cheaper per frame than today's vector silhouette (one quad vs several polylines); ⛔ unmeasured on Windows — the build adds a rail: 500 stamped symbols, ms per frame |
+| **S-7** | the symbol stays UPRIGHT and screen-sized (the standard's way: the heading is a separate staff / arrow, never a rotated frame); in 3-D it lives only in the card (a screen-space overlay) — no perspective distortion | APP-6 symbols are never rotated or skewed |
+| **S-8** | ⛔ **NOT in place of the men's / vehicles' vector symbols** — those stay rotated and perspective-correct; a NATO EQUIPMENT mode for vehicles is not proposed (it would trade the rotated footprint, which shows facing and size, for an upright sign) | the user, `2026-11-16`: "each entity has a 2d vector current symbol now, rotated and even perspective distorted" — the earlier "a later switch" line is WITHDRAWN |
 
 ## 5. Built now / waiting *(as-built `2026-11-16`; `exp/agg-backend` merged at `64255766d` — its contract NOTE_AggBackend_To_Agg_Contract.md)*
 

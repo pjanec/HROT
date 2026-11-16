@@ -768,7 +768,7 @@
 <text x='34' y='2252' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The SIDC is DERIVED: side (EntityInfo) + arm and echelon (the unit's DIS type, UnitDis) + mounted (AggregateUnit.Posture); a TKB-authored</text>
 <text x='34' y='2266' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SIDC (Symbology §3.8.3c, TextureName) overrides it. Not shown: the stochastic marker - the standard has none; the card's ~ carries it.</text>
 <rect x='810' y='1872' width='810' height='420' fill='#3C5A32' rx='0' opacity='1'/>
-<text x='824' y='1896' fill='#FFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>zoomed out (ST-4) or the Labels layer off: the SAME symbol, ALONE at the unit's point - footprints + symbols, no text</text>
+<text x='824' y='1896' fill='#FFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>zoomed out or Labels off: the SAME symbol ALONE at the unit's point - ONE echelon level per zoom (here companies)</text>
 <polygon points='906.5,2008.1 1004.8,2076.9 1033.5,2035.9 935.2,1967.1' fill='#0064FF' fill-opacity='0.22' stroke='#0064FF' stroke-width='2' stroke-dasharray='6 4'/>
 <line x1='984.3' y1='2001.5' x2='997.0' y2='1983.5' stroke='#0064FF' stroke-width='2'/>
 <path d='M1000.4 1978.6 L998.8 1989.6 L990.6 1983.9 Z' fill='#0064FF'/>
@@ -991,6 +991,6 @@
 <text x='1010' y='3012' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>NATO on + Labels on  ⇒ the symbol in the CARD's cell (no second one at the point)</text>
 <text x='1010' y='3026' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>NATO on + Labels off ⇒ the symbol ALONE at the unit's point (the zoomed-out picture)</text>
 <text x='1010' y='3040' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>NATO off            ⇒ none: a unit is its card, as today</text>
-<text x='1010' y='3054' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Men and vehicles keep their silhouettes ('Entities'); NATO EQUIPMENT symbols for them</text>
-<text x='1010' y='3068' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>are a separate, later switch (Symbology §3.8's selectable path) - not this row</text>
+<text x='1010' y='3054' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ONE symbol per UNIT (a squad's for its nine men) - never per man; one echelon level per zoom</text>
+<text x='1010' y='3068' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Men and vehicles keep their rotated silhouettes ('Entities') - no NATO mode for them (§6 S-8)</text>
 </svg>

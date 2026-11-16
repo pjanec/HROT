@@ -406,7 +406,7 @@ s.note(mx + 14, my + 380, ["The SIDC is DERIVED: side (EntityInfo) + arm and ech
 # the zoomed-out picture: symbols alone (no cards)
 zx, zy = mx + 790, my
 s.rect(zx, zy, 810, 420, MAP)
-s.text(zx + 14, zy + 24, "zoomed out (ST-4) or the Labels layer off: the SAME symbol, ALONE at the unit's point - footprints + symbols, no text", "#FFF", 12)
+s.text(zx + 14, zy + 24, "zoomed out or Labels off: the SAME symbol ALONE at the unit's point - ONE echelon level per zoom (here companies)", "#FFF", 12)
 for (px, py, w_, d_, hd, aff, arm, ech) in [(160, 150, 120, 50, 35, "F", "mech", "company"), (300, 220, 110, 40, 60, "F", "inf", "company"), (190, 300, 90, 40, 20, "F", "armour", "company"),
                                             (560, 140, 150, 55, 215, "H", "inf", "company"), (620, 260, 140, 50, 230, "H", "inf", "company"), (690, 350, 90, 40, 200, "H", "arty", "company")]:
     footprint(zx + px, zy + py, w_, d_, hd, FRIEND if aff == "F" else HOSTILE, FRIEND if aff == "F" else HOSTILE, "6 4")
@@ -518,8 +518,8 @@ for name, on, doc in items:
 s.note(lx + 10, ly + 210, ["NATO on + Labels on  ⇒ the symbol in the CARD's cell (no second one at the point)",
                            "NATO on + Labels off ⇒ the symbol ALONE at the unit's point (the zoomed-out picture)",
                            "NATO off            ⇒ none: a unit is its card, as today",
-                           "Men and vehicles keep their silhouettes ('Entities'); NATO EQUIPMENT symbols for them",
-                           "are a separate, later switch (Symbology §3.8's selectable path) - not this row"], C.SUB, 11.5)
+                           "ONE symbol per UNIT (a squad's for its nine men) - never per man; one echelon level per zoom",
+                           "Men and vehicles keep their rotated silhouettes ('Entities') - no NATO mode for them (§6 S-8)"], C.SUB, 11.5)
 
 s.save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"))
 if len(sys.argv) > 1: render(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "aggregate-units", "agg-ui-visuals.svg"), sys.argv[1], W, H)
