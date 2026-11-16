@@ -97,6 +97,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the barrel is too hot: no round until it cools to half (Progress = heat,
         /// Needed = the share it fires again at). Appended.</summary>
         Overheated,
+        /// <summary>⭐ <c>CE-4623</c> AB-5 (Animals AR-10) — the ridden horse BOLTS: fear above its bolt line overrides the rider's controls for a
+        /// while (the HUD's cue). Appended.</summary>
+        Bolting,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -201,6 +204,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.OutOfRange         => "hold: out of range",
             ActionReason.Masked             => "hold: masked",               // ⭐ IF-1, CE-2218 — the terrain stops the round
             ActionReason.Overheated         => "hold: barrel too hot",       // ⭐ CE-1358 (§5k) — cooling to half
+            ActionReason.Bolting            => "the horse bolts",            // ⭐ CE-4623 AB-5 (AR-10)
             _                               => "",
         };
 
