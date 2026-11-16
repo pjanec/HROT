@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-15
-build-state: READY-TO-BUILD (2026-11-15) — R-4260 decisions, R-4262 the review folded; slices §5 K-1…K-7
+build-state: READY-TO-BUILD → DISPATCHED 2026-11-16 to `behaviors` as a follow-up after minefields (§5a ids) (2026-11-15) — R-4260 decisions, R-4262 the review folded; slices §5 K-1…K-7
 current-answer: §1 inventory · §2 decisions · §3 UML · §4 the checkpoint in time · §5 slices and acceptance · §8 the review
 stale-below: § HISTORY at the bottom (§2–§5 as first written); §8 is the review record, folded into §2–§5
 known-rot: none
@@ -192,6 +192,15 @@ that already exists — no node writes another node's entity.*
 
 ⭐ Every slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + `HROT_WORLD_GUARD=1`; `stepped-hash.py --threads 1,4,8`; 0 B per steady frame (R-2084);
 invariant number output (R-4221).
+
+## 5a. The fixed ids *(coordinator, `2026-11-16`; measured free on every lane incl. the three `exp/agg-*`)*
+
+| what | the value | note |
+|---|---|---|
+| `RamOrder` (unmanaged, replicated, on the hull) | component id **126** | 127, 128 held for this feature (e.g. the squad's vehicle-ladder rung if it must be a component) |
+| its descriptor | **`dtRamOrder` = 196** | 197 held; 194 / 195 are terrain's minefield ordinals |
+| tracker / rulings | the building lane's own block | — |
+| the scenarios (K-8) | `scenarios/demos/checkpoint/cp-routine-car` · `cp-vbied` · `cp-compliant-bomber` · `cp-moto-attack` · `cp-ram-barrier` | each a What / Judge `description` + `checks.json` + golden (R-4277) |
 
 ## 8. ⛔ The review — `2026-11-15` *(two independent reviewers: realism + plays, engine fit; ✔ = re-measured by the coordinator)* — ✅ ALL APPROVED as leaned, user `2026-11-15`: *"Approved."* (R-4262; KV-12: "detonates when shot" DROPPED; KV-2: lines in time)
 
