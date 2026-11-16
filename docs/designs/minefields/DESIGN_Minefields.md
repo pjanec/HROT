@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: DESIGN — COMPLETE (R-4270, R-4271); ⏳ REVIEWED (§8: 8 blockers) — awaiting rulings
+build-state: DESIGN — COMPLETE (R-4270, R-4271); review §8 APPROVED (R-4272); ⏳ the knowledge-generalization question (§9) before READY-TO-BUILD
 current-answer: §3 decisions (approved) · §3a the fixed ids · §3b UML · §4 slices
 stale-below: nothing
 known-rot: none
@@ -204,7 +204,7 @@ no node writes another node's entity.*
 | MF-S5 | the authoring tool and the per-side drawing | ui |
 | MF-S6 | the breach play and crossing the lane | behaviors |
 
-## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: doctrine + behaviour, engine fit, authoring / display / the clearer; ✔ = re-measured by the coordinator)* — ⏳ AWAITING RULINGS
+## 8. ⛔ The review — `2026-11-16` *(three independent reviewers: doctrine + behaviour, engine fit, authoring / display / the clearer; ✔ = re-measured by the coordinator)* — ✅ APPROVED on every lean (R-4272, `2026-11-16`); livestock set off AT mines rarely; a struck field's shape is not editable
 
 ⭐ 32 raw findings merged into 20. NOT buildable as drawn until MR-1…MR-8 are ruled.
 
@@ -234,3 +234,38 @@ no node writes another node's entity.*
 ⭐ **Found sound:** derived mines, one field per entity, own fields known at start and the AP / AT split match doctrine and the constructive
 practice; all ids are free; vehicle mass is available; the record pattern stops in replay and records by bytes; the tile-hash rebake covers new
 volumes; MF-14's reason against a singleton holds; the ClearLane order needs no new UI (the order form picks two points).
+
+## 9. ⏳ Generalize the knowledge? — `2026-11-16`
+
+🔒 User, verbatim: *"Approved. An additional question: the knowledge information about the fields. Now it is designed for the fields only, but maybe this is something which is more generic, the knowledge about some part of the world, of the terrain. There could be many things like reconnaissance reports and something. Maybe it could be generalized."*
+
+**INVENTORY** *(graph: `search_graph` name `.*(Knowledge|Intel|Recon|Known|Explored|Fog|Belief|Awareness|Sighting|Spotted|Observed).*`, `.*(Contact|Picture|Memory).*`, `.*(CellRecord|Record(System|Section)|Damage(Record|Cell)|TerrainObjects).*`, label Class; grep for `side-knowledge`, `fog of war`, `CellRecordSystem`; ⚠ index coverage cannot be checked through the CLI)*
+
+| what a side / unit knows today | about | where | saved? |
+|---|---|---|---|
+| `CommandPicture` (reported elements, subordinates) | ENTITIES, per commander | `Squad/Command/CommandComponents.cs` | no |
+| `SquadContacts`, `TargetMemory`, `SensorContactList` | ENTITIES, per squad / unit | Perception, Squad/State | no |
+| `KnownCombatantList` | ENTITIES (civilians who fired), per observer | `Combat/KnownCombatants.cs` | no |
+| `FiringPositionMemory` (`[UnitMemory]`) | PLACES, per unit | `Combat/FiringPositionMemory.cs` | no |
+| `RecentDetonations` | bursts, per node | `Combat/RecentDetonations.cs` | no |
+| `ShelledAreas` | PLACES, node-level, no side | `Squad/DangerArea/ShelledAreas.cs` | no (cools in minutes) |
+| `RoomKnowledge` | a room, computed from the squad's picture | `Brains/RoomGrenade.cs` | no (derived) |
+| `CellRecordSystem<TRecord,TItem>` | the generic per-cell RECORD writer (craters, trees) — keyed by cell + deciding node, no side | `Terrain/CellRecordSystem.cs:16-56` | yes |
+| P-3 side knowledge (`ui.side-knowledge`, last-known markers) | ENTITIES on the 2-D map — PLANNED, not designed | `PLAN_Training_And_Gameplay_Engine.md` P-3, `DESIGN_Entity_Control.md` C-9 | — |
+
+⇒ Nothing today holds **per-side, persistent knowledge about a PLACE**. Entity knowledge exists (brain-local, ageing, unsaved) and is a different thing.
+
+**The proven solution for this problem class:** constructive simulations and C2 systems keep GROUND TRUTH apart from each side's PERCEIVED picture, and
+the perceived picture of terrain is a set of overlay entries (obstacle, minefield, route, area) — each with a subject, a state, a time, a source.
+⭐ Adopted for the shape; ⛔ not as one per-side raster of the world (10 × 10 km at 10 m = 1 M cells per side, and a minefield's cells sit on the
+field's own rotated lattice).
+
+**⭐ Lean (KG-1…KG-5) — generalize the MACHINERY, keep the PAYLOAD per kind, build only the minefield kind now:**
+
+| # | lean |
+|---|---|
+| KG-1 | one record, `PlaceKnowledge` (TKB 7206 kept): keyed by (SUBJECT, side, kind, chunk); the subject is a 64-bit stable scenario key — a field / area entity's scenario id, or a terrain-object key (a bridge, a building); a fixed header (kind, state, learned-at, source, marked) + a kind-owned payload within the 1 KB cap |
+| KG-2 | ONE writer path for every kind: knowledge EVENTS through the batch buffer → one serial `PlaceKnowledgeSystem` on the owning node, merge by the kind's lattice max (order-free), the save / load / merge arms, the record's ownership — the `CellRecordSystem` shape, keyed by subject instead of cell |
+| KG-3 | ONE set of sharing rules: a side learns by a witness within range or by a report; a MARKED subject is learned by every side that sees it; the instructor sees all |
+| KG-4 | ONE display filter (`StationMode.SideOf`) and one query (`Knows(side, subject, kind)`) for the map, the path filter, the danger solve and the brains |
+| KG-5 | kinds: **Minefield** built now (§3 + §8 unchanged, its cells the payload). Named, NOT built: obstacle / bridge / route state known, building cleared, area reconnoitred. ⛔ Entity knowledge stays out (contacts, the P-3 last-known markers): moving, ageing, brain-local, already homed |
