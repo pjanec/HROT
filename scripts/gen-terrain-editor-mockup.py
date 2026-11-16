@@ -1,6 +1,6 @@
 # Generates docs/UX/terrain-editor.svg — the user-friendly terrain editing of DESIGN_Terrain_Editor_UX.md (CE-4594), house style (R-4143):
 #   REVISED 2026-11-15 to the critical review (§8) and the rulings R-5032 (TE-1: the Editor Toolbar window) and R-4264 (TE-5: obstacles are entities):
-#   A the Terrain row in the Editor Toolbar window (TE-1), a tool that stays armed (TE-2) · B trees: one · a row · a group (TE-3, TE-4)
+#   A the toolbars (TE-19, R-5038): one shared dockable strip, a row on top / a column at the side, the main toolbar's Toolbars split icon + Layers · B trees: one · a row · a group (TE-3, TE-4)
 #   · C a wall along a road: snapping (TE-6), a closed plot and its gate (TE-7) · D an obstacle row of ENTITIES (TE-5) and baked street clutter (TE-13)
 #   · E the Terrain Details tab (TE-8) · F handles (TE-9) and the ghost that waits for the bake (TE-10).
 # Regenerate: python3 scripts/gen-terrain-editor-mockup.py [docs/UX/terrain-editor.svg]
@@ -15,7 +15,7 @@ import os, sys, math, random
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, render, text_width
 
-W, H = 1240, 1560
+W, H = 1240, 1730
 GROUND = ["#33452C", "#3B5131", "#4A5C36", "#5E643C"]
 ROAD = "#E8D58A"; ROAD_EDGE = "#8A7A40"; HOUSE = "#E1CDA0"; FOREST = "#286E32"; ROUTE = "#5BD06A"; TREE = "#3F8F45"
 WALL = "#C9B79A"; HEDGE = "#4E8A3A"; SAND = "#D8B860"; CONC = "#B8B8C0"; SNAP = "#4296FA"
@@ -121,30 +121,43 @@ def dpanel(s, x, y, h, title, scatter=False):
 s = Svg(W, H, "Terrain editor — the user-friendly way (CE-4594) · revised",
         "DESIGN_Terrain_Editor_UX.md §5 (R-5032, R-4264, the review §8) · A toolbar · B trees · C walls, snap, gate · D obstacles · E Details · F handles. Grey = annotation.")
 
-# ── A — the Terrain row in the Editor Toolbar window ─────────────────────────────────────────────────────────────────────────────
-label(s, 20, 62, "A  The Terrain row in the Editor Toolbar window (TE-1, R-5032) — and a tool that stays armed (TE-2)")
-s.window(20, 72, 760, 112, "Editor Toolbar")
-s.text(30, 108, "Tools", C.TXT, 12.5); s.line(30, 116, 770, 116, C.SEP)
-x = 30
-for t in ["Select", "Place Entity", "Edit Shape", "Edit Route"]: x = txt_btn(s, x, 122, t)
-txt_btn(s, x, 122, "Reload BTrees", fill="#CC6600")
-s.text(30, 168, "Terrain", C.SUB, 12)
-x = 88
-for g, c, t, arm in [(G["TREE"], TREE, "Wood", False), (G["SEED"], C.GREEN, "Trees", False), (G["WALL"], WALL, "Walls", True), (G["CUBE"], CONC, "Obstacles", False),
-                     (G["DIG"], "#C8965A", "Earthworks", False), (0xf773, C.BLUE, "Water", False), (G["CAR"], C.GREY, "Scatter", False)]:
-    x = fam_btn(s, x, 154, g, c, t, arm)
-s.note(800, 205, ["context, unchanged: the window, \"Tools\", the four text buttons,", "Reload BTrees, the teal armed colour (EditorToolbarPanel.cs:36-66)",
-                  "NEW: the Terrain line — family buttons that WRAP to the window;", "the armed family is lit (it reads the armed pick, not a tool id)"], C.NOTE, 11)
-s.menu(246, 178, 200, [("Wall", None, G["WALL"], WALL), ("Fence", None, G["WALL"], "#A07850"), ("Hedge   (last used)", None, G["WALL"], HEDGE),
-                       "---", ("Wall around a plot", None, FA.POLYGON, WALL)])
-s.rect(800, 72, 420, 70, "#0F0F12", op=0.92, rx=3, stroke=C.BORDER)
-s.text(810, 92, "Hedge — 3 drawn · click the first point of the next", C.TXT, 12)
-s.text(810, 110, "Esc drops this shape · Esc again stops the tool", C.SUB, 11.5)
-s.text(810, 128, "each repeat gets a new seed", C.NOTE, 11)
-s.note(800, 160, ["TE-2: a terrain line / area tool stays armed after Finish,", "like point placement (always-multi, D5)"], C.NOTE, 11)
+# ── A — the toolbars (TE-19, R-5038): ONE shared dockable strip; the main toolbar's Toolbars split icon + the Layers toggle ─────────
+label(s, 20, 62, "A  Toolbars (TE-19, R-5038): one shared strip — a row docked on top, a column docked at the side; the main toolbar's split icon")
+# the main toolbar (context: menus + the existing entries, drawn plain) and the two NEW icons at its right
+s.rect(20, 72, 1200, 26, "#232328", stroke=C.BORDER)
+x = 28
+for t in ["File", "Edit", "View", "Scenario", "AI"]: s.text(x, 90, t, C.TXT, 12.5); x += text_width(t, 12.5) + 16
+s.rect(x + 6, 76, 140, 18, "#2C2C34", rx=2); s.text(x + 14, 89, "… the existing entries", C.NOTE, 10.5)
+ix = x + 160
+s.rect(ix, 75, 30, 20, ARMED, rx=2); s.glyph(0xf552, ix + 8, 78, C.TXT, 13)          # the split icon's face (toolbox), lit: a toolbar is open
+s.rect(ix + 31, 75, 14, 20, ARMED, rx=2); s.raw(f"<path d='M{ix + 34} 83 l4 5 l4 -5 z' fill='{C.TXT}'/>")
+s.rect(ix + 52, 75, 30, 20, C.BTN, rx=2); s.glyph(0xf5fd, ix + 60, 78, C.BLUE, 13)    # Tactical Map Layers — its own toggle
+s.menu(ix - 40, 100, 210, [("#", "Toolbars"), ("Scenario tools", "✓", FA.CROSSHAIRS, C.GREY), ("Terrain", "✓", G["TREE"], TREE), "---", ("(more toolbars later)", None, None, None, "")])
+s.note(ix + 180, 108, ["the split icon: the face toggles the last toolbar,", "▾ lists every toolbar, ✓ = open — ONE shared widget,", "extracted from the ▶ / ▾ preset picker (CE-3393)", "", "Layers: its own toggle (a panel, not a toolbar)"], C.NOTE, 11)
+# the Scenario tools toolbar, docked on top: a row of colour toggle icons
+s.window(20, 120, 260, 52, "Scenario tools")
+tx = 28
+for g, c, arm in [(FA.CROSSHAIRS, C.GREY, True), (FA.PLUS, C.GREEN, False), (FA.DRAW, C.BLUE, False), (FA.ROUTE, C.TEAL, False)]:
+    s.glyph_toggle(tx, 143, g, c, arm); tx += 34
+s.tooltip(120, 176, 150, ["Edit Shape   E"])
+s.note(20, 214, ["docked on top ⇒ a ROW;", "it locks nothing (units move", "in Live — R-4162)"], C.NOTE, 11)
+# the Terrain toolbar, docked at the side: a column; Walls lit, its family dropdown open
+s.window(300, 120, 44, 262, "")
+s.rect(300, 120, 44, 20, C.TITLE); s.text(305, 134, "Terr", C.TXT, 11)
+ty = 146
+for g, c, arm in [(G["TREE"], TREE, False), (G["SEED"], C.GREEN, False), (G["WALL"], WALL, True), (G["CUBE"], CONC, False), (G["DIG"], "#C8965A", False), (0xf773, C.BLUE, False), (G["CAR"], C.GREY, False)]:
+    s.glyph_toggle(307, ty, g, c, arm); ty += 32
+s.menu(350, 206, 180, [("Wall", None, G["WALL"], WALL), ("Fence", None, G["WALL"], "#A07850"), ("Hedge   (last used)", None, G["WALL"], HEDGE), "---", ("Wall around a plot", None, FA.POLYGON, WALL)])
+s.note(540, 214, ["docked at the side ⇒ a COLUMN;", "a family is ONE icon showing its", "last variant; its menu opens beside it", "", "⭐ the Terrain toolbar OPEN = placed", "terrain is selectable (the key, R-5038)"], C.NOTE, 11)
+s.rect(800, 330, 420, 70, "#0F0F12", op=0.92, rx=3, stroke=C.BORDER)
+s.text(810, 350, "Hedge — 3 drawn · click the first point of the next", C.TXT, 12)
+s.text(810, 368, "Esc drops this shape · Esc again stops the tool", C.SUB, 11.5)
+s.text(810, 386, "each repeat gets a new seed", C.NOTE, 11)
+s.note(800, 418, ["TE-2: a terrain line / area tool stays armed after Finish,", "like point placement (always-multi, D5)"], C.NOTE, 11)
 
+s.raw("<g transform='translate(0,170)'>")
 # ── B — trees ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-label(s, 20, 300, "B  Trees — one, a row, a group (TE-3); a Row and a Group are ONE feature each (TE-4: kinds 14, 15)")
+label(s, 20, 302, "B  Trees — one, a row, a group (TE-3); a Row and a Group are ONE feature each (TE-4: kinds 14, 15)")
 bx, by, bw, bh = 20, 312, 900, 330
 clip(s, "cb", bx, by, bw, bh); ground(s, bx, by, bw, bh, 11)
 road(s, [(bx - 10, by + 210), (bx + 300, by + 200), (bx + 910, by + 230)])
@@ -262,6 +275,7 @@ s.text(fx0 + 250, fy0 + 160, "just finished: the ghost holds until the bake", C.
 s.text(fx0 + 250, fy0 + 175, "takes it (≈ 5 s warm) — it never blinks out", C.SUB, 11)
 unclip(s)
 
+s.raw("</g>")
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "terrain-editor.svg")
 s.save(out)
 print("wrote", out)
