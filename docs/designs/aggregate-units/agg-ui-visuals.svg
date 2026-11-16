@@ -219,38 +219,27 @@
 <line x1='272.9' y1='769.2' x2='285.6' y2='751.2' stroke='#0064FF' stroke-width='2'/>
 <path d='M289.0 746.3 L287.4 757.4 L279.2 751.6 Z' fill='#0064FF'/>
 <rect x='232' y='790' width='36' height='24' fill='#80E0FF' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
-<line x1='232' y1='790' x2='268' y2='814' stroke='#000' stroke-width='1.5'/>
-<line x1='232' y1='814' x2='268' y2='790' stroke='#000' stroke-width='1.5'/>
-<ellipse cx='250' cy='802' rx='12' ry='7' fill='none' stroke='#000' stroke-width='1.5'/>
-<text x='250' y='787' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•••</text>
-<rect x='232' y='819' width='36' height='5' fill='#222' rx='0' opacity='1'/>
-<rect x='232' y='819' width='31.200000000000003' height='5' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='250' y='836' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>2 Plt  ·  26/30  ·  ≈</text>
+<text x='250' y='784' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>···</text>
+<rect x='250' y='821' width='98.10769230769232' height='17' fill='#000' rx='3' opacity='0.6'/>
+<text x='255' y='834' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2 Plt · 26/30 · ~</text>
 <text x='350' y='762' fill='#E65555' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>−2</text>
 <path d='M416 49Q460 80 486 125Q511 170 512 224Q511 287 477 337Q443 388 385 417Q328 447 256 448Q184 447 127 417Q69 388 35 337Q1 287 0 224Q1 171 26 125Q52 80 96 49Q96 49 96 49Q96 48 96 48V-16Q97 -36 110 -50Q124 -63 144 -64H192V-16Q193 -1 208 0Q223 -1 224 -16V-64H288V-16Q289 -1 304 0Q319 -1 320 -16V-64H368Q388 -63 402 -50Q415 -36 416 -16V48Q416 48 416 49Q416 49 416 49ZM96 192Q97 228 128 247Q160 265 192 247Q223 228 224 192Q223 156 192 137Q160 119 128 137Q97 156 96 192ZM352 256Q388 255 407 224Q425 192 407 160Q388 129 352 128Q316 129 297 160Q279 192 297 224Q316 255 352 256Z' fill='#E65555' fill-opacity='1' transform='translate(364,760.861328125) scale(0.021484375,-0.021484375)'/>
 <polygon points='622.3,759.7 409.3,610.6 357.7,684.3 570.7,833.4' fill='#FF0000' fill-opacity='0.22' stroke='#FF0000' stroke-width='2' stroke-dasharray='6 4'/>
 <line x1='464.2' y1='758.9' x2='451.6' y2='776.9' stroke='#FF0000' stroke-width='2'/>
 <path d='M448.1 781.8 L449.8 770.7 L458.0 776.5 Z' fill='#FF0000'/>
-<polygon points='490,705 507,722 490,739 473,722' fill='#FF8080' stroke='#000' stroke-width='1.5'/>
-<line x1='482' y1='714' x2='498' y2='730' stroke='#000' stroke-width='1.5'/>
-<line x1='482' y1='730' x2='498' y2='714' stroke='#000' stroke-width='1.5'/>
-<text x='490' y='702' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>I</text>
-<rect x='472' y='744' width='36' height='5' fill='#222' rx='0' opacity='1'/>
-<rect x='472' y='744' width='19.8' height='5' fill='#F2C033' rx='0' opacity='1'/>
-<text x='490' y='761' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>3 Coy  ·  55/100  ·  ≈</text>
+<rect x='472' y='710' width='36' height='24' fill='#FF8080' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
+<text x='490' y='704' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>I</text>
+<rect x='490' y='746' width='106.7769230769231' height='17' fill='#000' rx='3' opacity='0.6'/>
+<text x='495' y='759' fill='#E65555' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>3 Coy · 55/100 · ~</text>
 <text x='400' y='682' fill='#E65555' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>−5</text>
 <path d='M416 49Q460 80 486 125Q511 170 512 224Q511 287 477 337Q443 388 385 417Q328 447 256 448Q184 447 127 417Q69 388 35 337Q1 287 0 224Q1 171 26 125Q52 80 96 49Q96 49 96 49Q96 48 96 48V-16Q97 -36 110 -50Q124 -63 144 -64H192V-16Q193 -1 208 0Q223 -1 224 -16V-64H288V-16Q289 -1 304 0Q319 -1 320 -16V-64H368Q388 -63 402 -50Q415 -36 416 -16V48Q416 48 416 49Q416 49 416 49ZM96 192Q97 228 128 247Q160 265 192 247Q223 228 224 192Q223 156 192 137Q160 119 128 137Q97 156 96 192ZM352 256Q388 255 407 224Q425 192 407 160Q388 129 352 128Q316 129 297 160Q279 192 297 224Q316 255 352 256Z' fill='#E65555' fill-opacity='1' transform='translate(416,680.861328125) scale(0.021484375,-0.021484375)'/>
 <path d='M140 964 L250 955 L350 972 L420 990' stroke='#0064FF' stroke-width='14' stroke-opacity='0.35' fill='none' stroke-linecap='round'/>
 <path d='M140 964 L250 955 L350 972 L420 990' stroke='#0064FF' stroke-width='2' stroke-dasharray='6 4' fill='none'/>
 <rect x='402' y='948' width='36' height='24' fill='#80E0FF' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
-<line x1='402' y1='948' x2='438' y2='972' stroke='#000' stroke-width='1.5'/>
-<line x1='402' y1='972' x2='438' y2='948' stroke='#000' stroke-width='1.5'/>
-<ellipse cx='420' cy='960' rx='12' ry='7' fill='none' stroke='#000' stroke-width='1.5'/>
-<text x='420' y='945' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>I</text>
+<text x='420' y='942' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>I</text>
 <line x1='420' y1='972' x2='420' y2='990' stroke='#0064FF' stroke-width='1.5'/>
-<rect x='402' y='1000' width='36' height='5' fill='#222' rx='0' opacity='1'/>
-<rect x='402' y='1000' width='36.0' height='5' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='420' y='1017' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>A Coy  ·  march column  ·  ≈</text>
+<rect x='420' y='1002' width='114.38461538461539' height='17' fill='#000' rx='3' opacity='0.6'/>
+<text x='425' y='1015' fill='#5BD06A' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A Coy · 100/100 · ~</text>
 <text x='128' y='952' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>tail</text>
 <text x='432' y='1007' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>head</text>
 <circle cx='140' cy='712' r='4.5' fill='#0064FF' stroke='#000' stroke-width='1'/>
@@ -265,7 +254,7 @@
 <text x='632' y='819' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>side colour fill 22 %, arrow = heading</text>
 <path d='M280 842 L626 837' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='632' y='841' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>label rows: strength bar (UnitStrength),</text>
-<text x='632' y='855' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>name · present/authorized · ≈ = stochastic</text>
+<text x='632' y='855' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>name · present/authorized · ~ = stochastic</text>
 <path d='M360 762 L626 882' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='632' y='886' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>LOSS MARK: −n + skull, at the footprint's</text>
 <text x='632' y='900' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>edge, fades in 4 s (ST-3)</text>
@@ -283,23 +272,17 @@
 <line x1='170.3' y1='1313.8' x2='177.8' y2='1293.1' stroke='#0064FF' stroke-width='2'/>
 <path d='M179.8 1287.5 L181.1 1298.6 L171.7 1295.2 Z' fill='#0064FF'/>
 <rect x='142' y='1330' width='36' height='24' fill='#80E0FF' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
-<line x1='142' y1='1330' x2='178' y2='1354' stroke='#000' stroke-width='1.5'/>
-<line x1='142' y1='1354' x2='178' y2='1330' stroke='#000' stroke-width='1.5'/>
-<text x='160' y='1327' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•••</text>
+<text x='160' y='1324' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>···</text>
 <polygon points='535.4,1211.2 385.1,1156.4 364.6,1212.8 514.9,1267.6' fill='#FF0000' fill-opacity='0.22' stroke='#FF0000' stroke-width='2' stroke-dasharray='6 4'/>
 <line x1='439.7' y1='1240.2' x2='432.2' y2='1260.9' stroke='#FF0000' stroke-width='2'/>
 <path d='M430.2 1266.5 L428.9 1255.4 L438.3 1258.8 Z' fill='#FF0000'/>
-<polygon points='450,1195 467,1212 450,1229 433,1212' fill='#FF8080' stroke='#000' stroke-width='1.5'/>
-<line x1='442' y1='1204' x2='458' y2='1220' stroke='#000' stroke-width='1.5'/>
-<line x1='442' y1='1220' x2='458' y2='1204' stroke='#000' stroke-width='1.5'/>
-<text x='450' y='1192' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•••</text>
+<rect x='432' y='1200' width='36' height='24' fill='#FF8080' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
+<text x='450' y='1194' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>···</text>
 <polygon points='514.0,1429.8 473.0,1317.1 426.0,1334.2 467.0,1446.9' fill='#FF0000' fill-opacity='0.22' stroke='#FF0000' stroke-width='2' stroke-dasharray='6 4'/>
 <line x1='446.5' y1='1390.6' x2='425.8' y2='1398.1' stroke='#FF0000' stroke-width='2'/>
 <path d='M420.2 1400.1 L427.9 1392.0 L431.3 1401.4 Z' fill='#FF0000'/>
-<polygon points='470,1365 487,1382 470,1399 453,1382' fill='#FF8080' stroke='#000' stroke-width='1.5'/>
-<line x1='462' y1='1374' x2='478' y2='1390' stroke='#000' stroke-width='1.5'/>
-<line x1='462' y1='1390' x2='478' y2='1374' stroke='#000' stroke-width='1.5'/>
-<text x='470' y='1362' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•</text>
+<rect x='452' y='1370' width='36' height='24' fill='#FF8080' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
+<text x='470' y='1364' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>·</text>
 <line x1='180' y1='1327' x2='435' y2='1227' stroke='#5BD06A' stroke-width='2' stroke-dasharray='none'/>
 <rect x='273.5' y='1267.0' width='68' height='20' fill='#000000' rx='3' opacity='0.75'/>
 <rect x='277.5' y='1272.0' width='10' height='10' fill='#5BD06A' rx='0' opacity='1'/>
@@ -358,13 +341,9 @@
 <line x1='1072.9' y1='699.2' x2='1085.6' y2='681.2' stroke='#0064FF' stroke-width='2'/>
 <path d='M1089.0 676.3 L1087.4 687.4 L1079.2 681.6 Z' fill='#0064FF'/>
 <rect x='1032' y='720' width='36' height='24' fill='#80E0FF' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
-<line x1='1032' y1='720' x2='1068' y2='744' stroke='#000' stroke-width='1.5'/>
-<line x1='1032' y1='744' x2='1068' y2='720' stroke='#000' stroke-width='1.5'/>
-<ellipse cx='1050' cy='732' rx='12' ry='7' fill='none' stroke='#000' stroke-width='1.5'/>
-<text x='1050' y='717' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•••</text>
-<rect x='1032' y='749' width='36' height='5' fill='#222' rx='0' opacity='1'/>
-<rect x='1032' y='749' width='31.200000000000003' height='5' fill='#5BD06A' rx='0' opacity='1'/>
-<text x='1050' y='766' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>2 Plt  ·  26/30  ·  ≈</text>
+<text x='1050' y='714' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>···</text>
+<rect x='1050' y='751' width='98.10769230769232' height='17' fill='#000' rx='3' opacity='0.6'/>
+<text x='1055' y='764' fill='#F2C033' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2 Plt · 26/30 · ~</text>
 <rect x='1150' y='652' width='200' height='220' fill='#141418' rx='3' stroke='#4A4A55' stroke-width='1' opacity='1'/>
 <path d='M512 352Q511 326 496 296Q480 266 461 239Q441 213 427 197Q421 190 413 192H320Q306 192 297 183Q288 174 288 160Q288 146 297 137Q306 128 320 128H416Q457 127 484 100Q511 73 512 32Q511 -9 484 -36Q457 -63 416 -64H140Q153 -49 170 -27Q179 -15 189 0H416Q430 0 439 9Q448 18 448 32Q448 46 439 55Q430 64 416 64H320Q279 65 252 92Q225 119 224 160Q225 201 252 228Q279 255 320 256H360Q344 280 332 305Q321 330 320 352Q321 393 348 420Q375 447 416 448Q457 447 484 420Q511 393 512 352ZM117 -41Q111 -48 107 -52L105 -54Q95 -61 85 -52Q72 -38 52 -13Q32 12 16 41Q1 70 0 96Q1 137 28 164Q55 191 96 192Q137 191 164 164Q191 137 192 96Q191 73 179 47Q166 22 149 -2Q132 -24 118 -40L117 -41ZM128 96Q128 110 119 119Q110 128 96 128Q82 128 73 119Q64 110 64 96Q64 82 73 73Q82 64 96 64Q110 64 119 73Q128 82 128 96ZM416 320Q430 320 439 329Q448 338 448 352Q448 366 439 375Q430 384 416 384Q402 384 393 375Q384 366 384 352Q384 338 393 329Q402 320 416 320Z' fill='#5BD06A' fill-opacity='1' transform='translate(1160,671.2060546875) scale(0.0244140625,-0.0244140625)'/>
 <text x='1180' y='671' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Orders</text>
@@ -417,10 +396,7 @@
 <line x1='1050.0' y1='989.0' x2='1050.0' y2='967.0' stroke='#0064FF' stroke-width='2'/>
 <path d='M1050.0 961.0 L1055.0 971.0 L1045.0 971.0 Z' fill='#0064FF'/>
 <rect x='1032' y='1012' width='36' height='24' fill='#80E0FF' rx='0' stroke='#000' stroke-width='1.5' opacity='1'/>
-<line x1='1032' y1='1012' x2='1068' y2='1036' stroke='#000' stroke-width='1.5'/>
-<line x1='1032' y1='1036' x2='1068' y2='1012' stroke='#000' stroke-width='1.5'/>
-<ellipse cx='1050' cy='1024' rx='12' ry='7' fill='none' stroke='#000' stroke-width='1.5'/>
-<text x='1050' y='1009' fill='#000' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>•••</text>
+<text x='1050' y='1006' fill='#000' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>···</text>
 <rect x='980' y='1042' width='140' height='18' fill='#000' rx='9' opacity='0.75'/>
 <path d='M208 368Q209 388 222 402Q236 415 256 416H320Q340 415 354 402Q367 388 368 368V304Q367 284 354 270Q340 257 320 256H312V216H464Q488 215 504 200Q519 184 520 160V128H528Q548 127 562 114Q575 100 576 80V16Q575 -4 562 -18Q548 -31 528 -32H464Q444 -31 430 -18Q417 -4 416 16V80Q417 100 430 114Q444 127 464 128H472V160Q471 167 464 168H312V128H320Q340 127 354 114Q367 100 368 80V16Q367 -4 354 -18Q340 -31 320 -32H256Q236 -31 222 -18Q209 -4 208 16V80Q209 100 222 114Q236 127 256 128H264V168H112Q105 167 104 160V128H112Q132 127 146 114Q159 100 160 80V16Q159 -4 146 -18Q132 -31 112 -32H48Q28 -31 14 -18Q1 -4 0 16V80Q1 100 14 114Q28 127 48 128H56V160Q57 184 72 200Q88 215 112 216H264V256H256Q236 257 222 270Q209 284 208 304V368Z' fill='#5AA9FF' fill-opacity='1' transform='translate(987,1054.861328125) scale(0.021484375,-0.021484375)'/>
 <rect x='1005' y='1048' width='70' height='6' fill='#333' rx='0' opacity='1'/>

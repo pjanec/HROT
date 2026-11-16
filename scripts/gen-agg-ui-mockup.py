@@ -134,35 +134,31 @@ def footprint(cx, cy, w, d, hdg, edge, fill, dash):
 
 
 def frame_symbol(cx, cy, side, echelon, mech=False):
-    """an APP-6 style frame (friend rectangle / hostile diamond), infantry cross, echelon marks over it."""
-    if side == "F":
-        s.rect(cx - 18, cy - 12, 36, 24, FRIEND_FILL, stroke="#000", sw=1.5)
-        s.line(cx - 18, cy - 12, cx + 18, cy + 12, "#000", 1.5); s.line(cx - 18, cy + 12, cx + 18, cy - 12, "#000", 1.5)
-        if mech: s.raw(f"<ellipse cx='{cx}' cy='{cy}' rx='12' ry='7' fill='none' stroke='#000' stroke-width='1.5'/>")
-        top = cy - 12
-    else:
-        s.raw(f"<polygon points='{cx},{cy - 17} {cx + 17},{cy} {cx},{cy + 17} {cx - 17},{cy}' fill='{HOSTILE_FILL}' stroke='#000' stroke-width='1.5'/>")
-        s.line(cx - 8, cy - 8, cx + 8, cy + 8, "#000", 1.5); s.line(cx - 8, cy + 8, cx + 8, cy - 8, "#000", 1.5)
-        top = cy - 17
-    marks = {"squad": "•", "platoon": "•••", "company": "I", "battalion": "II"}[echelon]
-    s.text(cx, top - 3, marks, "#000" if side == "F" else "#000", 12, "middle", "bold")
+    """AS BUILT (CE-8603, R-4146): the frame is a plain box in the 2525 side fill (the 2-D layer cannot draw a pixel-sized cross around a world point),
+    the echelon marks ABOVE it, starting at the unit's point (the 2-D text has no x offset)."""
+    fill = FRIEND_FILL if side == "F" else HOSTILE_FILL
+    s.rect(cx - 18, cy - 12, 36, 24, fill, stroke="#000", sw=1.5)
+    marks = {"squad": "·", "platoon": "···", "company": "I", "battalion": "II"}[echelon]
+    s.text(cx, cy - 18, marks, "#000", 13, weight="bold")
 
 
 def strength_row(cx, y, frac, label):
-    col = GREEN if frac >= 0.8 else AMBER if frac >= 0.5 else RED
-    s.rect(cx - 18, y, 36, 5, "#222"); s.rect(cx - 18, y, 36 * frac, 5, col)
-    s.text(cx, y + 17, label, "#FFFFFF", 11.5, "middle")
+    """AS BUILT: one label row on a backdrop, starting at the unit's point, coloured by the SITREP strength (no bar)."""
+    col = GREEN if frac >= 0.9 else AMBER if frac >= 0.7 else RED
+    w = text_width(label, 11.5) + 10
+    s.rect(cx, y + 2, w, 17, "#000", op=0.6, rx=3)
+    s.text(cx + 5, y + 15, label, col, 11.5)
 
 
 # a friend platoon in LINE (deployed): footprint + symbol + strength + losses
 footprint(mx + 230, my + 190, 200, 80, 35, FRIEND, FRIEND, "6 4")
 frame_symbol(mx + 230, my + 190, "F", "platoon", mech=True)
-strength_row(mx + 230, my + 207, 26 / 30, "2 Plt  ·  26/30  ·  ≈")
+strength_row(mx + 230, my + 207, 26 / 30, "2 Plt · 26/30 · ~")
 s.text(mx + 330, my + 150, "−2", RED, 13, weight="bold"); s.glyph(FA.SKULL, mx + 344, my + 139, RED, 11)
 # a hostile company in line, in the wood
 footprint(mx + 470, my + 110, 260, 90, 215, HOSTILE, HOSTILE, "6 4")
 frame_symbol(mx + 470, my + 110, "H", "company")
-strength_row(mx + 470, my + 132, 0.55, "3 Coy  ·  55/100  ·  ≈")
+strength_row(mx + 470, my + 132, 0.55, "3 Coy · 55/100 · ~")
 s.text(mx + 380, my + 70, "−5", RED, 13, weight="bold"); s.glyph(FA.SKULL, mx + 396, my + 59, RED, 11)
 # a friend company in COLUMN along the road: a segment of its path
 pts = [(mx + 120, my + 352), (mx + 230, my + 343), (mx + 330, my + 360), (mx + 400, my + 378)]
@@ -171,7 +167,7 @@ s.raw(f"<path d='{path}' stroke='{FRIEND}' stroke-width='14' stroke-opacity='0.3
 s.raw(f"<path d='{path}' stroke='{FRIEND}' stroke-width='2' stroke-dasharray='6 4' fill='none'/>")
 frame_symbol(mx + 400, my + 378 - 30, "F", "company", mech=True)
 s.line(mx + 400, my + 378 - 18, mx + 400, my + 378, FRIEND, 1.5)
-strength_row(mx + 400, my + 378 - 50 + 60, 1.0, "A Coy  ·  march column  ·  ≈")
+strength_row(mx + 400, my + 378 - 50 + 60, 1.0, "A Coy · 100/100 · ~")
 s.text(mx + 108, my + 340, "tail", C.SUB, 11); s.text(mx + 412, my + 395, "head", C.SUB, 11)
 # a PHYSICAL squad for contrast (its men, the existing look)
 for i, (dx, dy) in enumerate([(0, 0), (12, 6), (-12, 7), (24, 12), (-24, 13)]):
@@ -179,7 +175,7 @@ for i, (dx, dy) in enumerate([(0, 0), (12, 6), (-12, 7), (24, 12), (-24, 13)]):
 s.text(mx + 120, my + 135, "1 Sqn (physical - its men, unchanged)", "#FFFFFF", 11, "middle")
 # annotations
 s.callout(mx + 330, my + 200, mx + mw + 12, my + 175, ["FOOTPRINT: width x depth x heading", "(AggregateUnit), dashed = stochastic", "side colour fill 22 %, arrow = heading"])
-s.callout(mx + 260, my + 230, mx + mw + 12, my + 225, ["label rows: strength bar (UnitStrength),", "name · present/authorized · ≈ = stochastic"])
+s.callout(mx + 260, my + 230, mx + mw + 12, my + 225, ["label rows: strength bar (UnitStrength),", "name · present/authorized · ~ = stochastic"])
 s.callout(mx + 340, my + 150, mx + mw + 12, my + 270, ["LOSS MARK: −n + skull, at the footprint's", "edge, fades in 4 s (ST-3)"])
 s.callout(mx + 330, my + 362, mx + mw + 12, my + 320, ["COLUMN: a band along its path,", "head to tail = Depth (M-3)"])
 s.note(mx + mw + 12, my + 380, ["⛔ 3-D: nothing - no bodies (the unit stays", "hidden; the 3-D map draws no footprint)", "", "zoomed out (ST-4): footprints + frames only,", "label rows drop below 40 px per unit"], C.SUB, 11.5)
@@ -227,7 +223,7 @@ panel_title(X5, Y5, "⑤", "De- / re-aggregate: the request (right-click, ST-5) 
 mx, my = X5, Y5 + 12
 s.rect(mx, my, 640, 470, MAP)
 footprint(mx + 150, my + 120, 200, 80, 35, FRIEND, FRIEND, "6 4"); frame_symbol(mx + 150, my + 120, "F", "platoon", mech=True)
-strength_row(mx + 150, my + 137, 26 / 30, "2 Plt  ·  26/30  ·  ≈")
+strength_row(mx + 150, my + 137, 26 / 30, "2 Plt · 26/30 · ~")
 # context menu (context: its other items unchanged)
 menu_items = [("Orders", None, FA.ROUTE, C.GREEN), ("Designate", None, FA.CROSSHAIRS, C.ORANGE), "---",
               ("Resolution", None, DICE, C.VIOLET), "---",

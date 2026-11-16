@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (the leans UI-1…UI-9 for the user's review) · BUILDING the parts that need no other lane: UI-3 (unit strength / ammunition rows) and UI-4's geometry (exp/agg-ui)
+build-state: DESIGN (the leans UI-1…UI-9 for the user's review) · BUILT on exp/agg-ui: UI-3 (strength rows), UI-4 geometry, UI-2 / UI-5 / UI-6 the map gizmo (bound to exp/agg-backend's contract)
 updated: 2026-11-16
 current-answer: the whole file — §1 the picture, §2 inventory, §3 UML, §4 the decisions, §5 what is built / waiting
 stale-below: nothing
@@ -143,14 +143,20 @@ deliberate dead paths — a stochastic unit has no body and draws nothing in 3-D
 | **UI-8** | DETECTION LEVELS: a debug layer row in Tactical Map Layers ▸ AI (2-D only, off by default, the gizmo family's "selected only" honoured): a line per observer → target pair, a 5-box level meter at its middle — green = contact reported, amber = accumulating, grey = fading; hover shows Pd, range, LOS samples, woods, posture, signature | always-on lines — O(n²) clutter at battalion scale · a separate panel — the level is spatial | N-5's level count differing from 5 (the meter takes the threshold from the table) |
 | **UI-9** | the de- / re-aggregate REQUEST: a `Resolution ▸` group in the unit's right-click menu (Make physical / fusion now, Aggregate now, Pin, Unpin — each disabled with its reason); the PROGRESS: a chip under the frame (stage glyph · leaves posted n/m) + a Resolution block in the Unit tab (Planning › Materialising › Handover, counts, deadline, Cancel); held men drawn as dashed rings | a modal dialog — an instructor acts on many units mid-run · progress only in a panel — the instructor watches the map | §16a's stages changing (the chip shows whatever stages the process records) |
 
-## 5. Built now / waiting
+## 5. Built now / waiting *(as-built `2026-11-16`; `exp/agg-backend` merged at `64255766d` — its contract NOTE_AggBackend_To_Agg_Contract.md)*
 
 | item | state |
 |---|---|
-| UI-3 Strength / Ammunition rows for units | ✅ built on `exp/agg-ui` — reads the existing seams; a stochastic unit appears the day `UnitStrength` gains its slot-table branch (behaviors) |
-| UI-4's geometry (`UnitFootprint`: the rectangle, the front arrow, the column band) | ✅ built, pure, 0 B — the gizmo draws it once the projector can bind |
-| UI-1 Resolution section | ⏳ waits for `AggregateUnit` + its attribute rows (the form throws on an attribute not in the vocabulary — `FormCatalogue.AttributeOf`) |
-| UI-2, UI-5, UI-6 the gizmo | ⏳ waits for `AggregateUnit` (its projector) |
-| UI-7 Slots tab | ⏳ waits for `UnitSlotTable` |
-| UI-8 overlay | ⏳ waits for ST-2's detection pairs |
-| UI-9 request + progress | ⏳ waits for ST-5's `ResolutionPin` and the `Splitting` stage |
+| UI-3 Strength / Ammunition rows for units (CE-8601) | ✅ `UnitFacts` + two Unit-form rows; reads the existing seams — a stochastic unit appears the day `UnitStrength` gains its slot-table branch (behaviors, RV-5) |
+| UI-4 geometry (CE-8602) | ✅ `UnitFootprint` — the rectangle, the front arrow, the column segment; pure, 0 B |
+| UI-2 / UI-5 / UI-6 the map gizmo (CE-8603) | ✅ `StochasticUnitGizmo` (projector `AggregateUnit` + `SimTransform`, layer 0): the footprint (or the column band where `UnitRoute` exists — it is NoReplay and node-local, so a display node draws the rectangle), the frame + echelon marks, the strength-coloured label, the `-n` loss mark for 4 s; only for `Effective == Stochastic` |
+| UI-1 Resolution section | ⏳ **finding to agg-backend:** the form needs `AggregateUnit` fields in the ATTRIBUTE vocabulary (`AttributeVocabulary` row + JSON setter + binary handler + reader — `FormCatalogue.AttributeOf` throws without them); their component, their wire ⇒ theirs |
+| UI-7 Slots tab | ⏳ next (reads `UnitSlotTable` / `UnitHoldings`, both merged) |
+| UI-8 overlay | ⏳ next (reads `UnitDetections` 285, merged) |
+| UI-9 request + progress | ⏳ waits for ST-5's resolution manager (`ResolutionPin`, `Splitting` exist as fields; nothing writes them yet) |
+
+**⛔ Deviations from the first mockup, folded back into it (R-4146):** the frame is a plain box (the 2-D layer cannot draw a pixel-sized cross around a
+world point) · the echelon marks and the label START at the unit's point instead of centred (2-D text has no x offset) · `·` and `~` replace `•` and `≈`
+(the gizmo font has neither) · the strength is the label's colour and a backdrop, not a bar · the form's Strength / Ammunition are read-only text rows
+(FormView draws a derived field disabled), not bars. Rails: `StochasticUnitGizmoTests` (primitives, 0 B), `StochasticUnitLookFrameRail` (the real 2-D
+frame, measured: the tint inside the footprint, the frame's 2525 fill).
