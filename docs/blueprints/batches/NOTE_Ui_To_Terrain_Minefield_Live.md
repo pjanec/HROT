@@ -3,7 +3,7 @@ state: LIVE — findings for terrain, from ui's live run
 updated: 2026-11-16
 current-answer: the whole file
 related-designs:
-  - ../../designs/minefields/DESIGN_Minefields.md — §11 ui as built
+  - ../../designs/minefields/DESIGN_Minefields.md — §12 ui as built
   - NOTE_Terrain_To_All_Minefield_Contract.md — the contract this run exercised
 -->
 
