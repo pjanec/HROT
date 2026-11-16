@@ -5854,7 +5854,7 @@ class Dynamism:
             if judge_lines:   # ⚠ a variant built to STALL misses its lines by design: printed, not judged
                 c.ok(state != "Failed", f"DYNAMISM: phase line '{title}' not missed ({state})")
         if moved_min is not None:
-            for a, b, s in wins:
+            for a, b, s in wins[:1]:   # ⭐ the FIRST window only (the lock's basis): later ones fall as the attack goes firm on the objective
                 c.ok(s >= moved_min, f"DYNAMISM: [{a:.0f}–{b:.0f}] {s * 100:.0f} % of the men moved > {self.MOVED_M:.0f} m (≥ {moved_min * 100:.0f} %)")
         if contacts_min is not None:
             c.ok(cpm >= contacts_min, f"DYNAMISM: {cpm:.2f} contacts / min (≥ {contacts_min})")
@@ -5865,8 +5865,10 @@ class Dynamism:
 
 # the dynamism thresholds, set from the first three clean base runs and then LOCKED (Battalion Test §5.2) — None = measure only
 CC_FIRE_NEAR_M = 60.0   # ③ a mortar burst / its smoke within this of the requested point (an 81 mm sheaf + the report's error); was 120
-CC_MOVED_MIN = None
-CC_CONTACTS_MIN = None
+# ⭐ LOCKED `2026-11-16` (CE-2436 close-out item 3, the morning report's §4 proposal; three passes #18–#20 exist): ≈ 5 % / 10 % under the worst of the
+#   twelve live runs since R-2112 (47 %, 99.1 / min). The FIRST 300 s window only — the later ones fall as the attack goes firm on the objective.
+CC_MOVED_MIN = 0.45
+CC_CONTACTS_MIN = 90
 
 
 def _reports_of(log, frm=None, kind=None, subtype=None, after=-1.0):
@@ -6048,13 +6050,18 @@ def run_cc_battalion(c, timeout):
                    f"{[(blue_chain[r.get('from')], r.get('phaseLine'), r.get('seenAt')) for r in pls]}"))
     # ⑧ the end
     arrows.append(("⑧ the end (objective held / Red < 30 %)", ended[1] if ended else None, ended is not None, f"{ended}"))
-    # ⭐ CE-2436 AU-6 / R-2119 — the acceptance itself: Objective 1 TAKEN (Blue holds it: ≥ 4 men in the block, no enemy, 30 s)
-    arrows.append(("AU-6 Objective 1 TAKEN (held: ≥ 4 men, no enemy, 30 s)", took1, took1 is not None, f"held from {took1}"))
+    # ⭐ CE-2436 AU-6 — the acceptance itself. ⭐ R-4265 (user, 2026-11-16: "approved your leans"): Objective 1 TAKEN = the platoon's PhaseLine
+    #   report (its assault done) OR the 30 s hold (R-2119: ≥ 4 men in the block, no enemy) — the report comes only once the office is cleared,
+    #   and the hold breaks when the attack rightly moves on, so each alone missed a taken objective (#19 held, #20 reported)
+    t_pl = pls[0]["seenAt"] if pls else None
+    t_taken = min([x for x in (t_pl, took1) if x is not None], default=None)
+    arrows.append(("AU-6 Objective 1 TAKEN (PhaseLine report OR held 30 s)", t_taken, t_taken is not None,
+                   f"PhaseLine {t_pl}, held from {took1}"))
 
     print("   THE CHAIN (sim s):")
     for label, t, ok, ev in arrows:
         print(f"     {'✓' if ok else '·'} {label:<55} {t if t is None else round(t, 1)!s:>7}   {ev}")
-    required = {"base": ["①", "②", "③", "⑤", "⑥", "phase", "⑧", "AU-6"],
+    required = {"base": ["①", "②", "③", "⑤", "⑥", "⑧", "AU-6"],   # R-4265: the PhaseLine alone no longer — inside AU-6 (report OR hold)
                 "stall": ["②", "③", "⑦"],
                 "collapse": ["④", "⑤", "⑥"]}[variant]
     for label, t, ok, ev in arrows:
