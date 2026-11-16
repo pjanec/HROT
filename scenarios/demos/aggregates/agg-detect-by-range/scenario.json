@@ -1,0 +1,167 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin three pairs of stochastic squads, 7 km apart (beyond any sensor), each a BLUE observer (4+ men, eyes only) and a RED target standing still in the open: 150 m, 700 m and 2500 m. Judge: N-1's curve P(r) = 0.9 * 2^-(r / (400 m * sqrt(men / 9)))^2 per second accumulates into a level; at level 1 a contact is reported. The 150 m and 700 m contacts appear inside the window the curve predicts (the step counts are in the row names), the 2500 m target is never contacted. Fail: a contact far out of the window, or beyond the eye's reach. Check: scripts/scenario-regression.sh agg-detect-by-range"
+  },
+  "entities": {
+    "a9000007-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Observer near",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "SquadCognitiveState": {}
+    },
+    "a9000007-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          1150,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Target near",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    },
+    "a9000007-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          7200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Observer mid",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "SquadCognitiveState": {}
+    },
+    "a9000007-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          1700,
+          7200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Target mid",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    },
+    "a9000007-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          14200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Observer far",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "SquadCognitiveState": {}
+    },
+    "a9000007-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          3500,
+          14200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Target far",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    }
+  }
+}

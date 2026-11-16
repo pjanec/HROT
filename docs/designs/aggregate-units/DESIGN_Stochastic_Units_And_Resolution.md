@@ -807,15 +807,15 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 
 | slice | scenario (`scenarios/demos/aggregates/…`) | the Judge lines (each an `expect` row) |
 |---|---|---|
-| ST-0 | `agg-platoon-under-company` | a stochastic platoon under a physical company reads Green in the company's SITREP · counts in the objective's census · a Defend order resolves to its play |
-| ST-0 | `agg-refused-order` | an order the table has no row for (Strike) reaches the commander as TaskFailed, and nothing else happens |
-| ST-0 | `agg-recorded` | a run recorded and replayed shows the same slot table at every keyframe |
-| ST-1 | `agg-march-open` | a dismounted platoon marches 2 km as a column; arrives within ± 10 % of M-2's predicted time |
-| ST-1 | `agg-march-mounted` | a mounted company keeps to roads, never enters a wood, arrives in its window |
-| ST-1 | `agg-route-dropped` | the route is cut mid-march: re-requested at most 3 times, then TaskFailed |
-| ST-2 | `agg-detect-by-range` | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
-| ST-2 | `agg-sees-physical` | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
-| ST-2 | `agg-break-contact` | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
+| ST-0 | `agg-platoon-under-company` ✅ BUILT | a stochastic platoon under a physical company reads Green in the company's SITREP · counts in the objective's census · a Defend order resolves to its play |
+| ST-0 | `agg-refused-order` ✅ BUILT | an order the table has no row for (Strike) reaches the commander as TaskFailed, and nothing else happens |
+| ST-0 | `agg-recorded` ✅ BUILT | a run recorded and replayed shows the same slot table at every keyframe |
+| ST-1 | `agg-march-open` ✅ BUILT | a dismounted platoon marches 2 km as a column; arrives within ± 10 % of M-2's predicted time |
+| ST-1 | `agg-march-mounted` ✅ BUILT | a mounted company keeps to roads, never enters a wood, arrives in its window |
+| ST-1 | `agg-route-dropped` ✅ BUILT | the route is cut mid-march: re-requested at most 3 times, then TaskFailed |
+| ST-2 | `agg-detect-by-range` ✅ BUILT | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
+| ST-2 | `agg-sees-physical` 🔴 RED (F-10) | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
+| ST-2 | `agg-break-contact` ✅ BUILT | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
 | ST-3 | `agg-platoon-duel` | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
 | ST-3 | `agg-shelled-unit` | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
 | ST-3 | `agg-prepared-defence` | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
@@ -826,6 +826,25 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | ST-5 | `agg-merge-back` | after contact ends the men merge back; the slot table keeps every loss and every identity |
 | ST-5 | `agg-forced-handover` | a physical weapon in range forces the handover (C-7) before any stochastic step fights it |
 | mixed | `agg-mixed-company-attack` | a physical company with one stochastic platoon attacks: every order reaches the right kind of unit; the attack completes |
+
+
+#### 23.6a As built — agg-behaviors, the nine of ST-0 … ST-2 *(`2026-11-16`; each in `scenarios/demos/aggregates/<name>/`, written by [`scripts/gen-agg-scenarios.py`](../../../scripts/gen-agg-scenarios.py))*
+
+| scenario | terrain | result (`scripts/scenario-regression.sh <name>`, editor tier) | where it departs from the Judge line above, and why |
+|---|---|---|---|
+| `agg-platoon-under-company` | demo-city | ✅ 5 / 5 rows (+ golden) | the platoon is the company's ONLY subordinate (a physical platoon in the area would pad the census with its 8 men); the census row reads the HoldArea objective's `State` = `Achieved` (needs 20 men, the platoon has 30) |
+| `agg-refused-order` | demo-city | ✅ 3 / 3 (+ golden) | **Strike to a stochastic ARTILLERY BATTERY** (type 304), not a rifle platoon: the scenario `Order` verb resolves the order against the PHYSICAL table first and a rifle unit has no Strike; the battery's physical `ArtilleryUnitStrike` lets the event exist, the stochastic table refuses it, the company's `CommandReportHistory` holds `Progress`, subtype 12 (TaskFailed) |
+| `agg-recorded` | basic-desert | ✅ 2 / 2 + the review check `--verify-review-at 30`: *review same, return exact, after same* | two stochastic platoons 200 m apart fight (their slot tables change); the replay equality is the editor tier's review harness (§10-3 of the regression design), not a `checks.json` row |
+| `agg-march-open` | berlin | ✅ 3 / 3 — the tail arrived at **1590.25 s**, predicted **1588.9 s** (= (2000 + 145 m column) / (1.5 × 0.9 m/s)); window ± 10 % = 1430 … 1748 s | no golden (`golden: false`: a 1760 s run, 9 min wall) |
+| `agg-march-mounted` | test-town | ✅ 4 / 4 (no golden: F-13) — the route is the road graph's *Hybrid* planner, 381 m along the roads, never within 45 m of the wood's halves; arrived at 44 s, predicted 43.9 s | a **mounted platoon**, not a company: no TKB composite carries a company's vehicles, so 8 wheeled HMMWV holdings are authored (the fill keeps authored holdings). The wood row was red-proved by sending the unit INTO the wood (both `never` rows broke) |
+| `agg-route-dropped` | berlin | ✅ 7 / 7 (+ golden); red-proved with the cuts removed (the re-request rows fail) | an infantry unit always finds a route over open ground, so the cut is a `do`-set of `AggregateUnit.Move = RouteFailed` four times (10 / 20 / 30 / 40 s): three re-requests (the head's distance restarts), the fourth ends the order — the unit stays `RouteFailed`, the company hears TaskFailed |
+| `agg-detect-by-range` | berlin | ✅ 3 / 3 (+ golden) — contacts at 1.25 s (150 m, predicted 2 steps) and 7.25 s (700 m, predicted 8), none at 2500 m | three observer/target pairs 7 km apart (every observer sees every target inside 6 km — a firing pair is visible at 2 km); read from `UnitDetections.Pairs.0.Reported`; the observers carry an authored `SquadCognitiveState` (F-11) |
+| `agg-sees-physical` | basic-desert | 🔴 1 / 3 — filed as **F-10** (N-3 is not built: a stochastic observer never targets a physical unit) | the third row (*the physical squad never contacts the stochastic unit*) holds; the other two turn green when agg-backend builds N-3 |
+| `agg-break-contact` | berlin | ✅ 6 / 6 (+ golden) — the SOP orders BreakContact at 1.25 s, the destination is 300 m south of where it stood (away from the contact), it arrives at 259 s | the squad stands with no order; the Red squad defends 200 m north and fires |
+
+⭐ **Grammar added (R-8320, [`DESIGN_Scenario_Regression.md`](../../DESIGN_Scenario_Regression.md) §3):** a `field` cue's path may carry ONE `*` part (`UnitSlotTable.Slots.*.Health`) with `"elements": n` (at least n of the array's elements satisfy the comparison) and `"where": {…}` filtering the elements first — a slot table's unused slots are all zeros. Rail `ScenarioChecksTests.R8320_…` (red-proved twice: `elements` ignored, `where` ignored).
+
+⏳ The other ten (ST-3 … ST-5, mixed) wait for their slices.
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

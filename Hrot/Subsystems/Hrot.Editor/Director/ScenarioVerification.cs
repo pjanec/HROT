@@ -177,7 +177,7 @@ namespace Hrot.Editor.Director
                 {
                     var units = UnitsNamed(a.Who!).ToList();
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => Compare(At(Components(id), c.Path!), c.Op, want));
+                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where));
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
@@ -287,6 +287,20 @@ namespace Hrot.Editor.Director
         }
 
         /// <summary>The value at <c>A.B.C</c> (an array index is a number part).</summary>
+        /// <summary>⭐ R-8320 — a <c>field</c> cue's test on one unit: a plain path compares the value there; a path with a <c>*</c> part (<c>UnitSlotTable.Slots.*.Health</c>) holds when at
+        /// least <paramref name="elements"/> elements of that array satisfy the comparison — among those a <c>where</c> row passes (the unused slots of a fixed array are all zeros: <c>"where": {"CompositeSlot": [">", 0]}</c>) (the ONE wildcard: the first <c>*</c> walks an array, the rest of the path is read per element).</summary>
+        public static bool FieldHolds(JsonNode? comps, string path, string op, JsonNode? want, int elements, IReadOnlyList<(string Field, string Op, JsonNode? Value)>? where = null)
+        {
+            int star = path.IndexOf(".*.", StringComparison.Ordinal);
+            if (star < 0) return Compare(At(comps, path), op, want);
+            if (At(comps, path[..star]) is not JsonArray arr) return false;
+            string rest = path[(star + 3)..];
+            int n = 0;
+            for (int i = 0; i < arr.Count; i++)
+                if ((where == null || where.Count == 0 || (arr[i] is JsonObject elt && WhereOk(elt, where))) && Compare(At(arr[i], rest), op, want) && ++n >= elements) return true;
+            return false;
+        }
+
         public static JsonNode? At(JsonNode? node, string path) => Fdp.Toolkit.Scenario.ComponentJsonPath.Get(node, path);
 
         public static bool Compare(JsonNode? value, string op, JsonNode? want)

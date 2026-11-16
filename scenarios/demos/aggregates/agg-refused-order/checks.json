@@ -1,0 +1,41 @@
+{
+  "$doc": "\u00a723.6 ST-0. A scenario Order verb checks the order against the PHYSICAL class table before it publishes (a rifle squad has no Strike - 'no behaviour' - so no event would exist); an ARTILLERY BATTERY does (ArtilleryUnitStrike), so the order is published and the receiver's stochastic table refuses it (B-6, B-8). The company hears the refusal as a CommandReportHistory row (it holds no CommandPicture - it ordered nothing).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the company hears PROGRESS TaskFailed",
+      "on": "field",
+      "who": "Blue Company",
+      "path": "CommandReportHistory.Items.0.Report.Subtype",
+      "op": "==",
+      "value": 12,
+      "after": 10,
+      "before": 30
+    },
+    {
+      "name": "the battery runs no stochastic play",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Battery",
+        "is": [
+          "StochasticUnitDefend",
+          "StochasticUnitMove",
+          "StochasticUnitAttack",
+          "StochasticUnitBreakContact"
+        ]
+      }
+    },
+    {
+      "name": "the battery never moves",
+      "on": "field",
+      "who": "Blue Stochastic Battery",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "Stopped",
+      "atEnd": true
+    }
+  ]
+}

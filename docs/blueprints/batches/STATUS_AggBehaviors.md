@@ -25,6 +25,8 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 | ST-2 (`StochasticUnitBreakContact`, `StochasticUnitSop`, `StochasticUnitHold`, the ingress seam; R-8309…8311) | ✅ built | see git | `ST2_*` ×5 (acceptance: under fire it breaks contact) | §23.5 |
 | ST-3 (`StochasticUnitAttack`, the two-payload Route + the flipped sites, `AttackOrder` Position, AmmoOf, SPOT; R-8312…8318) | ✅ built | see git | `ST3_*` ×16 (acceptance: approaches, PhaseLine, fights, outcome agrees with the slots; HoldBack; not secured while an enemy stands) · red-proofs: HoldBack ignored ⇒ 1 red · success ignoring the defender ⇒ 1 red · SOP not sparing Attack ⇒ 2 red · Route sending the neutral json to a physical member ⇒ 1 red | §23.5 |
 | ST-4 … ST-5 | ⏳ | | | |
+| **Feature-test scenarios ST-0 … ST-2** (R-4277, §23.6 / §23.6a; `scenarios/demos/aggregates/`, `scripts/gen-agg-scenarios.py`) — merged agg-backend `7f3824e69` (F-9 spawn-time fill, CE-8016) | ✅ 8 of 9 green, 🔴 1 red | see git | `scripts/scenario-regression.sh <name>` (editor tier): `agg-platoon-under-company` ✅ 5/5 · `agg-refused-order` ✅ 3/3 · `agg-recorded` ✅ 2/2 + `--verify-review-at 30` SAME · `agg-march-open` ✅ 3/3 (arrived 1590.25 s vs predicted 1588.9 s; no golden) · `agg-march-mounted` ✅ 4/4 (no golden, F-13) · `agg-route-dropped` ✅ 7/7 · `agg-detect-by-range` ✅ 3/3 · `agg-break-contact` ✅ 6/6 · `agg-sees-physical` 🔴 1/3 (F-10: N-3 not built, filed to agg-backend). Goldens captured for all but `agg-march-open` (1760 s), `agg-march-mounted` (F-13) and the red one; the seven goldened ones re-ran SAME in a fresh process except `agg-march-mounted` (once DIFFERENT, then 3 / 3 SAME). Grammar: field-cue `*` path + `elements` + `where` (R-8320, `ScenarioChecksTests.R8320_…`, red-proved twice) |
+| ⏳ the other ten scenarios | ⏳ | | | `agg-platoon-duel`, `agg-shelled-unit`, `agg-prepared-defence`, `agg-out-of-ammo` (ST-3 — engine + plays built; not yet authored), `agg-battalion-fight` (ST-4), `agg-split-on-contact`, `agg-squad-holds-house`, `agg-merge-back`, `agg-forced-handover` (ST-5), `agg-mixed-company-attack` |
 
 ## 2. Lane decisions (for the user's review)
 
@@ -57,7 +59,7 @@ Started at `b5a884ba7` (from `coordinator@d94af8e2f`). Unattended run. agg-backe
 
 ## 4. Ids allocated
 
-R-8300…R-8318 (R-8312 assault 100 m; R-8313 search radius 75 m; R-8314 the ammo share; R-8315 two-payload Route; R-8316 AttackOrder fields; R-8317 the SOP spares an attack; R-8318 success judged at the objective; R-8307 arrival radius / line depth; R-8308 retries; R-8309 break point; R-8310 the SOP rows; R-8311 the SOP seam; R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
+R-8300…R-8318 · R-8320 (a `field` cue's `*` path with `elements` / `where`) (R-8312 assault 100 m; R-8313 search radius 75 m; R-8314 the ammo share; R-8315 two-payload Route; R-8316 AttackOrder fields; R-8317 the SOP spares an attack; R-8318 success judged at the objective; R-8307 arrival radius / line depth; R-8308 retries; R-8309 break point; R-8310 the SOP rows; R-8311 the SOP seam; R-8305: `CommandOrders.Route` / `KeyFor`; R-8306: the Prepared times, Hasty 0 / Prepared 600 s / Fortified 3600 s).
 
 ## 5. Findings
 
@@ -72,3 +74,8 @@ R-8300…R-8318 (R-8312 assault 100 m; R-8313 search radius 75 m; R-8314 the amm
 | F-8 | agg-backend's phase A fires every live system at every reported contact in range, moving or not — no base-of-fire share input; HoldBack changes only the movement | agg-backend, if a share is wanted |
 | F-1, F-6 | RESOLVED in ST-3 (R-8314 ammo; R-8315 the March `MoveOrder`) | — |
 | F-7 | the staff also reports Set / TaskFailed when a commander's TASK ends, so a Move play's own Set duplicates it (same kind, newest wins) — harmless; the play reports explicitly so it holds without a staff | — |
+| F-9 | (agg-backend's spawn-time fill, CE-8016) merged and used by every scenario | resolved |
+| F-10 | ⏳ N-3 is not built: a stochastic observer never targets a PHYSICAL unit, so `agg-sees-physical` is red (rows 1 and 2) | agg-backend — [NOTE_AggBehaviors_To_AggBackend](NOTE_AggBehaviors_To_AggBackend.md) |
+| F-11 | nothing provisions `SquadCognitiveState` on a memberless stochastic unit, so N-2's contact pool is never written in a scenario run; three scenarios author it | agg-backend — same note |
+| F-12 | a scenario `Order` verb checks the PHYSICAL class table first: a rifle unit cannot be ordered Strike from a scenario (the refused-order scenario uses an artillery battery) | the regression / macros lane, if a stochastic-table order from a scenario is wanted |
+| F-13 | a captured golden of `agg-march-mounted` differed once in five fresh-process runs: the unit's position was one step (16.7 m/s × 1/60 s) off from t = 15 s (`AggregateUnit`, `SimTransform`, `FireAllocation`, `SopState` hashes) — the Move play / the follower started a frame later. Not reproduced in 3 more runs; the other six goldened scenarios repeat | agg-backend, if they see it (the fill → first brain tick → first follower step order under the threaded node) |
