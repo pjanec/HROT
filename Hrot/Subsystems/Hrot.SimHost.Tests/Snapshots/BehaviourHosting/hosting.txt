@@ -97,6 +97,7 @@ LoadCasualty | hostedInput=Hrot.Map.Definitions.Behavior.LoadCasualtyParamsJsonD
 ManWeapon | hostedInput=Hrot.Map.Definitions.Behavior.ManWeaponParamsJsonDto | inputBytes=36
 MemberEvaluation | hostedInput=- | inputBytes=616
 MineStrike | hostedInput=Hrot.Map.Definitions.Behavior.MineStrikeParamsJsonDto | inputBytes=40
+MinefieldAhead | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto | inputBytes=20
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0

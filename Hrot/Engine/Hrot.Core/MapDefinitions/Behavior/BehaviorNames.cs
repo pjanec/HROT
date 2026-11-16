@@ -282,6 +282,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string CrossLane = "CrossLane";
         /// <summary>⭐ CE-4624 MS-B3 — a commander's breach: fire on the far side, smoke, the clearer cuts the lane, the assault crosses.</summary>
         public const string Breach = "Breach";
+        /// <summary>⭐ CE-4624 MS-B4 — a squad whose route reaches a minefield halts short of it and calls the engineers.</summary>
+        public const string MinefieldAhead = "MinefieldAhead";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";

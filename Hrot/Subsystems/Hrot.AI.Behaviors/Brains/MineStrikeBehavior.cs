@@ -98,6 +98,76 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7; 📄 docs/designs/minefields/DESIGN_Minefields.md §11) — <c>MinefieldAhead</c>, the squad's reaction when
+    /// its route reaches a minefield the planner could not go round: every live man HOLDS where he stands (short of it — the row fires within 30 m),
+    /// the squad REQUESTS ENGINEERS to the field's near side (<see cref="Fdp.Toolkit.Squad.Command.RequestKind.Engineers"/>, up the chain as every
+    /// request), and it holds until the route no longer shows a minefield ahead (a lane opened and known, the field marked and routed round) — the
+    /// march then resumes — or <see cref="LimitSeconds"/>. ⭐ Conduct <c>Halts</c>: a Dash presses on.
+    /// </summary>
+    public static class MinefieldAheadBehavior
+    {
+        public const float LimitSeconds = 900f;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MinefieldAheadState
+        {
+            public byte Ordered;
+            public SimInstant Since;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MinefieldAheadBlackboard
+        {
+            public Fdp.Toolkit.Behavior.SopAreaParams Area;
+            public MinefieldAheadState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.MinefieldAhead)]
+        public static void Resolve(in NoParams authored, ref MinefieldAheadBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Area = new Fdp.Toolkit.Behavior.SopAreaParams { WithinMetres = 30f };
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.MinefieldAhead, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts, Params = typeof(NoParams), Categories = BehaviorCategory.Commander,
+            Description = "A squad whose route reaches a minefield halts short of it and calls the engineers.")]
+        [BTreeDefinition(BehaviorNames.MinefieldAhead, Curated = true, Group = "Library/Reactions", ParamsType = typeof(MinefieldAheadBlackboard))]
+        public static BTreeBuilder<MinefieldAheadBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<MinefieldAheadBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Area, bb => bb.State, Tick);
+
+        public static NodeStatus Tick(ref Fdp.Toolkit.Behavior.SopAreaParams area, ref MinefieldAheadState s, Entity self, EntityRepository world)
+        {
+            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : world.SimulationTime;
+            if (s.Ordered == 0)
+            {
+                if (world.HasComponent<UnitRoster>(self))
+                {
+                    var roster = world.GetComponentRO<UnitRoster>(self);
+                    for (int i = 0; i < roster.Count; i++)
+                    {
+                        var m = roster.SubordinateEntities[i];
+                        if (world.IsAlive(m) && Injury.IsInTheFight(world, m)) CommandOrders.Assign(world, self, m, BehaviorNames.PersonHold, "{}", newOrder: true);
+                    }
+                }
+                var at = DangerCrossingPlay.NextArea(world, self, out var a) ? a.NearSideHandle
+                       : world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+                SimInstant t = (SimInstant)Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(world);
+                Fdp.Toolkit.Squad.Command.ReportQueue.Enqueue(world, self, new Fdp.Toolkit.Squad.Command.CommandReport
+                {
+                    Kind = Fdp.Toolkit.Squad.Command.ReportKind.Request, Subtype = (byte)Fdp.Toolkit.Squad.Command.RequestKind.Engineers,
+                    At = at, Radius = 30f, Count = 1, ObservedAt = t,
+                }, t + CommandNodes.ReportDelaySeconds);
+                s.Ordered = 1;
+                s.Since = (SimInstant)now;
+                return NodeStatus.Running;
+            }
+            if (now - (double)s.Since >= LimitSeconds) return NodeStatus.Success;
+            return SquadSopConditions.MinefieldAhead(ref area, self, world) ? NodeStatus.Running : NodeStatus.Success;   // the way is open again
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4624</c> MS-B1 — the trigger's <see cref="MineStruck"/> → the drill, as a REACTION (<see cref="ReactionUrgency.Hit"/>): a struck
     /// VEHICLE reacts itself; a struck MAN's unit (his commander, alive) reacts — else the man himself. Before the brain tick, on the
     /// brain's host. The gate decides (a Dash refuses it, CD-3). ⭐ A second

@@ -7210,7 +7210,7 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-4583 — without OpenGround the march asks for the crossings (named, not the zero default) AND a shelled area; never open ground
             var plain = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}");
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
-                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled, plain);
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield, plain);   // ⭐ CE-4624 MS-B4 — and a minefield
             Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(plain, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
             var open = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true,\"OpenGround\":true}");
             Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
@@ -7246,6 +7246,67 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
+        /// <summary>⭐⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7) — a MINEFIELD area ahead is never a crossing: <c>DangerAreaAhead</c> is false for it,
+        /// <c>MinefieldAhead</c> true within 30 m along the route (false beyond). ✅ Red-proof: the exclusion dropped ⇒ DangerAreaAhead true ⇒ red.</summary>
+        [Fact]
+        public void CE4624_MS_B4_AMinefieldAhead_IsNotACrossing_ButItsOwnCondition()
+        {
+            var s = new Squad(4);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            var p = new SopAreaParams { WithinMetres = 30f };
+            AreaAhead(s, distanceAlongRoute: 50f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            Assert.False(SquadSopConditions.MinefieldAhead(ref p, s.Commander, s.Repo));              // too far along the route
+            AreaAhead(s, distanceAlongRoute: 15f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            Assert.True(SquadSopConditions.MinefieldAhead(ref p, s.Commander, s.Repo));
+            Assert.False(SquadSopConditions.DangerAreaAhead(ref p, s.Commander, s.Repo));             // never crossed as a drill
+            AreaAhead(s, distanceAlongRoute: 15f);                                                     // a street crossing is not a minefield
+            Assert.False(SquadSopConditions.MinefieldAhead(ref p, s.Commander, s.Repo));
+        }
+
+        /// <summary>⭐⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7, MR-9) — the shipped squad SOP: a minefield ahead of a marching squad starts
+        /// <c>MinefieldAhead</c> as a reaction (<c>Alert</c>) that PAUSES the march — every man holds, and the squad's outbox carries a request for
+        /// ENGINEERS at the field's near side; once the area is gone the reaction ends and the march resumes. ✅ Red-proofs: the SOP row dropped ⇒
+        /// no reaction ⇒ red; the hold dropped ⇒ red; the request dropped ⇒ red.</summary>
+        [Fact]
+        public void CE4624_MS_B4_BasicSquadSop_AMinefieldAhead_Halts_AndCallsTheEngineers()
+        {
+            var s = new Squad(members: 6);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0]}", BehaviorNames.SquadMarch);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+
+            var near = new Vector3(10f, 20f, 0f);
+            var sensor = AreaAhead(s, distanceAlongRoute: 12f, near: near, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            s.Orders.Clear();
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.MinefieldAhead, s.TaskName);
+            var task = s.Repo.GetComponent<BehaviorState>(s.Commander);
+            Assert.Equal(BehaviorOrigin.Reaction, task.Origin);
+            Assert.Equal(ReactionUrgency.Alert, task.Urgency);
+            Assert.Equal(BehaviorNames.SquadMarch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            s.Tick(); s.Tick();                                                                        // the orders leave one frame later
+            var held = new HashSet<Entity>();
+            foreach (var o in s.Orders) if (o.IntentId == BehaviorNames.PersonHold) held.Add(o.Entity);
+            Assert.True(held.Count == s.Members.Length, "holds: " + held.Count + " orders: " + string.Join(",", s.Orders.Select(o => o.IntentId)));                                    // every man halts
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            int engineers = 0;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Request
+                    && q.Items[i].Report.Subtype == (byte)Fdp.Toolkit.Squad.Command.RequestKind.Engineers)
+                {
+                    engineers++;
+                    Assert.Equal(near, q.Items[i].Report.At);                                          // at the field's near side
+                }
+            Assert.Equal(1, engineers);
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor).Count = 0;   // the lane is cleared and marked: the area is gone
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);                                       // the march resumes
+        }
+
         // ── CE-2176 IF-2 — the battery fire mission (docs/designs/indirect-fire/DESIGN_Indirect_Fire.md §3.4, FM-1…FM-8) ─────────────
 
         private const long IfGunType = 9961;
