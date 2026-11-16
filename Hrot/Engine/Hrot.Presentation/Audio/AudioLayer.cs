@@ -227,6 +227,20 @@ namespace Hrot.UI.Common.Audio
                 if (!loaded && s.Synth != SoundSynth.None)
                     _output.Define(type, SoundSynthesizer.Make(s.Synth), SoundSynthesizer.SampleRate);
             }
+            // ⭐ CE-4623 (animals AU-8, AR-7) — the animal sounds 7800-7895: a recording named in the TKB sound, else the placeholder of (species, line)
+            foreach (var (type, species, line) in AnimalSoundCatalog.All())
+            {
+                if (_output.Has(type) && (_output is not RecordingAudioOutput r || r.Track.HasClip(type))) continue;
+                var s = AnimalSoundCatalog.SoundOf(tkb, type);
+                if (s == null) continue;
+                bool loaded = false;
+                foreach (var file in s.Files)
+                {
+                    var path = System.IO.Path.Combine(AssetFolder, file);
+                    if (_output.DefineFile(type, path)) { loaded = true; break; }
+                }
+                if (!loaded) _output.Define(type, SoundSynthesizer.Animal(species, line), SoundSynthesizer.SampleRate);
+            }
             // ⭐ CE-2372 (AQ105 F) — the voice lines: a recording named in the line's TKB sound, else its words shouted in the speaker's voice
             foreach (var (type, line) in VoiceTkbCatalog.All)
             {

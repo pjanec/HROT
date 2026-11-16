@@ -4368,6 +4368,22 @@ classDiagram
 | 4 | `EveryMapHostAttachesTheSharedLayersTests.CE4582_TheSharedAttach_WiresTheEntitiesRow_TheOcclusionSwitch_AndTheSelection` (the forwarding rail: the three switches wired on the constructed objects, read from the buffer) | the wiring line dropped ⇒ null |
 | 7 | the frame rail's tail: the overlay pass allocates no more with the scope than without (R-2084); `SC_GZ021_ROT_2b` keeps the heading at 0 B; the moved rows format with the invariant culture (R-4221) | — |
 
+### 6al.3 CE-4623 AU-1 … AU-8 — the animals: nine kits, the gaits, the flock, the dead animal, the rider *(ui, `2026-11-16`; build-state: BUILDING — see STATUS_Ui_Animals_Visuals.md for what is bound and what waits)*
+
+Owner of the TYPES and the behaviour: [DESIGN_Animals.md](designs/animals/DESIGN_Animals.md) §4a / §6.1 (the contract), §6.3 (these tasks), §8 AR-7 / AR-8 / AR-13 / AR-14 / AR-20. Mockup (house style, R-4143): [`animals-visuals.svg`](designs/animals/animals-visuals.svg) (`scripts/gen-animals-mockup.py`; `--icons` writes the picker glyph sources).
+
+| what | as built |
+|---|---|
+| families | `VisualFamily.Cattle … Goat` (appended); `VisualFamilies.AnimalOfDis` — a DIS Kind-3 animal (cat. 200–208; air 205) resolves to its family BEFORE the class walk (a missing class would fall up to `Person`, AR-19) — ⚠ a stand-in for backend's classes, folded into `FamilyOfClass` at the re-bind |
+| kits | `AnimalKits` (METRES, `MetreKit`): seven quadrupeds from ONE builder over a `QuadSpec` table (torso, neck, head, four legs + hooves, tail, species extras), the hen, the bird (flying / perched); each kit's box is MEASURED from its parts; a resting animal has its own LYING kit (belly down, legs folded) in the standing box |
+| gaits (AU-3, AR-13) | roles `QuadFrontLeft…QuadHindRight` swing about the hip by `QuadrupedGaits.LegAngle` = `amplitude · sin(phase + 2π · offset(gait, leg))` — a walk's four beats, a trot's diagonals, a canter's three beats, a gallop's pairs; gait by SMOOTHED speed on per-species bands (`GaitBands`), the phase advances by DISTANCE (no sliding feet), a paused clock freezes it; a jump (height above ground) tucks the legs; `AnimalHead` pitches the neck about the withers (+ the head counter-tilts) — grazing in a seeded ~9–15 s cycle when calm and still, up when alert; wings `WingLeft/Right` beat (a bird, a hen's flutter); a hen pecks |
+| flock (AU-4, AR-14) | ONE entity (`FlockState`), N birds as closed-form offsets of (seed, index, sim time, mode) in the flock frame — never integrated; dropping birds takes the highest indices (the layer asks with `InitialCount`); dots below 3 px per bird, hidden below the flock's 1.5 px |
+| dead (AU-5, AR-8) | `deadAnimal`: the body rolls onto its side over `DeathFall.Seconds` (0.6 s of sim time), legs stiff, the coat as in life; `Burns()` excludes animals (no flames, no smoke), never the near-black wreck |
+| rider (AU-6) | `BlockFigure.Mounted` / `MountedAiming`: the same parts as `Seated`, thighs SPLAYED over the ±0.35 m barrel (knee at ±0.46 m, 0.25 m below the hips against the flank), shins down the flank to the stirrups 0.72 m below the hips (`MountLeg`; ⛔ SUPERSEDED: legs straight down from ±0.12 m, which drew inside the horse); the horse rider FIRES while riding (`FiringAimed(driverFires: true)`, R-4269 — unlike the motorcycle's driver); the bolt cue under the crosshair (`PossessionStation.IsBolted`, backend's `AnimalFlags.Bolting`) |
+| 2-D | an animal is a top-down BODY outline (`EntityClassShapeLibrary.AnimalQuadruped / AnimalBird / AnimalFlock`), never the man's line; the picker glyphs `_cattle …` (`assets/icons/src`, rendered by `render-entity-icons.py`) |
+| area (AU-7) | `AnimalAreaOps` + `AnimalAreaDetailsView` (Details tab beside Block): species, count, seed (dice), Enclosed (on for pigs and goats); `AreaAuthoringArm.BornWith(712)` |
+| sound (AU-8) | `AnimalSoundCatalog` 7800–7895, `SoundSynthesizer.Animal` placeholders, `SoundSources.Animals` (rest calls by the closed-form `CallsMade`, alarms, barks, a flock's take-off wings; per-herd throttle; silent after shooting), hooves / wings as movers by `LocomotionClass.Quadruped / Bird`, the birdsong bed lifted by perched birds |
+
 ## 7. NOT VERIFIED — say so before it is built on
 
 | claim | how it is settled |

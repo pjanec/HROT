@@ -3973,6 +3973,7 @@ namespace Hrot.Editor
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.EntityPlayableViewDescriptor.For(() => _world));
             // ⭐ Terrain authoring U-3 — the BLOCK tab of Details for a placed terrain block (recipe, seed, fit to the site, contents)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.TerrainBlockDetailsViewDescriptor.For(() => _world, Hrot.UI.Common.AddEntity.TerrainPickCatalog.Shipped));
+            _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.AnimalAreaDetailsViewDescriptor.For(() => _world));   // ⭐ CE-4623 AU-7 — the animal area's form (species, count, seed, Enclosed)
             // ⭐ CE-4592 / CE-4593 (P-5 2b, P-6) — the GROUND / DITCH tab of Details for a placed ground shape (mode, value, the derived skirt, the Effect read-out)
             _scenarioWorkspace.DetailsViews.Add(Hrot.Editor.AiShared.Shell.GroundFeatureDetailsViewDescriptor.For(() => _world, GhostContext.Get));
 

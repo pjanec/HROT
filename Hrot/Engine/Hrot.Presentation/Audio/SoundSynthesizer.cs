@@ -59,6 +59,142 @@ namespace Hrot.UI.Common.Audio
             };
         }
 
+        // ── ⭐ CE-4623 (animals AU-8) — the ANIMALS' placeholders: formant-shaped voices (a moo, a baa, a neigh, a bark, a meow, an oink, a bleat), chirps, a cluck, hooves, wings ─────────────────
+
+        /// <summary>
+        /// ⭐ CE-4623 — the placeholder clip of an animal sound: <paramref name="species"/> 0…11 (the TKB order 700…711, <c>AnimalSoundCatalog</c>) and <paramref name="line"/> 0…7 (call · alarm · special · hooves walk /
+        /// trot / gallop · wings · flutter). A call is a harmonic voice through two formants; a bird's a few chirps; hooves, wings and flutter loops / bursts of filtered noise. A recording named in the TKB sound replaces it.
+        /// </summary>
+        public static short[] Animal(int species, int line)
+        {
+            var r = new Rng(0xA17A15u ^ (uint)(species * 8 + line + 1) * 2654435761u);
+            return line switch
+            {
+                3 or 4 or 5 => Loop(Hooves(ref r, species, line, 2f + LoopFade)),
+                6 => Loop(WingBeats(ref r, 2f + LoopFade, 7f)),
+                7 => Finish(WingBeats(ref r, 0.5f, 16f)),
+                _ => Finish(AnimalVoice(ref r, species, line)),
+            };
+        }
+
+        /// <summary>One voiced pulse: a harmonic series on a pitch contour (a → mid → b), shaped by two formants, a vibrato, a rasp of noise, an envelope.</summary>
+        private static void Pulse(ref Rng r, float[] b, int at, float seconds, float a, float mid, float c, float f1, float f2, float vibHz, float vib, float rasp, float gain)
+        {
+            int n = (int)(seconds * SampleRate);
+            double phase = 0;
+            for (int i = 0; i < n && at + i < b.Length; i++)
+            {
+                float t = i / (float)SampleRate, u = i / (float)n;
+                float f0 = (u < 0.5f ? a + (mid - a) * (u * 2f) : mid + (c - mid) * ((u - 0.5f) * 2f)) * (1f + vib * MathF.Sin(2f * MathF.PI * vibHz * t));
+                phase += f0 / SampleRate;
+                float sum = 0f;
+                for (int h = 1; h <= 26; h++)
+                {
+                    float fh = h * f0;
+                    if (fh > 5000f) break;
+                    float g = MathF.Exp(-(fh - f1) * (fh - f1) / (2f * 140f * 140f)) + 0.7f * MathF.Exp(-(fh - f2) * (fh - f2) / (2f * 320f * 320f)) + 0.04f;
+                    sum += g / MathF.Pow(h, 0.8f) * MathF.Sin(2f * MathF.PI * h * (float)(phase % 1.0));
+                }
+                float env = MathF.Min(1f, t / 0.025f) * (1f - MathF.Pow(u, 3f));
+                b[at + i] += gain * env * (sum + rasp * r.Next() * 1.5f);
+            }
+        }
+
+        /// <summary>A bird's chirp: a clean tone gliding a → b, a short soft envelope.</summary>
+        private static void Chirp(float[] b, int at, float seconds, float a, float c, float gain)
+        {
+            int n = (int)(seconds * SampleRate);
+            double phase = 0;
+            for (int i = 0; i < n && at + i < b.Length; i++)
+            {
+                float u = i / (float)n;
+                phase += (a + (c - a) * u) / SampleRate;
+                b[at + i] += gain * MathF.Sin(2f * MathF.PI * (float)(phase % 1.0)) * MathF.Sin(MathF.PI * u);
+            }
+        }
+
+        private static float[] AnimalVoice(ref Rng r, int species, int line)
+        {
+            bool alarm = line != 0;
+            var b = Buf(2.2f);
+            switch (species)
+            {
+                case 0:   // cattle: a low moo — an alarm is a higher, rougher bellow
+                    Pulse(ref r, b, 0, alarm ? 1.1f : 1.5f, alarm ? 150f : 110f, alarm ? 190f : 125f, alarm ? 120f : 85f, 420f, 850f, 5f, 0.03f, alarm ? 0.25f : 0.05f, 1f);
+                    break;
+                case 1:   // sheep: a trembling baa
+                    Pulse(ref r, b, 0, 0.9f, 330f, 345f, 300f, 800f, 1500f, 22f, 0.07f, 0.08f, 1f);
+                    if (alarm) Pulse(ref r, b, (int)(1.0f * SampleRate), 0.8f, 360f, 380f, 320f, 850f, 1600f, 24f, 0.07f, 0.1f, 1f);
+                    break;
+                case 2 or 3 or 4:   // a horse: a neigh — up, then falling away (a whinny when frightened)
+                    Pulse(ref r, b, 0, alarm ? 1.4f : 1.1f, alarm ? 560f : 450f, alarm ? 1000f : 800f, alarm ? 380f : 330f, 900f, 2200f, 14f, 0.05f, 0.1f, 1f);
+                    break;
+                case 5:   // a dog: barks — one at rest, a few frightened or special
+                    for (int k = 0; k < (line == 0 ? 1 : line == 1 ? 2 : 4); k++)
+                        Pulse(ref r, b, (int)(k * 0.38f * SampleRate), 0.17f, 300f, 270f, 190f, 700f, 1500f, 0f, 0f, 0.3f, 1f);
+                    break;
+                case 6:   // a cat: a meow, rising then falling
+                    Pulse(ref r, b, 0, alarm ? 1.1f : 0.9f, alarm ? 520f : 450f, alarm ? 800f : 700f, 400f, 900f, 2400f, 6f, 0.02f, alarm ? 0.3f : 0.06f, 1f);
+                    break;
+                case 7 or 8:   // a flock / a bird: chirps — more of them, quicker, when it is not a song
+                    for (int k = 0; k < (alarm ? 9 : 4); k++)
+                        Chirp(b, (int)(k * (alarm ? 0.09f : 0.22f) * SampleRate), alarm ? 0.07f : 0.12f, 2800f + 400f * (k % 3), 3800f + 300f * (k % 2), 0.9f);
+                    break;
+                case 9:   // a hen: a cluck — a cackle when frightened, a crow as the special
+                    if (line == 2) { Pulse(ref r, b, 0, 1.2f, 420f, 900f, 520f, 700f, 1800f, 7f, 0.03f, 0.12f, 1f); break; }
+                    for (int k = 0; k < (alarm ? 8 : 3); k++)
+                        Pulse(ref r, b, (int)(k * (alarm ? 0.11f : 0.2f) * SampleRate), 0.09f, alarm ? 700f : 550f, alarm ? 650f : 500f, alarm ? 500f : 400f, 900f, 1800f, 0f, 0f, 0.1f, 1f);
+                    break;
+                case 10:   // a pig: grunts and an oink — a squeal when frightened
+                    if (alarm) Pulse(ref r, b, 0, 0.9f, 800f, 1500f, 900f, 1400f, 2600f, 9f, 0.03f, 0.35f, 1f);
+                    else for (int k = 0; k < 2; k++) Pulse(ref r, b, (int)(k * 0.3f * SampleRate), 0.28f, 170f, 150f, 110f, 500f, 1100f, 0f, 0f, 0.3f, 1f);
+                    break;
+                default:   // a goat: a bleat, harsher and lower than a sheep's
+                    Pulse(ref r, b, 0, alarm ? 1.0f : 0.8f, alarm ? 300f : 250f, alarm ? 330f : 270f, alarm ? 250f : 200f, 700f, 1400f, 28f, 0.08f, 0.15f, 1f);
+                    break;
+            }
+            return b;
+        }
+
+        /// <summary>Hooves: soft thuds at a gait's beat — heavier and lower for a big animal, pads for a small one; a loop.</summary>
+        private static float[] Hooves(ref Rng r, int species, int line, float seconds)
+        {
+            var b = Buf(seconds);
+            float beatsPerSecond = line == 3 ? 3.2f : line == 4 ? 2.6f : 3.6f;
+            bool big = species is 0 or 2 or 3 or 4;
+            float hz = big ? (species == 0 ? 70f : 90f) : species is 1 or 11 ? 140f : 200f;
+            float gain = big ? 1f : species is 1 or 11 or 10 ? 0.6f : 0.35f;
+            int beats = (int)(beatsPerSecond * (seconds - LoopFade));
+            for (int k = 0; k < beats; k++)
+            {
+                int at = (int)((k / beatsPerSecond + (line == 5 && k % 2 == 1 ? 0.04f : 0f)) * SampleRate);
+                float lp = 0f;
+                for (int i = 0; i < (int)(0.11f * SampleRate) && at + i < b.Length; i++)
+                {
+                    float t = T(i);
+                    lp += (r.Next() - lp) * 0.2f;
+                    b[at + i] += gain * Env(t, 0.03f) * (Sin(hz * (1f - 0.25f * t / 0.11f), t) * 0.9f + lp * 0.6f);
+                }
+            }
+            return b;
+        }
+
+        /// <summary>Wings: filtered noise beating at <paramref name="beatHz"/> — a flock's take-off, a bird flapping, a hen's flutter.</summary>
+        private static float[] WingBeats(ref Rng r, float seconds, float beatHz)
+        {
+            var b = Buf(seconds);
+            float lp = 0f, hp = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i);
+                float n = r.Next();
+                lp += (n - lp) * 0.35f; hp += (lp - hp) * 0.03f;
+                float am = MathF.Pow(0.5f + 0.5f * MathF.Sin(2f * MathF.PI * beatHz * t), 2f);
+                b[i] = (lp - hp) * am * (seconds < 1f ? Env(t, 0.3f) : 1f);
+            }
+            return b;
+        }
+
         /// <summary>A small deterministic generator (xorshift32).</summary>
         private struct Rng
         {

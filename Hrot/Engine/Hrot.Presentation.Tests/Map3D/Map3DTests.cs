@@ -555,6 +555,7 @@ public sealed class Map3DTests
                     foreach (ushort country in new ushort[] { 0, 222, 225 })
                     {
                         var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = country, Subcategory = 3 };
+                        if (VisualFamilies.IsAnimal(VisualFamilies.Of(d))) continue;   // ⭐ CE-4623 — Kind 3 categories 200-208 are the ANIMALS now (AnimalModelRail), no longer the man the old switch fell up to
                         var now = VisualFamilies.Of(new TkbTemplate("sweep", 9999) { DisType = d });
                         if (now != OldFamily(d)) moved.Add($"{d}: {OldFamily(d)} -> {now}");
                     }
@@ -630,6 +631,7 @@ public sealed class Map3DTests
                 for (int category = 0; category <= 255; category++)
                 {
                     var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = 225 };
+                    if (VisualFamilies.IsAnimal(VisualFamilies.Of(d))) continue;   // ⭐ CE-4623 — an animal has its own outline now (AnimalModelRail), not the man's line the DIS switch gives Kind 3
                     string a = byClass.GetShape(null, d.Value).Name, b = bySwitch.GetShape(null, d.Value).Name;
                     // ⭐ SR-178 — the ONE deliberate difference: the class table's ScenarioMacro (5.0.*.90) has its own marker profile; GizmoMap's
                     //   DIS switch (the non-HROT hosts' fallback) cannot know an HROT class and keeps the cultural-feature footprint.

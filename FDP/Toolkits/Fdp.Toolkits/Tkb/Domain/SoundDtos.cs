@@ -39,6 +39,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Voice,
         /// <summary>⭐ CE-4600 (B-3b, V-17) — a barrier BROKEN by a vehicle: an impact, then falling rubble. Appended.</summary>
         Crash,
+        /// <summary>⭐ CE-4623 (animals AU-8) — an ANIMAL sound (a call, a bark, hooves, wings), generated from its species and line (<c>AnimalSoundCatalog</c>, ids 7800–7895). Appended.</summary>
+        Animal,
     }
 
     /// <summary>

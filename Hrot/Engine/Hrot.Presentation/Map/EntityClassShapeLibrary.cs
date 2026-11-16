@@ -28,9 +28,50 @@ public sealed class EntityClassShapeLibrary : IEntityShapeLibrary
         ["ScenarioMacro"] = DefaultEntityShapeLibrary.ScenarioMacro,       // ⭐ SR-178 — the instance's OWN marker (a square frame with an M); its colour is Hrot.Common MacroMarker, set in EntityPresentationGizmo
     };
 
+    // ── ⭐ CE-4623 (animals AU-2, AR-19 / AR-20) — an animal is drawn on the 2-D map as a top-down BODY outline, never the man's line (Kind 3 would say Humanoid) ────────────────────────────
+
+    /// <summary>The profile names of the animals' outlines.</summary>
+    public const string AnimalQuadruped = "animal_quadruped", AnimalBird = "animal_bird", AnimalFlock = "animal_flock";
+
+    private static PolylineDefinition Closed(params (float X, float Y)[] pts)
+    {
+        var v = new System.Numerics.Vector3[pts.Length];
+        for (int i = 0; i < pts.Length; i++) v[i] = new System.Numerics.Vector3(pts[i].X, pts[i].Y, 0f);
+        return new PolylineDefinition { LocalVertices = v, IsClosed = true, IsFilled = false, LineThickness = 1f };
+    }
+
+    private static readonly Dictionary<string, EntityShapeProfile> AnimalOutlines = new()
+    {
+        // a body, a neck and a head (x forward, y left; −0.5…0.5 of the length and width)
+        [AnimalQuadruped] = new EntityShapeProfile { Name = AnimalQuadruped, Elements = new[]
+        {
+            Closed((-0.50f, -0.38f), (-0.44f, -0.50f), (0.08f, -0.50f), (0.20f, -0.30f), (0.34f, -0.22f), (0.50f, -0.14f), (0.50f, 0.14f), (0.34f, 0.22f), (0.20f, 0.30f), (0.08f, 0.50f), (-0.44f, 0.50f), (-0.50f, 0.38f)),
+        } },
+        // a bird from above: a body and two wings
+        [AnimalBird] = new EntityShapeProfile { Name = AnimalBird, Elements = new[]
+        {
+            Closed((-0.50f, 0f), (-0.20f, -0.08f), (0.10f, -0.50f), (0.18f, -0.50f), (0.18f, -0.08f), (0.50f, 0f), (0.18f, 0.08f), (0.18f, 0.50f), (0.10f, 0.50f), (-0.20f, 0.08f)),
+        } },
+        // a flock: a loose cluster of small birds
+        [AnimalFlock] = new EntityShapeProfile { Name = AnimalFlock, Elements = new[]
+        {
+            Closed((-0.4f, -0.1f), (-0.3f, -0.05f), (-0.4f, 0.0f)), Closed((-0.1f, 0.3f), (0.0f, 0.35f), (-0.1f, 0.4f)), Closed((0.1f, -0.3f), (0.2f, -0.25f), (0.1f, -0.2f)),
+            Closed((0.3f, 0.1f), (0.4f, 0.15f), (0.3f, 0.2f)), Closed((-0.2f, -0.35f), (-0.1f, -0.3f), (-0.2f, -0.25f)), Closed((0.0f, 0.0f), (0.1f, 0.05f), (0.0f, 0.1f)),
+        } },
+    };
+
+    /// <summary>⭐ CE-4623 — the animal outline of a DIS type, or null when it is no animal.</summary>
+    public static string? AnimalProfileNameOf(DISEntityType dis)
+    {
+        var family = Hrot.UI.Common.Map3D.VisualFamilies.Of(dis);   // the class table: Cattle … Goat are more specific than Person
+        if (!Hrot.UI.Common.Map3D.VisualFamilies.IsAnimal(family)) return null;
+        return family == Hrot.UI.Common.Map3D.VisualFamily.Bird ? (dis.Subcategory == 2 ? AnimalFlock : AnimalBird) : AnimalQuadruped;
+    }
+
     public EntityShapeProfile GetShape(string? shapeName, ulong fallbackDisType)
     {
         if (!string.IsNullOrEmpty(shapeName) && _outlines.TryGetProfile(shapeName, out var named)) return named;
+        if (AnimalProfileNameOf(new DISEntityType { Value = fallbackDisType }) is { } animal) return AnimalOutlines[animal];   // ⭐ CE-4623 — before the class walk: Kind 3 would be the man's line
         var name = ProfileNameOf(new DISEntityType { Value = fallbackDisType });
         return name != null && _outlines.TryGetProfile(name, out var profile)
             ? profile

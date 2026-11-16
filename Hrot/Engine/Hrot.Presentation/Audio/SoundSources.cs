@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Animals;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
@@ -102,6 +103,7 @@ namespace Hrot.UI.Common.Audio
             Own(world, own, now, dt, output);
             Doors(world, ear, now);
             Voices(world, own, ear, now);
+            Animals(world, ear, now);   // ⭐ CE-4623 AU-8
             Boarding(world, own, ear, now);
             Town(world, ear);
             Beds(ear, dt, output);
@@ -112,6 +114,7 @@ namespace Hrot.UI.Common.Audio
         {
             _lastBurst.Clear(); _lastPos.Clear(); _passes.Clear();
             _said.Clear(); _saidKnown = false;
+            _animalSeen.Clear(); _herdSpoke.Clear(); _animalWorld = null; PerchedNear = 0;
             _ownMagazines = -1; _rumble = 0f; _recentNear = 0f;
             _movers.Clear(); _sinceSearch = float.PositiveInfinity; _moverWorld = null; _typeReach.Clear(); _typeReachAge = 0f;   // ⭐ CE-4560 — the next frame searches
             _doors = null; _doorWorld = null; _aboard.Clear(); _aboardKnown = false; _townWorld = null; _townAt = new(float.NaN); TownLevel = 0f;
@@ -283,6 +286,7 @@ namespace Hrot.UI.Common.Audio
                 if (embarked && w.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;   // its vehicle is heard
                 var loco = Fdp.Toolkit.Motion.Locomotions.Of(w, e);
                 var a = AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } own_ ? own_ : MovingDefault(loco);
+                bool animalMover = loco is LocomotionClass.Quadruped or LocomotionClass.Bird;   // ⭐ CE-4623 — hooves by gait, wings: the animals' own clips
                 // ⭐ CE-4560 — what this type's bodies are heard at, learned from the bodies themselves (a silent locomotion counts as 0)
                 float heard = a?.MovingAudibleRange ?? 0f;
                 if (!_typeReach.TryGetValue(type, out float known) || heard > known) _typeReach[type] = heard;
@@ -298,8 +302,8 @@ namespace Hrot.UI.Common.Audio
                 float level = airborne ? 1f : speed > 0.5f ? MathF.Min(1f, speed / reference) : 0f;
                 if (level <= 0f) continue;
                 bool fixedWing = loco == LocomotionClass.FixedWing;
-                long clip = SoundTkbCatalog.MovingFor(tkb, type, a.MovingClass, fixedWing);
-                if (SoundTkbCatalog.SoundOf(tkb, clip) is not { } s) continue;
+                long clip = animalMover ? AnimalMoveClip(type, loco, speed) : SoundTkbCatalog.MovingFor(tkb, type, a.MovingClass, fixedWing);
+                if ((animalMover ? AnimalSoundCatalog.SoundOf(tkb, clip) : SoundTkbCatalog.SoundOf(tkb, clip)) is not { } s) continue;
                 float g = Spatializer.Gain(d, s.ReferenceM, a.MovingAudibleRange) * (0.35f + 0.65f * level) * Volume(s) * (e == own ? OwnMoverShare : 1f);
                 if (g <= 1e-3f) continue;
                 _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority));
@@ -348,9 +352,13 @@ namespace Hrot.UI.Common.Audio
             LocomotionClass.Tracked => DefaultTracked,
             LocomotionClass.Rotorcraft => DefaultRotor,
             LocomotionClass.FixedWing => DefaultJet,
+            LocomotionClass.Quadruped => DefaultHooves,   // ⭐ CE-4623 — hooves (a cow 90 m, a horse the same), by gait
+            LocomotionClass.Bird => DefaultWings,
             _ => null,
         };
 
+        private static readonly AcousticSignatureDto DefaultHooves = new() { MovingAudibleRange = 90f, MovingClass = SoundSourceClass.Footsteps, ReferenceSpeed = 6f };
+        private static readonly AcousticSignatureDto DefaultWings = new() { MovingAudibleRange = 100f, MovingClass = SoundSourceClass.Footsteps, ReferenceSpeed = 6f };
         private static readonly AcousticSignatureDto DefaultSteps = new() { MovingAudibleRange = 60f, MovingClass = SoundSourceClass.Footsteps, ReferenceSpeed = 3f };
         private static readonly AcousticSignatureDto DefaultWheeled = new() { MovingAudibleRange = 400f, MovingClass = SoundSourceClass.WheeledEngine, ReferenceSpeed = 10f };
         private static readonly AcousticSignatureDto DefaultTracked = new() { MovingAudibleRange = 800f, MovingClass = SoundSourceClass.TrackedEngine, ReferenceSpeed = 8f };
@@ -407,7 +415,8 @@ namespace Hrot.UI.Common.Audio
             if (!Ambient) return;
             var tkb = _tkb();
             Bed(tkb, output, -1, SoundTkbCatalog.Wind, 1f);
-            Bed(tkb, output, -2, SoundTkbCatalog.Birds, MathF.Max(0f, 1f - 2f * _recentNear));   // birds go quiet under fire
+            // ⭐ CE-4623 (AU-8, AN-19) — the birdsong bed grows where birds PERCH (an orchard, a park, a lone tree: flocks and birds perched near the ear) and, like before, falls SILENT after shooting
+            Bed(tkb, output, -2, SoundTkbCatalog.Birds, MathF.Max(0f, 1f + 0.6f * MathF.Min(1f, PerchedNear / 3f) - 2f * _recentNear));
             Bed(tkb, output, -3, SoundTkbCatalog.BattleRumble, _rumble);
             Bed(tkb, output, -4, SoundTkbCatalog.Town, TownLevel * MathF.Max(0.3f, 1f - _recentNear));   // a town goes quieter under fire, never silent
         }
@@ -527,6 +536,122 @@ namespace Hrot.UI.Common.Audio
             float f = Vector3.Dot(to, fwd), l = Vector3.Dot(to, left);
             if (MathF.Abs(f) >= MathF.Abs(l)) return f >= 0f ? VoiceTkbCatalog.ContactSide.Front : VoiceTkbCatalog.ContactSide.Rear;
             return l >= 0f ? VoiceTkbCatalog.ContactSide.Left : VoiceTkbCatalog.ContactSide.Right;
+        }
+
+        // ═══ ⭐ CE-4623 (animals AU-8, AN-19) — what the animals SAY, as the operator hears it ════════════════════════════════════════════════════════════════════════════
+
+        private readonly Dictionary<Entity, (long Calls, AnimalMode Mode, FlockMode Flock, long Barks)> _animalSeen = new();
+        private readonly Dictionary<Entity, double> _herdSpoke = new();
+        private readonly List<Entity> _animalGone = new();
+        private EntityRepository? _animalWorld;
+        private EntityQuery? _animalQuery, _flockQuery;
+        private int _animalFrame, _animalSpoke;
+
+        /// <summary>⭐ CE-4623 — animal sounds played by the last frame (calls, alarms, barks, take-offs) and flocks / birds perched within <see cref="PerchedReach"/> of the ear (the birdsong bed's lift).</summary>
+        public int AnimalSoundsHeard { get; private set; }
+        public float PerchedNear { get; private set; }
+
+        /// <summary>A species' rest calls are only considered inside this fraction of its range beyond which it cannot be heard anyway; a herd speaks at most once in this many seconds; all herds together at most <see cref="MaxAnimalSoundsPerFrame"/> a frame.</summary>
+        public const float HerdQuietSeconds = 2.5f, PerchedReach = 80f;
+        public const int MaxAnimalSoundsPerFrame = 3;
+
+        /// <summary>The hooves' (quadruped) or wings' (bird) clip of a body of TKB <paramref name="type"/> moving at <paramref name="speed"/>: the species' own, the gait's line; 0 for a type that is no animal.</summary>
+        private static long AnimalMoveClip(long type, LocomotionClass loco, float speed)
+        {
+            int species = AnimalSoundCatalog.SpeciesOfEntityType(type);
+            if (species < 0) return 0;
+            if (loco == LocomotionClass.Bird) return AnimalSoundCatalog.TypeOf(species, AnimalSoundCatalog.Wings);
+            var family = species switch { 0 => Hrot.UI.Common.Map3D.VisualFamily.Cattle, 1 => Hrot.UI.Common.Map3D.VisualFamily.Sheep, 2 or 3 or 4 => Hrot.UI.Common.Map3D.VisualFamily.Horse,
+                                          5 => Hrot.UI.Common.Map3D.VisualFamily.Dog, 6 => Hrot.UI.Common.Map3D.VisualFamily.Cat, 10 => Hrot.UI.Common.Map3D.VisualFamily.Pig, _ => Hrot.UI.Common.Map3D.VisualFamily.Goat };
+            var bands = Hrot.UI.Common.Map3D.QuadrupedGaits.BandsOf(family);
+            return AnimalSoundCatalog.TypeOf(species, AnimalSoundCatalog.HoovesLine(speed, bands.WalkMax, bands.TrotMax));
+        }
+
+        private void Speak(EntityRepository w, ITkbDatabase? tkb, Entity e, Entity herd, int species, int line, in Ear ear, Vector3 at, double now)
+        {
+            if (_animalSpoke >= MaxAnimalSoundsPerFrame) return;
+            long clip = AnimalSoundCatalog.TypeOf(species, line);
+            if (AnimalSoundCatalog.SoundOf(tkb, clip) is not { } s) return;
+            Entity group = herd.IsNull ? e : herd;
+            float quietFor = line == AnimalSoundCatalog.Call ? HerdQuietSeconds : line == AnimalSoundCatalog.Alarm ? 1f : 0f;   // a herd is not a choir: rest calls once in 2.5 s, alarms once a second; a bark is a warning, never throttled
+            if (quietFor > 0f && _herdSpoke.TryGetValue(group, out double last) && now - last < quietFor) return;
+            float d = Vector3.Distance(at, ear.Position);
+            float g = Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s);
+            if (g <= 1e-3f) return;
+            if (line is AnimalSoundCatalog.Call or AnimalSoundCatalog.Alarm) _herdSpoke[group] = now;
+            _mixer.Request(clip, at, true, g, Jitter(s), s.Priority, now, Spatializer.Delay(d));
+            _animalSpoke++; AnimalSoundsHeard++;
+        }
+
+        /// <summary>
+        /// ⭐ CE-4623 (AU-8, AN-19, AR-7) — the animals' calls as the operator hears them: a REST CALL when an animal's closed-form call count goes up (<see cref="AnimalSoundCatalog.CallsMade"/> — a pure function of its
+        /// key and sim time, so a seek or a late join hears the same), an ALARM when its brain turns Alert / Flee (a hen's cackle, a bellow, a whinny), a dog's BARKS while it guards, a flock's WINGS as it takes off. Calls fall
+        /// silent after shooting (<c>_recentNear</c>), a herd speaks at most once in <see cref="HerdQuietSeconds"/>, and a frame plays at most <see cref="MaxAnimalSoundsPerFrame"/>. Hooves and wings in flight are movers
+        /// (<see cref="Movers"/>). The first frame only learns what the animals are doing.
+        /// </summary>
+        private void Animals(EntityRepository w, in Ear ear, double now)
+        {
+            AnimalSoundsHeard = 0; _animalSpoke = 0; PerchedNear = 0f;
+            bool hasAnimal = w.IsComponentTypeRegistered<AnimalState>(), hasFlock = w.IsComponentTypeRegistered<FlockState>();
+            if (!hasAnimal && !hasFlock) { _animalSeen.Clear(); return; }
+            double sim = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
+            var tkb = _tkb();
+            if (!ReferenceEquals(w, _animalWorld))
+            {
+                _animalWorld = w; _animalSeen.Clear(); _herdSpoke.Clear();
+                _animalQuery = hasAnimal ? w.Query().With<AnimalState>().With<SimTransform>().Build() : null;
+                _flockQuery = hasFlock ? w.Query().With<FlockState>().With<SimTransform>().Build() : null;
+            }
+            bool quiet = _recentNear > 0.3f;   // after shooting: no song, no calls — the alarm itself is what is heard
+            bool netId = w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (_animalQuery != null)
+                foreach (var e in _animalQuery)
+                {
+                    ref readonly var st = ref w.GetComponentRO<AnimalState>(e);
+                    int species = (int)st.Species;
+                    var at = w.GetComponentRO<SimTransform>(e).Position;
+                    float d = Vector3.Distance(at, ear.Position);
+                    bool known = _animalSeen.TryGetValue(e, out var seen);
+                    uint key = netId && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) && w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value is int nid && nid != 0 ? (uint)nid : (uint)e.Index;
+                    long calls = AnimalSoundCatalog.CallsMade(species, key, 0u, sim);
+                    long barks = st.Mode == AnimalMode.Guard ? (long)Math.Floor(sim / 1.2) : 0L;
+                    if (species == (int)AnimalSpecies.Bird && st.Mode == AnimalMode.Calm && d < PerchedReach) PerchedNear += 1f;
+                    _animalSeen[e] = (calls, st.Mode, seen.Flock, barks);
+                    if (!known || d > AnimalSoundCatalog.CallRange(species) * 1.5f) continue;
+                    var herd = w.IsComponentTypeRegistered<HerdMember>() && w.HasComponent<HerdMember>(e) ? w.GetComponentRO<HerdMember>(e).Herd : Entity.Null;
+                    if ((st.Mode == AnimalMode.Alert || st.Mode == AnimalMode.Flee) && seen.Mode != st.Mode && seen.Mode is AnimalMode.Calm or AnimalMode.Recover or AnimalMode.Rest)
+                    {
+                        Speak(w, tkb, e, herd, species, AnimalSoundCatalog.Alarm, ear, at, now);
+                        if (species == (int)AnimalSpecies.Hen && st.Mode == AnimalMode.Flee) Speak(w, tkb, e, Entity.Null, species, AnimalSoundCatalog.Flutter, ear, at, now);
+                    }
+                    else if (st.Mode == AnimalMode.Guard && barks > seen.Barks) Speak(w, tkb, e, Entity.Null, species, AnimalSoundCatalog.Special, ear, at, now);
+                    else if (calls > seen.Calls && st.Mode is AnimalMode.Calm or AnimalMode.Recover && !quiet) Speak(w, tkb, e, herd, species, AnimalSoundCatalog.Call, ear, at, now);
+                }
+            if (_flockQuery != null)
+                foreach (var e in _flockQuery)
+                {
+                    ref readonly var fl = ref w.GetComponentRO<FlockState>(e);
+                    var at = w.GetComponentRO<SimTransform>(e).Position;
+                    float d = Vector3.Distance(at, ear.Position);
+                    bool known = _animalSeen.TryGetValue(e, out var seen);
+                    uint key = (uint)e.Index ^ fl.Seed;
+                    long calls = AnimalSoundCatalog.CallsMade((int)AnimalSpecies.BirdFlock, key, fl.Seed, sim);
+                    if (fl.Mode == FlockMode.Perched && d < PerchedReach) PerchedNear += 1f;
+                    _animalSeen[e] = (calls, seen.Mode, fl.Mode, 0L);
+                    if (!known || d > AnimalSoundCatalog.CallRange((int)AnimalSpecies.BirdFlock) * 1.5f) continue;
+                    if (fl.Mode == FlockMode.Flying && seen.Flock != FlockMode.Flying)   // a take-off: the wings, and the flock's alarm chatter
+                    {
+                        Speak(w, tkb, e, Entity.Null, (int)AnimalSpecies.BirdFlock, AnimalSoundCatalog.Wings, ear, at, now);
+                        Speak(w, tkb, e, Entity.Null, (int)AnimalSpecies.BirdFlock, AnimalSoundCatalog.Alarm, ear, at, now);
+                    }
+                    else if (calls > seen.Calls && fl.Mode != FlockMode.Flying && !quiet) Speak(w, tkb, e, Entity.Null, (int)AnimalSpecies.BirdFlock, AnimalSoundCatalog.Call, ear, at, now);
+                }
+            if (_animalSeen.Count > 4 * Math.Max(16, _animalSeen.Count / 4) && ++_animalFrame % 300 == 0)
+            {
+                _animalGone.Clear();
+                foreach (var g in _animalSeen.Keys) if (!w.IsAlive(g)) _animalGone.Add(g);
+                foreach (var g in _animalGone) { _animalSeen.Remove(g); _herdSpoke.Remove(g); }
+            }
         }
 
         /// <summary>How built-up it is: the buildings (placed buildings and building prisms) within <see cref="TownRadius"/> of the ear.</summary>

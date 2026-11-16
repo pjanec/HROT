@@ -190,10 +190,26 @@ namespace Hrot.ScenarioEditor.Tools
         /// — ⚠ a region without it is no region: <c>WeatherField</c> ignores it). ⭐ Here, because every host's area commit passes this arm
         /// (the editor's adapter, and the map host serving an ExCon <c>CMD_START_AUTHORING</c>).
         /// </summary>
+        /// <summary>⭐ CE-4623 AU-7 — the animal area's outline: a soft pasture green, dashed (the mockup's panel F).</summary>
+        public static MapOverlayStyle AnimalAreaStyle()
+        {
+            var st = MapOverlayStyle.Default();
+            st.FillR = 0x5B; st.FillG = 0xD0; st.FillB = 0x6A; st.FillA = 0x24;
+            st.BorderR = 0x5B; st.BorderG = 0xD0; st.BorderB = 0x6A; st.BorderA = 0xFF;
+            st.LineThickness = 1.6f;
+            st.IsClosed = true;
+            return st;
+        }
+
         public static List<object> BornWith(long tkbType, EditablePolyline polyline, MapOverlayStyle style)
         {
             var components = new List<object> { polyline, style };
             if (tkbType == TkbEntityTypes.WeatherRegion) components.Add(Fdp.Toolkit.Weather.WeatherConditions.Standard);
+            if (tkbType == Hrot.UI.Common.AddEntity.AnimalAreaOps.AreaType)   // ⭐ CE-4623 AU-7 — an animal area is born with a pasture of cattle (the form changes it) and its own green outline
+            {
+                components.Add(Hrot.UI.Common.AddEntity.AnimalAreaDef.Default(Fdp.Toolkit.Animals.AnimalSpecies.Cattle));
+                components[1] = AnimalAreaStyle();
+            }
             if (tkbType == TkbEntityTypes.SpawnArea) components.Add(new Hrot.Common.SpawnArea { Side = Fdp.Core.ForceId.Friend, FacingDeg = 0f });   // ⭐ Player Join S2-b — edited in Details
             return components;
         }
