@@ -16,6 +16,15 @@
       "is": "MinefieldAhead"
     },
     {
+      "name": "it halts SHORT of the field, not at the start (the leader ends at x >= 90)",
+      "on": "field",
+      "who": "Man Leader",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 90,
+      "atEnd": true
+    },
+    {
       "name": "never the crossing drill",
       "never": {
         "on": "task",
