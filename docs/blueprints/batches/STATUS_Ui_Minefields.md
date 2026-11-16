@@ -24,3 +24,18 @@ Started `411de4f7e` (merged `coordinator@66d47feba`).
 |---|---|---|
 | R-1054 | the P-3 side-knowledge gate does not exist yet (graph: no `SideKnowledge`/`SideLimited`/`FogOfWar` class; P-3 is PLANNED). `MinefieldGizmo` draws the TRUTH unless the station's seat has a side AND a station setting `Map ▸ Side-limited map` (default OFF, KR-11) is on; the instructor (no side) always sees all | P-3 lands its own gate ⇒ the gizmo reads that one instead |
 | R-1055 | the drawing is built over a small data seam (outline, parameters, lanes, mines, the viewer side's cells) that rails fill by hand; the projector that reads terrain's components is written at the re-bind — no stand-in COMPONENT, so no temporary component id (ui's block is exhausted) and no second `MinePattern` | terrain names the seam differently ⇒ the adapter follows it |
+
+## Gates (rule 8) — merged tree `82bb69ece` (terrain MS-T2/T3 + backend merged)
+
+| command | result |
+|---|---|
+| `xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests/... --no-build --filter "Minefield\|MineClearer\|AnimalModelRail\|CE4271\|EntityTypeCatalog\|ShapeKit\|CE2138\|VertexEdit"` | 104 / 0 / 0, twice (after the per-world cache fix) |
+| `xvfb-run -a dotnet test Hrot/Editor/Hrot.Editor.AiShared.Tests/... --no-build --filter "MinefieldDetailsView\|AnimalAreaDetailsView"` | 5 / 0 / 0 |
+| pre-existing reds, proven at `411de4f7e` in a clean worktree | `CE1309_TheMindStateBar…`, `CE1086_TheFpvDrone…`, `TheGalleryOpenedOnClutter…` — filed **CE-1955** |
+
+Findings: `CE4271_TheShippedAtlas` was OUR stale count (the 11 animal thumbnails, `80cc7fdda`) — fixed. `MinefieldOps` cached per entity in statics (raced across worlds) — fixed `82bb69ece`.
+
+Ids allocated: R-1054, R-1055 · CE-1955.
+
+## Waiting on terrain
+MS-T1 munition rows 6051–6053 (the burst looks, VE-D) · MS-T4 the clearer's TKB 116 + class `MineClearer` (`FamilyOfClass`, thumbnail, `FlailActivity.IsOn`) · TKB template 8830 (placing a field in the editor).
