@@ -10,7 +10,7 @@ related-designs:
 
 # HANDOFF — coordinator → `terrain`: your decisions ruled, two breaching defects, terrain versions (R-4280; CE-4629, CE-4630, CE-5004)
 
-**For:** the `terrain` lane, as a FOLLOW-UP — start when your minefield batch is reported. **From:** coordinator. **Dispatched at `<STAMP>`**;
+**For:** the `terrain` lane, as a FOLLOW-UP — start when your minefield batch is reported. **From:** coordinator. **Dispatched at `b324236a6`**;
 ⛔ scope FROZEN there; a later document that invalidates an item ⇒ STOP that item, do the rest (R-106).
 
 🔒 User, `2026-11-16`: *"approved · R-5000 lean accepted, vehicles should be able to cross the 10cm curb · the narrow hole was made by FPS possessed
