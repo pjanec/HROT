@@ -8,6 +8,10 @@ related-designs:
   - HANDOFF_Coordinator_To_Behaviors_Assault_Closeout_And_Drones.md — the dispatch (part 2, frozen at 7bea87df1)
 -->
 
+
+> ✅ **`2026-11-16` — APPROVED by the user** (minefield handoff §0a: *"approved, behaviors are not working on minefields yet, pls ammend their handoff"*): every lane decision here (R-2122, R-2123) is approved as built; the ledger rows are promoted.
+> ✅ **R-4275 — the finding (§2) is RULED: option A.** The M-4 acceptance reads *"a break escapes the LETHAL radius"* (Motorcycle §6); the numbers stay. ⇒ the share row is CLOSED: road 100 %, off-road 47 % beyond the lethal radius.
+
 # STATUS — the realistic FPV and the grey-zone dash (CE-4621 M-4), behaviors — overnight, unattended
 
 ⭐ **MORNING SUMMARY:** MC-4a ✅ (the FPV commits on what it saw late — measured to its formula) · the dash ✅ in process (both plays `Dash`, the lookout's break, riders out, the riding hearing mask — which backend had NOT built) · ⚠ **the finding (§2): a break turn takes riders out of the LETHAL radius (road 100 %, off-road 47 %) but never out of the 5 m casualty radius** — your call, lean A · ⛔ no live bike scenario exists yet (the share is a seeded in-process measurement) · `ua-drone-shelter` live PASS
@@ -16,7 +20,7 @@ related-designs:
 |---|---|---|
 | **MC-4a** the FPV's terminal guidance (handoff item 8) | ✅ built | its own perceived track (sightings every 0.2 s, velocity from two, never read), 0.4 s operator delay, commit at time-to-go 0.7 s, a look-ahead dive line, the lead iterated once — FPV §5e. 📐 a 1 s, 8 m/s² break at time-to-go 1 s is missed by **4.53 m** (formula ½·a·1.1² = 4.84 m); the same with no delay 3.33 m |
 | **MC-3…MC-7** the dash (handoff item 9) | ✅ built (in-process; ⛔ no live scenario yet) | `GreyZoneDash` + `DashRide` (both `Fulfils = Dash`), the lookout's break, riders out at the edge, the riding hearing mask — Motorcycle §9a |
-| ⭐ **the M-4 acceptance — the measured share** | ⚠ **FINDING** | seeded, in process (40 dashes each, the REAL dive guidance + rotorcraft model, the bike driven by the rail): closest pass **no break 0.1–0.8 m** (every burst lethal) · **road break 2.9–4.9 m** (100 % beyond the 2 m lethal radius, **0 % beyond the 5 m casualty radius**) · **off-road break 1.7–2.8 m** (47 % / 0 %). ⇒ at the design's commit 0.7 + delay 0.4 the largest miss a turn can make is ½·8·1.1² = 4.84 m < 5 m: **"riders UNHURT in a measured share" is 0 %**; a break turns a kill into a casualty on the road. ⭐ For your call (my lean below) |
+| ⭐ **the M-4 acceptance — the measured share** | ✅ **CLOSED by R-4275** (option A: "a break escapes the LETHAL radius") | seeded, in process (40 dashes each, the REAL dive guidance + rotorcraft model, the bike driven by the rail): closest pass **no break 0.1–0.8 m** (every burst lethal) · **road break 2.9–4.9 m** (100 % beyond the 2 m lethal radius, **0 % beyond the 5 m casualty radius**) · **off-road break 1.7–2.8 m** (47 % / 0 %). ⇒ at the design's commit 0.7 + delay 0.4 the largest miss a turn can make is ½·8·1.1² = 4.84 m < 5 m: **"riders UNHURT in a measured share" is 0 %**; a break turns a kill into a casualty on the road. ⭐ For your call (my lean below) |
 | ⚠ the hearing mask (handoff: "backend built it — verify") | ⛔ was **NOT BUILT** — measured: `AcousticPerception.TryEars` masked by weather only; ✅ built here (`RidingFactor`, × 0.25 above 5 m/s) | R-2123 |
 | drone demos before / after | ✅ `ua-drone-shelter` live PASS after MC-4a (`3a2502bb8`, cluster): ① the tank backs under the deck and the deck takes the warhead (3000 → 3000) · ② the tank in the open is hit FROM ABOVE (3000 → 2550) — the same verdicts as before. ⚠ `sam-site` / `city-battle` have no automated check — not re-run | `utility-demo-check.py --launch ua-drone-shelter` |
 
