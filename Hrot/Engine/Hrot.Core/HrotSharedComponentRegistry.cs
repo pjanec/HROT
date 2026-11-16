@@ -162,6 +162,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
         world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();

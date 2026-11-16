@@ -1342,6 +1342,10 @@ namespace Fdp.Core
         /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
         public const int MinefieldLanes = 324, MineClearing = 325;
 
+        /// <summary>⭐ CE-4624 MS-T2 (MR-5, R-5049) — <c>MineBreadcrumbs</c>: a unit's own recent track near a minefield (the back-out path), written by its brain node, recorded,
+        /// not replicated. ⚠ 326 measured free on every lane 2026-11-16.</summary>
+        public const int MineBreadcrumbs = 326;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
