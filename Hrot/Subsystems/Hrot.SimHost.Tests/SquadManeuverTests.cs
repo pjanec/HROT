@@ -8140,10 +8140,17 @@ namespace Hrot.SimHost.Tests
             Convoy(p);
             p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
             Assert.Equal(BehaviorNames.PlatoonConvoy, p.S.TaskName);
-            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));
             Assert.Contains("9811", p.S.Orders.Last(o => o.Entity.Equals(apc)).JsonParams);
+            // ⭐ CE-9012 (R-9008) — ONE road column: the first vehicle leads (rank 0, no lead), the second follows it at rank 1 on its path
+            //   (🔴 red-proof: each its own FollowRoute ⇒ no PlatformConvoy orders ⇒ red)
+            var leadOrder = p.S.Orders.Last(o => o.Entity.Equals(apc)).JsonParams;
+            var followOrder = p.S.Orders.Last(o => o.Entity.Equals(ifv)).JsonParams;
+            Assert.Contains("\"Rank\":0", leadOrder);
+            Assert.Contains("\"Rank\":1", followOrder);
+            Assert.Contains("9001", followOrder);
             p.Ticks(30);
-            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // it stands
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // it stands
             Assert.Equal(0, p.S.Orders.Count(o => o.Entity.Equals(p.Alpha) || o.Entity.Equals(p.Bravo)));                     // riders: none
 
             p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
@@ -8173,11 +8180,11 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3);
             Assert.Equal(1, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
             Assert.Contains("9001", p.S.Orders.Last(o => o.Entity.Equals(p.Alpha)).JsonParams);
-            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // not yet
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // not yet
 
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(p.S.Repo, p.Alpha, apc));
             p.Ticks(3);
-            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carry on
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // carry on
 
             p.S.Repo.GetComponentRW<SimTransform>(apc).Position = new Vector3(0f, 375f, 0f);
             Fbt.NodeStatus? result = null;
@@ -8211,7 +8218,7 @@ namespace Hrot.SimHost.Tests
             p.S.StartSop("BasicPlatoonSop");
             Convoy(p);
             p.Ticks(6);   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later
-            Assert.Equal((1, 1), (p.OrdersTo(truck, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));
+            Assert.Equal((1, 1), (p.OrdersTo(truck, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));
 
             p.ReportSpot(p.Bravo, new Vector3(30f, 150f, 0f), 3);
             p.Ticks(SopReactionFrames);
@@ -8254,12 +8261,12 @@ namespace Hrot.SimHost.Tests
             p.ReportSet(p.Bravo);
             p.Ticks(3);
             Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark), p.OrdersTo(p.Bravo, BehaviorNames.SquadEmbark)));
-            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // they wait
+            Assert.Equal((1, 1), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // they wait
 
             p.S.Pause(PlatoonConvoyBehavior.RemountTimeoutSeconds + 1);                                                   // nobody boards
             p.Ticks(6);
             Assert.Equal((1, 1), (p.OrdersTo(p.Alpha, "Order.Move"), p.OrdersTo(p.Bravo, "Order.Move")));                  // on foot
-            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carry on
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // carry on
         }
 
         /// <summary>⭐ <c>CE-2347</c> (DA-102) — a vehicle that cannot move halts the convoy and is left at the remount: its squad boards the
@@ -8296,8 +8303,8 @@ namespace Hrot.SimHost.Tests
                 Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark));
                 Assert.Equal(1, p.OrdersTo(p.Alpha, "Order.Move"));                                                       // on foot
             }
-            Assert.Equal((2, 2), (p.OrdersTo(ifv, BehaviorNames.FollowRoute), p.OrdersTo(truck, BehaviorNames.FollowRoute)));
-            Assert.Equal(1, p.OrdersTo(apc, BehaviorNames.FollowRoute));
+            Assert.Equal((2, 2), (p.OrdersTo(ifv, BehaviorNames.PlatformConvoy), p.OrdersTo(truck, BehaviorNames.PlatformConvoy)));
+            Assert.Equal(1, p.OrdersTo(apc, BehaviorNames.PlatformConvoy));
         }
 
         /// <summary>⭐ <c>CE-2347</c> (DA-102, the user's "carry their wounded") — at the remount a squad with a man down that nobody carries
