@@ -7,6 +7,7 @@ stale-below: §8 row S5 and X2-F's "S5 measures it" — SUPERSEDED by R-8365 (§
 known-rot: §3 places PlayFor on TacticalIntentResolutionSystem — as built it is OrderReissue.PlayFor (R-8367). §4's frame numbers assume a one-frame ingress lag (as built: two, R-8368).
 known-conflict: DESIGN_Stochastic_Units_And_Resolution.md §13 X-1 / X-3 / D-P7 say a split goes ONE LEVEL at a time; the as-built split FLATTENS the composite to men (StochasticUnitFill.Leaves) — this design scopes X-2 to the squad echelon and files the conflict (§10 F-X2-1), it does not resolve it
 related-designs:
+  - DESIGN_Split_One_Level.md — OWNS the one-level split that closes F-X2-1 (CE-8307): the platoon's squads rostered, X2-I's platoon / company rows built, RostersItsMen replaced by RostersItsChildren (R-8389)
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS X-2 (§13), the split process D-P1…D-P7 (§16a, D-P6 the handover), SV-10 (§17.1: restart from the current situation; an untyped order cannot switch), the manager and switch as built (§23.4) and our routing (§23.5–§23.5c, F-5); this file answers X-2 only
   - DESIGN_DP3_Planned_Posts.md — OWNS the planned posts (PlannedPosts 138) and DP3-D ②, which §7 X2-F here builds (the re-resolved Defend carries them as D-2f Posts, MaxPosts 8 → 13)
 -->

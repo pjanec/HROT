@@ -7,6 +7,7 @@ stale-below: § HISTORY at the bottom (§18–§20 as first approved); §16 P-1 
 known-rot: §10's table row "`StochasticInfantrySquad<Order>`" and §13 X-1's string-keyed `<Resolution><Class><Order>` names are superseded by SV-2 (a (class, resolution, order) TABLE, no name concatenation); §10 S-5's "the FusionSquad calibrates" is superseded by C-8 (R-4253); §13 X-2's "keeps its order (name + params)" is DERIVED, not stored (§19)
 known-conflict: none
 related-designs:
+  - DESIGN_Split_One_Level.md — OWNS X-5 / D-P7 as BUILT for the switch (CE-8307, R-8382…R-8391): a split creates the DIRECT subordinates (a platoon's stochastic squads, each with its share of the slot table), the cascade, the leaves-first merge; closes F-X2-1
   - DESIGN_Aggregate_Squad.md — OWNS the FusionSquad (one FusionSoldier carries the squad) — the resolution built first, and the unit state, order routing and child keys this design's "binds now" items put there
   - DESIGN_DP3_Planned_Posts.md — OWNS D-P3 / SV-5 for the squad leaf (R-8330's follow-up): SquadDefend's plan over a slot-table crew, PlannedPosts (138), the manager's Planning wait
   - DESIGN_X2_Order_Reresolution.md — OWNS X-2 as designed (agg-behaviors, R-8353…R-8363): the order re-issued on a switch by the F-5 reconciler, the split squad's roster (Handover / Merge), SV-10's switch gate, DP3-D ② (the posts as D-2f Posts); files F-X2-1 (the split flattens a platoon to men, against X-5 / D-P7)

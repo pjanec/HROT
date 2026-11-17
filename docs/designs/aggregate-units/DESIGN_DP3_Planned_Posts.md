@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_Stochastic_Units_And_Resolution.md §16 P-1 / P-2 (posts surveyed ONCE when the unit settles) — already SUPERSEDED there by §16a; this design follows §16a / SV-5 (posts planned during the split's Planning stage)
 related-designs:
+  - DESIGN_Split_One_Level.md — OWNS the one-level split (CE-8307): a split platoon's SQUADS are stochastic units that then split into men, so this design's squad plan applies at every echelon's leaf; the planner's scope becomes "a unit whose split makes men" (R-8388)
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS the split process (§16a D-P1…D-P7), SV-5 (the planned-posts component), the manager (§16b) and R-8330 (why ST-5 C stopped); this file answers its D-P3 for the SQUAD leaf only
   - ../group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS SquadDefend's plan (§8c D-1…D-2m), D-2f authored posts (the handover path) and §13b R-2037 (the brain asks the muscle, never reads geometry) that rules out a synchronous plan
   - ../eqs-2/EQS_Design_v1.3_final.md — OWNS the child-sensor road the asks ride (EqsChildSensor, epochs, the Muscle's 10 Hz solver) and the baked cover provider (A7) that is this problem's "precomputed tactical data"
