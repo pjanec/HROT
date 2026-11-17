@@ -25,6 +25,16 @@
           ]
         ]
       }
+    },
+    {
+      "name": "a score per archer",
+      "on": "field",
+      "who": "*Archery score",
+      "path": "ObjectiveStatus.Value",
+      "op": ">",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
     }
   ]
 }

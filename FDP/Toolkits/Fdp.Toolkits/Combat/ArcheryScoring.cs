@@ -29,11 +29,18 @@ namespace Fdp.Toolkit.Combat
             => CombatTkb.TryGetTemplate(world, target, out var t) ? t.GetDescriptor<ArcheryTargetDto>() : null;
 
         /// <summary>The ring an arrow striking <paramref name="target"/> at <paramref name="hit"/> scores; −1 when the target is no archery target.</summary>
-        public static int RingAt(EntityRepository world, Entity target, Vector3 hit)
+        public static int RingAt(EntityRepository world, Entity target, Vector3 hit) => RingAt(world, target, hit, Vector3.Zero);
+
+        /// <summary>⭐ As <see cref="RingAt(EntityRepository, Entity, Vector3)"/>, the offset measured ACROSS the arrow's flight (<paramref name="travel"/>, any length; zero = unknown, the straight distance): the strike point sits on the
+        /// front of the prop's body, in front of its position, and that depth is no miss — only the offset in the face's own plane is. 📌 measured: a dead-centre arrow struck 0.57 m in front of the target's origin and scored ring 0.</summary>
+        public static int RingAt(EntityRepository world, Entity target, Vector3 hit, Vector3 travel)
         {
             if (target.IsNull || !world.IsAlive(target) || !world.HasComponent<SimTransform>(target)) return -1;
             if (FaceOf(world, target) is not { } face) return -1;
-            return RingOf(Vector3.Distance(hit, CentreOf(world.GetComponentRO<SimTransform>(target).Position, face)), face);
+            var off = hit - CentreOf(world.GetComponentRO<SimTransform>(target).Position, face);
+            float len2 = travel.LengthSquared();
+            if (len2 > 1e-8f) off -= travel * (Vector3.Dot(off, travel) / len2);
+            return RingOf(off.Length(), face);
         }
     }
 }
