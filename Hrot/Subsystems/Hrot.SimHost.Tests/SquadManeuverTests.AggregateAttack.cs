@@ -123,23 +123,28 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        /// <summary>⭐ <c>ST-3</c> (B-4, R-8303 <c>HoldBack</c>) — SUPPORT BY FIRE: the same order with <c>HoldBack</c> approaches to the assault distance and HOLDS there — it never closes (the distance never falls below
-        /// it), reports Set once in position, keeps FIRING (its rounds fall, the defender's health falls) and never ends by itself. ✅ Red-proof: <c>HoldBack</c> ignored ⇒ it closes to the objective ⇒ red.</summary>
+        /// <summary>⭐ <c>ST-3</c> (B-4, B-8, R-8303 <c>HoldBack</c>; ⭐ <c>CE-8302</c>, R-8341) — SUPPORT BY FIRE: <c>HoldBack</c> on a POSITION (the commander's support position — here the company's
+        /// <see cref="CompanyAttackBehavior.SupportStandOffMetres"/>, 250 m short of the enemy) moves the unit ONTO that position and HOLDS there — it never closes on the enemy (the distance never falls below
+        /// the stand-off), reports Set once in position (no PhaseLine: it has no assault line), keeps FIRING (its rounds fall, the defender's health falls) and never ends by itself. 📌 F-15: a HoldBack on
+        /// the enemy's posts held 100 m from them — on the enemy line — and the base of fire died before its Set, so the assault was never ordered. ✅ Red-proof: the approach back at the assault distance
+        /// short of the position (<c>HoldOn</c> ignored) ⇒ it holds 350 m out ⇒ red.</summary>
         [Fact]
-        public void ST3_HoldBack_ApproachesToTheAssaultDistance_FiresThere_NeverClosesAndNeverEnds()
+        public void ST3_HoldBack_StandsOnItsSupportPosition_FiresThere_NeverClosesAndNeverEnds()
         {
-            using var f = new Fight(range: 300f, attackerSlots: 12, defenderSlots: 120, defenderAmmo: 0, attackerAmmo: 5000, fireRate: 0.02f);     // an unarmed, large defender: the base of fire is never broken
+            using var f = new Fight(range: 500f, attackerSlots: 12, defenderSlots: 120, defenderAmmo: 0, attackerAmmo: 5000, fireRate: 0.02f);     // an unarmed, large defender: the base of fire is never broken
             var (s, repo, a, d) = (f.S, f.Repo, f.A, f.D);
             int d0 = f.Health(d);
-            s.Order(AttackJson(Where(repo, d), holdBack: true), ResolutionRoutingTable.Plays.Attack);
+            float standOff = CompanyAttackBehavior.SupportStandOffMetres;
+            var support = Where(repo, d) - new Vector3(0f, standOff, 0f);                                     // the support position, between the unit and the enemy
+            s.Order(AttackJson(support, holdBack: true), ResolutionRoutingTable.Plays.Attack);
             for (int i = 0; i < 1500 && Reports(repo, a, ProgressKind.Set) == 0; i++) f.Second();
             Assert.Equal(1, Reports(repo, a, ProgressKind.Set));
-            Assert.Equal(1, Reports(repo, a, ProgressKind.PhaseLine));
+            Assert.Equal(0, Reports(repo, a, ProgressKind.PhaseLine));
             float atSet = f.DistanceToDefender();
-            Assert.InRange(atSet, StochasticUnitAttackBehavior.AssaultDistanceMetres - 25f, StochasticUnitAttackBehavior.AssaultDistanceMetres + 25f);
+            Assert.InRange(atSet, standOff - 25f, standOff + 25f);
             int rounds = f.Rounds(a);
             f.Seconds(180);
-            Assert.True(f.DistanceToDefender() > StochasticUnitAttackBehavior.AssaultDistanceMetres - 25f, "it never closes: " + f.DistanceToDefender());
+            Assert.True(f.DistanceToDefender() > standOff - 25f, "it never closes: " + f.DistanceToDefender());
             Assert.False(repo.GetComponentRO<AggregateUnit>(a).Formation == UnitFormation.Assault);
             Assert.True(f.Rounds(a) < rounds, "it keeps firing (rounds spent)");
             Assert.True(f.Health(d) < d0, "…and hitting");
@@ -279,7 +284,7 @@ namespace Hrot.SimHost.Tests
         private static void MakeStochastic(EntityRepository repo, Entity e, int slots = 12) => AggregateTestUnits.Make(repo, e, slots: slots, up: slots);
 
         /// <summary>⭐⭐ <c>ST-3</c> (R-8315) — <c>CompanyAttack</c>: its assault platoon (slot 0) is a STOCHASTIC unit ⇒ <c>Order.Attack</c> with the neutral <see cref="AttackOrder"/> on the objective (and its search
-        /// radius); its base of fire (slot 1) ⇒ <c>Order.SupportByFire</c> with <c>HoldBack</c> on the objective; the physical reserve still gets <c>PlatoonDefend</c> (no routed order at all). A fully physical company
+        /// radius); its base of fire (slot 1) ⇒ <c>Order.SupportByFire</c> with <c>HoldBack</c> on the support position (CE-8302: 250 m short); the physical reserve still gets <c>PlatoonDefend</c> (no routed order at all). A fully physical company
         /// still orders <c>PlatoonAttack</c> / <c>PlatoonSupportByFire</c> with their own json. ✅ Red-proof: the CompanyAttack sites back on <c>Assign</c> ⇒ no <c>Order.*</c> to the stochastic platoons ⇒ red.</summary>
         [Fact]
         public void ST3_CompanyAttack_OrdersAStochasticAssault_AndBaseOfFire_ByKind_AndAPhysicalOneByItsPlay()
@@ -291,7 +296,9 @@ namespace Hrot.SimHost.Tests
             c.Ticks(6);
             var support = LastOrder<AttackOrder>(c.S, c.Second, "Order.SupportByFire");
             Assert.True(support.HoldBack, "the base of fire does not close");
-            Assert.True(Near(support.Position, o1), "the base of fire on the objective (no post reported): " + support.Position);
+            // ⭐ CE-8302 — on the SUPPORT POSITION (the physical base of fire's point, 250 m short of the objective), never on the objective
+            float standOff = Vector2.Distance(new Vector2(support.Position.Local.X, support.Position.Local.Y), new Vector2(o1.X, o1.Y));
+            Assert.True(MathF.Abs(standOff - CompanyAttackBehavior.SupportStandOffMetres) < 1f, "the base of fire stands 250 m short: " + standOff);
             Assert.Equal(0, c.OrdersTo(c.Second, BehaviorNames.PlatoonSupportByFire));
             Assert.Equal(0, OrdersOf(c.S, c.First, "Order.Attack"));                                              // the assault waits for the base of fire
             c.Set(c.Second); c.Ticks(5);
@@ -328,7 +335,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, OrdersOf(c.S, c.Third, "Order.Attack"));
         }
 
-        /// <summary>⭐⭐ <c>ST-3</c> (R-8315) — <c>PlatoonAttack</c>'s squad orders: a stochastic SUPPORT squad is ordered <c>Order.SupportByFire</c> (HoldBack, on the posts), a stochastic ASSAULT squad
+        /// <summary>⭐⭐ <c>ST-3</c> (R-8315) — <c>PlatoonAttack</c>'s squad orders: a stochastic SUPPORT squad is ordered <c>Order.SupportByFire</c> (HoldBack, on the support point — CE-8302), a stochastic ASSAULT squad
         /// <c>Order.FireAndMovement</c> in contact / <c>Order.Bound</c> before it (an <see cref="AttackOrder"/> on the objective); the physical squad of the same platoon keeps its play. ✅ Red-proof: the arms back on <c>Assign</c> ⇒ red.</summary>
         [Fact]
         public void ST3_PlatoonAttack_OrdersStochasticSquads_ByKind_PerArm()
@@ -345,7 +352,9 @@ namespace Hrot.SimHost.Tests
                 {
                     var support = LastOrder<AttackOrder>(p.S, p.Bravo, "Order.SupportByFire");
                     Assert.True(support.HoldBack);
-                    Assert.True(Vector2.Distance(new Vector2(support.Position.Local.X, support.Position.Local.Y), new Vector2(o.X, o.Y)) < 5f, "on the reported post " + support.Position);
+                    // ⭐ CE-8302 — on the platoon's SUPPORT POINT (where its physical squad stands, 120 m short), never on the reported post
+                    float standOff = Vector2.Distance(new Vector2(support.Position.Local.X, support.Position.Local.Y), new Vector2(o.X, o.Y));
+                    Assert.True(MathF.Abs(standOff - PlatoonAttackBehavior.SupportStandOffMetres) < 1f, "on the support point, 120 m short: " + standOff);
                     Assert.Equal(0, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
                 }
                 p.ReportSet(p.Bravo); p.Ticks(4);
@@ -379,7 +388,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.ClearBuilding));
         }
 
-        /// <summary>⭐ <c>ST-3</c> (R-8315) — a platoon's <c>PlatoonSupportByFire</c>: a stochastic squad gets <c>Order.SupportByFire</c> (<see cref="AttackOrder"/> on the post, HoldBack), a physical one
+        /// <summary>⭐ <c>ST-3</c> (R-8315; CE-8302) — a platoon's <c>PlatoonSupportByFire</c>: a stochastic squad gets <c>Order.SupportByFire</c> (<see cref="AttackOrder"/> on its support point, HoldBack), a physical one
         /// <c>SupportByFire</c> with the squad's own json. ✅ Red-proof: the site back on <c>Assign</c> ⇒ red.</summary>
         [Fact]
         public void ST3_PlatoonSupportByFire_OrdersAStochasticSquadByKind_AndAPhysicalOneByItsPlay()
@@ -391,7 +400,8 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             var a = LastOrder<AttackOrder>(p.S, p.Alpha, "Order.SupportByFire");
             Assert.True(a.HoldBack);
-            Assert.True(Vector2.Distance(new(a.Position.Local.X, a.Position.Local.Y), new(post.X, post.Y)) < 0.5f, "on the post");
+            // ⭐ CE-8302 — on ITS support point (the platoon's position ± the spread, as the physical squad's), never on the post
+            Assert.True(Vector2.Distance(new(a.Position.Local.X, a.Position.Local.Y), new(0f, 100f)) <= PlatoonSupportByFireBehavior.SpreadMetres, "on its support point " + a.Position);
             Assert.Equal(0, p.OrdersTo(p.Alpha, BehaviorNames.SupportByFire));
             Assert.True(p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire) > 0 && NoRoutedOrder(p.S, p.Bravo));
         }

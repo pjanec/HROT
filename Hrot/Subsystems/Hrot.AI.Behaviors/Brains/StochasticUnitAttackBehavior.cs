@@ -36,6 +36,8 @@ namespace Hrot.AI.Behaviors.Brains
         public byte HoldBack;
         /// <summary>Bit 0 = PhaseLine sent · bit 1 = Set sent (hold-back) · bit 2 = the end report sent.</summary>
         public byte Reported;
+        /// <summary>⭐ CE-8302 — 1 = support by fire at a POSITION: the approach ends ON the objective (the support position), not at the assault distance short of it.</summary>
+        public byte HoldOn;
     }
 
     /// <summary>
@@ -51,8 +53,10 @@ namespace Hrot.AI.Behaviors.Brains
     /// <item><b>Success</b> once AT the objective with no enemy unit STANDING (<see cref="CombatEffective.IsStanding"/>, which answers a stochastic unit) within the search radius
     /// (<see cref="AttackOrder.SearchRadius"/>, default <see cref="DefaultSearchRadiusMetres"/> — R-8313) of it among the unit's REPORTED contacts and the ordered target ⇒ PROGRESS ObjectiveSecure,
     /// the play ends in Success. <b>Failure</b> when the attacker itself is no longer standing ⇒ PROGRESS TaskFailed, Failure.</item>
-    /// <item><see cref="AttackOrder.HoldBack"/> (support by fire — the <c>SupportByFire</c> kind): step 1 only, then HOLD at the assault distance firing — it never closes,
-    /// reports Set when in position and never ends by itself (it is still failed when the unit breaks).</item>
+    /// <item><see cref="AttackOrder.HoldBack"/> (support by fire — the <c>SupportByFire</c> kind; ⭐ CE-8302, design §23.5d R-8341): the <see cref="AttackOrder.Position"/> is the
+    /// SUPPORT POSITION the commander chose — the same point its physical base of fire is sent to (<c>CompanyAttackBehavior.SupportAt</c>, 250 m short; the platoon's 120 m) — so the
+    /// unit moves ONTO it as a line, HOLDS there firing (phase A fires at whatever is in reach), reports Set and never ends by itself (it is still failed when the unit breaks).
+    /// ⛔ It never closes to the assault distance of the enemy (B-8: "Attack without closing"). A HoldBack on a TARGET entity alone (no position) holds at the assault distance as before.</item>
     /// </list>
     /// ⭐ Parallel (R-4212): it writes only its OWN entity's <see cref="AggregateUnit"/> (an order, only on a change); the enemies are READ (their slots, position — declared stable
     /// reads). 0 B per steady tick.
@@ -89,6 +93,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Attack = new StochasticAttackParams
             {
                 Objective = objective, Target = target, HoldBack = (byte)(order.HoldBack ? 1 : 0),
+                HoldOn = (byte)(order.HoldBack && (Vector3)order.Position != Vector3.Zero ? 1 : 0),   // ⭐ CE-8302 — the commander's support position: stand on it
                 SearchRadius = order.SearchRadius > 0f ? order.SearchRadius : DefaultSearchRadiusMetres,
             };
         }
@@ -112,11 +117,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.Phase == 0)
             {
                 p.Start = at;
-                p.Phase = Flat(at, p.Objective) <= AssaultDistanceMetres + StochasticUnitMoves.ArrivalRadiusMetres ? Reached(ref p, self, world) : (byte)1;
+                p.Phase = Flat(at, p.Objective) <= (p.HoldOn != 0 ? 0f : AssaultDistanceMetres) + StochasticUnitMoves.ArrivalRadiusMetres ? Reached(ref p, self, world) : (byte)1;
             }
             if (p.Phase == 1)
             {
-                p.Approach = ApproachPoint(p.Start, p.Objective);   // re-aimed when a followed target moved
+                p.Approach = p.HoldOn != 0 ? p.Objective : ApproachPoint(p.Start, p.Objective);   // re-aimed when a followed target moved; ⭐ CE-8302 support by fire stands ON its position
                 switch (StochasticUnitMoves.Step(ref p.Drive, p.Approach, UnitFormation.Line, self, world))
                 {
                     case DriveResult.Failed: return Fail(ref p, self, world);
@@ -148,7 +153,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The unit reached the assault distance: PhaseLine once, then the next phase (3 = hold when support by fire, 2 = assault).</summary>
         private static byte Reached(ref StochasticAttackParams p, Entity self, EntityRepository world)
         {
-            if ((p.Reported & SentPhaseLine) == 0) { p.Reported |= SentPhaseLine; CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective, 1); }
+            // the assault line reached (⭐ CE-8302: a base of fire on its own position has no assault line — its report is the Set below)
+            if ((p.Reported & SentPhaseLine) == 0 && p.HoldOn == 0) { p.Reported |= SentPhaseLine; CommandNodes.ReportProgress(world, self, ProgressKind.PhaseLine, p.Objective, 1); }
             p.Drive = default;
             return p.HoldBack != 0 ? (byte)3 : (byte)2;
         }

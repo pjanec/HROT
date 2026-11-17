@@ -463,27 +463,27 @@ def agg_battalion_fight(rows=None):
         write(s, "berlin", "probe", {"runFor": 1000, "golden": False, "expect": probe})
         return
     desc = ("What: on berlin a BLUE battalion HQ (a physical unit, no body: CompanyAttack on (700,500)) over THREE stochastic companies (90 men each, from the TKB composite) attacks a RED battalion HQ (CompanyDefend on (700,500), facing west) "
-            "over three stochastic companies, the two lines 600 m apart. Judge: (1) every company is ordered by KIND - Red's three run the generic Defend, the assault company the generic Attack; no stochastic company is given a physical play; "
+            "over three stochastic companies, the two lines 600 m apart. Judge: (1) every company is ordered by KIND - Red's three run the generic Defend, the BASE OF FIRE (Blue Company 2) the generic Attack with HoldBack (support by fire on its 250 m support position, CE-8302); no stochastic company is given a physical play; "
             "(2) the census agrees with the slot tables: a HoldArea objective round each HQ's three companies (300 m) needs 270 men = 3 x 90 slot-table men present, and reads Achieved; (3) each company's SITREP colour agrees with its slot table "
-            "(the assault company wiped out reads Black at its HQ; each Red company's colour lands in the band its slot table gives - Green under 10 of 90 down, Amber under 28); (4) the fight runs to an end: the assault company is lost (PROGRESS TaskFailed at its HQ) and the others hold. "
+            "(the base of fire wiped out reads Black at its HQ; each Red company's colour lands in the band its slot table gives - Green under 10 of 90 down, Amber under 28); (4) the fight runs to an end: the base of fire is lost (PROGRESS TaskFailed at its HQ) on its way in, inside the defenders' rifle reach (~290 m, short of its 250 m support position), so it never reports Set and the assault (Blue Company 1) is never committed. "
             "Fail: a physical play on a stochastic unit, a census that does not equal the slot tables, a colour that disagrees with them, or no end. Check: scripts/scenario-regression.sh agg-battalion-fight")
     expect = [
         task("the Blue HQ runs CompanyAttack", "Blue Battalion HQ", "CompanyAttack", before=10),
         task("the Red HQ runs CompanyDefend", "Red Battalion HQ", "CompanyDefend", before=10),
-        task("the assault company is ordered by KIND: the generic Attack play", "Blue Company 2", "StochasticUnitAttack", before=10),
+        task("the base of fire (Company 2) is ordered SupportByFire by KIND: the generic Attack play", "Blue Company 2", "StochasticUnitAttack", before=10),
         field("the census: the Blue HQ's three companies hold 270 slot-table men in the area", "Blue Battalion Census", "ObjectiveStatus.State", "==", "Achieved", before=20),
         field("the census: the Red HQ's three companies hold 270 slot-table men in the area", "Red Battalion Census", "ObjectiveStatus.State", "==", "Achieved", before=20),
-        field("the HQ hears the assault company is lost (PROGRESS TaskFailed): the fight has run to an end", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Progress", "==", "TaskFailed", before=440),
-        field("the assault company's slot table agrees: every slot is down", "Blue Company 2", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=90),
+        field("the HQ hears the base of fire is lost (PROGRESS TaskFailed): the fight has run to an end", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Progress", "==", "TaskFailed", before=440),
+        field("the base of fire's slot table agrees: every slot is down", "Blue Company 2", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=90),
         field("... and its SITREP colour at the HQ is Black", "Blue Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Black", atEnd=True),
-        field("the base-of-fire company has lost nobody: its SITREP colour is Green", "Blue Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
+        field("the assault company, never committed, has lost nobody: its SITREP colour is Green", "Blue Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
         never("... and its slot table agrees (no slot down)", {"on": "field", "who": "Blue Company 1", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE}),
         # R-8332: Red's three rows are judged by the colour BANDS (Green >= 90 % present = fewer than 10 of 90 down; Amber >= 70 % = fewer than 28 down) - the
         # SITREP and the slot table must land in the SAME band. The HQ's roster lists the companies 3, 2, 1 (measured: the only Green row, Subordinates.0, is the
         # only company with fewer than 10 down - company 3).
-        field("Red's SITREP colours: company 3, untouched by the assault, reads Green", "Red Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
+        field("Red's SITREP colours: company 3, untouched by the base of fire, reads Green", "Red Battalion HQ", "CommandPicture.Subordinates.0.Strength", "==", "Green", atEnd=True),
         never("... and its slot table agrees (fewer than 10 of 90 down: >= 90 % present)", {"on": "field", "who": "Red Company 3", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 10}),
-        field("Red's SITREP colours: company 2, in the assault's path, reads Amber", "Red Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Amber", atEnd=True),
+        field("Red's SITREP colours: company 2, in the base of fire's path, reads Amber", "Red Battalion HQ", "CommandPicture.Subordinates.1.Strength", "==", "Amber", atEnd=True),
         field("Red's SITREP colours: company 1 reads Amber", "Red Battalion HQ", "CommandPicture.Subordinates.2.Strength", "==", "Amber", atEnd=True),
         field("... and company 2's slot table agrees (at least 10 down)", "Red Company 2", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=10),
         field("... and company 1's slot table agrees (at least 10 down)", "Red Company 1", "UnitSlotTable.Slots.*.Health", "<", 0.5, atEnd=True, where=LIVE, elements=10),
@@ -491,8 +491,8 @@ def agg_battalion_fight(rows=None):
         never("... neither falls below Amber - company 2", {"on": "field", "who": "Red Company 2", "path": "UnitSlotTable.Slots.*.Health", "op": "<", "value": 0.5, "where": LIVE, "elements": 28}),
     ] + [never(f"no physical play on {c}", {"on": "task", "who": c, "is": ["PlatoonAttack", "PlatoonDefend", "CompanyAttack", "CompanyDefend", "PlatoonSupportByFire"]})
          for c in ("Blue Company 1", "Blue Company 2", "Blue Company 3", "Red Company 1", "Red Company 2", "Red Company 3")]
-    checks = {"$doc": "§23.6 ST-4. 'A side broken' is the measured end: the Blue assault company (Blue Company 2) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), "
-                      "its HQ hears TaskFailed and reads it Black; the base-of-fire company (1) Sets and the reserve (3) never engage. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+    checks = {"$doc": "§23.6 ST-4. 'A side broken' is the measured end: the Blue BASE OF FIRE (Blue Company 2, roster slot 1 - CompanyAttack's roles are slot 0 assault, 1 base of fire, 2 reserve; relabelled 2026-11-17, CE-8302) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), "
+                      "its HQ hears TaskFailed and reads it Black. It dies at ~290 m (335 s), on its way to its 250 m support position (CE-8302 moved that position from 100 m of the posts; this run is unchanged, golden SAME), so it never reports Set and the assault (Blue Company 1, Subordinates.0) is never committed; the reserve (3) waits at its 400 m stand-off, out of reach, for the 900 s deadline. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
               "runFor": 450, "golden": {"every": 50}, "expect": expect}
     write(s, "berlin", desc, checks)
 

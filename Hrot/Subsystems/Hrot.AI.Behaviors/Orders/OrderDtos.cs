@@ -67,7 +67,8 @@ namespace Hrot.AI.Behaviors.Orders
         [JsonPropertyName("Speed")]
         public float Speed;
 
-        /// <summary>⭐ R-8303 — support by fire: engage from a distance and DO NOT close (the base of fire), never ending by itself.</summary>
+        /// <summary>⭐ R-8303 — support by fire: engage from a distance and DO NOT close (the base of fire), never ending by itself. ⭐ CE-8302 (R-8341): with a
+        /// <see cref="Position"/>, that position is WHERE the unit stands (the commander's support position — the same point its physical base of fire gets), not what it fires at.</summary>
         [JsonPropertyName("HoldBack")]
         public bool HoldBack;
     }

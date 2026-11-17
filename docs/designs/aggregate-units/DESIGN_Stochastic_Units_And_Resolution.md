@@ -827,7 +827,7 @@ stochastic squad, which is the whole point of step ⑥.*
 | **R-8329** | component id **138** (`PlannedPosts`) stays reserved, unused; 139 free | — |
 | **R-8330** | D-P3 NOT built: `SquadDefendBehavior.Plan` is an async state machine over a commander's child EQS sensors (`SquadManeuverRunner.AskTerrainAll` hangs the ask on `ctx.Commander`, measured FROM `FirstLive` man) with the roster-driven `AnyWithoutPost` / `PickAll` interleaved after each ask (windows, frames, roof, cover, fan, coverage — 1137 lines). A memberless stochastic unit has no roster, no commander cognitive state and no body to measure from, and the manager's Planning stage is one synchronous step with no wait. A split without changing the physical defence needs the asks re-parameterised over (count, origin, area) AND a manager wait for the plan — a design of its own | a design for the asks over a unit entity + a manager Planning wait; then PlannedPosts (138) and `UnitSplits.FallbackPosts` preference |
 
-### 23.5d agg-behaviors — F-14 and F-15 measured: a defender fires at what is in REACH; the stochastic base of fire closes too far *(`2026-11-16`; lane decisions R-8338…R-8340 "for the user's review"; finding CE-8302)*
+### 23.5d agg-behaviors — F-14 and F-15 measured: a defender fires at what is in REACH; the stochastic base of fire closes too far *(`2026-11-16`; lane decisions R-8338…R-8341 "for the user's review"; CE-8302 BUILT `2026-11-17`)*
 
 **Measured** *(probe scenarios on HEAD `81dcdbbd0` and on F-14's own commit `ea0ea16ee` — the same verdicts on both, so the merges since changed nothing; each probe removed after)*
 
@@ -869,6 +869,22 @@ sequenceDiagram
   Note over HQ,A: SupportSet never true ⇒ the assault is never ordered, the reserve waits for the 900 s deadline
 ```
 *What the picture shows that the prose hid: the base of fire's hold point is measured from the TARGET, so "never closes" still ends on the enemy line — and the assault's only trigger is a Set that a destroyed unit never sends.*
+
+**✅ CE-8302 BUILT** *(`2026-11-17`, R-8341 — supersedes R-8340's "⏳ filed"; the sequence above is the PRE-fix state, ⛔ history)*
+
+| # | lane decision *(for the user's review)* | would change it |
+|---|---|---|
+| **R-8341** | ⭐ **ONE owner of where support by fire stands: the COMMANDER.** `HoldBack` + a `Position` now means "stand ON this position" (the play's `HoldOn`: the approach ends on the objective, Set on arrival, no PhaseLine), and all three HoldBack sites send the SAME point their physical base of fire is sent to — so both resolutions stand in one place by construction: `CompanyAttack` → `SupportAt` (250 m short, or A-9's covered building) · `PlatoonAttack` → its `SupportAt` (120 m) · `PlatoonSupportByFire` → each squad's own `at`. A HoldBack on a TARGET entity alone keeps the assault distance. The posts were never the play's to aim — phase A fires at whatever is in reach (F-8) | — |
+| rejected | a `StandOff` metres field on `AttackOrder` — a new neutral field every Attack-fulfilling play must accept (R-8300 rail, 26 plays), and a second copy of each commander's stand-off | — |
+| rejected | the play reading the `SupportByFire` kind and holding a fixed 250 m — one number for every echelon (the platoon's is 120 m): a second owner of the geometry | — |
+
+| as built | where |
+|---|---|
+| `StochasticAttackParams.HoldOn` (set by `Resolve` when HoldBack and a Position); phase 0 / approach / PhaseLine honour it | `StochasticUnitAttackBehavior.cs` |
+| the three sites | `CompanyBehaviors.cs` `NeutralOf` (SupportByFire arm) · `PlatoonAttackBehavior.cs` `SupportByFire` · `SupportByFireBehavior.cs` (`PlatoonSupportByFire`'s order loop); the R-8315 helper `SupportByFireBehavior.PostsCentre` deleted (its only caller) |
+| `AttackOrder.HoldBack` doc: with a Position, that is WHERE the unit stands | `Orders/OrderDtos.cs` |
+| rail `ST3_HoldBack_StandsOnItsSupportPosition_FiresThere_NeverClosesAndNeverEnds` (renamed from `…ApproachesToTheAssaultDistance…`): HoldBack on a point 250 m short of the enemy ⇒ Set there (±25 m), no PhaseLine, never closer for 180 s, firing and hitting, never ends. Red-proved: `HoldOn` ignored ⇒ `InRange` red. The three routing rails now assert the support point (company 250 m, platoon 120 m, the PlatoonSupportByFire squad within its spread) | `SquadManeuverTests.AggregateAttack.cs` |
+| ⭐ **`agg-battalion-fight` measured after the fix: the outcome is UNCHANGED (golden SAME before the relabel).** The base of fire now heads for x 450 (250 m from Red), but Red's two front companies open fire at ~290 m (x ≈ 410, 328 s) and destroy it by 335 s — still on its way in, so it never reports Set and the assault is still never ordered. That is the stand-off sitting inside the defender's rifle reach plus agg-backend's lethality (F-15 / CE-8009), ⛔ not tuned here. The scenario's rows are RELABELLED: Company 2 = the base of fire, Company 1 = the assault (never committed) | §23.6c row; `scripts/gen-agg-scenarios.py` |
 
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 
@@ -947,7 +963,7 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | scenario | moved by | as re-authored | why it still tests the Judge line |
 |---|---|---|---|
 | `agg-detect-by-range` | CE-8009 R-8006 (`5d8a30150`): the naked eye stops at the men's TKB `VisionRange`, 150 m | ✅ near **100 m by eye** (2 steps), mid **2100 m through OPTICS** (an authored `Sensor: Optics` holding, R50 1200 m: 8 steps), far 2500 m by eye never; each contact also lands in the observer's OWN pool (no authored pool: CE-8021); every unit DEFENDS in place (order-less, the near pair's SOPs broke contact and the movers repeated only to ~2 cm between fresh runs — the F-13 jitter) | the curve's window is still read at two ranges (one with 8 steps); the eye cap itself is not pinned (CE-8020 calls 150 m a TKB defect) (**R-8331**) |
-| `agg-battalion-fight` | CE-8009 R-8005: focused hits, broken men still fire at 0.6 | ✅ Red's SITREP rows judged by BAND: company 3 Green ↔ fewer than 10 of 90 down; companies 1 and 2 Amber ↔ at least 10 down and never 28 | ⭐ "every SITREP agrees with the slot table" is now asserted as the SAME band on both sides — the old rows read `Subordinates.0` / `.2` as companies 1 / 3, but the Red HQ's roster lists them 3, 2, 1 (the only Green row is the only company under 10 down) (**R-8332**) |
+| `agg-battalion-fight` | CE-8009 R-8005: focused hits, broken men still fire at 0.6 · ⭐ `2026-11-17` relabelled (CE-8302, §23.5d): the company that dies is the BASE OF FIRE (Company 2), the assault (Company 1) is never committed | ✅ Red's SITREP rows judged by BAND: company 3 Green ↔ fewer than 10 of 90 down; companies 1 and 2 Amber ↔ at least 10 down and never 28 | ⭐ "every SITREP agrees with the slot table" is now asserted as the SAME band on both sides — the old rows read `Subordinates.0` / `.2` as companies 1 / 3, but the Red HQ's roster lists them 3, 2, 1 (the only Green row is the only company under 10 down) (**R-8332**) |
 | `agg-out-of-ammo` | CE-8021 (`6d9634b56`): the order-less target now has a contact pool, so OUR `StochasticUnitSop` sends it back (BreakContact) out of the riflemen's reach | ✅ the Red target DEFENDS in place (`StochasticUnitDefend`) — the SOP spares a defender | the squad still fires until every round is spent (6.25 s) and the SITREP reads Black (18.25 s) — the test is about the shooter, not the target (**R-8333**) |
 | `agg-sees-physical` | N-3 built (CE-8018) — ✅ works | ✅ the observer carries OPTICS and stands **700 m** off on **flat berlin**; reported at 9.25 s, SPOT at 12.25 s, never split | 250 m by eye on basic-desert cannot pass: the manager splits the observer inside 600 m (F-20) and its line runs into the ground (F-19) (**R-8334**) |
 

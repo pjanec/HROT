@@ -665,11 +665,10 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool SupportByFire(ref PlatoonAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.SupportByFire;
-            // ⭐ R-8315 — a stochastic squad: Order(SupportByFire, AttackOrder on the posts' centre — else the objective — HoldBack: engage, never close)
-            var target = p.Posts > 0 ? p.Post0 : p.Objective(Math.Min(p.Current, p.Objectives - 1));
-            if (p.Posts > 1) target = (p.Post0 + p.Post1 + (p.Posts > 2 ? p.Post2 : default) + (p.Posts > 3 ? p.Post3 : default)) / Math.Min(p.Posts, 4);
+            // ⭐ R-8315 / CE-8302 (R-8341) — a stochastic squad: Order(SupportByFire, AttackOrder HoldBack on the SUPPORT POINT — where the physical squad stands;
+            //   the phase fires at whatever is in reach, so the posts are not its to aim)
             kind = OrderKind.SupportByFire;
-            neutral = JsonSerializer.Serialize(new AttackOrder { Position = target, Speed = p.Speed, HoldBack = true }, json);
+            neutral = JsonSerializer.Serialize(new AttackOrder { Position = p.SupportAt, Speed = p.Speed, HoldBack = true }, json);
             order = JsonSerializer.Serialize(new SupportByFireParamsJsonDto
             {
                 Position = p.SupportAt, Speed = p.Speed,

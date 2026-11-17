@@ -1,5 +1,5 @@
 {
-  "$doc": "\u00a723.6 ST-4. 'A side broken' is the measured end: the Blue assault company (Blue Company 2) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), its HQ hears TaskFailed and reads it Black; the base-of-fire company (1) Sets and the reserve (3) never engage. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+  "$doc": "\u00a723.6 ST-4. 'A side broken' is the measured end: the Blue BASE OF FIRE (Blue Company 2, roster slot 1 - CompanyAttack's roles are slot 0 assault, 1 base of fire, 2 reserve; relabelled 2026-11-17, CE-8302) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), its HQ hears TaskFailed and reads it Black. It dies at ~290 m (335 s), on its way to its 250 m support position (CE-8302 moved that position from 100 m of the posts; this run is unchanged, golden SAME), so it never reports Set and the assault (Blue Company 1, Subordinates.0) is never committed; the reserve (3) waits at its 400 m stand-off, out of reach, for the 900 s deadline. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
   "runFor": 450,
   "golden": {
     "every": 50
@@ -20,7 +20,7 @@
       "before": 10
     },
     {
-      "name": "the assault company is ordered by KIND: the generic Attack play",
+      "name": "the base of fire (Company 2) is ordered SupportByFire by KIND: the generic Attack play",
       "on": "task",
       "who": "Blue Company 2",
       "is": "StochasticUnitAttack",
@@ -45,7 +45,7 @@
       "before": 20
     },
     {
-      "name": "the HQ hears the assault company is lost (PROGRESS TaskFailed): the fight has run to an end",
+      "name": "the HQ hears the base of fire is lost (PROGRESS TaskFailed): the fight has run to an end",
       "on": "field",
       "who": "Blue Battalion HQ",
       "path": "CommandPicture.Subordinates.1.Progress",
@@ -54,7 +54,7 @@
       "before": 440
     },
     {
-      "name": "the assault company's slot table agrees: every slot is down",
+      "name": "the base of fire's slot table agrees: every slot is down",
       "on": "field",
       "who": "Blue Company 2",
       "path": "UnitSlotTable.Slots.*.Health",
@@ -79,7 +79,7 @@
       "atEnd": true
     },
     {
-      "name": "the base-of-fire company has lost nobody: its SITREP colour is Green",
+      "name": "the assault company, never committed, has lost nobody: its SITREP colour is Green",
       "on": "field",
       "who": "Blue Battalion HQ",
       "path": "CommandPicture.Subordinates.0.Strength",
@@ -104,7 +104,7 @@
       }
     },
     {
-      "name": "Red's SITREP colours: company 3, untouched by the assault, reads Green",
+      "name": "Red's SITREP colours: company 3, untouched by the base of fire, reads Green",
       "on": "field",
       "who": "Red Battalion HQ",
       "path": "CommandPicture.Subordinates.0.Strength",
@@ -130,7 +130,7 @@
       }
     },
     {
-      "name": "Red's SITREP colours: company 2, in the assault's path, reads Amber",
+      "name": "Red's SITREP colours: company 2, in the base of fire's path, reads Amber",
       "on": "field",
       "who": "Red Battalion HQ",
       "path": "CommandPicture.Subordinates.1.Strength",

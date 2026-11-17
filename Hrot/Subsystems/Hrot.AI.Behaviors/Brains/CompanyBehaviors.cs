@@ -496,7 +496,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ R-8315 — the NEUTRAL form of the order <see cref="OrderFor"/> chose, and its kind (0 = no neutral kind: a vehicle or the drone team stays <c>Assign</c>).
         /// Defend is the one payload; the assault is an <see cref="AttackOrder"/> on the objective; the base of fire an <see cref="AttackOrder"/> with
-        /// <see cref="AttackOrder.HoldBack"/> on the reported posts (its centre, else the objective) — a stochastic unit's support by fire never closes.</summary>
+        /// <see cref="AttackOrder.HoldBack"/> on the SUPPORT POSITION (⭐ CE-8302: <c>SupportAt</c>, where the physical base of fire stands) — a stochastic unit's support by fire never closes.</summary>
         private static OrderKind NeutralOf(ref CompanyAttackPlan p, string behaviour, string order, JsonSerializerOptions json, out string neutral)
         {
             neutral = order;
@@ -509,7 +509,9 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (behaviour == BehaviorNames.PlatoonSupportByFire)
             {
-                neutral = JsonSerializer.Serialize(new AttackOrder { Position = PostsOf(ref p, o), Speed = p.Speed, HoldBack = true }, json);
+                // ⭐ CE-8302 (R-8341) — the base of fire stands on the SUPPORT POSITION (SupportAt, 250 m short, or the covered building A-9 chose), the same
+                //   point PlatoonSupportByFire gets: a HoldBack on the posts walked it to 100 m of the enemy line (F-15)
+                neutral = JsonSerializer.Serialize(new AttackOrder { Position = p.SupportAt, Speed = p.Speed, HoldBack = true }, json);
                 return OrderKind.SupportByFire;
             }
             return 0;
