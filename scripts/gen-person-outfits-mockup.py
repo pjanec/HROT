@@ -70,9 +70,10 @@ def headband():   # the feathers rise from the BACK of the band, 0.055 m wide, s
             h = 0.075 if i == 2 else 0.10; z = 1.705 + (0.05, 0.15, 0.2375)[i]
             b.append(Bx(-0.105 - 0.02 * i, 0.07 * s * (1 + 0.75 * i), z, 0.02, 0.055, h, BLACK if i == 2 else "#EEEADE"))
     return b
-def braids():
+def braids():   # black hair: the crown, a fall down the back, and on EACH side a braid that grows out of the hair beside the face (over the ear), over the front of the shoulder, down the chest to a red tie
     b = [Bx(0, 0, 1.745, 0.23, 0.22, 0.05, BLACK), Bx(-0.13, 0, 1.52, 0.05, 0.24, 0.40, BLACK)]
-    for s in (1, -1): b += [Bx(0.145, 0.115 * s, 1.30, 0.05, 0.05, 0.36, BLACK), Bx(0.145, 0.115 * s, 1.10, 0.05, 0.05, 0.03, DKRED)]
+    for s in (1, -1):
+        b += [Bx(0.03, 0.115 * s, 1.585, 0.10, 0.04, 0.22, BLACK), Bx(0.06, 0.12 * s, 1.42, 0.09, 0.05, 0.10, BLACK), Bx(0.145, 0.12 * s, 1.28, 0.05, 0.05, 0.30, BLACK), Bx(0.145, 0.12 * s, 1.10, 0.055, 0.055, 0.03, DKRED)]
     return b
 def facepaint():
     return [Bx(0.108, 0, 1.63, 0.012, 0.20, 0.04, BLACK), Bx(0.108, 0.07, 1.56, 0.012, 0.05, 0.10, RED), Bx(0.108, -0.07, 1.56, 0.012, 0.05, 0.10, WHITE)]
@@ -113,9 +114,9 @@ def hairpipe():      # a bone hair-pipe breastplate: vertical rows of white tube
     b = [Bx(0.142, -0.15 + 0.06 * i, 1.25, 0.025, 0.032, 0.30, PIPE) for i in range(6)]
     b += [Bx(0.142, 0, 1.405, 0.03, 0.34, 0.025, LEATHER), Bx(0.142, 0, 1.10, 0.03, 0.34, 0.025, LEATHER)]
     return b
-def armbands():      # a coloured band round each upper arm
-    return [Bx(0, 0.26, 1.33, 0.118, 0.118, 0.045, BEADS[1]), Bx(0, -0.26, 1.33, 0.118, 0.118, 0.045, BEADS[1]),
-            Bx(0, 0.26, 1.33, 0.12, 0.12, 0.012, BEADS[0]), Bx(0, -0.26, 1.33, 0.12, 0.12, 0.012, BEADS[0])]
+def armbands():      # a thin band round the MIDDLE of each upper arm (a third of the way from shoulder to elbow), slightly thicker than the arm, red with a blue stripe
+    return [Bx(0, 0.26, 1.27, 0.122, 0.122, 0.04, BEADS[1]), Bx(0, -0.26, 1.27, 0.122, 0.122, 0.04, BEADS[1]),
+            Bx(0, 0.26, 1.27, 0.126, 0.126, 0.012, BEADS[0]), Bx(0, -0.26, 1.27, 0.126, 0.126, 0.012, BEADS[0])]
 def necklace():      # a bead necklace: a collar round the neck, a strand hanging on the chest with a pendant
     b = [Bx(0.0, 0, 1.46, 0.19, 0.23, 0.035, BEADS[2])]
     b += [Bx(0.138, 0.06 * s, 1.40 - 0.02 * abs(s) , 0.02, 0.025, 0.07, BEADS[(1 + abs(s)) % 4]) for s in (-2, -1, 0, 1, 2)]

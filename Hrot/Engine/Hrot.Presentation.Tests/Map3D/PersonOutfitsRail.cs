@@ -164,7 +164,7 @@ public sealed class PersonOutfitsRail
         var bc = Dressed(tkb, Index("breechcloth")); Assert.Equal(Legwear.Breechcloth, bc.Legwear); Assert.Equal(bc.Skin, Outfits.ColourOfPart(bc, 0)); Assert.Equal(bc.Bottom, Outfits.ColourOfPart(bc, 1));
         var feathers = new HashSet<int>(); for (int s = 1; s <= 60; s++) feathers.Add(DetailsOf(tkb, Index("headband"), s).Count(d => d.Colour.R > 200 && d.Colour.G > 200) );
         Assert.Equal([2, 4, 6], feathers.Order());                                                                                       // seeded 1…3 feathers (two white segments each)
-        Assert.Equal(2, DetailsOf(tkb, Index("braids")).Count(d => d.Part == BlockFigure.TorsoIndex && d.Extent.Z * 0.56f > 0.3f));
+        Assert.Equal(2, DetailsOf(tkb, Index("braids")).Count(d => d.Part == BlockFigure.TorsoIndex && d.Centre.X * 0.24f > 0.135f && d.Extent.Z * 0.56f > 0.29f));   // a braid each side, down the chest
         var paint = Dressed(tkb, Index("facepaint")); Assert.True(paint.FacePaint); Assert.Equal(BeardKind.None, paint.Face.Beard);
         Assert.Equal(3, DetailsOf(tkb, Index("facepaint")).Count);
     }

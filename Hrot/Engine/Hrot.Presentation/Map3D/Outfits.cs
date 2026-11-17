@@ -380,10 +380,12 @@ public static class Outfits
             var hc = o.Hair;
             W(into, H, 0f, 0f, 1.745f, 0.23f, 0.22f, 0.05f, hc);                    // the crown
             W(into, H, -0.13f, 0f, 1.52f, 0.05f, 0.24f, 0.40f, hc);                 // the fall down the back
-            for (int s = 1; s >= -1; s -= 2)                                        // two braids over the chest, each tied
+            for (int s = 1; s >= -1; s -= 2)                                        // a braid each side: out of the hair beside the face (over the ear), over the shoulder, down the chest, tied in red
             {
-                W(into, T, 0.145f, 0.115f * s, 1.30f, 0.05f, 0.05f, 0.36f, hc);
-                W(into, T, 0.145f, 0.115f * s, 1.10f, 0.055f, 0.055f, 0.03f, BandRed);
+                W(into, H, 0.03f, 0.115f * s, 1.585f, 0.10f, 0.04f, 0.22f, hc);
+                W(into, T, 0.06f, 0.12f * s, 1.42f, 0.09f, 0.05f, 0.10f, hc);
+                W(into, T, 0.145f, 0.12f * s, 1.28f, 0.05f, 0.05f, 0.30f, hc);
+                W(into, T, 0.145f, 0.12f * s, 1.10f, 0.055f, 0.055f, 0.03f, BandRed);
             }
         }
         if (o.FacePaint)   // ⭐ R-1063 — stripes by the seed: a band over the eyes, a cheek stripe each side (the two cheek colours swap by the seed)
@@ -424,10 +426,10 @@ public static class Outfits
         }
         if (o.ExtraKind is OutfitExtra.Armbands or OutfitExtra.ArmbandsNecklace)   // a red band with a blue stripe round each upper arm (on the arm parts, so they swing with them)
         {
-            into.Add(new PartDetail(6, new(0f, 0f, 0.30f), new(1.30f, 1.30f, 0.16f), BeadRed));
-            into.Add(new PartDetail(8, new(0f, 0f, 0.30f), new(1.30f, 1.30f, 0.16f), BeadRed));
-            into.Add(new PartDetail(6, new(0f, 0f, 0.30f), new(1.34f, 1.34f, 0.05f), BeadBlue));
-            into.Add(new PartDetail(8, new(0f, 0f, 0.30f), new(1.34f, 1.34f, 0.05f), BeadBlue));
+            into.Add(new PartDetail(6, new(-0.17f, 0f, 0f), new(0.14f, 1.20f, 1.20f), BeadRed));
+            into.Add(new PartDetail(8, new(-0.17f, 0f, 0f), new(0.14f, 1.20f, 1.20f), BeadRed));
+            into.Add(new PartDetail(6, new(-0.17f, 0f, 0f), new(0.05f, 1.26f, 1.26f), BeadBlue));
+            into.Add(new PartDetail(8, new(-0.17f, 0f, 0f), new(0.05f, 1.26f, 1.26f), BeadBlue));
         }
         if (o.ExtraKind is OutfitExtra.Necklace or OutfitExtra.ArmbandsNecklace)   // a white bead collar, a strand on the chest, a yellow pendant
         {
@@ -458,8 +460,8 @@ public static class Outfits
             for (int part = 0; part < 4; part++)
             {
                 bool shin = (part & 1) == 1;
-                into.Add(new PartDetail(part, new(0f, 0f, 0f), new(1.95f, 1.80f, shin ? 0.92f : 1.0f), c));
-                if (shin) into.Add(new PartDetail(part, new(0f, 0f, -0.46f), new(1.15f, 1.05f, 0.12f), Scale(c, 0.6f)));
+                into.Add(new PartDetail(part, new(0f, 0f, 0f), new(shin ? 0.92f : 1.0f, 1.9f, 1.7f), c));            // x runs ALONG the limb: baggier across than the leg
+                if (shin) into.Add(new PartDetail(part, new(0.46f, 0f, 0f), new(0.12f, 1.1f, 1.05f), Scale(c, 0.6f)));   // the narrow gathered cuff at the ankle
             }
         }
         if (o.TopKind == OutfitTop.Chadari)   // the full-body pleated cover: the head wholly covered but a dark mesh grille over the eyes; crown to ankle
