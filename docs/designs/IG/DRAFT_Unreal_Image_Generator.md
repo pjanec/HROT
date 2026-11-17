@@ -167,6 +167,29 @@ timings and every run: [`STATUS_Windows_Unreal_Terrain.md`](../../blueprints/bat
 building heights ⚠ (UL-8). Not yet measured: road splines, walls, forests, the frame time in the viewport, the large tiled terrains (no Stechovice
 package on this machine).
 
+## ⭐ The look in Unreal — built `2026-11-17/18` (UL-9 … UL-14), and what the user asked for next
+
+🔒 User, `2026-11-18`: *"so far it looks amazing. note we would like to have some windows transparent so that we can place character behind them -
+maybe stechovice as OSM imported terrain is missing opened windows but that would be nice (later) adding to HROT as imported building post-process
+to include internal floors to selected houses so that we can really place characters inside and they see outside."*
+
+| built | how (all from OUR terrain package) |
+|---|---|
+| UL-9 the ground | `tools/unreal/HrotTerrain` `ImportHeights` — exact (≤ one 16-bit step) in seconds; Landscape Combinator dropped |
+| UL-10 the look | `scripts/unreal/look.py` + `hrot_look.py`: sky / sun / clouds / fog / Lumen; a ground material placing Megascans surfaces by OUR cover mask (forest / water / open) and slope; soil patches |
+| UL-11 trees | European beech (Nanite, Fab) at points inside OUR forests, on HROT's ground (`ScatterInstances`) |
+| UL-12 roads | the ground's roads mask by OSM class (asphalt / dirt) + SUMO's junction polygons |
+| UL-13 houses | each house from ITS template (`scripts/terrain_look.py`): walls by storey, the template's windows (frame + glass) and doors, a pitched roof from the imported roof volume, wall / roof materials varied; grass and ferns near the cameras |
+| UL-14 road meshes | `hrot-roadscene` → HROT's own `TrafficRoadScene` (SumoSharp `Sim.Scene`: lanes, junction fills, sidewalks, markings, crosswalks) |
+
+| # | open — the user's list |
+|---|---|
+| U-11 | ⭐ **transparent windows** a character can stand behind — the glass is opaque today (UL-13 draws a frame and a pane on a solid wall) ⇒ cut the wall at the template's openings and use a translucent glass |
+| U-12 | ⭐ **enterable houses**: an import post-process in HROT that gives SELECTED imported houses their internal floors (and the opened windows OSM does not carry), so characters stand inside and see out — the HROT side first (the building template's storeys / slabs / openings), then Unreal draws what the template says |
+| U-13 | asphalt reads brown (darkened gravel) — a grey asphalt surface; the street view a little dark |
+| U-14 | conifers: the Megaplants trees are SKELETAL (not instanceable) — a static Megascans spruce / pine set |
+| U-15 | lane markings on rural roads: Sim.Scene draws dividers only between same-direction lanes — a centre line would be a SumoSharp change (read-only in HROT, R-4046): the user decides |
+
 ## ⛔ HISTORY — the first open list
 
 | # | question |
