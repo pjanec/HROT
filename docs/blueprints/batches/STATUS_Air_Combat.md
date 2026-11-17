@@ -16,7 +16,7 @@ related-designs:
 |---|---|---|
 | **S0 measure + the contract** | ✅ DONE — ids declared, the four answers in the design §1a | `air: the contract —` (see `git log air-wip`) |
 | **S1 the autopilot** | ✅ DONE — AC-1, AC-3 (`Steer3D`), AC-4 (GCAS in every AI fixed-wing mode), the jets' flight numbers; 5 / 5 scenarios pass | `air: S1 the autopilot —` |
-| S2 missiles that can be beaten | 🟡 HALF — AC-6 the motor + the Monte-Carlo acceptance rail built; AC-9 / AC-9a (`MissileDefence`, the live threat, the last-ditch reflex), the grammar items and the six scenarios NOT yet | `air: S2 (first half) —` |
+| S2 missiles that can be beaten (+ S3's weapon suites) | 🟡 the motor, the Monte-Carlo, the LIVE threat scan, the last-ditch reflex, the jets' weapon suites + radar built (`air: S2 — the live threat …`); ⏳ `MissileDefence`, grammar items, scenarios. Earlier: HALF — AC-6 the motor + the Monte-Carlo acceptance rail built; AC-9 / AC-9a (`MissileDefence`, the live threat, the last-ditch reflex), the grammar items and the six scenarios NOT yet | `air: S2 (first half) —` |
 | S3 the fighters | ⏳ | — |
 | S4 the show | ⏳ | — |
 
