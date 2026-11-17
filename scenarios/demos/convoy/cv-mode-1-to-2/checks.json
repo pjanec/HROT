@@ -31,8 +31,8 @@
       "on": "near",
       "who": "Escort 1",
       "point": [
-        215,
-        1240
+        220,
+        525
       ],
       "within": 15
     },
@@ -68,8 +68,8 @@
       "on": "close",
       "who": "Escort 4",
       "point": [
-        215,
-        1240
+        220,
+        525
       ],
       "m": 70,
       "atEnd": true
