@@ -338,6 +338,8 @@ namespace Hrot.SimHost.Tests
             }
             w.Repo.AddComponent(bike, stations);
             w.Repo.AddComponent(w.Unit, new IsEmbarkedTag { VehicleEntity = bike, Seat = 1 });
+            // as boarding leaves it (Embarkation.StrippedOn): a firing seat keeps CanShoot, a closed seat strips it
+            w.Repo.AddComponent(w.Unit, new ActorCapabilityState { Capabilities = firing ? ActorCapabilities.CanShoot : ActorCapabilities.None });
             w.StartSop();
             w.Run(0.3);
             Assert.Null(w.TaskName);                                         // aboard: the Aboard row orders nothing (CE-2322)

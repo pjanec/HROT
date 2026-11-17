@@ -81,13 +81,17 @@ namespace Hrot.AI.Behaviors.Brains
             ws = default;
         }
 
-        /// <summary>He sits aboard in a FIRING seat (PF-1) — not a closed hull's passenger, not a crewman.</summary>
+        /// <summary>He sits aboard in a FIRING seat (PF-1) — not a closed hull's passenger, not a weapon's gunner. ⭐ Read from HIS OWN state: boarding
+        /// strips <c>CanShoot</c> everywhere but a firing seat or a weapon's gunner seat (<see cref="Embarkation.StrippedOn"/>), so a man aboard who
+        /// can still shoot sits in one of those two; the weapon's gunner keeps his own rows (CE-4035 G-11). 📐 Reading the host's stations here
+        /// threw under <c>HROT_READ_CHECK=1</c> on the spawn frame (the host is not yet in the tick-start view) — every scenario with a rider.</summary>
         [SharedAiCondition]
         public static bool OnFiringSeat(Entity self, EntityRepository world)
         {
             if (!world.IsComponentTypeRegistered<IsEmbarkedTag>() || !world.HasComponent<IsEmbarkedTag>(self)) return false;
-            ref readonly var tag = ref world.GetComponentRO<IsEmbarkedTag>(self);
-            return Embarkation.IsFiringSeat(world, tag.VehicleEntity, tag.Seat);
+            if (!world.HasComponent<ActorCapabilityState>(self)
+                || (world.GetComponentRO<ActorCapabilityState>(self).Capabilities & ActorCapabilities.CanShoot) == 0) return false;
+            return !WeaponSystems.IsWeaponSystem(world, world.GetComponentRO<IsEmbarkedTag>(self).VehicleEntity);
         }
 
         /// <summary>The SOP row's condition: on a firing seat AND an enemy seen (within 1 s) inside the seat's arc.</summary>
