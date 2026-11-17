@@ -52,6 +52,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte VehicleOrder[Capacity];
         /// <summary>DA-102 — how many casualty recoveries the squad was sent on in this remount.</summary>
         public fixed byte Recovers[Capacity];
+        /// <summary>⭐ CE-9012 — 1 = the slot's vehicle was SEEN running its current route (column) order: no longer running it then means the
+        /// column ENDED (its lead left it), and the order is given again; 0 = given, not landed yet (wait — a re-send would restart it).</summary>
+        public fixed byte VehicleRan[Capacity];
 
         public Entity VehicleOf(int slot) => Vehicle[slot] == 0 ? Entity.Null : new Entity(Vehicle[slot]);
     }
@@ -273,8 +276,7 @@ namespace Hrot.AI.Behaviors.Brains
                 default: want = ConvoyPlan.VehicleHold; break;
             }
             if (want == ConvoyPlan.VehicleNone) return;
-            if (p.VehicleOrder[slot] == want && CommandOrders.Stands(world, self, v)) return;
-            p.VehicleOrder[slot] = want;
+            if (p.VehicleOrder[slot] == want && want != ConvoyPlan.VehicleRoute && CommandOrders.Stands(world, self, v)) return;
             if (want == ConvoyPlan.VehicleRoute)
             {
                 // ⭐ CE-9012 (R-9008) — the vehicles drive the route as ONE road column: the first that can move leads it (PlatformConvoy, Mode Route),
@@ -289,13 +291,33 @@ namespace Hrot.AI.Behaviors.Brains
                     Rank = rank, Mode = CarKinem.Convoy.ConvoyMode.Route, Speed = p.Speed,
                     Route = new EntityLink(new EntityRef(p.RouteNet)),
                 }, json);
-                if (CommandOrders.StillRunning(world, self, v, BehaviorNames.PlatformConvoy, order)) return;
+                // ⭐ CE-9012 — the column order is judged by what the vehicle RUNS, not by the record alone: it ENDS when its lead leaves the column
+                //   (hit, fighting, killed) while the record still Stands — the follower then stands idle. Running (or paused by a reaction) ⇒ leave it;
+                //   given and not landed yet ⇒ wait; ran and ended, or a new lead / rank ⇒ give it again. 📌 uc-urban-battle: after the remount nothing drove on.
+                if (CommandOrders.StillRunning(world, self, v, BehaviorNames.PlatformConvoy, order) || PausedByAReaction(world, v))
+                {
+                    p.VehicleRan[slot] = 1;
+                    return;
+                }
+                if (p.VehicleOrder[slot] == want && p.VehicleRan[slot] == 0 && CommandOrders.Gave(world, self, v, BehaviorNames.PlatformConvoy, order)) return;
+                p.VehicleOrder[slot] = want;
+                p.VehicleRan[slot] = 0;
                 CommandOrders.Assign(world, self, v, BehaviorNames.PlatformConvoy, order, newOrder: true);
+                ws.Orders++;
+                return;
             }
-            else if (want == ConvoyPlan.VehicleFight)
+            p.VehicleOrder[slot] = want;
+            if (want == ConvoyPlan.VehicleFight)
                 CommandOrders.Assign(world, self, v, BehaviorNames.VehicleFightFromCover, "{}", newOrder: true);
             else CommandOrders.Order(world, self, v, "Hold", "{}", newOrder: true);
             ws.Orders++;
+        }
+
+        /// <summary>⭐ CE-9012 — a reaction holds the vehicle and its superior's order waits, paused, to resume.</summary>
+        private static bool PausedByAReaction(EntityRepository world, Entity v)
+        {
+            var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, v);
+            return current.Exists && current.Paused && current.Origin == BehaviorOrigin.Superior;
         }
 
         /// <summary>⭐ CE-9012 — the slot's vehicle's place in the road column: its rank among the DISTINCT vehicles that can move, in roster order
