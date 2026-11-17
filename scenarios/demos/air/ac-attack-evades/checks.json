@@ -1,0 +1,52 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 240,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "defended": {
+      "on": "field",
+      "who": "A-10",
+      "path": "MissileDefenceState.Count",
+      "op": ">=",
+      "value": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the Stinger fires",
+      "on": "shot",
+      "by": "Stinger Gunner",
+      "n": 1
+    },
+    {
+      "name": "the A-10 beams it",
+      "on": "field",
+      "who": "A-10",
+      "path": "MissileDefenceState.Phase",
+      "op": "in",
+      "value": [
+        "Beam",
+        2
+      ]
+    },
+    {
+      "name": "four flares",
+      "on": "field",
+      "who": "A-10",
+      "path": "MissileDefenceState.DecoysTotal",
+      "op": ">=",
+      "value": 4
+    },
+    {
+      "name": "it comes round: the truck is destroyed after the defence",
+      "on": "field",
+      "who": "Truck",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "after": "defended"
+    }
+  ]
+}

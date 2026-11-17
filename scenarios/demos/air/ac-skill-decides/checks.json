@@ -1,25 +1,27 @@
 {
-  "$doc": "DESIGN_Air_Combat \u00a76 S4 \u2014 feature (expect rows; a demo-length fight).",
+  "$doc": "DESIGN_Air_Combat \u00a76 S4 \u2014 feature (expect rows; a demo-length fight). Five seeds = five pairs (R-10021).",
   "runFor": 300,
   "golden": false,
   "expect": [
     {
-      "name": "the Rookie is shot down",
+      "name": "at least 4 of 5 Rookies are shot down",
       "on": "field",
-      "who": "Fulcrum",
+      "who": "*Fulcrum",
       "path": "Health.Current",
       "op": "<=",
       "value": 0,
+      "quantifier": "atLeast:4",
       "before": 300
     },
     {
-      "name": "Viper is never lost",
+      "name": "never 2 Aces lost",
       "never": {
         "on": "field",
-        "who": "Viper",
+        "who": "*Viper",
         "path": "Health.Current",
         "op": "<=",
-        "value": 0
+        "value": 0,
+        "quantifier": "atLeast:2"
       }
     }
   ]

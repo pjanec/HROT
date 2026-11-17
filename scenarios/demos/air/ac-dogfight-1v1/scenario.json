@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "air-range",
-    "description": "What: a Veteran F-16 ('Viper') and a Veteran MiG-29 ('Fulcrum') ordered to attack each other, 8 km apart at 2 km (CE-10003, AC-5\u2026AC-13). Judge: they close to 2 km inside 120 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start."
+    "description": "What: a Veteran F-16 ('Viper') and a Veteran MiG-29 ('Fulcrum') ordered to attack each other, 8 km apart at 2 km, in a 4 km arena (CE-10003, AC-5\u2026AC-13): they MERGE through its centre (no shot before the pass, R-10020), then fight. Judge: they close to 2 km inside 120 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start."
   },
   "entities": {
     "ac000017-0000-4000-8000-000000000001": {
@@ -94,6 +94,41 @@
       },
       "AirCombatState": {
         "Skill": "Veteran"
+      }
+    },
+    "ac000017-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8840
+      },
+      "EntityInfo": {
+        "Name": "Arena",
+        "ForceId": "Neutral"
+      },
+      "AirArena": {
+        "Centre": [
+          0,
+          0,
+          100.0
+        ],
+        "RadiusM": 4000,
+        "FloorAglM": 300,
+        "CeilingAglM": 6000,
+        "MaxShotRangeM": 6000,
+        "StalemateSeconds": 90,
+        "LapsesOff": 0
       }
     }
   }

@@ -1,0 +1,20 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S3 \u2014 feature (golden).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "a Viper gun round hits the turning MiG",
+      "on": "shot",
+      "by": "Viper",
+      "n": 1,
+      "where": {
+        "weaponIndex": 0
+      },
+      "hit": "Fulcrum",
+      "before": 120
+    }
+  ]
+}
