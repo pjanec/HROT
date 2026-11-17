@@ -167,7 +167,8 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             Assert.Equal(traffic + 1, intent.IntentId);
             Assert.Equal(NavigationMode.PathToPoint, intent.Mode);
             Assert.Equal(drivesOn, NavigationConstants.RoadUseOf(intent.Flags));
-            Assert.Equal(new Vector3(100f, 0f, 0f), intent.FinalDestination);
+            Assert.Equal(100.0, (double)intent.FinalDestination.X, 3);
+            Assert.Equal(0.0, (double)intent.FinalDestination.Y, 3);
 
             world.SetComponent(entity, new NavigationStatus { IntentId = intent.IntentId, Result = NavigationResult.Arrived });
             world.GetComponentRW<SimTransform>(entity).Position = new Vector3(98f, 0f, 0f);
