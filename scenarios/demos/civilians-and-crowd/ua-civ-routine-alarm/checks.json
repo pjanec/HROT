@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV: civilians hear gunfire, a wounded one is a Casualty. Would have caught CE-4039 (civilians deaf to rifle fire, 2026-10-21). From the header's Judge (1), (2), (4).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CV: civilians hear gunfire, a wounded one is a Casualty. Would have caught CE-4039 (civilians deaf to rifle fire, 2026-10-21). From the header's Judge (1)-(4). \u26a0 Left in scripts/utility-demo-check.py: '\u2460 the far civilians live their routine (\u2265 3 of 4 walked > 1 m from where they started)' \u2014 a distance from a start point is not a cue (one-sided field compares cannot say |\u0394| > 1).",
   "runFor": 32,
   "golden": {
     "every": 5
@@ -8,6 +8,11 @@
     "first shot": {
       "on": "shot",
       "by": "Rifleman"
+    },
+    "firing stops": {
+      "on": "health",
+      "who": "Hostile",
+      "below": 0.3
     }
   },
   "expect": [
@@ -62,6 +67,30 @@
       "value": "Casualty",
       "after": "wounded",
       "before": "wounded+3"
+    },
+    {
+      "name": "(3) once the firing stops, both near civilians calm \u2014 Routine, or gathering at the man who fell",
+      "on": "field",
+      "who": "*Near Civilian",
+      "path": "CivilianState.Mode",
+      "op": "in",
+      "value": [
+        "Routine",
+        "Gather"
+      ],
+      "quantifier": "all",
+      "after": "firing stops"
+    },
+    {
+      "name": "(4) the wounded civilian stays a Casualty where he fell",
+      "never": {
+        "on": "field",
+        "who": "Near Civilian 1",
+        "path": "CivilianState.Mode",
+        "op": "!=",
+        "value": "Casualty"
+      },
+      "after": "wounded+3"
     }
   ],
   "do": [
