@@ -221,6 +221,20 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-2187</c> (§3c) — does a seeker flying along <paramref name="vel"/> from <paramref name="pos"/> see
         /// <paramref name="point"/>: inside its cone (always, with no cone).</summary>
+        /// <summary>⭐ CE-10002 (RV-4) — the notch: a target's speed along the line of sight under this (m/s), below this height (m AGL).</summary>
+        public const float NotchMps = 50f, NotchAglM = 300f;
+
+        /// <summary>⭐ CE-10002 (RV-4) — is <paramref name="target"/> in the radar seeker's notch, seen from <paramref name="seeker"/>?</summary>
+        public static bool InNotch(EntityRepository repo, Fdp.Toolkit.World.IWorldQuery? world, Entity target, Vector3 seeker, Vector3 targetPoint)
+        {
+            float ground = world?.GroundHeightAt(targetPoint.X, targetPoint.Y) ?? 0f;
+            if (targetPoint.Z - ground >= NotchAglM) return false;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var tv)) return false;
+            var los = targetPoint - seeker;
+            float d = los.Length();
+            return d > 1e-3f && MathF.Abs(Vector3.Dot(tv, los / d)) < NotchMps;
+        }
+
         public static bool InCone(in GuidedRound g, Vector3 pos, Vector3 vel, Vector3 point)
         {
             if (g.SeekerCos <= 0f) return true;
@@ -259,6 +273,9 @@ namespace Fdp.Toolkit.Combat.Systems
 
             // fire-and-forget (⭐ CE-2187: an IR / radar seeker too): the round's own seeker — inside its cone only
             bool sees = targetKnown && InCone(in g, pos, vel, targetPoint) && (world == null || !world.SightBlocked(pos, targetPoint));
+            // ⭐⭐ CE-10002 (air combat AC-6, RV-4) — THE RADAR NOTCH: a radar seeker loses a target whose own speed along the line of sight is
+            //   under NotchMps (it flies across the beam — no Doppler against the ground clutter) while it is below NotchAglM above the ground
+            if (sees && g.Guidance == GuidanceKind.Radar && InNotch(repo, world, g.Target, pos, targetPoint)) sees = false;
             if (sees) g.LastSeen = targetPoint;
             var goal = g.LastSeen;
             // ⭐ CE-2187 (§3c) — a HOMING seeker (IR, radar) leads a target it sees: it steers at where the target will be when it arrives
@@ -266,7 +283,9 @@ namespace Fdp.Toolkit.Combat.Systems
             //   helicopter crossing at 60 m/s — outside a 4 m proximity fuze (measured, rail CE2187_AnIrRound_…).
             if (sees && g.Guidance is GuidanceKind.InfraRed or GuidanceKind.Radar
                 && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, g.Target, out _, out var targetVelocity))
-                goal = TargetLead.Point(pos, Vector3.Zero, g.SpeedMps, targetPoint, targetVelocity);
+                // ⭐ R-10018 (user 2026-11-17: "Harden as you lean.") — a MOTOR round leads on its CURRENT speed (the same lead pursuit, a true
+                //   input): on the burn-out speed it led a target it could not reach yet and half of the straight-flying targets were missed
+                goal = TargetLead.Point(pos, Vector3.Zero, g.MaxG > 0f ? MathF.Max(g.SpeedNow, 1f) : g.SpeedMps, targetPoint, targetVelocity);
             var toGoal = goal - pos;
             if (toGoal.LengthSquared() < 1e-6f) return false;
             // ⭐ CE-2201 — a top attack's DIVE is the branch below (at least the dive angle, homing once the line is steeper). ⛔ It was

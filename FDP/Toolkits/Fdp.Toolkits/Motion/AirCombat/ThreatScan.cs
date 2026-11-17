@@ -26,6 +26,12 @@ namespace Fdp.Toolkit.Motion
         [ThreadStatic] private static Vector3[]? _pos, _vel;
         [ThreadStatic] private static GuidanceKind[]? _seeker;
         [ThreadStatic] private static int _count;
+        // ⭐ CE-10003 (RV-6) — the mode-8 targets' TICK-START positions: the motion node is serial, so a target later in the loop has not
+        //   moved yet and one earlier has — every fighter reads the state all of them started this tick with
+        [ThreadStatic] private static EntityQuery? _fighters;
+        [ThreadStatic] private static Entity[]? _tgt;
+        [ThreadStatic] private static Vector3[]? _tgtPos, _tgtVel;
+        [ThreadStatic] private static int _tgtCount;
 
         /// <summary>Gathers this tick's homing rounds once (later calls in the same tick reuse them).</summary>
         public static void Begin(EntityRepository repo)
@@ -33,8 +39,9 @@ namespace Fdp.Toolkit.Motion
             if (_target == null) { _target = new Entity[16]; _pos = new Vector3[16]; _vel = new Vector3[16]; _seeker = new GuidanceKind[16]; }
             long frame = repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanagedRO<GlobalTime>().FrameNumber : long.MinValue + 1;
             if (ReferenceEquals(repo, _repo) && frame == _frame && frame != long.MinValue + 1) return;   // no clock (a rail) ⇒ gather every call
-            if (!ReferenceEquals(repo, _repo)) _query = null;
+            if (!ReferenceEquals(repo, _repo)) { _query = null; _fighters = null; }
             _repo = repo; _frame = frame; _count = 0;
+            GatherTargets(repo);
             if (!repo.IsComponentTypeRegistered<GuidedRound>()) return;
             _query ??= repo.Query().With<GuidedRound>().With<SimTransform>().With<SimVelocity>().Build();
             foreach (var e in _query)
@@ -52,6 +59,40 @@ namespace Fdp.Toolkit.Motion
                 _seeker![_count] = g.Guidance;
                 _count++;
             }
+        }
+
+        private static void GatherTargets(EntityRepository repo)
+        {
+            _tgtCount = 0;
+            if (!repo.IsComponentTypeRegistered<AirCombatSteer>()) return;
+            if (_tgt == null) { _tgt = new Entity[8]; _tgtPos = new Vector3[8]; _tgtVel = new Vector3[8]; }
+            _fighters ??= repo.Query().With<AirCombatSteer>().Build();
+            foreach (var e in _fighters)
+            {
+                var t = repo.GetComponentRO<AirCombatSteer>(e).Target;
+                if (t.IsNull || !repo.IsAlive(t) || !repo.HasComponent<SimTransform>(t)) continue;
+                bool known = false;
+                for (int i = 0; i < _tgtCount && !known; i++) known = _tgt![i] == t;
+                if (known) continue;
+                if (_tgtCount == _tgt!.Length)
+                {
+                    Array.Resize(ref _tgt, _tgtCount * 2); Array.Resize(ref _tgtPos!, _tgtCount * 2); Array.Resize(ref _tgtVel!, _tgtCount * 2);
+                }
+                _tgt![_tgtCount] = t;
+                _tgtPos![_tgtCount] = repo.GetComponentRO<SimTransform>(t).Position;
+                _tgtVel![_tgtCount] = repo.HasComponent<SimVelocity>(t) ? repo.GetComponentRO<SimVelocity>(t).Linear : Vector3.Zero;
+                _tgtCount++;
+            }
+        }
+
+        /// <summary>⭐ CE-10003 (RV-6) — <paramref name="target"/>'s position and velocity as this tick STARTED (gathered by <see cref="Begin"/>);
+        /// false when it is no mode-8 target (the caller reads it live).</summary>
+        public static bool TickStart(Entity target, out Vector3 pos, out Vector3 vel)
+        {
+            for (int i = 0; i < _tgtCount; i++)
+                if (_tgt![i] == target) { pos = _tgtPos![i]; vel = _tgtVel![i]; return true; }
+            pos = default; vel = default;
+            return false;
         }
 
         /// <summary>The rounds aimed at <paramref name="self"/> → <paramref name="pilot"/> (count, the nearest-in-time one's bearing, seeker,

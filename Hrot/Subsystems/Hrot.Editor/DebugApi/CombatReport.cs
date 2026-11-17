@@ -39,6 +39,7 @@ namespace Hrot.Editor.DebugApi
                     ["seq"] = s.Seq, ["tick"] = s.Tick, ["endTick"] = s.Outcome == ShotOutcome.InFlight ? null : s.EndTick,
                     ["shooter"] = Id(s.Shooter), ["target"] = Id(s.Target), ["weaponIndex"] = s.WeaponIndex,
                     ["muzzle"] = V(s.Muzzle), ["aim"] = V(s.Aim),
+                    ["range"] = System.MathF.Round(System.Numerics.Vector3.Distance(s.Muzzle, s.Aim), 1),   // ⭐ CE-10002 (RV-15) — the shot's range: muzzle to the aim at launch (m)
                     ["ordinal"] = s.Ordinal, ["sigmaRad"] = s.Sigma, ["deflectionRad"] = s.Deflection,
                     ["penetration"] = s.Penetration, ["penetrationSource"] = s.PenetrationSource, ["damage"] = s.Damage,
                     ["outcome"] = s.Outcome.ToString(), ["end"] = s.EndPoint is { } p ? V(p) : null,

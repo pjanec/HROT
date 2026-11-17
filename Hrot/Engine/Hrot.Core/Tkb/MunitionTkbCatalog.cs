@@ -301,12 +301,12 @@ namespace Hrot.Core.Tkb
             //   starter values — tuning starts here.
             Register(tkb, StingerName, TkbStingerMissile, Dis(1, Usa, 1, 15), ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),   // "Stinger" (anti-air)
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, MinRangeM = 200f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f,
-                                      BurnSeconds = 2f, MaxG = 20f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) — the motor
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.82f,
+                                      BurnSeconds = 2f, MaxG = 25f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) — the motor · ⭐ R-10018 MaxG 20 → 25, flares rejected 0.6 → 0.82
             Register(tkb, IglaName, TkbIglaMissile, Dis(1, Russia, 1, 30), ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),   // "SA-18 Grouse (9M39)"
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f,
-                                      BurnSeconds = 2f, MaxG = 18f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.7f,
+                                      BurnSeconds = 2f, MaxG = 23f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
             // ⭐⭐ CE-4617 (B-2, RS-3, RV-6 / RV-7) — the radar SAM's missile: a short-range radar-guided round (an SA-8 / Tor class, rounded:
             //   ~800 m/s, 0.5–8 km, 15 kg-class fragmentation warhead). The seeker cone is WIDE (60°) so a crossing jet's lead (~21° at
             //   250 / 700 m/s) stays inside it; it flies 18 s (8 km at 800 m/s with margin); chaff is rejected 9 in 10, and only in the
@@ -315,7 +315,7 @@ namespace Hrot.Core.Tkb
                      new MissileDto { Guidance = GuidanceKind.Radar, SpeedMps = 800f, MaxFlightSeconds = 18f, MinRangeM = 500f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 60f, ChaffRejection = 0.9f,
                                       MinTargetRcsM2 = 0.03f,   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
-                                      BurnSeconds = 4f, MaxG = 30f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
+                                      BurnSeconds = 4f, MaxG = 38f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) · ⭐ R-10018 MaxG 30 → 38
             // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
             Register(tkb, Zu23HeiName, Tkb23mmHei, Dis(1, Russia, 2, 3, 5),   // "23 mm / 23 mm ZSU AAA HEI OFZ" (the ZU-23's 23×152 round)
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
@@ -331,11 +331,11 @@ namespace Hrot.Core.Tkb
             //   motor: SpeedMps is the BURN-OUT speed reached over BurnSeconds from the launcher's speed, then DragPerS is lost (more while turning);
             //   the g available = MaxG·(v / SpeedMps)²; the steering follows the lead through SteerLagS; below MinSpeedMps the round is Defeated.
             Register(tkb, Aim9xName, TkbAim9x, Dis(1, Usa, 1, 1), AamFused(IrAamLibraryName, IrAamFuzeM), 0f, LibraryDamage(IrAamLibraryName),
-                     IrAam(seekerConeDeg: 90f, flareRejection: 0.6f));
+                     IrAam(seekerConeDeg: 90f, flareRejection: 0.82f));
             Register(tkb, Aim120Name, TkbAim120, Dis(1, Usa, 1, 2), AamFused(RadarAamLibraryName, RadarAamFuzeM), 0f, LibraryDamage(RadarAamLibraryName),
                      RadarAam(chaffRejection: 0.9f));
             Register(tkb, R73Name, TkbR73, Dis(1, Russia, 1, 2), AamFused(IrAamLibraryName, IrAamFuzeM), 0f, LibraryDamage(IrAamLibraryName),
-                     IrAam(seekerConeDeg: 90f, flareRejection: 0.6f));
+                     IrAam(seekerConeDeg: 90f, flareRejection: 0.82f));
             Register(tkb, R77Name, TkbR77, Dis(1, Russia, 1, 3), AamFused(RadarAamLibraryName, RadarAamFuzeM), 0f, LibraryDamage(RadarAamLibraryName),
                      RadarAam(chaffRejection: 0.9f));
             // ⭐ CE-10000 (AC-8) — the fighter guns' rounds: plain HEI (no proximity fuze), led by the gun lead (the target's acceleration included)
@@ -421,7 +421,7 @@ namespace Hrot.Core.Tkb
         {
             Guidance = GuidanceKind.InfraRed, SpeedMps = 850f, MaxFlightSeconds = 25f, MinRangeM = 300f, TargetDomain = TargetDomain.Air,
             SeekerConeDeg = seekerConeDeg, FlareRejection = flareRejection,
-            BurnSeconds = 5f, MaxG = 40f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f,
+            BurnSeconds = 5f, MaxG = 50f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f,   // ⭐ R-10018 MaxG 40 → 50, flares rejected 0.6 → 0.82
         };
 
         /// <summary>⭐ <c>CE-10000</c> (§5b) — the radar air-to-air missile's flight: 1 100 m/s after an 8 s burn, 35 g, −30 m/s per s coasting, defeated below 350.</summary>
@@ -429,7 +429,7 @@ namespace Hrot.Core.Tkb
         {
             Guidance = GuidanceKind.Radar, SpeedMps = 1100f, MaxFlightSeconds = 30f, MinRangeM = 500f, TargetDomain = TargetDomain.Air,
             SeekerConeDeg = 60f, ChaffRejection = chaffRejection,
-            BurnSeconds = 8f, MaxG = 35f, DragPerS = 30f, MinSpeedMps = 350f, SteerLagS = 0.4f,
+            BurnSeconds = 8f, MaxG = 44f, DragPerS = 30f, MinSpeedMps = 350f, SteerLagS = 0.4f,   // ⭐ R-10018 MaxG 35 → 44
         };
 
         private static WarheadDto? ProximityFused(string libraryName)
