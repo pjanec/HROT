@@ -96,23 +96,42 @@ namespace Hrot.SimHost.Tests
             w.Dispose();
         }
 
-        /// <summary>⭐ <c>CE-9014</c> — a lead whose move FAILS (a mobility kill: its locomotion channel reports Failure) fails the order and ends its column,
-        /// so its followers finish too — ⛔ not a convoy "running" for ever behind a wreck. 🔴 Red-proof: the Failure check dropped ⇒ Running ⇒ red.</summary>
+        /// <summary>⭐ <c>CE-9014</c> / <c>CE-9017</c> — a lead whose own move FAILS: one that CANNOT move (its capabilities lost <c>CanMove</c> — a mobility kill)
+        /// fails the order and ends its column, so its followers finish; one that CAN move (blocked: a queue, a breakdown) WAITS and asks again after
+        /// <see cref="PlatformConvoyBehavior.RetrySeconds"/>. 📌 cv-blocked-road: the executor reported FailedBlocked 6 s behind a broken truck and the
+        /// column never moved again. 🔴 Red-proofs: the CanMove test dropped ⇒ the blocked lead fails ⇒ red; no retry ⇒ the move stays failed ⇒ red.</summary>
         [Fact]
-        public void ALeadWhoseMoveFails_FailsTheOrder_AndEndsItsColumn()
+        public void ALeadWhoseMoveFails_FailsTheOrderIfItCannotMove_ElseWaitsAndAsksAgain()
         {
             var w = World();
             var lead = Vehicle(w, Vector3.Zero);
             var f = Vehicle(w, new Vector3(-15, 0, 0));
             var lp = Params(default, 0, ConvoyMode.Route); var ls = default(PlatformConvoyBehavior.ConvoyState);
             var fp = Params(lead, 1, ConvoyMode.Route); var fs = default(PlatformConvoyBehavior.ConvoyState);
+            void At(double t) => w.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.05f, TimeScale = 1f });
+            At(10);
             PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w);
             PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w);
-            Assert.True(w.HasComponent<FormationFollower>(f));
-            w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Failure;   // the executor gave up: it cannot move
+
+            // blocked: the executor gave up, but the vehicle can move — the convoy waits, then asks again
+            w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Failure;
+            uint first = w.GetComponentRO<LocomotionChannel>(lead).ActionInstanceId;
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            At(11);
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            Assert.Equal(first, w.GetComponentRO<LocomotionChannel>(lead).ActionInstanceId);   // not yet
+            At(12.5);
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            var ch = w.GetComponentRO<LocomotionChannel>(lead);
+            Assert.True(ch.ActionInstanceId != first && ch.Status == NodeStatus.Running, "the blocked lead asked again");
+            Assert.True(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));   // the column stands, whole
+
+            // it CANNOT move any more: the order fails and the column ends
+            w.AddComponent(lead, new ActorCapabilityState());   // no CanMove
+            w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Failure;
             Assert.Equal(NodeStatus.Failure, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
             Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));
-            Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));   // its column ended
+            Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));
             Assert.False(w.HasComponent<FormationFollower>(f));
             w.Dispose();
         }
@@ -158,7 +177,8 @@ namespace Hrot.SimHost.Tests
             var m = w.GetComponentRO<FormationFollower>(f);
             Assert.Equal((lead, (ushort)2, (byte)1), (m.Leader, m.SlotIndex, m.IsInFormation));
 
-            w.GetComponentRW<SimTransform>(lead).Position = new Vector3(395, 0, 0);   // the lead arrives
+            w.GetComponentRW<SimTransform>(lead).Position = new Vector3(380, 0, 0);   // ⭐ CE-9018 — 20 m short, but its executor says it ARRIVED (a SUMO shadow ends ≤ 25 m short)
+            w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Success;
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
             Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));   // the column ended
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));

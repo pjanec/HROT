@@ -29,6 +29,8 @@ namespace Hrot.AI.Behaviors.Brains
     public static class PlatformConvoyBehavior
     {
         public const float DefaultSpeed = 10f, ArrivalRadius = 15f;
+        /// <summary>⭐ CE-9017 — a blocked lead (its move failed but it can move) asks again after this long (s): the convoy waits, it does not give up.</summary>
+        public const float RetrySeconds = 2f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct ConvoyParams
@@ -48,6 +50,8 @@ namespace Hrot.AI.Behaviors.Brains
             /// <summary>⭐ CE-9015 — the locomotion action instance this behaviour last wrote (the lead's move, a follower's stop). Another instance in the
             /// channel means a reaction wrote it while this order was paused: on resume the move is issued (the stop applied) again.</summary>
             public uint MoveInstance;
+            /// <summary>⭐ CE-9017 — when the lead's move last failed while it could still move (blocked: a queue, a breakdown); 0 = not waiting.</summary>
+            public double BlockedSince;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -117,15 +121,29 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // ⭐ CE-9004 — the lead leads a COLUMN formation: its own controller says so (every vehicle carries one; written whole, own entity)
                 if (s.Issued == 0) SetController(world, self, Column(in p));
-                // ⭐ CE-9014 — the lead's move FAILED (a mobility kill, no path): the column cannot go on behind it — the order fails, its column ends
-                //   (📌 cv-ambush: an IED stopped the lead for good and the convoy "ran" for ever, its followers parked in the kill zone)
+                // ⭐ CE-9014 / CE-9017 — the lead's OWN move failed:
+                //   · it CANNOT move (a mobility kill, destroyed): the column cannot go on behind it — the order fails, its column ends
+                //     (📌 cv-ambush with an APC: the convoy "ran" for ever behind a wreck);
+                //   · it CAN move (FailedBlocked: a queue, a breakdown ahead): a convoy WAITS — it asks again every RetrySeconds
+                //     (📌 cv-blocked-road: the executor gave up 6 s behind a broken truck and the column never moved again)
                 if (s.Issued != 0 && OurMove(world, self, in s) && world.GetComponentRO<LocomotionChannel>(self).Status == NodeStatus.Failure)
                 {
-                    SetController(world, self, new FormationController());
-                    s.Done = 1;
-                    return NodeStatus.Failure;
+                    if (!ConvoyConditions.CanMove(world, self))
+                    {
+                        SetController(world, self, new FormationController());
+                        s.Done = 1;
+                        return NodeStatus.Failure;
+                    }
+                    double now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(world);
+                    if (s.BlockedSince <= 0) s.BlockedSince = Math.Max(now, 1e-6);
+                    else if (now - s.BlockedSince >= RetrySeconds) { s.Issued = 0; s.BlockedSince = 0; }
+                    if (s.Issued != 0) return NodeStatus.Running;
                 }
-                if (Flat(here, p.Destination) <= ArrivalRadius)
+                // arrived: within ArrivalRadius, or ⭐ CE-9018 its OWN move reports Success — the executor's arrival is the authority (a SUMO shadow
+                //   ends up to TrafficShadowFollowSystem.ArrivalSlackMetres = 25 m short of the destination; 📌 cv-blocked-road: "Arrived" 22 m short,
+                //   and the convoy never completed)
+                if (Flat(here, p.Destination) <= ArrivalRadius
+                    || (s.Issued != 0 && OurMove(world, self, in s) && world.GetComponentRO<LocomotionChannel>(self).Status == NodeStatus.Success))
                 {
                     LocomotionMoveTo.Stop(world, self);
                     SetController(world, self, new FormationController());   // the column ends: its followers see a lead that no longer leads one
