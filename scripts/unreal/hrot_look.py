@@ -103,6 +103,19 @@ def step_ground_material():
     tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
     tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
 
+    roads_tex = None
+    if JOB.get("roads") and os.path.exists(JOB["roads"]):
+        rt = unreal.AssetImportTask()
+        rt.set_editor_property("filename", JOB["roads"]); rt.set_editor_property("destination_path", "/Game/Hrot")
+        rt.set_editor_property("destination_name", "T_HrotRoads"); rt.set_editor_property("replace_existing", True)
+        rt.set_editor_property("automated", True); rt.set_editor_property("save", True)
+        ASSETS.import_asset_tasks([rt])
+        roads_tex = unreal.load_asset("/Game/Hrot/T_HrotRoads")
+        roads_tex.set_editor_property("srgb", False)
+        roads_tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+        roads_tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        roads_tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); roads_tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+    state["roads_tex"] = roads_tex
     m = fresh_asset("/Game/Hrot", "M_HrotGround", unreal.Material, unreal.MaterialFactoryNew())
     E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
     def c3(rgb, x, y):
@@ -141,7 +154,12 @@ def step_ground_material():
     noise.set_editor_property("levels", 6)
     link(wp, noise, "Position")
     if JOB.get("assets") and JOB["assets"].get("grass") and JOB["assets"].get("forestFloor") and JOB["assets"].get("rock") and JOB["assets"].get("wildGrass"):
-        bc, nrm_, rough_, ao_ = textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise)
+        rs = None
+        if state.get("roads_tex"):
+            rs = E(unreal.MaterialExpressionTextureSample, -800, 700)
+            rs.set_editor_property("texture", state["roads_tex"]); rs.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)   # pass 5: a linear (non-sRGB) mask
+            link(uv, rs, "UVs")
+        bc, nrm_, rough_, ao_ = textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise, rs)
         MEL.connect_material_property(bc, "", unreal.MaterialProperty.MP_BASE_COLOR)
         MEL.connect_material_property(nrm_, "", unreal.MaterialProperty.MP_NORMAL)
         MEL.connect_material_property(rough_, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -165,7 +183,7 @@ def step_ground_material():
     log("ground material: our forest / water / open mask + slope")
 
 
-def textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise):
+def textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise, roads=None):
     """Pass 3: the real Megascans surfaces, placed by OUR cover mask (R forest, G water) and the slope; world-aligned, two scales of
     meadow mixed by a large noise so the tiling does not show. Returns (base colour, normal, roughness, AO) expressions."""
     A = JOB["assets"]
@@ -185,14 +203,27 @@ def textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise):
         return out
     g1 = layer("grass", 300.0, -1800, -1400); g2 = layer("wildGrass", 400.0, -1800, -900)
     ff = layer("forestFloor", 350.0, -1800, -400); rk = layer("rock", 800.0, -1800, 100)
+    soil = layer("soil", 350.0, -1800, 600) if A.get("soil") else None
+    road = layer("gravel", 250.0, -1800, 1100) if (A.get("gravel") and roads is not None) else None
+    # soil patches: a second, larger noise thresholded — bare earth breaking up the meadows (never in forest)
+    n2 = E(unreal.MaterialExpressionNoise, -1400, 600)
+    n2.set_editor_property("scale", 0.00012); n2.set_editor_property("output_min", 0.0); n2.set_editor_property("output_max", 1.0); n2.set_editor_property("levels", 4)
+    link(wp, n2, "Position")
+    soil_a = E(unreal.MaterialExpressionSaturate, -1100, 600)
+    link(op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, n2, c1(0.66, -1300, 700), -1250, 600), c1(5.0, -1250, 720), -1150, 600), soil_a, "")
     def mix(a_, b_, alpha, ch, x, y, out_alpha=""):
         return lerp(a_[ch] if isinstance(a_, dict) else a_, b_[ch] if isinstance(b_, dict) else b_, alpha, x, y, out_alpha)
     res = {}
     for k, ch in enumerate(("B", "N", "ORM")):
         y = -1200 + k * 500
         v = mix(g1, g2, noise, ch, -1200, y)
+        if soil is not None: v = mix(v, soil, soil_a, ch, -1100, y)
         v = mix(v, ff, ts, ch, -1000, y, out_alpha="R")
         v = mix(v, rk, steep, ch, -800, y)
+        if road is not None:
+            rv = road[ch]
+            if ch == "B": rv = op(unreal.MaterialExpressionMultiply, rv, c1(0.42, -700, y + 80), -680, y + 40)   # gravel darkened: asphalt-like
+            v = mix(v, rv, roads, ch, -650, y)
         res[ch] = v
     water = c3((0.02, 0.05, 0.06), -800, 900)
     res["B"] = lerp(res["B"], water, ts, -600, -1200, out_alpha="G")
@@ -267,19 +298,43 @@ def step_buildings():
         o.set_editor_property("override_two_sided", True); o.set_editor_property("two_sided", True)
         mi.set_editor_property("base_property_overrides", o)
         return mi
-    if JOB.get("wallMaterial"): wall = unreal.load_asset(JOB["wallMaterial"])
-    elif A.get("plaster"): wall = two_sided_instance("MI_HrotWall", A["plaster"]["MI"])
-    else: wall = flat_material("M_HrotWallPlaceholder", (0.55, 0.51, 0.45), 0.85)
-    if JOB.get("roofMaterial"): roof = unreal.load_asset(JOB["roofMaterial"])
-    elif A.get("roofTiles"): roof = two_sided_instance("MI_HrotRoof", A["roofTiles"]["MI"])
-    else: roof = flat_material("M_HrotRoofPlaceholder", (0.30, 0.10, 0.06), 0.7)
+    def surface_or(key, fallback_rgb, name):
+        return two_sided_instance("MI_Hrot_" + name, A[key]["MI"]) if A.get(key) else flat_material("M_Hrot_" + name, fallback_rgb, 0.85)
+    # the slots of terrain_look.py: plaster, old plaster, brick, red roof, dark roof, glass, frame, door
+    mats = [surface_or("plaster", (0.55, 0.51, 0.45), "Plaster"), surface_or("oldPlaster", (0.50, 0.47, 0.42), "OldPlaster"),
+            surface_or("brick", (0.36, 0.16, 0.11), "Brick"), surface_or("roofTiles", (0.30, 0.10, 0.06), "RoofRed"),
+            surface_or("roofDark", (0.16, 0.12, 0.10), "RoofDark"), flat_material("M_HrotGlass", (0.05, 0.065, 0.075), 0.02),
+            flat_material("M_HrotFrame", (0.75, 0.74, 0.70), 0.6), surface_or("wood", (0.25, 0.15, 0.08), "Door")]
     n = 0
     for t in spec["tiles"]:
         a = unreal.HrotTerrainLibrary.build_mesh(os.path.join(JOB["exportDir"], t["file"]).replace("\\", "/"),
                                                  f"/Game/Hrot/Buildings/SM_{JOB['terrain'].replace('-', '_')}_{t['tile'][0]}_{t['tile'][1]}",
-                                                 [wall, roof], unreal.Vector(*t["locationCm"]), f"Buildings_{t['tile'][0]}_{t['tile'][1]}")
+                                                 mats, unreal.Vector(*t["locationCm"]), f"Buildings_{t['tile'][0]}_{t['tile'][1]}")
         if a: n += t["buildings"]
     log(f"buildings: {n} shapes in {len(spec['tiles'])} tiles")
+
+
+def scatter_split(bin_path, meshes, label, cull_cm):
+    data = open(bin_path, "rb").read(); rec = 24; n = len(data) // rec; k = len(meshes)
+    total = 0
+    for i, path in enumerate(meshes):
+        part = b"".join(data[j * rec:(j + 1) * rec] for j in range(i, n, k))
+        if not part: continue
+        fn = bin_path[:-4] + f".v{i}.bin"; open(fn, "wb").write(part)
+        a = unreal.HrotTerrainLibrary.scatter_instances(fn, unreal.load_asset(path), None, f"{label}_{i}", cull_cm, unreal.Vector(1, 1, 1), 0.0)
+        if not a: raise RuntimeError("ScatterInstances failed: " + path)
+        total += len(part) // rec
+    return total
+
+
+def step_grass():
+    A = JOB.get("assets") or {}
+    msg = []
+    if A.get("grassMeshes") and JOB.get("grass") and os.path.exists(JOB["grass"]):
+        msg.append(f"{scatter_split(JOB['grass'], A['grassMeshes'], 'Grass', 9000.0)} grass clumps ({len(A['grassMeshes'])} meshes)")
+    if A.get("fernMeshes") and JOB.get("ferns") and os.path.exists(JOB["ferns"]):
+        msg.append(f"{scatter_split(JOB['ferns'], A['fernMeshes'], 'Ferns', 12000.0)} ferns")
+    log("ground cover: " + (", ".join(msg) or "none (no plant assets)"))
 
 
 def step_shots():
@@ -321,7 +376,7 @@ def step_save():
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
 
 
-STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_shots, None, step_save]
+STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_grass, step_shots, None, step_save]
 
 
 def tick(dt):

@@ -46,7 +46,13 @@ def find_assets(project):
                 "MI": game(glob.glob(os.path.join(os.path.dirname(os.path.dirname(b)), "Materials", "MI_*.uasset"))[0])}
     found = {"grass": surface("Grass"), "wildGrass": surface("Wild_Grass"), "forestFloor": surface("Forest_Floor"),
              "rock": surface("Rock_Cliff"), "soil": surface("Soil"), "gravel": surface("Gravel"),
-             "plaster": surface("Plaster_Wall"), "roofTiles": surface("Red_Roof_Tiles")}
+             "plaster": surface("Plaster_Wall"), "roofTiles": surface("Red_Roof_Tiles"), "oldPlaster": surface("Old_Plaster_Wall"),
+             "brick": surface("Red_Brick_Wall"), "roofDark": surface("Roof_Tiles"), "wood": surface("Wooden_Planks"), "dirt": surface("Dirt_Ground")}
+    def plant(name):   # Megascans plant: its folder starts with the human name; meshes SM_<id>_Var*
+        hits = sorted(glob.glob(os.path.join(content, "**", "Plants", name + "_*", "**", "SM_*.uasset"), recursive=True))
+        return [game(h) for h in hits]
+    found["grassMeshes"] = plant("Rough_Meadow_Grass") + plant("Wild_Grass") + plant("Tall_Grass")[:2]
+    found["fernMeshes"] = plant("Fern")
     # the beech pack ships each tree twice (PivotPainter / SimpleWind wind setups): one set only, and the realistic forest sizes —
     # Forest_01 / 02 are 45-48 m giants (measured: their bounds), Forest_03 … 08 are 8-33 m
     found["trees"] = [game(p) for p in sorted(glob.glob(os.path.join(content, "**", "SimpleWind", "SM_EuropeanBeech_Forest_0[3-8].uasset"), recursive=True))]
@@ -76,7 +82,8 @@ def main():
            "mask": views["mask"], "views": views["views"], "level": level, "shots": fwd(a.shots),
            "out": fwd(os.path.join(folder, "look-result.json")), "settleSeconds": a.settle, "width": a.width, "height": a.height,
            "treeMesh": a.tree_mesh, "treeMaterial": a.tree_material, "wallMaterial": a.wall_material, "roofMaterial": a.roof_material,
-           "exportDir": fwd(folder)}
+           "exportDir": fwd(folder), "roads": fwd(os.path.join(folder, f"{name}.roads.png")),
+           "grass": fwd(os.path.join(folder, f"{name}.grass.bin")), "ferns": fwd(os.path.join(folder, f"{name}.ferns.bin"))}
     if not a.placeholders:
         job["assets"] = find_assets(a.project)
         print("assets:", json.dumps({k: (v if not isinstance(v, dict) else v["B"]) for k, v in job["assets"].items()}, indent=1))

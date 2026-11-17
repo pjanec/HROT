@@ -29,6 +29,7 @@ Building footprints come from assets/buildings/<template>.building.json, placed 
 origin at the point, turned counter-clockwise by `rotation`°); height = the sum of the storeys.
 """
 import argparse, json, math, os, struct, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # terrain_look
 
 import numpy as np
 
@@ -152,7 +153,8 @@ def features(folder, terrain, world):
                 height = float(t["height"]) if t.get("solid") else sum(float(s["height"]) for s in t["storeys"])
                 levels = 1 if t.get("solid") else len(t["storeys"])
                 fp = ring(place(t["footprint"], g["coordinates"], float(p.get("rotation", 0))))
-                extra = {"template": p["template"], "base_z": p.get("baseZ")}
+                extra = {"template": p["template"], "base_z": p.get("baseZ"), "origin": list(g["coordinates"][:2]),
+                         "rotation": float(p.get("rotation", 0))}   # terrain_look builds the house from its template (UL-13)
             else:                       # an inline prism building
                 height = float(p.get("height", 3.0))
                 levels = int(p.get("floors") or max(1, round(height / 3.0)))
@@ -189,7 +191,8 @@ def features(folder, terrain, world):
     return feats, counts
 
 
-def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=5.0, mask_cell=2.0, seed=4651):
+def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=5.0, mask_cell=2.0, seed=4651,
+               folder=None, terrain=None):
     """UL-10, the LOOK inputs — all from OUR data, so the picture follows the simulation's map:
     <name>.cover.png  RGB 8-bit, one pixel per `mask_cell` m over the whole (padded) landscape, the NORTH row first:
                       R = forest, G = water, B = open (a surface of class open); the landscape material samples it by world position
@@ -242,17 +245,82 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
         rr, cc = np.nonzero(forest); k = len(rr) // 2; fx_, fy_ = x0 + cc[k] * mask_cell, y0 + H - rr[k] * mask_cell
         views.append({"name": "forest-aerial", "target": [fx_, fy_, ground(fx_, fy_)], "yaw": 120.0, "pitch": -25.0, "distance": 900.0})
     views.append({"name": "overview", "target": [x0 + W / 2, y0 + H / 2, float(np.median(z))], "yaw": 30.0, "pitch": -35.0, "distance": max(W, H) * 0.9})
+    bc = bc if len(bc) else None
     for vw in views:
+        if "eye" in vw: continue
         tx, ty, tz = vw["target"]; d = vw["distance"]; yaw = np.radians(vw["yaw"]); pitch = np.radians(vw["pitch"])
         # HROT local: the camera BEHIND the target along its heading (yaw 0 = looking north, clockwise), raised by the pitch
         ex = tx - d * np.cos(pitch) * np.sin(yaw); ey = ty - d * np.cos(pitch) * np.cos(yaw); ez = tz - d * np.sin(pitch)
         ez = max(ez, ground(ex, ey) + vw.get("minAboveGround", 2.0))
         vw["eye"] = [ex, ey, ez]
         vw["unreal"] = {"locationCm": [ex * 100, -ey * 100, ez * 100], "pitch": vw["pitch"], "yaw": vw["yaw"] - 90.0}   # UE yaw 0 = +X (east), clockwise in its left-handed frame
+    # UL-12 roads: the SUMO lanes rasterised at 1 m (the ground material paints them) - and the street view stands on one
+    import terrain_look as tl
+    lanes = []
+    if folder and terrain and (terrain.get("sumoNet") or {}).get("file"):
+        lanes = tl.sumo_lanes(os.path.join(folder, terrain["sumoNet"]["file"]), de, dn, (terrain.get("frame") or {}).get("utm"))
+    roads_img = tl.roads_mask(lanes, x0, y0, W, H, 1.0)
+    roads_img.save(os.path.join(out, f"{name}.roads.png"))
+    roads = np.asarray(roads_img) > 127
+    if lanes and bc is not None:
+        tx, ty = views[0]["target"][:2]
+        best = None
+        for pts, wdt in lanes:
+            for i in range(len(pts) - 1):
+                (ax, ay), (bx, by) = pts[i], pts[i + 1]
+                d = math.hypot(ax - tx, ay - ty)
+                fi = int(np.clip((y0 + H - ay) / mask_cell, 0, mh - 1)); fj = int(np.clip((ax - x0) / mask_cell, 0, mw - 1))
+                if forest[fi, fj] or math.hypot(bx - ax, by - ay) < 5: continue
+                if best is None or d < best[0]: best = (d, ax, ay, bx, by)
+        if best:
+            _, ax, ay, bx, by = best
+            yaw = math.degrees(math.atan2(bx - ax, by - ay))   # HROT heading: 0 = north, clockwise
+            views.insert(1, {"name": "street", "eye": [ax, ay, ground(ax, ay) + 1.7], "yaw": yaw, "pitch": -2.0, "target": [bx, by, ground(bx, by)]})
+    # UL-13 grass / ferns around the close views (never on roads, water, under houses; ferns only in forest)
+    from PIL import Image, ImageDraw
+    bimg = Image.new("L", (int(round(W)), int(round(H))), 0); bdr = ImageDraw.Draw(bimg)
+    for f in feats:
+        if f["properties"]["hrot_kind"] in ("building", "roof"):
+            rr = np.array(f["geometry"]["coordinates"][0], dtype=float) - [de, dn]
+            bdr.polygon([((x - x0), (y0 + H - y)) for x, y in rr], fill=255)
+    built = np.asarray(bimg) > 127
+    water = np.asarray(layers["G"]) > 127
+    def mask_px(X, Y):
+        return np.clip(((X - x0) / mask_cell).astype(int), 0, mw - 1), np.clip(((y0 + H - Y) / mask_cell).astype(int), 0, mh - 1)
+    def px1(ri, ci):   # mask (2 m) index -> 1 m index
+        return np.clip(ri * int(mask_cell), 0, roads.shape[0] - 1), np.clip(ci * int(mask_cell), 0, roads.shape[1] - 1)
+    def open_ok(ri, ci):
+        r1, c1 = px1(ri, ci)
+        return ~forest[ri, ci] & ~water[ri, ci] & ~roads[r1, c1] & ~built[r1, c1]
+    def forest_ok(ri, ci):
+        r1, c1 = px1(ri, ci)
+        return forest[ri, ci] & ~roads[r1, c1]
+    def zs(X, Y):
+        fx = np.clip((X - x0) / cell, 0, cols - 1.000001); fy = np.clip((Y - y0) / cell, 0, rows - 1.000001)
+        c_ = fx.astype(int); r_ = fy.astype(int); u_ = fx - c_; v_ = fy - r_
+        z00, z10, z01, z11 = z[r_, c_], z[r_, c_ + 1], z[r_ + 1, c_], z[r_ + 1, c_ + 1]
+        return np.where(u_ >= v_, z00 + u_ * (z10 - z00) + v_ * (z11 - z10), z00 + v_ * (z01 - z00) + u_ * (z11 - z01))
+    near = [tuple((vw.get("eye") or vw["target"])[:2]) for vw in views if vw["name"] in ("street", "village-low")]
+    # dense close to the cameras (0.45 m within 90 m), lighter beyond (0.9 m to 220 m) — the outer points inside 90 m are dropped
+    if near:
+        g_in = tl.scatter_near(near, 90.0, 0.45, open_ok, zs, rng, mask_px)
+        g_out = tl.scatter_near(near, 220.0, 0.9, open_ok, zs, rng, mask_px)
+        P = g_out[:, :2] / np.array([100.0, -100.0])
+        far = np.ones(len(P), bool)
+        for cx, cy in near: far &= (P[:, 0] - cx) ** 2 + (P[:, 1] - cy) ** 2 > 90.0 ** 2
+        grass = np.concatenate([g_in, g_out[far]])
+    else:
+        grass = np.zeros((0, 6), "<f4")
+    ferns = tl.scatter_near(near, 220.0, 2.5, forest_ok, zs, rng, mask_px) if near else np.zeros((0, 6), "<f4")
+    grass.tofile(os.path.join(out, f"{name}.grass.bin")); ferns.tofile(os.path.join(out, f"{name}.ferns.bin"))
+    for vw in views:
+        if "eye" in vw and "unreal" not in vw:
+            ex, ey, ez = vw["eye"]; vw["unreal"] = {"locationCm": [ex * 100, -ey * 100, ez * 100], "pitch": vw["pitch"], "yaw": vw["yaw"] - 90.0}
     with open(os.path.join(out, f"{name}.views.json"), "w", encoding="utf-8") as f:
         json.dump({"views": views, "mask": {"cell": mask_cell, "size": [mw, mh], "northWestCm": [x0 * 100, -(y0 + H) * 100], "extentCm": [W * 100, H * 100]},
+                   "roads": {"lanes": len(lanes), "cell": 1.0, "extentCm": [W * 100, H * 100]}, "grass": int(len(grass)), "ferns": int(len(ferns)),
                    "trees": int(n), "treeSpacing": tree_spacing}, f, indent=1)
-    return {"trees": int(n), "views": [v["name"] for v in views], "mask": [mw, mh]}
+    return {"trees": int(n), "views": [v["name"] for v in views], "mask": [mw, mh], "lanes": len(lanes), "grass": int(len(grass)), "ferns": int(len(ferns))}
 
 
 def write_buildings(out, name, feats, z, x0, y0, cell, rows, cols, tile_m=500.0):
@@ -388,10 +456,14 @@ def main():
 
     feats, counts = features(folder, terrain, world)
     for f in feats: offset_geometry(f["geometry"], de, dn)
-    look = write_look(a.out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=a.tree_spacing) if a.look else None
+    look = write_look(a.out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=a.tree_spacing, folder=folder,
+                      terrain=terrain) if a.look else None
     if a.look:
+        import terrain_look as tl
         local = [{**f, "geometry": {"type": f["geometry"]["type"], "coordinates": _shift(f["geometry"]["coordinates"], -de, -dn)}} for f in feats]
-        look["buildingMeshes"] = write_buildings(a.out, name, local, z, x0, y0, cell, rows, cols)
+        def lowest(r_):
+            return min(float(z[int(np.clip(round((y - y0) / cell), 0, rows - 1)), int(np.clip(round((x - x0) / cell), 0, cols - 1))]) for x, y in r_)
+        look["buildingMeshes"] = tl.write_buildings(a.out, name, local, template, lowest, x0, y0)
     vec = {"type": "FeatureCollection", "name": name, "features": feats}
     if crs is not None:
         epsg = crs.to_epsg()
