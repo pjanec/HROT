@@ -147,6 +147,17 @@ namespace Fdp.Toolkit.Motion
         public SimInstant LastShotAt;
         /// <summary>Seconds above 8 g so far (the G-LOC lapse).</summary>
         public float HighGSeconds;
+        /// <summary>⭐ CE-10003 — the gun, IR-missile and radar-missile mounts (found once; <see cref="NoMount"/> = none).</summary>
+        public byte GunMount, IrMount, RadarMount;
+        /// <summary>⭐ CE-10003 — the weapon channel's action instance of the missile in the air from this pilot (0 = none).</summary>
+        public uint MissileAction;
+        /// <summary>⭐ CE-10003 (AC-8) — the target's velocity sampled at <see cref="TargetVelAt"/> (s): its acceleration for the gun lead.</summary>
+        public System.Numerics.Vector3 TargetVel, TargetAccel;
+        public float TargetVelAt;
+        /// <summary>⭐ CE-10003 — the target of the shot in the air (one missile at a time per target, AC-8) and when the fight began.</summary>
+        public SimInstant StartedAt;
+
+        public const byte NoMount = 255;
     }
 
     /// <summary>

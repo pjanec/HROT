@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics.Components;
@@ -516,5 +517,54 @@ namespace Fdp.Toolkit.Combat.Tests
             // turn rate = g·9.81 / v ⇒ at half speed: a quarter of the g at half the speed = half the rate
             Assert.Equal(0.5f, half / full, 2);
         }
-}
+
+        // ── ⭐⭐ CE-10003 (air combat AC-8, RV-10) — the employment zone and the accelerating gun lead ─────────────────────────────────
+
+        private static MissileDto Ir() => new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 850f, BurnSeconds = 5f, MaxG = 40f, DragPerS = 40f, MinSpeedMps = 300f };
+
+        /// <summary>
+        /// ⭐ CE-10003 — the zone from the motor model (§5b IR): a tail chase on a 220 m/s target reaches ~6.4 km; the no-escape range is shorter
+        /// than the max; a head-on target (closing) is reachable much farther; a constant-speed round (no motor) is not limited by a burn-out.
+        /// 🔴 Red-proof (mutant): the coast's drag ignored ⇒ the tail-chase max runs to the 60 s cap (> 30 km) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10003_TheZone_TailChaseShorterThanHeadOn_NoEscapeInsideMax()
+        {
+            float tail = EmploymentZone.MaxRange(Ir(), 220f, 220f);
+            float head = EmploymentZone.MaxRange(Ir(), 220f, -220f);
+            float noEscape = EmploymentZone.MaxRange(Ir(), 220f, 400f);
+            Assert.InRange(tail, 5500f, 7500f);
+            Assert.True(head > tail + 4000f, $"head-on {head:0} vs tail {tail:0}");
+            Assert.True(noEscape < tail, $"no-escape {noEscape:0} vs max {tail:0}");
+            var (max, ne) = EmploymentZone.Of(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f));
+            Assert.InRange(max, 5500f, 7500f);
+            Assert.True(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f), 0.8f, false));
+            Assert.False(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(6900f, 0f, 0f), new Vector3(220f, 0f, 0f), 0.8f, false));
+            Assert.False(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(300f, 0f, 0f), new Vector3(220f, 0f, 0f), 1f, false));   // inside the minimum
+            Assert.True(ne < max);
+            // ⛔ no allocation in the zone maths (CLAUDE.md hot path): a steady call allocates nothing
+            var ir = Ir();
+            EmploymentZone.Of(ir, Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) EmploymentZone.Of(ir, Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f + i, 0f, 0f), new Vector3(220f, 0f, 0f));
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>
+        /// ⭐ CE-10003 (RV-10) — the gun lead on a TURNING target adds ½·a·t²: a 9 g turn at 800 m is ~28 m the straight lead misses; zero
+        /// acceleration is the straight lead. 🔴 Red-proof (mutant): the acceleration term dropped ⇒ the two leads equal ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10003_TheGunLead_AddsTheTargetsAcceleration()
+        {
+            var shooter = Vector3.Zero; var sv = new Vector3(200f, 0f, 0f);
+            var target = new Vector3(800f, 0f, 0f); var tv = new Vector3(0f, 200f, 0f); var a = new Vector3(-88f, 0f, 0f);   // 9 g toward its turn centre
+            var straight = TargetLead.Point(shooter, sv, 1030f, target, tv);
+            Assert.Equal(straight, TargetLead.PointAccelerating(shooter, sv, 1030f, target, tv, Vector3.Zero));
+            var turning = TargetLead.PointAccelerating(shooter, sv, 1030f, target, tv, a);
+            float t = TargetLead.FlightTime(shooter, sv, 1030f, target, tv);
+            Assert.InRange(Vector3.Distance(straight, turning), 0.5f * 88f * t * t - 0.5f, 0.5f * 88f * t * t + 0.5f);
+            Assert.InRange(Vector3.Distance(straight, turning), 20f, 40f);
+        }
+    }
 }

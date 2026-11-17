@@ -29,13 +29,14 @@ namespace Fdp.Toolkit.Combat
             float burn = m.BurnSeconds, boost = burn > 0f ? MathF.Max(0f, m.SpeedMps - v) / burn : 0f;
             bool motor = m.MaxG > 0f;
             if (!motor) v = m.SpeedMps;
-            for (float t = StepS; t <= MaxFlightS; t += StepS)
+            float life = m.MaxFlightSeconds > 0f ? MathF.Min(MaxFlightS, m.MaxFlightSeconds) : MaxFlightS;   // the round's own lifetime ends it too
+            for (float t = StepS; t <= life; t += StepS)
             {
                 if (motor)
                 {
                     if (t <= burn) v = MathF.Min(m.SpeedMps, v + boost * StepS);
                     else v -= m.DragPerS * StepS;
-                    if (v < m.MinSpeedMps) break;   // defeated: the missile can reach no further
+                    if (t > burn && v < m.MinSpeedMps) break;   // defeated (coasting only — a rail launch starts below the minimum)
                 }
                 d += v * StepS;
                 float reach = d - openingMps * t;

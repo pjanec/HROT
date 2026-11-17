@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Motion
             //   missile's path whatever the brain asked (GCAS, when it already holds the stick, keeps it; a G-LOC'd pilot does nothing)
             ThreatScan.Begin(f.World);
             if (ThreatScan.Scan(f.Self, f.Transform.Position, f.Velocity.Linear, ref pilot, out _, out var threatVel)
-                && pilot.ThreatTtiS < ThreatScan.LastDitchS && pilot.GcasActive == 0 && !GLocked(in f))
+                && pilot.ThreatTtiS < ThreatScan.LastDitchS && pilot.GcasActive == 0 && !GLocked(in f) && !LateWarned(in f))
             {
                 var now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(f.World);
                 if (pilot.LastDitchAt == SimInstant.Zero || (now - pilot.LastDitchAt).Seconds > 3f) pilot.LastDitchAt = now;
@@ -262,6 +262,12 @@ namespace Fdp.Toolkit.Motion
             => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
                && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.GLoc;
 
+        /// <summary>⭐ CE-10004 (AC-12, R-10016) — a pilot in a LateWarning lapse has not seen the missile yet: no last-ditch reflex (his 2 s late
+        /// reaction would come after the 2.5 s window anyway).</summary>
+        private static bool LateWarned(in MotionFrame f)
+            => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
+               && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.LateWarning;
+
         /// <summary>A unit horizontal vector along a compass bearing (0 = north = +Y, clockwise).</summary>
         internal static Vector3 Bearing(float deg)
         {
@@ -274,6 +280,7 @@ namespace Fdp.Toolkit.Motion
         {
             pos = default; vel = default;
             if (t.IsNull || !w.IsAlive(t) || !w.HasComponent<SimTransform>(t)) return false;
+            if (ThreatScan.TickStart(t, out pos, out vel)) return true;   // ⭐ CE-10003 (RV-6) — the tick-start state, never a half-moved one
             pos = w.GetComponentRO<SimTransform>(t).Position;
             if (w.HasComponent<SimVelocity>(t)) vel = w.GetComponentRO<SimVelocity>(t).Linear;
             return true;

@@ -40,6 +40,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// hover over the point, drops one round when it stands over it (the hover release cue, <c>BombBallistics.ReleaseNow</c>), and flies
         /// back to where it started — it lives to drop again.</summary>
         HoverDrop = 7,
+        /// <summary>⭐⭐ CE-10003 (air combat AC-13, R-2015) — an Attack on an AIRCRAFT by a fighter with an air-to-air weapon: the dogfight
+        /// (<see cref="AirCombatNodes"/>, mode 8).</summary>
+        AirCombat = 8,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -398,11 +401,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (entity)
             {
                 // ⭐ B14 — the attack on an entity ends the moment it is destroyed; until then the point follows it (B13)
-                if (!Injury.IsInTheFight(world, p.Target)) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+                if (!Injury.IsInTheFight(world, p.Target) && ws.Profile != AirAttackProfile.AirCombat) { StopFire(world, self, ref ws); return NodeStatus.Success; }
                 if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var now3, out _)) p.Point = now3;
             }
             var target = p.Point;
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+            // ⭐⭐ CE-10003 (AC-13, R-2015) — an Attack on an AIRCRAFT by a fighter: the air-combat profile of this ONE attack
+            if (entity && (ws.Profile == AirAttackProfile.AirCombat || (ws.Stage == StageStart && AirCombatNodes.Applies(world, self, p.Target))))
+            {
+                ws.Profile = AirAttackProfile.AirCombat;
+                ws.Stage = StageRunIn;
+                return AirCombatNodes.Fight(ref p, ref ws, self, world, now);
+            }
 
             if (ws.Stage == StageStart)
             {
@@ -1028,6 +1039,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// velocity (a door gun 32 + k is its weapon system, on its own mount 0), else the mount's, else the engine's fallback.
         /// 📐 Measured live (ua-air-attack ⑤): the M134 flies at its WeaponState's 500 m/s while the lead assumed the 800 m/s fallback ⇒
         /// every round passed ~3 m over the truck.</summary>
+        /// <summary>⭐ CE-10003 — <see cref="RoundSpeed"/> for the air-combat gun.</summary>
+        internal static float RoundSpeedOf(EntityRepository world, Entity self, byte mount) => RoundSpeed(world, self, mount);
+
+        /// <summary>⭐ CE-10003 — <see cref="Retarget"/> for the air-combat gun.</summary>
+        internal static void RetargetFire(EntityRepository world, Entity self, uint started, Vector3 aim) => Retarget(world, self, started, aim);
+
         private static float RoundSpeed(EntityRepository world, Entity self, byte mount)
         {
             if (mount == AirAttackProfiles.None) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;

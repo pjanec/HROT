@@ -221,6 +221,20 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-2187</c> (§3c) — does a seeker flying along <paramref name="vel"/> from <paramref name="pos"/> see
         /// <paramref name="point"/>: inside its cone (always, with no cone).</summary>
+        /// <summary>⭐ CE-10002 (RV-4) — the notch: a target's speed along the line of sight under this (m/s), below this height (m AGL).</summary>
+        public const float NotchMps = 50f, NotchAglM = 300f;
+
+        /// <summary>⭐ CE-10002 (RV-4) — is <paramref name="target"/> in the radar seeker's notch, seen from <paramref name="seeker"/>?</summary>
+        public static bool InNotch(EntityRepository repo, Fdp.Toolkit.World.IWorldQuery? world, Entity target, Vector3 seeker, Vector3 targetPoint)
+        {
+            float ground = world?.GroundHeightAt(targetPoint.X, targetPoint.Y) ?? 0f;
+            if (targetPoint.Z - ground >= NotchAglM) return false;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var tv)) return false;
+            var los = targetPoint - seeker;
+            float d = los.Length();
+            return d > 1e-3f && MathF.Abs(Vector3.Dot(tv, los / d)) < NotchMps;
+        }
+
         public static bool InCone(in GuidedRound g, Vector3 pos, Vector3 vel, Vector3 point)
         {
             if (g.SeekerCos <= 0f) return true;
@@ -259,6 +273,9 @@ namespace Fdp.Toolkit.Combat.Systems
 
             // fire-and-forget (⭐ CE-2187: an IR / radar seeker too): the round's own seeker — inside its cone only
             bool sees = targetKnown && InCone(in g, pos, vel, targetPoint) && (world == null || !world.SightBlocked(pos, targetPoint));
+            // ⭐⭐ CE-10002 (air combat AC-6, RV-4) — THE RADAR NOTCH: a radar seeker loses a target whose own speed along the line of sight is
+            //   under NotchMps (it flies across the beam — no Doppler against the ground clutter) while it is below NotchAglM above the ground
+            if (sees && g.Guidance == GuidanceKind.Radar && InNotch(repo, world, g.Target, pos, targetPoint)) sees = false;
             if (sees) g.LastSeen = targetPoint;
             var goal = g.LastSeen;
             // ⭐ CE-2187 (§3c) — a HOMING seeker (IR, radar) leads a target it sees: it steers at where the target will be when it arrives
