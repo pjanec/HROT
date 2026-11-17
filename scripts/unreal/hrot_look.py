@@ -140,6 +140,16 @@ def step_ground_material():
     noise.set_editor_property("scale", 0.0004); noise.set_editor_property("output_min", 0.0); noise.set_editor_property("output_max", 1.0)
     noise.set_editor_property("levels", 6)
     link(wp, noise, "Position")
+    if JOB.get("assets") and JOB["assets"].get("grass") and JOB["assets"].get("forestFloor") and JOB["assets"].get("rock") and JOB["assets"].get("wildGrass"):
+        bc, nrm_, rough_, ao_ = textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise)
+        MEL.connect_material_property(bc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        MEL.connect_material_property(nrm_, "", unreal.MaterialProperty.MP_NORMAL)
+        MEL.connect_material_property(rough_, "", unreal.MaterialProperty.MP_ROUGHNESS)
+        MEL.connect_material_property(ao_, "", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
+        MEL.recompile_material(m)
+        state["landscape"].set_editor_property("landscape_material", m)
+        log("ground material: Megascans grass / wild grass / forest floor / rock by our cover mask and slope")
+        return
     grass = lerp(c3((0.075, 0.13, 0.035), -600, -500), c3((0.13, 0.16, 0.05), -600, -420), noise, -400, -450)   # pass 1: too yellow
     forest = c3((0.045, 0.07, 0.03), -400, -300)
     water = c3((0.02, 0.05, 0.06), -400, -200)
@@ -153,6 +163,47 @@ def step_ground_material():
     MEL.recompile_material(m)
     state["landscape"].set_editor_property("landscape_material", m)
     log("ground material: our forest / water / open mask + slope")
+
+
+def textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise):
+    """Pass 3: the real Megascans surfaces, placed by OUR cover mask (R forest, G water) and the slope; world-aligned, two scales of
+    meadow mixed by a large noise so the tiling does not show. Returns (base colour, normal, roughness, AO) expressions."""
+    A = JOB["assets"]
+    xy = E(unreal.MaterialExpressionComponentMask, -2200, 800)
+    for p_, v in (("r", True), ("g", True), ("b", False), ("a", False)): xy.set_editor_property(p_, v)
+    link(wp, xy, "")
+    def layer(key, tile_cm, x, y):
+        uv = op(unreal.MaterialExpressionDivide, xy, c1(tile_cm, x - 200, y + 60), x - 100, y)
+        out = {}
+        for i, ch in enumerate(("B", "N", "ORM")):
+            t = E(unreal.MaterialExpressionTextureSample, x, y + i * 140)
+            t.set_editor_property("texture", unreal.load_asset(A[key][ch]))
+            t.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if ch == "N" else
+                                  (unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if ch == "B" else unreal.MaterialSamplerType.SAMPLERTYPE_MASKS))   # pass 3: ORM must be Masks
+            t.set_editor_property("sampler_source", unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)   # shared samplers: 16+ textures
+            link(uv, t, "UVs"); out[ch] = t
+        return out
+    g1 = layer("grass", 300.0, -1800, -1400); g2 = layer("wildGrass", 400.0, -1800, -900)
+    ff = layer("forestFloor", 350.0, -1800, -400); rk = layer("rock", 800.0, -1800, 100)
+    def mix(a_, b_, alpha, ch, x, y, out_alpha=""):
+        return lerp(a_[ch] if isinstance(a_, dict) else a_, b_[ch] if isinstance(b_, dict) else b_, alpha, x, y, out_alpha)
+    res = {}
+    for k, ch in enumerate(("B", "N", "ORM")):
+        y = -1200 + k * 500
+        v = mix(g1, g2, noise, ch, -1200, y)
+        v = mix(v, ff, ts, ch, -1000, y, out_alpha="R")
+        v = mix(v, rk, steep, ch, -800, y)
+        res[ch] = v
+    water = c3((0.02, 0.05, 0.06), -800, 900)
+    res["B"] = lerp(res["B"], water, ts, -600, -1200, out_alpha="G")
+    rough = E(unreal.MaterialExpressionComponentMask, -600, -200)
+    for p_, v in (("r", False), ("g", True), ("b", False), ("a", False)): rough.set_editor_property(p_, v)
+    link(res["ORM"], rough, "")
+    ao = E(unreal.MaterialExpressionComponentMask, -600, -100)
+    for p_, v in (("r", True), ("g", False), ("b", False), ("a", False)): ao.set_editor_property(p_, v)
+    link(res["ORM"], ao, "")
+    rough_w = lerp(rough, c1(0.05, -600, 0), ts, -400, -200, out_alpha="G")
+    return res["B"], res["N"], rough_w, ao
 
 
 def tree_material():
@@ -169,6 +220,21 @@ def tree_material():
 
 
 def step_trees():
+    trees = (JOB.get("assets") or {}).get("trees") or []
+    if trees and not JOB.get("treeMesh"):
+        # the scatter split round-robin into one file per variant (each its own instanced mesh)
+        data = open(JOB["trees"], "rb").read(); rec = 24; n = len(data) // rec; k = len(trees)
+        total = 0
+        for i, path in enumerate(trees):
+            part = b"".join(data[j * rec:(j + 1) * rec] for j in range(i, n, k))
+            fn = JOB["trees"][:-4] + f".v{i}.bin"
+            open(fn, "wb").write(part)
+            mesh = unreal.load_asset(path)
+            a = unreal.HrotTerrainLibrary.scatter_instances(fn, mesh, None, f"Trees_{i}", 800000.0, unreal.Vector(1, 1, 1), 0.0)
+            if not a: raise RuntimeError("ScatterInstances failed: " + path)
+            total += len(part) // rec
+        log(f"trees: {total} European beech in {k} variants")
+        return
     mesh = unreal.load_asset(JOB.get("treeMesh") or "/Engine/BasicShapes/Cone")
     placeholder = not JOB.get("treeMesh")
     scale = unreal.Vector(5.5, 5.5, 13.0) if placeholder else unreal.Vector(1, 1, 1)
@@ -193,8 +259,20 @@ def step_buildings():
     """UL-11: OUR building shapes (the exporter's mesh tiles) — walls and roofs as placeholders until facade / roof materials arrive."""
     spec = JOB.get("buildingMeshes")
     if not spec: return
-    wall = unreal.load_asset(JOB["wallMaterial"]) if JOB.get("wallMaterial") else flat_material("M_HrotWallPlaceholder", (0.55, 0.51, 0.45), 0.85)
-    roof = unreal.load_asset(JOB["roofMaterial"]) if JOB.get("roofMaterial") else flat_material("M_HrotRoofPlaceholder", (0.30, 0.10, 0.06), 0.7)
+    A = JOB.get("assets") or {}
+    def two_sided_instance(name, parent_path):
+        mi = fresh_asset("/Game/Hrot", name, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        mi.set_editor_property("parent", unreal.load_asset(parent_path))
+        o = mi.get_editor_property("base_property_overrides")
+        o.set_editor_property("override_two_sided", True); o.set_editor_property("two_sided", True)
+        mi.set_editor_property("base_property_overrides", o)
+        return mi
+    if JOB.get("wallMaterial"): wall = unreal.load_asset(JOB["wallMaterial"])
+    elif A.get("plaster"): wall = two_sided_instance("MI_HrotWall", A["plaster"]["MI"])
+    else: wall = flat_material("M_HrotWallPlaceholder", (0.55, 0.51, 0.45), 0.85)
+    if JOB.get("roofMaterial"): roof = unreal.load_asset(JOB["roofMaterial"])
+    elif A.get("roofTiles"): roof = two_sided_instance("MI_HrotRoof", A["roofTiles"]["MI"])
+    else: roof = flat_material("M_HrotRoofPlaceholder", (0.30, 0.10, 0.06), 0.7)
     n = 0
     for t in spec["tiles"]:
         a = unreal.HrotTerrainLibrary.build_mesh(os.path.join(JOB["exportDir"], t["file"]).replace("\\", "/"),

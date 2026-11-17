@@ -237,7 +237,7 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
         H2, xe, ye = np.histogram2d(bc[:, 0], bc[:, 1], bins=[max(1, int(W // 250)), max(1, int(H // 250))], range=[[x0, x0 + W], [y0, y0 + H]])
         i, j = np.unravel_index(np.argmax(H2), H2.shape); tx, ty = (xe[i] + xe[i + 1]) / 2, (ye[j] + ye[j + 1]) / 2
         views.append({"name": "village-aerial", "target": [tx, ty, ground(tx, ty)], "yaw": 35.0, "pitch": -22.0, "distance": 650.0})
-        views.append({"name": "village-low", "target": [tx, ty, ground(tx, ty)], "yaw": 200.0, "pitch": -6.0, "distance": 160.0})
+        views.append({"name": "village-low", "target": [tx, ty, ground(tx, ty)], "yaw": 200.0, "pitch": -4.0, "distance": 350.0, "minAboveGround": 12.0})
     if forest.any():
         rr, cc = np.nonzero(forest); k = len(rr) // 2; fx_, fy_ = x0 + cc[k] * mask_cell, y0 + H - rr[k] * mask_cell
         views.append({"name": "forest-aerial", "target": [fx_, fy_, ground(fx_, fy_)], "yaw": 120.0, "pitch": -25.0, "distance": 900.0})
@@ -246,7 +246,7 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
         tx, ty, tz = vw["target"]; d = vw["distance"]; yaw = np.radians(vw["yaw"]); pitch = np.radians(vw["pitch"])
         # HROT local: the camera BEHIND the target along its heading (yaw 0 = looking north, clockwise), raised by the pitch
         ex = tx - d * np.cos(pitch) * np.sin(yaw); ey = ty - d * np.cos(pitch) * np.cos(yaw); ez = tz - d * np.sin(pitch)
-        ez = max(ez, ground(ex, ey) + 2.0)
+        ez = max(ez, ground(ex, ey) + vw.get("minAboveGround", 2.0))
         vw["eye"] = [ex, ey, ez]
         vw["unreal"] = {"locationCm": [ex * 100, -ey * 100, ez * 100], "pitch": vw["pitch"], "yaw": vw["yaw"] - 90.0}   # UE yaw 0 = +X (east), clockwise in its left-handed frame
     with open(os.path.join(out, f"{name}.views.json"), "w", encoding="utf-8") as f:
@@ -326,6 +326,7 @@ def main():
     ap.add_argument("--crs", choices=("auto", "local"), default="auto")
     ap.add_argument("--component-quads", type=int, choices=(7, 15, 31, 63, 127, 255), default=None,
                     help="pad to whole components of this many quads (default: 255 above 2 000 quads, 127 above 400, else 63)")
+    ap.add_argument("--tree-spacing", type=float, default=8.0, help="metres between trees in our forests (8 ⇒ one per ~64 m²)")
     ap.add_argument("--look", action="store_true", help="also the look inputs: the cover mask, the tree scatter, the views (UL-10)")
     ap.add_argument("--no-pad", action="store_true", help="write the grid as it is (Unreal may resample it - UL-7)")
     a = ap.parse_args()
@@ -387,7 +388,7 @@ def main():
 
     feats, counts = features(folder, terrain, world)
     for f in feats: offset_geometry(f["geometry"], de, dn)
-    look = write_look(a.out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn) if a.look else None
+    look = write_look(a.out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=a.tree_spacing) if a.look else None
     if a.look:
         local = [{**f, "geometry": {"type": f["geometry"]["type"], "coordinates": _shift(f["geometry"]["coordinates"], -de, -dn)}} for f in feats]
         look["buildingMeshes"] = write_buildings(a.out, name, local, z, x0, y0, cell, rows, cols)
