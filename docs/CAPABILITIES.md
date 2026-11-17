@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -578,16 +578,18 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 
 ## 16. Being built now *(added `2026-11-17` — every item judged by its scenarios when it lands)*
 
-- 🚧 **What a person wears comes from the catalogue** — each person type lists its garments, colours, hair and headwear, and every person is varied
-  only WITHIN that list (R-4287); fixes the "adult woman" type drawn as a man half the time. ⭐ **Middle-East civilians** — men in robes with a shemagh
-  or a skullcap, women in an abaya and hijab or niqab, boys and girls — and **Middle-East fighters** in local dress with chest rigs and face wraps; the
-  insurgent takes the fighter look. ▶ ⏳ `civ-middle-east-market` · ⏳ `me-fighters-ambush` ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md), CE-4648 — backend the data, ui the drawing)
-- 🚧 **Bows and crossbows** — the arrow seen along its arc, STUCK where it lands (in a wall or the ground, at its angle) and in a body (it stays
-  when he falls), SILENT to every AI ear, shot from horseback; an archery target that scores by ring. ▶ ⏳ `bw-arrow-arc` · `bw-unheard` ·
-  `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` · `bw-archery-contest` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md), CE-4649)
-- 🚧 **Birds you can shoot** — a lone bird falls, a round through a flock brings one down; **ducks**, hunted with the shotgun. ▶ ⏳ `an-duck-hunt`
-  ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4b)
-- 🚧 **The rabbit and the hunt** — a rabbit freezes, then bolts in zigzags for the wood; hunting dogs flush it, hunters shoot animals only.
-  ▶ ⏳ `an-rabbit-bolts` · ⏳ `scenarios/fun/hunting/rabbit-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4c)
-- 🚧 *(the fun pack)* **The Native American warrior** — a bow and a thrown tomahawk, on foot or on horseback; a mounted war party circles its
-  target at a gallop, shooting. ▶ ⏳ `scenarios/fun/western/war-party` · ⏳ `archer-ambush` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §9, CE-4650)
+- 🟡 **What a person wears comes from the catalogue** — ✅ the DATA (backend `2026-11-17`): each person type lists its garments, colours, hair and
+  headwear, and every person is varied only WITHIN that list (R-4287); the "adult woman" type is always a woman now. Middle-East civilians (types
+  1105–1110) and fighters (2003, 2010–2012) are in the catalogue. ⏳ the new garments are DRAWN with stand-ins until ui's S2; ▶ ⏳ `civ-middle-east-market`
+  · ⏳ `me-fighters-ambush` (ui) ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md) §9, CE-4648)
+- ✅ **Bows and crossbows** — fired on a low arc, SILENT to every AI ear (the same man's rifle stays loud), stuck where they land and in a body,
+  shot from horseback; an archery target scores by ring. ▶ ✅ `bw-arrow-arc` · `bw-unheard` · `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` ·
+  `bw-archery-contest` · `bw-mounted-archers` (7 / 7). ⚠ a team total over the archers reads 0 under the parallel brain phase (CE-3468); the stuck
+  arrow's look is ui's ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §10, CE-4649)
+- ✅ **Birds you can shoot** — a lone bird falls; a round through a flock brings one down and the rest flee; **ducks**, hunted with the shotgun.
+  An explicit order may now fire at an animal (R-3101). ▶ ✅ `an-duck-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §9b)
+- ✅ **The rabbit and the hunt** — a rabbit freezes, then bolts in zigzags for the wood; hunting dogs flush it, hunters shoot game only (never a
+  person or a dog). ▶ ✅ `an-rabbit-bolts` · ✅ `scenarios/fun/hunting/rabbit-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §9b)
+- ✅ *(the fun pack)* **The Native American warrior** — a bow and a thrown tomahawk, on foot or on horseback; a mounted war party CIRCLES its
+  target at a gallop, shooting. ▶ ✅ `scenarios/fun/western/war-party` (6 / 6) · ✅ `archer-ambush` (4 / 4). ⚠ every mounted-rider scenario aborts
+  under the strict read check (CE-3470) — it passes in the ordinary run ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §10, CE-4650)

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: READY-TO-BUILD — OF-1…OF-12 ✅ APPROVED `2026-11-17` (R-4288; the Insurgent 2003 takes the fighter look); handoff HANDOFF_Coordinator_To_Ui_Person_Outfits.md; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
+build-state: BUILT (data, backend `2026-11-17`, S1 + the catalogue rows; as built §9) — the DRAWING of the new garments is ui's (S2, mockups first); OF-1…OF-12 approved R-4288
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the catalogue content · §6 acceptance · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -174,3 +174,12 @@ Skin tones for all nine: the four middle tones of today's five (light olive to b
 | **S2 the garments** | mockups first; OF-4, OF-5 — the new boxes in `Outfits.Details` | frames vs mockups |
 | **S3 the types** | OF-8 + §5 content, thumbnails (`scripts/thumbnails.py --pack`), `civ-middle-east-market` | the scenario passes; frames vs mockups |
 | **S4 the fighters** | OF-10, OF-11, OF-12 — the chest rig and face wrap boxes; thumbnails; scenario `me-fighters-ambush`: a fighter group ambushes a patrol in a Middle-East street with civilians around | it passes (the fighters fire rifles and an RPG; the civilians flee — the existing reactions); the five scenarios placing 2003 still pass |
+
+## 9. As built — backend *(CE-4648, `2026-11-17`; detail and gates in [`STATUS_Backend_Bows_Birds_Outfits.md`](../../blueprints/batches/STATUS_Backend_Bows_Birds_Outfits.md) step A)*
+
+| item | as built | deviation / note |
+|---|---|---|
+| OF-1 / OF-7 | `OutfitDto` (`Body.Outfit`, + `Over`, an `OutfitCamo`, per-sex `OutfitSet`s); flattened ONCE into a `Wardrobe` on the `TypeLook` (+ `Sex`) | garment kinds in `Hrot.Core.Tkb/OutfitKinds.cs`, not the DTO file — the DDS IDL generator scopes every enum of a file together and `None` collided (R-3102) |
+| OF-3 / OF-6 | every palette moved to `OutfitCatalog`; ⚠ **R-3098**: the existing wardrobes keep their EXACT draw sequence (a fixed-order slot draw would reshuffle every crowd and break §6's "frames unchanged"); authored wardrobes use the fixed-order slot draw | identity proved by an exact probe (seeds 1–500 × every person type), not by PNGs — the frame rails differ between two baseline runs |
+| OF-2 | the type's sex drives the dresser (the old 50 % roll still consumed) | ⚠ the MALE type 1101 changed too (always a man now) — the same defect's other half |
+| OF-8 / OF-10 / OF-12 | 1105–1110 (one `Civilian` helper), 2010 / 2011 / 2012 (one `Insurgent` helper; 2012 because a man-portable MG exists), 2003 in the fighter wardrobe; ⭐ + the Native American warrior 2016 (fun pack, `FunTkbCatalog`) | the new garments are drawn with STAND-INS (the status lists each) until ui's S2 |

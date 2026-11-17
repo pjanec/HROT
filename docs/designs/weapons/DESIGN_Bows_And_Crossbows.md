@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: READY-TO-BUILD — BW-1…BW-13 ✅ APPROVED `2026-11-17` (R-4289); BW-14 withdrawn → Animals AN-20, ⛔ NOT approved
+build-state: BUILT (backend `2026-11-17`: S1, S2, S4 and §9 NA-1…NA-5; as built §10) — the looks (BW-3, BW-10) are ui's; BW-1…BW-13 approved R-4289, §9 R-4290
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the first fun content (NA-1…NA-7, approved R-4290)
 stale-below: none
 known-rot: none
@@ -230,3 +230,16 @@ horse and its firing seats (Animals, R-4269), the thrown hatchet (`TkbThrowingHa
 | **NA-7** | **ids**: the person type measured at step 0 (urban 2010–2012 are the Middle-East fighters; the bow design's Archer / Crossbowman take the next) | — | — |
 
 ⚠ The covered wagon, the cowboys and the cavalry stay CE-4633's (the Western pack) — the war party raids a CAMP until the wagon exists.
+
+## 10. As built — backend *(CE-4649, CE-4650, `2026-11-17`; gates in [`STATUS_Backend_Bows_Birds_Outfits.md`](../../blueprints/batches/STATUS_Backend_Bows_Birds_Outfits.md) steps B and E)*
+
+| item | as built | deviation / note |
+|---|---|---|
+| ids | `WeaponCategory.Bow` 14 · `MunitionShape.Arrow` 9 · `HitMarkKind.Arrow` 5 / `.Bolt` 6 · `WarheadRound.Sticks` 128 · arrow 6066 / bolt 6067 · Archer 2013, Crossbowman 2014, archery target 2015, Native American warrior 2016 | — |
+| BW-2 | a Bow mount is solved on the LOW arc (`FireSolution.For` `LowOnly`), led by the arc's own flight time | `ThrowArc` lobs anything ≥ 40 m/s high — a 60 m/s arrow would have gone near-vertical |
+| BW-4 | a Sticks round that stops keeps its flight rotation, a third in, lies 600 s; ⭐ EVERY lying round capped 256 per node, oldest out (0 B) | the stuck draw (not flat) is ui's |
+| BW-5 | an Arrow / Bolt `HitMarks` on a part hit | ⚠ **R-3099**: none on an animal — animals have no part boxes in the hit test |
+| BW-9 | **R-3100**: silence is a property of the MUNITION (`Munitions.IsSilent`): no AI sound, no barrel heat, no muzzle flash, no street panic — the same man's rifle stays loud | — |
+| §5 numbers | **R-3104**: bow 60 m/s, 1.0 / 1.0 s, 20 arrows, 4 mm, 45, 8 mils, range 100 m; crossbow 90 m/s, 0.5 / 6.0 s, 15 bolts, 6 mm, 55, 4 mils, 120 m | ONE `Range` per mount ⇒ 100 / 120 m, not 60 / 150 and 80 / 200 |
+| BW-11 | an `ArcheryScore` MEASURE (Σ rings of the subject's arrows that strike an archery target, from the frame's detonations; depth across the flight is not a miss) | ⚠ a `Points` / `Best` parent reads 0 under the parallel brain phase — **CE-3468**; the contest checks a score per archer |
+| §9 NA-1…NA-5 | the warrior 2016 (bow + the thrown hatchet as a tomahawk, no melee mount exists, the insurgent template, silent); riding = the same type on horse 703; the CIRCLE RAID group play (mirrors `SwarmRaid`); `war-party` (basic-desert — the ring points landed in buildings on test-town / farm), `archer-ambush` (farm) | the measured ring stays within ~60 m of the camp; the ambushed patrol dies before it can react, so that row checks "the patrol never fires"; ⚠ under the STRICT env every mounted-rider scenario aborts on a declared read — **CE-3470** |

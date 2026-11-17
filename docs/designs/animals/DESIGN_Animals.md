@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: READY-TO-BUILD (2026-11-16) — decisions R-4266…R-4268, the review R-4269 (⭐ §8's AR rows SUPERSEDE the §4 AN rows they touch); ids §4a; UML §5 as folded; ids fixed (§4a); UML §5; ⏳ the review (§8) before READY-TO-BUILD
+build-state: BUILT (backend + ui, `2026-11-16`) · ⭐ §4b AN-20 and §4c AN-21 BUILT (backend `2026-11-17`; as built §9b) — the looks are ui's
 current-answer: §4 decisions (with §8's AR rows superseding) · §4a the fixed ids · §5 UML · ⭐ §6 the TASKS per lane and the shared contract (§6.1) · §8 the review
 stale-below: nothing
 known-rot: none
@@ -527,4 +527,13 @@ graph TD
 | AN-S8 | ⭐ sounds — the animal sound class and families, calls / alarms / movement / bark through the one sound path, the birdsong bed | backend (emission, hearing) + ui (the clips, the mixer) — each species' slice brings its own sounds |
 | AN-S7 | hens, pigs, goats + the domestic animal area (open or enclosed) (the populate step, the home, the return) | backend (the area, the populate) + behaviors (staying in, the hens) + ui (the area tool, the kits) |
 
+## 9b. As built — backend, birds and the hunt *(AN-20, AN-21, `2026-11-17`; gates in [`STATUS_Backend_Bows_Birds_Outfits.md`](../../blueprints/batches/STATUS_Backend_Bows_Birds_Outfits.md) steps C and D)*
 
+| item | as built | deviation / note |
+|---|---|---|
+| ⭐ firing at an animal | **R-3101 (approved by the user)**: an EXPLICIT order (Operator / Superior origin, that exact target) lifts the conduct and neutral holds for its target — a person or an animal; never the force cap | before, NO round could be fired at any animal, even by an operator's order (`ForceLevels.ConductPermits`) |
+| AN-20a | a bird's collider is its BODY (0.15 m — the 2.5 m was an engine fallback); a frightened lone bird flies 90 m off; killed, it falls and lies | — |
+| AN-20b | a round through a flock: P = 1 − (1 − 0.6)^passed per drawn bird passed; a hit consumes the round, count −1, a "Dead Duck" / "Dead Bird" entity falls, the rest flee (R-3105) | — |
+| AN-20c | Duck 713, Duck flock 714 (species 12, 13); low flight 8 m; the sound block grew to 7911, then 7927 | ⚠ past §4a's 7895 end |
+| AN-21a–c | Rabbit 715: freezes (crouched) until the 12 m PANIC zone, then a ZIGZAG `FleeStyle` of the one brain (legs 30–50°, 0.6–1.2 s, 25 % double jink, bending to the wood within 70 m) | freezes to the panic zone, not the flight distance (R-3106) |
+| AN-21f–h | Hunting dog 716 (a play of the one brain, never bites a person); Hunter 214 (`HuntingRulesDto` species list read by `Animals.MayEngage` + a `HunterSop` / `Hunt` reaction — game within 40 m, from where he stands); `an-rabbit-bolts`, `rabbit-hunt` (test-town's North Wood), `an-duck-hunt` (the shotgun-only hunter) | the hunter is a TYPE with a standing rule, never a PersonAttack order (an order walks him up to the game); the bag per hunter is not counted (CE-3468) |
