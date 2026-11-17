@@ -1341,6 +1341,32 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = front; c.ArmorSide = side; c.ArmorRear = 2; c.ArmorTop = 2;
                     c.EyeHeight = 1f;
                     c.SensorRange = 8000;
+                    // ⭐ CE-10003 (S3, AC-8, §5a) — the weapon suite, in the order ui's JetStores draws: the gun (mount 0, FIXED forward,
+                    //   a 2° cone, ≤ 500 m by the employment rule), the IR rail pair (OUTBOARD), the radar rail pair (INBOARD), the dispenser LAST.
+                    //   The guns' damage is their round's (the library); a missile's is its warhead's. The radar: 40 km stated against 10 m².
+                    bool us = jet == TkbEntityTypes.Jet_F16;
+                    long gunRound = us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbM61Hei : Hrot.Core.Tkb.MunitionTkbCatalog.TkbGsh30Hei;
+                    string gunLib = us ? Hrot.Core.Tkb.MunitionTkbCatalog.M61HeiLibraryName : Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "M61A1 Vulcan 20mm" : "GSh-30-1 30mm", Ammunition = us ? 500 : 150, Range = 1500f,
+                        RateOfFire = us ? 6000 : 1800, DispersionMils = 4f, FixedConeDeg = 2f, FireOnMove = true, Category = WeaponCategory.Autocannon,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(gunLib), DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(gunLib),
+                        AmmoTkb = (Fdp.Core.TkbTypeId)gunRound, MuzzleOffset = new System.Numerics.Vector3(5f, 0.5f, 0.3f),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "AIM-9X rails" : "R-73 rails", Ammunition = 2, MagazineSize = 2, Range = 8000f, RateOfFire = 30, DamagePerHit = 400,
+                        AimSeconds = 1f, FireOnMove = true, Category = WeaponCategory.AirToAir,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim9x : Hrot.Core.Tkb.MunitionTkbCatalog.TkbR73),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "AIM-120 rails" : "R-77 rails", Ammunition = 2, MagazineSize = 2, Range = 20000f, RateOfFire = 30, DamagePerHit = 600,
+                        AimSeconds = 1f, FireOnMove = true, Category = WeaponCategory.AirToAir,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim120 : Hrot.Core.Tkb.MunitionTkbCatalog.TkbR77),
+                    });
+                    c.RadarRange = 40000;
                     c.Weapons.Add(Dispenser(flares: 30, chaff: 30));
                 })
                 .WithBehavior(jet);

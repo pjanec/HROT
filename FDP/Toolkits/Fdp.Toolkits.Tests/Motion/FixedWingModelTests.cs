@@ -422,5 +422,35 @@ namespace Fdp.Toolkit.Tests.Motion
             Fly(jet, hills, 60);
             Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         }
+
+        /// <summary>⭐ CE-10002 (AC-9a, AC-9) — the LIVE threat and the reflex: a homing round aimed at the jet is counted in its
+        /// <see cref="FighterPilotState"/> (bearing, seeker, closure, time to impact); far off the jet flies its order on; inside 2.5 s it
+        /// breaks ACROSS the missile's path whatever it was told. ✅ Red-proof: the reflex's threshold at 0 s ⇒ the jet flies straight on ⇒ red.</summary>
+        [Fact]
+        public void AC9_TheLiveThreat_IsReported_AndInside2p5sTheJetBreaks()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Combat.Components.GuidedRound>();
+            var jet = Jet(new Vector3(0, 0, 3000), Quaternion.Identity, new Vector3(220f, 0, 0));
+            var round = _w.CreateEntity();
+            _w.AddComponent(round, new SimTransform { Position = new Vector3(6000, 0, 3000), Rotation = Quaternion.Identity });
+            _w.AddComponent(round, new SimVelocity { Linear = new Vector3(-800f, 0, 0) });
+            _w.AddComponent(round, new Fdp.Toolkit.Combat.Components.GuidedRound { Guidance = GuidanceKind.InfraRed, Target = jet, SpeedMps = 800f });
+            var flat = new FnWorld((_, _) => 0f);
+            Fly(jet, flat, 1);
+            var p = _w.GetComponent<FighterPilotState>(jet);
+            Assert.Equal(1, p.Inbound);
+            Assert.Equal(GuidanceKind.InfraRed, p.ThreatSeeker);
+            Assert.InRange(p.ThreatBearingDeg, 85f, 95f);          // from the east
+            Assert.InRange(p.ThreatTtiS, 5.5f, 6.5f);              // 6 km at 1 020 m/s closing
+            Assert.True(MathF.Abs(_w.GetComponent<SimVelocity>(jet).Linear.Y) < 1f, "it broke 6 s out");
+
+            _w.SetComponent(round, new SimTransform { Position = new Vector3(1500, 0, 3000), Rotation = Quaternion.Identity });   // 1.5 s to go
+            Fly(jet, flat, 60);   // a second: the roll in (240°/s), then 9 g across
+            Assert.True(MathF.Abs(_w.GetComponent<SimVelocity>(jet).Linear.Y) > 40f, $"no last-ditch break inside 2.5 s (vy {_w.GetComponent<SimVelocity>(jet).Linear.Y:F0})");
+
+            _w.DestroyEntity(round);
+            Fly(jet, flat, 1);
+            Assert.Equal(0, _w.GetComponent<FighterPilotState>(jet).Inbound);
+        }
     }
 }

@@ -39,6 +39,23 @@ namespace Fdp.Toolkit.Motion
             SetAirborne(ref f);
             ref var pilot = ref PilotOf(ref f);
 
+            // ⭐⭐ CE-10002 (AC-9a) — the live threat, every frame; ⭐ AC-9 — the LAST-DITCH reflex: inside 2.5 s to impact it breaks across the
+            //   missile's path whatever the brain asked (GCAS, when it already holds the stick, keeps it; a G-LOC'd pilot does nothing)
+            ThreatScan.Begin(f.World);
+            if (ThreatScan.Scan(f.Self, f.Transform.Position, f.Velocity.Linear, ref pilot, out _, out var threatVel)
+                && pilot.ThreatTtiS < ThreatScan.LastDitchS && pilot.GcasActive == 0 && !GLocked(in f))
+            {
+                var now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(f.World);
+                if (pilot.LastDitchAt == SimInstant.Zero || (now - pilot.LastDitchAt).Seconds > 3f) pilot.LastDitchAt = now;
+                var lim = FighterLimits.Of(in p);
+                var body = BodyOf(in f, in p);
+                float g = Steer3D.Step(ref body, ThreatScan.LastDitchDirection(body.Vel, threatVel), lim.MaxG, 1f, in lim, dt);
+                Apply(ref f, in body);
+                pilot.Throttle = 1f;
+                Track(ref f, ref pilot, g, dt);
+                return;
+            }
+
             // ⭐⭐ CE-10001 (AC-2, AC-3) — mode 8: the brain's AirCombatSteer, flown every frame by the one integrator (GCAS inside)
             if (intent.Mode == NavigationMode.AirCombat) { Fight(ref f, in intent, in p, ref pilot, dt); return; }
 
@@ -239,6 +256,11 @@ namespace Fdp.Toolkit.Motion
             var d = to - from;
             return d.LengthSquared() > 1f ? Vector3.Normalize(d) : fallback;
         }
+
+        /// <summary>True while the pilot is in a G-LOC lapse (AC-12): no reflex, no control.</summary>
+        private static bool GLocked(in MotionFrame f)
+            => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
+               && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.GLoc;
 
         /// <summary>A unit horizontal vector along a compass bearing (0 = north = +Y, clockwise).</summary>
         internal static Vector3 Bearing(float deg)

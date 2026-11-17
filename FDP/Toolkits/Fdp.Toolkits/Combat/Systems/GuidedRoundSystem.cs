@@ -108,6 +108,13 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (Motor(ref g, ref vel, steered, desired, deltaTime))
                     {
                         if (ShotLog.Peek(repo)?.Of(e) is { } shot) ShotLog.End(shot, ShotOutcome.Defeated, tick, pos);
+                        // ⭐ AC-9a — the aircraft it was after counts it (its motion node's report; this system runs on that node, serially)
+                        if (repo.IsAlive(g.Target) && repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FighterPilotState>()
+                            && repo.HasComponent<Fdp.Toolkit.Motion.FighterPilotState>(g.Target))
+                        {
+                            ref var fp = ref repo.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(g.Target);
+                            if (fp.Defeated < 255) fp.Defeated++;
+                        }
                         repo.DestroyEntity(e);
                         continue;
                     }
