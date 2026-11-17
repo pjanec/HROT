@@ -936,7 +936,7 @@ namespace Hrot.AI.Behaviors.Brains
                     continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
-                if (CommandOrders.StillRunning(world, self, platoon, CommandOrders.KeyFor(world, platoon, OrderKind.Defend, BehaviorNames.PlatoonDefend), order)) continue;
+                if (CommandOrders.StillRoutedRunning(world, self, platoon, OrderKind.Defend, order, BehaviorNames.PlatoonDefend, order)) continue;   // ⭐ X2-H — resolution-blind
                 CommandOrders.Route(world, self, platoon, OrderKind.Defend, BehaviorNames.PlatoonDefend, order, newOrder: true);
                 CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — a block's colour: Black ⇒ LOST ⇒ the counter-attack (CE-7004)
                 ws.Orders++;

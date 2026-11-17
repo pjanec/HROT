@@ -17,7 +17,7 @@ namespace Hrot.SimHost.Tests
     {
         private const string PhysicalSop = "BasicSquadSop";
 
-        private static void AdvanceOneSecond(Squad s, UnitSopResolutionSystem sys)
+        private static void AdvanceOneSecond(Squad s, UnitResolutionFitSystem sys)
         {
             s.Pause(0.984);
             s.Tick();
@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Tests
             SpawnWithTheTemplatesSop(s, u);
             s.Tick(); s.Tick();
             Assert.Equal(BehaviorHash.FromName(PhysicalSop), repo.GetComponentRO<SopState>(u).SopHash);   // physical: its own
-            var sys = new UnitSopResolutionSystem(s.Registry);
+            var sys = new UnitResolutionFitSystem(s.Registry);
 
             repo.GetComponentRW<AggregateUnit>(u).Resolution = AggregateResolution.Stochastic;            // the merge
             AdvanceOneSecond(s, sys);
@@ -73,7 +73,7 @@ namespace Hrot.SimHost.Tests
             repo.Bus.PublishManaged(new AssignSopEvent { Entity = u, BehaviorName = PhysicalSop, JsonParams = "{}", Origin = BehaviorOrigin.Operator });
             s.Tick(); s.Tick();
             Assert.Equal(BehaviorOrigin.Operator, repo.GetComponentRO<SopState>(u).SopOrigin);
-            var sys = new UnitSopResolutionSystem(s.Registry);
+            var sys = new UnitResolutionFitSystem(s.Registry);
             repo.GetComponentRW<AggregateUnit>(u).Resolution = AggregateResolution.Stochastic;
             AdvanceOneSecond(s, sys);
             Assert.Equal(BehaviorHash.FromName(PhysicalSop), repo.GetComponentRO<SopState>(u).SopHash);   // his choice stands
@@ -86,7 +86,7 @@ namespace Hrot.SimHost.Tests
             var (s, _, repo, u) = StochasticMover();
             SpawnWithTheTemplatesSop(s, u);
             s.Tick(); s.Tick();
-            var sys = new UnitSopResolutionSystem(s.Registry);
+            var sys = new UnitResolutionFitSystem(s.Registry);
             for (int i = 0; i < 4; i++) AdvanceOneSecond(s, sys);   // settled: the table's SOP, and the warm-up
             Assert.Equal(BehaviorHash.FromName(Sop), repo.GetComponentRO<SopState>(u).SopHash);
             long before = GC.GetAllocatedBytesForCurrentThread();
@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
         {
             var pack = new Hrot.CGF.CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(),
                 Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
-            Assert.Contains(pack.SimulationSystems, x => x is UnitSopResolutionSystem);
+            Assert.Contains(pack.SimulationSystems, x => x is UnitResolutionFitSystem);
             var mgr = Assert.Single(pack.SimulationSystems, x => x is ResolutionManagerSystem) as ResolutionManagerSystem;
             // ⭐ R-8326 — the manager's policy is the World Environment's component (CE-8300), not the SV-9 default every host would silently keep
             using var repo = new EntityRepository();

@@ -157,10 +157,12 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>R-8315</c> — <see cref="Gave"/> for a site that sends through the TWO-payload <c>Route</c> (the key and json the route would record for <paramref name="member"/>).</summary>
+        /// <remarks>⭐⭐ <c>X-2</c> X2-H (R-8361) — RESOLUTION-BLIND: the entry matches EITHER routed form (<c>Order.&lt;K&gt;</c> + the neutral json, or the
+        /// physical play + its json), whatever the member's resolution NOW — a member that switched (split / merged) after the order was given is still
+        /// given it (⛔ before, the key for its new resolution differed and the commander re-sent with a new id, restarting the defenders — CE-2304).</remarks>
         public static bool GaveRouted(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
-            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member)
-                ? Gave(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson)
-                : Gave(world, commander, member, physicalPlay, physicalJson);
+            => (kind != 0 && Gave(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson))
+               || Gave(world, commander, member, physicalPlay, physicalJson);
 
         /// <summary>⭐ <c>CE-2304</c> — the commander's ticking run already gave <paramref name="member"/> exactly this order
         /// (<paramref name="behaviour"/> with <paramref name="json"/>) and he still runs it from his superior: sending it again would only
@@ -180,10 +182,11 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ <c>R-8315</c> — <see cref="StillRunning"/> for a site that sends through the TWO-payload <c>Route</c>: asks for the key and the json the route WOULD
         /// record for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> + the neutral json for a stochastic one, else the physical play + its json).</summary>
+        /// <remarks>⭐⭐ <c>X-2</c> X2-H (R-8361) — RESOLUTION-BLIND, like <see cref="GaveRouted"/>: either routed form matches, and the member still runs
+        /// the entry's order BY REQUEST ID (<see cref="StillRunning"/>) — which the reconciler keeps across a switch (X2-C, <c>IsResume</c>).</remarks>
         public static bool StillRoutedRunning(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
-            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member)
-                ? StillRunning(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson)
-                : StillRunning(world, commander, member, physicalPlay, physicalJson);
+            => (kind != 0 && StillRunning(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson))
+               || StillRunning(world, commander, member, physicalPlay, physicalJson);
 
         /// <summary>⭐ <c>CE-4612</c> (R-2090) — the request id of the order <paramref name="commander"/>'s ticking run gives <paramref name="member"/> now.</summary>
         internal static System.Guid IdFor(EntityRepository world, Entity commander, Entity member)

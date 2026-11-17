@@ -214,8 +214,12 @@ namespace Hrot.CGF.Systems
         /// <c>Guid.Empty</c> and the commander waited to its deadline. Generic: every unit, physical or not. A station's / operator's order is
         /// answered by <c>InteractionOutcomes.Refused</c> only (it has no commander to report to).
         /// </summary>
-        internal static void ReportRefusal(EntityRepository repo, AssignTacticalIntentEvent evt)
+        internal static void ReportRefusal(EntityRepository repo, AssignTacticalIntentEvent evt) => ReportRefusal(repo, evt.Entity, evt.Origin);
+
+        /// <summary>⭐ <c>X-2</c> X2-D — the same report for an order that cannot go on (the resolution-fit reconciler: no play at the new resolution).</summary>
+        internal static void ReportRefusal(EntityRepository repo, Entity entity, BehaviorOrigin origin)
         {
+            var evt = (Entity: entity, Origin: origin);
             if (evt.Origin != BehaviorOrigin.Superior) return;
             if (!repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()
                 || !repo.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(evt.Entity)) return;
