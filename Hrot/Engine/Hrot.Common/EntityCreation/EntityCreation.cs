@@ -44,8 +44,10 @@ namespace Hrot.Common.EntityCreation
             SeatPresetSystem seatPresetSystem,
             Fdp.Toolkit.NetworkSpawning.Systems.SpawnLevelSystem spawnLevelSystem,
             Hrot.Common.Macros.MacroExpansionSystem macroExpansionSystem,
-            Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator idAllocator)
+            Fdp.Toolkit.NetworkSpawning.INetworkIdAllocator idAllocator,
+            Fdp.Toolkit.Aggregate.HeldChildParticipant heldChildren)
         {
+            HeldChildParticipant = heldChildren ?? throw new ArgumentNullException(nameof(heldChildren));
             _idAllocator         = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             MacroExpansionSystem = macroExpansionSystem;
             SpawnLevelSystem   = spawnLevelSystem;
@@ -85,6 +87,13 @@ namespace Hrot.Common.EntityCreation
         /// (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
         /// </summary>
         public Hrot.Map.Common.Services.StaticObstacleBakeSystem ObstacleBakeSystem { get; }
+
+        /// <summary>
+        /// ⭐ <c>CE-8013</c> ② (SV-6) — holds a stochastic unit's split children Constructing until the handover. ⛔ Not optional — the pack
+        /// registered the per-entity rule that WAITS for it (unbounded), so a host that does not schedule it leaves every split child held
+        /// forever. Schedule it (<c>RegisterGlobalSystem</c>); <see cref="Unserviceable"/> names it when missing.
+        /// </summary>
+        public Fdp.Toolkit.Aggregate.HeldChildParticipant HeldChildParticipant { get; }
 
         /// <summary>
         /// ⭐ Weapon systems WS-4 (W-I) — boards a host's seat presets (the M2, the gunner) into their seats once the host is there. ⛔ Not
@@ -327,6 +336,7 @@ namespace Hrot.Common.EntityCreation
             kernel.RegisterGlobalSystem(FinalizationSystem);   // PostSimulation
             kernel.RegisterGlobalSystem(PromotionSystem);      // BeforeSync — [UpdateAfter(GhostCreationSystem)] orders it
             kernel.RegisterGlobalSystem(ObstacleBakeSystem);   // CE-3136 P-7a — static obstacles become terrain
+            kernel.RegisterGlobalSystem(HeldChildParticipant); // CE-8013 ② — a split's children held until the handover
             kernel.RegisterGlobalSystem(SeatPresetSystem);     // WS-4 (W-I) — a host's seat presets board their seats
             kernel.RegisterGlobalSystem(SpawnLevelSystem);     // CE-3271 (Q94 D) — the birth level, where the position is owned
             kernel.RegisterGlobalSystem(MacroExpansionSystem); // macros S3a ④ — an instance created here expands here
@@ -335,7 +345,7 @@ namespace Hrot.Common.EntityCreation
             var missing = Unserviceable(new object[]
             {
                 SpawnSystem, RequestSystem, FinalizationSystem, PromotionSystem, ObstacleBakeSystem, SeatPresetSystem, SpawnLevelSystem,
-                MacroExpansionSystem,
+                MacroExpansionSystem, HeldChildParticipant,
             }.Concat(NetworkSystems));
             if (missing.Length > 0)
                 Fdp.Core.Logging.FdpLog<EntityCreation>.Warn(missing);
@@ -366,6 +376,9 @@ namespace Hrot.Common.EntityCreation
             if (!seen.Contains(ObstacleBakeSystem))
                 missing.Add($"{nameof(ObstacleBakeSystem)} (StaticObstacleBakeSystem) — every static obstacle (a parked car, a sandbag " +
                             "wall) stays Constructing until the lifecycle timeout DESTROYS it: the pack registered the rule that waits for it");
+            if (!seen.Contains(HeldChildParticipant))
+                missing.Add($"{nameof(HeldChildParticipant)} (CE-8013) — a stochastic unit's split children stay Constructing forever: the pack " +
+                            "registered the rule that holds them until the handover, and nothing would release them");
             if (!seen.Contains(SeatPresetSystem))
                 missing.Add($"{nameof(SeatPresetSystem)} (WS-4) — a host's seat presets (a technical's gun and gunner) are created but never " +
                             "boarded: they stand beside it, and its gun has no gunner");

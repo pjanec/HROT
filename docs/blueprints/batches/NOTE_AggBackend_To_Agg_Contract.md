@@ -204,3 +204,12 @@ A table you author yourself (Count > 0) is left alone. Platoon = 30 slots · com
 
 ⚠ **Enumerator names are unique across the module** — the DDS code generator emits every enum of `Fdp.Toolkit.Aggregate` into one IDL
 module, where enumerators share one scope (`None` twice fails the build). ⇒ a new enum here takes unique names too.
+
+## `2026-11-16` (round 3, last) — three contract facts for both lanes
+
+| # | fact | for |
+|---|---|---|
+| **1** | ⭐ **R-8008 (user)** — the FusionSquad is NOT shown anywhere in the UI. `AggregateResolution.Fusion = 2` stays in the enum (recorded, on the wire) but is never requested and never drawn. ⇒ agg-ui's finding ② (`NOTE_AggUi_To_AggBackend.md`): drop the greyed "Make fusion now" item; no `PinFusion` will come | agg-ui |
+| **2** | ⭐ **R-8007 (for the user's review)** — a stochastic unit's POSITION is owned by its BRAIN (the unit's owner), like every unit entity (a unit template is never in the Muscle group); its route comes from the solver over the path-request topic on a split cluster. ⇒ nothing changes for the plays: `AggregateUnit.Move` stays where it is | agg-behaviors |
+| **3** | a BURST on a stochastic unit is applied by the unit's OWNER (`StochasticAreaEffectSystem`, CGF pack) from the replicated detonation; `AreaEffectSystem` no longer writes a slot table. ⇒ on the editor / single world: the same result; on a split cluster a unit now actually takes the burst once | both |
+| **4** | ⭐ CE-8022 ① — `Aggregate.Width` (287, m) · `Aggregate.Depth` (288, m) · `Aggregate.Heading` (289, deg, normalised 0..360) are attribute rows now: the Unit tab can make Frontage and Heading EDITABLE through the same patch path as the other six | agg-ui |

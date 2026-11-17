@@ -96,6 +96,82 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.Equal(0, w.GetComponentRO<UnitDetections>(me).Count);
         }
 
+        /// <summary>
+        /// ⭐ CE-8009 (R-8006) — the naked eye stops at the soldiers' own TKB <c>VisionRange</c>, as the physical soldier's does: an enemy at 200 m
+        /// (well inside the eye's R50) is contacted when the soldier sees 500 m, never when he sees 150 m; optics are not capped.
+        /// ✅ Red-proof: the cap never applied ⇒ the 150 m soldier contacts it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R8006_TheNakedEye_StopsAtTheSoldiersOwnVisionRange()
+        {
+            var before = KillerVictimTkb.PersonalSoldiers;
+            try
+            {
+                foreach (var (vision, optics, seen) in new[] { (500f, false, true), (150f, false, false), (150f, true, true) })
+                {
+                    var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                    var man = new Fdp.Interfaces.TkbTemplate("Rifleman", 9001);
+                    man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.SensorCapabilitiesDto { VisionRange = vision, HearingRange = 200f, FieldOfViewDegrees = 360f });
+                    db.Register(man);
+                    KillerVictimTkb.PersonalSoldiers = new System.Collections.Generic.Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = (TkbTypeId)9001 };
+                    using var w = World();
+                    w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+                    var me = Unit(w, Vector3.Zero, ForceId.Friend);
+                    if (optics)
+                    {
+                        var h = new UnitHoldings { Count = 1 };
+                        h.Items[0] = new UnitHolding { Kind = HoldingKind.Sensor, Sensor = HoldingSensor.Optics, Count = 1, Operational = 1 };
+                        w.GetComponentRW<UnitHoldings>(me) = h;
+                    }
+                    Unit(w, new Vector3(0, 200, 0), ForceId.Hostile);
+                    var sys = new StochasticUnitSensorSystem();
+                    for (int s = 1; s <= 10; s++) { At(w, s); sys.Execute(w, 1f); }
+                    Assert.Equal(seen, w.GetComponentRO<SquadCognitiveState>(me).Contacts.Count > 0);
+                }
+            }
+            finally { KillerVictimTkb.PersonalSoldiers = before; }
+        }
+
+        /// <summary>
+        /// ⭐ CE-8018 (N-3) — a stochastic observer sees PHYSICAL bodies, one way: an enemy man at ONE man's half-chance range (R50 × √(1/9))
+        /// lands in its pool on the third step, as a unit at its own R50 does; a friendly man, a dead one and a part (a mount) never; the man's
+        /// death takes him out. ✅ Red-proof: the bodies not gathered ⇒ the pool stays empty ⇒ red.
+        /// </summary>
+        [Fact]
+        public void N3_AStochasticObserver_SeesAPhysicalEnemy_OneWay()
+        {
+            using var w = World();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>(); w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            var me = Unit(w, Vector3.Zero, ForceId.Friend);
+            Entity Man(Vector3 at, ForceId f, float hp)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                w.AddComponent(m, new EntityInfo { ForceId = f });
+                w.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+                return m;
+            }
+            float r50 = UnitDetection.EyeR50 * MathF.Sqrt(UnitDetection.PerMan);
+            var enemy = Man(new Vector3(0, r50, 0), ForceId.Hostile, 100f);
+            Man(new Vector3(10, 20, 0), ForceId.Friend, 100f);                       // a friend
+            Man(new Vector3(-10, 20, 0), ForceId.Hostile, 0f);                       // a dead man
+            var mount = Man(new Vector3(5, 20, 0), ForceId.Hostile, 100f);
+            w.AddComponent(mount, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = enemy });   // a part, not a body
+            var sys = new StochasticUnitSensorSystem();
+            int Pool() => w.GetComponentRO<SquadCognitiveState>(me).Contacts.Count;
+            At(w, 1); sys.Execute(w, 1f);
+            At(w, 2); sys.Execute(w, 1f);
+            Assert.Equal(0, Pool());
+            At(w, 3); sys.Execute(w, 1f);
+            Assert.Equal(1, Pool());                                                 // the same curve as a unit's
+            Assert.Equal((long)enemy.PackedValue, SquadContacts.Slots(w.GetComponentRO<SquadCognitiveState>(me).Contacts)[0].EntityId);
+            Assert.Equal(1, w.GetComponentRO<UnitDetections>(me).Count);             // nobody else is even a pair
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
+            At(w, 4); sys.Execute(w, 1f);
+            Assert.Equal(0, Pool());
+            Assert.Equal(0, w.GetComponentRO<UnitDetections>(me).Count);
+        }
+
         /// <summary>⭐ A unit at twice R50 needs ⌈1 / (Pmax / 16)⌉ = 18 steps; a moving, firing one is seen far sooner (N-4's signature).</summary>
         [Fact]
         public void N4_AMovingFiringTarget_IsDetectedSooner()

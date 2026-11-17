@@ -47,13 +47,27 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     public sealed class KillerVictimTable
     {
-        /// <summary>The range band (m).</summary>
-        public const float BandMetres = 100f;
+        /// <summary>The range band (m). ⭐ CE-8009 — 25 m: at 100 m the rifle's 200 m and 300 m shared its last band and fought alike, where the
+        /// physical squads at 300 m took twice as long (the C-8 ladder; design §23.4 "finer bands only if the ladder shows the need").</summary>
+        public const float BandMetres = 25f;
         /// <summary>The target class of men.</summary>
         public static readonly TkbTypeId Personnel = new(0);
 
         private readonly Dictionary<(long Weapon, long Target), KvEntry> _rows = new();
         private readonly TkbTypeId[] _personal = new TkbTypeId[16];
+
+        /// <summary>⭐ CE-8009 — the SLOT health below which a hit man is out of the fight: the personal soldier's incapacitation line (his
+        /// <c>Gen.Injury</c> <c>IncapacitatedBelow</c> × the slot's full health), the line the physical injury model takes him out at
+        /// (<c>Injury.StateOf</c>). 0 = none declared (he fights until <see cref="UnitSlotTable.DownBelow"/>).</summary>
+        public float ManOutBelow { get; set; }
+
+        /// <summary>⭐ CE-8009 — where a round lands on a man and what it does there RELATIVE to the row's mean damage: per body zone its share
+        /// (sums to 1) and its damage ÷ the mean (the personal soldier's own rifle against his own zones — a zone's armour and multiplier,
+        /// <c>BodyZones</c>). A hit draws a zone (seeded) and applies the row's damage × its factor: a head hit takes a man out where a torso
+        /// hit through a vest only wounds him. ⛔ The MEAN alone took a man out with every hit wherever a threshold sits between the zones'
+        /// damages (the standard rifleman: 21 of 25 a hit, out below 7.5 ⇒ one hit, against ~2 physically). Null = the mean on every hit.</summary>
+        public float[]? ManZoneShare { get; set; }
+        public float[]? ManZoneFactor { get; set; }
 
         /// <summary>The table in force (null = no stochastic combat — the phases do nothing). Set once at load by the host.</summary>
         public static KillerVictimTable? Current { get; set; }
@@ -76,7 +90,8 @@ namespace Fdp.Toolkit.Aggregate
 
         // ── the data asset ───────────────────────────────────────────────────────────────────────────────────────────────────
         private sealed record RowDto(long Weapon, long Target, KvEntry Entry);
-        private sealed record FileDto(int Version, Dictionary<string, long> PersonalWeapons, List<RowDto> Rows);
+        private sealed record FileDto(int Version, Dictionary<string, long> PersonalWeapons, List<RowDto> Rows, float ManOutBelow = 0f,
+                                       float[]? ManZoneShare = null, float[]? ManZoneFactor = null);   // ⭐ CE-8009
         private static readonly JsonSerializerOptions s_json = new() { WriteIndented = true, NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals };
 
         /// <summary>The asset text (invariant: JSON numbers).</summary>
@@ -87,13 +102,13 @@ namespace Fdp.Toolkit.Aggregate
             var rows = new List<RowDto>();
             foreach (var kv in _rows) rows.Add(new RowDto(kv.Key.Weapon, kv.Key.Target, kv.Value));
             rows.Sort((a, b) => a.Weapon != b.Weapon ? a.Weapon.CompareTo(b.Weapon) : a.Target.CompareTo(b.Target));
-            return JsonSerializer.Serialize(new FileDto(1, personal, rows), s_json);
+            return JsonSerializer.Serialize(new FileDto(1, personal, rows, ManOutBelow, ManZoneShare, ManZoneFactor), s_json);
         }
 
         public static KillerVictimTable FromJson(string json)
         {
             var dto = JsonSerializer.Deserialize<FileDto>(json, s_json) ?? throw new InvalidOperationException("empty killer-victim table");
-            var t = new KillerVictimTable();
+            var t = new KillerVictimTable { ManOutBelow = dto.ManOutBelow, ManZoneShare = dto.ManZoneShare, ManZoneFactor = dto.ManZoneFactor };
             foreach (var kv in dto.PersonalWeapons) t.SetPersonalWeapon(Enum.Parse<SlotRole>(kv.Key), new TkbTypeId(kv.Value));
             foreach (var r in dto.Rows) t.Set(new TkbTypeId(r.Weapon), new TkbTypeId(r.Target), r.Entry);
             return t;
@@ -102,14 +117,26 @@ namespace Fdp.Toolkit.Aggregate
 
     /// <summary>The weapon numbers the generator reads (from the TKB: the mount's dispersion, its round's penetration and damage).</summary>
     public readonly record struct WeaponNumbers(TkbTypeId Type, float DispersionMils, float Penetration, float DamagePerHit,
-                                                float EffectiveRoundsPerSecond, float MaxRange, Penetrator Penetrator = Penetrator.Kinetic);
+                                                float EffectiveRoundsPerSecond, float MaxRange, Penetrator Penetrator = Penetrator.Kinetic,
+                                                bool FromBelow = false);   // ⭐ CE-8017: a mine — its rows are BOTTOM attacks (KillerVictimGenerator.BottomAttack)
+
+    /// <summary>⭐ CE-8009 — one body zone of the soldier a slot stands for, as the PHYSICAL hit model resolves it (<c>BodyZones</c>, CE-3210):
+    /// how often a round lands there, its damage multiplier, its armour (front).</summary>
+    public readonly record struct ManZone(float Share, float Multiplier, float Armour);
 
     /// <summary>The target numbers the generator reads: men (<see cref="KillerVictimTable.Personnel"/>) or a hull (its armour per facing,
     /// its health, the radius it presents) and the aspect mix it is seen from.</summary>
     public readonly record struct TargetNumbers(TkbTypeId Type, float Radius, float Health, float ArmourFront = 0f, float ArmourSide = 0f,
                                                 float ArmourRear = 0f, float ArmourTop = 0f, float FrontShare = 0.5f, float SideShare = 0.4f,
-                                                float RearShare = 0.1f)
+                                                float RearShare = 0.1f, float ArmourBottom = 0f, float BodyHealth = 0f, ManZone[]? Zones = null)
     {
+        /// <summary>⭐ CE-8019 — the physical models' damage is in the BODY's hit points (a soldier's <c>MaxHealth</c>, <see cref="BodyHealth"/>);
+        /// the table's is in the TARGET's (<see cref="Health"/> — a slot's 25 for men): × this. 1 when no body scale is given.</summary>
+        public float BodyScale => BodyHealth > 0f ? Health / BodyHealth : 1f;
+
+        /// <summary>⭐ The belly a bottom attack meets — 0 ⇒ the rear (the rule <c>ArmorModel.ArmourFor(Facing.Bottom)</c> uses, CE-4624 MR-10).</summary>
+        public float BellyArmour => ArmourBottom > 0f ? ArmourBottom : ArmourRear;
+
         public bool IsPersonnel => (long)Type == 0;
     }
 
@@ -118,16 +145,26 @@ namespace Fdp.Toolkit.Aggregate
     /// P(hit) per band = <c>HitModel.HitChance(σ, range, radius)</c> (σ = the mount's dispersion, standing, unsuppressed); the damage per hit
     /// = <c>ArmorModel.HitDamage(penetration, damage, armour)</c> over the facing mix (a man: × <see cref="MeanZoneFactor"/>). ⚠ Guided
     /// missiles, HE against men and the no-dispersion mounts are to be generated by RUNNING the physical models (RV-15) — the harness takes
-    /// their measured rows through <see cref="KillerVictimTable.Set"/>. ⚠ The armour BOTTOM facing (minefield MS-T1) is NOT in coordinator yet:
-    /// <see cref="BottomFacingTodo"/> — a mine's row is generated when it lands.
+    /// their measured rows through <see cref="KillerVictimTable.Set"/>. ⭐ The BOTTOM row (<see cref="BottomAttack"/>, a mine under the hull) is
+    /// generated against <see cref="TargetNumbers.BellyArmour"/> — the TKB's <c>ArmorBottom</c> (minefield MS-T1, CE-4624), 0 ⇒ the rear, as
+    /// <c>ArmorModel.ArmourFor(Facing.Bottom)</c>.
     /// </summary>
     public static class KillerVictimGenerator
     {
-        /// <summary>⚠ TODO (MS-T1): the armour BOTTOM facing — rows for mines / top-attack-from-below are generated once it exists.</summary>
-        public const string BottomFacingTodo = "MS-T1: Facing.Bottom not in coordinator — no bottom-attack rows";
+        /// <summary>CALIBRATED — where a round lands on a man: head · torso · arms · legs (the physical hit model picks the part by geometry).</summary>
+        public const float HeadShare = 0.1f, TorsoShare = 0.4f, ArmShare = 0.2f, LegShare = 0.3f;
+        /// <summary>The engine person's zone multipliers (4 · 1 · 0.4 · 0.5, <c>BodyZones</c>) over the shares — used when the target names no zones.</summary>
+        public const float MeanZoneFactor = HeadShare * 4f + TorsoShare * 1f + ArmShare * 0.4f + LegShare * 0.5f;
 
-        /// <summary>CALIBRATED — where a man is hit (head 0.1 · torso 0.4 · arms 0.2 · legs 0.3) × the zone multipliers (4 · 1 · 0.4 · 0.5).</summary>
-        public const float MeanZoneFactor = 0.1f * 4f + 0.4f * 1f + 0.2f * 0.4f + 0.3f * 0.5f;
+        /// <summary>⭐ CE-8009 — one round's expected damage on a man (body hit points): over his zones when known (each zone's armour through
+        /// <c>ArmorModel.HitDamage</c>, × its multiplier — what the physical hit model does), else the unarmoured mean.</summary>
+        public static float ManHitDamage(float penetration, float damagePerHit, ManZone[]? zones)
+        {
+            if (zones == null || zones.Length == 0) return ArmorModel.HitDamage(penetration, damagePerHit, 0f) * MeanZoneFactor;
+            float sum = 0f, shares = 0f;
+            foreach (var z in zones) { sum += z.Share * z.Multiplier * ArmorModel.HitDamage(penetration, damagePerHit, z.Armour); shares += z.Share; }
+            return shares > 0f ? sum / shares : 0f;
+        }
 
         /// <summary>CALIBRATED — the K-kill share of a penetrating hit on a hull; the rest of the damage immobilises in this share.</summary>
         public const float KKillOfPenetrating = 0.35f, MKillOfPenetrating = 0.25f;
@@ -146,7 +183,7 @@ namespace Fdp.Toolkit.Aggregate
             float damage, kk = 0f, mk = 0f, suit;
             if (t.IsPersonnel)
             {
-                damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f) * MeanZoneFactor;
+                damage = ManHitDamage(w.Penetration, w.DamagePerHit, t.Zones) * t.BodyScale;   // ⭐ CE-8019 — in slot health · ⭐ CE-8009 — his zones' armour
                 suit = 1f;
             }
             else
@@ -165,6 +202,30 @@ namespace Fdp.Toolkit.Aggregate
             };
         }
 
+        /// <summary>
+        /// ⭐ CE-8007 / CE-8017 — the BOTTOM row: a burst UNDER the target (a mine). No dispersion — the weapon is where the target is, so P(hit)
+        /// is 1 in band 0 and nothing beyond; the damage meets the belly (<see cref="TargetNumbers.BellyArmour"/>); a man takes the round's
+        /// damage whole (the burst is below him, no zone mix). The rate is one detonation (the weapon is spent).
+        /// </summary>
+        public static KvEntry BottomAttack(in WeaponNumbers w, in TargetNumbers t)
+        {
+            float damage, kk = 0f, mk = 0f, suit = 1f;
+            if (t.IsPersonnel) damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, 0f) * t.BodyScale;   // ⭐ CE-8019 — in slot health
+            else
+            {
+                float pen = ArmorModel.PenetrationChance(w.Penetration, t.BellyArmour);
+                damage = ArmorModel.HitDamage(w.Penetration, w.DamagePerHit, t.BellyArmour);
+                kk = pen * KKillOfPenetrating;
+                mk = pen * MKillOfPenetrating + (1f - pen) * MKillOfPenetrating;   // a belly blast immobilises even when it does not penetrate
+                suit = MathF.Max(pen, 0.05f);
+            }
+            return new KvEntry
+            {
+                PHitByBand = new[] { 1f }, DamagePerHit = damage, KKillShare = kk, MKillShare = mk, EffectiveRate = 1f, Suitability = suit,
+                MaxRange = KillerVictimTable.BandMetres, Source = "derived:ArmorModel.HitDamage(belly); bottom attack",
+            };
+        }
+
         /// <summary>The facing mix of a per-facing number (front / side / rear by the target's shares).</summary>
         private static float Mix(TargetNumbers t, Func<float, float> perArmour)
         {
@@ -180,7 +241,7 @@ namespace Fdp.Toolkit.Aggregate
             var ts = new List<TargetNumbers>(targets);
             foreach (var w in weapons)
                 foreach (var t in ts)
-                    table.Set(w.Type, t.Type, SmallArms(in w, in t));
+                    table.Set(w.Type, t.Type, w.FromBelow ? BottomAttack(in w, in t) : SmallArms(in w, in t));
             return table;
         }
     }

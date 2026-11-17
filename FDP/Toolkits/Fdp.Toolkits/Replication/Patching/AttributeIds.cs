@@ -279,4 +279,11 @@ public static class AttributeIds
     public const ushort AggregatePosture = 285;
     /// <summary><c>Aggregate.Prepared</c> — 0 none · 1 hasty · 2 prepared · 3 fortified.</summary>
     public const ushort AggregatePrepared = 286;
+    // ⭐ CE-8022 ① (agg-ui's ask) — the unit's SHAPE, authored on the unit form (metres, degrees)
+    /// <summary><c>Aggregate.Width</c> — the frontage (m, ≥ 0).</summary>
+    public const ushort AggregateWidth = 287;
+    /// <summary><c>Aggregate.Depth</c> — the depth (m, ≥ 0): a column's length (M-3).</summary>
+    public const ushort AggregateDepth = 288;
+    /// <summary><c>Aggregate.Heading</c> — the direction it faces / moves (degrees, 0..360).</summary>
+    public const ushort AggregateHeading = 289;
 }

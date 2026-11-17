@@ -213,6 +213,59 @@ namespace Fdp.Toolkit.Aggregate
 
         public StochasticUnitMovementSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
+        // ── ⭐ CE-8005 — a node with NO navmesh (a split cluster's Brain-only node) asks the SOLVER over the path-request topic ─────────────
+
+        /// <summary>The trajectory pool the path response's routes land in (the Brain path-request pair is composed with it). Null ⇒ never asks:
+        /// the node plans with what it has (its navmesh, else its roads, else the straight leg).</summary>
+        public Func<global::CarKinem.Trajectory.TrajectoryPoolManager?>? RemoteRoutes { get; init; }
+        /// <summary>This node's id — the request's <c>SourceNodeId</c> (the Brain egress forwards only its own; 0 ⇒ never asks).</summary>
+        public int LocalNodeId { get; init; }
+        /// <summary>How long a unit waits for the solver before it plans with what this node has (s of sim time).</summary>
+        public const double RemoteWaitSeconds = 5.0;
+        private readonly Dictionary<Entity, (long Id, Vector3 To, SimInstant Since)> _asked = new();
+
+        private global::CarKinem.Trajectory.TrajectoryPoolManager? RemotePool(EntityRepository repo)
+        {
+            if (RemoteRoutes == null || LocalNodeId == 0 || repo.HasSingletonManaged<INavmeshProvider>() || !repo.HasSingleton<PathfindingBatchData>()) return null;
+            return RemoteRoutes();
+        }
+
+        /// <summary>⭐ CE-8005 — the request for <paramref name="e"/>'s route, the batch slot primed so a stale result is not read.</summary>
+        internal long Ask(EntityRepository repo, Entity e, Vector3 from, in AggregateUnit u, in UnitHoldings h)
+        {
+            var mobility = UnitSpeedModel.LimitingMobility(in u, in h);
+            bool mounted = u.Posture == UnitPosture.Mounted && mobility != HoldingMobility.NoMobility;
+            long id = ((long)e.Index << 32) | (uint)repo.GlobalVersion;
+            ref var batch = ref repo.GetSingleton<PathfindingBatchData>();
+            batch.Results[(int)((uint)id % (uint)PathfindingBatchData.DefaultCapacity)] = new PathResult { RequestId = id, RouteHandle = -1 };
+            repo.Bus.Publish(new PathfindingRequestEvent
+            {
+                RequestId = id, Start = from, End = u.Destination,
+                MobilityProfile = (byte)(!mounted ? 2 : mobility == HoldingMobility.Tracked ? 1 : 0),   // 0 wheeled · 1 tracked · 2 infantry
+                RoadUse = mounted ? RoadUse.Prefer : RoadUse.Neutral,
+                NavLayerMask = (int)(mounted ? VehicleLayer : InfantryLayer),
+                SourceNodeId = (Fdp.Core.NodeId)LocalNodeId,
+            });
+            return id;
+        }
+
+        /// <summary>⭐ CE-8005 — the solver's answer to <paramref name="id"/> as the unit's route (the pool's copy released), or false while none.</summary>
+        internal static bool TryAnswer(EntityRepository repo, global::CarKinem.Trajectory.TrajectoryPoolManager pool, long id, in AggregateUnit u, in UnitHoldings h,
+                                       out UnitRoute? route)
+        {
+            route = null;
+            ref readonly var r = ref repo.GetSingleton<PathfindingBatchData>().Results[(int)((uint)id % (uint)PathfindingBatchData.DefaultCapacity)];
+            if (r.RequestId != id || !r.IsReachable || r.RouteHandle < 0 || !pool.TryGetTrajectory(r.RouteHandle, out var traj) || traj.Waypoints.Length < 2) return false;
+            var pts = new Vector3[traj.Waypoints.Length];
+            for (int i = 0; i < pts.Length; i++) pts[i] = traj.Waypoints[i].Position;
+            pool.RemoveTrajectory(r.RouteHandle);
+            var holder = repo.HasSingletonManaged<global::CarKinem.Road.RoadNetworkHolder>() ? repo.GetSingletonManaged<global::CarKinem.Road.RoadNetworkHolder>() : null;
+            using var lease = holder?.Borrow();
+            var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+            route = Build(pts, NavigationBackend.Auto /* the solver's (the wire carries no backend) */, UnitSpeedModel.LimitingMobility(in u, in h), UnitSpeedModel.BaseSpeed(in u, in h), lease?.Value ?? default, terrain?.Woods);
+            return true;
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
@@ -233,7 +286,18 @@ namespace Fdp.Toolkit.Aggregate
                     || (u.Move == UnitMoveState.OnRoute && !repo.HasManagedComponent<UnitRoute>(e)))
                 {
                     var from = repo.GetComponentRO<SimTransform>(e).Position;
-                    var route = Plan(repo, from, u.Destination, in u, in h);
+                    UnitRoute? route = null;
+                    if (RemotePool(repo) is { } pool)   // ⭐ CE-8005 — no navmesh here: the solver's route, waited for over several ticks (B-2)
+                    {
+                        if (!_asked.TryGetValue(e, out var ask) || ask.To != u.Destination)
+                        {
+                            _asked[e] = (Ask(repo, e, from, in u, in h), u.Destination, now);
+                            continue;
+                        }
+                        if (!TryAnswer(repo, pool, ask.Id, in u, in h, out route) && (double)now - (double)ask.Since < RemoteWaitSeconds) continue;
+                        _asked.Remove(e);   // answered — or the solver did not: plan with what this node has
+                    }
+                    route ??= Plan(repo, from, u.Destination, in u, in h);
                     if (route == null) { u.Move = UnitMoveState.RouteFailed; u.SpeedMps = 0f; u.Activity &= ~UnitActivity.Moving; continue; }
                     repo.SetManagedComponent(e, route);
                     u.Move = UnitMoveState.OnRoute;

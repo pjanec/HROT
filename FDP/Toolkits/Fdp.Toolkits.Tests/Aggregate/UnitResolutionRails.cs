@@ -134,6 +134,35 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.Equal(4, h.Created.Count);
         }
 
+        /// <summary>⭐ CE-8013 ④ (§16b UNOBSERVED) — the enemy gone and the quiet time over, a split unit still does NOT merge while a physical
+        /// sensor of another side holds one of its men (acquired) — men never vanish in front of a trainee; the moment it loses him, the quiet
+        /// time runs and the unit merges. ✅ Red-proof: the observed check removed ⇒ the unit merges in front of the sensor ⇒ red.</summary>
+        [Fact]
+        public unsafe void AnObservedSplitUnit_DoesNotMergeAutomatically()
+        {
+            using var h = new Host();
+            h.W.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorContactList>();
+            h.W.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
+            h.MoveEnemy(500f);
+            h.Step(); h.Step(); h.Step();
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            var watched = h.Children()[0];
+            var sensor = h.W.CreateEntity();                                       // the enemy's optics, a mount child of the enemy
+            h.W.AddComponent(sensor, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = h.Enemy });
+            var list = new Fdp.Toolkit.Perception.Components.SensorContactList { Count = 1 };
+            list.EntityIds[0] = (long)watched.PackedValue;
+            list.State[0] = (byte)Fdp.Toolkit.Perception.Components.SensorContactState.Acquired;
+            h.W.AddComponent(sensor, list);
+            h.MoveEnemy(3000f);                                                    // far — but its sensor still holds the man
+            for (int s = 0; s < 90; s++) h.Step();
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            h.W.GetComponentRW<Fdp.Toolkit.Perception.Components.SensorContactList>(sensor).State[0] = (byte)Fdp.Toolkit.Perception.Components.SensorContactState.Lost;
+            for (int s = 0; s < 59; s++) h.Step();
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);          // the quiet time starts when he is lost
+            h.Step(); h.Step();
+            Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+        }
+
         /// <summary>⭐ SV-7 — the trigger withdrawn while materialising ⇒ the held children removed, the unit stays stochastic; ⭐ hysteresis — a
         /// split unit with the enemy just outside the band does NOT merge.</summary>
         [Fact]

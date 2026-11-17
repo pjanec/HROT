@@ -180,9 +180,13 @@ namespace Hrot.Core.Tkb
                 _queriesFor = repo;
             }
             ITkbDatabase? db = null;
+            bool squadState = repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.SquadCognitiveState>();
             foreach (var e in _units!)
             {
                 if (repo.GetComponentRO<AggregateUnit>(e).Effective != AggregateResolution.Stochastic) continue;
+                // ⭐ CE-8021 (agg-behaviors' F-11) — the unit's own contact pool (N-2): a memberless unit gets none from
+                // SquadStateProvisioning (it provisions commanders WITH subordinates), so its sensing reported into nothing
+                if (squadState && !repo.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(e)) repo.AddComponent(e, new Fdp.Toolkit.Squad.SquadCognitiveState());
                 if (repo.HasComponent<UnitSlotTable>(e) && repo.GetComponentRO<UnitSlotTable>(e).Count > 0) continue;
                 db ??= repo.GetSingletonManaged<ITkbDatabase>();
                 if (db == null) return;

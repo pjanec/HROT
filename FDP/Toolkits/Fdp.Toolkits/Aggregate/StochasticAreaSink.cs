@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 
 namespace Fdp.Toolkit.Aggregate
 {
@@ -11,8 +12,9 @@ namespace Fdp.Toolkit.Aggregate
     /// × posture; the draw per present man p = 1 − exp(−λ / n) (seeded by the unit and the detonation); a casualty is a man DOWN; the burst also
     /// suppresses (the overlap's share of a full window) and stresses (the soldier's near-miss / friend-down constants). ⛔ Before, every
     /// <c>UnitEntity</c> was skipped as hidden (<c>AreaEffectSystem.cs:175</c>, <c>PhysicalPresence.cs:26-29</c>) — a unit never felt a burst.
-    /// ⚠ Like the rest of <c>AreaEffectSystem</c> it applies where the burst is assessed (the Muscle on a split cluster), while the slot table is
-    /// the Brain group's — CE-8005 (who owns a stochastic unit's state on a split cluster) covers it.
+    /// ⭐ CE-8005 (R-171: damage is applied where the health is) — driven by <see cref="StochasticAreaEffectSystem"/> on the node that OWNS the
+    /// unit (the Brain group, like its slot table), from the detonation every node receives. ⛔ SUPERSEDED: called at the end of the Muscle's
+    /// <c>AreaEffectSystem.Assess</c>, which on a split cluster wrote a slot table the Muscle does not own.
     /// </summary>
     public static class StochasticAreaSink
     {
@@ -38,7 +40,7 @@ namespace Fdp.Toolkit.Aggregate
         }
 
         /// <summary>Every stochastic unit the burst at <paramref name="burst"/> reaches (serial). Returns the casualties caused. 0 B.</summary>
-        public static int Apply(EntityRepository repo, Vector3 burst, float lethalRadius, uint seq, SimInstant now)
+        public static int Apply(EntityRepository repo, Vector3 burst, float lethalRadius, uint seq, SimInstant now, bool ownedOnly = false)
         {
             if (lethalRadius <= 0f || !repo.IsComponentTypeRegistered<AggregateUnit>() || !repo.IsComponentTypeRegistered<UnitSlotTable>()) return 0;
             int casualties = 0;
@@ -46,6 +48,7 @@ namespace Fdp.Toolkit.Aggregate
             {
                 ref var u = ref repo.GetComponentRW<AggregateUnit>(e);
                 if (u.Effective != AggregateResolution.Stochastic) continue;
+                if (ownedOnly && !repo.HasAuthority<AggregateUnit>(e)) continue;   // ⭐ CE-8005 — only the unit's owner applies it (exactly once)
                 var at = (Vector3)repo.GetComponentRO<SimTransform>(e).Position;
                 float d = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(burst.X, burst.Y));
                 float area = MathF.Max(u.Width, 1f) * MathF.Max(u.Depth, MinDepth);
@@ -89,6 +92,54 @@ namespace Fdp.Toolkit.Aggregate
                 casualties += down;
             }
             return casualties;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-8005</c> (R-171) — a burst on a stochastic unit, applied by the node that OWNS the unit: every detonation this node sees, its own
+    /// or replicated (the detonation ingress runs on every node, CE-1148), its warhead's lethal circle over the units this node owns
+    /// (<see cref="StochasticAreaSink.Apply"/>, <c>ownedOnly</c>). Seeded by the burst itself (its point and munition) and the sim time, so the
+    /// draw does not depend on which node assessed it. ⭐ One place: the Muscle's <c>AreaEffectSystem</c> no longer touches a unit. Serial; it
+    /// allocates nothing but the query, built once.
+    /// </summary>
+    [UpdateInPhase(SystemPhase.Simulation)]
+    [TickMode(TickPolicy.WhenTimeAdvances)]
+    public sealed class StochasticAreaEffectSystem : Fdp.ModuleHost.Abstractions.IEcsModuleSystem
+    {
+        private readonly bool _gateOnAuthority;
+        public StochasticAreaEffectSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
+
+        public void Execute(Fdp.ModuleHost.Abstractions.ISimulationView view, float deltaTime)
+        {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()) return;
+            var events = repo.ReadEvents<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+            if (events.Length == 0 || !repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return;
+            var db = repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
+            for (int i = 0; i < events.Length; i++)
+            {
+                ref readonly var evt = ref events[i];
+                if (evt.Ammo == 0) continue;
+                var (w, _, _) = Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(db, evt.Ammo);
+                if (w == null || !w.HasAreaEffect) continue;
+                StochasticAreaSink.Apply(repo, new Vector3(evt.HitX, evt.HitY, evt.HitZ),
+                    StochasticAreaSink.LethalRadius(w.BlastLethalRadiusM, w.FragmentRadiusM), Seed(in evt), now, _gateOnAuthority);
+            }
+        }
+
+        /// <summary>The burst's own identity: its point and munition (the same bytes on every node).</summary>
+        internal static uint Seed(in Fdp.Toolkit.Combat.Contracts.DetonationNotification evt)
+        {
+            unchecked
+            {
+                uint h = 2166136261u;
+                h = (h ^ (uint)BitConverter.SingleToInt32Bits(evt.HitX)) * 16777619u;
+                h = (h ^ (uint)BitConverter.SingleToInt32Bits(evt.HitY)) * 16777619u;
+                h = (h ^ (uint)BitConverter.SingleToInt32Bits(evt.HitZ)) * 16777619u;
+                h = (h ^ (uint)evt.Ammo) * 16777619u;
+                return h ^ (uint)(evt.Ammo >> 32);
+            }
         }
     }
 }
