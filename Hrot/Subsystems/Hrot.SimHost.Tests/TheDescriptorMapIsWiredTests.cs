@@ -316,11 +316,13 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtRadarEmission),     // ⭐ CE-4617 (B-1, RS-10) — a radar's emission
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state
                     D(Hrot.NED.Descriptors.EDescriptorType.dtFlockState),       // ⭐ CE-4623 AB-3 — a bird flock's state
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtMineClearing),      // ⭐ CE-4624 MS-T4 — a clearer's tool marker (the binding had it; this list did not — agg-ui merge 2026-11-17)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtRamOrder),          // ⭐ CE-4622 K-2 — a hull's ram order (likewise)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order to its motion node
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirArena),          // ⭐ CE-10000 (AC-10) — the air-combat arena
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state
                     D(Hrot.NED.Descriptors.EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnitHoldings),    // ⭐ CE-8001 — its holdings
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order to its motion node
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirArena) },        // ⭐ CE-10000 (AC-10) — the air-combat arena
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnitHoldings) },    // ⭐ CE-8001 — its holdings
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

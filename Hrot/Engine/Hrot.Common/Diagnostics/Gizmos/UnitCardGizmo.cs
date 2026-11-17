@@ -12,9 +12,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
 {
     /// <summary>
     /// ⭐ <c>CE-8607</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-11; docs/UX/DESIGN_Unit_Symbols.md P-5, R-8602) — what a UNIT's card says, read
-    /// ONCE for both of its writers: the strength (present / authorized + the SITREP colour), the ammunition share and the ONE worst alarm. A stochastic unit is read
-    /// from its slot table (⚠ until agg-behaviors' <c>UnitStrength</c> branch lands — RV-5 — then <see cref="UnitStrength"/> answers it and this branch goes);
-    /// a physical one through <see cref="UnitStrength"/> and the staff's readers, as its SITREP is. Allocation-free.
+    /// ONCE for both of its writers: the strength (present / authorized + the SITREP colour), the ammunition share and the ONE worst alarm. Every unit is read through
+    /// <see cref="UnitStrength"/> and the staff's readers, as its SITREP is (RV-5 landed: a stochastic unit's slots are UnitStrength's). Allocation-free.
     /// </summary>
     public static class UnitCardFacts
     {
@@ -24,32 +23,26 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>The worst alarm a unit's card names (UI-11's order: broken &gt; suppressed &gt; out of ammo &gt; splitting).</summary>
         public enum Alarm : byte { None, Splitting, OutOfAmmo, Suppressed, Broken }
 
-        public static bool IsStochastic(ISimulationView view, Entity e)
-            => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<AggregateUnit>()) && view.HasComponent<AggregateUnit>(e)
-               && view.GetComponentRO<AggregateUnit>(e).Effective == AggregateResolution.Stochastic;
+        /// <summary>Stochastic now? — the toolkit's one test (<see cref="AggregateUnits.IsStochastic"/>).</summary>
+        public static bool IsStochastic(ISimulationView view, Entity e) => AggregateUnits.IsStochastic(view, e);
 
         private static bool HasSlots(ISimulationView view, Entity e)
             => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<UnitSlotTable>()) && view.HasComponent<UnitSlotTable>(e);
 
-        /// <summary>The unit's strength: men present, men authorized, the SITREP colour; <c>Known</c> false when nothing says.</summary>
+        /// <summary>The unit's strength: men present, men authorized, the SITREP colour; <c>Known</c> false when nothing says. ⭐ RV-5 landed (agg-behaviors
+        /// ST-0 ①): <see cref="UnitStrength"/> reads a stochastic unit's slots itself, so the card's own slot-table branch is GONE — one reader for every unit.</summary>
         public static (int Present, int Authorized, StatusColour Colour, bool Known) Strength(ISimulationView view, Entity e)
         {
-            if (IsStochastic(view, e) && HasSlots(view, e))
-            {
-                ref readonly var t = ref view.GetComponentRO<UnitSlotTable>(e);
-                int p = t.Present(), a = t.Authorized();
-                float f = a > 0 ? (float)p / a : 0f;
-                var c = p <= 0 ? StatusColour.Black : f >= StaffComposerSystem.GreenFraction ? StatusColour.Green : f >= StaffComposerSystem.AmberFraction ? StatusColour.Amber : StatusColour.Red;
-                return (p, a, c, a > 0);
-            }
             var s = UnitStrength.Of(view, e);
             return ((int)s.Present, s.Authorized, UnitStrength.ColourOf(view, e), s.Known);
         }
 
-        /// <summary>The share of its rounds the unit still carries (NaN = not known — a stochastic unit's slots carry rounds, not a capacity).</summary>
+        /// <summary>The share of its rounds the unit still carries (NaN = not known). A stochastic unit: its rounds over the TKB's basic load
+        /// (<see cref="UnitAmmunition.TryShare"/> — the SITREP's own reader, CE-8014 / R-8004); unknown without the TKB.</summary>
         public static float AmmoShare(ISimulationView view, Entity e)
         {
-            if (IsStochastic(view, e)) return float.NaN;
+            if (IsStochastic(view, e))
+                return view is EntityRepository repo && UnitAmmunition.TryShare(repo, e, out float share) ? share : float.NaN;
             long have = StaffComposerSystem.RoundsOf(view, e, out long max);
             return max > 0 ? (float)have / max : float.NaN;
         }

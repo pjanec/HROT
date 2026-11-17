@@ -52,6 +52,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtRadarEmission),     // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (pinned here at CE-4623: it was missing)
         D(EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state (its brain)
         D(EDescriptorType.dtFlockState),       // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
+        D(EDescriptorType.dtMineClearing),     // ⭐ CE-4624 MS-T4 — a clearer's tool marker (the binding had it; this list did not — agg-ui merge 2026-11-17)
+        D(EDescriptorType.dtRamOrder),         // ⭐ CE-4622 K-2 — a hull's ram order (likewise)
         D(EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state (its brain)
         D(EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
         D(EDescriptorType.dtUnitHoldings),    // ⭐ CE-8001 — its holdings
