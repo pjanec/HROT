@@ -55,7 +55,7 @@ namespace Hrot.Core.Animals
                 ? ((ISimulationView)repo).GetManagedComponentRO<EditablePolyline>(area).Points : Array.Empty<Vector2>();
             Outline(outline, out var centroid, out float radius, out var min, out var max);
             var centre = new Vector3(anchor.X + centroid.X, anchor.Y + centroid.Y, anchor.Z);
-            var home = new AnimalHome { Centre = centre, Radius = HomeRadius(outline, centroid, radius), Enclosed = a.Enclosed };   // ⭐ CE-1958 — the circle INSIDE the outline
+            var home = new AnimalHome { Centre = centre, Radius = HomeRadius(outline, centroid, radius, a.Enclosed != 0), Enclosed = a.Enclosed };   // ⭐ CE-1958 — a pen: the circle INSIDE its outline
             int species = (int)a.Species;
             long type = TkbEntityTypes.Animal_Cattle + species;
             var row = species >= 0 && species < AnimalTkbCatalog.Species.Length ? AnimalTkbCatalog.Species[species] : null;
@@ -117,14 +117,16 @@ namespace Hrot.Core.Animals
         public const float BodyClearanceM = 1.5f;
 
         /// <summary>
-        /// ⭐ <c>CE-1958</c> — the radius of the HOME circle every choice keeps to (the herd's grazing spot, a member's spot, a pen's flight, a dog's ground):
-        /// the largest circle round the outline's centre that stays INSIDE it, less <see cref="BodyClearanceM"/>. 📌 It was the distance to the farthest
-        /// VERTEX: for the 16 m square pig pen 11.3 m while its walls stand 8 m off, so a grazing spot beyond a wall sent a pig into it for good. An outline
-        /// of fewer than 3 points, or a concave one whose centre lies outside it, keeps the old reach (at least 5 m).
+        /// ⭐ <c>CE-1958</c> — the radius of the HOME circle every choice keeps to (the herd's grazing spot, a member's spot, a pen's flight). An ENCLOSED area
+        /// (a pen — its outline is its wall, nothing leaves it, AN-18) gets the largest circle round the outline's centre that stays INSIDE it, less
+        /// <see cref="BodyClearanceM"/>. 📌 It was the distance to the farthest VERTEX: for farm-under-fire's 12 m square pen 8.5 m, so a grazing spot in a
+        /// corner past the wall sent a pig into it for good. ⭐ An OPEN area keeps that reach — its home is also the animal's GROUND (a guard dog barks at a
+        /// man inside it + 15 m and bites one close inside it; 📐 the inner circle shrank ua-animal-guard-dog's 12 × 8 m yard from 7.2 m to 2.5 m and the dog
+        /// never bit). An outline of fewer than 3 points, or a concave one whose centre lies outside it, keeps the reach too (at least 5 m).
         /// </summary>
-        public static float HomeRadius(IReadOnlyList<Vector2> outline, Vector2 centroid, float farthest)
+        public static float HomeRadius(IReadOnlyList<Vector2> outline, Vector2 centroid, float farthest, bool enclosed)
         {
-            if (outline.Count < 3 || !PolygonMath.Contains(outline, centroid)) return MathF.Max(farthest, 5f);
+            if (!enclosed || outline.Count < 3 || !PolygonMath.Contains(outline, centroid)) return MathF.Max(farthest, 5f);
             float nearest = float.MaxValue;
             for (int i = 0; i < outline.Count; i++)
             {
