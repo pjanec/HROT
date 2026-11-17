@@ -28,6 +28,7 @@ public static partial class BlockFigure
     {
         if (parts.Length <= WeaponIndex || look == HeldLook.Rifle) return parts;
         if (look == HeldLook.MissileTube && posture == WeaponPostureKind.Aimed) return Shouldered(parts);   // CE-1090 N-4, unchanged
+        if (look is HeldLook.Bow or HeldLook.Crossbow) return BowHeld(parts, look, posture);   // ⭐ CE-1976 (BW-10)
         var held = (KitPart[])parts.Clone();
         var rifle = parts[WeaponIndex];
         var (stock, muzzle) = Ends(rifle);
@@ -162,6 +163,7 @@ public static partial class BlockFigure
                 into.Add(new PartDetail(WeaponIndex, new(-0.15f, 0.70f, 0.55f), new(0.8f, 0.55f, 0.20f), metal)); // the sight
                 break;
         }
+        QuiverDetails(inHands, into);   // ⭐ CE-1976 (BW-10) — a bow's quiver / a crossbow's bolt case
         if (!HeldWeapons.IsSlungShown(slung) && !(inHands == HeldLook.Mortar && posture == WeaponPostureKind.AtEase)) return;
         // on his back, upright, sticking out above his shoulder (the torso box: −x is his back, z up)
         bool mortar = slung == HeldLook.Mortar || inHands == HeldLook.Mortar;

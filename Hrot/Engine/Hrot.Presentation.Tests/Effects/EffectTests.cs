@@ -983,6 +983,54 @@ public sealed partial class EffectTests
         }
     }
 
+    /// <summary>⭐ CE-1976 (bows BW-3, BW-4, BW-10; docs/designs/weapons/bows-visuals.svg) — an ARROW (the built-in TKB 6066) and a crossbow BOLT (6067): a shaft, a metal point and THREE vanes, the nose along the flight at
+    /// every time (no tumble — it pitches over its arc), a bolt shorter and thicker; and a STUCK one (lying + Sticks) is drawn along its replicated rotation, NOT flat (pitch ≠ 0) and NOT lifted onto the ground.</summary>
+    [Fact]
+    public void CE1976_AnArrowHasALook_FlyingAlongItsFlight_AndAStuckOneStandsOutAtItsAngle_NotFlat()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        var v = new Vector3(40, 10, -12);
+        Round(world, MunitionTkbCatalog.TkbArrow, new Vector3(0, 0, 3), v);
+        Round(world, MunitionTkbCatalog.TkbCrossbowBolt, new Vector3(0, 5, 3), v);
+        // a stuck arrow: it came in 20 degrees nose-down and a bit sideways; its rotation takes +X onto the flight (BW-4), its point a third inside the wall
+        var flight = Vector3.Normalize(new Vector3(0.9f, 0.3f, -0.33f));
+        var axis = Vector3.Cross(Vector3.UnitX, flight);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(Vector3.Dot(Vector3.UnitX, flight)));
+        var stuck = world.CreateEntity();
+        var place = new Vector3(20, 3, 1.7f);
+        world.AddComponent(stuck, new SimTransform { Position = place, Rotation = rotation });
+        world.AddComponent(stuck, new SimVelocity { Linear = Vector3.Zero });
+        world.AddComponent(stuck, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+        {
+            Ammo = MunitionTkbCatalog.TkbArrow, Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Landed | Fdp.Toolkit.Combat.Components.WarheadRound.Sticks), PreviousPosition = place,
+        });
+        var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 5f };
+        List<ProjectileLayer.Round> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
+
+        var vn = Vector3.Normalize(v);
+        var t1 = At(0.1); var t2 = At(0.2);
+        Assert.Equal(3, t1.Count);
+        foreach (var rs in new[] { t1, t2 })
+        {
+            var arrow = Assert.Single(rs, r => r.Look.Shape == MunitionShape.Arrow && !r.Look.Bolt && !r.Lying);
+            Assert.Equal(1f, Vector3.Dot(arrow.Nose, vn), 3);                     // along its flight at every time: no tumble
+            var solids = ProjectileLayer.SolidsOf(arrow);
+            Assert.Equal(5, solids.Count);                                        // the shaft, the point, three vanes
+            Assert.True(Vector3.Dot(solids[1].To - arrow.Centre, vn) > 0f, "the point leads");
+            Assert.All(solids.Skip(2), vane => Assert.True(Vector3.Distance(vane.To, arrow.Centre + vn * Vector3.Dot(vane.To - arrow.Centre, vn)) > 0.005f, "a vane stands out from the shaft"));
+        }
+        var arrowLen = t1.Single(r => r.Look.Shape == MunitionShape.Arrow && !r.Look.Bolt && !r.Lying).Look;
+        var bolt = t1.Single(r => r.Look.Bolt).Look;
+        Assert.True(bolt.Length < arrowLen.Length && bolt.Diameter > arrowLen.Diameter, "a bolt is shorter and thicker");
+
+        var s = Assert.Single(t1, r => r.Lying);
+        Assert.Equal(1f, Vector3.Dot(s.Nose, flight), 3);                         // drawn along its rotation
+        Assert.True(MathF.Abs(s.Nose.Z) > 0.2f, "stuck at its angle: NOT flat (pitch is not 0)");
+        Assert.Equal(place, s.Centre);                                            // where it stopped, not lifted onto the ground (5 m here)
+        Assert.Equal(s.Nose, Assert.Single(t2, r => r.Lying).Nose);               // and it does not turn
+    }
+
     /// <summary>⭐ P1 (§8 PR-B) — a munition with a smoke trail (a rocket, a missile) trails puffs back toward its muzzle, thinning;
     /// a grenade does not.</summary>
     [Fact]

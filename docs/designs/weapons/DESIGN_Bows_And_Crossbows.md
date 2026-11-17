@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: BUILT (backend `2026-11-17`: S1, S2, S4 and §9 NA-1…NA-5; as built §10) — the looks (BW-3, BW-10) are ui's; BW-1…BW-13 approved R-4289, §9 R-4290
+build-state: BUILT (backend `2026-11-17`: S1, S2, S4 and §9 NA-1…NA-5; as built §10; ui `2026-11-17`: S3 the looks BW-3 / BW-10 / the stuck draw, as built §11); BW-1…BW-13 approved R-4289, §9 R-4290
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the first fun content (NA-1…NA-7, approved R-4290)
 stale-below: none
 known-rot: none
@@ -243,3 +243,16 @@ horse and its firing seats (Animals, R-4269), the thrown hatchet (`TkbThrowingHa
 | §5 numbers | **R-3104**: bow 60 m/s, 1.0 / 1.0 s, 20 arrows, 4 mm, 45, 8 mils, range 100 m; crossbow 90 m/s, 0.5 / 6.0 s, 15 bolts, 6 mm, 55, 4 mils, 120 m | ONE `Range` per mount ⇒ 100 / 120 m, not 60 / 150 and 80 / 200 |
 | BW-11 | an `ArcheryScore` MEASURE (Σ rings of the subject's arrows that strike an archery target, from the frame's detonations; depth across the flight is not a miss) | ⚠ a `Points` / `Best` parent reads 0 under the parallel brain phase — **CE-3468**; the contest checks a score per archer |
 | §9 NA-1…NA-5 | the warrior 2016 (bow + the thrown hatchet as a tomahawk, no melee mount exists, the insurgent template, silent); riding = the same type on horse 703; the CIRCLE RAID group play (mirrors `SwarmRaid`); `war-party` (basic-desert — the ring points landed in buildings on test-town / farm), `archer-ambush` (farm) | the measured ring stays within ~60 m of the camp; the ambushed patrol dies before it can react, so that row checks "the patrol never fires"; ⚠ under the STRICT env every mounted-rider scenario aborts on a declared read — **CE-3470** |
+
+## 11. As built — ui *(CE-1976, `2026-11-17`; mockup [`bows-visuals.svg`](bows-visuals.svg) from `scripts/gen-bows-mockup.py`, R-4143)*
+
+| item | as built | deviation / note |
+|---|---|---|
+| **BW-10 held bow / crossbow** | `HeldLook.Bow` / `HeldLook.Crossbow` (`HeldWeapons.LookOf`: category `Bow` 14, the round's `Bolt` flag picks the crossbow). `BlockFigure.BowHeld` (`BlockFigureBows.cs`): the weapon part becomes the arrow / the grip / the stock, the stave (4 limb boxes), the string and the arrow's point and vanes are appended parts; new `ColourRole.Wood` | — |
+| **the draw pose** | posture `Aimed`: the bow arm straight to the grip, the string hand drawn to the cheek (elbow raised and out, two-bone IK), the arrow nocked, the string a V to the nock; `AtEase` / `Ready` / prone: the bow hangs in the left hand, its plane facing out, the string toward his body | ⚠ the nocked arrow is drawn **0.66 m** (the figure's draw length), not the flying arrow's 0.75 m |
+| **the quiver** | `BlockFigure.QuiverDetails` — 6 torso details (a leather case slanting hip → over the left shoulder, three fletchings); a crossbowman wears a 2-detail bolt case at the hip. They are torso details, so they follow every stance | the mockup's quiver slant is three stepped boxes (details cannot rotate) |
+| **mounted archers (BW-8)** | the rider branch of `EntityBodyLayer3D` applies `BowHeld` when the seated rider's weapon is a bow / crossbow (drawn when he fires), and the quiver rides with it — warrior 2016 on horse 703 verified in the real frame | — |
+| **BW-3 the arrow in flight** | `ProjectileLayer.SolidsOf` case `MunitionShape.Arrow`: shaft, metal point, THREE vanes (a bolt: shorter, thicker, dark short vanes); the nose along the velocity (no tumble) | before: the default lump |
+| **BW-4 the stuck draw** | a lying round whose look `Sticks` is drawn along its replicated rotation (`StuckNose`: +X onto the flight) at its replicated place — not flat, not lifted onto the ground | the part inside the surface is hidden by the surface itself, not clipped |
+| **the tomahawk** | nothing built: the warrior's hatchet is `MunitionShape.Axe` (CE-1190) — it already tumbles and lies | — |
+| rails | `Map3DTests.CE1976_TheBowAndTheCrossbow_…` (held looks, draw pose, quiver) · `EffectTests.CE1976_AnArrowHasALook_…` (arrow solids, no tumble, stuck not flat) · `PersonOutfitsRail.TheBows_AreDrawnByTheRealFrame_…` (archer carried / aimed, crossbowman, warrior on horse, arrow and bolt in flight, stuck arrows; frames `bows-*.png`, never committed) | 🔴 red-proof: without the `BowHeld` dispatch the held rail fails |

@@ -1980,6 +1980,52 @@ public sealed class Map3DTests
         Assert.Empty(d);
     }
 
+    /// <summary>
+    /// ⭐ CE-1976 (bows BW-10; docs/designs/weapons/bows-visuals.svg) — the BOW and the CROSSBOW: category 14 says Bow, its round (arrow / bolt) says which; the figure draws a stave, a string and — aimed — the arrow DRAWN to the cheek
+    /// (bow arm straight to the grip, string hand at the face); carried, the bow hangs in his left hand; a bow has a QUIVER on his back, a crossbow a bolt case at his hip.
+    /// </summary>
+    [Fact]
+    public void CE1976_TheBowAndTheCrossbow_AreDrawn_TheStringDrawnToTheCheek_TheQuiverOnTheBack()
+    {
+        var db = Hrot.Map.Common.HrotEnvironment.CreateTkb();   // the whole catalogue: the archer, the crossbowman, the fun pack's warrior
+        HeldLook Mount(long type, int i) => HeldWeapons.LookOf(db, db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[i]);
+        Assert.Equal(HeldLook.Bow, Mount(UrbanCombatTkbCatalog.TkbArcher, 0));
+        Assert.Equal(HeldLook.Crossbow, Mount(UrbanCombatTkbCatalog.TkbCrossbowman, 0));
+        Assert.Equal(HeldLook.Bow, Mount(FunTkbCatalog.TkbNativeWarrior, 0));          // the warrior's bow (his hatchet is the second mount)
+
+        var aimed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Aimed);
+        var bow = BlockFigure.Held(aimed, HeldLook.Bow, WeaponPostureKind.Aimed);
+        Assert.True(bow.Length >= aimed.Length + 8, "a stave (4 limbs), a string (2), a point and the vanes are parts of his figure");
+        var chest = (BlockFigure.Ends(aimed[6]).A + BlockFigure.Ends(aimed[8]).A) / 2f;
+        var left = BlockFigure.Ends(bow[7]).B;      // the bow hand
+        var right = BlockFigure.Ends(bow[9]).B;     // the string hand
+        Assert.True(left.X - chest.X > 0.45f, $"the bow arm out in front ({left.X - chest.X:F2} m)");
+        Assert.True(right.X - chest.X < 0.15f && MathF.Abs(right.Z - chest.Z) < 0.2f, "the string hand drawn back to the cheek");
+        var (nock, point) = BlockFigure.Ends(bow[BlockFigure.WeaponIndex]);            // the arrow (the weapon part)
+        Assert.True(Vector3.Distance(nock, right) < 0.05f && point.X > left.X - 0.15f, "the arrow runs from the string hand to the bow");
+        float drawn = MathF.Abs(nock.X - left.X);
+        var carried = BlockFigure.Held(BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase), HeldLook.Bow, WeaponPostureKind.AtEase);
+        var grip = BlockFigure.Ends(carried[7]).B;
+        Assert.True(grip.Z < 1.0f, "carried: the bow hangs in his left hand at his side");
+        Assert.True(carried.Length >= aimed.Length + 5 && drawn > 0.4f, "carried: stave and string, no arrow in the hand");
+
+        var xbow = BlockFigure.Held(aimed, HeldLook.Crossbow, WeaponPostureKind.Aimed);
+        Assert.True(xbow.Length >= aimed.Length + 6, "a prod (4), the string (2), a bolt");
+        Assert.Equal(ColourRole.Wood, xbow[BlockFigure.WeaponIndex].Colour);
+
+        var d = new List<PartDetail>();
+        BlockFigure.WeaponDetails(HeldLook.Bow, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(6, d.Count(x => x.Part == BlockFigure.TorsoIndex));               // the quiver: three stepped boxes + three fletchings
+        Assert.All(d, x => Assert.True(x.Centre.X < -0.5f, "on his BACK"));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Crossbow, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.TorsoIndex));               // the bolt case at his hip
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Rifle, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Empty(d);                                                               // a rifleman has no quiver
+        Assert.Same(aimed, BlockFigure.Held(aimed, HeldLook.Rifle, WeaponPostureKind.Aimed));
+    }
+
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
     /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
     [Fact]

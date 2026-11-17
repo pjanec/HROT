@@ -156,7 +156,12 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 float speed = velocity.Length();
                 bool lying = speed < 0.2f;
                 Vector3 nose;
-                if (lying)
+                if (lying && look.Sticks)
+                {
+                    // ⭐ CE-1976 (BW-4, BW-10) — a STUCK arrow / bolt: drawn along its replicated rotation (+X = its flight), at its replicated place (its point already a third inside the surface) — never flat, never lifted onto the ground
+                    nose = StuckNose(world.GetComponentRO<SimTransform>(e).Rotation, seed);
+                }
+                else if (lying)
                 {
                     nose = YawDirection(seed);
                     float ground = GroundHeight?.Invoke(at.X, at.Y) ?? at.Z;
@@ -184,7 +189,9 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
             var travel = at - round.PreviousPosition;
             var heading = velocity.LengthSquared() > 1e-4f ? velocity : travel.LengthSquared() > 1e-6f ? travel : Vector3.UnitX;
             Vector3 nose;
-            if (lying)
+            if (lying && look.Sticks)
+                nose = StuckNose(world.GetComponentRO<SimTransform>(e).Rotation, seed);   // ⭐ CE-1976 — stuck: along its rotation, as it stopped
+            else if (lying)
             {
                 // flat on the ground, pointing the way it was going (or a direction of its own if it came straight down)
                 var flat = new Vector3(heading.X, heading.Y, 0f);
@@ -213,7 +220,7 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
         var colour = Hrot.UI.Common.Map3D.EntityBodyLayer3D.ParseHex(r.Look.ColorHex) ?? new Color(75, 83, 32, 255);
         var dark = new Color((byte)(colour.R * 0.55f), (byte)(colour.G * 0.55f), (byte)(colour.B * 0.55f), (byte)255);
         var metal = new Color(110, 112, 114, 255);
-        var centre = r.Lying ? r.Centre + new Vector3(0, 0, radius) : r.Centre;
+        var centre = r.Lying && !r.Look.Sticks ? r.Centre + new Vector3(0, 0, radius) : r.Centre;   // a STUCK round stays where it is (CE-1976)
         var n = r.Nose;
         Vector3 At(float along) => centre + n * (along * length);   // along: −0.5 = tail … +0.5 = nose
         switch (r.Look.Shape)
@@ -274,6 +281,26 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 break;
             case MunitionShape.Bullet:
                 break;   // ⭐ P2 — a bullet has no body worth drawing; a tracer one is its streak (TracerOf)
+            case MunitionShape.Arrow:
+            {
+                // ⭐ CE-1976 (BW-3, BW-10; mockup bows-visuals.svg) — a shaft, a metal point, THREE vanes round the tail (an arrow: long and slim; a bolt — Look.Bolt, 0.40 × 10 mm — is the same shape, shorter and
+                //   thicker with shorter vanes); the nose is along the flight (InFlightPose: no tumble), so it pitches over its arc
+                bool bolt = r.Look.Bolt;
+                float vane = bolt ? 0.14f : 0.2f, flare = MathF.Max(radius * 3.2f, 0.012f * scale);
+                var perp = Vector3.Cross(n, Vector3.UnitZ);
+                perp = perp.LengthSquared() > 1e-6f ? Vector3.Normalize(perp) : Vector3.UnitY;
+                var up = Vector3.Normalize(Vector3.Cross(perp, n));
+                var vaneColour = bolt ? new Color(60, 50, 44, 255) : new Color(222, 214, 196, 255);
+                solids.Add(new Solid(At(-0.5f), At(0.43f), radius, radius, false, colour));                     // the shaft
+                solids.Add(new Solid(At(0.43f), At(0.5f), radius * 2.2f, radius * 0.1f, false, metal));         // the point: a metal cone
+                for (int k = 0; k < 3; k++)
+                {
+                    float a = (r.Seed & 255) * 0.0246f + k * MathF.PI * 2f / 3f;
+                    var radial = perp * MathF.Cos(a) + up * MathF.Sin(a);
+                    solids.Add(new Solid(At(-0.5f + vane) + radial * radius, At(-0.5f) + radial * flare, radius * 0.9f, radius * 1.3f, false, vaneColour));   // a vane: swept out from the shaft toward the tail
+                }
+                break;
+            }
             case MunitionShape.Missile:
                 solids.Add(new Solid(At(0.3f), At(0.5f), radius, radius * 0.3f, false, colour));
                 solids.Add(new Solid(At(-0.45f), At(0.3f), radius, radius, false, colour));
@@ -505,6 +532,13 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     private static float Jitter(int key)
     {
         unchecked { uint h = (uint)key * 0x9E3779B1u; h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 13; return ((h & 0xFFFF) / 65535f) - 0.5f; }
+    }
+
+    /// <summary>⭐ CE-1976 — the nose of a STUCK round: its replicated rotation carries +X onto its flight (BW-4); a degenerate rotation falls back to a direction of its own.</summary>
+    private static Vector3 StuckNose(Quaternion rotation, int seed)
+    {
+        var n = Vector3.Transform(Vector3.UnitX, rotation);
+        return n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : YawDirection(seed);
     }
 
     private static Vector3 YawDirection(int seed)

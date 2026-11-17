@@ -403,6 +403,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             else if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
             {
                 parts = held;                       // ⭐ CE-1081..1083 (§6m) — carried, dragged, seated, down: no gait of his own
+                // ⭐ CE-1976 (BW-10, BW-8) — a rider with a bow (the warrior on his pony): the bow in his hands, drawn when he fires, the quiver on his back
+                if (look.Soldier && carriage.Kind == CarriageKind.Seated)
+                {
+                    var (ridden, _) = HeldWeapons.Of(world, e, tkb, out _);
+                    if (ridden is HeldLook.Bow or HeldLook.Crossbow)
+                    {
+                        inHands = ridden;
+                        heldPosture = PostureOf(world, e);
+                        parts = BlockFigure.BowHeld(parts, ridden, heldPosture);
+                    }
+                }
                 motion = SeatedMotion(world, e, carriage, body, look.Soldier, simTime);   // ⭐ CE-4621 — astride a bike: the lean, or the turn to his aim
             }
             else if (look.Family == VisualFamily.Person)
@@ -2293,6 +2304,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         ColourRole.Bone => new Color(226, 218, 196, 255),
         ColourRole.Red => new Color(190, 40, 36, 255),
         ColourRole.Amber => new Color(225, 165, 40, 255),
+        ColourRole.Wood => new Color(139, 96, 54, 255),   // ⭐ CE-1976 — a bow, an arrow, a crossbow stock
         ColourRole.Dark => Dark,
         ColourRole.Glass => Glass,
         ColourRole.Metal => Metal,

@@ -25,6 +25,8 @@ public enum ColourRole : byte
     Red,
     /// <summary>⭐ CE-4623 — a bird's beak and feet: a fixed amber.</summary>
     Amber,
+    /// <summary>⭐ CE-1976 (bows, BW-10) — a bow stave, an arrow shaft, a crossbow stock: a fixed seasoned wood.</summary>
+    Wood,
 }
 
 /// <summary>
