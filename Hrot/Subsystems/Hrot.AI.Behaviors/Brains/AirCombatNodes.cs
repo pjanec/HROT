@@ -247,7 +247,9 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐ CE-10006 (AC-8, R-10029) — CLOSE TO GUNS: beyond the gun's reach a bandit holding or opening the range is chased at full
                 //   power (📐 ac-dogfight-2v2: the Ace sat 650–1 150 m dead astern of a dragging bandit, lead pursuit at 0.85 throttle, and the
                 //   range OPENED from 655 to 1 150 m — no Ace ever reached gun range, so no gun hit)
-                if (r > GunRangeM + CloseMarginM && closing < CloseToGunsMps) throttle = 1f;
+                //   — only inside CloseToGunsMaxM: beyond it the fight is a missile fight (📐 applied at 2–3 km it re-shaped the 1v1's missile
+                //   exchange and the tail-chase IR shots, ac-ir-defeated / ac-ir-hits-late, for nothing the gun needs)
+                if (r > GunRangeM + CloseMarginM && r < CloseToGunsMaxM && closing < CloseToGunsMps) throttle = 1f;
                 if (r < 700f && closing > 15f) throttle = 0.2f;
                 if (r < BreakAwayM) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }   // never into it (nor into its falling wreck)
                 if (r < 1200f && Rounds(world, self, cs.GunMount) <= 0) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }
@@ -297,10 +299,10 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
-        /// <summary>⭐ CE-10006 (R-10029) — beyond <see cref="GunRangeM"/> + <see cref="CloseMarginM"/> a pursuit closing slower than
+        /// <summary>⭐ CE-10006 (R-10029) — beyond <see cref="GunRangeM"/> + <see cref="CloseMarginM"/> (and inside <see cref="CloseToGunsMaxM"/>) a pursuit closing slower than
         /// <see cref="CloseToGunsMps"/> (m/s) goes to full power; the soft edge yields to a pursuit with the bandit ON THE NOSE
         /// (<see cref="OnHisTail"/>) while less than <see cref="SoftEdgeYieldM"/> outside the arena (AC-10: the pull grows with the distance).</summary>
-        public const float CloseToGunsMps = 50f, CloseMarginM = 200f, SoftEdgeYieldM = 1000f, HotPursuitM = 2000f, HotPursuitDeg = 30f;
+        public const float CloseToGunsMps = 50f, CloseMarginM = 200f, CloseToGunsMaxM = 1500f, SoftEdgeYieldM = 1000f, HotPursuitM = 2000f, HotPursuitDeg = 30f;
         /// <summary>⭐ R-10029 — nose to nose (each within <see cref="HeadOnBreakDeg"/> of the other) a pilot breaks off right this long (s) before
         /// the two would meet (AC-13a).</summary>
         public const float BreakAwayS = 2f, HeadOnBreakDeg = 30f;

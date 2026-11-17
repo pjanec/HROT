@@ -267,14 +267,15 @@ def s2():
     write("ac-ir-defeated",
           "What: a Veteran MiG-29 ('Fulcrum') 2.8 km behind a Veteran F-16 ('Viper'), both at 2 km, each ordered to attack the other (CE-10002, AC-6 / "
           "AC-9). The MiG's first shot is an IR missile. Judge: the F-16 drags it, then beams it with flares (≥ 2) — the missile slows below its "
-          "minimum and is DEFEATED (its shot row's outcome); no MiG round hits the F-16 in the first 30 s.",
+          "minimum and is DEFEATED (its shot row's outcome); no MiG MISSILE hits the F-16 in the first 30 s (its gun may: the MiG closes while the F-16 beams).",
           {v: fighter("Viper", 401, (-1000, 0), 0, 220, "Friend", m), m: fighter("Fulcrum", 409, (-3800, 0), 0, 220, "Hostile", v)},
           {"$doc": "DESIGN_Air_Combat §6 S2 — feature (golden).", "runFor": 40, "golden": {"every": 5},
            "anchors": {"launch": shot("Fulcrum")},
            "expect": [{"name": "the MiG fires", **shot("Fulcrum")},
                       {"name": "a MiG missile is DEFEATED", **shot("Fulcrum", where={"outcome": "Defeated"})},
                       {"name": "the F-16 releases >= 2 flares", **field("Viper", "MissileDefenceState.DecoysTotal", ">=", 2)},
-                      {"name": "no MiG round hits the F-16 in 30 s", "never": shot("Fulcrum", hit="Viper"), "before": 30}]})
+                      {"name": "no MiG MISSILE hits the F-16 in 30 s (R-10029: its gun may — the MiG closes while the F-16 beams)",
+                       "never": shot("Fulcrum", hit="Viper", where={"weaponIndex": [">=", 1]}), "before": 30}]})
 
     # ── ac-ir-hits-late — the same shot at a pilot in a LateWarning lapse (+2 s) ───────────────────────────────────────────────────────
     v, m = gid(12, 1), gid(12, 2)

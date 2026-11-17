@@ -4,7 +4,7 @@
   "meaning": 2,
   "steps": 7201,
   "times": {
-    "a Viper gun round hits the turning MiG": 28.1667
+    "a Viper gun round hits the turning MiG": 33.7
   },
   "shots": [
     {
@@ -19,7 +19,7 @@
     },
     {
       "seq": 1,
-      "firedAt": 22.05,
+      "firedAt": 21.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -29,7 +29,7 @@
     },
     {
       "seq": 2,
-      "firedAt": 22.0667,
+      "firedAt": 21.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -39,7 +39,7 @@
     },
     {
       "seq": 3,
-      "firedAt": 22.0833,
+      "firedAt": 21.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -49,7 +49,7 @@
     },
     {
       "seq": 4,
-      "firedAt": 22.1,
+      "firedAt": 21.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -59,7 +59,7 @@
     },
     {
       "seq": 5,
-      "firedAt": 22.1167,
+      "firedAt": 22.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -69,7 +69,7 @@
     },
     {
       "seq": 6,
-      "firedAt": 22.1333,
+      "firedAt": 22.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -79,7 +79,7 @@
     },
     {
       "seq": 7,
-      "firedAt": 22.15,
+      "firedAt": 22.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -99,26 +99,6 @@
     },
     {
       "seq": 9,
-      "firedAt": 22.1833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 10,
-      "firedAt": 22.2,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 11,
       "firedAt": 22.2167,
       "shooter": "Viper",
       "target": null,
@@ -128,8 +108,28 @@
       "weaponIndex": 0
     },
     {
+      "seq": 10,
+      "firedAt": 22.2667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 11,
+      "firedAt": 22.3167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
       "seq": 12,
-      "firedAt": 22.2333,
+      "firedAt": 22.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -139,7 +139,7 @@
     },
     {
       "seq": 13,
-      "firedAt": 22.2833,
+      "firedAt": 22.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -149,7 +149,7 @@
     },
     {
       "seq": 14,
-      "firedAt": 22.3333,
+      "firedAt": 22.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -159,7 +159,7 @@
     },
     {
       "seq": 15,
-      "firedAt": 22.3833,
+      "firedAt": 22.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -169,7 +169,7 @@
     },
     {
       "seq": 16,
-      "firedAt": 22.4333,
+      "firedAt": 22.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -179,7 +179,7 @@
     },
     {
       "seq": 17,
-      "firedAt": 22.4833,
+      "firedAt": 22.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -189,7 +189,7 @@
     },
     {
       "seq": 18,
-      "firedAt": 22.5333,
+      "firedAt": 22.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -199,7 +199,7 @@
     },
     {
       "seq": 19,
-      "firedAt": 22.5833,
+      "firedAt": 22.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -209,7 +209,7 @@
     },
     {
       "seq": 20,
-      "firedAt": 22.6333,
+      "firedAt": 22.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -219,7 +219,7 @@
     },
     {
       "seq": 21,
-      "firedAt": 22.6833,
+      "firedAt": 22.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -229,7 +229,7 @@
     },
     {
       "seq": 22,
-      "firedAt": 22.7333,
+      "firedAt": 22.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -239,7 +239,7 @@
     },
     {
       "seq": 23,
-      "firedAt": 22.7833,
+      "firedAt": 22.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -249,7 +249,7 @@
     },
     {
       "seq": 24,
-      "firedAt": 22.8333,
+      "firedAt": 22.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -259,7 +259,7 @@
     },
     {
       "seq": 25,
-      "firedAt": 22.8833,
+      "firedAt": 23.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -269,7 +269,7 @@
     },
     {
       "seq": 26,
-      "firedAt": 22.9333,
+      "firedAt": 23.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -279,7 +279,7 @@
     },
     {
       "seq": 27,
-      "firedAt": 22.9833,
+      "firedAt": 23.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -289,7 +289,7 @@
     },
     {
       "seq": 28,
-      "firedAt": 23.0333,
+      "firedAt": 23.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -299,7 +299,7 @@
     },
     {
       "seq": 29,
-      "firedAt": 23.0833,
+      "firedAt": 23.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -309,7 +309,7 @@
     },
     {
       "seq": 30,
-      "firedAt": 23.1333,
+      "firedAt": 23.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -319,7 +319,7 @@
     },
     {
       "seq": 31,
-      "firedAt": 23.1833,
+      "firedAt": 23.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -329,7 +329,7 @@
     },
     {
       "seq": 32,
-      "firedAt": 23.2333,
+      "firedAt": 23.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -339,7 +339,7 @@
     },
     {
       "seq": 33,
-      "firedAt": 23.2833,
+      "firedAt": 23.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -349,7 +349,7 @@
     },
     {
       "seq": 34,
-      "firedAt": 23.3333,
+      "firedAt": 23.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -359,7 +359,7 @@
     },
     {
       "seq": 35,
-      "firedAt": 23.3833,
+      "firedAt": 23.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -369,7 +369,7 @@
     },
     {
       "seq": 36,
-      "firedAt": 23.4333,
+      "firedAt": 23.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -379,7 +379,7 @@
     },
     {
       "seq": 37,
-      "firedAt": 23.4833,
+      "firedAt": 23.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -389,7 +389,7 @@
     },
     {
       "seq": 38,
-      "firedAt": 23.5333,
+      "firedAt": 23.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -399,7 +399,7 @@
     },
     {
       "seq": 39,
-      "firedAt": 23.5833,
+      "firedAt": 23.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -409,7 +409,7 @@
     },
     {
       "seq": 40,
-      "firedAt": 23.6333,
+      "firedAt": 23.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -419,7 +419,7 @@
     },
     {
       "seq": 41,
-      "firedAt": 23.6833,
+      "firedAt": 23.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -429,7 +429,7 @@
     },
     {
       "seq": 42,
-      "firedAt": 23.7333,
+      "firedAt": 23.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -439,7 +439,7 @@
     },
     {
       "seq": 43,
-      "firedAt": 23.7833,
+      "firedAt": 23.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -449,7 +449,7 @@
     },
     {
       "seq": 44,
-      "firedAt": 23.8333,
+      "firedAt": 23.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -459,7 +459,7 @@
     },
     {
       "seq": 45,
-      "firedAt": 23.8833,
+      "firedAt": 24.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -469,7 +469,7 @@
     },
     {
       "seq": 46,
-      "firedAt": 23.9333,
+      "firedAt": 24.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -479,7 +479,7 @@
     },
     {
       "seq": 47,
-      "firedAt": 23.9833,
+      "firedAt": 24.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -489,7 +489,7 @@
     },
     {
       "seq": 48,
-      "firedAt": 24.0333,
+      "firedAt": 24.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -499,7 +499,7 @@
     },
     {
       "seq": 49,
-      "firedAt": 24.0833,
+      "firedAt": 24.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -509,7 +509,7 @@
     },
     {
       "seq": 50,
-      "firedAt": 24.1333,
+      "firedAt": 24.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -519,7 +519,7 @@
     },
     {
       "seq": 51,
-      "firedAt": 24.1833,
+      "firedAt": 24.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -529,7 +529,7 @@
     },
     {
       "seq": 52,
-      "firedAt": 24.2333,
+      "firedAt": 24.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -539,7 +539,7 @@
     },
     {
       "seq": 53,
-      "firedAt": 24.2833,
+      "firedAt": 24.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -549,7 +549,7 @@
     },
     {
       "seq": 54,
-      "firedAt": 24.3333,
+      "firedAt": 24.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -559,7 +559,7 @@
     },
     {
       "seq": 55,
-      "firedAt": 24.3833,
+      "firedAt": 24.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -569,7 +569,7 @@
     },
     {
       "seq": 56,
-      "firedAt": 24.4333,
+      "firedAt": 24.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -579,7 +579,7 @@
     },
     {
       "seq": 57,
-      "firedAt": 24.4833,
+      "firedAt": 24.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -589,7 +589,7 @@
     },
     {
       "seq": 58,
-      "firedAt": 24.5333,
+      "firedAt": 24.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -599,7 +599,7 @@
     },
     {
       "seq": 59,
-      "firedAt": 24.5833,
+      "firedAt": 24.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -609,7 +609,7 @@
     },
     {
       "seq": 60,
-      "firedAt": 24.6333,
+      "firedAt": 24.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -619,7 +619,7 @@
     },
     {
       "seq": 61,
-      "firedAt": 24.6833,
+      "firedAt": 24.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -629,7 +629,7 @@
     },
     {
       "seq": 62,
-      "firedAt": 24.7333,
+      "firedAt": 24.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -639,7 +639,7 @@
     },
     {
       "seq": 63,
-      "firedAt": 24.7833,
+      "firedAt": 24.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -649,7 +649,7 @@
     },
     {
       "seq": 64,
-      "firedAt": 24.8333,
+      "firedAt": 24.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -659,7 +659,7 @@
     },
     {
       "seq": 65,
-      "firedAt": 24.8833,
+      "firedAt": 25.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -669,7 +669,7 @@
     },
     {
       "seq": 66,
-      "firedAt": 24.9333,
+      "firedAt": 25.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -679,7 +679,7 @@
     },
     {
       "seq": 67,
-      "firedAt": 24.9833,
+      "firedAt": 25.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -689,7 +689,7 @@
     },
     {
       "seq": 68,
-      "firedAt": 25.0333,
+      "firedAt": 25.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -699,7 +699,7 @@
     },
     {
       "seq": 69,
-      "firedAt": 25.0833,
+      "firedAt": 25.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -709,7 +709,7 @@
     },
     {
       "seq": 70,
-      "firedAt": 25.1333,
+      "firedAt": 25.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -719,7 +719,7 @@
     },
     {
       "seq": 71,
-      "firedAt": 25.1833,
+      "firedAt": 25.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -729,7 +729,7 @@
     },
     {
       "seq": 72,
-      "firedAt": 25.2333,
+      "firedAt": 25.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -739,7 +739,7 @@
     },
     {
       "seq": 73,
-      "firedAt": 25.2833,
+      "firedAt": 25.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -749,7 +749,7 @@
     },
     {
       "seq": 74,
-      "firedAt": 25.3333,
+      "firedAt": 25.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -759,7 +759,7 @@
     },
     {
       "seq": 75,
-      "firedAt": 25.3833,
+      "firedAt": 25.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -769,7 +769,7 @@
     },
     {
       "seq": 76,
-      "firedAt": 25.4333,
+      "firedAt": 25.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -779,7 +779,7 @@
     },
     {
       "seq": 77,
-      "firedAt": 25.4833,
+      "firedAt": 25.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -789,7 +789,7 @@
     },
     {
       "seq": 78,
-      "firedAt": 25.5333,
+      "firedAt": 25.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -799,7 +799,7 @@
     },
     {
       "seq": 79,
-      "firedAt": 25.5833,
+      "firedAt": 25.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -809,7 +809,7 @@
     },
     {
       "seq": 80,
-      "firedAt": 25.6333,
+      "firedAt": 25.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -819,7 +819,7 @@
     },
     {
       "seq": 81,
-      "firedAt": 25.6833,
+      "firedAt": 25.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -829,7 +829,7 @@
     },
     {
       "seq": 82,
-      "firedAt": 25.7333,
+      "firedAt": 25.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -839,7 +839,7 @@
     },
     {
       "seq": 83,
-      "firedAt": 25.7833,
+      "firedAt": 25.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -849,7 +849,7 @@
     },
     {
       "seq": 84,
-      "firedAt": 25.8333,
+      "firedAt": 25.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -859,7 +859,7 @@
     },
     {
       "seq": 85,
-      "firedAt": 25.8833,
+      "firedAt": 26.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -869,7 +869,7 @@
     },
     {
       "seq": 86,
-      "firedAt": 25.9333,
+      "firedAt": 26.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -879,7 +879,7 @@
     },
     {
       "seq": 87,
-      "firedAt": 25.9833,
+      "firedAt": 26.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -889,7 +889,7 @@
     },
     {
       "seq": 88,
-      "firedAt": 26.0333,
+      "firedAt": 26.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -899,7 +899,7 @@
     },
     {
       "seq": 89,
-      "firedAt": 26.0833,
+      "firedAt": 26.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -909,7 +909,7 @@
     },
     {
       "seq": 90,
-      "firedAt": 26.1333,
+      "firedAt": 26.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -919,7 +919,7 @@
     },
     {
       "seq": 91,
-      "firedAt": 26.1833,
+      "firedAt": 26.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -929,7 +929,7 @@
     },
     {
       "seq": 92,
-      "firedAt": 26.2333,
+      "firedAt": 26.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -939,7 +939,7 @@
     },
     {
       "seq": 93,
-      "firedAt": 26.2833,
+      "firedAt": 26.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -949,7 +949,7 @@
     },
     {
       "seq": 94,
-      "firedAt": 26.3333,
+      "firedAt": 26.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -959,7 +959,7 @@
     },
     {
       "seq": 95,
-      "firedAt": 26.3833,
+      "firedAt": 26.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -969,7 +969,7 @@
     },
     {
       "seq": 96,
-      "firedAt": 26.4333,
+      "firedAt": 26.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -979,7 +979,7 @@
     },
     {
       "seq": 97,
-      "firedAt": 26.4833,
+      "firedAt": 26.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -989,7 +989,7 @@
     },
     {
       "seq": 98,
-      "firedAt": 26.5333,
+      "firedAt": 26.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -999,7 +999,7 @@
     },
     {
       "seq": 99,
-      "firedAt": 26.5833,
+      "firedAt": 26.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1009,7 +1009,7 @@
     },
     {
       "seq": 100,
-      "firedAt": 26.6333,
+      "firedAt": 26.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1019,7 +1019,7 @@
     },
     {
       "seq": 101,
-      "firedAt": 26.6833,
+      "firedAt": 26.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1029,7 +1029,7 @@
     },
     {
       "seq": 102,
-      "firedAt": 26.7333,
+      "firedAt": 26.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1039,7 +1039,7 @@
     },
     {
       "seq": 103,
-      "firedAt": 26.7833,
+      "firedAt": 26.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1049,7 +1049,7 @@
     },
     {
       "seq": 104,
-      "firedAt": 26.8333,
+      "firedAt": 26.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1059,7 +1059,7 @@
     },
     {
       "seq": 105,
-      "firedAt": 26.8833,
+      "firedAt": 27.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1069,7 +1069,7 @@
     },
     {
       "seq": 106,
-      "firedAt": 26.9333,
+      "firedAt": 27.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1079,7 +1079,7 @@
     },
     {
       "seq": 107,
-      "firedAt": 26.9833,
+      "firedAt": 27.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1089,7 +1089,7 @@
     },
     {
       "seq": 108,
-      "firedAt": 27.0333,
+      "firedAt": 27.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1099,7 +1099,7 @@
     },
     {
       "seq": 109,
-      "firedAt": 27.0833,
+      "firedAt": 27.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1109,7 +1109,7 @@
     },
     {
       "seq": 110,
-      "firedAt": 27.1333,
+      "firedAt": 27.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1119,7 +1119,7 @@
     },
     {
       "seq": 111,
-      "firedAt": 27.1833,
+      "firedAt": 27.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1129,7 +1129,7 @@
     },
     {
       "seq": 112,
-      "firedAt": 27.2333,
+      "firedAt": 27.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1139,7 +1139,7 @@
     },
     {
       "seq": 113,
-      "firedAt": 27.2833,
+      "firedAt": 27.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1149,7 +1149,7 @@
     },
     {
       "seq": 114,
-      "firedAt": 27.3333,
+      "firedAt": 27.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1159,7 +1159,7 @@
     },
     {
       "seq": 115,
-      "firedAt": 27.3833,
+      "firedAt": 27.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1169,7 +1169,7 @@
     },
     {
       "seq": 116,
-      "firedAt": 27.4333,
+      "firedAt": 27.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1179,7 +1179,7 @@
     },
     {
       "seq": 117,
-      "firedAt": 27.4833,
+      "firedAt": 27.6167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1189,7 +1189,7 @@
     },
     {
       "seq": 118,
-      "firedAt": 27.5333,
+      "firedAt": 27.6667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1199,7 +1199,7 @@
     },
     {
       "seq": 119,
-      "firedAt": 27.5833,
+      "firedAt": 27.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1209,7 +1209,7 @@
     },
     {
       "seq": 120,
-      "firedAt": 27.6333,
+      "firedAt": 27.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1219,7 +1219,7 @@
     },
     {
       "seq": 121,
-      "firedAt": 27.6833,
+      "firedAt": 27.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1229,7 +1229,7 @@
     },
     {
       "seq": 122,
-      "firedAt": 27.7333,
+      "firedAt": 27.8667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1239,7 +1239,7 @@
     },
     {
       "seq": 123,
-      "firedAt": 27.7833,
+      "firedAt": 27.9167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1249,7 +1249,7 @@
     },
     {
       "seq": 124,
-      "firedAt": 27.8333,
+      "firedAt": 27.9667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1259,7 +1259,7 @@
     },
     {
       "seq": 125,
-      "firedAt": 27.8833,
+      "firedAt": 28.0167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1269,7 +1269,7 @@
     },
     {
       "seq": 126,
-      "firedAt": 27.9333,
+      "firedAt": 28.0667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1279,7 +1279,7 @@
     },
     {
       "seq": 127,
-      "firedAt": 27.9833,
+      "firedAt": 28.1167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1289,7 +1289,7 @@
     },
     {
       "seq": 128,
-      "firedAt": 28.0333,
+      "firedAt": 28.1667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1299,7 +1299,7 @@
     },
     {
       "seq": 129,
-      "firedAt": 28.0833,
+      "firedAt": 28.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1309,7 +1309,7 @@
     },
     {
       "seq": 130,
-      "firedAt": 28.1333,
+      "firedAt": 28.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1319,17 +1319,17 @@
     },
     {
       "seq": 131,
-      "firedAt": 28.1667,
+      "firedAt": 28.3167,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
       "seq": 132,
-      "firedAt": 28.1833,
+      "firedAt": 28.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1339,7 +1339,7 @@
     },
     {
       "seq": 133,
-      "firedAt": 28.2333,
+      "firedAt": 28.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1349,7 +1349,7 @@
     },
     {
       "seq": 134,
-      "firedAt": 28.2833,
+      "firedAt": 28.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1359,7 +1359,7 @@
     },
     {
       "seq": 135,
-      "firedAt": 28.3333,
+      "firedAt": 28.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1369,46 +1369,6 @@
     },
     {
       "seq": 136,
-      "firedAt": 28.3833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 137,
-      "firedAt": 28.4333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 138,
-      "firedAt": 28.4833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 139,
-      "firedAt": 28.5333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 140,
       "firedAt": 28.5667,
       "shooter": "Viper",
       "target": null,
@@ -1418,7 +1378,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 141,
+      "seq": 137,
       "firedAt": 28.6167,
       "shooter": "Viper",
       "target": null,
@@ -1428,7 +1388,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 142,
+      "seq": 138,
       "firedAt": 28.6667,
       "shooter": "Viper",
       "target": null,
@@ -1438,7 +1398,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 143,
+      "seq": 139,
       "firedAt": 28.7167,
       "shooter": "Viper",
       "target": null,
@@ -1448,7 +1408,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 144,
+      "seq": 140,
       "firedAt": 28.7667,
       "shooter": "Viper",
       "target": null,
@@ -1458,7 +1418,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 145,
+      "seq": 141,
       "firedAt": 28.8167,
       "shooter": "Viper",
       "target": null,
@@ -1468,27 +1428,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 146,
-      "firedAt": 28.8333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 147,
-      "firedAt": 28.85,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 148,
+      "seq": 142,
       "firedAt": 28.8667,
       "shooter": "Viper",
       "target": null,
@@ -1498,27 +1438,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 149,
-      "firedAt": 28.8833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 150,
-      "firedAt": 28.9,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 151,
+      "seq": 143,
       "firedAt": 28.9167,
       "shooter": "Viper",
       "target": null,
@@ -1528,7 +1448,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 152,
+      "seq": 144,
       "firedAt": 28.9667,
       "shooter": "Viper",
       "target": null,
@@ -1538,7 +1458,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 153,
+      "seq": 145,
       "firedAt": 29.0167,
       "shooter": "Viper",
       "target": null,
@@ -1548,7 +1468,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 154,
+      "seq": 146,
       "firedAt": 29.0667,
       "shooter": "Viper",
       "target": null,
@@ -1558,7 +1478,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 155,
+      "seq": 147,
       "firedAt": 29.1167,
       "shooter": "Viper",
       "target": null,
@@ -1568,7 +1488,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 156,
+      "seq": 148,
       "firedAt": 29.1667,
       "shooter": "Viper",
       "target": null,
@@ -1578,7 +1498,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 157,
+      "seq": 149,
+      "firedAt": 29.2,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 150,
       "firedAt": 29.2167,
       "shooter": "Viper",
       "target": null,
@@ -1588,7 +1518,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 158,
+      "seq": 151,
+      "firedAt": 29.25,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 152,
       "firedAt": 29.2667,
       "shooter": "Viper",
       "target": null,
@@ -1598,8 +1538,68 @@
       "weaponIndex": 0
     },
     {
+      "seq": 153,
+      "firedAt": 29.2833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 154,
+      "firedAt": 29.3,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 155,
+      "firedAt": 29.35,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 156,
+      "firedAt": 29.4,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 157,
+      "firedAt": 29.45,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 158,
+      "firedAt": 29.5,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
       "seq": 159,
-      "firedAt": 29.3167,
+      "firedAt": 29.55,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1609,7 +1609,7 @@
     },
     {
       "seq": 160,
-      "firedAt": 29.3667,
+      "firedAt": 29.6,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1619,7 +1619,7 @@
     },
     {
       "seq": 161,
-      "firedAt": 29.4167,
+      "firedAt": 29.65,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1629,7 +1629,7 @@
     },
     {
       "seq": 162,
-      "firedAt": 29.4667,
+      "firedAt": 29.7,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1639,7 +1639,7 @@
     },
     {
       "seq": 163,
-      "firedAt": 29.5167,
+      "firedAt": 29.75,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1649,7 +1649,7 @@
     },
     {
       "seq": 164,
-      "firedAt": 29.5667,
+      "firedAt": 29.8,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1659,7 +1659,7 @@
     },
     {
       "seq": 165,
-      "firedAt": 29.6167,
+      "firedAt": 29.85,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1669,7 +1669,7 @@
     },
     {
       "seq": 166,
-      "firedAt": 29.6667,
+      "firedAt": 29.9,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1679,7 +1679,7 @@
     },
     {
       "seq": 167,
-      "firedAt": 29.7167,
+      "firedAt": 29.95,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1689,7 +1689,7 @@
     },
     {
       "seq": 168,
-      "firedAt": 29.7667,
+      "firedAt": 30,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1699,7 +1699,7 @@
     },
     {
       "seq": 169,
-      "firedAt": 29.8167,
+      "firedAt": 30.05,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1709,7 +1709,7 @@
     },
     {
       "seq": 170,
-      "firedAt": 29.8667,
+      "firedAt": 30.1,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1719,7 +1719,7 @@
     },
     {
       "seq": 171,
-      "firedAt": 29.9167,
+      "firedAt": 30.15,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1729,7 +1729,7 @@
     },
     {
       "seq": 172,
-      "firedAt": 29.9667,
+      "firedAt": 30.2,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1739,7 +1739,7 @@
     },
     {
       "seq": 173,
-      "firedAt": 30.0167,
+      "firedAt": 30.25,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1749,7 +1749,7 @@
     },
     {
       "seq": 174,
-      "firedAt": 30.0667,
+      "firedAt": 30.3,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1759,7 +1759,7 @@
     },
     {
       "seq": 175,
-      "firedAt": 30.1167,
+      "firedAt": 30.35,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1769,7 +1769,7 @@
     },
     {
       "seq": 176,
-      "firedAt": 30.1667,
+      "firedAt": 30.4,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1779,7 +1779,7 @@
     },
     {
       "seq": 177,
-      "firedAt": 30.2167,
+      "firedAt": 30.45,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1789,7 +1789,7 @@
     },
     {
       "seq": 178,
-      "firedAt": 30.2667,
+      "firedAt": 30.5,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1799,7 +1799,7 @@
     },
     {
       "seq": 179,
-      "firedAt": 30.3167,
+      "firedAt": 30.55,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1809,7 +1809,7 @@
     },
     {
       "seq": 180,
-      "firedAt": 30.3667,
+      "firedAt": 30.6,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1819,7 +1819,7 @@
     },
     {
       "seq": 181,
-      "firedAt": 30.4167,
+      "firedAt": 30.6333,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1829,7 +1829,7 @@
     },
     {
       "seq": 182,
-      "firedAt": 30.4667,
+      "firedAt": 30.65,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1839,36 +1839,6 @@
     },
     {
       "seq": 183,
-      "firedAt": 30.5167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 184,
-      "firedAt": 30.5667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 185,
-      "firedAt": 30.6167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 186,
       "firedAt": 30.6667,
       "shooter": "Viper",
       "target": null,
@@ -1878,7 +1848,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 187,
+      "seq": 184,
+      "firedAt": 30.6833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 185,
+      "firedAt": 30.7,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 186,
       "firedAt": 30.7167,
       "shooter": "Viper",
       "target": null,
@@ -1888,8 +1878,18 @@
       "weaponIndex": 0
     },
     {
+      "seq": 187,
+      "firedAt": 30.7333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
       "seq": 188,
-      "firedAt": 30.7667,
+      "firedAt": 30.75,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1899,7 +1899,7 @@
     },
     {
       "seq": 189,
-      "firedAt": 30.8167,
+      "firedAt": 30.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1909,7 +1909,7 @@
     },
     {
       "seq": 190,
-      "firedAt": 30.8667,
+      "firedAt": 30.7833,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1919,7 +1919,7 @@
     },
     {
       "seq": 191,
-      "firedAt": 30.9,
+      "firedAt": 30.8,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1929,7 +1929,7 @@
     },
     {
       "seq": 192,
-      "firedAt": 30.9167,
+      "firedAt": 30.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1939,7 +1939,7 @@
     },
     {
       "seq": 193,
-      "firedAt": 30.9333,
+      "firedAt": 30.8333,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1949,17 +1949,17 @@
     },
     {
       "seq": 194,
-      "firedAt": 30.95,
+      "firedAt": 30.85,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
       "seq": 195,
-      "firedAt": 30.9667,
+      "firedAt": 30.9,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1969,7 +1969,7 @@
     },
     {
       "seq": 196,
-      "firedAt": 30.9833,
+      "firedAt": 30.95,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -1989,26 +1989,6 @@
     },
     {
       "seq": 198,
-      "firedAt": 31.0167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 199,
-      "firedAt": 31.0333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 200,
       "firedAt": 31.05,
       "shooter": "Viper",
       "target": null,
@@ -2018,7 +1998,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 201,
+      "seq": 199,
       "firedAt": 31.1,
       "shooter": "Viper",
       "target": null,
@@ -2028,7 +2008,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 202,
+      "seq": 200,
       "firedAt": 31.15,
       "shooter": "Viper",
       "target": null,
@@ -2038,7 +2018,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 203,
+      "seq": 201,
       "firedAt": 31.2,
       "shooter": "Viper",
       "target": null,
@@ -2048,7 +2028,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 204,
+      "seq": 202,
       "firedAt": 31.25,
       "shooter": "Viper",
       "target": null,
@@ -2058,7 +2038,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 205,
+      "seq": 203,
       "firedAt": 31.3,
       "shooter": "Viper",
       "target": null,
@@ -2068,7 +2048,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 206,
+      "seq": 204,
       "firedAt": 31.3167,
       "shooter": "Viper",
       "target": null,
@@ -2078,7 +2058,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 207,
+      "seq": 205,
       "firedAt": 31.3333,
       "shooter": "Viper",
       "target": null,
@@ -2088,7 +2068,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 208,
+      "seq": 206,
       "firedAt": 31.35,
       "shooter": "Viper",
       "target": null,
@@ -2098,7 +2078,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 209,
+      "seq": 207,
       "firedAt": 31.3667,
       "shooter": "Viper",
       "target": null,
@@ -2108,27 +2088,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 210,
-      "firedAt": 31.3833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 211,
-      "firedAt": 31.4,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 212,
+      "seq": 208,
       "firedAt": 31.4167,
       "shooter": "Viper",
       "target": null,
@@ -2138,68 +2098,28 @@
       "weaponIndex": 0
     },
     {
-      "seq": 213,
-      "firedAt": 31.4333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 214,
-      "firedAt": 31.45,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 215,
+      "seq": 209,
       "firedAt": 31.4667,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 216,
-      "firedAt": 31.4833,
-      "shooter": "Viper",
-      "target": null,
       "hit": null,
       "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 217,
-      "firedAt": 31.5,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 218,
+      "seq": 210,
       "firedAt": 31.5167,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 219,
-      "firedAt": 31.5333,
+      "seq": 211,
+      "firedAt": 31.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2208,17 +2128,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 220,
-      "firedAt": 31.55,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 221,
+      "seq": 212,
       "firedAt": 31.5833,
       "shooter": "Viper",
       "target": null,
@@ -2228,7 +2138,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 222,
+      "seq": 213,
       "firedAt": 31.6,
       "shooter": "Viper",
       "target": null,
@@ -2238,7 +2148,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 223,
+      "seq": 214,
+      "firedAt": 31.6167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 215,
+      "firedAt": 31.6333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 216,
       "firedAt": 31.65,
       "shooter": "Viper",
       "target": null,
@@ -2248,7 +2178,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 224,
+      "seq": 217,
+      "firedAt": 31.6667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 218,
+      "firedAt": 31.6833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 219,
       "firedAt": 31.7,
       "shooter": "Viper",
       "target": null,
@@ -2258,8 +2208,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 225,
-      "firedAt": 31.75,
+      "seq": 220,
+      "firedAt": 31.7167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2268,8 +2218,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 226,
-      "firedAt": 31.8,
+      "seq": 221,
+      "firedAt": 31.7667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2278,8 +2228,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 227,
-      "firedAt": 31.8333,
+      "seq": 222,
+      "firedAt": 31.8167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2288,17 +2238,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 228,
-      "firedAt": 31.85,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 229,
+      "seq": 223,
       "firedAt": 31.8667,
       "shooter": "Viper",
       "target": null,
@@ -2308,7 +2248,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 230,
+      "seq": 224,
       "firedAt": 31.9167,
       "shooter": "Viper",
       "target": null,
@@ -2318,7 +2258,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 231,
+      "seq": 225,
       "firedAt": 31.9667,
       "shooter": "Viper",
       "target": null,
@@ -2328,7 +2268,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 232,
+      "seq": 226,
       "firedAt": 32.0167,
       "shooter": "Viper",
       "target": null,
@@ -2338,7 +2278,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 233,
+      "seq": 227,
       "firedAt": 32.0667,
       "shooter": "Viper",
       "target": null,
@@ -2348,17 +2288,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 234,
-      "firedAt": 32.0833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 235,
+      "seq": 228,
       "firedAt": 32.1,
       "shooter": "Viper",
       "target": null,
@@ -2368,37 +2298,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 236,
+      "seq": 229,
       "firedAt": 32.1167,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 237,
-      "firedAt": 32.1333,
-      "shooter": "Viper",
-      "target": null,
       "hit": null,
       "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 238,
-      "firedAt": 32.15,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 239,
+      "seq": 230,
       "firedAt": 32.1667,
       "shooter": "Viper",
       "target": null,
@@ -2408,8 +2318,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 240,
-      "firedAt": 32.1833,
+      "seq": 231,
+      "firedAt": 32.2167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2418,8 +2328,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 241,
-      "firedAt": 32.2333,
+      "seq": 232,
+      "firedAt": 32.2667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2428,8 +2338,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 242,
-      "firedAt": 32.2833,
+      "seq": 233,
+      "firedAt": 32.3167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2438,8 +2348,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 243,
-      "firedAt": 32.3333,
+      "seq": 234,
+      "firedAt": 32.3667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2448,8 +2358,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 244,
-      "firedAt": 32.3833,
+      "seq": 235,
+      "firedAt": 32.4,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2458,8 +2368,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 245,
-      "firedAt": 32.4333,
+      "seq": 236,
+      "firedAt": 32.4167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2468,8 +2378,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 246,
-      "firedAt": 32.4833,
+      "seq": 237,
+      "firedAt": 32.4667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2478,8 +2388,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 247,
-      "firedAt": 32.5333,
+      "seq": 238,
+      "firedAt": 32.5167,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2488,7 +2398,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 248,
+      "seq": 239,
       "firedAt": 32.5667,
       "shooter": "Viper",
       "target": null,
@@ -2498,27 +2408,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 249,
-      "firedAt": 32.5833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 250,
-      "firedAt": 32.6,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 251,
+      "seq": 240,
       "firedAt": 32.6167,
       "shooter": "Viper",
       "target": null,
@@ -2528,17 +2418,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 252,
-      "firedAt": 32.6333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 253,
+      "seq": 241,
       "firedAt": 32.65,
       "shooter": "Viper",
       "target": null,
@@ -2548,17 +2428,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 254,
+      "seq": 242,
       "firedAt": 32.6667,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 255,
+      "seq": 243,
       "firedAt": 32.6833,
       "shooter": "Viper",
       "target": null,
@@ -2568,7 +2448,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 256,
+      "seq": 244,
       "firedAt": 32.7,
       "shooter": "Viper",
       "target": null,
@@ -2578,27 +2458,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 257,
-      "firedAt": 32.7167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 258,
-      "firedAt": 32.7333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 259,
+      "seq": 245,
       "firedAt": 32.75,
       "shooter": "Viper",
       "target": null,
@@ -2608,17 +2468,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 260,
-      "firedAt": 32.7667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 261,
+      "seq": 246,
       "firedAt": 32.8,
       "shooter": "Viper",
       "target": null,
@@ -2628,27 +2478,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 262,
-      "firedAt": 32.8167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 263,
-      "firedAt": 32.8333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 264,
+      "seq": 247,
       "firedAt": 32.85,
       "shooter": "Viper",
       "target": null,
@@ -2658,27 +2488,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 265,
-      "firedAt": 32.8667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 266,
-      "firedAt": 32.8833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 267,
+      "seq": 248,
       "firedAt": 32.9,
       "shooter": "Viper",
       "target": null,
@@ -2688,27 +2498,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 268,
-      "firedAt": 32.9167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 269,
-      "firedAt": 32.9333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 270,
+      "seq": 249,
       "firedAt": 32.95,
       "shooter": "Viper",
       "target": null,
@@ -2718,27 +2508,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 271,
-      "firedAt": 32.9667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 272,
-      "firedAt": 32.9833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 273,
+      "seq": 250,
       "firedAt": 33,
       "shooter": "Viper",
       "target": null,
@@ -2748,27 +2518,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 274,
-      "firedAt": 33.0167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 275,
-      "firedAt": 33.0333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 276,
+      "seq": 251,
       "firedAt": 33.05,
       "shooter": "Viper",
       "target": null,
@@ -2778,7 +2528,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 277,
+      "seq": 252,
+      "firedAt": 33.0667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 253,
+      "firedAt": 33.0833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 254,
       "firedAt": 33.1,
       "shooter": "Viper",
       "target": null,
@@ -2788,7 +2558,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 278,
+      "seq": 255,
+      "firedAt": 33.1167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 256,
+      "firedAt": 33.1333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 257,
       "firedAt": 33.15,
       "shooter": "Viper",
       "target": null,
@@ -2798,7 +2588,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 279,
+      "seq": 258,
+      "firedAt": 33.1667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 259,
+      "firedAt": 33.1833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 260,
       "firedAt": 33.2,
       "shooter": "Viper",
       "target": null,
@@ -2808,7 +2618,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 280,
+      "seq": 261,
+      "firedAt": 33.2333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 262,
       "firedAt": 33.25,
       "shooter": "Viper",
       "target": null,
@@ -2818,7 +2638,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 281,
+      "seq": 263,
+      "firedAt": 33.2667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 264,
+      "firedAt": 33.2833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 265,
       "firedAt": 33.3,
       "shooter": "Viper",
       "target": null,
@@ -2828,7 +2668,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 282,
+      "seq": 266,
       "firedAt": 33.3167,
       "shooter": "Viper",
       "target": null,
@@ -2838,7 +2678,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 283,
+      "seq": 267,
       "firedAt": 33.3333,
       "shooter": "Viper",
       "target": null,
@@ -2848,7 +2688,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 284,
+      "seq": 268,
       "firedAt": 33.35,
       "shooter": "Viper",
       "target": null,
@@ -2858,7 +2698,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 285,
+      "seq": 269,
       "firedAt": 33.3667,
       "shooter": "Viper",
       "target": null,
@@ -2868,17 +2708,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 286,
+      "seq": 270,
       "firedAt": 33.3833,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 287,
+      "seq": 271,
       "firedAt": 33.4,
       "shooter": "Viper",
       "target": null,
@@ -2888,17 +2728,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 288,
+      "seq": 272,
       "firedAt": 33.4167,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 289,
+      "seq": 273,
       "firedAt": 33.4333,
       "shooter": "Viper",
       "target": null,
@@ -2908,7 +2748,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 290,
+      "seq": 274,
       "firedAt": 33.45,
       "shooter": "Viper",
       "target": null,
@@ -2918,17 +2758,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 291,
+      "seq": 275,
       "firedAt": 33.4667,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 292,
+      "seq": 276,
       "firedAt": 33.4833,
       "shooter": "Viper",
       "target": null,
@@ -2938,7 +2778,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 293,
+      "seq": 277,
       "firedAt": 33.5,
       "shooter": "Viper",
       "target": null,
@@ -2948,17 +2788,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 294,
+      "seq": 278,
       "firedAt": 33.5167,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 295,
+      "seq": 279,
       "firedAt": 33.5333,
       "shooter": "Viper",
       "target": null,
@@ -2968,18 +2808,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 296,
+      "seq": 280,
       "firedAt": 33.55,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 297,
-      "firedAt": 33.5667,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -2988,7 +2818,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 298,
+      "seq": 281,
       "firedAt": 33.5833,
       "shooter": "Viper",
       "target": null,
@@ -2998,17 +2828,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 299,
+      "seq": 282,
       "firedAt": 33.6,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 300,
+      "seq": 283,
       "firedAt": 33.6167,
       "shooter": "Viper",
       "target": null,
@@ -3018,7 +2848,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 301,
+      "seq": 284,
+      "firedAt": 33.6333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 285,
       "firedAt": 33.65,
       "shooter": "Viper",
       "target": null,
@@ -3028,7 +2868,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 302,
+      "seq": 286,
       "firedAt": 33.6667,
       "shooter": "Viper",
       "target": null,
@@ -3038,7 +2878,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 303,
+      "seq": 287,
       "firedAt": 33.6833,
       "shooter": "Viper",
       "target": null,
@@ -3048,7 +2888,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 304,
+      "seq": 288,
       "firedAt": 33.7,
       "shooter": "Viper",
       "target": null,
@@ -3058,7 +2898,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 305,
+      "seq": 289,
       "firedAt": 33.7167,
       "shooter": "Viper",
       "target": null,
@@ -3068,7 +2908,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 306,
+      "seq": 290,
       "firedAt": 33.7333,
       "shooter": "Viper",
       "target": null,
@@ -3078,17 +2918,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 307,
+      "seq": 291,
       "firedAt": 33.75,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 308,
+      "seq": 292,
       "firedAt": 33.7667,
       "shooter": "Viper",
       "target": null,
@@ -3098,17 +2938,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 309,
+      "seq": 293,
       "firedAt": 33.7833,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 310,
+      "seq": 294,
       "firedAt": 33.8,
       "shooter": "Viper",
       "target": null,
@@ -3118,7 +2958,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 311,
+      "seq": 295,
       "firedAt": 33.8167,
       "shooter": "Viper",
       "target": null,
@@ -3128,17 +2968,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 312,
+      "seq": 296,
       "firedAt": 33.8333,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 313,
+      "seq": 297,
       "firedAt": 33.85,
       "shooter": "Viper",
       "target": null,
@@ -3148,7 +2988,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 314,
+      "seq": 298,
       "firedAt": 33.8667,
       "shooter": "Viper",
       "target": null,
@@ -3158,7 +2998,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 315,
+      "seq": 299,
       "firedAt": 33.8833,
       "shooter": "Viper",
       "target": null,
@@ -3168,7 +3008,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 316,
+      "seq": 300,
       "firedAt": 33.9,
       "shooter": "Viper",
       "target": null,
@@ -3178,17 +3018,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 317,
-      "firedAt": 33.9167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 318,
+      "seq": 301,
       "firedAt": 33.9333,
       "shooter": "Viper",
       "target": null,
@@ -3198,7 +3028,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 319,
+      "seq": 302,
       "firedAt": 33.95,
       "shooter": "Viper",
       "target": null,
@@ -3208,8 +3038,18 @@
       "weaponIndex": 0
     },
     {
-      "seq": 320,
+      "seq": 303,
       "firedAt": 33.9667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 304,
+      "firedAt": 33.9833,
       "shooter": "Viper",
       "target": null,
       "hit": "Fulcrum",
@@ -3218,7 +3058,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 321,
+      "seq": 305,
       "firedAt": 34,
       "shooter": "Viper",
       "target": null,
@@ -3228,7 +3068,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 322,
+      "seq": 306,
       "firedAt": 34.0167,
       "shooter": "Viper",
       "target": null,
@@ -3238,7 +3078,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 323,
+      "seq": 307,
       "firedAt": 34.0333,
       "shooter": "Viper",
       "target": null,
@@ -3248,7 +3088,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 324,
+      "seq": 308,
       "firedAt": 34.05,
       "shooter": "Viper",
       "target": null,
@@ -3258,17 +3098,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 325,
+      "seq": 309,
       "firedAt": 34.0667,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 326,
+      "seq": 310,
       "firedAt": 34.0833,
       "shooter": "Viper",
       "target": null,
@@ -3278,7 +3118,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 327,
+      "seq": 311,
       "firedAt": 34.1,
       "shooter": "Viper",
       "target": null,
@@ -3288,7 +3128,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 328,
+      "seq": 312,
       "firedAt": 34.1167,
       "shooter": "Viper",
       "target": null,
@@ -3298,7 +3138,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 329,
+      "seq": 313,
       "firedAt": 34.1333,
       "shooter": "Viper",
       "target": null,
@@ -3308,17 +3148,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 330,
+      "seq": 314,
       "firedAt": 34.15,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 331,
+      "seq": 315,
       "firedAt": 34.1667,
       "shooter": "Viper",
       "target": null,
@@ -3328,7 +3168,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 332,
+      "seq": 316,
       "firedAt": 34.1833,
       "shooter": "Viper",
       "target": null,
@@ -3338,7 +3178,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 333,
+      "seq": 317,
       "firedAt": 34.2,
       "shooter": "Viper",
       "target": null,
@@ -3348,7 +3188,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 334,
+      "seq": 318,
       "firedAt": 34.2167,
       "shooter": "Viper",
       "target": null,
@@ -3358,7 +3198,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 335,
+      "seq": 319,
       "firedAt": 34.2333,
       "shooter": "Viper",
       "target": null,
@@ -3368,7 +3208,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 336,
+      "seq": 320,
       "firedAt": 34.25,
       "shooter": "Viper",
       "target": null,
@@ -3378,8 +3218,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 337,
-      "firedAt": 34.2667,
+      "seq": 321,
+      "firedAt": 34.2833,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -3388,17 +3228,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 338,
-      "firedAt": 34.2833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 339,
+      "seq": 322,
       "firedAt": 34.3,
       "shooter": "Viper",
       "target": null,
@@ -3408,7 +3238,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 340,
+      "seq": 323,
       "firedAt": 34.3167,
       "shooter": "Viper",
       "target": null,
@@ -3418,7 +3248,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 341,
+      "seq": 324,
+      "firedAt": 34.3333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 325,
       "firedAt": 34.35,
       "shooter": "Viper",
       "target": null,
@@ -3428,7 +3268,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 342,
+      "seq": 326,
       "firedAt": 34.3667,
       "shooter": "Viper",
       "target": null,
@@ -3438,17 +3278,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 343,
+      "seq": 327,
       "firedAt": 34.3833,
       "shooter": "Viper",
       "target": null,
-      "hit": "Fulcrum",
-      "outcome": "Hit",
+      "hit": null,
+      "outcome": "Expired",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 344,
+      "seq": 328,
       "firedAt": 34.4,
       "shooter": "Viper",
       "target": null,
@@ -3458,7 +3298,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 345,
+      "seq": 329,
       "firedAt": 34.4167,
       "shooter": "Viper",
       "target": null,
@@ -3468,17 +3308,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 346,
+      "seq": 330,
       "firedAt": 34.4333,
       "shooter": "Viper",
       "target": null,
-      "hit": null,
-      "outcome": "Expired",
+      "hit": "Fulcrum",
+      "outcome": "Hit",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 347,
+      "seq": 331,
       "firedAt": 34.45,
       "shooter": "Viper",
       "target": null,
@@ -3488,7 +3328,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 348,
+      "seq": 332,
       "firedAt": 34.4667,
       "shooter": "Viper",
       "target": null,
@@ -3498,7 +3338,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 349,
+      "seq": 333,
       "firedAt": 34.4833,
       "shooter": "Viper",
       "target": null,
@@ -3508,7 +3348,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 350,
+      "seq": 334,
       "firedAt": 34.5,
       "shooter": "Viper",
       "target": null,
@@ -3518,7 +3358,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 351,
+      "seq": 335,
       "firedAt": 34.5167,
       "shooter": "Viper",
       "target": null,
@@ -3528,7 +3368,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 352,
+      "seq": 336,
       "firedAt": 34.5333,
       "shooter": "Viper",
       "target": null,
@@ -3538,7 +3378,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 353,
+      "seq": 337,
       "firedAt": 34.55,
       "shooter": "Viper",
       "target": null,
@@ -3548,7 +3388,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 354,
+      "seq": 338,
       "firedAt": 34.5667,
       "shooter": "Viper",
       "target": null,
@@ -3558,7 +3398,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 355,
+      "seq": 339,
       "firedAt": 34.5833,
       "shooter": "Viper",
       "target": null,
@@ -3568,7 +3408,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 356,
+      "seq": 340,
       "firedAt": 34.6,
       "shooter": "Viper",
       "target": null,
@@ -3578,17 +3418,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 357,
-      "firedAt": 34.6167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 358,
+      "seq": 341,
       "firedAt": 34.6333,
       "shooter": "Viper",
       "target": null,
@@ -3598,7 +3428,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 359,
+      "seq": 342,
       "firedAt": 34.65,
       "shooter": "Viper",
       "target": null,
@@ -3608,8 +3438,18 @@
       "weaponIndex": 0
     },
     {
-      "seq": 360,
+      "seq": 343,
       "firedAt": 34.6667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": "Fulcrum",
+      "outcome": "Hit",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 344,
+      "firedAt": 34.6833,
       "shooter": "Viper",
       "target": null,
       "hit": null,
@@ -3618,7 +3458,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 361,
+      "seq": 345,
       "firedAt": 34.7,
       "shooter": "Viper",
       "target": null,
@@ -3628,7 +3468,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 362,
+      "seq": 346,
       "firedAt": 34.7167,
       "shooter": "Viper",
       "target": null,
@@ -3638,7 +3478,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 363,
+      "seq": 347,
       "firedAt": 34.7333,
       "shooter": "Viper",
       "target": null,
@@ -3648,7 +3488,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 364,
+      "seq": 348,
       "firedAt": 34.75,
       "shooter": "Viper",
       "target": null,
@@ -3658,7 +3498,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 365,
+      "seq": 349,
       "firedAt": 34.7667,
       "shooter": "Viper",
       "target": null,
@@ -3668,7 +3508,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 366,
+      "seq": 350,
       "firedAt": 34.7833,
       "shooter": "Viper",
       "target": null,
@@ -3678,7 +3518,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 367,
+      "seq": 351,
       "firedAt": 34.8,
       "shooter": "Viper",
       "target": null,
@@ -3688,7 +3528,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 368,
+      "seq": 352,
       "firedAt": 34.8167,
       "shooter": "Viper",
       "target": null,
@@ -3698,7 +3538,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 369,
+      "seq": 353,
       "firedAt": 34.8333,
       "shooter": "Viper",
       "target": null,
@@ -3708,7 +3548,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 370,
+      "seq": 354,
       "firedAt": 34.85,
       "shooter": "Viper",
       "target": null,
@@ -3718,7 +3558,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 371,
+      "seq": 355,
       "firedAt": 34.8667,
       "shooter": "Viper",
       "target": null,
@@ -3728,7 +3568,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 372,
+      "seq": 356,
       "firedAt": 34.8833,
       "shooter": "Viper",
       "target": null,
@@ -3738,7 +3578,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 373,
+      "seq": 357,
       "firedAt": 34.9,
       "shooter": "Viper",
       "target": null,
@@ -3748,7 +3588,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 374,
+      "seq": 358,
       "firedAt": 34.9167,
       "shooter": "Viper",
       "target": null,
@@ -3758,7 +3598,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 375,
+      "seq": 359,
       "firedAt": 34.9333,
       "shooter": "Viper",
       "target": null,
@@ -3768,7 +3608,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 376,
+      "seq": 360,
       "firedAt": 34.95,
       "shooter": "Viper",
       "target": null,
@@ -3778,17 +3618,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 377,
-      "firedAt": 34.9667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 378,
+      "seq": 361,
       "firedAt": 34.9833,
       "shooter": "Viper",
       "target": null,
@@ -3798,7 +3628,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 379,
+      "seq": 362,
       "firedAt": 35,
       "shooter": "Viper",
       "target": null,
@@ -3808,7 +3638,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 380,
+      "seq": 363,
       "firedAt": 35.0167,
       "shooter": "Viper",
       "target": null,
@@ -3818,7 +3648,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 381,
+      "seq": 364,
+      "firedAt": 35.0333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 365,
       "firedAt": 35.05,
       "shooter": "Viper",
       "target": null,
@@ -3828,7 +3668,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 382,
+      "seq": 366,
       "firedAt": 35.0667,
       "shooter": "Viper",
       "target": null,
@@ -3838,7 +3678,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 383,
+      "seq": 367,
       "firedAt": 35.0833,
       "shooter": "Viper",
       "target": null,
@@ -3848,7 +3688,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 384,
+      "seq": 368,
       "firedAt": 35.1,
       "shooter": "Viper",
       "target": null,
@@ -3858,7 +3698,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 385,
+      "seq": 369,
       "firedAt": 35.1167,
       "shooter": "Viper",
       "target": null,
@@ -3868,7 +3708,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 386,
+      "seq": 370,
       "firedAt": 35.1333,
       "shooter": "Viper",
       "target": null,
@@ -3878,7 +3718,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 387,
+      "seq": 371,
       "firedAt": 35.15,
       "shooter": "Viper",
       "target": null,
@@ -3888,7 +3728,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 388,
+      "seq": 372,
       "firedAt": 35.1667,
       "shooter": "Viper",
       "target": null,
@@ -3898,7 +3738,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 389,
+      "seq": 373,
       "firedAt": 35.1833,
       "shooter": "Viper",
       "target": null,
@@ -3908,7 +3748,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 390,
+      "seq": 374,
       "firedAt": 35.2,
       "shooter": "Viper",
       "target": null,
@@ -3918,7 +3758,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 391,
+      "seq": 375,
       "firedAt": 35.2167,
       "shooter": "Viper",
       "target": null,
@@ -3928,7 +3768,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 392,
+      "seq": 376,
       "firedAt": 35.2333,
       "shooter": "Viper",
       "target": null,
@@ -3938,7 +3778,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 393,
+      "seq": 377,
       "firedAt": 35.25,
       "shooter": "Viper",
       "target": null,
@@ -3948,7 +3788,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 394,
+      "seq": 378,
       "firedAt": 35.2667,
       "shooter": "Viper",
       "target": null,
@@ -3958,7 +3798,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 395,
+      "seq": 379,
       "firedAt": 35.2833,
       "shooter": "Viper",
       "target": null,
@@ -3968,7 +3808,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 396,
+      "seq": 380,
       "firedAt": 35.3,
       "shooter": "Viper",
       "target": null,
@@ -3978,7 +3818,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 397,
+      "seq": 381,
+      "firedAt": 35.3333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 382,
       "firedAt": 35.35,
       "shooter": "Viper",
       "target": null,
@@ -3988,7 +3838,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 398,
+      "seq": 383,
+      "firedAt": 35.3667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 384,
       "firedAt": 35.3833,
       "shooter": "Viper",
       "target": null,
@@ -3998,7 +3858,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 399,
+      "seq": 385,
       "firedAt": 35.4,
       "shooter": "Viper",
       "target": null,
@@ -4008,7 +3868,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 400,
+      "seq": 386,
       "firedAt": 35.4167,
       "shooter": "Viper",
       "target": null,
@@ -4018,7 +3878,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 401,
+      "seq": 387,
+      "firedAt": 35.4333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 388,
       "firedAt": 35.45,
       "shooter": "Viper",
       "target": null,
@@ -4028,7 +3898,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 402,
+      "seq": 389,
       "firedAt": 35.4667,
       "shooter": "Viper",
       "target": null,
@@ -4038,7 +3908,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 403,
+      "seq": 390,
       "firedAt": 35.4833,
       "shooter": "Viper",
       "target": null,
@@ -4048,7 +3918,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 404,
+      "seq": 391,
       "firedAt": 35.5,
       "shooter": "Viper",
       "target": null,
@@ -4058,7 +3928,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 405,
+      "seq": 392,
       "firedAt": 35.5167,
       "shooter": "Viper",
       "target": null,
@@ -4068,7 +3938,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 406,
+      "seq": 393,
       "firedAt": 35.5333,
       "shooter": "Viper",
       "target": null,
@@ -4078,7 +3948,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 407,
+      "seq": 394,
       "firedAt": 35.55,
       "shooter": "Viper",
       "target": null,
@@ -4088,7 +3958,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 408,
+      "seq": 395,
       "firedAt": 35.5667,
       "shooter": "Viper",
       "target": null,
@@ -4098,7 +3968,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 409,
+      "seq": 396,
       "firedAt": 35.5833,
       "shooter": "Viper",
       "target": null,
@@ -4108,7 +3978,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 410,
+      "seq": 397,
       "firedAt": 35.6,
       "shooter": "Viper",
       "target": null,
@@ -4118,7 +3988,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 411,
+      "seq": 398,
       "firedAt": 35.6167,
       "shooter": "Viper",
       "target": null,
@@ -4128,7 +3998,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 412,
+      "seq": 399,
       "firedAt": 35.6333,
       "shooter": "Viper",
       "target": null,
@@ -4138,7 +4008,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 413,
+      "seq": 400,
       "firedAt": 35.65,
       "shooter": "Viper",
       "target": null,
@@ -4148,17 +4018,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 414,
-      "firedAt": 35.6667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 415,
+      "seq": 401,
       "firedAt": 35.6833,
       "shooter": "Viper",
       "target": null,
@@ -4168,7 +4028,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 416,
+      "seq": 402,
       "firedAt": 35.7,
       "shooter": "Viper",
       "target": null,
@@ -4178,7 +4038,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 417,
+      "seq": 403,
       "firedAt": 35.7167,
       "shooter": "Viper",
       "target": null,
@@ -4188,7 +4048,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 418,
+      "seq": 404,
       "firedAt": 35.7333,
       "shooter": "Viper",
       "target": null,
@@ -4198,7 +4058,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 419,
+      "seq": 405,
       "firedAt": 35.75,
       "shooter": "Viper",
       "target": null,
@@ -4208,7 +4068,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 420,
+      "seq": 406,
       "firedAt": 35.7667,
       "shooter": "Viper",
       "target": null,
@@ -4218,7 +4078,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 421,
+      "seq": 407,
+      "firedAt": 35.7833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 408,
       "firedAt": 35.8,
       "shooter": "Viper",
       "target": null,
@@ -4228,7 +4098,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 422,
+      "seq": 409,
       "firedAt": 35.8167,
       "shooter": "Viper",
       "target": null,
@@ -4238,7 +4108,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 423,
+      "seq": 410,
       "firedAt": 35.8333,
       "shooter": "Viper",
       "target": null,
@@ -4248,7 +4118,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 424,
+      "seq": 411,
       "firedAt": 35.85,
       "shooter": "Viper",
       "target": null,
@@ -4258,7 +4128,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 425,
+      "seq": 412,
       "firedAt": 35.8667,
       "shooter": "Viper",
       "target": null,
@@ -4268,7 +4138,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 426,
+      "seq": 413,
       "firedAt": 35.8833,
       "shooter": "Viper",
       "target": null,
@@ -4278,17 +4148,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 427,
+      "seq": 414,
       "firedAt": 35.9,
       "shooter": "Viper",
       "target": null,
-      "hit": null,
-      "outcome": "Expired",
+      "hit": "Fulcrum",
+      "outcome": "Hit",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 428,
+      "seq": 415,
       "firedAt": 35.9167,
       "shooter": "Viper",
       "target": null,
@@ -4298,7 +4168,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 429,
+      "seq": 416,
       "firedAt": 35.9333,
       "shooter": "Viper",
       "target": null,
@@ -4308,7 +4178,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 430,
+      "seq": 417,
       "firedAt": 35.95,
       "shooter": "Viper",
       "target": null,
@@ -4318,7 +4188,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 431,
+      "seq": 418,
       "firedAt": 35.9667,
       "shooter": "Viper",
       "target": null,
@@ -4328,17 +4198,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 432,
+      "seq": 419,
       "firedAt": 35.9833,
       "shooter": "Viper",
       "target": null,
-      "hit": null,
-      "outcome": "Expired",
+      "hit": "Fulcrum",
+      "outcome": "Hit",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 433,
+      "seq": 420,
       "firedAt": 36,
       "shooter": "Viper",
       "target": null,
@@ -4348,17 +4218,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 434,
-      "firedAt": 36.0167,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 435,
+      "seq": 421,
       "firedAt": 36.0333,
       "shooter": "Viper",
       "target": null,
@@ -4368,7 +4228,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 436,
+      "seq": 422,
       "firedAt": 36.05,
       "shooter": "Viper",
       "target": null,
@@ -4378,7 +4238,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 437,
+      "seq": 423,
+      "firedAt": 36.0667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 424,
+      "firedAt": 36.0833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 425,
       "firedAt": 36.1,
       "shooter": "Viper",
       "target": null,
@@ -4388,7 +4268,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 438,
+      "seq": 426,
+      "firedAt": 36.1167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 427,
+      "firedAt": 36.1333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": "Fulcrum",
+      "outcome": "Hit",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 428,
       "firedAt": 36.15,
       "shooter": "Viper",
       "target": null,
@@ -4398,7 +4298,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 439,
+      "seq": 429,
+      "firedAt": 36.1667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 430,
+      "firedAt": 36.1833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 431,
       "firedAt": 36.2,
       "shooter": "Viper",
       "target": null,
@@ -4408,7 +4328,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 440,
+      "seq": 432,
+      "firedAt": 36.2167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": "Fulcrum",
+      "outcome": "Hit",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 433,
+      "firedAt": 36.2333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 434,
       "firedAt": 36.25,
       "shooter": "Viper",
       "target": null,
@@ -4418,7 +4358,27 @@
       "weaponIndex": 0
     },
     {
-      "seq": 441,
+      "seq": 435,
+      "firedAt": 36.2667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 436,
+      "firedAt": 36.2833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 437,
       "firedAt": 36.3,
       "shooter": "Viper",
       "target": null,
@@ -4428,7 +4388,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 442,
+      "seq": 438,
       "firedAt": 36.3167,
       "shooter": "Viper",
       "target": null,
@@ -4438,7 +4398,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 443,
+      "seq": 439,
       "firedAt": 36.3333,
       "shooter": "Viper",
       "target": null,
@@ -4448,27 +4408,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 444,
+      "seq": 440,
       "firedAt": 36.35,
       "shooter": "Viper",
       "target": null,
-      "hit": null,
-      "outcome": "Expired",
+      "hit": "Fulcrum",
+      "outcome": "Hit",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 445,
-      "firedAt": 36.3667,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 446,
+      "seq": 441,
       "firedAt": 36.3833,
       "shooter": "Viper",
       "target": null,
@@ -4478,7 +4428,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 447,
+      "seq": 442,
       "firedAt": 36.4,
       "shooter": "Viper",
       "target": null,
@@ -4488,7 +4438,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 448,
+      "seq": 443,
       "firedAt": 36.4167,
       "shooter": "Viper",
       "target": null,
@@ -4498,7 +4448,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 449,
+      "seq": 444,
       "firedAt": 36.4333,
       "shooter": "Viper",
       "target": null,
@@ -4508,7 +4458,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 450,
+      "seq": 445,
       "firedAt": 36.45,
       "shooter": "Viper",
       "target": null,
@@ -4518,7 +4468,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 451,
+      "seq": 446,
       "firedAt": 36.4667,
       "shooter": "Viper",
       "target": null,
@@ -4528,7 +4478,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 452,
+      "seq": 447,
       "firedAt": 36.4833,
       "shooter": "Viper",
       "target": null,
@@ -4538,7 +4488,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 453,
+      "seq": 448,
       "firedAt": 36.5,
       "shooter": "Viper",
       "target": null,
@@ -4548,7 +4498,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 454,
+      "seq": 449,
       "firedAt": 36.5167,
       "shooter": "Viper",
       "target": null,
@@ -4558,7 +4508,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 455,
+      "seq": 450,
       "firedAt": 36.5333,
       "shooter": "Viper",
       "target": null,
@@ -4568,17 +4518,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 456,
-      "firedAt": 36.55,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 457,
+      "seq": 451,
       "firedAt": 36.5667,
       "shooter": "Viper",
       "target": null,
@@ -4588,7 +4528,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 458,
+      "seq": 452,
       "firedAt": 36.5833,
       "shooter": "Viper",
       "target": null,
@@ -4598,17 +4538,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 459,
+      "seq": 453,
       "firedAt": 36.6,
       "shooter": "Viper",
       "target": null,
-      "hit": null,
-      "outcome": "Expired",
+      "hit": "Fulcrum",
+      "outcome": "Hit",
       "penetration": 4,
       "weaponIndex": 0
     },
     {
-      "seq": 460,
+      "seq": 454,
       "firedAt": 36.6167,
       "shooter": "Viper",
       "target": null,
@@ -4618,7 +4558,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 461,
+      "seq": 455,
+      "firedAt": 36.6333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 456,
       "firedAt": 36.65,
       "shooter": "Viper",
       "target": null,
@@ -4628,7 +4578,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 462,
+      "seq": 457,
       "firedAt": 36.6667,
       "shooter": "Viper",
       "target": null,
@@ -4638,7 +4588,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 463,
+      "seq": 458,
       "firedAt": 36.6833,
       "shooter": "Viper",
       "target": null,
@@ -4648,7 +4598,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 464,
+      "seq": 459,
       "firedAt": 36.7,
       "shooter": "Viper",
       "target": null,
@@ -4658,7 +4608,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 465,
+      "seq": 460,
       "firedAt": 36.7167,
       "shooter": "Viper",
       "target": null,
@@ -4668,17 +4618,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 466,
-      "firedAt": 36.7333,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 467,
+      "seq": 461,
       "firedAt": 36.75,
       "shooter": "Viper",
       "target": null,
@@ -4688,7 +4628,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 468,
+      "seq": 462,
       "firedAt": 36.7667,
       "shooter": "Viper",
       "target": null,
@@ -4698,7 +4638,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 469,
+      "seq": 463,
       "firedAt": 36.7833,
       "shooter": "Viper",
       "target": null,
@@ -4708,7 +4648,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 470,
+      "seq": 464,
       "firedAt": 36.8,
       "shooter": "Viper",
       "target": null,
@@ -4718,7 +4658,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 471,
+      "seq": 465,
       "firedAt": 36.8167,
       "shooter": "Viper",
       "target": null,
@@ -4728,7 +4668,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 472,
+      "seq": 466,
       "firedAt": 36.8333,
       "shooter": "Viper",
       "target": null,
@@ -4738,7 +4678,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 473,
+      "seq": 467,
       "firedAt": 36.85,
       "shooter": "Viper",
       "target": null,
@@ -4748,7 +4688,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 474,
+      "seq": 468,
       "firedAt": 36.8667,
       "shooter": "Viper",
       "target": null,
@@ -4758,7 +4698,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 475,
+      "seq": 469,
       "firedAt": 36.8833,
       "shooter": "Viper",
       "target": null,
@@ -4768,7 +4708,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 476,
+      "seq": 470,
       "firedAt": 36.9,
       "shooter": "Viper",
       "target": null,
@@ -4778,7 +4718,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 477,
+      "seq": 471,
       "firedAt": 36.9167,
       "shooter": "Viper",
       "target": null,
@@ -4788,7 +4728,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 478,
+      "seq": 472,
       "firedAt": 36.9333,
       "shooter": "Viper",
       "target": null,
@@ -4798,7 +4738,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 479,
+      "seq": 473,
       "firedAt": 36.95,
       "shooter": "Viper",
       "target": null,
@@ -4808,7 +4748,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 480,
+      "seq": 474,
       "firedAt": 36.9667,
       "shooter": "Viper",
       "target": null,
@@ -4818,7 +4758,17 @@
       "weaponIndex": 0
     },
     {
-      "seq": 481,
+      "seq": 475,
+      "firedAt": 36.9833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 476,
       "firedAt": 37,
       "shooter": "Viper",
       "target": null,
@@ -4828,7 +4778,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 482,
+      "seq": 477,
       "firedAt": 37.0167,
       "shooter": "Viper",
       "target": null,
@@ -4838,7 +4788,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 483,
+      "seq": 478,
       "firedAt": 37.0333,
       "shooter": "Viper",
       "target": null,
@@ -4848,7 +4798,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 484,
+      "seq": 479,
       "firedAt": 37.05,
       "shooter": "Viper",
       "target": null,
@@ -4858,7 +4808,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 485,
+      "seq": 480,
       "firedAt": 37.0667,
       "shooter": "Viper",
       "target": null,
@@ -4868,17 +4818,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 486,
-      "firedAt": 37.0833,
-      "shooter": "Viper",
-      "target": null,
-      "hit": null,
-      "outcome": "Expired",
-      "penetration": 4,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 487,
+      "seq": 481,
       "firedAt": 37.1,
       "shooter": "Viper",
       "target": null,
@@ -4888,7 +4828,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 488,
+      "seq": 482,
       "firedAt": 37.1167,
       "shooter": "Viper",
       "target": null,
@@ -4898,7 +4838,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 489,
+      "seq": 483,
       "firedAt": 37.1333,
       "shooter": "Viper",
       "target": null,
@@ -4908,7 +4848,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 490,
+      "seq": 484,
       "firedAt": 37.15,
       "shooter": "Viper",
       "target": null,
@@ -4918,7 +4858,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 491,
+      "seq": 485,
       "firedAt": 37.1667,
       "shooter": "Viper",
       "target": null,
@@ -4928,7 +4868,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 492,
+      "seq": 486,
       "firedAt": 37.1833,
       "shooter": "Viper",
       "target": null,
@@ -4938,7 +4878,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 493,
+      "seq": 487,
       "firedAt": 37.2,
       "shooter": "Viper",
       "target": null,
@@ -4948,7 +4888,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 494,
+      "seq": 488,
       "firedAt": 37.2167,
       "shooter": "Viper",
       "target": null,
@@ -4958,7 +4898,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 495,
+      "seq": 489,
       "firedAt": 37.2333,
       "shooter": "Viper",
       "target": null,
@@ -4968,7 +4908,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 496,
+      "seq": 490,
       "firedAt": 37.25,
       "shooter": "Viper",
       "target": null,
@@ -4978,7 +4918,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 497,
+      "seq": 491,
       "firedAt": 37.2667,
       "shooter": "Viper",
       "target": null,
@@ -4988,7 +4928,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 498,
+      "seq": 492,
       "firedAt": 37.2833,
       "shooter": "Viper",
       "target": null,
@@ -4998,7 +4938,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 499,
+      "seq": 493,
       "firedAt": 37.3,
       "shooter": "Viper",
       "target": null,
@@ -5008,7 +4948,7 @@
       "weaponIndex": 0
     },
     {
-      "seq": 500,
+      "seq": 494,
       "firedAt": 37.3167,
       "shooter": "Viper",
       "target": null,
@@ -5018,8 +4958,68 @@
       "weaponIndex": 0
     },
     {
+      "seq": 495,
+      "firedAt": 37.3333,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 496,
+      "firedAt": 37.35,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 497,
+      "firedAt": 37.3667,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 498,
+      "firedAt": 37.3833,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 499,
+      "firedAt": 37.4,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 500,
+      "firedAt": 37.4167,
+      "shooter": "Viper",
+      "target": null,
+      "hit": null,
+      "outcome": "Expired",
+      "penetration": 4,
+      "weaponIndex": 0
+    },
+    {
       "seq": 501,
-      "firedAt": 41.6167,
+      "firedAt": 41.7333,
       "shooter": "Viper",
       "target": "Fulcrum",
       "hit": null,
@@ -5029,7 +5029,7 @@
     },
     {
       "seq": 502,
-      "firedAt": 45.5167,
+      "firedAt": 45.6333,
       "shooter": "Viper",
       "target": "Fulcrum",
       "hit": null,
@@ -5039,7 +5039,7 @@
     },
     {
       "seq": 503,
-      "firedAt": 70.5167,
+      "firedAt": 70.6333,
       "shooter": "Viper",
       "target": "Fulcrum",
       "hit": null,
@@ -5051,310 +5051,134 @@
   "blasts": [
     {
       "seq": 0,
-      "seenAt": 28.75,
+      "seenAt": 34.25,
       "shooter": "Viper",
       "warheadSource": "M61 20mm HEI: Gen.Warhead",
       "burst": [
-        -217.7666,
-        -386.6104,
-        2092.7527
+        955.3023,
+        82.78893,
+        2116.2078
       ]
     },
     {
       "seq": 1,
-      "seenAt": 31.5,
+      "seenAt": 34.5,
       "shooter": "Viper",
       "warheadSource": "M61 20mm HEI: Gen.Warhead",
       "burst": [
-        437.30927,
-        -315.77612,
-        2105.0784
+        994.1225,
+        137.29694,
+        2117.1387
       ]
     },
     {
       "seq": 2,
-      "seenAt": 31.75,
+      "seenAt": 34.75,
       "shooter": "Viper",
       "warheadSource": "M61 20mm HEI: Gen.Warhead",
       "burst": [
-        455.7792,
-        -307.68756,
-        2105.4443
+        1022.5114,
+        181.72752,
+        2117.8389
       ]
     },
     {
       "seq": 3,
-      "seenAt": 32,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        528.90564,
-        -273.68375,
-        2106.9226
-      ]
-    },
-    {
-      "seq": 4,
-      "seenAt": 32,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        546.658,
-        -264.10675,
-        2107.2869
-      ]
-    },
-    {
-      "seq": 5,
-      "seenAt": 32,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        557.7344,
-        -259.14572,
-        2107.5098
-      ]
-    },
-    {
-      "seq": 6,
-      "seenAt": 32.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        565.299,
-        -253.99503,
-        2107.6702
-      ]
-    },
-    {
-      "seq": 7,
-      "seenAt": 32.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        681.44305,
-        -182.8907,
-        2110.0886
-      ]
-    },
-    {
-      "seq": 8,
-      "seenAt": 33.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        785.7631,
-        -99.84504,
-        2112.3376
-      ]
-    },
-    {
-      "seq": 9,
-      "seenAt": 33.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        850.8463,
-        -39.13678,
-        2113.7798
-      ]
-    },
-    {
-      "seq": 10,
-      "seenAt": 34,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        905.3285,
-        20.762787,
-        2115.0137
-      ]
-    },
-    {
-      "seq": 11,
-      "seenAt": 34,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        913.343,
-        29.898912,
-        2115.2092
-      ]
-    },
-    {
-      "seq": 12,
-      "seenAt": 34,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        918.1068,
-        36.47147,
-        2115.3125
-      ]
-    },
-    {
-      "seq": 13,
-      "seenAt": 34,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        926.4376,
-        45.358673,
-        2115.5007
-      ]
-    },
-    {
-      "seq": 14,
-      "seenAt": 34.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        931.2329,
-        52.866226,
-        2115.6255
-      ]
-    },
-    {
-      "seq": 15,
-      "seenAt": 34.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        938.7642,
-        61.439514,
-        2115.794
-      ]
-    },
-    {
-      "seq": 16,
-      "seenAt": 34.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        953.31305,
-        80.913284,
-        2116.1384
-      ]
-    },
-    {
-      "seq": 17,
-      "seenAt": 34.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        961.21106,
-        90.19202,
-        2116.3206
-      ]
-    },
-    {
-      "seq": 18,
-      "seenAt": 34.25,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        965.763,
-        97.97961,
-        2116.443
-      ]
-    },
-    {
-      "seq": 19,
-      "seenAt": 34.5,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        972.80835,
-        106.816444,
-        2116.6006
-      ]
-    },
-    {
-      "seq": 20,
-      "seenAt": 34.5,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        984.1377,
-        123.620186,
-        2116.8823
-      ]
-    },
-    {
-      "seq": 21,
-      "seenAt": 34.5,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        991.6312,
-        133.23438,
-        2117.055
-      ]
-    },
-    {
-      "seq": 22,
-      "seenAt": 34.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        1004.76306,
-        153.71883,
-        2117.3835
-      ]
-    },
-    {
-      "seq": 23,
-      "seenAt": 34.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        1015.2652,
-        171.06305,
-        2117.647
-      ]
-    },
-    {
-      "seq": 24,
-      "seenAt": 34.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        1022.3078,
-        181.01842,
-        2117.8103
-      ]
-    },
-    {
-      "seq": 25,
-      "seenAt": 34.75,
-      "shooter": "Viper",
-      "warheadSource": "M61 20mm HEI: Gen.Warhead",
-      "burst": [
-        1032.4017,
-        198.61476,
-        2118.0718
-      ]
-    },
-    {
-      "seq": 26,
       "seenAt": 35,
       "shooter": "Viper",
       "warheadSource": "M61 20mm HEI: Gen.Warhead",
       "burst": [
-        1044.186,
-        219.91022,
-        2118.3813
+        1050.9642,
+        230.8877,
+        2118.5603
       ]
     },
     {
-      "seq": 27,
-      "seenAt": 45.5,
+      "seq": 4,
+      "seenAt": 35.25,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1077.079,
+        281.36105,
+        2119.2483
+      ]
+    },
+    {
+      "seq": 5,
+      "seenAt": 36.5,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1174.3958,
+        560.9462,
+        2122.1553
+      ]
+    },
+    {
+      "seq": 6,
+      "seenAt": 36.5,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1179.1672,
+        582.7685,
+        2122.3386
+      ]
+    },
+    {
+      "seq": 7,
+      "seenAt": 36.75,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1185.2416,
+        616.9211,
+        2122.5854
+      ]
+    },
+    {
+      "seq": 8,
+      "seenAt": 36.75,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1189.0342,
+        638.9153,
+        2122.751
+      ]
+    },
+    {
+      "seq": 9,
+      "seenAt": 37,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1193.0217,
+        669.3911,
+        2122.9436
+      ]
+    },
+    {
+      "seq": 10,
+      "seenAt": 37.25,
+      "shooter": "Viper",
+      "warheadSource": "M61 20mm HEI: Gen.Warhead",
+      "burst": [
+        1199.206,
+        730.40076,
+        2123.308
+      ]
+    },
+    {
+      "seq": 11,
+      "seenAt": 45.75,
       "shooter": "Viper",
       "warheadSource": "AIM-9X class missile: Gen.Warhead",
       "burst": [
-        -71.534676,
-        2083.2139,
-        2108.1023
+        -98.18424,
+        2081.6396,
+        2107.4421
       ]
     }
   ],
@@ -5513,9 +5337,9 @@
       "units": {
         "Fulcrum": {
           "position": [
-            683.718,
-            1529.678,
-            2117.123
+            683.71,
+            1529.68,
+            2117.086
           ],
           "health": 100000,
           "visible": {
@@ -5535,9 +5359,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "32783f715309625d",
+            "AcousticEmitter": "9004fad5126b35f9",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "ede03fbeefd6556e",
+            "ActiveSensorTracks": "020444544145d245",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -5549,17 +5373,17 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "7104b8742ba6dcbc",
+            "FighterPilotState": "7d86daa87ff79816",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "ff64f49cb30c7133",
+            "FlightState": "f0c19d5947e2fc72",
             "Health": "81f4e034a09c4020",
-            "HeardTraces": "dbc212310ed54b11",
+            "HeardTraces": "9bf2a595a23ce3ed",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "6bbaeb71258618b3",
+            "MissileWarning": "42df6a68cc789a5d",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -5572,15 +5396,15 @@
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "fe2b2d6df0036702",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "c3a564e5c2698795",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "6d3b45032964d07b",
-            "SimVelocity": "9be30af8f0a4f079",
-            "TargetMemory": "ead20572e9e3a696",
+            "SimTransform": "03ce5a232e206c24",
+            "SimVelocity": "3e8038215fdfbccf",
+            "TargetMemory": "00e9610f0d095ddf",
             "TkbIdentity": "a0e858c966b417af",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
@@ -5592,9 +5416,9 @@
         },
         "Viper": {
           "position": [
-            680.375,
-            1058.141,
-            2114.133
+            682.181,
+            1060.907,
+            2114.157
           ],
           "health": 400,
           "visible": {
@@ -5604,9 +5428,9 @@
               "Kind": "Ready",
               "Target": "null",
               "Point": [
-                605.635,
-                1513.69,
-                2115.488
+                606.536,
+                1513.548,
+                2115.471
               ],
               "IdleSeconds": 0,
               "ActiveMount": 0,
@@ -5614,18 +5438,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "f44129a7aab03f1a",
+            "AcousticEmitter": "648e383978c23bf8",
             "ActionStatus": "e4932d0984b6da3a",
-            "ActiveSensorTracks": "2664f15b9cc6f514",
+            "ActiveSensorTracks": "c2ce08145fb2527a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "930ccc88a207c83a",
-            "AirCombatSteer": "3cacc6f088884eb2",
+            "AirCombatState": "b9f0a67474a8af44",
+            "AirCombatSteer": "98febf08c7119342",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "1cbd54f27cf0601c",
-            "BrainDiagnostics": "b0c1332b60eb65c1",
+            "BlueprintBlackboard1024": "2922243330d6f670",
+            "BrainDiagnostics": "990bd3e5e579dad4",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -5633,11 +5457,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "3cb1a5e7d3ef0950",
+            "FighterPilotState": "f20c467a36bb55e3",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "4b010cd15e427a9d",
+            "FlightState": "9314af9a54198f1e",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "25f828bcf11776bb",
+            "HeardTraces": "ccec2ea2b519503b",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -5661,15 +5485,15 @@
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "a00e07b927b00da2",
-            "SimVelocity": "61d3e3c65b73233f",
-            "TargetMemory": "d66762d293b58f7e",
+            "SimTransform": "dfce22bf27f403cf",
+            "SimVelocity": "2b65e5c49b221f8f",
+            "TargetMemory": "c5f736888915887e",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "c800d75c0b238b40",
-            "WeaponChannel": "986193cf882600b6",
-            "WeaponPosture": "4a4ca8df60a8b6a1",
+            "WeaponChannel": "ec19e4bf0cea2222",
+            "WeaponPosture": "ba0a087456f3aab1",
             "WeaponState": "a622b3e983cd999c"
           }
         }
@@ -5680,9 +5504,9 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -1147.359,
-            1153.002,
-            2082.107
+            -1147.4,
+            1153.021,
+            2082.074
           ],
           "health": 100000,
           "visible": {
@@ -5702,9 +5526,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "ecfe7ebba4d7eca8",
+            "AcousticEmitter": "b7c3660d72e582f1",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "c9cbc871f85087ef",
+            "ActiveSensorTracks": "11eb70e8c9ceb75e",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -5716,17 +5540,17 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "3500a32e145d7414",
+            "FighterPilotState": "eb1c4be50219570e",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "98c3e980d52db812",
+            "FlightState": "ce65f1156eb463ac",
             "Health": "81f4e034a09c4020",
-            "HeardTraces": "dbc212310ed54b11",
+            "HeardTraces": "9bf2a595a23ce3ed",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "6bbaeb71258618b3",
+            "MissileWarning": "42df6a68cc789a5d",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -5739,15 +5563,15 @@
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "f61da7e5fc3b5660",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "0b88a6ba1d38cba8",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "a828851f64d81702",
-            "SimVelocity": "d407b4db17700552",
-            "TargetMemory": "1ac0a4d1ca832241",
+            "SimTransform": "8ed0c023f0434e73",
+            "SimVelocity": "c34339b9dc278e38",
+            "TargetMemory": "21f9e8411a4d9f08",
             "TkbIdentity": "a0e858c966b417af",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
@@ -5759,9 +5583,9 @@
         },
         "Viper": {
           "position": [
-            -861.244,
-            1425.749,
-            2088.319
+            -863.421,
+            1425.255,
+            2088.233
           ],
           "health": 400,
           "visible": {
@@ -5771,9 +5595,9 @@
               "Kind": "Ready",
               "Target": "null",
               "Point": [
-                -1107.058,
-                1122.463,
-                2082.641
+                -1107.412,
+                1122.923,
+                2082.618
               ],
               "IdleSeconds": 0,
               "ActiveMount": 0,
@@ -5781,18 +5605,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "0eb96719bca459a5",
+            "AcousticEmitter": "feaa4c9033ec3bab",
             "ActionStatus": "3ad2aac023d79b27",
-            "ActiveSensorTracks": "2664f15b9cc6f514",
+            "ActiveSensorTracks": "c2ce08145fb2527a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "33f683644cf87b62",
-            "AirCombatSteer": "165a21274d3e2ca5",
+            "AirCombatState": "240c9262dded0ce0",
+            "AirCombatSteer": "b2e70e284963d34a",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "4cc76cb25dc59afd",
-            "BrainDiagnostics": "71385a91371769bc",
+            "BlueprintBlackboard1024": "d3d637c12a39724a",
+            "BrainDiagnostics": "794e25fab9fdb2d7",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -5800,11 +5624,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "a6bf17ef1476ff37",
+            "FighterPilotState": "f470ff75b1e53bf7",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "8fa67c150062e2bb",
+            "FlightState": "9d86602dec11dbb7",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "25f828bcf11776bb",
+            "HeardTraces": "ccec2ea2b519503b",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -5828,15 +5652,15 @@
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "5af2cff868cc02f7",
-            "SimVelocity": "e41f05a23527bdb2",
-            "TargetMemory": "052ce457bd8dc026",
+            "SimTransform": "02b4bdf0f52d267c",
+            "SimVelocity": "c632a38d39738360",
+            "TargetMemory": "73862c8c8fdf9adb",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "08b7e68d7986a66a",
-            "WeaponChannel": "05e8f2274906f70d",
-            "WeaponPosture": "4fee971f39620913",
+            "WeaponChannel": "38284d039535cb36",
+            "WeaponPosture": "27abd240a4d1ba9a",
             "WeaponState": "a622b3e983cd999c"
           }
         }
@@ -5847,11 +5671,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            114.082,
-            -396.611,
-            2098.825
+            113.991,
+            -396.627,
+            2098.852
           ],
-          "health": 99994,
+          "health": 100000,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -5869,9 +5693,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "c73d9be68be69106",
+            "AcousticEmitter": "33bec6830c3f744f",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "cdf009dda0fe3457",
+            "ActiveSensorTracks": "b7b6f7d14bf721bc",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -5883,18 +5707,17 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "d98653854ea6ada0",
+            "FighterPilotState": "b17f227a145f8c1b",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "dae36ed6c491cbfb",
-            "Health": "519a189ea249a30b",
-            "HeardTraces": "36804b40bf7f90db",
-            "HitMarks": "61df1d59f12344f8",
+            "FlightState": "98ac569da1eb99fd",
+            "Health": "81f4e034a09c4020",
+            "HeardTraces": "c5fc98467cee221a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "6bbaeb71258618b3",
+            "MissileWarning": "42df6a68cc789a5d",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -5902,23 +5725,22 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "8e471d74711d7819",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "f20fbcdd4fca0ab3",
-            "ResolvedStyle": "904c1c29977189a9",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "b6d8eb59d1f736d7",
+            "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "97680dc689243839",
-            "SimVelocity": "b9aaab5f6671ee28",
-            "TargetMemory": "cbbc1db8a87aee8b",
+            "SimTransform": "ef49d7e97f81e882",
+            "SimVelocity": "552e4751477e3d1e",
+            "TargetMemory": "8530fa2f969d697c",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "f5093837c696935b",
+            "UnderFire": "891ee70722f4e9de",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -5929,9 +5751,9 @@
         },
         "Viper": {
           "position": [
-            -214.049,
-            -307.61,
-            2093.15
+            -212.782,
+            -308.639,
+            2093.184
           ],
           "health": 400,
           "visible": {
@@ -5941,9 +5763,9 @@
               "Kind": "Ready",
               "Target": "null",
               "Point": [
-                115.845,
-                -360.557,
-                2099.089
+                115.623,
+                -360.891,
+                2099.106
               ],
               "IdleSeconds": 0,
               "ActiveMount": 0,
@@ -5951,18 +5773,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "a796a7638283d43e",
+            "AcousticEmitter": "ff70634dee64ed7a",
             "ActionStatus": "bf2bc94ae7b500c8",
-            "ActiveSensorTracks": "6a9d59942485c711",
+            "ActiveSensorTracks": "ba16a51374ea6e6f",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "13fd745d827f8092",
+            "AirCombatState": "1c8d2919537aedc4",
             "AirCombatSteer": "210d6059c899f7ae",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "4131c716558ddc52",
-            "BrainDiagnostics": "fc3c78137b3fa24a",
+            "BlueprintBlackboard1024": "689ffeb3b6eaa151",
+            "BrainDiagnostics": "2e0a86e8d4ccac66",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -5970,11 +5792,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "cc14f79e6dc28381",
+            "FighterPilotState": "452c64b822f13db7",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "8eadc7cac460240d",
+            "FlightState": "9365e3b285a029db",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "5dcd3dd1556591be",
+            "HeardTraces": "e648b181fceabae0",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -5993,22 +5815,22 @@
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarEmission": "0a2c0ee08352b4bf",
             "RadarSignature": "3fb1e23688133fbf",
-            "RecentSenses": "bf1e0ebf8d072ad4",
+            "RecentSenses": "30bd82ba21c4a666",
             "ResolvedStyle": "c58932ed5da1f213",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
-            "ShotOrdinal": "2e9308575910e924",
+            "ShotOrdinal": "25b45dcb202fc7a5",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "5d07ca9add8ef2cf",
-            "SimVelocity": "59279b3c49a30620",
-            "TargetMemory": "1a7ef0676bd76e74",
+            "SimTransform": "74934a9c8485901d",
+            "SimVelocity": "a0b9be4281bc396f",
+            "TargetMemory": "fba1e25f51143f9e",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "4b8b78296939fbba",
-            "WeaponChannel": "1d48e928b2277fbc",
-            "WeaponPosture": "4424fffd704bd8dc",
-            "WeaponState": "9faa2ef852aaa9cc"
+            "WeaponAmmo": "01e20011a8684996",
+            "WeaponChannel": "eb9a501b1c67cea6",
+            "WeaponPosture": "148eea9cc5854e4a",
+            "WeaponState": "6a64a1a9570b84bc"
           }
         }
       }
@@ -6018,11 +5840,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            1039.95,
-            1440.589,
-            2123.268
+            1039.88,
+            1440.561,
+            2123.238
           ],
-          "health": 99838,
+          "health": 99948.375,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6040,9 +5862,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "7853174b8251926f",
+            "AcousticEmitter": "8cae634287168813",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "9679a878a8946c32",
+            "ActiveSensorTracks": "5897fca1872f6bd1",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6054,18 +5876,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "de886118f161f93f",
+            "FighterPilotState": "98f9a2b6d2cf1727",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "5cacf3f24e14af9f",
-            "Health": "fc3d927551d99a6e",
-            "HeardTraces": "8d5e97da919ebba4",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "8eaf66eff6bb400e",
+            "Health": "55246fd008669465",
+            "HeardTraces": "019797ff233b163c",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "6bbaeb71258618b3",
+            "MissileWarning": "42df6a68cc789a5d",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6073,23 +5895,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "6d4dc99c110d9257",
-            "ResolvedStyle": "106d021405229443",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "f6cd2a93860345a0",
+            "ResolvedStyle": "726003bd9f45c7b9",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "8c67eb90fbffdd77",
-            "SimVelocity": "b1629c78d3633caa",
-            "TargetMemory": "87f04f7f9ff8191c",
+            "SimTransform": "f3cfaab1ad533c74",
+            "SimVelocity": "6f59f0673a0d7730",
+            "TargetMemory": "67d4a610725c3ecd",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6100,9 +5922,9 @@
         },
         "Viper": {
           "position": [
-            1396.464,
-            1041.435,
-            2122.396
+            1382.684,
+            1053.794,
+            2123.653
           ],
           "health": 400,
           "visible": {
@@ -6112,28 +5934,28 @@
               "Kind": "Ready",
               "Target": "null",
               "Point": [
-                1175.382,
-                812.437,
-                2123.151
+                1175.715,
+                836.277,
+                2123.251
               ],
-              "IdleSeconds": 2.683,
+              "IdleSeconds": 2.583,
               "ActiveMount": 0,
               "HeldItem": "None"
             }
           },
           "components": {
-            "AcousticEmitter": "5db9b8897fa9acfd",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "8dbe52502ded96ad",
+            "AcousticEmitter": "83ddbaa118064f0d",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "96fa47b1e2c7c026",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "f6a6760e6237c750",
+            "AirCombatState": "0bd0834ee9aa6382",
             "AirCombatSteer": "e566234cd303f529",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "9ed07b216710b631",
-            "BrainDiagnostics": "060f5cc79d99de32",
+            "BlueprintBlackboard1024": "aded8a262ce4809b",
+            "BrainDiagnostics": "d3d0f57f386ceb5e",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6141,11 +5963,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "f4a63e31b7164075",
+            "FighterPilotState": "594482b1ac52f729",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "b9b4d0807b2bb637",
+            "FlightState": "8a814ddf76fde2f7",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "a8de652a9053afb6",
+            "HeardTraces": "5e8cd58e746d7c4e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -6170,16 +5992,16 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "ea84ee5ffe53646b",
-            "SimVelocity": "97a45b11a8ca6864",
-            "TargetMemory": "58334d58837749ce",
+            "SimTransform": "9b730acc3b811eb4",
+            "SimVelocity": "fa84b18b3fb7a715",
+            "TargetMemory": "08234e18aab1fb37",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "880a450b4bbbbe9f",
-            "WeaponChannel": "6ffdf9f3013b769d",
-            "WeaponPosture": "0652da86f53bc536",
-            "WeaponState": "2635548a5cf399b6"
+            "WeaponAmmo": "6515fcd6b887f04c",
+            "WeaponChannel": "d58640e34ebe8459",
+            "WeaponPosture": "e0cc3957295f32fb",
+            "WeaponState": "47ab07757b23f6be"
           }
         }
       }
@@ -6189,11 +6011,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -1069.397,
-            1608.687,
-            2089.511
+            -1069.51,
+            1608.671,
+            2089.198
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6211,9 +6033,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "db8ab1c65625a1c5",
+            "AcousticEmitter": "d3820457608d5941",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "9679a878a8946c32",
+            "ActiveSensorTracks": "5897fca1872f6bd1",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6225,18 +6047,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "902b56c62d51e920",
+            "FighterPilotState": "b323d692ae46548f",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "c93f4a42f5f676b3",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "8d5e97da919ebba4",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "0c8d7ee61205dfb7",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "019797ff233b163c",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "03121995c0532a4b",
+            "MissileWarning": "ccbd16569f78a441",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6244,23 +6066,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "a17d7b9ea6271a10",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "8f34125580ba2445",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "e4dcdb70a184abc6",
-            "SimVelocity": "79041419d7e54c26",
-            "TargetMemory": "5a9d3a57d0541d21",
+            "SimTransform": "4bff217ca8dd9280",
+            "SimVelocity": "4887d12ab54c116c",
+            "TargetMemory": "b9f8d3a80082cc77",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6271,9 +6093,9 @@
         },
         "Viper": {
           "position": [
-            290.815,
-            1826.606,
-            2107.752
+            277.102,
+            1833.852,
+            2107.355
           ],
           "health": 400,
           "visible": {
@@ -6293,18 +6115,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "50e6703b0d3891ee",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "8dbe52502ded96ad",
+            "AcousticEmitter": "4565892e9ea09604",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "96fa47b1e2c7c026",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "f343552908767e1e",
-            "AirCombatSteer": "455654ed53a076c7",
+            "AirCombatState": "f72374a535061576",
+            "AirCombatSteer": "0ee31b7bbf69cf61",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "214029f7affdfc76",
-            "BrainDiagnostics": "2c4268aa082f60bc",
+            "BlueprintBlackboard1024": "97f6db4284393f52",
+            "BrainDiagnostics": "44b9040744484716",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6312,11 +6134,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "01c986b9b70e3219",
+            "FighterPilotState": "dfcee036ecb1d089",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "04430734af847031",
+            "FlightState": "ec8e0cfd9e8c338a",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "a8de652a9053afb6",
+            "HeardTraces": "5e8cd58e746d7c4e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -6341,14 +6163,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "6d5d1a2bc9678d39",
-            "SimVelocity": "189fe4670831baf7",
-            "TargetMemory": "24d6d2c6e281ce29",
+            "SimTransform": "bc80986f7c2d43e5",
+            "SimVelocity": "d06f2f52f737bff5",
+            "TargetMemory": "152d536b3845eee8",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "cb071d2d7fc7c46e",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -6360,11 +6182,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -509.781,
-            -476.674,
-            2089.546
+            -510.116,
+            -476.89,
+            2089.414
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6382,9 +6204,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "733ae91deb13b8a5",
+            "AcousticEmitter": "acd74b67ba2dc1dc",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "9679a878a8946c32",
+            "ActiveSensorTracks": "5897fca1872f6bd1",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6396,18 +6218,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "26e802b1f6b89c80",
+            "FighterPilotState": "2fabf70453cd6d30",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "6dc93762b4c2129f",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "d5513f0c65bd4373",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "716b3e7a7aa5e16f",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "6c4e5574efbad342",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "03121995c0532a4b",
+            "MissileWarning": "ccbd16569f78a441",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6415,23 +6237,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "5eedf63c086980c5",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "32fda1ff6664c778",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "077468cae702ad5a",
-            "SimVelocity": "dfe364219967df43",
-            "TargetMemory": "582f384a9809c4d1",
+            "SimTransform": "4b7c81182c792711",
+            "SimVelocity": "dddd6d1556c61bfe",
+            "TargetMemory": "fd2a64d696bd49b5",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6442,9 +6264,9 @@
         },
         "Viper": {
           "position": [
-            -975.943,
-            512.498,
-            2088.108
+            -1023.781,
+            500.901,
+            2086.844
           ],
           "health": 400,
           "visible": {
@@ -6464,18 +6286,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "3c953662f308a90a",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "8dbe52502ded96ad",
+            "AcousticEmitter": "e95e1d2bf73b252c",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "96fa47b1e2c7c026",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "947ffadae91773f2",
+            "AirCombatState": "fde557de612f9164",
             "AirCombatSteer": "e566234cd303f529",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "0c480535ba027f64",
-            "BrainDiagnostics": "e4161b864d56cbd0",
+            "BlueprintBlackboard1024": "b6ed066cd698ff60",
+            "BrainDiagnostics": "a7b138257f7a9937",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6483,11 +6305,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "6a6e994d5f349054",
+            "FighterPilotState": "bbc6113119ac7257",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "4833149b189a10b1",
+            "FlightState": "7fc96e1259202138",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "1ff13d15332b53eb",
+            "HeardTraces": "cd52c6cc402b7903",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -6512,14 +6334,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "73caded024070d99",
-            "SimVelocity": "0ce7a93a5bb08f9d",
-            "TargetMemory": "a3218ad279572636",
+            "SimTransform": "eab9ad9e57d86357",
+            "SimVelocity": "48ccb25b384c73a9",
+            "TargetMemory": "bc554cd8a88461d7",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "b19c8d4581bb785f",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -6531,11 +6353,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            1290.409,
-            727.306,
-            2119.361
+            1290.134,
+            726.745,
+            2119.704
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6553,9 +6375,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "d049c5fbda8a8178",
+            "AcousticEmitter": "b3a109088ed3f02d",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "aae8edbcca35cfc9",
+            "ActiveSensorTracks": "d1a0c2fa41841fee",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6567,18 +6389,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "b30391b149ff2385",
+            "FighterPilotState": "18ef4b91a3d210bc",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "ac4303c75fe7031a",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "f9401a472addf795",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "6e017af5ebd8ea28",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "b06b04d4266d46b1",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "03121995c0532a4b",
+            "MissileWarning": "ccbd16569f78a441",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6586,23 +6408,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "f13e8b54354324c4",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "4c1ce55baa609278",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "3a6e30c97fa67905",
-            "SimVelocity": "9b7c74e5f645b665",
-            "TargetMemory": "aff1d497187c6d21",
+            "SimTransform": "38ab3e21e4372515",
+            "SimVelocity": "c8991eba4bff6c19",
+            "TargetMemory": "7a8033e2252b759b",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6613,9 +6435,9 @@
         },
         "Viper": {
           "position": [
-            319.045,
-            62.403,
-            2102.815
+            387.565,
+            13.848,
+            2106.241
           ],
           "health": 400,
           "visible": {
@@ -6635,18 +6457,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "fb36c3500d8f1a85",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "3b9ba066b69b8b59",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "b47fbdf034a5bb85",
+            "AirCombatState": "2beee93d3a19ed95",
             "AirCombatSteer": "e566234cd303f529",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "86b59a2ea1839a32",
-            "BrainDiagnostics": "d6ac8323471b52ed",
+            "BlueprintBlackboard1024": "2a6869a9293e7044",
+            "BrainDiagnostics": "b859193c0a81c82a",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6654,11 +6476,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "cdf69c70e9797c59",
+            "FighterPilotState": "c42e607b1f8acbee",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "3bba6c252624d8f4",
+            "FlightState": "3ff0b2ec55b5157b",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "4395d8ff617a2329",
+            "HeardTraces": "b7e83432a5556b48",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -6683,14 +6505,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "cf3b6e5e29257dc9",
-            "SimVelocity": "27639e8c56599e5d",
-            "TargetMemory": "7820b0c1426f08cd",
+            "SimTransform": "20c1518bc1da931d",
+            "SimVelocity": "8ba6279342df5ea1",
+            "TargetMemory": "5e22856bf8c2b2ac",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "b19c8d4581bb785f",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -6702,11 +6524,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -441.832,
-            2046.018,
-            2099.97
+            -442.086,
+            2045.351,
+            2099.814
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6724,9 +6546,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "73f1211952047612",
+            "AcousticEmitter": "1217680e58432cb8",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "aae8edbcca35cfc9",
+            "ActiveSensorTracks": "3c8d0a1e65075535",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6738,18 +6560,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "0a3dd03aec34769d",
+            "FighterPilotState": "582d5b18d1c1ebb2",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "139d87335a1a186f",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "ed1c38bb97931f22",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "0daaf7bf96acae4d",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "a5bb199dfbf6ab9d",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "06f61f33da6235bc",
+            "MissileWarning": "e35b1f729f1a5456",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6757,23 +6579,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "d350d8990c040af5",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "15e0d21b6ebdc61d",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "03874af2d5ccf337",
-            "SimVelocity": "438fa3da7943be70",
-            "TargetMemory": "2d8a2bb9feaac646",
+            "SimTransform": "7343bcf0500ce8d3",
+            "SimVelocity": "1d97ac02c3b56d0f",
+            "TargetMemory": "b38d5843f5c32fa3",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6784,9 +6606,9 @@
         },
         "Viper": {
           "position": [
-            250.159,
-            -811.847,
-            2199.361
+            550.489,
+            -831.342,
+            2158.888
           ],
           "health": 400,
           "visible": {
@@ -6806,18 +6628,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "c94cba1d21e4725d",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "5d3b2464d920c4ec",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "25508bc96640ff67",
-            "AirCombatSteer": "868f5bce54501e1e",
+            "AirCombatState": "4d855019f47f0bc8",
+            "AirCombatSteer": "24fa8628d9280e9a",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "06ab0117a82be5db",
-            "BrainDiagnostics": "b51c0b0462b9be2a",
+            "BlueprintBlackboard1024": "2b5d1977ab8c5520",
+            "BrainDiagnostics": "9ff16afcad24c822",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6825,11 +6647,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "3e08c91ecee88c3e",
+            "FighterPilotState": "46f846bb64e63e5b",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "cc0bf4c885d48673",
+            "FlightState": "0f33ea66d9e17359",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "4395d8ff617a2329",
+            "HeardTraces": "b7e83432a5556b48",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -6854,14 +6676,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "e2cb5342f9ee5a8e",
-            "SimVelocity": "4c14961c8980a9a1",
-            "TargetMemory": "33bc0b0c5243c8c4",
+            "SimTransform": "89249f3dd273c120",
+            "SimVelocity": "f539d40d314bdce9",
+            "TargetMemory": "1f3154c642341713",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "11fb0bc1a480f60b",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -6873,11 +6695,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -1170.307,
-            -29.543,
-            2081.942
+            -1170.704,
+            -30.335,
+            2081.621
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -6895,9 +6717,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "45f7ef669e2ea2f4",
+            "AcousticEmitter": "e90b908fed06e96c",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "29cdf8fbd3ff60b8",
+            "ActiveSensorTracks": "3c8d0a1e65075535",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -6909,18 +6731,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "90354704185249cc",
+            "FighterPilotState": "03138661e7ef05f5",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "ea9d60d924aa6c62",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "995d515b47a7f63c",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "a97ea600c1dc3b06",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "b14371aeea055c44",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "06f61f33da6235bc",
+            "MissileWarning": "e35b1f729f1a5456",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -6928,23 +6750,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "b3679645afe5a9cd",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "e78395713e25fa30",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c9391e9d3715cc36",
-            "SimVelocity": "b1d92c710b10de4a",
-            "TargetMemory": "eef755b999aec80c",
+            "SimTransform": "bd186b6d6c9527d7",
+            "SimVelocity": "a47c33808472bf76",
+            "TargetMemory": "cdab67278127bbb2",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -6955,9 +6777,9 @@
         },
         "Viper": {
           "position": [
-            -1680.674,
-            -2118.317,
-            2199.361
+            -1238.277,
+            -2320.603,
+            2158.888
           ],
           "health": 400,
           "visible": {
@@ -6977,18 +6799,18 @@
             }
           },
           "components": {
-            "AcousticEmitter": "539665911bd3f289",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "3059367a06cf0f45",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "44b84e0321b4f8e1",
-            "AirCombatSteer": "868f5bce54501e1e",
+            "AirCombatState": "a4010ab237fe1566",
+            "AirCombatSteer": "24fa8628d9280e9a",
             "Behavior": "5e9dcf3994d2da89",
             "BehaviorStartRecord": "35c4b5c5dee514f5",
             "BehaviorState": "eaf4d5c51d1cc2ce",
             "BlueprintAssignments": "650ca72095fa253b",
-            "BlueprintBlackboard1024": "bd032e2b4105e108",
-            "BrainDiagnostics": "c4e6234f8d3220cc",
+            "BlueprintBlackboard1024": "5f28e16bd29339ec",
+            "BrainDiagnostics": "35d40dadbe781b3e",
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "842920ee6830da27",
             "CullingState": "9c97051fd4b28240",
@@ -6996,11 +6818,11 @@
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "2f8b2007c7f2dc05",
+            "FighterPilotState": "88b99ee34b46a293",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "2a4eeaf558509660",
+            "FlightState": "8de4c99a9af22b83",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "4395d8ff617a2329",
+            "HeardTraces": "b7e83432a5556b48",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -7025,14 +6847,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "2c86962154187ba3",
-            "SimVelocity": "391a60e1c7c5461d",
-            "TargetMemory": "cf35dc285b995dcc",
+            "SimTransform": "dac4617d4ee9a97f",
+            "SimVelocity": "11212d407d03ba82",
+            "TargetMemory": "2e7c3ef8933f4e8e",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "11fb0bc1a480f60b",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -7044,11 +6866,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            1025.478,
-            -107.983,
-            2112.504
+            1025.017,
+            -109.14,
+            2112.782
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -7066,9 +6888,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "04bd5b6d2934fbbf",
+            "AcousticEmitter": "ffeb7f62de882eed",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "29cdf8fbd3ff60b8",
+            "ActiveSensorTracks": "3c8d0a1e65075535",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -7080,18 +6902,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "fcb952a3f49daebb",
+            "FighterPilotState": "7232ba59a47e0d0a",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "a92ae57b50eca391",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "995d515b47a7f63c",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "3904fc4ae942c5d6",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "b14371aeea055c44",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "06f61f33da6235bc",
+            "MissileWarning": "e35b1f729f1a5456",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -7099,23 +6921,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "b3679645afe5a9cd",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "e78395713e25fa30",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "5047eab9ac9c2e6c",
-            "SimVelocity": "f7aa16ca14f8f1f7",
-            "TargetMemory": "4d32c232381a32a7",
+            "SimTransform": "24379b6703095460",
+            "SimVelocity": "a23cc260111863df",
+            "TargetMemory": "0ba15136804b011c",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -7126,9 +6948,9 @@
         },
         "Viper": {
           "position": [
-            -4154.834,
-            -3791.959,
-            2199.361
+            -3532.16,
+            -4229.976,
+            2158.888
           ],
           "health": 400,
           "visible": {
@@ -7148,28 +6970,28 @@
             }
           },
           "components": {
-            "AcousticEmitter": "31588fefba24aeb3",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "6ac029a6ec2906d5",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "6ce32dc30c38af31",
-            "AirCombatSteer": "868f5bce54501e1e",
-            "BehaviorState": "46661455077cca6d",
+            "AirCombatState": "5889d85de28b7bab",
+            "AirCombatSteer": "24fa8628d9280e9a",
+            "BehaviorState": "a6e7294026d55a0d",
             "BlueprintAssignments": "09612b07b5ecb5a5",
-            "BlueprintBlackboard1024": "103535b185675f65",
+            "BlueprintBlackboard1024": "855bb82f6a5edc48",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "bb07cef27ae83b91",
+            "BrainJournal": "21ccb33e2346e899",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "47f7a6d5a5b8e7b6",
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "5c5a4f1dd33b6f8c",
+            "FighterPilotState": "a4ff807a731613ba",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "68758ee534c63aed",
+            "FlightState": "ccb4dd755c12ead7",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "5be24af5fa1c2942",
+            "HeardTraces": "dfa29b6fbc409b98",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -7194,14 +7016,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "57a3aad6d8217fc5",
-            "SimVelocity": "ec99e1b8506d9143",
-            "TargetMemory": "a4d6a9a3873c0392",
+            "SimTransform": "aed41064806eee93",
+            "SimVelocity": "22cf5a0345dff1ff",
+            "TargetMemory": "062e087417c9ceb5",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "11fb0bc1a480f60b",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -7213,11 +7035,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            422.507,
-            1998.062,
-            2111.936
+            422.095,
+            1996.754,
+            2112.012
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -7235,9 +7057,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "f3465a74e77f25f6",
+            "AcousticEmitter": "01b7bba1b5c81665",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "29cdf8fbd3ff60b8",
+            "ActiveSensorTracks": "3c8d0a1e65075535",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -7249,18 +7071,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "c42f1d914ea600a4",
+            "FighterPilotState": "ffc519f3eb4a47d8",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "53ffe592ef1e8edc",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "995d515b47a7f63c",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "3233ea16549b3908",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "b14371aeea055c44",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "06f61f33da6235bc",
+            "MissileWarning": "e35b1f729f1a5456",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -7268,23 +7090,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "b3679645afe5a9cd",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "e78395713e25fa30",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "31cb3410cea0f4b4",
-            "SimVelocity": "e1e8540739be3774",
-            "TargetMemory": "44f6fc7f8ca7d94f",
+            "SimTransform": "995ab4a4231dfed4",
+            "SimVelocity": "4169c28c43d2486c",
+            "TargetMemory": "0378e40eb3ddcb24",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -7295,9 +7117,9 @@
         },
         "Viper": {
           "position": [
-            -4518.923,
-            -4025.753,
-            3574.787
+            -4032.933,
+            -4626.139,
+            3542.641
           ],
           "health": 400,
           "visible": {
@@ -7317,28 +7139,28 @@
             }
           },
           "components": {
-            "AcousticEmitter": "75e285ed66b2bdc0",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "d0d4e4718e121476",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "6ce32dc30c38af31",
-            "AirCombatSteer": "868f5bce54501e1e",
-            "BehaviorState": "46661455077cca6d",
+            "AirCombatState": "5889d85de28b7bab",
+            "AirCombatSteer": "24fa8628d9280e9a",
+            "BehaviorState": "a6e7294026d55a0d",
             "BlueprintAssignments": "09612b07b5ecb5a5",
-            "BlueprintBlackboard1024": "103535b185675f65",
+            "BlueprintBlackboard1024": "855bb82f6a5edc48",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "bb07cef27ae83b91",
+            "BrainJournal": "21ccb33e2346e899",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "47f7a6d5a5b8e7b6",
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "5938e211a8150d4f",
+            "FighterPilotState": "1a5449b6956cd7b3",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "44d58f72c9128245",
+            "FlightState": "894adcf01c9ba167",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "5be24af5fa1c2942",
+            "HeardTraces": "dfa29b6fbc409b98",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -7363,14 +7185,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "2cb51f767966ab97",
-            "SimVelocity": "2e9d233fa3df065e",
-            "TargetMemory": "34e7730121fccf99",
+            "SimTransform": "6aedc3ef808bf7b9",
+            "SimVelocity": "57add2d24d2b2076",
+            "TargetMemory": "511bf9185e8e8cc0",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "11fb0bc1a480f60b",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -7382,11 +7204,11 @@
       "units": {
         "Fulcrum": {
           "position": [
-            -1411.284,
-            771.741,
-            2081.564
+            -1411.749,
+            770.308,
+            2081.159
           ],
-          "health": 94799.73,
+          "health": 96974.664,
           "visible": {
             "EntityInfo.ForceId": "Hostile",
             "NavigationStatus.Phase": "Following",
@@ -7404,9 +7226,9 @@
             }
           },
           "components": {
-            "AcousticEmitter": "bb51fd4abddbd607",
+            "AcousticEmitter": "363baf78a1147273",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "29cdf8fbd3ff60b8",
+            "ActiveSensorTracks": "3c8d0a1e65075535",
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirCombatSteer": "c9d15b5584c5f54f",
             "BehaviorState": "03a6fc5adbe92090",
@@ -7418,18 +7240,18 @@
             "EntityAppearance": "41a84d3292c2eb2c",
             "EntityGuid": "0439cbc4d859b8fc",
             "EntityInfo": "a4b45a556c4881fa",
-            "FighterPilotState": "faa16903446ac54c",
+            "FighterPilotState": "d2024477d1840e53",
             "FlightParams": "c910f7b77b714b3a",
-            "FlightState": "456e9e8b14491b04",
-            "Health": "4fcdb5cb615216a5",
-            "HeardTraces": "995d515b47a7f63c",
-            "HitMarks": "229971d9edd621c2",
+            "FlightState": "dbface1e2899d809",
+            "Health": "0d6528a4f435af7c",
+            "HeardTraces": "b14371aeea055c44",
+            "HitMarks": "9240b2f38324117e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
             "LocomotionChannel": "c36eb62a5ca3f850",
             "MapDisplayComponent": "cd112677ba9e9000",
-            "MissileWarning": "06f61f33da6235bc",
+            "MissileWarning": "e35b1f729f1a5456",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
             "NavigationApplied": "a1c6317adb426f09",
@@ -7437,23 +7259,23 @@
             "NavigationStatus": "ee25993f067e4145",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "49918b3e8efa3bea",
-            "PartDamage": "3a559f4d5dd94ca3",
+            "PartDamage": "1079a6279175f597",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "31c131a9f9cbab5d",
             "PhysicsCollider": "e349ead6db77bf64",
             "PreviousCapabilities": "c96ce970ba4444ef",
             "RadarSignature": "3fc9e2368827d1a0",
-            "RadarWarning": "8e36fae0b41e33fc",
-            "RecentSenses": "b3679645afe5a9cd",
-            "ResolvedStyle": "4f74d0cfa090d962",
+            "RadarWarning": "51424d6fa0a4afc2",
+            "RecentSenses": "e78395713e25fa30",
+            "ResolvedStyle": "1f5cda86712849a3",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "618334eb20eceab9",
-            "SimVelocity": "5cae2319d09486eb",
-            "TargetMemory": "a79517c28be5ce4f",
+            "SimTransform": "27e365144870df4f",
+            "SimVelocity": "902529d210359d1c",
+            "TargetMemory": "9663c681ca6138e4",
             "TkbIdentity": "a0e858c966b417af",
-            "UnderFire": "128dc962af0d5ff2",
+            "UnderFire": "eee76296a48c0c63",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "0ff80bcbca2c8294",
             "WeaponAmmo": "27e4927f257a2540",
@@ -7464,9 +7286,9 @@
         },
         "Viper": {
           "position": [
-            -4109.503,
-            -3758.028,
-            4325.584
+            -3527.041,
+            -4218.844,
+            4296.249
           ],
           "health": 400,
           "visible": {
@@ -7486,28 +7308,28 @@
             }
           },
           "components": {
-            "AcousticEmitter": "b5acd15d0d19b771",
-            "ActionStatus": "5ae0dd9a5873aefe",
-            "ActiveSensorTracks": "414c2d7870cff08d",
+            "AcousticEmitter": "408cb1c19b36069a",
+            "ActionStatus": "e2315ef8c2ea6073",
+            "ActiveSensorTracks": "2844416bdf390c71",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AirCombatState": "6ce32dc30c38af31",
-            "AirCombatSteer": "868f5bce54501e1e",
-            "BehaviorState": "46661455077cca6d",
+            "AirCombatState": "5889d85de28b7bab",
+            "AirCombatSteer": "24fa8628d9280e9a",
+            "BehaviorState": "a6e7294026d55a0d",
             "BlueprintAssignments": "09612b07b5ecb5a5",
-            "BlueprintBlackboard1024": "103535b185675f65",
+            "BlueprintBlackboard1024": "855bb82f6a5edc48",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "bb07cef27ae83b91",
+            "BrainJournal": "21ccb33e2346e899",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "47f7a6d5a5b8e7b6",
             "EntityAppearance": "125402fd454dbb05",
             "EntityGuid": "e96454c4c8e9c209",
             "EntityInfo": "35a32858fc3d8f5a",
-            "FighterPilotState": "7c8509689e9508b1",
+            "FighterPilotState": "6d0a4e4dd7351bdb",
             "FlightParams": "0580ade5ec6df74a",
-            "FlightState": "96c0a1e2fe3d40df",
+            "FlightState": "69dba899ed12df23",
             "Health": "db15c582fd30b5be",
-            "HeardTraces": "5be24af5fa1c2942",
+            "HeardTraces": "dfa29b6fbc409b98",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
@@ -7532,14 +7354,14 @@
             "SensorMount": "65514b8a7320953d",
             "ShotOrdinal": "87d522b332ff9207",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "e51dc1422d3a4130",
-            "SimVelocity": "1acb93ada1f2f662",
-            "TargetMemory": "d4bf64e08ae83bb2",
+            "SimTransform": "7b06c524f7a0fa10",
+            "SimVelocity": "de469ac2ca108caa",
+            "TargetMemory": "d011f4f942ad2186",
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
             "WeaponAmmo": "11fb0bc1a480f60b",
-            "WeaponChannel": "6ffdf9f3013b769d",
+            "WeaponChannel": "d58640e34ebe8459",
             "WeaponPosture": "31ce8cd06f971c3a",
             "WeaponState": "5c4c5af88709c9e5"
           }
@@ -7548,6 +7370,6 @@
     }
   ],
   "verdicts": {
-    "a Viper gun round hits the turning MiG": 28.1667
+    "a Viper gun round hits the turning MiG": 33.7
   }
 }
