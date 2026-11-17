@@ -777,10 +777,19 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static bool AskTerrainAll(ref SquadPlayState ws, in SquadPlayContext ctx, uint blueprintId, int site, float radius, Entity from,
                                           Entity at, bool aimAtPoint, Vector3 atPoint, out EqsCognitiveBuffer answers)
+            => AskTerrainAll(ctx.World, ctx.Commander, ref ws.Sensor, ref ws.LastAnswerTick, blueprintId, site, radius, from, at, aimAtPoint, atPoint, out answers);
+
+        /// <summary>⭐ <c>CE-8303</c> (D-P3 DP3-A) — the same point-aimed query with the CARRIER a parameter (the entity whose child sensor asks)
+        /// and the ask's state held by the caller: what <see cref="DefencePlan"/> asks through for a crew that is not a commander's roster.</summary>
+        public static bool AskTerrainAll(EntityRepository world, Entity carrier, ref EqsSensorHandle sensor, ref uint lastAnswerTick, uint blueprintId,
+                                         int site, float radius, Entity from, Vector3 atPoint, out EqsCognitiveBuffer answers)
+            => AskTerrainAll(world, carrier, ref sensor, ref lastAnswerTick, blueprintId, site, radius, from, Entity.Null, true, atPoint, out answers);
+
+        private static bool AskTerrainAll(EntityRepository world, Entity carrier, ref EqsSensorHandle sensor, ref uint lastAnswerTick, uint blueprintId,
+                                          int site, float radius, Entity from, Entity at, bool aimAtPoint, Vector3 atPoint, out EqsCognitiveBuffer answers)
         {
             answers = default;
-            var world = ctx.World;
-            var child = ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId) ? ws.Sensor.ChildId : Entity.Null;
+            var child = sensor.IsValid && world.IsAlive(sensor.ChildId) ? sensor.ChildId : Entity.Null;
             if (child.IsNull)
             {
                 if (from.IsNull || (at.IsNull && !aimAtPoint)) return true;
@@ -798,17 +807,17 @@ namespace Hrot.AI.Behaviors.Brains
                     ContextPoint1       = atPoint,
                     ContextPointMask    = aimAtPoint ? EqsSensor.Point1Bit : (byte)0,
                 };
-                child = EqsChildSensor.Ensure(world, ctx.Commander, site, in config);
+                child = EqsChildSensor.Ensure(world, carrier, site, in config);
                 if (child.IsNull) return false;
-                ws.Sensor = new EqsSensorHandle(child);
-                ws.LastAnswerTick = 0;
+                sensor = new EqsSensorHandle(child);
+                lastAnswerTick = 0;
             }
             if (!world.HasComponent<EqsCognitiveBuffer>(child)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
-            if (!buffer.IsReady || buffer.LastUpdateTick == ws.LastAnswerTick) return false;
-            ws.LastAnswerTick = buffer.LastUpdateTick;
+            if (!buffer.IsReady || buffer.LastUpdateTick == lastAnswerTick) return false;
+            lastAnswerTick = buffer.LastUpdateTick;
             answers = buffer;
-            DropSensor(ref ws, world);
+            DropSensor(ref sensor, world);
             return true;
         }
 
@@ -848,10 +857,13 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The sensor the play owns goes.</summary>
-        public static void DropSensor(ref SquadPlayState ws, EntityRepository world)
+        public static void DropSensor(ref SquadPlayState ws, EntityRepository world) => DropSensor(ref ws.Sensor, world);
+
+        /// <summary>⭐ <c>CE-8303</c> — the same, for an ask whose state the caller holds (<see cref="DefenceAsk"/>).</summary>
+        public static void DropSensor(ref EqsSensorHandle sensor, EntityRepository world)
         {
-            if (ws.Sensor.IsValid && world.IsAlive(ws.Sensor.ChildId)) EqsChildSensor.Destroy(world, ws.Sensor.ChildId);
-            ws.Sensor = default;
+            if (sensor.IsValid && world.IsAlive(sensor.ChildId)) EqsChildSensor.Destroy(world, sensor.ChildId);
+            sensor = default;
         }
 
         internal static double Now(EntityRepository world)
