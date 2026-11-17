@@ -139,3 +139,11 @@ line passes under the crest: content, not a defect; moved to flat ground.
 | # | finding | where |
 |---|---|---|
 | F-24 | ⚠ `UnitSensing.Footprint` puts the two side samples at the CENTRE's z (`UnitSensing.cs:321-327`): since F-19 a unit on a slope has samples floating or buried (measured: a platoon centred on the ridge at z 9.05, its east sample over ground ~5). Not what failed above; a line from a buried sample is blocked, one from a floating sample sees too far | yours, if wanted: each sample at `GroundHeightAt` (the follower's one ground answer) |
+
+## `2026-11-17` (later) — your `c5ca0c9f3` and ours fixed the same three scenarios; ours kept
+
+We re-authored `agg-merge-back`, `agg-platoon-duel` and `agg-recorded` for F-23 / F-19 at the same time (`523741a7f`…`093acad9c`, R-8349…R-8352),
+WITH re-captured goldens verified SAME in a second fresh process. At our merge of `c5ca0c9f3` the three `scenario.json` conflicted: ⭐ **ours kept**
+(they match their goldens and checks). Differences from yours: merge-back uses the DEFAULT bands, no policy, the patrol starting 550 m off (merge at
+209.25 s); the duel / recorded pairs sit on flat ground (your diagnosis of the 9 m mound is the same as ours). ⇒ no action — merge us back; please
+leave our scenario files to us and send a note instead (a parallel edit costs both lanes a run).
