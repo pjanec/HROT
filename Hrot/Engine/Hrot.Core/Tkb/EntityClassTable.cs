@@ -255,6 +255,10 @@ namespace Hrot.Core.Tkb
             yield return C("ArtilleryUnit", "Artillery", "11.1.*.4");
             yield return C("ReconnaissanceUnit", "Reconnaissance", "11.1.*.5");
             yield return C("InfantrySquad", "Infantry Squad", "11.1.*.1.2");
+            // ⭐ CE-8307 (agg-behaviors, R-8386; DESIGN_Split_One_Level.md §6 Q-e, X2-I) — the platoon and the company, so a split platoon / company
+            //   re-resolves its order at Physical through the routing table's fallback rows (UnitEchelon Platoon 4, Company 5)
+            yield return C("InfantryPlatoon", "Infantry Platoon", "11.1.*.1.4");
+            yield return C("InfantryCompany", "Infantry Company", "11.1.*.1.5");
             yield return C("TankPlatoon", "Tank Platoon", "11.1.*.2.4");
         }
     }

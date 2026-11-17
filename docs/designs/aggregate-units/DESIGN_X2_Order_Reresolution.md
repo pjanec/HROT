@@ -5,8 +5,9 @@ updated: 2026-11-17 (as built: §11)
 current-answer: §11 AS BUILT (deviations, rails, scenarios) · then §0 the decision · §3–§6 the UML (as amended by §11) · §7 the sub-questions · §9 cross-lane edits · §10 findings
 stale-below: §8 row S5 and X2-F's "S5 measures it" — SUPERSEDED by R-8365 (§11). §2 claim 4 — SUPERSEDED (§11: the ingress applies a Simulation-phase publish TWO frames later).
 known-rot: §3 places PlayFor on TacticalIntentResolutionSystem — as built it is OrderReissue.PlayFor (R-8367). §4's frame numbers assume a one-frame ingress lag (as built: two, R-8368).
-known-conflict: DESIGN_Stochastic_Units_And_Resolution.md §13 X-1 / X-3 / D-P7 say a split goes ONE LEVEL at a time; the as-built split FLATTENS the composite to men (StochasticUnitFill.Leaves) — this design scopes X-2 to the squad echelon and files the conflict (§10 F-X2-1), it does not resolve it
+known-conflict: none — F-X2-1 (the split flattened a platoon to men) is CLOSED by DESIGN_Split_One_Level.md (CE-8307); X2-I's squad-only scope and R-8372's RostersItsMen are SUPERSEDED there (R-8389: RostersItsChildren)
 related-designs:
+  - DESIGN_Split_One_Level.md — OWNS the one-level split that closes F-X2-1 (CE-8307): the platoon's squads rostered, X2-I's platoon / company rows built, RostersItsMen replaced by RostersItsChildren (R-8389)
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS X-2 (§13), the split process D-P1…D-P7 (§16a, D-P6 the handover), SV-10 (§17.1: restart from the current situation; an untyped order cannot switch), the manager and switch as built (§23.4) and our routing (§23.5–§23.5c, F-5); this file answers X-2 only
   - DESIGN_DP3_Planned_Posts.md — OWNS the planned posts (PlannedPosts 138) and DP3-D ②, which §7 X2-F here builds (the re-resolved Defend carries them as D-2f Posts, MaxPosts 8 → 13)
 -->
@@ -327,7 +328,7 @@ after it, the remaining 18 (agg-merge-back included) 18/18, every golden SAME (t
 
 | # | finding | where it goes |
 |---|---|---|
-| **F-X2-1** | ⛔ **the split FLATTENS the composite**: a stochastic platoon splits straight into its 30 men (`StochasticUnitFill.Leaves`), not into 3 squads — contrary to X-5 / D-P7 (*"one level at a time"*). Its men exceed `UnitRoster.Capacity` (16) and `PlatoonDefend` orders squads, so no roster or order can be handed to a split platoon | to agg-backend (a one-level split: a platoon's children are stochastic SQUADS, each splitting by its own trigger) — X2-I waits on it |
+| **F-X2-1** | ⛔ **the split FLATTENS the composite**: a stochastic platoon splits straight into its 30 men (`StochasticUnitFill.Leaves`), not into 3 squads — contrary to X-5 / D-P7 (*"one level at a time"*). Its men exceed `UnitRoster.Capacity` (16) and `PlatoonDefend` orders squads, so no roster or order can be handed to a split platoon | ✅ CLOSED `2026-11-17` by CE-8307 ([DESIGN_Split_One_Level.md](DESIGN_Split_One_Level.md)) |
 | **F-X2-2** | ⛔ **at Physical the routing table refuses Defend and BreakContact for a squad** (no `InfantrySquadDefend`): today it never matters because commanders `Assign` physical plays by name (R-8305), but any `Order.Defend` to a physical squad — an operator's included — is refused | X2-C2 (R-8302's rows) |
 | **F-X2-3** | ⚠ a commander's routed check re-sends after its member switches (a new id ⇒ the defenders restart, CE-2304) | X2-H |
 | **F-X2-5** *(as built)* | ⚠ on a MERGE the physical play ticks once more after its men left (the reconciler's re-issue reaches the ingress two frames later): `SquadManeuverRunner.Tick` returns Failure on an empty roster, so the play ENDS before the stochastic one starts — the re-issued assign then lands in an empty slot and the order goes on (same id); a commander may hear a stray PROGRESS TaskFailed | ours, open — measured in `agg-merge-keeps-order` (§11) |

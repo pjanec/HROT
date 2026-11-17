@@ -7,6 +7,7 @@ stale-below: § HISTORY at the bottom (§18–§20 as first approved); §16 P-1 
 known-rot: §10's table row "`StochasticInfantrySquad<Order>`" and §13 X-1's string-keyed `<Resolution><Class><Order>` names are superseded by SV-2 (a (class, resolution, order) TABLE, no name concatenation); §10 S-5's "the FusionSquad calibrates" is superseded by C-8 (R-4253); §13 X-2's "keeps its order (name + params)" is DERIVED, not stored (§19)
 known-conflict: none
 related-designs:
+  - DESIGN_Split_One_Level.md — OWNS X-5 / D-P7 as BUILT for the switch (CE-8307, R-8382…R-8391): a split creates the DIRECT subordinates (a platoon's stochastic squads, each with its share of the slot table), the cascade, the leaves-first merge; closes F-X2-1
   - DESIGN_Aggregate_Squad.md — OWNS the FusionSquad (one FusionSoldier carries the squad) — the resolution built first, and the unit state, order routing and child keys this design's "binds now" items put there
   - DESIGN_DP3_Planned_Posts.md — OWNS D-P3 / SV-5 for the squad leaf (R-8330's follow-up): SquadDefend's plan over a slot-table crew, PlannedPosts (138), the manager's Planning wait
   - DESIGN_X2_Order_Reresolution.md — OWNS X-2 as designed (agg-behaviors, R-8353…R-8363): the order re-issued on a switch by the F-5 reconciler, the split squad's roster (Handover / Merge), SV-10's switch gate, DP3-D ② (the posts as D-2f Posts); files F-X2-1 (the split flattens a platoon to men, against X-5 / D-P7)
@@ -216,6 +217,7 @@ splits; only the Handover is a single step, and a deadline bounds the whole proc
 | **D-P5** | a DEADLINE bounds the process: a leaf still without posts gets FALLBACK posts (the formation's slots spread across the unit's frontage) | a split never stalls when contact comes early |
 | **D-P6** | the HANDOVER is one tick per unit, serial (the parallel rule: creation and the state mapping as follow-ups): the stochastic resolution stops, the children start, the order re-resolves (X-2) | no tick in which both resolutions fight |
 | **D-P7** | a deep split (battalion straight to men in one house) runs the SAME cascade, level by level, quickly — no special path; re-aggregation is the reverse and simpler (sum, then remove) | one mechanism |
+| ⚠ *note, CE-8307 (`2026-11-17`, [DESIGN_Split_One_Level.md](DESIGN_Split_One_Level.md) §2 claim 12a, §10)* | **as built, D-P2 is NOT top-down**: a parent creates its children at FALLBACK posts, and each child plans its own posts (D-P3, the squad planner — the only one that exists) once it exists and holds its parent's order (R-8397, a 10 s deadline). A FORCED split (C-7) builds the whole subtree held and hands every level over in one tick (R-8393) | — |
 | ⏳ to measure when built | the platoon / company planners' inputs (D-P3); the process time per echelon (D-P1); how created-but-held entities are kept out of the world until the handover (the entity lifecycle's Constructing state is the candidate) | — |
 
 ## 16b. Who decides the resolution, when, to what level — and when it is worth it *(✅ R-1…R-7 APPROVED as adjusted 2026-11-15 — R-4255; 🔒 user, `2026-11-14`: "how the de-aggregation would be realized (would it be an action called by SOP or something?) and how triggered (on user request, on contact, or other trigger - who defines and parametrizes). when to re-aggregate, under what condition, is that something automatable? to what aggregation level? in what situation it could make sense? let's think through those before any acceptance")*
@@ -916,8 +918,17 @@ sequenceDiagram
 In one line: F-5's system, renamed `UnitResolutionFitSystem`, re-issues a SQUAD's order (the same id, `IsResume`) with the play the routing table gives at its new
 resolution — after its men are rostered by agg-backend's `Handover` (`CmdAssignSubordinate`), with its planned posts as D-2f `Posts` (DP3-D ②); a merge projects
 the params onto the stochastic play and removes the roster; an automatic switch waits while the order has no play at the target (`SwitchBlocked`); the
-physical fallback rows let a physical squad take `Order.Defend` / `Order.BreakContact` (F-X2-2). Platoons / companies: not yet (F-X2-1, X2-I).
-⚠ X-2 (§13) is answered for the squad echelon; the "one level at a time" split (X-5 / D-P7) is still not what the split does — F-X2-1 (agg-backend).
+physical fallback rows let a physical squad take `Order.Defend` / `Order.BreakContact` (F-X2-2). Platoons / companies: ⛔ SUPERSEDED — built by CE-8307 (§23.5f).
+
+### 23.5f agg-behaviors — the split goes ONE level (X-5 / D-P7): a platoon splits into stochastic squads *(`2026-11-17`, CE-8307; R-8382 … R-8399)*
+
+⭐ **The as-built lives in [`DESIGN_Split_One_Level.md`](DESIGN_Split_One_Level.md) §11** (the decision, the UML, the review's fold §10) — a pointer, not a copy.
+In one line: a split creates the composite's DIRECT subordinates (`BusResolutionSwitch.Composition` from `StochasticUnitFill.Composition`) — a platoon its
+3 stochastic squads, each carrying its share of the slot table, which the same manager then splits into men by their own bands; a FORCED split (C-7)
+builds the whole subtree held and hands every level over in one tick; the merge goes leaves first; a split platoon / company re-resolves its order to its
+own play (`PlatoonDefend` / `PlatoonAttack` / … , the relay `UnitRelayMove` / `UnitRelayBreakContact` for a kind it has no play for). ⭐ Closes F-X2-1.
+⚠ The as-built D-P2 is not top-down (§16a note). Findings F-SOL-1 (holdings never materialised), F-SOL-3 (`UnitCompositionDto` unread), F-SOL-4
+(a hold-back attack has no echelon play), F-SOL-5 (no cluster-tier run).
 
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 

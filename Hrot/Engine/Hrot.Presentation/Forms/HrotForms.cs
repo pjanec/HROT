@@ -44,12 +44,11 @@ public static class HrotForms
     private static readonly string[] Stances = { "Standing", "Crouched", "Prone" };
 
     // ⭐ CE-8614 (UI-1) — the Resolution section's closed sets (AggregateComponents' enums, in their order)
-    private static readonly string[] Resolutions = { "Physical", "Fusion", "Stochastic" };
+    private static readonly string[] Resolutions = { "Physical", "Stochastic" };   // ⛔ R-8008: Fusion is never offered (the enum value 2 stays, recorded and on the wire)
     private static readonly string[] Formations = { "None", "Column", "Line", "Assault" };
     private static readonly NodeEditor.Core.Widgets.IconGlyph[] ResolutionIcons =
     {
         new("\uf0c0", NodeEditor.Core.Widgets.IconPalette.Blue),     // Users — physical: every man an entity
-        new("\uf247", NodeEditor.Core.Widgets.IconPalette.Teal),     // ObjectGroup — fusion
         new("\uf522", NodeEditor.Core.Widgets.IconPalette.Violet),   // Dice — stochastic
     };
     private static readonly string[] PreparedLevels = { "Unprepared", "Hasty", "Prepared", "Fortified" };
@@ -139,15 +138,17 @@ public static class HrotForms
             {
                 Label = "Resolution", Section = "Resolution", Kind = FieldKind.Choice, Attribute = "Aggregate.Resolution", Choices = Resolutions,
                 Has = UnitFacts.IsAggregate,
-                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Effective - 1,   // unset reads as Physical
-                ChoiceValue = i => AttributeValue.FromInt(i + 1),
-                ChoiceIcons = ResolutionIcons,   // mockup ①: three glyph toggles, the chosen word after them
+                ReadNumber = (w, e) => w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Effective is Fdp.Toolkit.Aggregate.AggregateResolution.Physical ? 0 : 1,   // unset reads as Physical; a (never requested) Fusion unit shows as Stochastic (R-8008)
+                ChoiceValue = i => AttributeValue.FromInt(i == 0 ? (int)Fdp.Toolkit.Aggregate.AggregateResolution.Physical : (int)Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic),
+                ChoiceIcons = ResolutionIcons,   // mockup ①: two glyph toggles (R-8008: no Fusion), the chosen word after them
                 ChoiceNote = UnitFacts.ResolutionNote,
             },
             new FormField { Label = "Echelon", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.EchelonText },
             new FormField { Label = "Formation", Kind = FieldKind.Choice, Attribute = "Aggregate.Formation", Choices = Formations, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
-            new FormField { Label = "Frontage", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.FrontageText },
-            new FormField { Label = "Heading", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.HeadingText },
+            // ⭐ CE-8022 ① — editable through the attribute path (agg-backend's Aggregate.Width / Depth / Heading rows, 87e90046f)
+            new FormField { Label = "Frontage", Attribute = "Aggregate.Width", Min = 0, Has = UnitFacts.IsAggregate },
+            new FormField { Label = "Depth", Attribute = "Aggregate.Depth", Min = 0, Has = UnitFacts.IsAggregate },
+            new FormField { Label = "Heading", Attribute = "Aggregate.Heading", Min = 0, Max = 360, Has = UnitFacts.IsAggregate },
             new FormField { Label = "Prepared", Kind = FieldKind.Choice, Attribute = "Aggregate.Prepared", Choices = PreparedLevels, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
             // ⭐ CE-8615 (UI-9, mockup ⑤) — while the unit CHANGES resolution: what to what and who asked, the stage in thirds, the men created and the deadline
             new FormField { Label = "Changing", Kind = FieldKind.Text, Has = SplitProgress.IsChanging, ReadText = SplitProgress.ChangeText },

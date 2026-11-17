@@ -102,8 +102,30 @@ namespace Hrot.CGF.Systems
 
         /// <summary>Does <paramref name="unit"/> plan posts now: a stochastic squad in Planning holding a Defend order.</summary>
         public static bool Plans(EntityRepository repo, Entity unit, in AggregateUnit u)
-            => u.Effective == AggregateResolution.Stochastic && u.Splitting == SplitStage.Planning && u.Echelon == 0
+            => u.Effective == AggregateResolution.Stochastic && u.Splitting == SplitStage.Planning && SplitsIntoMen(repo, unit)
                && CurrentOrders.Of(repo, unit).Kind == OrderKind.Defend;
+
+        /// <summary>⭐ CE-8307 (R-8388; DESIGN_Split_One_Level.md §6 Q-g) — the unit's split creates MEN (a squad), not stochastic units (a platoon's
+        /// squads plan their own posts once they exist); ⭐ review F11 — and its table holds a PERSON (a tank platoon's, an artillery battery's is
+        /// empty: holdings only). ⛔ Not the echelon: an authored table never sets it (R-8372). No TKB ⇒ the echelon. ⭐ Review F7: the composite
+        /// answer is CACHED per type (built serially, once) — <see cref="Plans"/> asks it every Planning frame (R-2084: 0 B).</summary>
+        private static bool SplitsIntoMen(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsComponentTypeRegistered<UnitSlotTable>() || !repo.HasComponent<UnitSlotTable>(unit) || repo.GetComponentRO<UnitSlotTable>(unit).Authorized() == 0) return false;
+            if (repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()
+                && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit) && repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db)
+            {
+                var type = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType;
+                var cache = s_splitsIntoUnits.GetValue(db, static _ => new System.Collections.Concurrent.ConcurrentDictionary<Fdp.Core.TkbTypeId, bool>());
+                if (!cache.TryGetValue(type, out bool units))
+                    cache[type] = units = Hrot.Core.Tkb.StochasticUnitFill.SplitsIntoUnits(db, type);
+                return !units;
+            }
+            return repo.GetComponentRO<AggregateUnit>(unit).Echelon == 0;
+        }
+
+        // per TKB database (weakly held), type → its split creates units; thread-safe (rails run worlds in parallel); no allocation once filled
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<Fdp.Core.TkbTypeId, bool>> s_splitsIntoUnits = new();
 
         /// <summary>A seek moved the clock back past this plan's last step, or the recorded plan is not this one ⇒ start again.</summary>
         private static bool Stale(EntityRepository repo, Entity unit, Plan plan, double now)

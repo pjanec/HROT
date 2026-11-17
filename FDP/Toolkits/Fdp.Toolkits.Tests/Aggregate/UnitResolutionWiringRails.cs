@@ -110,5 +110,30 @@ namespace Fdp.Toolkits.Tests.Aggregate
             var unarmed = repo.CreateEntity();
             Assert.Equal(-1, UnitAmmunition.ToSlot(repo, unarmed));                         // no weapon state: the slot keeps its count
         }
+
+        /// <summary>⭐ CE-8307 (review "untested": held unit children kept out of the stochastic fight) — a HELD squad (Constructing) is invisible to the
+        /// query every stochastic phase builds (<c>With&lt;AggregateUnit&gt;().With&lt;UnitSlotTable&gt;()</c>, sensing / fire / loss) — only an
+        /// <c>IncludeAll</c> query sees it. ✅ Red-proof: the child left ACTIVE (the Constructing state not set) ⇒ the phases' query returns it ⇒ red (measured: the first draft did exactly that).</summary>
+        [Fact]
+        public void AHeldSquad_IsInvisibleToTheStochasticPhasesQuery()
+        {
+            using var repo = Repo();
+            repo.RegisterComponent<AggregateUnit>(); repo.RegisterComponent<UnitSlotTable>();
+            var elm = new EntityLifecycleModule(null!, Array.Empty<int>());
+            var squad = repo.CreateEntity();
+            repo.AddComponent(squad, new AggregateChild { Held = 1 });
+            repo.AddComponent(squad, new AggregateUnit { Resolution = AggregateResolution.Stochastic });
+            repo.AddComponent(squad, new UnitSlotTable { Count = 1 });
+            var cmd = ((ISimulationView)repo).GetCommandBuffer();
+            repo.SetLifecycleState(squad, EntityLifecycle.Constructing);   // what CreateEntityRequestSystem does to a spawn that has participants
+            elm.BeginConstruction(squad, 0, 1, cmd);
+            ((EntityCommandBuffer)cmd).Playback(repo); repo.Bus.SwapBuffers();
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(squad));
+            int seen = 0, all = 0;
+            foreach (var _ in repo.Query().With<AggregateUnit>().With<UnitSlotTable>().Build()) seen++;
+            foreach (var _ in repo.Query().With<AggregateUnit>().With<UnitSlotTable>().IncludeAll().Build()) all++;
+            Assert.Equal(0, seen);
+            Assert.Equal(1, all);
+        }
     }
 }
