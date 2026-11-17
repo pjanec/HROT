@@ -57,7 +57,8 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AirCombatSteer)]
-    [DataPolicy(DataPolicy.NoScenario)]   // runtime: a loaded fighter starts with no fight
+    // ⭐ R-10004 — SAVED with a scenario (not NoScenario): an authored steer is the motion node's feature-test seam (S1's GCAS scenarios
+    //   fly a dive before the behaviour exists); the behaviour overwrites it on its first decision
     public struct AirCombatSteer
     {
         public Manoeuvre Manoeuvre;
@@ -114,6 +115,14 @@ namespace Fdp.Toolkit.Motion
         public byte Defeated;
         /// <summary>The current airspeed (m/s) — the brain's energy.</summary>
         public float SpeedMps;
+        /// <summary>The recovery GCAS flies while <see cref="GcasActive"/>: 0 straight, +1 a climbing turn left, −1 right (motion-node local).</summary>
+        public sbyte GcasTurn;
+        /// <summary>The recovery's heading (deg, the math angle from +X east, counter-clockwise) chosen when GCAS took the stick (motion-node local).</summary>
+        public float GcasHeadingDeg;
+        /// <summary>How long GCAS has held the stick this time (s; motion-node local).</summary>
+        public float GcasHeldS;
+        /// <summary>1 while a route plane rejoins its path after a recovery (motion-node local).</summary>
+        public byte Rejoin;
     }
 
     /// <summary>

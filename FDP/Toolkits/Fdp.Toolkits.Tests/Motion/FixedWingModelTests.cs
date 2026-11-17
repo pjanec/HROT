@@ -236,5 +236,191 @@ namespace Fdp.Toolkit.Tests.Motion
             for (int i = 0; i < 60 * 60; i++) _air.Execute(_w, Dt);
             Assert.Equal(Stall, _w.GetComponent<SimVelocity>(plane).Linear.Length(), 1);   // half the push, still floored at the stall
         }
+
+        // ── ⭐⭐ CE-10001 (air lane S1 — docs/designs/air-attack/DESIGN_Air_Combat.md AC-1, AC-3, AC-4) ──────────────────────────────
+
+        /// <summary>A terrain made of a function (the rails' ground); everything above the ground is open air.</summary>
+        private sealed class FnWorld : Fdp.Toolkit.World.IWorldQuery
+        {
+            private readonly Func<float, float, float> _g;
+            public FnWorld(Func<float, float, float> g) => _g = g;
+            public float GroundHeightAt(float x, float y) => _g(x, y);
+            public float SurfaceZ(float x, float y, float zHint) => _g(x, y);
+            public IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex) { groundIndex = 0; return new[] { _g(x, y) }; }
+            public float ResolveLevel(float x, float y, int level) => _g(x, y);
+            public bool TryStandAt(float x, float y, float zHint, out float z) { z = _g(x, y); return true; }
+            public bool SightBlocked(Vector3 from, Vector3 to) => false;
+            public void Trace(Vector3 from, Vector3 to, Fdp.Toolkit.World.TracePurpose purpose, List<Fdp.Toolkit.World.TraceCrossing> into) { }
+        }
+
+        /// <summary>The F-16's airframe (§5a), as the catalogue states it.</summary>
+        private static FlightParamsDto F16 => new()
+        {
+            MaxSpeedMps = 400f, CruiseSpeedMps = 220f, StallSpeedMps = 70f, MaxBankDeg = 60f, ClimbMps = 50f, HoverHeightM = 300f,
+            AccelMps2 = 12f, MaxG = 9f, CornerSpeedMps = 170f, DragK = 0.203f, RollRateDeg = 240f,
+        };
+
+        private Entity Jet(Vector3 at, Quaternion rot, Vector3 velocity)
+        {
+            var e = Plane(at, 0f);
+            _w.SetComponent(e, new SimTransform { Position = at, Rotation = rot });
+            _w.SetComponent(e, new SimVelocity { Linear = velocity });
+            _w.SetComponent(e, FlightParams.From(F16));
+            return e;
+        }
+
+        /// <summary>Steps one jet through the model with a terrain (AirMotionSystem's frame, with a ground).</summary>
+        private readonly FixedWingModel _model = new();
+
+        private void Fly(Entity e, Fdp.Toolkit.World.IWorldQuery world, int frames, Action<int>? each = null)
+        {
+            var model = _model;
+            for (int i = 0; i < frames; i++)
+            {
+                var intent = _w.GetComponent<NavigationIntent>(e);
+                var frame = new MotionFrame(_w, e, ref _w.GetComponentRW<SimTransform>(e), ref _w.GetComponentRW<SimVelocity>(e)) { Terrain = world };
+                model.Autonomous(ref frame, in intent, Dt);
+                each?.Invoke(i);
+            }
+        }
+
+        /// <summary>⭐ AC-3 — the integrator's level turn: asked for 6.5 g at full throttle from 220 m/s, the F-16 SUSTAINS it (its thrust
+        /// balances its parasite + induced drag there, §5a), banks acos(1/6.5) ≈ 81°, and holds its height (the lift is net of gravity).
+        /// ✅ Red-proof: induced drag × 2 (DragK 0.406) ⇒ the speed bleeds below 190 m/s ⇒ red.</summary>
+        [Fact]
+        public void AC3_TheF16_Sustains6p5gAt220_BankingAcosOneOverN()
+        {
+            var l = FighterLimits.Of(FlightParams.From(F16));
+            var b = new FlightBody { Pos = new Vector3(0, 0, 3000), Vel = new Vector3(220f, 0, 0), Rot = Quaternion.Identity };
+            float n = 0f, minV = float.MaxValue, maxV = 0f;
+            for (int i = 0; i < 60 * 30; i++)
+            {
+                var f = Vector3.Normalize(b.Vel);
+                var left = Vector3.Normalize(new Vector3(-f.Y, f.X, 0f));   // always asked to turn 90° left: the pull is the g limit
+                n = Steer3D.Step(ref b, left, 6.5f, 1f, in l, Dt);
+                if (i > 60 * 5) { minV = MathF.Min(minV, b.Vel.Length()); maxV = MathF.Max(maxV, b.Vel.Length()); }
+            }
+            Assert.Equal(6.5f, n, 1);
+            Assert.True(minV > 205f && maxV < 235f, $"speed {minV:F0}…{maxV:F0} m/s in a 6.5 g turn at full throttle — the §5a balance says ~220");
+            float bank = MathF.Acos(Math.Clamp(Vector3.Dot(Steer3D.Up(b.Rot), Vector3.UnitZ), -1f, 1f)) * 180f / MathF.PI;
+            Assert.InRange(bank, 78f, 84f);
+            Assert.InRange(b.Pos.Z, 2750f, 3250f);   // the roll-in zooms a little (the pull starts before the bank is complete)
+        }
+
+        /// <summary>⭐ AC-3 — no Euler readback, no ±25° clamp: pulled straight up and over the top, the attitude stays a valid rotation, the
+        /// nose passes the vertical and comes down the other side (a loop), with no NaN anywhere.</summary>
+        [Fact]
+        public void AC3_ALoop_PassesTheVertical_WithNoGimbalProblem()
+        {
+            var l = FighterLimits.Of(FlightParams.From(F16));
+            var b = new FlightBody { Pos = new Vector3(0, 0, 3000), Vel = new Vector3(350f, 0, 0), Rot = Quaternion.Identity };
+            bool vertical = false, inverted = false;
+            for (int i = 0; i < 60 * 20; i++)
+            {
+                var f = Vector3.Normalize(b.Vel);
+                var up = Steer3D.Up(b.Rot);
+                Steer3D.Step(ref b, Vector3.Normalize(f + up), 9f, 1f, in l, Dt);   // keep pulling through the canopy: a loop
+                Assert.False(float.IsNaN(b.Pos.X) || float.IsNaN(b.Rot.W));
+                if (f.Z > 0.98f) vertical = true;
+                if (vertical && Steer3D.Up(b.Rot).Z < -0.9f) inverted = true;
+            }
+            Assert.True(vertical, "the nose never reached the vertical");
+            Assert.True(inverted, "it never came over the top inverted");
+            Assert.Equal(1f, b.Rot.Length(), 3);
+        }
+
+        /// <summary>⭐ AC-4 (`ac-gcas-inverted`'s rail) — INVERTED, 60° nose-down at 400 m/s from 3 000 m, the steer still pressing at the ground:
+        /// GCAS takes the stick (rolls upright, pulls 9 g), never lets it below its 150 m floor's neighbourhood, and gives it back climbing.
+        /// ✅ Red-proof: the reaction-free prediction off (GcasHolds returns false) ⇒ it flies into the ground ⇒ red.</summary>
+        [Fact]
+        public void AC4_GCAS_RecoversAnInverted60DegreeDive()
+        {
+            _w.RegisterComponent<AirCombatSteer>();
+            var dive = Vector3.Normalize(new Vector3(MathF.Cos(MathF.PI / 3f), 0f, -MathF.Sin(MathF.PI / 3f)));
+            var rot = Steer3D.FromBasis(dive, -Steer3D.WingsLevelUp(dive));   // inverted
+            var jet = Jet(new Vector3(0, 0, 3000), rot, dive * 400f);
+            _w.SetComponent(jet, new NavigationIntent { Mode = NavigationMode.AirCombat, IntentId = 1 });
+            _w.AddComponent(jet, new AirCombatSteer { Manoeuvre = Manoeuvre.PurePursuit, Point = new Vector3(5000f, 0f, 0f), Throttle = 1f });
+            var flat = new FnWorld((_, _) => 0f);
+            float minZ = float.MaxValue;
+            Fly(jet, flat, 60 * 40, _ => minZ = MathF.Min(minZ, _w.GetComponent<SimTransform>(jet).Position.Z));
+            var pilot = _w.GetComponent<FighterPilotState>(jet);
+            Assert.True(pilot.GcasCount >= 1, "GCAS never took the stick");
+            Assert.True(minZ > Gcas.MinFloorM, $"it went down to {minZ:F0} m");
+            Assert.Equal(pilot.MinAgl, minZ, 0);
+        }
+
+        /// <summary>⭐ AC-4 (`ac-gcas-steep-ridge`'s rail) — at 150 m toward a ridge rising 1:1 (no 30° climb clears it): GCAS TURNS AWAY
+        /// (a climbing turn) and the jet never touches the ground. ✅ Red-proof: the straight recovery only (no turn) ⇒ it flies into the wall.</summary>
+        [Fact]
+        public void AC4_GCAS_TurnsAwayFromARidgeTooSteepToClimb()
+        {
+            var ridge = new FnWorld((x, _) => x < 3000f ? 0f : MathF.Min(4000f, x - 3000f));
+            var jet = Jet(new Vector3(0, 0, 150), Quaternion.Identity, new Vector3(220f, 0, 0));
+            float minAgl = float.MaxValue; bool turned = false;
+            Fly(jet, ridge, 60 * 60, _ =>
+            {
+                var at = _w.GetComponent<SimTransform>(jet).Position;
+                minAgl = MathF.Min(minAgl, at.Z - ridge.GroundHeightAt(at.X, at.Y));
+                if (_w.GetComponent<FighterPilotState>(jet).GcasTurn != 0) turned = true;
+            });
+            Assert.True(_w.GetComponent<FighterPilotState>(jet).GcasCount >= 1, "GCAS never took the stick");
+            Assert.True(turned, "it never turned away");
+            Assert.True(minAgl > 0f, $"it hit the ridge (lowest {minAgl:F0} m)");
+        }
+
+        /// <summary>⭐ AC-4 — the floor follows the order: a point at 50 m over flat ground (a gun run's height) does NOT trip GCAS (floor 30 m);
+        /// flying level at 150 m with no order does not either.</summary>
+        [Fact]
+        public void AC4_AGunRunAt50m_DoesNotTripGcas()
+        {
+            var jet = Jet(new Vector3(0, 0, 50), Quaternion.Identity, new Vector3(200f, 0, 0));
+            _w.SetComponent(jet, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 1, FinalDestination = new Vector3(20000f, 0f, 50f) });
+            Fly(jet, new FnWorld((_, _) => 0f), 60 * 20);
+            Assert.Equal(0, _w.GetComponent<FighterPilotState>(jet).GcasCount);
+            Assert.Equal(30f, Gcas.FloorFor(50f));
+            Assert.Equal(8f, Gcas.FloorFor(10f));     // RS-6's 10 m radar escape keeps working
+            Assert.Equal(150f, Gcas.FloorFor(300f));
+        }
+
+        /// <summary>⭐ AC-1 — a cruise leg (300 m ordered) over hills flies at ONE altitude, the highest ground under it + 300; the climb to a
+        /// higher leg starts before the leg. ✅ Red-proof: climbSlope 0 (the old per-sample AGL) ⇒ the leg's heights vary with the hills ⇒ red.</summary>
+        [Fact]
+        public void AC1_ACruiseLeg_HoldsOneAltitude_AboveItsHighestGround()
+        {
+            Func<float, float, float> hills = (x, y) => 100f + 80f * MathF.Sin(x / 300f) + (x > 6000f ? 400f : 0f);
+            var wps = new List<NavRouteWaypoint>
+            {
+                new(new Vector3(0, 0, 0), 0f, RouteWaypointKind.Pass, 300f, RouteHold.None, 0f, 0),
+                new(new Vector3(5000, 0, 0), 0f, RouteWaypointKind.Pass, 300f, RouteHold.None, 0f, 0),
+                new(new Vector3(9000, 0, 0), 0f, RouteWaypointKind.Pass, 300f, RouteHold.None, 0f, 0),
+            };
+            var path = AirRoute.Compile(new Vector3(0, 0, 400), wps, false, 1000f, 300f, hills, climbSlope: 50f / 220f);
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int j = 0; j < path.Points.Length; j++)
+            {
+                var p = path.Points[j];
+                Assert.True(p.Z >= hills(p.X, p.Y) + 299f, $"below 300 m at x={p.X:F0}");
+                if (p.X > 200f && p.X < 3000f) { lo = MathF.Min(lo, p.Z); hi = MathF.Max(hi, p.Z); }
+            }
+            Assert.True(hi - lo < 1f, $"the first leg's altitude varies {lo:F0}…{hi:F0} m");
+            float before = AirRoute.Sample(path, 4800f).Point.Z;   // the second leg reaches 880 m (the 400 m step at 6 km): the climb starts before 5 km
+            Assert.True(before > lo + 50f, $"no early climb: {before:F0} m at 4.8 km");
+        }
+
+        /// <summary>⭐ AC-3 / AC-4 (handoff §3) — a steady fight frame allocates NOTHING: the integrator, the GCAS prediction and the report.</summary>
+        [Fact]
+        public void AC3_ASteadyFightFrame_AllocatesNothing()
+        {
+            _w.RegisterComponent<AirCombatSteer>();
+            var jet = Jet(new Vector3(0, 0, 400), Quaternion.Identity, new Vector3(220f, 0, 0));
+            _w.SetComponent(jet, new NavigationIntent { Mode = NavigationMode.AirCombat, IntentId = 1 });
+            _w.AddComponent(jet, new AirCombatSteer { Manoeuvre = Manoeuvre.PurePursuit, Point = new Vector3(0f, 8000f, 2000f), Throttle = 1f });
+            var hills = new FnWorld((x, y) => 50f * MathF.Sin(x / 500f));
+            Fly(jet, hills, 120);   // warm: the report is added, every path is jitted
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Fly(jet, hills, 60);
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
     }
 }

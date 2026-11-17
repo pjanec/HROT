@@ -301,10 +301,12 @@ namespace Hrot.Core.Tkb
             //   starter values — tuning starts here.
             Register(tkb, StingerName, TkbStingerMissile, Dis(1, Usa, 1, 15), ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),   // "Stinger" (anti-air)
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, MinRangeM = 200f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f });
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f,
+                                      BurnSeconds = 2f, MaxG = 20f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) — the motor
             Register(tkb, IglaName, TkbIglaMissile, Dis(1, Russia, 1, 30), ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),   // "SA-18 Grouse (9M39)"
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f });
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f,
+                                      BurnSeconds = 2f, MaxG = 18f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
             // ⭐⭐ CE-4617 (B-2, RS-3, RV-6 / RV-7) — the radar SAM's missile: a short-range radar-guided round (an SA-8 / Tor class, rounded:
             //   ~800 m/s, 0.5–8 km, 15 kg-class fragmentation warhead). The seeker cone is WIDE (60°) so a crossing jet's lead (~21° at
             //   250 / 700 m/s) stays inside it; it flies 18 s (8 km at 800 m/s with margin); chaff is rejected 9 in 10, and only in the
@@ -312,7 +314,8 @@ namespace Hrot.Core.Tkb
             Register(tkb, RadarSamName, TkbRadarSamMissile, Dis(1, Russia, 1, 0), ProximityFused(RadarSamLibraryName), 0f, LibraryDamage(RadarSamLibraryName),
                      new MissileDto { Guidance = GuidanceKind.Radar, SpeedMps = 800f, MaxFlightSeconds = 18f, MinRangeM = 500f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 60f, ChaffRejection = 0.9f,
-                                      MinTargetRcsM2 = 0.03f });   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
+                                      MinTargetRcsM2 = 0.03f,   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
+                                      BurnSeconds = 4f, MaxG = 30f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
             // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
             Register(tkb, Zu23HeiName, Tkb23mmHei, Dis(1, Russia, 2, 3, 5),   // "23 mm / 23 mm ZSU AAA HEI OFZ" (the ZU-23's 23×152 round)
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));

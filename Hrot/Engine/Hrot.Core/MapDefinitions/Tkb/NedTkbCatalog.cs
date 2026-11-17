@@ -1314,6 +1314,41 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 });
             builder.WithFaction(TkbEntityTypes.Jet_MiG29, 2);
+            // ⭐⭐ CE-10001 (air lane, AC-3, §5a) — the jets FLY, and they DIFFER (RV-8): the F-16 the better sustained turn (6.5 g at 220 m/s —
+            //   the integrator's thrust − parasite − DragK·(n² − 1) balance: 12 − 12·(220/400)² = 0.203·(6.5² − 1)), the MiG the better
+            //   instantaneous turn and roll (9.5 g, 270 deg/s; sustains 5.5 g at 220). Public figures, rounded (DESIGN_Air_Combat §5a). Route
+            //   flight: cruise 220 m/s at 300 m, a 50 m/s climb, a 60 deg route bank.
+            builder.WithFlight(TkbEntityTypes.Jet_F16, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing, new FlightParamsDto
+            {
+                MaxSpeedMps = 400f, CruiseSpeedMps = 220f, StallSpeedMps = 70f, MaxBankDeg = 60f, ClimbMps = 50f, TurnRateDeg = 20f,
+                EnduranceSeconds = 7200f, ContactRadiusM = 2f, BodyRadiusM = 2f, BodyHeightM = 4.9f, HoverHeightM = 300f,
+                AccelMps2 = 12f, MaxG = 9f, CornerSpeedMps = 170f, DragK = 0.203f, RollRateDeg = 240f,
+            });
+            builder.WithFlight(TkbEntityTypes.Jet_MiG29, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing, new FlightParamsDto
+            {
+                MaxSpeedMps = 380f, CruiseSpeedMps = 220f, StallSpeedMps = 70f, MaxBankDeg = 60f, ClimbMps = 50f, TurnRateDeg = 20f,
+                EnduranceSeconds = 7200f, ContactRadiusM = 2f, BodyRadiusM = 2f, BodyHeightM = 4.7f, HoverHeightM = 300f,
+                AccelMps2 = 13f, MaxG = 9.5f, CornerSpeedMps = 160f, DragK = 0.295f, RollRateDeg = 270f,
+            });
+            // ⭐ CE-10001 (AC-7, §5a, RV-17) — health and armour faces (front · side · rear · top, mm RHA against cannon fragments), the eyes
+            //   (8 km: ≥ the show's 6 km shot cap — S0 ③, the vision range is the observer's own), a brain (AT4: Health is the Brain group's),
+            //   the dispenser as the LAST mount (BS-1 §5.4c). The guns and the missile rails are S3's (CE-10003).
+            foreach (var (jet, health, front, side) in new[] { (TkbEntityTypes.Jet_F16, 400, 4f, 4f), (TkbEntityTypes.Jet_MiG29, 450, 5f, 5f) })
+                builder.WithCombat(jet, c =>
+                {
+                    c.MaxHealth = health;
+                    c.BlastSusceptibility = 0.8f;
+                    c.ArmorFront = front; c.ArmorSide = side; c.ArmorRear = 2; c.ArmorTop = 2;
+                    c.EyeHeight = 1f;
+                    c.SensorRange = 8000;
+                    c.Weapons.Add(Dispenser(flares: 30, chaff: 30));
+                })
+                .WithBehavior(jet);
+            // ⭐ CE-10001 — the F-16's ejection seat: the A-10's (Airborne insertion B-7), the seat 4 m ahead of the CG
+            builder.WithEjection(TkbEntityTypes.Jet_F16, new Fdp.Toolkit.Tkb.Domain.EjectionDto
+                { PilotType = TkbEntityTypes.Infantry_Pilot, SeatX = 4f, SeatZ = 1.1f, AutoEjectBelowFraction = 0.2f });
+            builder.WithEjection(TkbEntityTypes.Jet_MiG29, new Fdp.Toolkit.Tkb.Domain.EjectionDto
+                { PilotType = TkbEntityTypes.Infantry_Pilot, SeatX = 4.5f, SeatZ = 1.1f, AutoEjectBelowFraction = 0.2f });
             DefineAircraft(builder, TkbEntityTypes.Cargo_C130, "C-130H Hercules", "SFAPMFC-------", "#7A8076",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 4 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto

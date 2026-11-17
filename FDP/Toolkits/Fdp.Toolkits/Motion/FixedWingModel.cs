@@ -37,17 +37,302 @@ namespace Fdp.Toolkit.Motion
             if (IsDown(f)) { f.Velocity.Linear = Vector3.Zero; return; }
             if (!Alive(f)) { Fall(ref f, dt); return; }
             SetAirborne(ref f);
+            ref var pilot = ref PilotOf(ref f);
+
+            // ⭐⭐ CE-10001 (AC-2, AC-3) — mode 8: the brain's AirCombatSteer, flown every frame by the one integrator (GCAS inside)
+            if (intent.Mode == NavigationMode.AirCombat) { Fight(ref f, in intent, in p, ref pilot, dt); return; }
 
             if (intent.Mode == NavigationMode.FollowRoute)
             {
                 var path = PathOf(f);
-                if (path != null && path.IntentId == intent.IntentId && path.Points.Length > 0) { FollowRoute(ref f, in intent, in p, path, dt); return; }
+                if (path != null && path.IntentId == intent.IntentId && path.Points.Length > 0)
+                {
+                    // ⭐ CE-10001 (AC-4) — GCAS in route mode: the floor from the leg's height; while it holds the stick the route's place
+                    //   still advances (so the path is rejoined about where the recovery left it)
+                    ref var fol = ref AirFollowers.Of(ref f);
+                    var at = AirRoute.Sample(path, fol.Progress);
+                    float floor = Gcas.FloorFor(at.Point.Z - f.Ground(at.Point.X, at.Point.Y));
+                    if (GcasHolds(ref f, in p, ref pilot, floor, dt)) { pilot.Rejoin = 1; return; }
+                    // ⭐ CE-10001 — after a recovery the plane REJOINS its path (it flies at a point 1 km ahead of the nearest path point until
+                    //   within RejoinM of it) — ⛔ never a snap: measured, the kinematic follower jumped hundreds of metres back onto the path and
+                    //   its velocity (position difference ÷ dt) read 7 km/s for a frame
+                    if (pilot.Rejoin != 0)
+                    {
+                        float s = NearestS(path, f.Transform.Position, fol.Progress, out float off);
+                        fol.Progress = s;
+                        if (off > RejoinM)
+                        {
+                            var ahead = AirRoute.Sample(path, MathF.Min(path.Length, s + RejoinLeadM)).Point;
+                            var toward = intent with { Mode = NavigationMode.DirectPoint, FinalDestination = ahead, ArrivalRadius = 0f };
+                            ToPoint(ref f, in toward, in p, dt);
+                            Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Following, fol.Progress);
+                            Track(ref f, ref pilot, 1f, dt);
+                            return;
+                        }
+                        pilot.Rejoin = 0;
+                    }
+                    FollowRoute(ref f, in intent, in p, path, dt);
+                    Track(ref f, ref pilot, 1f, dt);
+                    return;
+                }
                 Straight(ref f, in p, dt);
                 Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.AwaitingPath, 0f);
+                Track(ref f, ref pilot, 1f, dt);
                 return;
             }
-            if (intent.Mode == NavigationMode.None || intent.Mode == NavigationMode.Manual) { Straight(ref f, in p, dt); return; }
+            if (intent.Mode == NavigationMode.None || intent.Mode == NavigationMode.Manual)
+            {
+                if (GcasHolds(ref f, in p, ref pilot, Gcas.DefaultFloorM, dt)) return;
+                Straight(ref f, in p, dt);
+                Track(ref f, ref pilot, 1f, dt);
+                return;
+            }
+            // ⭐ AC-4 — a point: the floor from the point's height above its ground; a point ON the ground (an attack's aim point, a gun
+            //   run's target) leaves the minimum floor — measured: the 150 m default stopped ua-air-attack's A-10 gun run (the column lead lived)
+            float pointAgl = intent.FinalDestination.Z - f.Ground(intent.FinalDestination.X, intent.FinalDestination.Y);
+            float pointFloor = pointAgl > Gcas.MinFloorM ? Gcas.FloorFor(pointAgl) : Gcas.MinFloorM;
+            // ⭐ R-10010 — the point order is KINEMATIC: it levels at its height by itself. GCAS watches only an order whose own flight meets the
+            //   ground (measured: a 50 m gun run, descending onto its height, tripped the recovery prediction and its rounds missed)
+            if ((pilot.GcasActive != 0 || !PointOrderSafe(in f, in intent, in p, pointFloor)) && GcasHolds(ref f, in p, ref pilot, pointFloor, dt)) return;
             ToPoint(ref f, in intent, in p, dt);
+            Track(ref f, ref pilot, 1f, dt);
+        }
+
+        // ── ⭐⭐ CE-10001 — air combat (mode 8) and GCAS ─────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ R-10010 — does the point order's OWN flight (on along its heading at its speed, its height moving to the point's at the climb
+        /// rate — the kinematics <see cref="ToPoint"/> flies) stay above <paramref name="floor"/> for <see cref="Gcas.HorizonS"/>? Allocation-free.
+        /// </summary>
+        private static bool PointOrderSafe(in MotionFrame f, in NavigationIntent intent, in FlightParams p, float floor)
+        {
+            var pos = f.Transform.Position;
+            var hv = new Vector2(f.Velocity.Linear.X, f.Velocity.Linear.Y);
+            float v = hv.Length();
+            if (v < 1f) return true;
+            hv /= v;
+            float z = pos.Z, step = 0.25f;
+            for (float t = step; t <= Gcas.HorizonS; t += step)
+            {
+                z += Math.Clamp(intent.FinalDestination.Z - z, -p.ClimbMps * step, p.ClimbMps * step);
+                float x = pos.X + hv.X * v * t, y = pos.Y + hv.Y * v * t;
+                if (z - f.Ground(x, y) < floor) return false;
+            }
+            return true;
+        }
+
+        /// <summary>A plane rejoining its route after GCAS is back on it within this (m); it aims this far ahead of the nearest path point.</summary>
+        public const float RejoinM = 30f, RejoinLeadM = 1000f;
+
+        /// <summary>The path's place nearest <paramref name="at"/> (horizontally) within 3 km of <paramref name="around"/>, and how far off it is.</summary>
+        private static float NearestS(AirPath path, Vector3 at, float around, out float offset)
+        {
+            float best = float.MaxValue, bestS = around;
+            var pts = path.Points; var s = path.S;
+            for (int j = 0; j < pts.Length; j++)
+            {
+                if (s[j] < around - 3000f) continue;
+                if (s[j] > around + 3000f) break;
+                float dx = pts[j].X - at.X, dy = pts[j].Y - at.Y, d = dx * dx + dy * dy;
+                if (d < best) { best = d; bestS = s[j]; }
+            }
+            offset = MathF.Sqrt(best);
+            return bestS;
+        }
+
+        /// <summary>How far ahead (s) a lead pursuit leads its target (the gun's ~1 km/s round over a fight's range); a lag pursuit lags.</summary>
+        public const float LeadSeconds = 0.8f, LagSeconds = 1.5f;
+        /// <summary>A manoeuvre with no throttle stated flies at this.</summary>
+        public const float DefaultThrottle = 0.8f;
+
+        /// <summary>
+        /// ⭐⭐ CE-10001 (AC-2, AC-3, AC-5) — mode 8: the manoeuvre the brain's <see cref="AirCombatSteer"/> names, as a desired 3-D direction at
+        /// the aircraft's own position against the target's, flown by <see cref="Steer3D"/> within the pilot's g; GCAS first (AC-4, the steer's
+        /// floor, a third of it under a fixation lapse). No steer ⇒ straight and level.
+        /// </summary>
+        private static void Fight(ref MotionFrame f, in NavigationIntent intent, in FlightParams p, ref FighterPilotState pilot, float dt)
+        {
+            var w = f.World;
+            if (!w.IsComponentTypeRegistered<AirCombatSteer>() || !w.HasComponent<AirCombatSteer>(f.Self))
+            {
+                if (GcasHolds(ref f, in p, ref pilot, Gcas.DefaultFloorM, dt)) return;
+                Straight(ref f, in p, dt);
+                Track(ref f, ref pilot, 1f, dt);
+                return;
+            }
+            var steer = w.GetComponentRO<AirCombatSteer>(f.Self);
+            var limits = FighterLimits.Of(in p);
+            float floor = steer.FloorAgl > 0f ? MathF.Max(Gcas.MinFloorM, steer.FloorAgl) : Gcas.DefaultFloorM;
+            if (steer.Lapse == PilotLapse.Fixation) floor = MathF.Max(Gcas.MinFloorM, floor / 3f);
+            if (GcasHolds(ref f, in p, ref pilot, floor, dt)) return;
+
+            var b = BodyOf(in f, in p);
+            float maxG = steer.MaxG > 0f ? MathF.Min(steer.MaxG, limits.MaxG) : limits.MaxG;
+            float throttle = steer.Throttle > 0f ? steer.Throttle : DefaultThrottle;
+            var desired = Desired(in f, in b, in steer, in pilot, ref maxG, ref throttle);
+            float n = Steer3D.Step(ref b, desired, maxG, throttle, in limits, dt);
+            Apply(ref f, in b);
+            pilot.Throttle = throttle;
+            Track(ref f, ref pilot, n, dt);
+            Report(ref f, intent, NavigationResult.InProgress, NavigationPhase.Following, 0f);
+        }
+
+        /// <summary>⭐ AC-5 — the manoeuvre's desired direction (unit). Geometry only; a manoeuvre may lower the g or set the throttle.</summary>
+        internal static Vector3 Desired(in MotionFrame f, in FlightBody b, in AirCombatSteer s, in FighterPilotState pilot, ref float maxG, ref float throttle)
+        {
+            var fwd = b.Vel.LengthSquared() > 1f ? Vector3.Normalize(b.Vel) : Steer3D.Forward(b.Rot);
+            var level = new Vector3(fwd.X, fwd.Y, 0f);
+            level = level.LengthSquared() > 1e-6f ? Vector3.Normalize(level) : Vector3.UnitX;
+            if (s.Lapse == PilotLapse.GLoc) { maxG = 1f; return level; }   // AC-12 — no control: wings level, no pull
+
+            bool hasTarget = TargetState(f.World, s.Target, out var tp, out var tv);
+            var aim = hasTarget ? tp : s.Point;
+            switch (s.Manoeuvre)
+            {
+                case Manoeuvre.PurePursuit:
+                case Manoeuvre.Break:
+                    if (s.Manoeuvre == Manoeuvre.Break) throttle = 1f;
+                    return Toward(b.Pos, aim, level);
+                case Manoeuvre.LeadPursuit:
+                    return Toward(b.Pos, hasTarget ? aim + tv * LeadSeconds : aim, level);
+                case Manoeuvre.LagPursuit:
+                    return Toward(b.Pos, hasTarget ? aim - tv * LagSeconds : aim, level);
+                case Manoeuvre.Climb:
+                    return Vector3.Normalize(level + new Vector3(0f, 0f, 1f));
+                case Manoeuvre.Extend:
+                    maxG = MathF.Min(maxG, 2f); throttle = 1f;
+                    return Vector3.Normalize(level + new Vector3(0f, 0f, -0.05f));
+                case Manoeuvre.Merge:
+                case Manoeuvre.ReturnToArena:
+                case Manoeuvre.Disengage:
+                    if (s.Manoeuvre == Manoeuvre.Disengage) throttle = 1f;
+                    return Toward(b.Pos, new Vector3(aim.X, aim.Y, b.Pos.Z), level);
+                case Manoeuvre.Rejoin:
+                    if (!hasTarget) return level;
+                    var lf = tv.LengthSquared() > 1f ? Vector3.Normalize(tv) : level;
+                    return Toward(b.Pos, tp - lf * 200f + new Vector3(-lf.Y, lf.X, 0f) * 150f, level);
+                case Manoeuvre.Drag:
+                    // ⭐ AC-9 — turn the threat onto the tail and run, a gentle descent (S2 gives the missile its energy to lose)
+                    throttle = 1f;
+                    return pilot.Inbound > 0 ? Vector3.Normalize(Bearing(pilot.ThreatBearingDeg + 180f) + new Vector3(0f, 0f, -0.1f)) : level;
+                case Manoeuvre.Beam:
+                {
+                    // ⭐ AC-9 / RV-4 — the threat on the 3 or 9 o'clock (the side nearer the present heading), descending toward the notch
+                    if (pilot.Inbound == 0) return level;
+                    var l = Bearing(pilot.ThreatBearingDeg + 90f); var r = Bearing(pilot.ThreatBearingDeg - 90f);
+                    var side = Vector3.Dot(l, level) >= Vector3.Dot(r, level) ? l : r;
+                    return Vector3.Normalize(side + new Vector3(0f, 0f, -0.15f));
+                }
+                case Manoeuvre.LastDitch:
+                {
+                    maxG = MathF.Max(maxG, 9f);
+                    var across = Bearing(pilot.ThreatBearingDeg + 90f);
+                    return Vector3.Normalize(Vector3.Dot(across, level) >= 0f ? across : -across);
+                }
+                default:
+                    return level;
+            }
+        }
+
+        private static Vector3 Toward(Vector3 from, Vector3 to, Vector3 fallback)
+        {
+            var d = to - from;
+            return d.LengthSquared() > 1f ? Vector3.Normalize(d) : fallback;
+        }
+
+        /// <summary>A unit horizontal vector along a compass bearing (0 = north = +Y, clockwise).</summary>
+        internal static Vector3 Bearing(float deg)
+        {
+            float r = deg * MathF.PI / 180f;
+            return new Vector3(MathF.Sin(r), MathF.Cos(r), 0f);
+        }
+
+        /// <summary>The target's position and velocity (Null or gone ⇒ false).</summary>
+        private static bool TargetState(EntityRepository w, Entity t, out Vector3 pos, out Vector3 vel)
+        {
+            pos = default; vel = default;
+            if (t.IsNull || !w.IsAlive(t) || !w.HasComponent<SimTransform>(t)) return false;
+            pos = w.GetComponentRO<SimTransform>(t).Position;
+            if (w.HasComponent<SimVelocity>(t)) vel = w.GetComponentRO<SimVelocity>(t).Linear;
+            return true;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-10001 (AC-4) — Auto-GCAS: true while it holds the stick (this frame was flown by it). Takes over when the simulated
+        /// recovery from the present state would pass below <paramref name="floor"/>; lets go once climbing, above the floor and with a clear
+        /// recovery ahead.
+        /// </summary>
+        private static bool GcasHolds(ref MotionFrame f, in FlightParams p, ref FighterPilotState pilot, float floor, float dt)
+        {
+            var limits = FighterLimits.Of(in p);
+            var b = BodyOf(in f, in p);
+            float agl = b.Pos.Z - f.Ground(b.Pos.X, b.Pos.Y);
+            if (pilot.GcasActive == 0)
+            {
+                // cheap first: a body far above anything it can reach in the horizon needs no simulation
+                float reach = b.Vel.Length() * Gcas.HorizonS;
+                if (agl > reach + 500f) return false;
+                if (Gcas.RecoveryClearance(b, in limits, limits.MaxG, 1f, f.Terrain, 0f) >= floor) return false;
+                var (turn, _) = Gcas.BestRecovery(in b, in limits, limits.MaxG, f.Terrain, floor);
+                pilot.GcasActive = 1;
+                pilot.GcasCount++;
+                pilot.GcasHeldS = 0f;
+                pilot.GcasTurn = (sbyte)MathF.Sign(turn);
+                var dir = Gcas.RecoveryDirection(in b, turn);
+                pilot.GcasHeadingDeg = MathF.Atan2(dir.Y, dir.X) * 180f / MathF.PI;
+            }
+            // ⭐ it lets go only after a minimum hold, climbing, and with a recovery that clears the floor by Gcas.ReleaseMarginM — measured
+            //   (ac-gcas-ridge): released at the floor, a kinematic point order dived straight back at the ridge it had just climbed from, and the
+            //   second recovery came too late
+            else if ((pilot.GcasHeldS += dt) >= Gcas.MinHoldS && b.Vel.Z > 0f && agl >= floor
+                     && Gcas.RecoveryClearance(b, in limits, limits.MaxG, 1f, f.Terrain, 0f) >= floor + Gcas.ReleaseMarginM)
+            {
+                pilot.GcasActive = 0;
+                pilot.GcasTurn = 0;
+                return false;
+            }
+            float yaw = pilot.GcasHeadingDeg * MathF.PI / 180f, climb = Gcas.RecoveryClimbDeg * MathF.PI / 180f;
+            var want = new Vector3(MathF.Cos(yaw) * MathF.Cos(climb), MathF.Sin(yaw) * MathF.Cos(climb), MathF.Sin(climb));
+            float n = Steer3D.Step(ref b, want, limits.MaxG, 1f, in limits, dt);
+            Apply(ref f, in b);
+            pilot.Throttle = 1f;
+            Track(ref f, ref pilot, n, dt);
+            return true;
+        }
+
+        /// <summary>The integrator's state from the body: a plane that has no velocity yet flies on along its nose at cruise.</summary>
+        private static FlightBody BodyOf(in MotionFrame f, in FlightParams p)
+        {
+            var b = new FlightBody { Pos = f.Transform.Position, Vel = f.Velocity.Linear, Rot = f.Transform.Rotation };
+            if (b.Vel.LengthSquared() < 1f) b.Vel = Steer3D.Forward(b.Rot) * Math.Clamp(Cruise(in p), Stall(in p), Top(in p));
+            return b;
+        }
+
+        private static void Apply(ref MotionFrame f, in FlightBody b)
+        {
+            f.Transform.Position = b.Pos;
+            f.Transform.Rotation = b.Rot;
+            f.Velocity.Linear = b.Vel;
+            if (f.World.IsComponentTypeRegistered<FlightState>() && f.World.HasComponent<FlightState>(f.Self))
+                f.World.GetComponentRW<FlightState>(f.Self).VerticalSpeed = b.Vel.Z;
+        }
+
+        /// <summary>The report's steady fields: g, speed, the lowest height flown.</summary>
+        private static void Track(ref MotionFrame f, ref FighterPilotState pilot, float g, float dt)
+        {
+            pilot.GLoad = g;
+            pilot.SpeedMps = f.Velocity.Linear.Length();
+            float agl = f.Transform.Position.Z - f.Ground(f.Transform.Position.X, f.Transform.Position.Y);
+            if (agl < pilot.MinAgl) pilot.MinAgl = agl;
+        }
+
+        /// <summary>⭐ CE-10001 — the motion node's report on this aircraft, added (once) with its final starting value (D-31).</summary>
+        private static ref FighterPilotState PilotOf(ref MotionFrame f)
+        {
+            var w = f.World;
+            if (!w.IsComponentTypeRegistered<FighterPilotState>()) w.RegisterComponent<FighterPilotState>();
+            if (!w.HasComponent<FighterPilotState>(f.Self)) w.AddComponent(f.Self, new FighterPilotState { MinAgl = float.MaxValue, Throttle = DefaultThrottle, GLoad = 1f });
+            return ref w.GetComponentRW<FighterPilotState>(f.Self);
         }
 
         /// <summary>

@@ -1,0 +1,103 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: two F-16s and the ground (CE-10001, AC-4). 'Viper Low' is ordered to a point 50 m over the ground beyond a 200 m ridge (x 500 m); 'Viper Dive' dives at 30\u00b0 from 2 000 m at a point on the ground, still pressing. Judge: GCAS takes the stick in both (GcasCount \u2265 1); neither is lost; neither goes below 8 m."
+  },
+  "entities": {
+    "ac000002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -3000.0,
+          0.0,
+          157.8
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper Low",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "IntentId": 1,
+        "FinalDestination": [
+          3000.0,
+          0.0,
+          149.1
+        ],
+        "TargetSpeed": 220
+      }
+    },
+    "ac000002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -3000.0,
+          -2500.0,
+          2094.5
+        ],
+        "Rotation": [
+          0.0,
+          0.258819,
+          0.0,
+          0.965926
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          216.51,
+          0,
+          -125.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper Dive",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "NavigationIntent": {
+        "Mode": "AirCombat",
+        "IntentId": 1
+      },
+      "AirCombatSteer": {
+        "Manoeuvre": "PurePursuit",
+        "Point": [
+          464,
+          -2500,
+          240
+        ],
+        "Throttle": 1
+      }
+    }
+  }
+}

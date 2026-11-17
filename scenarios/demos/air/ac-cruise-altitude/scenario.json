@@ -1,0 +1,119 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an F-16 ('Viper') flies a 3-leg route at 300 m over the air-range hills (CE-10001, AC-1). Judge: on each leg it holds ONE altitude \u2014 the highest ground under the leg + 300 m (\u00b115), the climb to a higher leg begins before it; GCAS never takes the stick; it is never lost."
+  },
+  "entities": {
+    "ac000001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -5500,
+          -3000,
+          395.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "ac000001-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "ac000001-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": {
+                "routeEntityId": "ac000001-0000-4000-8000-000000000002",
+                "Speed": 220
+              },
+              "Triggers": []
+            }
+          ]
+        }
+      }
+    },
+    "ac000001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -4000,
+          -3000,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Viper route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -4000,
+            "Y": -3000,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": 2500,
+            "Y": -3000,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": 2500,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": -4000,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}
