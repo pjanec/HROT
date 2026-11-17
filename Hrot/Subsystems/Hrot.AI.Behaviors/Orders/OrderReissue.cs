@@ -35,12 +35,49 @@ namespace Hrot.AI.Behaviors.Orders
         /// </summary>
         public static string? BlockReason(EntityRepository repo, Entity unit, AggregateResolution target, Func<string, bool> isBehaviour)
         {
-            // X2-I (R-8362) — the scope the reconciler re-resolves: a squad. A platoon / company keeps today's behaviour (its split flattens to men, F-X2-1)
-            if (!UnitSplits.RostersItsMen(repo, unit)) return null;   // ⭐ R-8372 — the echelon alone misreads an authored table (agg-merge-back)
+            // ⭐ CE-8307 (R-8389; supersedes X2-I / R-8372) — the scope the reconciler re-resolves: a unit whose split's DIRECT children fit its
+            //   roster — a squad's men, a platoon's squads, a company's platoons (the split goes one level, DESIGN_Split_One_Level.md)
+            if (!StochasticUnitFill.RostersItsChildren(repo, unit)) return null;
             var order = CurrentOrders.Of(repo, unit);
             if (!order.Exists) return null;
             if (order.Kind == 0) return "its order has no kind (SV-10: an untyped order cannot switch)";
-            return PlayFor(repo, unit, target, order.Kind, isBehaviour) == null ? "its " + order.Kind + " order has no " + target + " play" : null;
+            return PlayFor(repo, unit, target, order.Kind, isBehaviour, OrderJson(repo, unit, order.Paused)) == null
+                ? "its " + order.Kind + " order has no " + target + " play" : null;
+        }
+
+        /// <summary>⭐ CE-8307 (R-8392) — <see cref="PlayFor(EntityRepository, Entity, AggregateResolution, OrderKind, Func{string, bool})"/> that also
+        /// reads the order's params: a HOLD-BACK attack (support by fire, <c>AttackOrder.HoldBack</c>) has no platoon / company physical play — their
+        /// attacks close (F-SOL-4) — so it resolves to none there (the automatic switch waits, X2-D).</summary>
+        public static string? PlayFor(EntityRepository repo, Entity unit, AggregateResolution resolution, OrderKind kind, Func<string, bool> isBehaviour, string? json)
+        {
+            var play = PlayFor(repo, unit, resolution, kind, isBehaviour);
+            if (play is "PlatoonAttack" or "CompanyAttack" && HoldsBack(json)) return null;
+            return play;
+        }
+
+        /// <summary>Does the order's JSON ask to hold back (<c>"HoldBack": true</c>, any case)? Parsed only on a switch, never per frame.</summary>
+        public static bool HoldsBack(string? json)
+        {
+            if (string.IsNullOrEmpty(json) || json.IndexOf("oldBack", StringComparison.OrdinalIgnoreCase) < 0) return false;
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                foreach (var p in doc.RootElement.EnumerateObject())
+                    if (string.Equals(p.Name, "HoldBack", StringComparison.OrdinalIgnoreCase)) return p.Value.ValueKind == JsonValueKind.True;
+            }
+            catch (JsonException) { }
+            return false;
+        }
+
+        /// <summary>The order's params: its start record's (running), else the paused task's; <c>"{}"</c> when neither holds them.</summary>
+        public static string OrderJson(EntityRepository repo, Entity unit, bool paused)
+        {
+            if (paused) return Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(repo, unit)?.JsonParams ?? "{}";
+            if (!repo.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorStartRecord), out _)
+                || !repo.HasManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(unit)) return "{}";
+            var record = ((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetManagedComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>(unit);
+            return record != null && repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit)
+                   && record.InstanceId == repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorState>(unit).InstanceId ? record.JsonParams : "{}";
         }
 
         /// <summary>⭐ X2-C (R-8355) — the params the re-issued <paramref name="targetPlay"/> gets from the order's <paramref name="json"/>: to a

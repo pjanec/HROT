@@ -115,5 +115,27 @@ namespace Hrot.Core.Tests
             Assert.False(ResolutionRoutingTable.IsStochasticPlay("SquadDefend"));
             Assert.False(ResolutionRoutingTable.IsStochasticPlay(null));
         }
+
+        /// <summary>⭐⭐ CE-8307 (R-8386, X2-I; DESIGN_Split_One_Level.md §6 Q-e) — a split PLATOON / COMPANY is a physical command unit: its Defend at
+        /// Physical resolves to its own play (<c>PlatoonDefend</c> / <c>CompanyDefend</c>) through the new classes and fallback rows; at Stochastic it
+        /// stays the generic play; a SQUAD's Defend is untouched. ✅ Red-proof: the platoon row dropped ⇒ NoBehaviour ⇒ red.</summary>
+        [Fact]
+        public void CE8307_APlatoonsAndACompanysDefend_AtPhysical_IsTheirOwnPlay()
+        {
+            var platoon = UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, CountryTable.UnitedStates);
+            var company = UnitDis.Land(UnitArm.Infantry, UnitEchelon.Company, CountryTable.UnitedStates);
+            Func<string, bool> built = n => n is "PlatoonDefend" or "CompanyDefend" or "SquadDefend" or ResolutionRoutingTable.Plays.Defend
+                                                 or "PlatoonAttack" or "CompanyAttack" or "UnitRelayMove" or "UnitRelayBreakContact" or "InfantrySquadMove";
+            Assert.Equal("PlatoonDefend", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, platoon, AggregateResolution.Physical, "Defend", built).Behaviour);
+            Assert.Equal("CompanyDefend", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, company, AggregateResolution.Physical, "Defend", built).Behaviour);
+            Assert.Equal(ResolutionRoutingTable.Plays.Defend, ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, platoon, AggregateResolution.Stochastic, "Defend", built).Behaviour);
+            Assert.Equal("SquadDefend", R(AggregateResolution.Physical, "Defend", built).Behaviour);
+            // ⭐ CE-8307 (R-8392, review F1) — Attack is the echelon's own play; Move / BreakContact the ONE relay; a squad's Move stays its name rule
+            Assert.Equal("PlatoonAttack", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, platoon, AggregateResolution.Physical, "Attack", built).Behaviour);
+            Assert.Equal("CompanyAttack", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, company, AggregateResolution.Physical, "Attack", built).Behaviour);
+            Assert.Equal("UnitRelayMove", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, platoon, AggregateResolution.Physical, "Move", built).Behaviour);
+            Assert.Equal("UnitRelayBreakContact", ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, company, AggregateResolution.Physical, "BreakContact", built).Behaviour);
+            Assert.Equal("InfantrySquadMove", R(AggregateResolution.Physical, "Move", built).Behaviour);
+        }
     }
 }

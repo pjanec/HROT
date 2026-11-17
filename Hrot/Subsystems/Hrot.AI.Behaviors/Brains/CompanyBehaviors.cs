@@ -115,10 +115,14 @@ namespace Hrot.AI.Behaviors.Brains
         {
             block.Plan = default;
             block.Keep = default;
-            block.Plan.Radius = authored.Radius > 0f ? authored.Radius : DefaultRadius;
+            block.Plan.Radius = authored.Radius > 0f ? authored.Radius : authored.SearchRadius > 0f ? authored.SearchRadius : DefaultRadius;
             block.Plan.Speed = authored.Speed;
             block.Plan.Deadline = authored.DeadlineSeconds > 0f ? authored.DeadlineSeconds : DefaultDeadlineSeconds;
             Vector3 o1 = authored.Objective1, o2 = authored.Objective2, o3 = authored.Objective3, o4 = authored.Objective4;
+            // ⭐ CE-8307 (R-8392) — the neutral AttackOrder: its place (else its entity's) is the first objective when none is authored
+            if (o1 == Vector3.Zero) o1 = authored.Position;
+            if (o1 == Vector3.Zero && authored.Target.Ref.TryResolve(world, out var t) && world.HasComponent<Fdp.Core.SimTransform>(t))
+                o1 = (Vector3)world.GetComponentRO<Fdp.Core.SimTransform>(t).Position;
             int n = 0;
             if (o1 != Vector3.Zero) Put(ref block.Plan, n++, o1);
             if (n > 0 && o2 != Vector3.Zero) Put(ref block.Plan, n++, o2);
@@ -129,7 +133,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static unsafe void Put(ref CompanyAttackPlan p, int i, Vector3 o) { p.OX[i] = o.X; p.OY[i] = o.Y; p.OZ[i] = o.Z; }
 
-        [Behavior(BehaviorNames.CompanyAttack, Params = typeof(CompanyAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.CompanyAttack, Params = typeof(CompanyAttackParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Attack), Categories = BehaviorCategory.Commander)]   // ⭐ CE-8307 (R-8392)
         [HsmDefinition(BehaviorNames.CompanyAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(CompanyAttackBlackboard))]
         public static StateMachineGraph BuildCompanyAttack()
         {

@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-11-17, agg-behaviors — CE-8307; lane decisions R-8382 … R-8391 "for the user's review")
+build-state: READY-TO-BUILD (2026-11-17, agg-behaviors — CE-8307; lane decisions R-8382 … R-8391 "for the user's review"; the independent review folded in §10 — R-8392 … R-8399, the coordinator's decisions)
 updated: 2026-11-17
-current-answer: §0 the decision · §3–§5 the UML · §6 the sub-questions with leans · §7 slices and acceptance
+current-answer: §10 the review (its decisions OVERRIDE the rows they name) · §0 the decision · §3–§5a the UML · §6 the sub-questions with leans · §7 slices and acceptance
 stale-below: nothing.
-known-rot: none.
+known-rot: §6 Q-e's "an order with no platoon row … holds the AUTOMATIC split" and §9 F-SOL-2 — SUPERSEDED by §10 R-8392 (Attack / Hold / Bound / SupportByFire rows, the relay); §6 Q-a's Pin ("a unit child starts unpinned") — SUPERSEDED by R-8395
 known-conflict: none — this design RESOLVES DESIGN_X2_Order_Reresolution.md's known-conflict (F-X2-1: the split flattens a platoon to men, against §13 X-5 / §16a D-P7)
 related-designs:
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS the split process (§16a D-P1 … D-P7), the manager and its bands (§16b, §23.4 F-23), X-3 / X-4 / X-5 (§13), SV-1 … SV-15 (§17.1); this file builds X-5 / D-P7 "one level at a time" for the switch agg-backend built (§23.4)
@@ -84,6 +84,7 @@ orders the stochastic squads by kind (ST-0's routing).
 | 10 | `PlatoonDefend` routes `Order.Defend` to a STOCHASTIC member (the generic play) | ✅ `CommandNodes.Route` (`CommandNodes.cs:59-77`), used by `PlatoonDefendBehavior.cs` | ✅ ST-0 R-8305 |
 | 11 | the roster lands through `CmdAssignSubordinate` — a unit entity may be a subordinate | ✅ `UnitResolution.cs:476-481`; physical platoons hold squad commanders (`city_battle_macros`, CC-D) | ✅ commander-subordinates §5.2 |
 | 12 | `AggregateChild` layout must not change (recorded) | ✅ `UnitResolution.cs:18-29` (16 B, NoScenario ⇒ recorded) | ✅ SV-12 "a layout change is a finding" |
+| 12a | ⚠ **DEPARTURE from §16a D-P2 / D-P4** (review F5): D-P2 plans TOP-DOWN before anything is created (each level's real planner, children in parallel); here a parent creates its children at FALLBACK posts and each child plans its own posts only once it exists and holds its parent's order (R-8397). On the FORCED path nobody plans (C-7: no planning time) — as before | ✅ `UnitResolution.cs` `AwaitsParentsOrder`, `DeepMaterialise` | ⛔ D-P2 says top-down planning — no platoon / company planner exists to plan for (D-P3 "⏳ their inputs not yet measured") ⇒ the departure is the cost of having only the squad planner; recorded in the main design's §16a note |
 | 13 | **the proven solution** (multi-resolution: HLA aggregate/entity federations, JTLS-JCATS, the "aggregate-level disaggregation" literature): disaggregate ONE echelon at a time, each level an aggregate in its own right with its own trigger; state partitioned by subordinate, summed back on re-aggregation | adopt: per-level children, partition by leaf range, leaves-first merge · reject: partitioning holdings (no per-leaf state exists to partition) | ✅ §13 "the proven solution — chain: one level at a time" |
 
 ## 3. Classes
@@ -263,11 +264,53 @@ Parallel rule: the S1 / S2 rails under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HR
 | `Hrot/Engine/Hrot.Core/Tkb/ResolutionRouting.cs` | agg-backend | two physical fallback rows |
 | `Hrot/Engine/Hrot.Core/Tkb/EntityClassTable.cs` | shared (classes) | `InfantryPlatoon`, `InfantryCompany` |
 | `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` | shared | the `Composition` Func |
+| `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/PlatoonAttackParamsJsonDto.cs`, `CompanyAttackParamsJsonDto.cs` | behaviors (the attacks) | the neutral `AttackOrder` fields (R-8392) |
+| `Hrot/Engine/Hrot.Presentation/Forms/SplitProgress.cs` | **agg-ui** | `MenCreated` counts men (a squad child counts the men it carries) — review F10 |
+| `Hrot/Engine/Hrot.Common/Diagnostics/Gizmos/HeldManGizmo.cs` | **agg-ui** | a held UNIT child drawn as a unit (a wider double ring) — review F10 |
+
+## 10. The independent review — folded *(2026-11-17; verdict "build after the BLOCKERs"; the coordinator's decisions, recorded as lane decisions R-8392 … R-8399 for the user's review)*
+
+| # | finding | ⭐ decision (as built) | id |
+|---|---|---|---|
+| **F1** ⛔ BLOCKER | §6 Q-e made a platoon under Attack / Move / Hold / Bound / SupportByFire / BreakContact WAIT stochastic (and Blocked pre-empted a FORCED split) — against §13 X-2 *"a stochastic platoon's attack becomes the real PlatoonAttack"* | (a) `PlatoonAttack` and `CompanyAttack` declare `Fulfils = Attack`; their DTOs accept the neutral `AttackOrder` (Target, Position, SearchRadius, HoldBack) — R-8300 rail; physical rows `(InfantryPlatoon, Physical, Attack / Hold / Bound / SupportByFire) → PlatoonAttack / PlatoonHold / PlatoonBound / PlatoonSupportByFire`, `(InfantryCompany, Physical, Attack) → CompanyAttack`. (b) ONE relay, `UnitRelayBehaviors.Relay`, registered as `UnitRelayMove` / `UnitRelayBreakContact` (one per neutral DTO, X2C2 needs one `Fulfils` per play): it passes the SAME order by kind with the same json to every rostered child (`CommandOrders.Order` — the routing table resolves it per child). ⚠ Deviation: rows on `InfantryPlatoon` / `InfantryCompany`, not `InfantryUnit` (an `InfantryUnit` row would also catch a squad's March / Dash, which have no name-rule play today — a behaviour change for physical squads). March / Dash need no row: a stochastic unit runs them as Move (X2-J). (c) a FORCED split is never held by `Blocked`. ⚠ A HOLD-BACK attack (support by fire) has no platoon / company play (both close) ⇒ it still waits (F-SOL-4) | R-8392 |
+| **F2** ⛔ BLOCKER | the cascade released stochastic squads 250 m from the enemy — they fought ≥ 1 step before their own split (against X-5 *"before contact"*); `agg-forced-handover`'s golden named 30 men | a FORCED split materialises the WHOLE subtree HELD (`DeepMaterialise`: each held unit child creates its children, held, recursively) and every level hands over in ONE tick (`DeepHandover`). ⭐ D-P1's lead, re-stated per echelon: the trigger band's lead (200 m) buys the AUTOMATIC process ~1 manager step per level (planning + creation + handover ≈ 3 s for a squad, + 1 s per extra level — measured in the rails: platoon → men in 3 steps forced, 4 steps for a company); C-7's forced range (300 m) is where that budget is gone, so the forced path collapses every level into one held build | R-8393 |
+| **F3** | a wiped-out Physical squad never merged ⇒ its platoon's leaves-first merge waited forever | a SPLIT unit (explicit `Physical` — only the handover writes it) with no live child merges at once, its slots down | R-8394 |
+| **F4** | the pin cascaded on merge, not on split | a unit child inherits the parent's `PinPhysical` — DERIVED each step (`EffectivePin`), never copied (lifting the parent's pin lifts it below) | R-8395 |
+| **F5** | the squad split ~1 s after its handover, before `PlatoonDefend`'s order landed ⇒ fallback posts, no DP3 | on the AUTOMATIC path a released unit child waits until it runs a SUPERIOR task or `DeadlineSeconds` (10 s) passes (`AwaitsParentsOrder`); the D-P2 departure is claim 12a and a note in the main design §16a | R-8397 |
+| **F6** | the §7 sweep named 4 scenarios | §7a: a row for EVERY `agg-*` scenario with a stochastic 305 / 306, run one by one | — |
+| **F7** | S2 did not compile without S1; `SplitsIntoMen` looked up the TKB every Planning frame; reds not proved at base | S1 re-landed with S2 in ONE buildable commit; `SplitsIntoMen` cached per (database, type), thread-safe, 0 B once filled; base `87d10e9b7` measured: `CgfLogicPackTests` ×3 (55 vs 52) and `CE4621_TheConductTable` RED AT BASE (pre-existing, the coordinator merge); `DP3_ASteadyPlanningFrame_AllocatesNothing` GREEN at base under the parallel checks ⇒ it was ours (the uncached lookup) | — |
+| **F8** | the unit-level state did not fold back (X-4 "sums") | merge: the latest `LastContactAt` / `LastFiredAt`, the LEAST `Prepared`, the MOST `SuppressedShare` across the unit children | R-8399 |
+| **F9** | the roster was assigned in entity-index order; `PlatoonDefend` picks squads by roster POSITION | the handover assigns in KEY order (stable across split → merge → split) | R-8396 |
+| **F10** | the UI counted squads as men; the held-man ring drew a held squad as a man | `SplitProgress.MenCreated` counts MEN (a squad child counts the men it carries); `HeldManGizmo` draws a held unit child as a double, wider ring (cross-lane, agg-ui's files) | — |
+| **F11** | DP3 "planned" for vehicle-only composites | `Plans` also needs a person in the slot table | — |
+| **F12** | mixed composites untested; `RostersItsChildren` counted vehicles never created | a rail with an HQ man beside two squads; the switch counts the RELEASED children, `DirectChildren` counts persons and composites only | R-8398 |
+| **F13** | the new classes change `Chain()` for every infantry platoon / company | the class-table rails and the order-menu tests run (§11) | — |
+| untested | cluster grants, the split squad's SOP / cognitive state, a 3-level company, a pin mid-split, held units out of combat, key stability, stepped-hash | rails `Company_CascadesThreeLevels_OnAForcedSplit`, `PinMidSplit_*`, `F9_*`, `AHeldSquad_IsInvisibleToTheStochasticPhasesQuery`; the cluster grants were READ, not run: `BuildOwnershipGrants` takes the TEMPLATE's groups (`CreateEntityRequestSystem.cs:621-633`) and a squad template (302) is a Brain template whose group holds `AggregateUnit` / `UnitSlotTable` (`HrotOwnershipGroups.cs:118-119, :183, :198`) — the same as an authored stochastic squad's ⇒ no change; ⚠ no cluster-tier run (filed, §9 F-SOL-5) | — |
+
+```mermaid
+sequenceDiagram
+  participant MGR as ResolutionManager - 1 Hz
+  participant SW as BusResolutionSwitch
+  participant P as platoon
+  participant S as squads - held
+  participant M as men - held
+  Note over MGR,P: step t - an enemy inside the FORCED range (C-7)
+  MGR->>SW: Materialise(platoon) - squads requested, held
+  Note over MGR,S: step t+1 - the squads exist, held, never decided
+  MGR->>SW: DeepMaterialise - each held squad Materialise - its men requested, held
+  Note over MGR,M: step t+2 - the whole subtree exists
+  MGR->>SW: Handover(platoon) - squads get the LATEST share, released
+  MGR->>SW: DeepHandover - Handover(squad) - men mapped, released, squad Physical
+  Note over P,M: one tick - no level ever stands stochastic in contact
+```
+*What it shows that §4 could not: under C-7 the cascade is one held build — the squads are never released stochastic, so nothing between "stochastic platoon" and "men" ever fights.*
 
 ## 9. Findings *(measured while designing)*
 
 | # | finding | where it goes |
 |---|---|---|
 | **F-SOL-1** | a split materialises no vehicle / weapon-system holding at any echelon (today and after) — a mechanised platoon's vehicles stay a count on the parent | the main design §12 / S-7 (agg-backend) |
-| **F-SOL-2** | `PlatoonAttack` / `CompanyAttack` declare no `Fulfils` ⇒ no physical row for a platoon's Attack ⇒ under X2-D an automatically-splitting stochastic platoon under Attack / Move / BreakContact WAITS stochastic | behaviors (a `Fulfils` + the R-8300 neutral-DTO rail for it) |
+| **F-SOL-2** *(⛔ SUPERSEDED by §10 R-8392: both fulfil Attack now)* | `PlatoonAttack` / `CompanyAttack` declared no `Fulfils` ⇒ no physical row for a platoon's Attack ⇒ under X2-D an automatically-splitting stochastic platoon under Attack / Move / BreakContact WAITS stochastic | behaviors (a `Fulfils` + the R-8300 neutral-DTO rail for it) |
 | **F-SOL-3** | `UnitCompositionDto` (`Gen.UnitComposition`, Fdp.Toolkits) has no reader — a second composite shape beside `TkbCompositionDef` | coordinator (ruling 9: one implementation) |
+| **F-SOL-4** | a HOLD-BACK attack (`AttackOrder.HoldBack`, support by fire) has no platoon / company physical play — `PlatoonAttack` / `CompanyAttack` close; the reconciler never re-resolves one to them (an automatic split waits; a forced / pinned one clears the order with TaskFailed), but a DIRECT `Order.Attack{HoldBack}` to a PHYSICAL platoon now runs the full attack | behaviors (a support preset on `PlatoonAttack`, or a `SupportByFire` kind for the stochastic hold-back row) |
+| **F-SOL-5** | the one-level split is not exercised on the cluster tier (`TIER=cluster`): the squads' ownership grants were read, not run | agg-backend / the nightly cluster run |

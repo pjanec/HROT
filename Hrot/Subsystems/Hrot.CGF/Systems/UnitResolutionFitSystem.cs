@@ -115,8 +115,8 @@ namespace Hrot.CGF.Systems
             foreach (var unit in _orderUnits!)
             {
                 ref readonly var a = ref repo.GetComponentRO<AggregateUnit>(unit);
-                // X2-I (R-8362) — squad echelon only (a platoon's split flattens to men, F-X2-1); mid-process the unit is still what it was
-                if (a.Splitting != SplitStage.NotSplitting || !UnitSplits.RostersItsMen(repo, unit)) continue;   // R-8372: a squad whose men fit its roster
+                // mid-process the unit is still what it was
+                if (a.Splitting != SplitStage.NotSplitting) continue;
                 ref readonly var bs = ref repo.GetComponentRO<BehaviorState>(unit);
                 int run = bs.ActiveBehaviorHash;
                 if (run == BehaviorIds.None) continue;
@@ -142,11 +142,12 @@ namespace Hrot.CGF.Systems
         /// <summary>X2-A / X2-C — re-issue <paramref name="unit"/>'s order at its new resolution (once; a physical squad once its men are rostered).</summary>
         private void Reissue(EntityRepository repo, Entity unit, bool stochastic)
         {
-            if (Pending(repo, unit)) return;
+            if (!InScope(repo, unit) || Pending(repo, unit)) return;
             var order = CurrentOrders.Of(repo, unit);
             if (!order.Exists) return;
             var target = stochastic ? AggregateResolution.Stochastic : AggregateResolution.Physical;
-            string? want = OrderReissue.PlayFor(repo, unit, target, order.Kind, _isBehaviour);
+            string json = OrderReissue.OrderJson(repo, unit, order.Paused);
+            string? want = OrderReissue.PlayFor(repo, unit, target, order.Kind, _isBehaviour, json);   // ⭐ CE-8307 — a hold-back attack has no echelon play
             if (want == null)
             {
                 // the pin's case (SV-14: the automatic manager waits — X2-D): the order cannot go on here — ended, its commander told
@@ -157,7 +158,6 @@ namespace Hrot.CGF.Systems
                 return;
             }
             if (!stochastic && !RosterComplete(repo, unit)) return;   // X2-A — the men first (the hierarchy's assigns land a frame after the handover)
-            string json = OrderJson(repo, unit, order.Paused);
             json = OrderReissue.ParamsFor(want, json, stochastic);
             // ⭐ X2-F (R-8359; DP3-D ②) — a split squad's SquadDefend starts from its PLANNED POSTS (D-2f Posts): every man already stands on one ⇒ Set at once, no ask
             if (!stochastic && want == SquadDefendPlayName && repo.IsComponentTypeRegistered<PlannedPosts>() && repo.HasComponent<PlannedPosts>(unit))
@@ -173,19 +173,14 @@ namespace Hrot.CGF.Systems
         /// <summary>X2-E — end a task that belongs to the other resolution (the unit's own clear: a paused task resumes, else the SOP re-judges).</summary>
         private void ClearTask(EntityRepository repo, Entity unit, int run)
         {
-            if (Pending(repo, unit)) return;
+            if (!InScope(repo, unit) || Pending(repo, unit)) return;
             repo.Bus.Publish(new ClearBehaviorEvent { Entity = unit, Origin = BehaviorOrigin.Self, OnlyBehaviorHash = run });
             Cleared++;
         }
 
-        /// <summary>The order's params: its start record's (running), else the paused task's; <c>"{}"</c> when neither holds them.</summary>
-        private static string OrderJson(EntityRepository repo, Entity unit, bool paused)
-        {
-            if (paused) return Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem.PausedTaskOf(repo, unit)?.JsonParams ?? "{}";
-            if (!repo.TryGetTable(typeof(BehaviorStartRecord), out _) || !repo.HasManagedComponent<BehaviorStartRecord>(unit)) return "{}";
-            var record = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(unit);
-            return record != null && record.InstanceId == repo.GetComponentRO<BehaviorState>(unit).InstanceId ? record.JsonParams : "{}";
-        }
+        /// <summary>⭐⭐ CE-8307 (R-8389, R-8391; supersedes X2-I / R-8372) — the reconciler's scope: a unit whose split's DIRECT children fit its roster
+        /// (a squad's men, a platoon's squads — the split goes one level). Asked only on a MISFIT, after the hash compare: the steady frame stays 0 B.</summary>
+        private static bool InScope(EntityRepository repo, Entity unit) => StochasticUnitFill.RostersItsChildren(repo, unit);
 
         /// <summary>A request for <paramref name="unit"/> is already on the bus (published last frame; the ingress applies it next frame) — wait for it.</summary>
         private static bool Pending(EntityRepository repo, Entity unit)
