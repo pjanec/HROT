@@ -31,7 +31,7 @@ public sealed class PersonOutfitsRail
 {
     private const long First = 9100;
     private static string Hex(int r, int g, int b) => OutfitCatalog.C(r, g, b);
-    private static readonly string White = Hex(236, 234, 226), Black = Hex(24, 24, 26), Khaki = Hex(165, 154, 114), Olive = Hex(94, 96, 64), Buck = Hex(201, 160, 106),
+    private static readonly string White = Hex(244, 243, 238), Black = Hex(24, 24, 26), Khaki = Hex(165, 154, 114), Olive = Hex(94, 96, 64), Buck = Hex(201, 160, 106),
         BuckD = Hex(156, 118, 70), Red = Hex(140, 42, 36), HairBlack = Hex(20, 18, 18), Skin = OutfitCatalog.SkinTones[2], Grey = Hex(96, 100, 106);
 
     private static OutfitOption O(string kind, params string[] colours) => new() { Kind = kind, Weight = 1f, Colours = [.. colours] };
@@ -56,6 +56,8 @@ public sealed class PersonOutfitsRail
     ];
 
     private static long TypeOf(int i) => First + i;
+    /// <summary>The reference: an EXISTING white garment — the everyday white shirt of the catalogue (<c>OutfitCatalog.Shirt</c>) over grey trousers.</summary>
+    private static long ReferenceType => First + Garments.Length;
 
     private static OutfitDto DtoOf(int i)
     {
@@ -76,6 +78,12 @@ public sealed class PersonOutfitsRail
             t.AddDescriptor(DtoOf(i));
             tkb.Register(t);
         }
+        var r = new TkbTemplate("Outfit reference white shirt", ReferenceType) { DisType = src.DisType };
+        foreach (var (type, part, data) in src.GetAllDescriptors())
+            if (type != typeof(OutfitDto)) add.MakeGenericMethod(type).Invoke(r, [data, part]);
+        r.AddDescriptor(new OutfitDto { Skin = S(O("Skin", Skin)), Top = S(O("Shirt", OutfitCatalog.Shirt)), Legs = S(O("Trousers", Grey)), Over = S(O("None")), Head = S(O("None")),
+                                        Hair = S(O("Short", HairBlack)), Beard = S(O("None")) });
+        tkb.Register(r);
     }
 
     private static EntityBodyLayer3D.TypeLook LookOf(TkbDatabase tkb, int i) => EntityBodyLayer3D.Resolve(tkb.GetByType(TypeOf(i))!);
@@ -183,9 +191,23 @@ public sealed class PersonOutfitsRail
         var query = WorldQuery.Of(world)!;
         var spot = (terrain.BoundsMin + terrain.BoundsMax) / 2f;
         float ground = query.GroundHeightAt(spot.X, spot.Y);
-        var e = world.CreateEntity();
-        world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground), Rotation = Quaternion.Identity });   // facing +x
-        world.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)TypeOf(0) });
+        // ⭐ the scene's sun travels toward (+x, +y, down) (LitShader): a figure facing +x has its front in SHADE. The player-facing view is LIT: the figure turns to face the sun
+        //   (toward −x, −y) and the camera looks at his front from three-quarters.
+        float turn = -MathF.PI * 0.75f;
+        var faceSun = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, turn);
+        Entity person = default;
+        void Spawn(long type, bool threeFeathers)
+        {
+            if (person != default) world.DestroyEntity(person);
+            while (true)
+            {
+                var e = world.CreateEntity();
+                if (threeFeathers && Outfits.FeatherCount(e.Index) != 3) continue;   // a bare filler entity: nothing is drawn for it
+                world.AddComponent(e, new SimTransform { Position = new Vector3(spot.X, spot.Y, ground), Rotation = faceSun });
+                world.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
+                person = e; return;
+            }
+        }
 
         using var frame = UiFrameHarness.Begin(420, 560);
         LitShader.Reset();
@@ -198,23 +220,43 @@ public sealed class PersonOutfitsRail
         canvas.AddLayer(bodies);
         sw.Set(true, animate: false);
 
-        AirCombatLooksRail.Pixels Shot(int type, float yaw, string? name)
+        AirCombatLooksRail.Pixels Shot(float offset, string? name)
         {
-            world.SetComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
-            sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.05f), 3.6f, yaw, -0.04f);
+            sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 1.05f), 3.6f, MathF.PI + turn + offset, -0.04f);
             var px = AirCombatLooksRail.ScreenOf(frame, () => { frame.Step(canvas.Draw); frame.Step(canvas.Draw); });
             if (name != null) frame.Screenshot(Path.Combine(shots, name));
             return px;
         }
+        const float ThreeQuarter = 0.45f;
+        // the reference first: the catalogue's white shirt under the same light
+        Spawn(ReferenceType, false);
+        var refPx = Shot(ThreeQuarter, "outfit-reference-white-shirt-front.png");
+        double refTorso = Mean(refPx, TorsoBlock);
         for (int i = 0; i < Garments.Length; i++)
         {
-            var front = Shot((int)TypeOf(i), MathF.PI, $"outfit-{Garments[i].Name}-front.png");
-            var side = Shot((int)TypeOf(i), MathF.PI * 0.5f, $"outfit-{Garments[i].Name}-side.png");
-            // the garment is DRAWN: the figure differs from the same figure in the plainest dress (the first garment's type, a thobe, for the thobe's own: the skullcap's)
-            int plain = i == Index("skullcap") ? Index("thobe") : Index("skullcap");
-            var base0 = Shot((int)TypeOf(plain), MathF.PI, null);
-            Assert.True(AirCombatLooksRail.Diff(front, base0) > 300, $"{Garments[i].Name}: the front frame differs from the plain figure");
+            Spawn(TypeOf(i), Garments[i].Name == "headband");
+            var front = Shot(ThreeQuarter, $"outfit-{Garments[i].Name}-front.png");
+            Shot(Side, $"outfit-{Garments[i].Name}-side.png");
+            // ⭐ a WHITE garment reads white: under the same light its pixels are at least as bright as the existing white shirt's
+            if (Garments[i].Name == "thobe") Assert.True(Mean(front, TorsoBlock) >= refTorso - 0.5, $"{Garments[i].Name}: torso {Mean(front, TorsoBlock):0.0} vs the white shirt's {refTorso:0.0}");
+            if (Garments[i].Name is "skullcap" or "shemagh") Assert.True(Brightest(front, HeadBand) >= Brightest(refPx, TorsoBlock) - 4.0, $"{Garments[i].Name}: the cap's cloth reads white");
             Assert.True(bodies.DetailsDrawn > 0);
         }
+    }
+
+    private const float Side = 1.45f;   // the camera swung to the figure's lit side
+    private static readonly (int X0, int Y0, int X1, int Y1) TorsoBlock = (160, 225, 192, 250), HeadBand = (160, 140, 260, 175);
+    private static double Lum(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
+    private static double Mean(AirCombatLooksRail.Pixels p, (int X0, int Y0, int X1, int Y1) r)
+    {
+        double s = 0; int n = 0;
+        for (int y = r.Y0; y < r.Y1; y++) for (int x = r.X0; x < r.X1; x++) { s += Lum(p.Colours[y * p.W + x]); n++; }
+        return s / n;
+    }
+    private static double Brightest(AirCombatLooksRail.Pixels p, (int X0, int Y0, int X1, int Y1) r)
+    {
+        double m = 0;
+        for (int y = r.Y0; y < r.Y1; y++) for (int x = r.X0; x < r.X1; x++) m = Math.Max(m, Lum(p.Colours[y * p.W + x]));
+        return m;
     }
 }

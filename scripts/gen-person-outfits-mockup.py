@@ -12,7 +12,7 @@ from mockup_kit import Svg, C, render
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "designs", "person-looks")
 SKIN = "#B9855F"; BASE = "#7A7F86"; DARKBASE = "#5C6168"
-WHITE, CREAM, BLACK, RED, DKRED = "#F2EFE6", "#E6DCC3", "#1E1E22", "#C23B32", "#8C2A24"
+WHITE, CREAM, BLACK, RED, DKRED = "#F4F3EE", "#E6DCC3", "#1E1E22", "#C23B32", "#8C2A24"
 GREY, BROWN, OLIVE, KHAKI, NAVY = "#9A9CA0", "#7A5A3C", "#5E6040", "#A59A72", "#23304A"
 BUCK, BUCKD, TAN = "#C9A06A", "#9C7646", "#B88C58"
 
@@ -63,17 +63,13 @@ def buckskin():
     return b
 def breechcloth():
     return [Bx(0, 0, 0.93, 0.27, 0.43, 0.05, BROWN), Bx(0.135, 0, 0.74, 0.02, 0.16, 0.38, BUCK), Bx(-0.135, 0, 0.74, 0.02, 0.16, 0.38, BUCK)]
-def headband():   # the feathers rise from the BACK of the band, stepped backwards and fanned outwards, white with a black tip
+def headband():   # the feathers rise from the BACK of the band, 0.055 m wide, stepped backwards and fanned past the head, white with a black tip
     b = [Bx(0, 0, 1.665, 0.225, 0.215, 0.03, DKRED)]
-    for k, s in enumerate((-1, 0, 1)):
-        h = (0.055, 0.065, 0.055)[k]
+    for s in (-1, 0, 1):
         for i in range(3):
-            y = 0.055 * s * (1 + 0.45 * i)
-            x = -0.105 - 0.017 * i
-            z = 1.70 + 0.07 * i + h * 0.35
-            b.append(Bx(x, y, z, 0.016, 0.034, h + 0.02, BLACK if i == 2 else WHITE))
+            h = 0.075 if i == 2 else 0.10; z = 1.705 + (0.05, 0.15, 0.2375)[i]
+            b.append(Bx(-0.105 - 0.02 * i, 0.07 * s * (1 + 0.75 * i), z, 0.02, 0.055, h, BLACK if i == 2 else "#EEEADE"))
     return b
-
 def braids():
     b = [Bx(0, 0, 1.745, 0.23, 0.22, 0.05, BLACK), Bx(-0.13, 0, 1.52, 0.05, 0.24, 0.40, BLACK)]
     for s in (1, -1): b += [Bx(0.145, 0.115 * s, 1.30, 0.05, 0.05, 0.36, BLACK), Bx(0.145, 0.115 * s, 1.10, 0.05, 0.05, 0.03, DKRED)]
@@ -93,7 +89,7 @@ G = [
  ("facewrap", "Face wrap", "the shemagh wound round the head like a turban AND over the face, only an eye slit of skin; the loose tail at one shoulder; no agal. Shown on the fighter with the chest rig", lambda: facewrap() + chestrig(), KHAKI, "trousers"),
  ("buckskin", "Buckskin shirt + fringe", "a tan tunic, the hem cut into a fringe front and back, a fringe down each sleeve seam", buckskin, BUCK, "bare"),
  ("breechcloth", "Breechcloth", "a belt with a flap of tan skin hanging at the front and the back; thighs bare, the shins in leggings", breechcloth, SKIN, "legging"),
- ("headband", "Headband + feathers", "a red band; three feathers rising from its back, leaning backwards, fanned, white with black tips", headband, SKIN, "bare"),
+ ("headband", "Headband + feathers", "a red band; three broad feathers rising from its back, fanned past the head, white, black tips", headband, SKIN, "bare"),
  ("braids", "Braids", "black hair: the crown, a fall down the back and two braids over the chest, each tied with red", braids, SKIN, "bare"),
  ("facepaint", "Face paint", "a black band across the eyes, a red stripe on one cheek and a white one on the other", facepaint, SKIN, "bare"),
 ]

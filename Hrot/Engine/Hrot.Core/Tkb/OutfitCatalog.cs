@@ -98,7 +98,7 @@ namespace Hrot.Core.Tkb
 
         // ── ⭐ OF-1 / §5 — the Middle-East wardrobes (the exact RGB is a first estimate; ui tunes it against the mockup) ───────────────
 
-        private static readonly string White = C(236, 234, 226), Cream = C(226, 212, 178), LightGrey = C(196, 196, 192), LightBlue = C(164, 190, 212),
+        private static readonly string White = C(244, 243, 238), Cream = C(226, 212, 178), LightGrey = C(196, 196, 192), LightBlue = C(164, 190, 212),
             Brown = C(122, 94, 66), DarkBrown = C(74, 52, 38), Navy = C(30, 36, 64), DarkGreen = C(30, 56, 42), Black = C(22, 22, 24),
             DarkGrey = C(50, 50, 54), RedWhiteCheck = C(200, 120, 116),   // a red-and-white shemagh, averaged to one tone
             CapWhite = C(240, 240, 236), HijabBlue = C(36, 44, 84), HijabBrown = C(96, 70, 52), HijabGrey = C(110, 110, 112), LightPink = C(230, 190, 200),

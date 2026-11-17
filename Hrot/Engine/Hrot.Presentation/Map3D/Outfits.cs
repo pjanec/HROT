@@ -292,7 +292,7 @@ public static class Outfits
     }
 
     private static readonly Vector3 TorsoC = new(0f, 0f, 1.18f), TorsoS = new(0.24f, 0.40f, 0.56f), HeadC = new(0f, 0f, 1.60f), HeadS = new(0.21f, 0.20f, 0.24f);
-    private static readonly Color Red = new(194, 59, 50, 255), Black = new(30, 30, 34, 255), PaintWhite = new(236, 232, 222, 255),
+    private static readonly Color Red = new(194, 59, 50, 255), Black = new(30, 30, 34, 255), PaintWhite = new(244, 243, 238, 255),
                                   FeatherWhite = new(238, 234, 222, 255), PaintBlack = new(24, 24, 26, 255), BandRed = new(140, 42, 36, 255);
 
     /// <summary>A box in world metres on the torso or the head (centre x, y, z; size dx, dy, dz) → the part's unit frame.</summary>
@@ -440,17 +440,25 @@ public static class Outfits
         if (veil) W(into, H, 0.118f, 0f, 1.54f, 0.04f, 0.22f, 0.12f, c);                                                // the niqab's veil below the eyes
     }
 
-    /// <summary>The headband with 1–3 feathers (by the seed) rising from its BACK, stepped backwards and fanned outwards — white with a black tip.</summary>
+    /// <summary>⭐ CE-4648 — how many feathers (1–3) the man seeded <paramref name="seed"/> wears in his headband.</summary>
+    public static int FeatherCount(long seed) => 1 + (int)(((ulong)seed * 0x9E3779B97F4A7C15UL) >> 61) % 3;
+
+    /// <summary>The headband with 1–3 feathers (by the seed) rising from its BACK, stepped backwards and FANNED outwards past the sides of the head — each 0.055 m wide,
+    /// white with a clear black tip.</summary>
     private static void Headband(in Outfit o, long seed, List<PartDetail> into, int H)
     {
         W(into, H, 0f, 0f, 1.665f, 0.225f, 0.215f, 0.03f, o.HeadCloth);
-        int n = 1 + (int)(((ulong)seed * 0x9E3779B97F4A7C15UL) >> 61) % 3;
+        int n = FeatherCount(seed);
         for (int k = 0; k < n; k++)
         {
             int s = n == 1 ? 0 : n == 2 ? (k == 0 ? -1 : 1) : k - 1;
-            float h = s == 0 ? 0.065f : 0.055f;
+            // three steps up and back: two white ones, then the black tip; the outer feathers lean away from the middle
             for (int i = 0; i < 3; i++)
-                W(into, H, -0.105f - 0.017f * i, 0.055f * s * (1f + 0.45f * i), 1.70f + 0.07f * i + h * 0.35f, 0.016f, 0.034f, h + 0.02f, i == 2 ? PaintBlack : FeatherWhite);
+            {
+                float h = i == 2 ? 0.075f : 0.10f;
+                float z = 1.705f + (i == 0 ? 0.05f : i == 1 ? 0.15f : 0.2375f);
+                W(into, H, -0.105f - 0.02f * i, 0.07f * s * (1f + 0.75f * i), z, 0.02f, 0.055f, h, i == 2 ? PaintBlack : FeatherWhite);
+            }
         }
     }
 
