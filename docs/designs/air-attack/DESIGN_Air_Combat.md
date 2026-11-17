@@ -65,6 +65,15 @@ the CLI.
 | A-10C (405) | the one flying plane: cruise 150 / stall 60 / top 200 m/s, 60° bank, GAU-8 | `NedTkbCatalog.cs:1620` |
 | air-to-air missiles · fighter cannon · a second fighter type | ⛔ none (munitions: GAU-8 6023/6024, Stinger 6030, Igla 6031, radar SAM 6050) | `MunitionTkbCatalog.cs` |
 
+### 1a. Step 0 — the four measurements *(`air` lane, `2026-11-17`; graph + grep; ⚠ index coverage cannot be checked through the CLI)*
+
+| # | question | answer | basis |
+|---|---|---|---|
+| ① | the ids | **components 128 · 160 · 277 · 278 · 279** (R-10000 — the ONLY five ids no lane declares or uses: a full scan of every `[ComponentId]`, every `*Ids` constant of type int / ushort / byte and every literal on coordinator, behaviors, backend, ui, terrain, convoy and the three `exp/agg-*`; the 0–511 space is otherwise FULL) · **ordinals 216 · 217 · 218 (+ 219 spare)** (R-10001 — every `EDescriptorType`, `DescriptorOrdinal` literal and `TimeDescriptorType` on the same branches: in use … 196, 201–203, 205–206, 220–222; the convoy lane takes 198–200 + 207 upwards) · **MiG DIS 1.2.222.1.200**, class `TwinEngineFighter` = `1.2.*.1.200` (R-10002; the `LandAnimal` 200+ precedent for a HROT subcategory) · **`WeaponCategory.AirToAir` = 13** (12 was the last, on every branch) | `GlobalComponentIds.cs` header; `AllDescriptors.cs`; `TimeDescriptorType.cs:5-9`; `EntityClassTable.cs:233`; `TurretSuiteDto.cs:49-75` |
+| ② | `Ground(x, y)` beyond the map edge | **continuous and finite**: the height at the nearest edge point + low procedural hills (≤ 25 m, faded in over 300 m) — GCAS needs nothing special there; `ac-map-edge` is the rail | `TerrainWorld.cs:147-156` (`GroundHeightOf`), `BeyondGround.cs:19-21` |
+| ③ | the vision range at which a unit sees a jet | **the OBSERVER's own range, not the target's size**: `VisualPerception.Optics` reads the observer's `SensorCapability.Visual.Range` (= its TKB `SensorRange`), × binoculars / scope, × light and fog — the A-10 and a MANPADS 5 km, the AH-64 6 km. ⇒ the jets get `SensorRange` 8 km (≥ the 6 km shot cap, AC-11) | `VisualPerception.cs:61-101`; `NedTkbBuilder.cs:356-362`; `NedTkbCatalog.cs:330` |
+| ④ | does the radar sensor (RS-2) run on an AIRCRAFT emitter? | **yes, unchanged**: it runs on any carrier whose TKB lists a radar (`RadarRange > 0`) while its `RadarEmission` is On; the candidates exclude only its own force and itself — nothing ground-specific. ⚠ the clutter floor (15 m) applies to the TARGET, so a jet looking down never sees a target below 15 m AGL | `RadarPerception.cs:66-120`; `NedTkbBuilder.cs:365` |
+
 ## 2. The proven pattern, and what we take
 
 **How combat flight simulations do it:** a **layered AI pilot** — a tactical layer picks the fight (engage, defend, separate), a manoeuvre layer

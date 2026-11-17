@@ -174,6 +174,13 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
         // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
+        // ⭐ CE-10000 (air lane, DESIGN_Air_Combat §4a) — air combat: the brain's order (dtAirCombatSteer), the motion node's report (dtFighterPilotState),
+        //   the behaviour's and the missile defence's working state (brain, recorded), the authored arena (dtAirArena)
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirCombatSteer>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FighterPilotState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirCombatState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.MissileDefenceState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirArena>();
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();

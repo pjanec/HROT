@@ -218,6 +218,13 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
         dtMinefieldLanes              = 194,
         dtMineClearing                = 195,
+        // ⭐ CE-10000 (R-10001, the `air` lane; docs/designs/air-attack/DESIGN_Air_Combat.md §4b, §7) — air combat: a fighter's order from its brain
+        //   (Brain group → the motion node), the motion node's g / GCAS / live-threat report (Muscle group → every node), the authored arena (its
+        //   creator's brain → every node). 216–219 measured free on every lane branch 2026-11-17 (the top of 207–219, so the convoy lane's three
+        //   take 207 upwards, NOTE_Coordinator_To_Convoy_Ordinals.md); 219 is the air lane's spare, not declared.
+        dtAirCombatSteer              = 216,
+        dtFighterPilotState           = 217,
+        dtAirArena                    = 218,
         // ⭐ R-4282 / CE-4631 — the `convoy` lane's block 198–203 (reserved, not yet declared; 196 dtRamOrder and 197 are the checkpoint's).
         // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
         //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
