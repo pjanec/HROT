@@ -262,11 +262,11 @@ namespace Fdp.Toolkit.Motion
             => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
                && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.GLoc;
 
-        /// <summary>⭐ CE-10004 (AC-12, R-10016) — a pilot in a LateWarning lapse has not seen the missile yet: no last-ditch reflex (his 2 s late
+        /// <summary>⭐ CE-10004 (AC-12, R-10016) — a pilot in a LateWarning or a Fixation lapse has not seen the missile yet: no last-ditch reflex (his 2 s late
         /// reaction would come after the 2.5 s window anyway).</summary>
         private static bool LateWarned(in MotionFrame f)
             => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
-               && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.LateWarning;
+               && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse is PilotLapse.LateWarning or PilotLapse.Fixation;
 
         /// <summary>A unit horizontal vector along a compass bearing (0 = north = +Y, clockwise).</summary>
         internal static Vector3 Bearing(float deg)

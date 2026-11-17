@@ -283,7 +283,9 @@ namespace Fdp.Toolkit.Combat.Systems
             //   helicopter crossing at 60 m/s — outside a 4 m proximity fuze (measured, rail CE2187_AnIrRound_…).
             if (sees && g.Guidance is GuidanceKind.InfraRed or GuidanceKind.Radar
                 && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, g.Target, out _, out var targetVelocity))
-                goal = TargetLead.Point(pos, Vector3.Zero, g.SpeedMps, targetPoint, targetVelocity);
+                // ⭐ R-10018 (user 2026-11-17: "Harden as you lean.") — a MOTOR round leads on its CURRENT speed (the same lead pursuit, a true
+                //   input): on the burn-out speed it led a target it could not reach yet and half of the straight-flying targets were missed
+                goal = TargetLead.Point(pos, Vector3.Zero, g.MaxG > 0f ? MathF.Max(g.SpeedNow, 1f) : g.SpeedMps, targetPoint, targetVelocity);
             var toGoal = goal - pos;
             if (toGoal.LengthSquared() < 1e-6f) return false;
             // ⭐ CE-2201 — a top attack's DIVE is the branch below (at least the dive angle, homing once the line is steeper). ⛔ It was

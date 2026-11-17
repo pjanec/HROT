@@ -1,0 +1,100 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: a Veteran MiG-29 ('Fulcrum') 2.8 km behind a Veteran F-16 ('Viper'), both at 2 km, each ordered to attack the other (CE-10002, AC-6 / AC-9). The MiG's first shot is an IR missile. Judge: the F-16 drags it, then beams it with flares (\u2265 2) \u2014 the missile slows below its minimum and is DEFEATED (its shot row's outcome); no MiG round hits the F-16 in the first 30 s."
+  },
+  "entities": {
+    "ac00000b-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -1000,
+          0,
+          2107.6
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00000b-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac00000b-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -3800,
+          0,
+          2109.4
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00000b-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    }
+  }
+}

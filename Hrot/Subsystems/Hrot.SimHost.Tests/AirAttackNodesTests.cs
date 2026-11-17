@@ -1750,7 +1750,7 @@ namespace Hrot.SimHost.Tests
         /// ⭐ CE-10002 (AC-9) — a fighter's defence: STARTED by the launch only after the pilot's reaction; it reads the LIVE threat from
         /// <see cref="Fdp.Toolkit.Motion.FighterPilotState"/> — an IR missile 6 s out is DRAGGED, at 3 s it is BEAMED; the motion node's reflex
         /// shows as LastDitch; it ENDS when nothing is inbound (not on the launch snapshot's time).
-        /// 🔴 Red-proof (mutant): the snapshot's time instead of the live count ⇒ the defence still runs at the end ⇒ red.
+        /// (the mutant that reddens it, not run:) the snapshot's time instead of the live count ⇒ the defence still runs at the end ⇒ red.
         /// </summary>
         [Fact]
         public void CE10002_TheFighterDefence_DragsFar_BeamsNear_EndsWhenNothingIsInbound()
@@ -1784,7 +1784,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ CE-10003 (air combat RV-3) — a radar carried by an AIRCRAFT (a fighter's own) tracking a jet does not trigger RS-6's escape;
-        /// a ground radar does. 🔴 Red-proof (mutant): the exemption removed ⇒ the aircraft emitter counts ⇒ red.
+        /// a ground radar does. (the mutant that reddens it, not run:) the exemption removed ⇒ the aircraft emitter counts ⇒ red.
         /// </summary>
         [Fact]
         public void CE10003_AFightersRadar_DoesNotTriggerTheRadarEscape_AGroundRadarDoes()

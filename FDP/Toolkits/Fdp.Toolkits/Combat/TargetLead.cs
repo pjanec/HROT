@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>
         /// ⭐ CE-10003 (air combat AC-8, RV-10) — <see cref="Point"/> for a target that ACCELERATES (a turning fighter): the straight lead plus
-        /// ½·a·t² over the round's flight time (9 g at 800 m is ~28 m the straight lead misses). <paramref name="targetAccel"/> zero ⇒ <see cref="Point"/>.
+        /// ½·a·t² over the round's flight time (📐 9 g at 800 m: ~19 m the straight lead misses). <paramref name="targetAccel"/> zero ⇒ <see cref="Point"/>.
         /// </summary>
         public static Vector3 PointAccelerating(Vector3 shooter, Vector3 shooterVelocity, float roundSpeed, Vector3 target, Vector3 targetVelocity, Vector3 targetAccel)
         {

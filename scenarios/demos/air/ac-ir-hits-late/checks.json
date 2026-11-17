@@ -1,0 +1,24 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 30,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the MiG fires",
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1
+    },
+    {
+      "name": "the late F-16 is hit",
+      "on": "field",
+      "who": "Viper",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 400,
+      "before": 20
+    }
+  ]
+}

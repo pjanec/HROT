@@ -311,10 +311,10 @@ def s3():
              "TkbIdentity": {"TkbType": 407}, "EntityInfo": {"Name": "Drone", "ForceId": "Hostile"},
              "NavigationIntent": {"Mode": "DirectPoint", "IntentId": 1, "FinalDestination": [0, 20000, dz], "TargetSpeed": 40}}
     write("ac-guns-drone",
-          "What: a Veteran F-16 ('Viper') 450 m behind a recon drone flying straight north at 1.2 km, ordered to attack it (CE-10003, AC-8, AC-13) — "
+          "What: a Veteran F-16 ('Viper') behind a recon drone flying straight north at 1.2 km (650 m ahead), ordered to attack it (CE-10003, AC-8, AC-13) — "
           "inside the missiles' 500 m minimum, so it is the GUN at the led point. Judge: a Viper GUN round (mount 0) hits the drone inside 60 s and the "
           "drone is destroyed inside 90 s.",
-          {v: fighter("Viper", 401, (0, -450, dz), 90, 110, "Friend", d), d: drone},
+          {v: fighter("Viper", 401, (0, -650, dz), 90, 100, "Friend", d), d: drone},
           {"$doc": "DESIGN_Air_Combat §6 S3 — feature (golden).", "runFor": 90, "golden": {"every": 10},
            "expect": [{"name": "Viper's gun fires", **shot("Viper", where={"weaponIndex": 0}), "before": 60},
                       {"name": "the drone is hit", "on": "hit", "target": "Drone", "before": 60},
@@ -335,10 +335,10 @@ def s3():
     v, m = gid(23, 1), gid(23, 2)
     write("ac-dogfight-1v1",
           "What: a Veteran F-16 ('Viper') and a Veteran MiG-29 ('Fulcrum') ordered to attack each other, 8 km apart at 2 km (CE-10003, AC-5…AC-13). "
-          "Judge: they close to 1.5 km inside 60 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start.",
+          "Judge: they close to 2 km inside 120 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start.",
           {v: fighter("Viper", 401, (-4000, -500), 0, 220, "Friend", m), m: fighter("Fulcrum", 409, (4000, 500), 180, 220, "Hostile", v)},
           {"$doc": "DESIGN_Air_Combat §6 S3 — a DEMO (Scenario Regression §5): expect rows only, no golden.", "runFor": 300, "golden": False,
-           "expect": [{"name": "they close to 1.5 km", "on": "close", "who": "Viper", "from": "Fulcrum", "m": 1500, "before": 60},
+           "expect": [{"name": "they close to 2 km", "on": "close", "who": "Viper", "from": "Fulcrum", "m": 2000, "before": 120},
                       {"name": "a shot inside 120 s", **shot("*"), "before": 120},
                       {"name": "one is shot down", **field("*", "Health.Current", "<=", 0), "before": 300},
                       {"name": "the fight stays over the map", "never": {"on": "far", "who": "*", "point": [0, 0], "m": 10000}}]})

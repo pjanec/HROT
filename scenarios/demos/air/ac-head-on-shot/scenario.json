@@ -1,0 +1,100 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: a Veteran F-16 and a Veteran MiG fly at each other from 12 km apart at 2 km (CE-10003, AC-8, AC-11). Judge: the first missile is fired at 6 km or nearer (its shot row's range) and never farther; both shoot."
+  },
+  "entities": {
+    "ac000016-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -6000,
+          0,
+          2102.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000016-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000016-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          6000,
+          0,
+          2098.7
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000016-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    }
+  }
+}

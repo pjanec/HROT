@@ -16,20 +16,22 @@ related-designs:
 |---|---|---|
 | **S0 measure + the contract** | ✅ DONE — ids declared, the four answers in the design §1a | `air: the contract —` (see `git log air-wip`) |
 | **S1 the autopilot** | ✅ DONE — AC-1, AC-3 (`Steer3D`), AC-4 (GCAS in every AI fixed-wing mode), the jets' flight numbers; 5 / 5 scenarios pass | `air: S1 the autopilot —` |
-| S2 missiles that can be beaten (+ S3's weapon suites) | 🟡 the motor, the Monte-Carlo, the LIVE threat scan, the last-ditch reflex, the jets' weapon suites + radar built (`air: S2 — the live threat …`); ⏳ `MissileDefence`, grammar items, scenarios. Earlier: HALF — AC-6 the motor + the Monte-Carlo acceptance rail built; AC-9 / AC-9a (`MissileDefence`, the live threat, the last-ditch reflex), the grammar items and the six scenarios NOT yet | `air: S2 (first half) —` |
-| S3 the fighters | ⏳ | — |
-| S4 the show | ⏳ | — |
+| **S2 missiles that can be beaten** | 🟡 BUILT — the motor + Monte-Carlo, the live threat + reflex, ⭐ `MissileDefence.Run` (AirAttack's evade + radar escape folded in), the radar notch, the grammar; 4 / 6 scenarios — see below | `air: S2 — MissileDefence.Run …` (`1c2be25bf`) + the S3/S4 commit |
+| **S3 the fighters** | 🟡 BUILT — the `AirCombat` profile of `AirAttack`, mode 8 from the brain, tick-start targets, `EmploymentZone`, the accelerating gun lead, winchester / disengage | `air: S3 + S4 —` (`ef77654cc`) and later |
+| **S4 the show** | 🟡 BUILT — `AirArenaSystem`, arena floor / shot cap / soft edge / merge, lapses, TKB 8840 | same |
+| ⏳ NOT built | the CAP (Hold + the fighter SOP row) and a next-target pick after a kill (R-10014); a TRANSIT move's defence (so `ac-sam-dodge` / `ac-attack-evades` are not written); `sam-site`'s chaff band re-measure | — |
 
 ## Ids taken *(⛔ permanent)*
 
 | what | value |
 |---|---|
-| tracker | `CE-10000` (the contract + S0) · `CE-10001` (S1) · `CE-10002` (S2) |
-| rulings | `R-10000` … `R-10009` (below) |
+| tracker | `CE-10000` (the contract + S0) · `CE-10001` (S1) · `CE-10002` (S2) · `CE-10003` (S3) · `CE-10004` (S4) — next free `CE-10005` |
+| rulings | `R-10000` … `R-10018` (below) — next free `R-10019` |
 | components | `MissileDefenceState` 128 · `AirArena` 160 · `AirCombatSteer` 277 · `FighterPilotState` 278 · `AirCombatState` 279 |
 | DDS ordinals | `dtAirCombatSteer` 216 · `dtFighterPilotState` 217 · `dtAirArena` 218 · 219 spare (undeclared) |
 | TKB | `Jet_MiG29` 409 · munitions 6060 AIM-9X · 6061 AIM-120 · 6062 R-73 · 6063 R-77 · 6064 M61 HEI · 6065 GSh-30-1 HEI |
-| enums | `NavigationMode.AirCombat` = wire `NAV_AIR_COMBAT` = 8 · `WeaponCategory.AirToAir` = 13 · MiG DIS 1.2.222.1.200 |
+| TKB the Air Arena | **8840** (R-10013) |
+| enums | `AirAttackProfile.AirCombat` = 8 (blackboard) · `NavigationMode.AirCombat` = wire `NAV_AIR_COMBAT` = 8 · `WeaponCategory.AirToAir` = 13 · MiG DIS 1.2.222.1.200 |
 
 ## Lane decisions *(for the user's review — each says what would change it)*
 
@@ -41,11 +43,21 @@ related-designs:
 | **R-10004** | `AirCombatSteer` is SAVED with a scenario | an authored steer is the motion node's feature-test seam: S1's GCAS scenarios fly a dive before the behaviour (S3) exists; the behaviour overwrites it on its first decision | the behaviour needing the steer cleared on load |
 | **R-10005** | AC-1: climbs start EARLY, descents start LATE | AC-1 said "the climb or descent starts early" — an early descent would leave the previous leg's clearance over its highest ground | — |
 | **R-10006** | `Steer3D` lifts GRAVITY FIRST: past the g limit the turn gets what is left once the lift holds the aircraft up | without it a max-g "level" turn spiralled down (measured: the 6.5 g rail lost speed and height); with it the bank is acos(1/n), as AC-3 states | — |
-| **R-10007** | the Monte-Carlo bands are the MEASURED ones: of 300 seeded all-aspect IR shots at 1.2–3 km, a timely Veteran is hit 6…30 (measured 16), a LateWarning one 25…60 (38), no defence 120…180 (150) | the §5b round (0.4 s lag, the lead on its burn-out speed) is far more dodgeable than the design's EXAMPLE band (30–60 % against a Veteran); the handoff forbids tuning guidance beyond the design, so the numbers stand and the band says what they give | ⭐ the user's call: a harder missile = a shorter lag or the lead on the current speed |
+| **R-10007** ⛔ SUPERSEDED by R-10018 | the Monte-Carlo bands are the MEASURED ones: of 300 seeded all-aspect IR shots at 1.2–3 km, a timely Veteran is hit 6…30 (measured 16), a LateWarning one 25…60 (38), no defence 120…180 (150) | the §5b round (0.4 s lag, the lead on its burn-out speed) is far more dodgeable than the design's EXAMPLE band (30–60 % against a Veteran); the handoff forbids tuning guidance beyond the design, so the numbers stand and the band says what they give | ⭐ the user's call: a harder missile = a shorter lag or the lead on the current speed |
 | **R-10008** | GCAS lets go only after ≥ 1.5 s, climbing, with a recovery clearing the floor by 100 m; a route plane then REJOINS its path (a point 1 km ahead until within 30 m) | measured on `ac-gcas-ridge`: released at the floor, a kinematic point order dived straight back at the ridge and the second recovery came too late; measured on a U-turn: the old snap back onto the path read a 7 km/s velocity for a frame | — |
 | **R-10009** | the `air-range` terrain is a 2 × 2 km grid; the edge rule carries its ridge and plateau beyond | measured: a 24 km and an 8 km grid did not finish their first load (the navmesh bake) inside the regression's 30 s; 2 km loads in ~20 s | a terrain asset with a prefilled navmesh cache |
 | **R-10010** | GCAS watches a POINT order only when the order's own kinematic flight meets the ground; a ground point leaves the 8 m floor | measured: `ua-air-attack`'s gun run failed with GCAS (passes on the base `ui`); with the gate it passes again and `ac-gcas-ridge`'s Viper Low trips GCAS at the ridge (13 s), not at the start | a route order needing the same (none measured) |
 | **R-10003** | `AirCombatSteer` ALSO carries the pilot's `Lapse` (beyond §4a); `AirCombatState` carries the AUTHORED `Skill` and `ForcedLapse` (a feature test forces `LateWarning`); `FighterPilotState` also carries `SpeedMps` (the brain's energy) | the motion node must fly a G-LOC wings level and a fixation's lowered floor, so the lapse belongs in the order it reads; a scenario sets a pilot's skill as data, never as code | none known |
+
+| **R-10011** | the checks read decoys from `MissileDefenceState.DecoysTotal` (appended) | a decoy writes NO shot row (`FireProcessingSystem.cs:111` skips a dispenser), so §6's `shot … where ammo contains "Flare"` cannot be said | the dispenser getting a shot row (a ShotLog change every golden with flares would move) |
+| **R-10012** | the verifier gains `far` AND `close` (`who`, `from` a unit (3-D) or `point` (horizontal), `m`) | the take's `near` takes a point only, and the take grammar is ui's (Presentation); the 1v1's "near Viper Fulcrum" needs a unit | ui folding unit-to-unit `near` into the take grammar — then `close` is a duplicate to remove |
+| **R-10013** | the Air Arena's TKB type is **8840** (a map graphic like the minefield, no DIS) | 8840 measured unused on every origin branch's `TkbEntityTypes.cs` and in the tree | — |
+| **R-10014** | NO next-target search and NO deconfliction search in the brain: the Attack order names the bandit (a scenario's / the player's orders deconflict); a kill ends the attack (Success, B14) | a search needs every pilot's target (a cross-entity read of a component the same phase writes) or the CAP's SOP row; neither was in reach this session | the CAP (Hold + fighter SOP row) — then the SOP picks the next contact |
+| **R-10015** | the arena's soft edge is a manoeuvre SWITCH at the radius (`ReturnToArena`), not a blend; the defence and a disengage override it | RV-9's hazard was the edge turning a DRAGGING jet into the missile — the override removes it | a show measuring jets leaving the arena too far |
+| **R-10016** | a pilot in a LateWarning or a Fixation lapse gets NO last-ditch reflex, and a Fixation does not start the defence while it lasts | measured: with the reflex a "late" pilot was never hit (`ac-ir-hits-late`) — the reflex undid the lapse; a fixated pilot does not see the launch | — |
+| **R-10017** | a fighter's MISSILE leaves through one `WeaponFireIntent` on the named rail (asked through the mount's `ShotLedger`, the muscle spends it), not through the `AimAndFire` executor; the gun through `FireAtPoint` at the accelerating lead; inside 700 m closing it throttles back, inside 250 m it lags off, an empty gun inside 1.2 km falls back | measured: through `AimAndFire` no AAM left its rail in 2 s (its laying gates are a turret's); a gun pursuit flew INTO the bandit (both lost at once, AC-13a) and an empty-gun jet sat at 100 m in trail with two missiles left | the executor learning fixed air-to-air rails |
+
+| **R-10018** | ⭐ the missiles HARDENED (🔒 user, `2026-11-17`: *"Harden as you lean."*; AC-6 / R-4283 — the same lead pursuit with energy): `MaxG` ×1.25 on every AAM and SAM (IR 50, radar 44, radar SAM 38, Stinger 25, Igla 23), flare rejection 0.82 (IR AAM, Stinger) / 0.7 (Igla), and a motor round leads on its CURRENT speed; lag, drag, min speed kept. The Monte-Carlo rail now drops the defence's flares by the system's rule. 📐 timely 24 % · late 41 % · undefended 94 % (bands 10–25 · 40–60 · 85–97) | the sweep: drag / min speed do not move a 1.2–3 km shot; a short lag kills the defended too; the burn-out-speed lead missed half the straight targets; the decoys set the defended bands. SUPERSEDES R-10007's numbers (5 / 13 / 50 %) | the user re-banding |
 
 ## Scenarios *(R-4277 — DONE = `scripts/scenario-regression.sh <name>` passes)*
 

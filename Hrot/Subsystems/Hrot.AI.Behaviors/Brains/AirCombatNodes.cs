@@ -30,6 +30,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const double DecisionPeriodS = 0.5;
         /// <summary>The gun fires inside this (m) with the nose within <see cref="GunConeDeg"/> of the accelerating lead (AC-8).</summary>
         public const float GunRangeM = 500f, GunConeDeg = 2f;
+        /// <summary>Inside this (m) the pilot stops pressing and lags off (AC-13a: jets that touch both crash).</summary>
+        public const float BreakAwayM = 250f;
         /// <summary>A gun burst (rounds) — the M61's 0.2 s.</summary>
         public const int GunBurst = 20;
         /// <summary>A missile shot failed (out of its cone, the target unseen) is retried after this (s).</summary>
@@ -113,7 +115,8 @@ namespace Hrot.AI.Behaviors.Brains
             var flight = new MissileDefence.Flight
             {
                 Fighter = true, FallbackDir = Vector2.UnitY,
-                ReactionS = reaction + (cs.Lapse == PilotLapse.LateWarning ? LateWarningS : 0f),
+                // AC-12 — a LateWarning sees the launch 2 s late; a Fixation (head down on the gun track) does not see it at all while it lasts
+                ReactionS = reaction + (cs.Lapse == PilotLapse.LateWarning ? LateWarningS : cs.Lapse == PilotLapse.Fixation ? LapseS : 0f),
             };
             bool defending = MissileDefence.Run(world, self, ref ds, now, in flight, out var defence, out bool started);
             if (!AirAttackNodes.Same(in dsBefore, in ds)) MissileDefence.Store(world, self, in ds);
@@ -135,7 +138,6 @@ namespace Hrot.AI.Behaviors.Brains
             }
             else if (Winchester(world, self, in cs) || Damaged(world, self))
             {
-                if (Debug) Console.Error.WriteLine($"[AIRDBG] {self} winchester gun={Rounds(world, self, cs.GunMount)}@{cs.GunMount} ir={Rounds(world, self, cs.IrMount)}@{cs.IrMount} radar={Rounds(world, self, cs.RadarMount)}@{cs.RadarMount} dmg={Damaged(world, self)}");
                 // ⭐ AC-13 — out of weapons, or hurt: leave the fight, away from the bandit, at full throttle
                 StopGun(world, self, ref ws);
                 var away = hasTarget ? Flat(me - tp) : Flat(myVel);
@@ -169,6 +171,19 @@ namespace Hrot.AI.Behaviors.Brains
                 else point = arena.Centre;
             }
             if (m == Manoeuvre.ReturnToArena) point = arena.Centre;
+            // ⭐ CE-10003 (AC-8, R-10017) — the energy at the gun range: closing fast inside 700 m the pilot pulls the throttle back (no
+            //   overshoot, never into the bandit — AC-13a: jets that touch both crash; 📐 measured on ac-skill-decides: both died at once);
+            //   an EMPTY gun inside 1.2 km falls back (lag, throttle back) to open the missiles' 500 m minimum again (📐 ac-winchester sat
+            //   in trail at 100 m with two missiles left)
+            if (hasTarget && !defending && m is Manoeuvre.LeadPursuit or Manoeuvre.PurePursuit or Manoeuvre.LagPursuit)
+            {
+                var los = tp - me;
+                float r = los.Length();
+                float closing = r > 1e-3f ? -Vector3.Dot(tv - myVel, los / r) : 0f;
+                if (r < 700f && closing > 15f) throttle = 0.2f;
+                if (r < BreakAwayM) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }   // never into it (nor into its falling wreck)
+                if (r < 1200f && Rounds(world, self, cs.GunMount) <= 0) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }
+            }
             if (cs.Lapse == PilotLapse.EnergyBleed) throttle = 0.3f;   // AC-12 — a slow turn under corner speed
             cs.Manoeuvre = m;
 
@@ -265,14 +280,12 @@ namespace Hrot.AI.Behaviors.Brains
             var missile = dto == null ? null : CombatTkb.MissileOf(world, unchecked((long)dto.AmmoGuid));
             if (missile == null) return;
             float cone = missile.Guidance == GuidanceKind.InfraRed ? 45f : 30f;
-            if (AngleDeg(myVel, tp - me) > cone) { Dbg(self, $"cone {AngleDeg(myVel, tp - me):0}"); return; }
-            if (!EmploymentZone.Inside(missile, me, myVel, tp, tv, ShotFraction(cs.Skill), cs.Skill == PilotSkill.Ace))
-            { Dbg(self, $"zone r {range:0} max {EmploymentZone.Of(missile, me, myVel, tp, tv).Max:0}"); return; }
+            if (AngleDeg(myVel, tp - me) > cone) return;
+            if (!EmploymentZone.Inside(missile, me, myVel, tp, tv, ShotFraction(cs.Skill), cs.Skill == PilotSkill.Ace)) return;
             if (LineOfFire.BlockedByFriendly(world, self, cs.Target)) return;   // RV-11 — never through a friend
             Launch(world, self, mount, cs.Target, now);
             if (cs.Shots < 255) cs.Shots++;
             cs.LastShotAt = (SimInstant)now;
-            Dbg(self, $"FIRE mount {mount} r {range:0}");
         }
 
         /// <summary>
@@ -317,7 +330,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (Rounds(world, self, cs.GunMount) <= 0) { StopGun(world, self, ref ws); return; }
             float speed = AirAttackNodes.RoundSpeedOf(world, self, cs.GunMount);
             var lead = TargetLead.PointAccelerating(me, myVel, speed, tp, tv, cs.TargetAccel);
-            bool inside = range <= GunRangeM && AngleDeg(myVel, lead - me) <= GunConeDeg;
+            bool inside = range <= GunRangeM && range >= BreakAwayM && AngleDeg(myVel, lead - me) <= GunConeDeg;
             if (!inside && ws.Fire.Started == 0) return;
             if (!inside) { StopGun(world, self, ref ws); return; }
             var fire = new FireAtPointNodeParams { Point = lead, Mount = cs.GunMount, Started = ws.Fire.Started, Rounds = GunBurst };
@@ -442,8 +455,6 @@ namespace Hrot.AI.Behaviors.Brains
             return f.LengthSquared() > 1e-6f ? Vector2.Normalize(f) : Vector2.UnitY;
         }
 
-        private static readonly bool Debug = Environment.GetEnvironmentVariable("HROT_AIR_DEBUG") == "1";
-        private static void Dbg(Entity self, string why) { if (Debug) Console.Error.WriteLine($"[AIRDBG] {self} {why}"); }
 
         internal static bool SameBytes<T>(in T a, in T b) where T : unmanaged
             => System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<T>(in a))

@@ -293,6 +293,25 @@ graph TD
 | steering lag · fuze | 0.4 s · 8 m | 0.4 s · 12 m | 0.4 s · as built |
 | seeker | cone 90°, flare rejection 0.6 | cone 60°, chaff end-game (RS-3), the notch | as built + the notch (radar) |
 
+⭐⭐ **AS HARDENED — R-10018** (🔒 user, `2026-11-17`: *"Harden as you lean."*; earlier: *"i need a hit unless aircraft does evading maneuver or fires chaff"*;
+the bands: undefended ≈ 90 %, a late reaction 40–60 %, a timely defence 10–25 %). Inside the SAME model (AC-6, R-4283 — lead pursuit with energy):
+
+| change | IR AAM | radar AAM | radar SAM | Stinger | Igla |
+|---|---|---|---|---|---|
+| `MaxG` (still × (v / SpeedMps)²) | 40 → **50** | 35 → **44** | 30 → **38** | 20 → **25** | 18 → **23** |
+| flare / chaff rejection | 0.6 → **0.82** | 0.9 (kept) | 0.9 (kept) | 0.6 → **0.82** | 0.4 → **0.7** |
+| the lead | ⭐ on the round's CURRENT speed (`GuidedRoundSystem.Steer`, a motor round), not its burn-out speed — the same lead pursuit with a true input | ← | ← | ← | ← |
+| kept | `SteerLagS` 0.4 · `DragPerS` · `MinSpeedMps` · burn · fuze | | | | |
+
+📐 **Measured** (the Monte-Carlo rail, 300 seeded IR shots, 1.2–3 km, any aspect; the defence now also drops the flares the system drops, one seeded
+draw each — `CountermeasureSystem.Seduce`'s rule): **timely 73 (24 %) · late 124 (41 %) · undefended 281 (94 %)**. Why these knobs (a sweep, `2026-11-17`):
+`DragPerS` and `MinSpeedMps` barely move a 1.2–3 km shot (the round arrives before it slows); a shorter lag kills the DEFENDED as surely as the
+undefended (lag 0.05: timely 78 %, none 85 %); the lead on the burn-out speed was why half of the straight-flying targets were MISSED; with it fixed,
+the maneuver alone leaves a timely defence at ~45–55 % — the decoys' rejection sets the defended bands.
+
+⛔ **SUPERSEDED** (the §5b round below, as first built): `MaxG` 40 / 35 / 30 / 20 / 18, flare rejection 0.6 / 0.6 / 0.4, the lead on `SpeedMps` —
+measured (R-10007, 300 shots, no flares in the rail): **timely 5 % · late 13 % · undefended 50 %** — far too dodgeable.
+
 📐 **Why a dodge can work and can fail** (as amended, RV-1): at 2.5 s to go a 9 g break moves the jet ≈ 275 m off the predicted point; a 40 g
 round at full speed can follow ≈ 1 200 m — but only at full speed, and only after its 0.4 s lag. A round that has coasted to 400 m/s has
 `40·(400/850)²` ≈ 9 g left — no more than the jet. ⇒ an early drag (bleed its speed) or a well-timed break (inside its lag) beats it; a late
@@ -380,7 +399,7 @@ frame's half-moved one. ⛔ No allocation and no LINQ in `Fight`, `Steer3D`, `Gc
 |---|---|---|
 | AC-6 the motor | `GuidedRound` + `SpeedNow`, `BurnLeftS`, `BoostMps2`, `MaxG`, `DragPerS`, `MinSpeedMps`, `SteerLagS`, `SteerDir`, `LoadG`; `GuidedRoundSystem.Motor` — boost from the LAUNCHER's speed (≥ a tube's 30 m/s) to `SpeedMps` over the burn, then coast losing `DragPerS·(1 + n/MaxG)`; g = `MaxG·(v/SpeedMps)²`; the steering follows the lead (still on `SpeedMps`, as AC-6 says) through a first-order lag; coasting below `MinSpeedMps` ⇒ the round expires and its shot row ends `ShotOutcome.Defeated` (appended). `MaxG` 0 ⇒ the old constant-speed round (ATGMs unchanged) | — |
 | §5b numbers | the four AAMs (contract) + the SAMs: Stinger 2 s / 20 g / −60 / 250, Igla 2 s / 18 g / −60 / 250, radar SAM 4 s / 30 g / −40 / 300, all a 0.4 s lag | — |
-| ⭐ the acceptance (RV-1) | `GuidedRoundSystemTests.AC6_MonteCarlo_…`: 300 seeded IR shots, 1.2–3 km, ANY aspect, at an F-16 that drags (> 4 s to go), beams (inside) and breaks (inside 2.5 s): 📐 measured **timely (0.7 s, a Veteran) 16 / 300 = 5 % · LateWarning (2.7 s) 38 = 13 % · no defence 150 = 50 %**; stated bands 6…30 · 25…60 · 120…180 | ⚠ R-10007: the design's EXAMPLE band ("30–60 % against a Veteran") is NOT what the §5b round gives — with its 0.4 s lag and the lead on the burn-out speed it is beaten ~19 times in 20 by a timely defence. The numbers were kept (the handoff: no guidance tuning beyond the design); the user decides whether the missile should be harder (a shorter lag, the lead on the current speed) |
+| ⭐ the acceptance (RV-1) | `GuidedRoundSystemTests.AC6_MonteCarlo_…`: 300 seeded IR shots, 1.2–3 km, ANY aspect, at an F-16 that drags (> 4 s to go), beams (inside) and breaks (inside 2.5 s): 📐 measured **timely (0.7 s, a Veteran) 16 / 300 = 5 % · LateWarning (2.7 s) 38 = 13 % · no defence 150 = 50 %**; stated bands 6…30 · 25…60 · 120…180 | ⛔ SUPERSEDED by R-10018 (§5b: the user hardened it — timely 24 %, late 41 %, none 94 %, flares in the rail). Was: ⚠ R-10007: the design's EXAMPLE band ("30–60 % against a Veteran") is NOT what the §5b round gives — with its 0.4 s lag and the lead on the burn-out speed it is beaten ~19 times in 20 by a timely defence. The numbers were kept (the handoff: no guidance tuning beyond the design); the user decides whether the missile should be harder (a shorter lag, the lead on the current speed) |
 | AC-9a the live threat | `Motion/AirCombat/ThreatScan.cs` — once per tick the motion node gathers the homing rounds (tick-start positions, per-thread buffers, no steady allocation); each fixed-wing writes the rounds aimed at it into `FighterPilotState` (`Inbound`, the nearest-in-time's compass bearing, seeker, closure, live time to impact); `GuidedRoundSystem` counts a defeated round into its target's `Defeated` | — |
 | AC-9 the reflex | `FixedWingModel.Autonomous`, before any mode: inside `ThreatScan.LastDitchS` (2.5 s) the jet breaks level ACROSS the missile's line at its full g, whatever the brain asked; GCAS already holding keeps the stick; a G-LOC'd pilot does nothing; `LastDitchAt` stamped on entry | — |
 | AC-8 the suites (S3's catalogue half) | F-16 / MiG: mount 0 the gun (M61 500 rds 6 000/min · GSh-30-1 150 rds 1 800/min, fixed 2° cone), mount 1 the IR rail pair (AIM-9X / R-73, `AirToAir`), mount 2 the radar pair (AIM-120 / R-77), the dispenser last; a 40 km radar | the order ui's `JetStores` draws (IR outboard, radar inboard) |
