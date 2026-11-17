@@ -424,6 +424,41 @@ def s2_transit():
                       {"name": "a SAM missile is defeated", **shot("*S", where={"outcome": "Defeated"})},
                       alive("Viper")]})
 
+    # ── ⭐ CE-10006 — ac-sam-dodge-route — the same transit on a ROUTE (FollowRoute): it defends, then RESUMES the route where it was ──────
+    v, sam, stg, rte = gid(17, 1), gid(17, 2), gid(17, 3), gid(17, 4)
+    start = (-6000, 500)
+    wps = [(-3000, 500), (3000, 500), (9000, -1500)]
+    sam_at, stg_at = (-300, -100), (300, 150)
+    route = {"SimTransform": {"Position": [wps[0][0], wps[0][1], 0], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 8802},
+             "EntityInfo": {"Name": "Viper route", "ForceId": "Friend"},
+             "RoutePlan": {"Waypoints": [{"X": x, "Y": y, "Z": 0, "TargetSpeed": 130, "HeightAgl": 120} for x, y in wps], "IsLoop": False}}
+    plan = {"PlanData": {"ActiveTaskId": gid(17, 0xa1), "Tasks": [{"TaskId": gid(17, 0xa1), "ExecutingEngine": "", "BehaviorName": "FollowRoute",
+            "BehaviorParams": {"routeEntityId": rte, "Speed": 130}, "Triggers": []}]}}
+    write("ac-sam-dodge-route",
+          "What: ac-sam-dodge on a ROUTE — an F-16 ('Viper', no air-combat order) follows a 3-waypoint route ('Viper route', 120 m over the ground, "
+          "130 m/s) east across the range past a radar SAM ('Radar SAM') and a Stinger team ('Stinger Gunner'), both on their default SOPs (CE-10006, "
+          "AC-9 / R-10030: a ROUTE transit's missile defence through the one MissileDefence; the route resumes at the waypoint not yet passed). Judge: "
+          "the SAMs fire; the F-16 BEAMS with decoys; a SAM missile is DEFEATED; it is alive; after the defence it never flies back to the route's first "
+          "waypoint and it reaches the last one.",
+          {v: jet("Viper", 401, (start[0], start[1], ground_beyond(*start) + 120), yaw(0), (130, 0, 0), MissionPlan=plan),
+           rte: route,
+           sam: {"SimTransform": {"Position": [sam_at[0], sam_at[1], round(ground_beyond(*sam_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 114},
+                 "EntityInfo": {"Name": "Radar SAM", "ForceId": "Hostile"}, "Health": {"Current": 400, "Max": 400}, "TargetMemory": {"Entries": []},
+                 "Sop": {"Name": "BasicVehicleSop", "Params": {}, "Origin": "Superior"}},
+           stg: {"SimTransform": {"Position": [stg_at[0], stg_at[1], round(ground_beyond(*stg_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 202},
+                 "EntityInfo": {"Name": "Stinger Gunner", "ForceId": "Hostile"}, "Health": {"Current": 100, "Max": 100}, "TargetMemory": {"Entries": []},
+                 "Sop": {"Name": "BasicInfantrySop", "Params": {}, "Origin": "Superior"}}},
+          {"$doc": "DESIGN_Air_Combat §6 S2 / §8e — feature (golden).", "runFor": 150, "golden": {"every": 10},
+           "anchors": {"defended": field("Viper", "MissileDefenceState.Count", ">=", 1)},
+           "expect": [{"name": "a SAM fires (the radar SAM or the Stinger — both names hold an 'S')", **shot("*S")},
+                      {"name": "the F-16 beams", **field("Viper", "MissileDefenceState.Phase", "in", ["Beam", 2])},
+                      {"name": "it drops decoys", **field("Viper", "MissileDefenceState.DecoysTotal", ">=", 1)},
+                      {"name": "a SAM missile is defeated", **shot("*S", where={"outcome": "Defeated"})},
+                      alive("Viper"),
+                      {"name": "the route resumes: never back at its first waypoint after the defence",
+                       "never": {"on": "close", "who": "Viper", "point": list(wps[0]), "m": 500}, "after": "defended"},
+                      {"name": "the route resumes: it reaches its last waypoint", "on": "close", "who": "Viper", "point": list(wps[-1]), "m": 600, "after": "defended"}]})
+
     # ── ⭐ CE-10005 — ac-attack-evades — the A-10 gun run under a Stinger: §7e's evade through MissileDefence, then it comes round ────────
     a10, trk, stg = gid(16, 1), gid(16, 2), gid(16, 3)
     trk_at, stg_at, a_at = (-700, -700), (-400, -500), (-7000, -700)   # ⚠ inside the 2 km perception grid (the Stinger's eyes), see ac-sam-dodge; the south-west corner, clear of the plateau wall (📐 an A-10 coming round at 700 m flew into it)

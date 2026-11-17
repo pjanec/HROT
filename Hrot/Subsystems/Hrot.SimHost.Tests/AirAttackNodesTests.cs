@@ -1825,6 +1825,68 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-10006 (AC-9, R-10030) — a ROUTE transit (<c>FollowRoute</c>, the shared route action) defends like a Move: a helicopter on its
+        /// route is warned of an infra-red launch off its left bow ⇒ the route action stops writing the route, the one <c>MissileDefence</c>
+        /// puts a beam break (a MoveTo at the helicopter's evade height, never closing on the missile) on the locomotion channel and asks the
+        /// flares; once the missile is past, the route action RE-ACTIVATES (FollowRoute, a new action instance — the motion node resumes at
+        /// the waypoint not yet passed, <c>AirRouteTests.CE10006_*</c>). A GROUND unit with the same warning keeps its route.
+        /// ✅ Red-proof (mutant, run): the <c>DefendRoute</c> call removed ⇒ the channel stays FollowRoute through the warning ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE10006_ARouteTransit_IsWarned_BreaksOntoTheBeam_DropsFlares_ThenTheRouteResumes()
+        {
+            var heli = SpawnCmHeli(new Vector3(-4000f, 300f, 120f), out _, out var dispenser);
+            _w.GetComponentRW<SimVelocity>(heli).Linear = new Vector3(60f, 0f, 0f);   // flying east
+            var route = new CgfNodes.FollowRouteParams { RouteNetworkId = 77, TrajectoryId = 5 };
+            _w.SetSingleton(new GlobalTime { TotalTime = 0d });
+            Assert.Equal(NodeStatus.Running, CgfNodes.Action_WriteFollowRouteChannel(ref route, heli, _w));
+            Assert.Equal(NavigationConstants.ActionIdFollowRoute, _w.GetComponentRO<LocomotionChannel>(heli).ActiveAction);
+            uint routeInstance = _w.GetComponentRO<LocomotionChannel>(heli).ActionInstanceId;
+
+            var launcher = new Vector3(-2500f, 1800f, 0f);
+            var intents = new System.Collections.Generic.List<(int Mount, long Ammo, int Frame)>();
+            bool sawBreak = false; float lowestZ = float.MaxValue, maxCos = -1f;
+            int resumedAt = -1;
+            for (int frame = 0; frame < 60 * 20; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+                if (frame == 30) Warn(heli, launcher, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 5f, frame * Dt);
+                CgfNodes.Action_WriteFollowRouteChannel(ref route, heli, _w);
+                AnswerFired();
+                ref var dw = ref _w.GetComponentRW<WeaponState>(dispenser);
+                dw.CooldownSecondsRemaining = MathF.Max(0f, dw.CooldownSecondsRemaining - Dt);
+                _w.Bus.SwapBuffers();
+                foreach (ref readonly var i in _w.Bus.Read<WeaponFireIntent>()) intents.Add((i.WeaponIndex, i.AmmoGuid, frame));
+                var ch = _w.GetComponentRO<LocomotionChannel>(heli);
+                if (ch.ActiveAction == NavigationConstants.ActionIdMoveTo)
+                {
+                    sawBreak = true;
+                    FlyStandIn(heli, 60f, plane: false);
+                    var at = _w.GetComponentRO<SimTransform>(heli).Position;
+                    lowestZ = MathF.Min(lowestZ, MoveOf(heli).Destination.Z);
+                    var v = _w.GetComponentRO<SimVelocity>(heli).Linear;
+                    var toMissile = Vector2.Normalize(new Vector2(launcher.X - at.X, launcher.Y - at.Y));
+                    if (v.X * v.X + v.Y * v.Y > 1f) maxCos = MathF.Max(maxCos, Vector2.Dot(Vector2.Normalize(new Vector2(v.X, v.Y)), toMissile));
+                }
+                else if (sawBreak && resumedAt < 0 && ch.ActiveAction == NavigationConstants.ActionIdFollowRoute) resumedAt = frame;
+            }
+
+            Assert.True(sawBreak, "the route transit broke off for the launch");
+            Assert.Equal(AirAttackNodes.EvadeHeightAglRotor, lowestZ, 1);                         // the helicopter's evade height (flat ground)
+            Assert.InRange(maxCos, -1f, MathF.Sin(35f * MathF.PI / 180f));                          // on the beam, never closing on the missile
+            Assert.Contains(intents, i => i.Mount == 2 && i.Ammo == TestFlare);                    // flares, the seeker is infra-red
+            Assert.True(resumedAt > 0, "the route re-activated once the missile was past");
+            Assert.NotEqual(routeInstance, _w.GetComponentRO<LocomotionChannel>(heli).ActionInstanceId);   // a new route instance (the motion node resumes)
+
+            // a GROUND unit warned on its route keeps the route (DefendRoute is the AIRCRAFT's)
+            var tank = SpawnPlane(new Vector3(0f, -3000f, 0f), Plane, 4, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked);
+            var groundRoute = new CgfNodes.FollowRouteParams { RouteNetworkId = 78, TrajectoryId = 6 };
+            Warn(tank, new Vector3(0f, -1000f, 0f), Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 5f, 0d);
+            Assert.Equal(NodeStatus.Running, CgfNodes.Action_WriteFollowRouteChannel(ref groundRoute, tank, _w));
+            Assert.Equal(NavigationConstants.ActionIdFollowRoute, _w.GetComponentRO<LocomotionChannel>(tank).ActiveAction);
+        }
+
+        /// <summary>
         /// ⭐ CE-10003 (air combat RV-3) — a radar carried by an AIRCRAFT (a fighter's own) tracking a jet does not trigger RS-6's escape;
         /// a ground radar does. (the mutant that reddens it, not run:) the exemption removed ⇒ the aircraft emitter counts ⇒ red.
         /// </summary>

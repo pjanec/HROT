@@ -313,6 +313,10 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
+            // ⭐⭐ CE-10006 (AC-9, R-10030) — an AIRCRAFT's route transit defends against a launch through the one MissileDefence (its beam
+            //   break holds the locomotion channel); when the defence ends the route re-activates below and the motion node resumes it
+            if (AirOrderNodes.DefendRoute(self, world)) return NodeStatus.Running;
+
             // ⭐ CE-2145 — the route is not compiled yet: look again, and WAIT (Running) without touching the channel.
             // ⭐⭐ CE-2171 — …but only when there is no route ENTITY to send: the compiled trajectory is a LOCAL pool id that only the
             //   motion node makes and that never crosses the wire, so on a split cluster the brain waited for good. With a route entity

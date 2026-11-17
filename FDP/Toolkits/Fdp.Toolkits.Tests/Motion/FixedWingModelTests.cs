@@ -117,6 +117,50 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.True(new Vector2(end.X, end.Y).Length() >= Stall, "it circles at the end, still flying");
         }
 
+        /// <summary>⭐ CE-10006 (AC-9, R-10030) — a route broken off mid-way (a transit's missile defence: a point move, then the SAME route
+        /// re-issued with a new intent) RESUMES at the first waypoint not yet passed, from where the plane is — ⛔ never back to the first
+        /// one; a FRESH route (another route entity) still starts at its first waypoint. ✅ Red-proof (mutant, run): the resume dropped
+        /// (resumeAt forced 0) ⇒ the re-issued path's first waypoint is (0, 0) again ⇒ red.</summary>
+        [Fact]
+        public void CE10006_ARouteBrokenOffMidway_ResumesAtTheWaypointNotYetPassed()
+        {
+            _routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(8000, 0), Wp(8000, 8000), Wp(0, 12000) });
+            var plane = Plane(new Vector3(0, 0, 300), Cruise);
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 77 });
+            for (int i = 0; i < 60 * 70; i++) _air.Execute(_w, Dt);   // past (8000, 0), short of (8000, 8000)
+            var at = _w.GetComponent<SimTransform>(plane).Position;
+            Assert.True(at.Y > 1500f && at.Y < 6500f, $"mid-way up the second leg: {at}");
+            // the defence: a point move off the route, a few seconds
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 2, FinalDestination = at + new Vector3(-3000f, 0f, 0f) });
+            for (int i = 0; i < 60 * 5; i++) _air.Execute(_w, Dt);
+            // the same route, re-issued
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 3, RouteEntityId = 77 });
+            _air.Execute(_w, Dt);
+            var path = ((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetManagedComponentRO<AirPath>(plane);
+            Assert.Equal(3u, path.IntentId);
+            float nearFirst = float.MaxValue, nearSecond = float.MaxValue;
+            foreach (var p in path.Points)
+            {
+                nearFirst = MathF.Min(nearFirst, new Vector2(p.X, p.Y).Length());
+                nearSecond = MathF.Min(nearSecond, Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(8000f, 0f)));
+            }
+            Assert.True(nearFirst > 2000f, $"the resumed path goes back to the first waypoint ({nearFirst:F0} m)");
+            Assert.True(nearSecond > 1000f, $"the resumed path goes back to the passed second waypoint ({nearSecond:F0} m)");
+            var last = path.Points[path.Points.Length - 1];
+            Assert.True(Vector2.Distance(new Vector2(last.X, last.Y), new Vector2(0f, 12000f)) < 50f, "it still ends at the last waypoint");
+
+            // the helpers: a loop rotates (the same circuit), a route drops what is passed; a stop keeps its ROUTE waypoint number
+            var list = new List<NavRouteWaypoint>(_routes.Waypoints);
+            AirRoute.ResumeAt(list, 2, loop: true);
+            Assert.Equal(new[] { 8000f, 0f, 0f, 8000f }, list.ConvertAll(w => w.Position.X).ToArray());
+            var open = new List<NavRouteWaypoint>(_routes.Waypoints);
+            AirRoute.ResumeAt(open, 2, loop: false);
+            Assert.Equal(2, open.Count);
+            var stops = new AirPath { Stops = System.Collections.Immutable.ImmutableArray.Create(new AirStop { Waypoint = 1 }) };
+            Assert.Equal(3, AirRoute.RenumberStops(stops, 2, 4).Stops[0].Waypoint);
+            Assert.Equal(0, AirRoute.RenumberStops(stops, 3, 4).Stops[0].Waypoint);
+        }
+
         /// <summary>⭐ B9 — a Ground waypoint on a plane's route is flown OVER (planes do not land in v1): it never comes down.</summary>
         [Fact]
         public void B9_AGroundWaypoint_IsFlownOver_NotLandedOn()
