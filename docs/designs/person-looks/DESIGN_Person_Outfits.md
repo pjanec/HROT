@@ -162,7 +162,7 @@ Skin tones for all nine: the four middle tones of today's five (light olive to b
 | what | id |
 |---|---|
 | TKB types (fighters) | **2010–2012** (the urban-combat range; 2000–2009 in use — measured in `Hrot.Core` Tkb / MapDefinitions on every lane; the builder re-checks the whole tree) |
-| TKB types (Afghan, §10, ui) | **1111–1116** Afghan man, woman, boy, girl, elderly man, elderly woman (`CivilianTkbCatalog`) · **2016–2018** Afghan fighters rifle / RPG / machine gunner (`UrbanCombatTkbCatalog`) — R-1066 |
+| TKB types (Afghan, §10, ui) | **1111–1116** Afghan man, woman, boy, girl, elderly man, elderly woman (`CivilianTkbCatalog`) · **2019–2021** (were 2016–2018 — backend needed them for the archers and the warrior) Afghan fighters rifle / RPG / machine gunner (`UrbanCombatTkbCatalog`) — R-1066 |
 | TKB types (archers, bows design) | **2013–2015** — backend's (Archer, Crossbowman, …) |
 | TKB types | **1105–1110** (free on every lane branch, measured `2026-11-17`; 1101–1104 civilians, 1201–1203 security) |
 | `OutfitDto` | a TKB descriptor — no component id, no wire (the TKB is built the same on every node) |
@@ -229,6 +229,6 @@ Mockups: [`person-outfits-native-sheet.svg`](person-outfits-native-sheet.svg), [
 | chadari | `Chadari` (Top) | a full-body pleated cover crown to ankle, the head wholly covered but a dark grille over the eyes; hides hair, beard and the legs |
 
 **R-1065** — `OutfitCatalog.NativeWarrior` (was `NativeAmericanWarrior`; backend's stand-in wardrobe of the same name folded into it at the merge of 2026-11-17, its `FacePaint` slot, `OutfitHead.Feather` and `OutfitOver.Breechcloth` dropped — face paint is `OutfitBeard.Paint`, feathers ride the `Headband`) is ONE wardrobe; backend's warrior type (CE-4650 step E) just stamps it — [`NOTE_Ui_To_Backend_Native_American_Look.md`](../../blueprints/batches/NOTE_Ui_To_Backend_Native_American_Look.md).
-**R-1066** — Afghan wardrobes `OutfitCatalog.Afghan*`; ids **1111–1116** (`CivilianTkbCatalog`) and **2016–2018** (`UrbanCombatTkbCatalog`, 2013–2015 are backend's archers). Odds pinned over seeds 1–500 by `TheAfghanOdds_OverSeeds1To500`: fighters head cover ≥ 85 %, chest rig ≥ 60 %, a waistcoat or patu in ≥ 40 %; women mostly chadari; elders a lungee and a patu.
+**R-1066** — Afghan wardrobes `OutfitCatalog.Afghan*`; ids **1111–1116** (`CivilianTkbCatalog`) and **2019–2021** (`UrbanCombatTkbCatalog`; ⚠ first 2016–2018, moved at the backend merge — 2013–2018 are backend's archers and warrior). Odds pinned over seeds 1–500 by `TheAfghanOdds_OverSeeds1To500`: fighters head cover ≥ 85 %, chest rig ≥ 60 %, a waistcoat or patu in ≥ 40 %; women mostly chadari; elders a lungee and a patu.
 Scenario: `scenarios/demos/civilians-and-crowd/civ-afghan-village` (36 people of 1111–1116 near and far, three fighters holding a post; `checks.json`: the cast exists as its types, everyone alive, the fighters hold; no golden).
 
