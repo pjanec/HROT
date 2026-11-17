@@ -93,7 +93,7 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-19** | ⭐ **ANIMAL SOUNDS — an important part of the scene** | ⭐ every animal is a SOUND SOURCE through the ONE existing sound path — `SoundEmissionSystem` (the AI hears it within its acoustic range) and the presentation's `SoundSources` → `SoundMixer` (the operator hears what the AI hears, FPS Audio AU-4 / AU-5 / AU-10), a new `SoundSourceClass.Animal` with a `SoundFamily` per species. Four kinds: ① **calls at rest** — moo, baa, neigh, bark, cluck, oink, bleat, meow, birdsong — at a seeded random interval per species (a herd is not a choir); ② **alarm calls** when frightened — a bellow, a squeal, a hen's cackle, a whinny, a flock's alarm; ③ **movement** — hooves by gait (walk / trot / gallop louder and faster), a flock's WINGS at take-off, a hen's flutter; ④ the **dog's bark** — loud, far-carrying. ⭐ **A tactical cue**: a bark, a herd's alarm or BIRDS FLUSHING from a tree are heard by soldiers' ears — the classic sign that someone is moving out there; an ambient BIRDSONG bed in parks / orchards while calm that falls SILENT after shooting | 🔒 user: *"the sounds that animals are making. This is the important part of the scene, so please don't forget to include it"* · one sound path for everything (ruling 9); clips are data |
 | **AN-12** | destructible, neutral | every animal has Health, injury states, the dead figure; hit by fire, blasts, vehicles (RM-1); a NEUTRAL side — soldiers do not target animals unless attacked (the dog) or ordered | 🔒 user: *"destructible the same way"* |
 
-## 4b. Shootable birds and the duck — AN-20 *(coordinator, `2026-11-17`; ⛔ NOT approved — moved here from the bow design's BW-14)*
+## 4b. Shootable birds and the duck — AN-20 *(coordinator, `2026-11-17`; ✅ APPROVED `2026-11-17` (R-4289) — moved here from the bow design's BW-14)*
 
 🔒 User, `2026-11-17`: *"Do we have some birds like flying ducks that can be hunted …?"* · *"Does it make sense to shoot at flying ducks? Aren't they
 out of reach of a usual bow? It doesn't mean that we cannot shoot them using firearms … the ducks should stay just the relation to the archery might be
@@ -111,6 +111,28 @@ man's 12-gauge, 12 pellets over 15 mils, spent past 60 m — `NedTkbCatalog.cs:5
 | **AN-20c** | a new species **Duck** (~0.5 m, flies a loose V low over water and fields, quacks) — a lone duck and a duck flock type, ids measured free | the bird the user asked for | — |
 | **AN-20d** | the scenario **`an-duck-hunt`**: a hunter with the shotgun shoots a lone duck and into a duck flock over a field — a lone duck `health == 0` and lying · the flock's count drops ≥ 1, a dead duck lies · the flock flees | R-4277 | — |
 | **AN-20e** | the bird-shooting GAME (scores, rounds) stays the fun pack's (CE-4633) | engine shared, content separate (R-4281) | — |
+
+### 4c. The rabbit, the hunting dog and the hunt — AN-21 *(coordinator, `2026-11-17`; ⛔ NOT approved)*
+
+🔒 User, `2026-11-17`: *"could we include also a rabbit which lives in the woods and when frightened it runs away in zigzag pattern?"*
+
+📐 Measured: the animal brain (`AnimalBehavior`, one HSM for every species) flees by ONE `LocomotionMoveTo` leg straight away from the fright
+(`AnimalBehavior.cs:22, 141, 116-117`: flee speed and distance from the type's temperament); the terrain knows FOREST cells
+(`TerrainSurfaceType.Forest`, `TerrainWorld.cs:17`); a species is a catalogue row (`AnimalTkbCatalog.cs:30-40`). ⛔ No rabbit or hare; no zigzag.
+**The proven pattern:** a hare or rabbit relies on **freezing** (crouched, hard to see) until a threat is close, then **bolts in zigzags** (sharp jinks
+every second or so) to break a predator's or hunter's line, toward cover.
+
+| # | decision — ⭐ lean | why | rejected — one line |
+|---|---|---|---|
+| **AN-21a** | a species **Rabbit** (~0.4 m, quadruped, 3 health, very fast in short bursts ~14 m/s), a lone animal (no herd), ids measured free; it rests and nibbles at **forest edges** (open cells next to `Forest`) and in the wood | the user's ask | a herd of rabbits |
+| **AN-21b** | **freeze first**: when frightened but the threat is still far (> its flight distance, ~25 m), it CROUCHES and stays still (lower and harder to see — a smaller visual signature while crouched) instead of walking off | what a rabbit does; it also makes it a hunter's challenge | always running at once |
+| **AN-21c** | **the zigzag flee** — ONE new flee STYLE in the ONE animal brain, a parameter of the type (`FleeStyle.Straight` today for every species, `Zigzag` for the rabbit): the flight is a chain of short legs, each turned ±30–50° off the away line, 0.6–1.2 s long, the side alternating with a seeded chance of a double jink (per-entity `SimRng`, deterministic); the chain BENDS toward the nearest forest cell within reach and ends in it | the user's ask; shared by construction (any species can be given the style); the cover gives the run its point | a rabbit-only brain (a second animal brain) |
+| **AN-21d** | the scenario **`an-rabbit-bolts`**: a soldier walks toward a rabbit at a forest edge — the rabbit freezes (crouched) until he is near, then bolts: ≥ 4 direction changes ≥ 30° during the run, and it ends inside the wood | R-4277 | — |
+| **AN-21e** | the looks (ui): a small rabbit figure (long ears, a white tail), the crouch pose, the hop gait | — | — |
+| **AN-21f** | a **hunting dog** — one more DOG PLAY over the one brain (beside `GuardDog`): it follows its handler and RANGES AHEAD of him in sweeps over a search area (a wood edge, a field); a rabbit (or a bird) it comes upon is FLUSHED — the dog is a threat in the animal's fear (a dog within its flight distance); it gives chase a short way, barking, and comes back; ⛔ it never attacks a person | 🔒 user, `2026-11-17`: *"a hunting scenario with dogs who frightens them and the shooters then hunt them"* | a dog with a brain of its own (one brain, plays over it — AN-1) |
+| **AN-21g** | **a hunter**: a person type with the shotgun whose rules of engagement are **"animals of the listed species, never people"** — one setting on the existing weapon brain's target choice (AN-12: soldiers do not target animals unless ordered; this is that order, standing) | the shooters of the hunt | a hunter brain (the weapon brain already aims and fires) |
+| **AN-21h** | the FUN scenario **`scenarios/fun/hunting/rabbit-hunt`**: two hunters walk a wood edge, two dogs range ahead and flush rabbits, the rabbits zigzag for the wood, the hunters shoot — expect: ≥ 2 rabbits flushed (`AnimalState` Flee), ≥ 3 shotgun shots at rabbits, ≥ 1 rabbit `health == 0`, ⛔ never a shot at a dog or a person; the built game score counts each hunter's bag | the fun pack (R-4281); it also proves AN-21b…g together | — |
+
 
 ## 4a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
 
