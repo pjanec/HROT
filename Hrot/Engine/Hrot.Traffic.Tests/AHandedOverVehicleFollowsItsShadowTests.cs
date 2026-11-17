@@ -112,6 +112,31 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.Equal(arrived, world.GetComponent<NavState>(e).HasArrived);
     }
 
+    /// <summary>⭐ <c>CE-9020</c> ① — a divided road: eastbound at y = 300, westbound at y = 320; the destination (400, 380) is nearest the
+    /// WESTBOUND carriageway. A vehicle coming from the west is sent to the EASTBOUND one (the way it approaches, within the direction margin);
+    /// with no approach, the nearest; a destination ON the net is sent as it is. 🔴 Red-proof: the nearest lane only ⇒ the opposite carriageway
+    /// (measured on <c>cv-mode-1-to-2</c>: SUMO drove on past the destination looking for a way round) ⇒ red.</summary>
+    [Fact]
+    public void CE9020_TheRoadPoint_IsOnTheCarriagewayTheVehicleApproachesOn()
+    {
+        var model = Sim.Ingest.NetworkParser.ParseXml(
+            "<net><location netOffset=\"0,0\" convBoundary=\"0,0,600,600\" projParameter=\"!\"/>"
+            + "<edge id=\"east\" from=\"a\" to=\"b\"><lane id=\"east_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"0,300 600,300\"/></edge>"
+            + "<edge id=\"west\" from=\"b\" to=\"a\"><lane id=\"west_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"600,320 0,320\"/></edge></net>");
+        var place = SumoNetPlacement.For(model, new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null);
+
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out var road, out bool onNet, from: new Vector2(50, 300)));
+        Assert.False(onNet);
+        Assert.Equal(300f, road.Y, 1);                                       // the eastbound carriageway it drives
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out road, out _, from: new Vector2(550, 320)));
+        Assert.Equal(320f, road.Y, 1);                                       // coming from the east: the westbound one
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out road, out _));
+        Assert.Equal(320f, road.Y, 1);                                       // no approach: the nearest
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 305), out road, out onNet, from: new Vector2(550, 320)));
+        Assert.True(onNet);                                                  // on the net: as it is
+        Assert.Equal(new Vector2(400, 305), road);
+    }
+
     [Fact]
     public void G4_ABodyThisNodeDoesNotMove_IsLeftAlone()
     {

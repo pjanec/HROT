@@ -89,9 +89,14 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
                 //   off its net (the same TrafficRoadPoint the hand-over used; the executor drives the rest) — or lost.
                 float reach = MathF.Max(nav.ArrivalRadius, ArrivalSlackMetres);
                 arrived = Vector2.Distance(here, dest) <= reach;
-                if (!arrived && TrafficNetCache.Of(world) is { } net
-                    && TrafficRoadPoint.Near(net.Model, net.Placement, dest, out var road, out bool onNet) && !onNet)
-                    arrived = Vector2.Distance(here, road) <= reach;
+                //   ⭐ judged by distance, not by the chosen lane: within (how far the destination is off the net + the direction margin + the
+                //   slack) of it — the hand-over may have picked a lane up to DirectionMarginMetres farther than the nearest (TrafficRoadPoint.Near).
+                if (!arrived && TrafficNetCache.Of(world) is { } net)
+                {
+                    double off = TrafficRoadPoint.OffNet(net.Model, net.Placement, dest);
+                    if (off > TrafficRoadPoint.SnapRadius && !double.IsPositiveInfinity(off))
+                        arrived = Vector2.Distance(here, dest) <= off + TrafficRoadPoint.DirectionMarginMetres + reach;
+                }
             }
             nav.Mode = KinematicsMode.None;
             nav.TargetSpeed = 0f;

@@ -68,7 +68,7 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
             var (ax, ay) = placement.ToNet(front.X + fwd.X, front.Y + fwd.Y);   // the heading through the placement (UTM convergence)
             var dest = new Vector2(intent.FinalDestination.X, intent.FinalDestination.Y);
             // ⭐ CE-9020 (mode 1 → 2) — SUMO drives to where it CAN take the destination; the rest is ours (MoveToExecutor)
-            if (model is not null && TrafficRoadPoint.Near(model, placement, dest, out var road, out _)) dest = road;
+            if (model is not null && TrafficRoadPoint.Near(model, placement, dest, out var road, out _, new Vector2(tf.Position.X, tf.Position.Y))) dest = road;
             var (dx, dy) = placement.ToNet(dest.X, dest.Y);
             float speed = velocity && world.HasComponent<SimVelocity>(e)
                 ? new Vector2(world.GetComponentRO<SimVelocity>(e).Linear.X, world.GetComponentRO<SimVelocity>(e).Linear.Y).Length() : 0f;
