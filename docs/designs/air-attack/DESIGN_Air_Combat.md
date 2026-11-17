@@ -231,6 +231,8 @@ sequenceDiagram
 
 ⛔ **Mockups first** (R-4143): the MiG, the jet with stores, the HUD, the arena — house style over `scripts/mockup_kit.py`, committed beside this design.
 
+⭐ **The mockups (ui, `2026-11-17`, `scripts/gen-air-combat-mockup.py`):** [the MiG beside the F-16](air-combat-body.svg) · [the missiles on the rails, full and after two shots](air-combat-stores.svg) · [the fighter HUD](air-combat-hud.svg) · [the arena, its gizmo and form](air-combat-arena.svg). Each names its scope; context is drawn unchanged (R-4151).
+
 *Why ui and not the air lane: the body is chosen by the class chain, so the air lane's only visual act is naming the class — exactly the radar SAM's split (§2a there).*
 
 
