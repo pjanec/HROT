@@ -672,6 +672,12 @@ public sealed class EntityTypeCatalogTests
         1102 CivilianAdultFemale | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1103 CivilianMinor | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1104 CivilianElderly | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1105 CivilianMiddleEastMan | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1106 CivilianMiddleEastWoman | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1107 CivilianMiddleEastBoy | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1108 CivilianMiddleEastGirl | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1109 CivilianMiddleEastElderlyMan | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1110 CivilianMiddleEastElderlyWoman | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1201 SecurityShield | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
         1202 SecurityBaton | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
         1203 SecurityLauncher | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
@@ -684,6 +690,9 @@ public sealed class EntityTypeCatalogTests
         2007 NlawGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2008 UnarmedFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2009 AssaultRifleman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2010 MiddleEastFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2011 MiddleEastFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2012 MiddleEastMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -

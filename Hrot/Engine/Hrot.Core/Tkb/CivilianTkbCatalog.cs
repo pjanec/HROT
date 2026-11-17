@@ -30,6 +30,15 @@ namespace Hrot.Core.Tkb
         public const int TkbCivilianChild       = 1103;
         public const int TkbCivilianElderly     = 1104;
 
+        // ⭐ CE-4648 (docs/designs/person-looks/DESIGN_Person_Outfits.md §3 OF-8, §5) — the Middle-East civilians: the same body, behaviour and
+        //   PersonDto as the civilians above (the one Civilian(...) helper), each with an OutfitDto saying what it wears (OutfitCatalog).
+        public const int TkbCivilianMiddleEastMan           = 1105;
+        public const int TkbCivilianMiddleEastWoman         = 1106;
+        public const int TkbCivilianMiddleEastBoy           = 1107;
+        public const int TkbCivilianMiddleEastGirl          = 1108;
+        public const int TkbCivilianMiddleEastElderlyMan    = 1109;
+        public const int TkbCivilianMiddleEastElderlyWoman  = 1110;
+
         public const int TkbSecurityShield   = 1201;
         public const int TkbSecurityBaton    = 1202;
         public const int TkbSecurityLauncher = 1203;
@@ -50,6 +59,14 @@ namespace Hrot.Core.Tkb
             Civilian(tkb, "CivilianMinor",       TkbCivilianChild,       height: 1.25f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Unspecified);   // under 1.5 m: the 3-D map draws a child (CE-1099)
             Civilian(tkb, "CivilianElderly",     TkbCivilianElderly,     height: 1.68f, radius: 0.30f, runSpeed: 3.0f, AgeBand.Elderly, PersonSex.Unspecified);
 
+            // ⭐ CE-4648 (OF-8) — Middle-East civilians; the sizes follow the existing ones (a boy / girl under 1.5 m is drawn a child)
+            Civilian(tkb, "CivilianMiddleEastMan",          TkbCivilianMiddleEastMan,          height: 1.76f, radius: 0.30f, runSpeed: 6.0f, AgeBand.Adult,   PersonSex.Male,   OutfitCatalog.MiddleEastMan);
+            Civilian(tkb, "CivilianMiddleEastWoman",        TkbCivilianMiddleEastWoman,        height: 1.64f, radius: 0.28f, runSpeed: 5.6f, AgeBand.Adult,   PersonSex.Female, OutfitCatalog.MiddleEastWoman);
+            Civilian(tkb, "CivilianMiddleEastBoy",          TkbCivilianMiddleEastBoy,          height: 1.28f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Male,   OutfitCatalog.MiddleEastBoy);
+            Civilian(tkb, "CivilianMiddleEastGirl",         TkbCivilianMiddleEastGirl,         height: 1.24f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Female, OutfitCatalog.MiddleEastGirl);
+            Civilian(tkb, "CivilianMiddleEastElderlyMan",   TkbCivilianMiddleEastElderlyMan,   height: 1.68f, radius: 0.30f, runSpeed: 3.0f, AgeBand.Elderly, PersonSex.Male,   OutfitCatalog.MiddleEastElderlyMan);
+            Civilian(tkb, "CivilianMiddleEastElderlyWoman", TkbCivilianMiddleEastElderlyWoman, height: 1.58f, radius: 0.28f, runSpeed: 2.8f, AgeBand.Elderly, PersonSex.Female, OutfitCatalog.MiddleEastElderlyWoman);
+
             // ⭐ CE-3223 (B-5, CV-9) — the non-lethal loadouts: the shield and baton men carry stun grenades (the baton's blow is a behaviours
             //   melee node, D5); the launcher man a 40 mm baton-round launcher. Tear gas waits for the cloud (CE-3219 part 3).
             Security(tkb, "SecurityShield",   TkbSecurityShield,   StunGrenades());
@@ -57,12 +74,14 @@ namespace Hrot.Core.Tkb
             Security(tkb, "SecurityLauncher", TkbSecurityLauncher, BatonLauncher(), StunGrenades(), TearGasGrenades());   // ⭐ CE-3219 part 3 — and gas
         }
 
-        private static void Civilian(ITkbDatabase tkb, string name, int type, float height, float radius, float runSpeed, AgeBand age, PersonSex sex)
+        private static void Civilian(ITkbDatabase tkb, string name, int type, float height, float radius, float runSpeed, AgeBand age, PersonSex sex,
+                                      OutfitDto? outfit = null)
         {
             var t = new TkbTemplate(name, type);
             UrbanCombatTkbCatalog.Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = DisCategoryCivilian });
             Person(t, height, radius, runSpeed);
             t.AddDescriptor(new PersonDto { Age = age, Sex = sex });   // ⭐ F-4 (design §7.6) — the outfits read who the person is
+            if (outfit != null) t.AddDescriptor(outfit);               // ⭐ CE-4648 (OF-1) — and what he wears; absent ⇒ the everyday wardrobe
             t.AddDescriptor(new PocketItemsDto { Phone = true });      // ⭐ CE-3234 (B-12, HI-3) — a phone in his pocket (AW-14)
             t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = BehaviorConstants.BrainTierHsm,
                                                     CanMove = true, CanInteract = true,   // no weapon: picks one up (PersonCarrier)

@@ -11,6 +11,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
 using Hrot.Map.Definitions.Tkb;
 using Hrot.MuscleCharacter.Animation.Components;
+using OutfitHead = Hrot.Core.Tkb.OutfitHead;
 using Raylib_cs;
 
 namespace Hrot.UI.Common.Map3D;
@@ -52,11 +53,15 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>What a TKB type looks like — resolved once per type.</summary>
     /// <para>⭐ CE-1087 — a weapon system's <paramref name="Weapon"/> kind picks its kit.</para>
     /// <para>⭐ CE-1099 (§6q) — <paramref name="TypeColoured"/>: the TYPE names a colour (else <paramref name="Colour"/> is the family
-    /// default); <paramref name="Child"/>: a person shorter than <see cref="ChildHeight"/>.</para>
+    /// default); <paramref name="Child"/>: a person shorter than <see cref="ChildHeight"/> — ⭐ CE-4648 (OF-2) or, when the type has a <c>PersonDto</c>,
+    /// its age band.</para>
+    /// <para>⭐ CE-4648 — <paramref name="Sex"/>: the type's <c>PersonDto.Sex</c>; <paramref name="Wardrobe"/>: its <c>OutfitDto</c> flattened ONCE (OF-7), null
+    /// when it has none (the everyday wardrobes).</para>
     public readonly record struct TypeLook(VisualFamily Family, Vector3 Size, Color Colour, bool Soldier,
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
                                            bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
-                                           bool Elderly = false, bool Toy = false, CarBodyStyle? Style = null);
+                                           bool Elderly = false, bool Toy = false, CarBodyStyle? Style = null,
+                                           PersonSex Sex = PersonSex.Unspecified, Wardrobe? Wardrobe = null);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = 1.5f;
@@ -227,7 +232,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (look.Family == VisualFamily.Person)
         {
             long seed = SeedOf(world, e, hasNet);
-            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit, look.Elderly);
+            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit, look.Elderly, look.Sex, look.Wardrobe);
             colour = FarColour(outfit, colour);
             var stance = LogicalStance.Of(world, e);
             if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) stance = StanceId.Prone;   // a dead man lies
@@ -514,7 +519,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
                 outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
-                                     look.Elderly);
+                                     look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, seed, _details);
                 // ⭐ CE-1177 (People Display U16) — his face shows how he feels (pain, anger, fear, alarm), close up
                 _expression = BodySurface.Expression(Hrot.Common.Diagnostics.Gizmos.Marks.MoodOf(world, e));
@@ -603,7 +608,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 Matrix4x4 local;
                 if (look.Family == VisualFamily.Person)
                 {
-                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, ownFar ?? (look.TypeColoured ? farColour : null), ForceId.Neutral, look.Kit, look.Elderly);
+                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, ownFar ?? (look.TypeColoured ? farColour : null), ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                     farColour = FarColour(dress, farColour);
                     local = FarBox(StanceId.Standing, look.Soldier, size);
                 }
@@ -633,7 +638,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 parts = BlockFigure.Parts(StanceId.Standing, look.Soldier, WeaponPostureKind.AtEase, WeaponPostureKind.AtEase, 1f);
                 motion = Stepping(motion, StanceId.Standing);
                 outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, own ?? (look.TypeColoured ? colour : null), ForceId.Neutral,
-                                     look.Kit, look.Elderly);
+                                     look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, a.Key, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
@@ -1921,10 +1926,22 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public int FacesPainted { get; private set; }
     public int CamoPainted { get; private set; }
 
+    /// <summary>⭐ CE-4648 (OF-11) — the boxes on the head of a man from his own wardrobe: the helmet / police cap / riot helmet it names, else the hair box
+    /// (a cap, a skullcap and the scarves are details, <see cref="Outfits.Details"/>; their cloth colours the hair box).</summary>
+    private static IReadOnlyList<FacePart> WardrobeHead(OutfitHead kind) => kind switch
+    {
+        OutfitHead.Helmet => BlockFigure.FaceParts(true),
+        OutfitHead.PoliceCap => BlockFigure.PoliceHead(false),
+        OutfitHead.RiotHelmet => BlockFigure.PoliceHead(true),
+        _ => BlockFigure.FaceParts(false),
+    };
+
     private void DrawFace(FaceOn on, Matrix4x4 head, bool soldier, Color uniform, LitShader shader, Outfit? outfit = null)
     {
         // ⭐ CE-1172 (People Display U11) — a police officer's cap, or the shield man's riot helmet, instead of hair or a soldier's helmet
-        var heads = outfit is { Police: true } police ? BlockFigure.PoliceHead(police.Riot) : BlockFigure.FaceParts(soldier);
+        var heads = outfit is { Police: true } police ? BlockFigure.PoliceHead(police.Riot)
+                  : outfit is { Dressed: true } dressed ? WardrobeHead(dressed.HeadKind)   // ⭐ CE-4648 (OF-11) — his wardrobe's headwear, not his class's helmet
+                  : BlockFigure.FaceParts(soldier);
         for (int i = 0; i < heads.Count; i++)   // ⭐ CE-4555 — an index loop: foreach over the IReadOnlyList boxed an enumerator per head, every frame
         {
             var d = heads[i];
@@ -2178,14 +2195,18 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             size *= tall / size.Z;
         }
         var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
+        var person = family == VisualFamily.Person ? t.GetDescriptor<PersonDto>() : null;   // ⭐ CE-4648 — who the type IS (age, sex)
         return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
-                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && size.Z < ChildHeight,
+                            // ⭐ CE-4648 (OF-2) — a type that states its age band is a child by it; one that does not, by its height (as it always was)
+                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && (person != null ? person.Age == AgeBand.Child : size.Z < ChildHeight),
                             Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
                             // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
                             Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
                             // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
                             Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true,
-                            Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null);   // ⭐ CE-1457
+                            Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null,   // ⭐ CE-1457
+                            Sex: person?.Sex ?? PersonSex.Unspecified,
+                            Wardrobe: family == VisualFamily.Person ? Wardrobe.Of(t.GetDescriptor<OutfitDto>()) : null);   // ⭐ CE-4648 (OF-7) — flattened once per type
     }
 
     /// <summary>
