@@ -87,6 +87,11 @@ namespace Hrot.Core.Tkb
         public const int TkbMiddleEastFighterRpg = 2011;
         /// <summary>⭐ <c>CE-4648</c> — a Middle-East machine gunner: a man-portable machine gun (the PKM class) as his mount 0.</summary>
         public const int TkbMiddleEastMachineGunner = 2012;
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
+        /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
+        public const int TkbArcher = 2013, TkbCrossbowman = 2014;
+        /// <summary>⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET prop: a straw boss on a stand (a thin box with an <see cref="ArcheryTargetDto"/> scoring face).</summary>
+        public const int TkbArcheryTarget = 2015;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         internal const float CivilianVisionRange  = 30f;
@@ -363,6 +368,10 @@ namespace Hrot.Core.Tkb
             Insurgent(tkb, "MiddleEastFighter", TkbMiddleEastFighter, OutfitCatalog.MiddleEastFighter, Rifle());
             Insurgent(tkb, "MiddleEastFighterRpg", TkbMiddleEastFighterRpg, OutfitCatalog.MiddleEastFighter, RpgLauncher(), Rifle());
             Insurgent(tkb, "MiddleEastMachineGunner", TkbMiddleEastMachineGunner, OutfitCatalog.MiddleEastFighter, MachineGun());
+            // ⭐ CE-4649 (BW-12) — the Archer and the Crossbowman: the same template, everyday clothes (OutfitCatalog.Archer), their silent weapon
+            Insurgent(tkb, "Archer", TkbArcher, OutfitCatalog.Archer, Bow());
+            Insurgent(tkb, "Crossbowman", TkbCrossbowman, OutfitCatalog.Archer, Crossbow());
+            ArcheryTarget(tkb);
         }
 
         /// <summary>
@@ -395,7 +404,8 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(suite);
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             bool rpg = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Atgm || m.AmmoGuid == MunitionTkbCatalog.TkbRpg7Rocket);
-            t.AddDescriptor(rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
+            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow);   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
+            t.AddDescriptor(silent ? Sounds(FootstepsRange, SoundSourceClass.Footsteps) : rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
                                 : Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
             t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
             tkb.Register(t);
@@ -406,6 +416,47 @@ namespace Hrot.Core.Tkb
         {
             InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */,
             MagazineSize = 1, ReloadSeconds = RpgReloadSeconds, AimSeconds = RpgAimSeconds, FireOnMove = false,   // ⭐ M5
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET: a prop (no brain, no weapon) the rounds can strike — a thin oriented box 1.2 m wide and 1.4 m high with a plenty of health, so it
+        /// is a body an arrow's raycast meets; its <see cref="ArcheryTargetDto"/> is the scoring face (centre 1.0 m up, 10 rings of 6 cm).
+        /// </summary>
+        private static void ArcheryTarget(ITkbDatabase tkb)
+        {
+            var t = new TkbTemplate("ArcheryTarget", TkbArcheryTarget);
+            // a culture feature (a prop). ⚠ Hidden from the Add Entity palette until ui gives it a 3-D look (an unknown box otherwise — rail
+            //   S1_EveryPlaceableBuiltInType_HasAFamily): a scenario still places it by its id (2015).
+            var dis = new DISEntityType { Kind = 5 };
+            t.DisType = dis;
+            t.AddDescriptor(new TkbMasterDto { CustomName = "ArcheryTarget", DisType = dis.ToString(), HideFromPalette = true });
+            t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.4f });
+            t.AddDescriptor(new BodyGeometryDto { Length = 0.3f, Width = 1.2f, Height = 1.4f });
+            t.AddDescriptor(new VehicleParametersDto { Length = 0.3f, Width = 1.2f, MaxSpeedFwd = 0f, MaxAccel = 0f });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 100000f });
+            t.AddDescriptor(new ArcheryTargetDto());
+            tkb.Register(t);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-1, BW-2, BW-6, BW-7; §5) — a BOW as a man's mount: 60 m/s, drawn in 1.0 s and the next arrow nocked in 1.0 s (a magazine of ONE: every
+        /// arrow is a draw), 20 in the quiver, a 100 m engagement limit (the brain fires inside Mount.Range; §5's 60 m is the EFFECTIVE range, its 150 m the flight's), 4 mm / 45 damage, 8 mils of spread; the LOW arc only (<see cref="IndirectArc.LowOnly"/>); fires on the move
+        /// (BW-8: from a horse); no heat. Its round is the silent, sticking <see cref="MunitionTkbCatalog.TkbArrow"/>. ⚠ Starter numbers — tuning starts here.
+        /// </summary>
+        public static WeaponMountDto Bow() => new()
+        {
+            Category = WeaponCategory.Bow, InitialAmmunition = 20, MagazineSize = 1, ReloadSeconds = 1.0f, AimSeconds = 1.0f, MuzzleVelocity = 60f, Range = 100f,
+            Penetration = MunitionTkbCatalog.ArrowPenetrationMm, DamagePerHit = MunitionTkbCatalog.ArrowDamage, DispersionMils = 8f,
+            AmmoGuid = MunitionTkbCatalog.TkbArrow, Arc = IndirectArc.LowOnly, FireOnMove = true,
+        };
+
+        /// <summary>⭐ <c>CE-4649</c> (BW-1, §5) — a CROSSBOW: the bow's kind with its own numbers — 90 m/s, drawn (aimed) in 0.5 s but SPANNED in 6 s per bolt, 15 bolts, 80 m, 6 mm /
+        /// 55 damage, 4 mils; its round is <see cref="MunitionTkbCatalog.TkbCrossbowBolt"/>.</summary>
+        public static WeaponMountDto Crossbow() => new()
+        {
+            Category = WeaponCategory.Bow, InitialAmmunition = 15, MagazineSize = 1, ReloadSeconds = 6.0f, AimSeconds = 0.5f, MuzzleVelocity = 90f, Range = 120f,
+            Penetration = MunitionTkbCatalog.BoltPenetrationMm, DamagePerHit = MunitionTkbCatalog.BoltDamage, DispersionMils = 4f,
+            AmmoGuid = MunitionTkbCatalog.TkbCrossbowBolt, Arc = IndirectArc.LowOnly, FireOnMove = true,
         };
 
         /// <summary>⭐ <c>CE-4648</c> (OF-10) — a man's machine gun (the PKM class of NedTkbCatalog's infantry machine gunner, CE-3253: 7.62, ~650 rpm,

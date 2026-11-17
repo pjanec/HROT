@@ -187,6 +187,18 @@ namespace Hrot.Core.Tkb
             Beard = S(Dark(nameof(OutfitBeard.None), 100f)),
         };
 
+        /// <summary>⭐ CE-4649 (bows BW-12) — an ARCHER / CROSSBOWMAN's everyday clothes: a shirt or a jacket in earth tones, trousers, a cap or nothing, short hair, often
+        /// bearded. Not a uniform: no camouflage (OF-11).</summary>
+        public static readonly OutfitDto Archer = new()
+        {
+            Skin = S(O("Skin", 1f, SkinTones)),
+            Top = S(O(nameof(OutfitTop.Shirt), 50f, Khaki, Olive, Brown, FieldGrey), O(nameof(OutfitTop.Jacket), 50f, Olive, Khaki, DarkBrown)),
+            Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(106, 100, 76), C(70, 72, 56), C(60, 52, 44))),
+            Head = S(O(nameof(OutfitHead.Cap), 40f, CapOlive, Brown), O(nameof(OutfitHead.None), 60f)),
+            Hair = S(O(nameof(OutfitHair.Short), 100f, HairColours)),
+            Beard = S(O(nameof(OutfitBeard.None), 60f, HairColours[0]), O(nameof(OutfitBeard.Beard), 40f, HairColours[0])),
+        };
+
         /// <summary>
         /// 2003 / 2010 / 2011 / 2012 — a Middle-East FIGHTER (OF-10, OF-12): drab shirt, military jacket or robe, often an ammunition chest rig, a
         /// shemagh (sometimes across the face), a cap or nothing, short hair, almost always bearded. ⛔ No camouflage: his top is no <c>Uniform</c>.

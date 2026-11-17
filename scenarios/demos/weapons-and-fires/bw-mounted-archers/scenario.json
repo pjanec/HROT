@@ -1,0 +1,172 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "farm",
+  "description": "What: CE-4649 (bows BW-8, R-4269) - an archer fires from horseback. On the farm terrain a 'War horse' (TKB 704, fearless) carries an 'Rider archer' (Friend, TKB 2013, a bow) in its saddle - a firing seat - and gallops east along y = 160 from x 0 to x 260 at 12 m/s, passing two men 25 m off its line ('Target 1', 'Target 2', Hostile, hold fire); the archer is ORDERED to shoot Target 1 (FireAtTarget). A bow fires on the move (BW-8: as any held weapon). Judge: (1) the horse gallops (over 8 m/s) (2) the archer shoots from the saddle (3) an arrow hits a target (4) the archer is still in the saddle at the end. Fail: the archer waits for the horse to stop. Check: scripts/scenario-regression.sh bw-mounted-archers"
+ },
+ "entities": {
+  "46230b02-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     0,
+     160,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 704
+   },
+   "EntityInfo": {
+    "Name": "War horse",
+    "ForceId": "Friend"
+   },
+   "PassengerBuffer": {
+    "Count": 1,
+    "Passengers": [
+     "46230b02-0000-4000-8000-000000000002"
+    ],
+    "Seats": [
+     0
+    ]
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      260,
+      160,
+      0
+     ],
+     "speed": 12,
+     "arrivalRadius": 5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46230b02-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     0,
+     160,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2013
+   },
+   "EntityInfo": {
+    "Name": "Rider archer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "46230b02-0000-4000-8000-000000000001",
+    "Seat": 0
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "46230b02-0000-4000-8000-000000000003"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "46230b02-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     130,
+     185,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Target 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   }
+  },
+  "46230b02-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     136,
+     187,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Target 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   }
+  }
+ }
+}

@@ -693,6 +693,9 @@ public sealed class EntityTypeCatalogTests
         2010 MiddleEastFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2011 MiddleEastFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2012 MiddleEastMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2013 Archer | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2014 Crossbowman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2015 ArcheryTarget | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -

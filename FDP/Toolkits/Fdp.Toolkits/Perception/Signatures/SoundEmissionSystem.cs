@@ -92,6 +92,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                     if (Fdp.Toolkit.Combat.Munitions.IsExpendable(repo, shot.AmmoGuid)) continue;
                     // ⭐ CE-3248 (TC-6) — a stone or a grenade THROWN is no gunshot either: no report
                     if (Fdp.Toolkit.Combat.PersonHands.Threw(repo, in shot)) continue;
+                    // ⭐ CE-4649 (bows BW-9, R-3100) — an arrow or a bolt is SILENT to the AI: no report, in its ring or its linger timers
+                    if (Fdp.Toolkit.Combat.Munitions.IsSilent(repo, shot.AmmoGuid)) continue;
                     ref var a = ref repo.GetComponentRW<AcousticEmitter>(shot.Shooter);
                     var p = repo.GetComponentRO<SimTransform>(shot.Shooter).Position;
                     a.ShotTimeLeft = SoundLingerSeconds;

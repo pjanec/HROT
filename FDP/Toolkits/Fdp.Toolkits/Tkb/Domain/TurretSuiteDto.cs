@@ -76,5 +76,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// fired at aircraft only, inside the employment zone, one at a time per target. ⛔ Never <see cref="Sam"/> (the ground-AA SOP row
         /// reads it). Appended.</summary>
         AirToAir = 13,
+        /// <summary>⭐ <c>CE-4649</c> (docs/designs/weapons/DESIGN_Bows_And_Crossbows.md BW-1, R-4289) — a BOW or a CROSSBOW: a held, two-handed DIRECT weapon whose
+        /// round flies the low ARC (an arrow's gravity) and is SILENT to the AI (BW-9). Bow and crossbow are two mounts of this one kind that differ
+        /// only in numbers — speed, draw (<c>AimSeconds</c>), reload (<c>ReloadSeconds</c>) — and look. Appended.</summary>
+        Bow = 14,
     }
 }

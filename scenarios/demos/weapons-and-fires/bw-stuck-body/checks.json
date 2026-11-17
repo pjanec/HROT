@@ -1,0 +1,25 @@
+{
+  "$doc": "CE-4649 BW-5 - arrows stay in the body.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Target dies",
+      "on": "field",
+      "who": "Target",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "two arrows are marked on him",
+      "on": "field",
+      "who": "Target",
+      "path": "HitMarks.NextSeq",
+      "op": ">=",
+      "value": 2
+    }
+  ]
+}
