@@ -205,6 +205,8 @@ public sealed unsafe class UnitMemoryTests
     [UnitMemory] private struct Mem600 { public fixed byte B[600]; }
     [UnitMemory] private struct Mem3K { public fixed byte B[3000]; }
     [UnitMemory] private struct Mem10K { public fixed byte B[10000]; }
+    [UnitMemory] private struct Mem300A { public fixed byte B[300]; }
+    [UnitMemory] private struct Mem300B { public fixed byte B[300]; }
 
     private static readonly int[] s_seen = new int[8];
 
@@ -212,11 +214,12 @@ public sealed unsafe class UnitMemoryTests
     private struct GrowJob : IEntityBatchJob
     {
         public EntityRepository Repo;
-        public int Steps;   // bit 0: Mem600, bit 1: Mem3K, bit 2: Mem10K
+        public int Steps;   // bit 0: Mem600, bit 1: Mem3K, bit 2: Mem10K, bit 3: Mem300A then Mem300B (both into ONE new block)
         public void Execute(Entity e, int index, BatchContext ctx)
         {
             using var view = OccurrenceStoreAccess.BeginTickView(Repo, e);
             byte tag = (byte)(1 + e.Index % 200);
+            if ((Steps & 8) != 0) { UnitMemory.Ref<Mem300A>(Repo, e).B[299] = tag; UnitMemory.Ref<Mem300B>(Repo, e).B[299] = tag; }
             if ((Steps & 1) != 0) { ref var m = ref UnitMemory.Ref<Mem600>(Repo, e); m.B[0] = tag; m.B[599] = tag; }
             if ((Steps & 2) != 0) { ref var m = ref UnitMemory.Ref<Mem3K>(Repo, e); m.B[0] = tag; m.B[2999] = tag; }
             if ((Steps & 4) != 0) { ref var m = ref UnitMemory.Ref<Mem10K>(Repo, e); m.B[0] = tag; m.B[9999] = tag; }
@@ -276,9 +279,10 @@ public sealed unsafe class UnitMemoryTests
     }
 
     /// <summary>
-    /// ⭐⭐ CE-9013 — a CHAIN in one tick: a 256-only unit takes a 600 B, a 3 KB and a 10 KB memory in the same tick ⇒ three pending blocks
-    /// (1024, 4096, 16384), each found by the next attach (no tier appended twice), and a later lookup in the same tick reads the 16 KB one.
-    /// 🔴 Red-proof: TryAttachSlot walking the component mask instead of the view ⇒ the pending tiers are invisible and appended again (throws).
+    /// ⭐⭐ CE-9013 — a CHAIN in one tick: a 256-only unit takes two 300 B memories (the second must land in the 1024 the FIRST appended), then
+    /// a 3 KB and a 10 KB one ⇒ three pending blocks (1024, 4096, 16384), no tier appended twice, and a later lookup in the same tick reads the
+    /// 16 KB one. 🔴 Red-proof (measured): TryAttachSlot walking the component mask instead of the view ⇒ the pending 1024 is invisible to the
+    /// second 300 B attach, which appends the 1024 again (AllocateOwnRaw throws).
     /// </summary>
     [Fact]
     public void CE9013_R2_AChainOfGrowthsInOneTick_EachFindsThePendingBlocksBeforeIt()
@@ -287,11 +291,13 @@ public sealed unsafe class UnitMemoryTests
         {
             using var world = CreateWorld();
             var e = BrainUnitWith(world, 1);
-            ParallelEntities.Run(world, new[] { e }, 1, new GrowJob { Repo = world, Steps = 7 });
+            ParallelEntities.Run(world, new[] { e }, 1, new GrowJob { Repo = world, Steps = 15 });
             byte tag = (byte)(1 + e.Index % 200);
             Assert.Equal(3, s_seen[1]);
             Assert.Equal(tag, s_seen[0]);
             Assert.Equal(0b1111, TierBits(world, e));
+            Assert.Equal(tag, UnitMemory.Ref<Mem300A>(world, e).B[299]);
+            Assert.Equal(tag, UnitMemory.Ref<Mem300B>(world, e).B[299]);
             Assert.Equal(tag, UnitMemory.Ref<Mem600>(world, e).B[599]);
             Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, e).B[2999]);
             Assert.Equal(tag, UnitMemory.Ref<Mem10K>(world, e).B[9999]);
