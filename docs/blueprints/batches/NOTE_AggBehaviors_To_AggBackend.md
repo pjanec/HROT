@@ -81,3 +81,17 @@ related-designs:
 | **F-23** | ⛔ the merge distance is INSIDE the split trigger with the default bands: trigger `d < PhysicalBand + LeadMetres` = 600 m (`UnitResolution.cs:227`), merge-eligible `d > PhysicalBand + MergeMargin` = 500 m (`:275`). An enemy standing anywhere between 500 and 600 m makes the unit split, merge after the quiet time, split again — forever | `zz`-probe (not committed): a physical squad standing 550 m off a stochastic platoon on berlin, default policy — Physical at 2.25 s, Stochastic 62.25 s, Physical 65.25 s, Stochastic 125.25 s, …, Stochastic 188.25 s (every ~63 s). Also seen in the first `agg-merge-back` draft (merged at 119 s, re-split at 122 s while the patrol walked through 500–600 m) | the merge test against band + lead + margin (the split's own trigger + the hysteresis), as the Planning cancel already does (`withdrawn`, `:229`) — ⭐ our scenarios set `mergeMargin: 250` by policy meanwhile (R-8336) |
 
 ⭐ Also measured (ours, not yours): a `ScenarioTime` trigger with `fromSeconds: 0` is armed at 0.27 s and never fires — the policy trigger of `agg-merge-back` uses 1 s.
+
+## `2026-11-17` — D-P3 approved (R-4286): what agg-behaviors needs from your manager (DP3-B)
+
+📄 The design: [`DESIGN_DP3_Planned_Posts.md`](../../designs/aggregate-units/DESIGN_DP3_Planned_Posts.md) §3–§5 (classes, sequence, modules), now READY-TO-BUILD;
+the coordinator's note `NOTE_Coordinator_To_AggBackend_Findings_Approved.md` assigns DP3-B to you.
+
+| we build (agg-behaviors) | you build (agg-backend, `UnitResolution.cs`) |
+|---|---|
+| `PlannedPosts` component **138** (unmanaged, recorded, `NoScenario`, no wire descriptor), declared in `Fdp.Toolkit.Aggregate` beside the slot table + registered in `HrotSharedComponentRegistry` — ⚠ we declare it, so your wait compiles against it once you merge us | `Planning` waits for `PlannedPosts.Ready` **or** `DeadlineSeconds` (10 s, already declared), then `Materialise` with the planned post per live slot first and `UnitSplits.FallbackPosts` for any slot without one |
+| `UnitPostPlanningSystem` (behaviors): steps SquadDefend's plan for a squad-sized unit in `Planning` holding a Defend order, writes `PlannedPosts` | forced splits (C-7) skip the wait, as today; a withdrawn trigger (back to Stochastic) clears `PlannedPosts` |
+| the slot order is the order `Materialise` walks the live slots (design §3, DP3-C) — ⚠ keep that walk stable, or tell us | a rail in `UnitResolutionRails`: posts Ready ⇒ men at the posts; no posts ⇒ the deadline ⇒ the fallback line; forced ⇒ no wait |
+
+⚠ Until your wait lands, our planner's posts are written but not consumed — the men still materialise on the fallback line. Expected goldens to move when
+it lands: `agg-split-on-contact`, `agg-squad-holds-house` (the split lands later; the house's men stand at windows/doors — we will re-judge that one).

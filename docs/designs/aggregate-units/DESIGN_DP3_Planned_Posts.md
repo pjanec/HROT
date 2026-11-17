@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — sub-questions DP3-A…DP3-D carry a recommended lean each, for the user's approval; nothing built
-updated: 2026-11-16 (agg-behaviors — written after R-8330 stopped ST-5 C)
+build-state: READY-TO-BUILD — DP3-A…DP3-D APPROVED as written (user 2026-11-17, R-4286; NOTE_Coordinator_To_AggBehaviors_DP3_Approved.md); DP3-B's manager wait is agg-backend's
+updated: 2026-11-17 (approved, R-4286)
 current-answer: §0 the decision · §2 the claim table · §3 classes · §4 sequence · §5 modules · §6 the sub-questions with leans · §7 acceptance
 stale-below: nothing.
 known-rot: none.
