@@ -1145,7 +1145,7 @@
     "Max": 100
    },
    "TkbIdentity": {
-    "TkbType": 2016
+    "TkbType": 2019
    },
    "EntityInfo": {
     "Name": "Afghan fighter 1",
@@ -1176,7 +1176,7 @@
     "Max": 100
    },
    "TkbIdentity": {
-    "TkbType": 2017
+    "TkbType": 2020
    },
    "EntityInfo": {
     "Name": "Afghan fighter 2",
@@ -1207,7 +1207,7 @@
     "Max": 100
    },
    "TkbIdentity": {
-    "TkbType": 2018
+    "TkbType": 2021
    },
    "EntityInfo": {
     "Name": "Afghan fighter 3",

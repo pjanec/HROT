@@ -88,7 +88,7 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-4648</c> — a Middle-East machine gunner: a man-portable machine gun (the PKM class) as his mount 0.</summary>
         public const int TkbMiddleEastMachineGunner = 2012;
         /// <summary>⭐ <c>CE-4648</c> (R-1066) — the Afghan fighters (the insurgent template in <see cref="OutfitCatalog.AfghanFighter"/>): a rifleman, an RPG + rifle, a machine gunner (PKM class).</summary>
-        public const int TkbAfghanFighter = 2016, TkbAfghanFighterRpg = 2017, TkbAfghanMachineGunner = 2018;
+        public const int TkbAfghanFighter = 2019, TkbAfghanFighterRpg = 2020, TkbAfghanMachineGunner = 2021;   // ⭐ 2016 is backend's Native American warrior (CE-4650); 2017 / 2018 left free at the merge of 2026-11-17
         /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
         /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
         public const int TkbArcher = 2013, TkbCrossbowman = 2014;
@@ -385,7 +385,7 @@ namespace Hrot.Core.Tkb
         /// insurgent temperament, the soldier SOP and brain, wearing <paramref name="outfit"/>. 2003 (RPG + rifle) is its first instance; the Middle-East
         /// fighters are the same descriptors with another weapon set.
         /// </summary>
-        private static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
+        internal static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
         {
             var t = new TkbTemplate(name, type);
             Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
@@ -410,7 +410,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(suite);
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             bool rpg = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Atgm || m.AmmoGuid == MunitionTkbCatalog.TkbRpg7Rocket);
-            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow);   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
+            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow || m.AmmoGuid == (ulong)MunitionTkbCatalog.TkbThrowingHatchet);   // ⭐ CE-4650 — a thrown hatchet makes no report either   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
             t.AddDescriptor(silent ? Sounds(FootstepsRange, SoundSourceClass.Footsteps) : rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
                                 : Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
             t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011

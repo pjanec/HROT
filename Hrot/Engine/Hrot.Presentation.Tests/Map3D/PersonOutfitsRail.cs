@@ -225,11 +225,11 @@ public sealed class PersonOutfitsRail
                 1113 => o.HeadKind == OutfitHead.Pakol,
                 1114 => o.HeadKind == OutfitHead.Hijab,
                 1115 => o.HeadKind == OutfitHead.Turban && o.ExtraKind == OutfitExtra.Patu,
-                2016 or 2017 or 2018 => o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol && o.OverKind == OutfitOver.ChestRig,
+                2019 or 2020 or 2021 => o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol && o.OverKind == OutfitOver.ChestRig,
                 _ => o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap && o.OverKind == OutfitOver.ChestRig,
             };
             var json = new System.Text.StringBuilder("{\n");
-            long[] types = [1105, 1107, 1109, 1111, 1112, 1113, 1114, 1115, 1116, 2003, 2010, 2011, 2012, 2016, 2017, 2018];
+            long[] types = [1105, 1107, 1109, 1111, 1112, 1113, 1114, 1115, 1116, 2003, 2010, 2011, 2012, 2019, 2020, 2021];
             for (int k = 0; k < types.Length; k++)
             {
                 var seeds = new List<long>();
@@ -249,7 +249,7 @@ public sealed class PersonOutfitsRail
     {
         var tkb = HrotEnvironment.CreateTkb();
         Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
-        foreach (long type in new long[] { 2016, 2017, 2018 })
+        foreach (long type in new long[] { 2019, 2020, 2021 })
         {
             int covered = 0, rigged = 0, layered = 0;
             for (int s = 1; s <= 500; s++)

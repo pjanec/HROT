@@ -287,7 +287,7 @@ public static class Outfits
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.42f), new(1.10f, 1.08f, 0.10f), PoliceBelt, Turned: true));
         }
-        if (o.HairStyle == HairStyle.Long && !o.Police)   // down the back of the head to the shoulders
+        if (o.HairStyle is HairStyle.Long or HairStyle.Braids && !o.Police)   // ⭐ CE-4650 NA-2 — Braids is drawn as the long-hair box (stand-in)   // down the back of the head to the shoulders
             into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
         // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
 

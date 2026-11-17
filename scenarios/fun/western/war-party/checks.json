@@ -1,0 +1,61 @@
+{
+  "$doc": "CE-4650 NA-4 - the war party, one row per Judge line.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "a pony gallops",
+      "on": "field",
+      "who": "*War pony",
+      "path": "VehicleState.Speed",
+      "op": ">",
+      "value": 8
+    },
+    {
+      "name": "the ponies circle the camp within 85 m",
+      "on": "near",
+      "who": "*War pony",
+      "point": [
+        300,
+        330
+      ],
+      "within": 85,
+      "quantifier": "atLeast:4"
+    },
+    {
+      "name": "the warriors shoot six arrows",
+      "on": "shot",
+      "by": "*Warrior",
+      "n": 6,
+      "after": "a pony gallops"
+    },
+    {
+      "name": "an arrow hits a guard",
+      "on": "shot",
+      "by": "*Warrior",
+      "hit": "*Camp guard"
+    },
+    {
+      "name": "the warriors stay in the saddle",
+      "on": "embark",
+      "who": "*Warrior",
+      "is": true,
+      "atEnd": true,
+      "quantifier": "atLeast:4"
+    },
+    {
+      "name": "the party rides to the rally",
+      "on": "near",
+      "who": "*War pony",
+      "point": [
+        40,
+        360
+      ],
+      "within": 30,
+      "quantifier": "atLeast:4",
+      "after": "the warriors shoot six arrows"
+    }
+  ]
+}

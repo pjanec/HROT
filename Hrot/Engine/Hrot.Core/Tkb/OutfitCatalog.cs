@@ -223,14 +223,14 @@ namespace Hrot.Core.Tkb
             Beard = S(Dark(nameof(OutfitBeard.Beard), 70f), Dark(nameof(OutfitBeard.Moustache), 15f), Dark(nameof(OutfitBeard.None), 15f)),
         };
 
-        // ── ⭐ CE-4648 (R-1065) — the Native American warrior's look, one wardrobe (backend's type 2xxx gives it to the warrior: NOTE_Ui_To_Backend_Native_American_Look.md) ──
+        // ── ⭐ CE-4648 (R-1065) — the Native American warrior's look, one wardrobe (backend's type 2016, FunTkbCatalog.TkbNativeWarrior, wears it — CE-4650 NA-2's stand-in wardrobe folded into this one at the merge of 2026-11-17: shared, never two) ──
 
         private static readonly string BuckskinTan = C(201, 160, 106), BuckskinWarm = C(184, 140, 88), BuckskinPale = C(214, 180, 128), LeggingBrown = C(156, 118, 70), LeggingDark = C(130, 96, 58),
             BandRed = C(140, 42, 36), BandBlack = C(24, 24, 26), BandBlue = C(40, 70, 130), BlackHair = C(20, 18, 18);
 
         /// <summary>The Native American warrior: a buckskin shirt, breechcloth and leggings; ALWAYS long black hair with a braid on each side; a headband with feathers; face
         /// paint in two of three; a beaded yoke and / or a bone hair-pipe breastplate; armbands and / or a bead necklace — all seeded inside these lists.</summary>
-        public static readonly OutfitDto NativeAmericanWarrior = new()
+        public static readonly OutfitDto NativeWarrior = new()
         {
             Skin = MiddleEastSkin(),
             Top = S(O(nameof(OutfitTop.Buckskin), 1f, BuckskinTan, BuckskinWarm, BuckskinPale)),
@@ -326,7 +326,7 @@ namespace Hrot.Core.Tkb
             Beard = S(O(nameof(OutfitBeard.None), 1f)),
         };
 
-        /// <summary>2016–2018 — an Afghan FIGHTER: a perahan tunban, a lungee (black, dark grey or white), a pakol or a shemagh (head cover in 90 %), a chest rig in 75 %, often a waistcoat or a patu, almost always bearded. No camouflage.</summary>
+        /// <summary>2019–2021 — an Afghan FIGHTER: a perahan tunban, a lungee (black, dark grey or white), a pakol or a shemagh (head cover in 90 %), a chest rig in 75 %, often a waistcoat or a patu, almost always bearded. No camouflage.</summary>
         public static readonly OutfitDto AfghanFighter = new()
         {
             Skin = AfghanSkin(),

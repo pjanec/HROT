@@ -26,6 +26,7 @@ public sealed class EntityTypeCatalogTests
         NedTkbCatalog.RegisterAll(db);
         UrbanCombatTkbCatalog.RegisterAll(db);
         CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 — part of the built-in set (HrotEnvironment.RegisterBuiltInTkb)
+        Hrot.Core.Tkb.FunTkbCatalog.RegisterAll(db);   // ⭐ CE-4650 — the fun pack (R-4281), part of the built-in set
         return db;
     }
 
@@ -703,9 +704,10 @@ public sealed class EntityTypeCatalogTests
         2013 Archer | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2014 Crossbowman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2015 ArcheryTarget | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
-        2016 AfghanFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
-        2017 AfghanFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
-        2018 AfghanMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2016 Native American warrior | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2019 AfghanFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2020 AfghanFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2021 AfghanMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -
