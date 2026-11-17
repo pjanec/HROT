@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "air-range",
-    "description": "What: a Veteran MiG-29 ('Fulcrum') 2.8 km behind a Veteran F-16 ('Viper'), both at 2 km, each ordered to attack the other (CE-10002, AC-6 / AC-9). The MiG's first shot is an IR missile. Judge: the F-16 drags it, then beams it with flares (\u2265 2) \u2014 the missile slows below its minimum and is DEFEATED (its shot row's outcome); no MiG round hits the F-16 in the first 30 s."
+    "description": "What: a Veteran MiG-29 ('Fulcrum') 2.8 km behind a Veteran F-16 ('Viper'), both at 2 km, each ordered to attack the other (CE-10002, AC-6 / AC-9). The MiG's first shot is an IR missile. Judge: the F-16 drags it, then beams it with flares (\u2265 2) \u2014 the missile slows below its minimum and is DEFEATED (its shot row's outcome); no MiG MISSILE hits the F-16 in the first 30 s (its gun may: the MiG closes while the F-16 beams)."
   },
   "entities": {
     "ac00000b-0000-4000-8000-000000000001": {
