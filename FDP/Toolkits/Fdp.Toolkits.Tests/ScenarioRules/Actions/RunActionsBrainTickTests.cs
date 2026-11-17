@@ -156,7 +156,8 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
             int blocksBefore = ActionHost.BlockCount(f.World, f.Unit);
             Assert.Equal(1, blocksBefore);
             f.Frames(1);
-            Assert.Equal(2, ActionHost.BlockCount(f.World, f.Unit));                  // ← the append happened INSIDE BrainTick's ambient view, under the outer's live ref
+            // ⭐ CE-3467 — under the parallel brain phase the pre-pass has ALREADY given the unit its standard 256 / 1024 / 4096 (no append is possible inside the phase); serially the fat step appends
+            Assert.Equal(Fdp.Core.Jobs.ParallelEntities.Enabled ? 3 : 2, ActionHost.BlockCount(f.World, f.Unit));   // ← serially the append happened INSIDE BrainTick's ambient view, under the outer's live ref
             OccurrenceStoreAccess.TryFindSlot(f.World, f.Unit, ActionHost.OuterSlotKey, out byte* ob, out int oo, out _);
             nint outerAddr = (nint)(ob + oo);
             f.Frames(1);
@@ -168,7 +169,7 @@ namespace Fdp.Toolkit.ScenarioRules.Tests.Actions
             Assert.Equal(4, log.Count);                                             // each fat step logged exactly once
             for (int i = 0; i < 4; i++) Assert.Equal(i + 1, log.At(i));
             Assert.Equal(0, Trap.Moved);
-            Assert.Equal(2, ActionHost.BlockCount(f.World, f.Unit));                  // one appended block, reused by every later fat step
+            Assert.Equal(Fdp.Core.Jobs.ParallelEntities.Enabled ? 3 : 2, ActionHost.BlockCount(f.World, f.Unit));   // one appended block (serial), reused by every later fat step; in the phase the standard ladder already holds them
         }
 
         [Fact]

@@ -522,6 +522,14 @@ public static unsafe class OccurrenceStoreAccess
         var spec = SmallestAbsentFitting(world, bits, BlueprintBlackboardPartitions.PayloadCost(requestedSize), 1);
         if (spec != null)
         {
+            // ⭐⭐ CE-3467 (R-3103) — an append is safe only SERIALLY: inside the parallel brain phase AddBlock's component add is DEFERRED, so the new
+            //   tier has no storage until playback ("Entity missing BlueprintBlackboard4096" deep in memory, or a process-killing exception). The brains'
+            //   serial pre-pass (EnsureStandardLadder) keeps every brain unit at 256 / 1024 / 4096, so a demand that still needs a block here is a 16384 one.
+            if (Fdp.Core.ParallelReadCheck.Defers(world))
+                throw new InvalidOperationException(
+                    $"Unit memory of {requestedSize} B cannot be attached to {entity}: it needs a new blackboard block ({spec.TotalSize} B tier), and a block cannot be appended " +
+                    "inside the parallel phase — the serial pre-pass keeps 256/1024/4096 (BrainPhase → EnsureStandardLadder); a 16384 demand must be pre-sized " +
+                    "(EnsureRoom, outside the phase).");
             byte* mem = AddBlock(world, entity, spec);
             if (BlueprintBlackboardPartitions.TryAttach(mem, slotKey, requestedSize, structureHash, kind, out payloadOffset))
             { block = mem; return true; }
@@ -600,6 +608,49 @@ public static unsafe class OccurrenceStoreAccess
             if ((bits & 1) != 0 && d[i].MemoryReadOnly(world, entity) == block) return d[i];
         return null;
     }
+
+    // ⭐ CE-3467 — the cached query of the brain units the standard ladder is kept for, per world (no allocation per frame)
+    private sealed class LadderQuery { public EntityQuery? Query; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, LadderQuery> s_ladder = new();
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3467</c> (R-3103) — keeps every BRAIN unit (a <see cref="Fdp.Toolkit.Behavior.Components.BehaviorState"/> carrier) at the STANDARD ladder: the
+    /// 256, 1024 and 4096 tiers, each added when registered and absent. Run in the brains' SERIAL pre-pass (<c>BrainPhase</c>), where
+    /// <see cref="AddBlock"/> is immediate — so a unit memory attached inside the parallel phase finds room and never has to append a block (which the
+    /// phase defers). 0 bytes on a steady frame: a cached query and a component-mask read per unit; no LINQ.
+    /// </summary>
+    public static void EnsureStandardLadder(EntityRepository world)
+    {
+        if (t_ladderSuspended != 0 || Fdp.Core.ParallelReadCheck.Defers(world) || !world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>()) return;
+        var holder = s_ladder.GetValue(world, static _ => new LadderQuery());
+        holder.Query ??= world.Query().With<Fdp.Toolkit.Behavior.Components.BehaviorState>().Build();
+        var d = BlueprintTierTable.Descending;
+        int standard = 0;
+        for (int i = 0; i < d.Count; i++)
+            if (d[i].TotalSize <= StandardLadderMaxBytes && d[i].IsRegistered(world)) standard |= 1 << i;
+        if (standard == 0) return;
+        foreach (var unit in holder.Query)
+        {
+            int missing = standard & ~PresentTiers(world, unit);
+            if (missing == 0) continue;
+            for (int i = d.Count - 1; i >= 0; i--)
+                if ((missing & (1 << i)) != 0) AddBlock(world, unit, d[i]);
+        }
+    }
+
+    [ThreadStatic] private static int t_ladderSuspended;
+
+    /// <summary>
+    /// ⭐ CE-3467 — a TEST SEAM: on THIS thread <see cref="EnsureStandardLadder"/> does nothing until the result is disposed. For the fixtures that pin a SINGLE-block layout
+    /// (they read <see cref="TryGetStore"/>, or count blocks, on a unit they provision themselves) and run under <c>HROT_PARALLEL_SIM=1</c>, where the brains' pre-pass would
+    /// otherwise give that unit the standard three. ⛔ Production never calls it: every brain unit there carries 256 / 1024 / 4096.
+    /// </summary>
+    public static IDisposable SuspendStandardLadder() { t_ladderSuspended++; return new LadderSuspension(); }
+
+    private sealed class LadderSuspension : IDisposable { private bool _done; public void Dispose() { if (_done) return; _done = true; t_ladderSuspended--; } }
+
+    /// <summary>The largest tier the standard ladder keeps on a brain unit (4096).</summary>
+    public const int StandardLadderMaxBytes = 4096;
 
     /// <summary>Adds <paramref name="spec"/>'s component and initialises its allocator. ⛔ Never for a tier the
     /// unit already carries.</summary>
