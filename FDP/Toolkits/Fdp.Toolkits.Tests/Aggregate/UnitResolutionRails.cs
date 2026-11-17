@@ -31,13 +31,15 @@ namespace Fdp.Toolkits.Tests.Aggregate
             public double T;
 
             public Host(ResolutionPin pin = ResolutionPin.NoPin, float enemyAt = 3000f, byte echelon = 0,
-                        Func<EntityRepository, Entity, AggregateResolution, string?>? blocked = null)
+                        Func<EntityRepository, Entity, AggregateResolution, string?>? blocked = null,
+                        Func<EntityRepository, Entity, IReadOnlyList<SplitChild>?>? composition = null)
             {
                 // ⭐ X2-B — each composite slot's designation: slot 1 the leader, the rest wingmen (what StochasticUnitFill gives a squad)
                 Switch = new BusResolutionSwitch
                 {
                     ChildType = (_, _, _) => Rifleman,
                     ChildDesignation = (_, _, slot) => slot == 1 ? Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader : Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman,
+                    Composition = composition,
                 };
                 W.RegisterComponent<SimTransform>(); W.RegisterComponent<EntityInfo>(); W.RegisterComponent<AggregateUnit>();
                 W.RegisterComponent<UnitSlotTable>(); W.RegisterComponent<AggregateChild>(); W.RegisterComponent<EntityGuid>();
@@ -78,6 +80,8 @@ namespace Fdp.Toolkits.Tests.Aggregate
                             case SimTransform t: W.AddComponent(c, t); break;
                             case AggregateChild a: W.AddComponent(c, a); break;
                             case EntityInfo i: W.AddComponent(c, i); break;
+                            case AggregateUnit u: W.AddComponent(c, u); break;      // ⭐ CE-8307 — a UNIT child (a platoon's squad)
+                            case UnitSlotTable t: W.AddComponent(c, t); break;
                         }
                     W.AddComponent(c, new Health { Current = 100f, Max = 100f });
                 }
@@ -348,12 +352,12 @@ namespace Fdp.Toolkits.Tests.Aggregate
             w.AddComponent(u, new UnitSlotTable());
             Assert.Throws<InvalidOperationException>(() => new BusResolutionSwitch().Materialise(w, u, ReadOnlySpan<Vector3>.Empty));
         }
-        /// <summary>⭐⭐ <c>X-2</c> X2-B (R-8354; DESIGN_X2_Order_Reresolution.md §8 S1) — a SQUAD's handover publishes ONE <c>CmdAssignSubordinate</c> per released
-        /// man (the dead one never created, so never assigned), under the unit, with his composite leaf's designation; a PLATOON's publishes none
-        /// (F-X2-1: its men are not its squads). ✅ Red-proofs: the publish dropped ⇒ 0 ≠ 5 · the designation taken from the slot index, not the
-        /// composite slot ⇒ the leader is not slot 1's man.</summary>
+        /// <summary>⭐⭐ <c>X-2</c> X2-B (R-8354; DESIGN_X2_Order_Reresolution.md §8 S1) — a squad's handover publishes ONE <c>CmdAssignSubordinate</c> per released
+        /// man (the dead one never created, so never assigned), under the unit, with his composite leaf's designation. ⭐ CE-8307: whatever the echelon
+        /// (the roster takes the split's DIRECT children — a platoon's are its squads, <see cref="OL1_APlatoonSplits_IntoItsSquads_EachAStochasticUnit_WithItsLatestShare"/>).
+        /// ✅ Red-proofs: the publish dropped ⇒ 0 ≠ 5 · the designation taken from the slot index, not the composite slot ⇒ the leader is not slot 1's man.</summary>
         [Fact]
-        public void X2B_ASquadsHandover_AssignsEveryReleasedMan_ToTheUnit_UnderHisLeafsDesignation_APlatoonsNone()
+        public void X2B_ASquadsHandover_AssignsEveryReleasedMan_ToTheUnit_UnderHisLeafsDesignation()
         {
             foreach (byte echelon in new byte[] { 0, 1 })
             {
@@ -363,7 +367,6 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 h.Step();                                                        // the handover
                 Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
                 var assigns = h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray();
-                if (echelon != 0) { Assert.Empty(assigns); continue; }
                 Assert.Equal(5, assigns.Length);                                 // the five live men (slot 5 is dead)
                 var men = h.Children();
                 foreach (var a in assigns)
@@ -432,19 +435,162 @@ namespace Fdp.Toolkits.Tests.Aggregate
             }
         }
 
-        /// <summary>⭐ <c>X-2</c> R-8372 — the scope is a squad whose men FIT its roster: an echelon-0 unit with an AUTHORED 20-slot table (the fill never
-        /// set its echelon — 📌 <c>agg-merge-back</c>'s platoon) assigns nobody. ✅ Red-proof: <c>RostersItsMen</c> reading the echelon alone ⇒ 20 assigns ⇒ red.</summary>
+        /// <summary>⭐ <c>CE-8307</c> (R-8389; supersedes X-2's R-8372 rail) — the roster takes the split's DIRECT children only while they FIT it: a unit
+        /// whose split makes 20 men (no composite to group them) assigns nobody. ✅ Red-proof: <c>RostersItsChildren</c> always true ⇒ 20 assigns ⇒ red.</summary>
         [Fact]
-        public void X2I_AnEchelonZeroUnit_LargerThanARoster_AssignsNobody()
+        public void X2I_AUnitWhoseDirectChildrenExceedARoster_AssignsNobody()
         {
             using var h = new Host(enemyAt: 500f);
             var big = new UnitSlotTable { Count = 20 };
             for (int i = 0; i < 20; i++) big.Slots[i] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f, CompositeSlot = (byte)(i + 1) };
             h.W.SetComponent(h.Unit, big);
-            Assert.False(UnitSplits.RostersItsMen(h.W, h.Unit));
+            Assert.False(UnitSplits.RostersItsChildren(20));
+            Assert.True(UnitSplits.RostersItsChildren(3));
             h.Step(); h.Step(); h.Step();
             Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
             Assert.Empty(h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());
+        }
+
+        // ── ⭐⭐ CE-8307 — split ONE level (DESIGN_Split_One_Level.md; R-8382 … R-8390) ────────────────────────────────────────────────────────
+
+        private static readonly TkbTypeId Squad = new(7002);
+        private static readonly Guid AlphaGuid = new("8e5a1d3c-0000-4000-8000-000000008012");
+
+        /// <summary>"Alpha" — a platoon of 3 squads × 4 men (leaves 1–4, 5–8, 9–12); each squad's own composite is its 4 men. A child (it has an
+        /// <see cref="AggregateChild"/>) answers with the men, the platoon with the squads — what <c>StochasticUnitFill.Composition</c> gives.</summary>
+        private static IReadOnlyList<SplitChild>? PlatoonOf3x4(EntityRepository w, Entity unit)
+        {
+            var list = new List<SplitChild>();
+            if (w.HasComponent<AggregateChild>(unit))
+                for (int k = 1; k <= 4; k++) list.Add(new SplitChild(k, Rifleman, k == 1 ? Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader : Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman, k, 1, false, 0));
+            else
+                for (int k = 1; k <= 3; k++) list.Add(new SplitChild(k, Squad, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman, 1 + (k - 1) * 4, 4, true, 0));
+            return list;
+        }
+
+        private static Host PlatoonHost(float enemyAt = 500f)
+        {
+            var h = new Host(enemyAt: enemyAt, echelon: 1, composition: PlatoonOf3x4);
+            var t = new UnitSlotTable { Count = 12 };
+            for (int i = 0; i < 12; i++)
+                t.Slots[i] = new UnitSlot { Role = i % 4 == 0 ? SlotRole.Leader : SlotRole.Rifleman, Health = (Half)25f, Stress = (Half)(0.05f * i), Ammo = (ushort)(100 + i), CompositeSlot = (byte)(i + 1) };
+            t.Slots[5].Health = (Half)0f;      // squad 2's second man is dead: never created
+            t.Slots[9].Health = (Half)12.5f;   // squad 3's second man is wounded
+            h.W.SetComponent(h.Unit, t);
+            return h;
+        }
+
+        private static Entity ChildNamed(Host h, string name)
+        {
+            foreach (var c in h.W.Query().With<AggregateChild>().IncludeAll().Build())
+                if ((string)h.W.GetComponentRO<EntityInfo>(c).Name == name) return c;
+            return Entity.Null;
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8382 / R-8383 / R-8385) — a PLATOON's split creates its 3 SQUADS, not its 12 men: each a held STOCHASTIC unit keyed
+        /// <c>child:&lt;s&gt;</c>, named <c>Alpha/&lt;s&gt;</c>, carrying its share of the table (its 4 slots, renumbered 1–4, health / stress / ammunition
+        /// equal to the parent's); the handover writes the LATEST share (a loss while held counts, D-P4) and rosters the 3 squads. ✅ Red-proofs: the
+        /// share not renumbered ⇒ squad 2's slots read 5–8 ⇒ red · the handover not rewriting the share ⇒ squad 1's 3rd man still 25 ⇒ red.</summary>
+        [Fact]
+        public void OL1_APlatoonSplits_IntoItsSquads_EachAStochasticUnit_WithItsLatestShare()
+        {
+            using var h = PlatoonHost();
+            h.Step(); h.Step();                                                   // Planning, Materialising
+            Assert.Equal(SplitStage.Materialising, h.U.Splitting);
+            var kids = h.Children();
+            Assert.Equal(3, kids.Count);                                          // the squads — never 11 men
+            var parent = h.W.GetComponentRO<UnitSlotTable>(h.Unit);
+            for (int s = 1; s <= 3; s++)
+            {
+                var c = ChildNamed(h, "Alpha/" + s);
+                Assert.False(c.IsNull);
+                Assert.Equal(UnitSplits.ChildGuid(AlphaGuid, s), h.W.GetComponentRO<EntityGuid>(c).Value);
+                var tag = h.W.GetComponentRO<AggregateChild>(c);
+                Assert.Equal(1, tag.Held); Assert.Equal(s, tag.Slot);
+                var u = h.W.GetComponentRO<AggregateUnit>(c);
+                Assert.Equal(AggregateResolution.Stochastic, u.Resolution);
+                var share = h.W.GetComponentRO<UnitSlotTable>(c);
+                Assert.Equal(4, share.Count);
+                for (int j = 0; j < 4; j++)
+                {
+                    var p = parent.Slots[(s - 1) * 4 + j];
+                    Assert.Equal(j + 1, share.Slots[j].CompositeSlot);            // its OWN composite's leaf
+                    Assert.Equal((float)p.Health, (float)share.Slots[j].Health);
+                    Assert.Equal((float)p.Stress, (float)share.Slots[j].Stress);
+                    Assert.Equal(p.Ammo, share.Slots[j].Ammo);
+                    Assert.Equal(p.Role, share.Slots[j].Role);
+                }
+            }
+            h.W.GetComponentRW<UnitSlotTable>(h.Unit).Slots[2].Health = (Half)5f;   // the stochastic fight goes on while they are held
+            h.Step();                                                             // the handover
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            Assert.Equal(5f, (float)h.W.GetComponentRO<UnitSlotTable>(ChildNamed(h, "Alpha/1")).Slots[2].Health);   // D-P4: the LATEST share
+            foreach (var c in h.Children()) Assert.Equal(0, h.W.GetComponentRO<AggregateChild>(c).Held);
+            var assigns = h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray();
+            Assert.Equal(3, assigns.Length);                                      // the platoon's roster = its squads
+            foreach (var a in assigns) { Assert.Equal(h.Unit, a.Commander); Assert.True(h.W.HasComponent<AggregateUnit>(a.Subordinate)); }
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8384 / R-8385; D-P7 "the SAME cascade") — the squads are units the manager visits like any other: with the enemy
+        /// still inside the band each splits on the next steps into ITS men, named <c>Alpha/&lt;s&gt;/&lt;n&gt;</c> (the dead man of squad 2 never
+        /// created), each man's state from his squad's table. ✅ Red-proof: a unit child born Physical ⇒ it never splits ⇒ no men ⇒ red.</summary>
+        [Fact]
+        public void OL2_TheSquads_ThenSplitIntoTheirMen_ByTheSameManager()
+        {
+            using var h = PlatoonHost();
+            h.Step(); h.Step(); h.Step();                                         // the platoon: Planning, Materialising, handover
+            h.Step(); h.Step(); h.Step();                                         // each squad: Planning, Materialising, handover
+            for (int s = 1; s <= 3; s++)
+                Assert.Equal(AggregateResolution.Physical, h.W.GetComponentRO<AggregateUnit>(ChildNamed(h, "Alpha/" + s)).Resolution);
+            int men = 0;
+            foreach (var c in h.Children()) if (!h.W.HasComponent<AggregateUnit>(c)) men++;
+            Assert.Equal(11, men);                                                // 12 less the dead one
+            Assert.True(ChildNamed(h, "Alpha/2/2").IsNull);                       // the dead man
+            var wounded = ChildNamed(h, "Alpha/3/2");
+            Assert.False(wounded.IsNull);
+            Assert.Equal(ChildNamed(h, "Alpha/3"), h.W.GetComponentRO<AggregateChild>(wounded).Unit);
+            Assert.Equal(50f, h.W.GetComponentRO<Health>(wounded).Current);       // X-4 through two levels: 12.5 of 25 ⇒ 50 of 100
+            Assert.Equal(UnitSplits.ChildGuid(UnitSplits.ChildGuid(AlphaGuid, 3), 2), h.W.GetComponentRO<EntityGuid>(wounded).Value);
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8383 / R-8390; D-P7 "sum, then remove") — the merge goes LEAVES FIRST: the enemy gone and the quiet time over, the
+        /// squads merge their men, and only then the platoon its squads — every slot's health, stress and ammunition back bit for bit, the dead
+        /// one down, nothing left over. ✅ Red-proof: the parent's leaves-first wait dropped ⇒ the platoon merges over split squads ⇒ their men
+        /// are orphaned ⇒ red.</summary>
+        [Fact]
+        public void OL3_TheMerge_GoesLeavesFirst_AndConservesEverySlot()
+        {
+            using var h = PlatoonHost();
+            var before = h.W.GetComponentRO<UnitSlotTable>(h.Unit);
+            for (int i = 0; i < 6; i++) h.Step();                                 // platoon → squads → men
+            h.MoveEnemy(3000f);
+            for (int s = 0; s < (int)ResolutionBands.Default.QuietSeconds + 4; s++) h.Step();
+            Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+            Assert.Empty(h.Children());                                           // no squad, no man left behind
+            var after = h.W.GetComponentRO<UnitSlotTable>(h.Unit);
+            Assert.Equal(12, after.Count);
+            for (int i = 0; i < 12; i++)
+            {
+                Assert.Equal((float)before.Slots[i].Health, (float)after.Slots[i].Health);
+                Assert.Equal((float)before.Slots[i].Stress, (float)after.Slots[i].Stress);
+                Assert.Equal(before.Slots[i].Ammo, after.Slots[i].Ammo);
+            }
+            Assert.Equal(11, after.Present());
+        }
+
+        /// <summary>⭐ CE-8307 (R-8390, SV-14) — the instructor's PIN merges the whole tree in ONE step (the squads' men, then the squads).
+        /// ✅ Red-proof: the pin's cascade dropped ⇒ the squads' men are orphaned ⇒ red.</summary>
+        [Fact]
+        public void OL4_ThePin_MergesTheWholeTree_InOneStep()
+        {
+            using var h = PlatoonHost();
+            for (int i = 0; i < 6; i++) h.Step();
+            Assert.Equal(11 + 3, h.Children().Count);
+            h.W.GetComponentRW<AggregateUnit>(h.Unit).Pin = ResolutionPin.PinStochastic;
+            h.Step();
+            Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+            Assert.Empty(h.Children());
+            Assert.Equal(11, h.W.GetComponentRO<UnitSlotTable>(h.Unit).Present());
         }
     }
 }

@@ -47,6 +47,20 @@ namespace Fdp.Toolkit.Aggregate
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-8307</c> (R-8382 / R-8385; DESIGN_Split_One_Level.md) — ONE DIRECT subordinate of a unit's TKB composite, what its split creates
+    /// (X-5 / D-P7: one level at a time): <paramref name="Key"/> its 1-based index among the direct subordinates (the child key
+    /// <c>child:&lt;Key&gt;</c> and the name <c>&lt;unit&gt;/&lt;Key&gt;</c>), its type and designation, the composite LEAVES under it
+    /// (<paramref name="FirstSlot"/> 1-based, <paramref name="Slots"/> of them — what <see cref="UnitSlot.CompositeSlot"/> numbers), whether it is
+    /// itself a composite (<paramref name="IsUnit"/> ⇒ it is created as a STOCHASTIC unit with its share of the slot table, else as a man) and,
+    /// for a unit, its <paramref name="Echelon"/>. For a squad every direct subordinate is a man and <c>Key == FirstSlot</c>.
+    /// </summary>
+    public readonly record struct SplitChild(int Key, TkbTypeId Type, TacticalDesignation Designation, int FirstSlot, int Slots, bool IsUnit, byte Echelon)
+    {
+        /// <summary>Does composite leaf <paramref name="compositeSlot"/> (1-based) lie under this child?</summary>
+        public bool Holds(int compositeSlot) => compositeSlot >= FirstSlot && compositeSlot < FirstSlot + Slots;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-8012</c> — the seam the manager drives a split / merge through (§16a). ⭐ Production: <see cref="BusResolutionSwitch"/> (transient
     /// creation requests with derived identities, SV-4). A test may supply its own.
     /// </summary>
@@ -103,14 +117,12 @@ namespace Fdp.Toolkit.Aggregate
         public static float ToSoldier(float slotHealth, float max) => max <= 0f ? slotHealth : slotHealth / SlotFullHealth * max;
         public static float ToSlot(float current, float max) => max <= 0f ? current : MathF.Max(0f, current) / max * SlotFullHealth;
 
-        /// <summary>⭐⭐ <c>X-2</c> X2-I (R-8362, R-8372) — the scope of the order re-resolution: a SQUAD whose released men fit its roster —
-        /// <see cref="AggregateUnit.Echelon"/> 0 AND a slot table no larger than <see cref="UnitRoster.Capacity"/>. ⚠ The echelon alone is not
-        /// enough: the fill sets it only when it FILLS the table, so a unit with an AUTHORED table keeps 0 (📌 measured: <c>agg-merge-back</c>'s
-        /// 30-slot platoon). ONE rule for the switch's assigns, the manager's <c>SwitchBlocked</c> and the reconciler.</summary>
-        public static bool RostersItsMen(EntityRepository repo, Entity unit)
-            => repo.HasComponent<AggregateUnit>(unit) && repo.GetComponentRO<AggregateUnit>(unit).Echelon == 0
-               && (!repo.IsComponentTypeRegistered<UnitSlotTable>() || !repo.HasComponent<UnitSlotTable>(unit)
-                   || repo.GetComponentRO<UnitSlotTable>(unit).Count <= UnitRoster.Capacity);
+        /// <summary>⭐⭐ <c>CE-8307</c> (R-8389; DESIGN_Split_One_Level.md §6 Q-h; supersedes X-2's <c>RostersItsMen</c>, R-8372) — the scope of the roster
+        /// and of the order re-resolution: a unit whose split's DIRECT children (<paramref name="directChildren"/>: a squad's men, a platoon's squads, a
+        /// company's platoons) fit its <see cref="UnitRoster"/>. ONE rule: the switch counts its <see cref="BusResolutionSwitch.Composition"/>, the
+        /// behaviours side the composite's direct count (<c>StochasticUnitFill.RostersItsChildren</c>). ⛔ The echelon is not read — an authored table
+        /// never sets it (📌 <c>agg-merge-back</c>, R-8372).</summary>
+        public static bool RostersItsChildren(int directChildren) => directChildren <= UnitRoster.Capacity;
 
         /// <summary>⭐ CE-8013 ② — a child that counts: HELD (Constructing, SV-6) or Active; ⛔ not one already in teardown (a merge's).</summary>
         public static bool Live(EntityRepository repo, Entity c)
@@ -209,7 +221,12 @@ namespace Fdp.Toolkit.Aggregate
             }
             CollectObserved(repo);
             foreach (var unit in _units!)
+            {
+                // ⭐ CE-8307 — a HELD unit child (a platoon's squad before its handover) is not in the fight yet: never decided (SV-6; in a host
+                //   with the lifecycle it is Constructing and not even visited)
+                if (tagged && repo.HasComponent<AggregateChild>(unit) && repo.GetComponentRO<AggregateChild>(unit).Held != 0) continue;
                 Decide(repo, unit, now, in bands);
+            }
         }
 
         /// <summary>⭐ CE-8013 ④ (§16b R-6 UNOBSERVED) — who each physical sensor currently holds (acquired), by the observer's force.</summary>
@@ -337,8 +354,15 @@ namespace Fdp.Toolkit.Aggregate
                 // ⭐ CE-8013 ④ — UNOBSERVED too; ⭐ F-23 — and no man of it in CONTACT (automatic only)
                 if (!far || Observed(repo, unit) || InContact(repo, unit)) { u.SplittingSince = now; return; }
                 if ((double)now - (double)u.SplittingSince < b.QuietSeconds) return;
+                // ⭐⭐ CE-8307 (R-8390; D-P7 "the reverse") — LEAVES FIRST: a unit child (a squad of the split platoon) that is itself split or
+                //   splitting merges by its OWN rule first; the parent waits (its quiet clock keeps running, so it follows its last child at once)
+                if (UnitChildBusy(repo, unit)) return;
                 if (Blocked(repo, unit, AggregateResolution.Stochastic)) return;   // ⭐ X2-D (R-8357) — the order has no stochastic play: the automatic merge waits
             }
+            else MergeUnitChildren(repo, unit, now);   // ⭐ CE-8307 — the PIN (SV-14) cascades in one step: a split child merged, a splitting one cancelled
+            // re-read: the cascade above may have created / removed components (the ref into the AggregateUnit table stays valid — no structural
+            // change to THIS entity — but take it again for clarity)
+            u = ref repo.GetComponentRW<AggregateUnit>(unit);
             u.Splitting = SplitStage.Merging;
             _switch.Merge(repo, unit);
             u.Resolution = AggregateResolution.Stochastic;
@@ -368,6 +392,52 @@ namespace Fdp.Toolkit.Aggregate
 
         /// <summary>A sighting this many perception steps old still counts as contact (the sensors re-stamp a target they hold every step).</summary>
         private const uint ContactSteps = 2;
+
+        /// <summary>⭐ CE-8307 (R-8390) — is a live UNIT child of <paramref name="unit"/> (a stochastic squad its split created) itself split
+        /// (Physical) or mid-process? Then the parent's automatic merge waits: leaves first.</summary>
+        private static bool UnitChildBusy(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsComponentTypeRegistered<AggregateChild>()) return false;
+            foreach (var c in repo.Query().With<AggregateChild>().With<AggregateUnit>().IncludeAll().Build())
+            {
+                if (repo.GetComponentRO<AggregateChild>(c).Unit != unit || !UnitSplits.Live(repo, c)) continue;
+                ref readonly var cu = ref repo.GetComponentRO<AggregateUnit>(c);
+                if (cu.Effective != AggregateResolution.Stochastic || cu.Splitting != SplitStage.NotSplitting) return true;
+            }
+            return false;
+        }
+
+        /// <summary>⭐ CE-8307 (R-8390, SV-14) — the instructor's pin merges the whole tree in ONE step: each live unit child that is split is merged
+        /// (recursively — its own unit children first), one mid-process is cancelled; then the caller merges <paramref name="unit"/>.</summary>
+        private void MergeUnitChildren(EntityRepository repo, Entity unit, SimInstant now)
+        {
+            if (!repo.IsComponentTypeRegistered<AggregateChild>()) return;
+            List<Entity>? kids = null;   // the pin is rare: a list is fine (R-2084: not every frame)
+            foreach (var c in repo.Query().With<AggregateChild>().With<AggregateUnit>().IncludeAll().Build())
+                if (repo.GetComponentRO<AggregateChild>(c).Unit == unit && UnitSplits.Live(repo, c)) (kids ??= new List<Entity>()).Add(c);
+            if (kids == null) return;
+            foreach (var c in kids)
+            {
+                ref var cu = ref repo.GetComponentRW<AggregateUnit>(c);
+                if (cu.Effective == AggregateResolution.Stochastic)
+                {
+                    if (cu.Splitting is SplitStage.Planning or SplitStage.Materialising or SplitStage.Handover)
+                    {
+                        _switch.Cancel(repo, c);
+                        cu = ref repo.GetComponentRW<AggregateUnit>(c);
+                        cu.Splitting = SplitStage.NotSplitting;
+                        if (HasPlan(repo, c)) repo.RemoveComponent<PlannedPosts>(c);
+                    }
+                    continue;
+                }
+                MergeUnitChildren(repo, c, now);
+                _switch.Merge(repo, c);
+                cu = ref repo.GetComponentRW<AggregateUnit>(c);
+                cu.Resolution = AggregateResolution.Stochastic;
+                cu.Splitting = SplitStage.NotSplitting;
+                cu.SplittingSince = now;
+            }
+        }
 
         private static bool HasChildren(EntityRepository repo, Entity unit)
         {
@@ -403,6 +473,42 @@ namespace Fdp.Toolkit.Aggregate
         /// as <see cref="ChildType"/>): what the released man is assigned under in the unit's roster. Null ⇒ <see cref="TacticalDesignation.Undefined"/>.</summary>
         public Func<EntityRepository, Entity, int, TacticalDesignation>? ChildDesignation { get; init; }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8307</c> (R-8382; DESIGN_Split_One_Level.md) — the unit's DIRECT subordinates (host-supplied from the TKB composite:
+        /// <c>StochasticUnitFill.Composition</c>), so a split goes ONE LEVEL (X-5 / D-P7): a platoon creates its SQUADS — each a stochastic unit
+        /// carrying its share of the slot table — never its flattened men. Null ⇒ every slot is a man of its own leaf (<see cref="ChildType"/>,
+        /// <see cref="ChildDesignation"/>; the single-level rails).
+        /// </summary>
+        public Func<EntityRepository, Entity, IReadOnlyList<SplitChild>?>? Composition { get; init; }
+
+        /// <summary>The direct child holding composite leaf <paramref name="compositeSlot"/>: from <paramref name="comp"/>, else the leaf itself as a man.</summary>
+        private SplitChild ChildFor(EntityRepository repo, Entity unit, IReadOnlyList<SplitChild>? comp, int compositeSlot)
+        {
+            if (comp != null)
+                for (int k = 0; k < comp.Count; k++) if (comp[k].Holds(compositeSlot)) return comp[k];
+            return new SplitChild(compositeSlot, ChildType != null ? ChildType(repo, unit, compositeSlot) : default,
+                                  ChildDesignation?.Invoke(repo, unit, compositeSlot) ?? TacticalDesignation.Undefined, compositeSlot, 1, false, 0);
+        }
+
+        /// <summary>⭐ CE-8307 (R-8383) — the share of <paramref name="parent"/> that <paramref name="child"/> carries: every slot (up or down) whose leaf
+        /// lies under it, in table order, its <see cref="UnitSlot.CompositeSlot"/> renumbered to the child's OWN composite (leaf − first + 1).</summary>
+        public static UnitSlotTable ShareOf(in UnitSlotTable parent, in SplitChild child)
+        {
+            var t = new UnitSlotTable();
+            for (int i = 0; i < parent.Count && t.Count < UnitSlotTable.Capacity; i++)
+            {
+                var s = parent.Slots[i];
+                if (!child.Holds(s.CompositeSlot)) continue;
+                s.CompositeSlot = (byte)(s.CompositeSlot - child.FirstSlot + 1);
+                t.Slots[t.Count++] = s;
+            }
+            return t;
+        }
+
+        /// <summary>The composition as the host gives it (null when none, or when it holds no unit child — then the single-level path is exact).</summary>
+        private IReadOnlyList<SplitChild>? CompositionOf(EntityRepository repo, Entity unit)
+            => Composition?.Invoke(repo, unit) is { Count: > 0 } c ? c : null;
+
         private void Remove(EntityRepository repo, Entity c, string why)
         {
             var elm = Lifecycle?.Invoke();
@@ -413,33 +519,96 @@ namespace Fdp.Toolkit.Aggregate
 
         public void Materialise(EntityRepository repo, Entity unit, ReadOnlySpan<Vector3> posts)
         {
-            if (ChildType == null) throw new InvalidOperationException("BusResolutionSwitch.ChildType is not set: the host must resolve the TKB composite (CE-8013)");
+            if (ChildType == null && Composition == null) throw new InvalidOperationException("BusResolutionSwitch.ChildType is not set: the host must resolve the TKB composite (CE-8013)");
             ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
+            var comp = CompositionOf(repo, unit);
             var guid = UnitSplits.UnitGuid(repo, unit);
             var force = repo.HasComponent<EntityInfo>(unit) ? repo.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
             string unitName = repo.HasComponent<EntityInfo>(unit) ? (string)repo.GetComponentRO<EntityInfo>(unit).Name : "";
-            int k = 0;
+            // ⭐⭐ CE-8307 (R-8382) — a UNIT child (a platoon's squad) is ONE request for all its live slots: placed at the centroid of their posts
+            int n = comp?.Count ?? 0;
+            Span<Vector3> at = n > 0 ? stackalloc Vector3[n] : Span<Vector3>.Empty;
+            Span<int> men = n > 0 ? stackalloc int[n] : Span<int>.Empty;
+            int requests = 0, k = 0;
             for (int i = 0; i < slots.Count && k < posts.Length; i++)
             {
                 if (!slots.IsUp(i)) continue;
                 int slot = slots.Slots[i].CompositeSlot;
+                var child = ChildFor(repo, unit, comp, slot);
+                if (child.IsUnit)
+                {
+                    int g = IndexOf(comp!, child.Key);
+                    at[g] += posts[k]; men[g]++;
+                    k++;
+                    continue;
+                }
                 repo.Bus.PublishManaged(new EntityCreationRequest
                 {
-                    RequestId = EntityGuidDerivation.Derive(guid, "split:" + slot.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                    TkbType = ChildType(repo, unit, slot),
+                    RequestId = EntityGuidDerivation.Derive(guid, "split:" + child.Key.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    TkbType = child.Type,
                     IsTransient = true,
                     InitialComponents = new List<object>
                     {
-                        new EntityGuid(UnitSplits.ChildGuid(guid, slot)),
+                        new EntityGuid(UnitSplits.ChildGuid(guid, child.Key)),
                         new SimTransform { Position = posts[k], Rotation = Quaternion.Identity },
                         new AggregateChild { Unit = unit, Slot = (byte)i, Held = 1 },
-                        new EntityInfo { ForceId = force, Name = ChildName(unitName, slot) },   // ⭐ F-22 (R-4286) — checks, goldens, the UI name him
+                        new EntityInfo { ForceId = force, Name = ChildName(unitName, child.Key) },   // ⭐ F-22 (R-4286) — checks, goldens, the UI name him
                     },
                 });
-                k++;
+                k++; requests++;
             }
-            _requested[unit] = k;
+            if (n > 0)
+            {
+                ref readonly var parent = ref repo.GetComponentRO<AggregateUnit>(unit);
+                int units = 0;
+                for (int g = 0; g < n; g++) if (men[g] > 0) units++;
+                for (int g = 0; g < n; g++)
+                {
+                    if (men[g] == 0) continue;   // a child with no man up is not created (the dead are never re-created)
+                    var child = comp![g];
+                    repo.Bus.PublishManaged(new EntityCreationRequest
+                    {
+                        RequestId = EntityGuidDerivation.Derive(guid, "split:" + child.Key.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                        TkbType = child.Type,
+                        IsTransient = true,
+                        InitialComponents = new List<object>
+                        {
+                            new EntityGuid(UnitSplits.ChildGuid(guid, child.Key)),
+                            new SimTransform { Position = at[g] / men[g], Rotation = Quaternion.Identity },
+                            new AggregateChild { Unit = unit, Slot = (byte)child.Key, Held = 1 },   // ⭐ a UNIT child's Slot is its KEY (it carries its own table)
+                            new EntityInfo { ForceId = force, Name = ChildName(unitName, child.Key) },
+                            ChildUnit(in parent, in child, units),
+                            ShareOf(in slots, in child),   // rewritten with the LATEST share at the handover (D-P4)
+                        },
+                    });
+                    requests++;
+                }
+            }
+            _requested[unit] = requests;
         }
+
+        private static int IndexOf(IReadOnlyList<SplitChild> comp, int key)
+        {
+            for (int g = 0; g < comp.Count; g++) if (comp[g].Key == key) return g;
+            return -1;
+        }
+
+        /// <summary>⭐ CE-8307 (R-8382) — a unit child's <see cref="AggregateUnit"/>: STOCHASTIC, its own echelon, the parent's shape and state
+        /// (formation, posture, prepared, heading, the last contact — the stress calm-down), its share of the frontage.</summary>
+        public static AggregateUnit ChildUnit(in AggregateUnit parent, in SplitChild child, int unitChildren) => new()
+        {
+            Resolution = AggregateResolution.Stochastic,
+            Echelon = child.Echelon,
+            Formation = parent.Formation,
+            Posture = parent.Posture,
+            Prepared = parent.Prepared,
+            PreparedSince = parent.PreparedSince,
+            Heading = parent.Heading,
+            Width = MathF.Max(10f, parent.Width / Math.Max(1, unitChildren)),
+            Depth = parent.Depth,
+            LastContactAt = parent.LastContactAt,
+            LastFiredAt = parent.LastFiredAt,
+        };
 
         /// <summary>⭐ F-22 (R-4286) — a split child's name: <c>&lt;unit name&gt;/&lt;composite slot&gt;</c> (e.g. <c>Alpha/3</c>) — stable across splits,
         /// the same leaf every time. A unit with no name gives just the slot.</summary>
@@ -455,10 +624,26 @@ namespace Fdp.Toolkit.Aggregate
             ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
             bool health = repo.IsComponentTypeRegistered<Health>();
             bool stress = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>();
-            bool squad = UnitSplits.RostersItsMen(repo, unit);   // ⭐ X2-I (R-8372) — a squad whose men fit its roster
+            var comp = CompositionOf(repo, unit);
+            // ⭐ CE-8307 (R-8389) — the split's DIRECT children fit the roster (a squad's men, a platoon's squads); else nobody is assigned
+            bool roster = UnitSplits.RostersItsChildren(comp?.Count ?? slots.Count);
             foreach (var c in Children(repo, unit))
             {
                 ref var tag = ref repo.GetComponentRW<AggregateChild>(c);
+                if (repo.HasComponent<AggregateUnit>(c))
+                {
+                    // ⭐⭐ CE-8307 (R-8383, D-P4) — a UNIT child takes its LATEST share of the table (the losses while it was held count);
+                    //   no man of it left up ⇒ it never enters the fight
+                    int g = comp == null ? -1 : IndexOf(comp, tag.Slot);
+                    var share = g < 0 ? default : ShareOf(in slots, comp![g]);
+                    if (share.Present() == 0) { Remove(repo, c, "split: died before the handover"); continue; }
+                    repo.GetComponentRW<UnitSlotTable>(c) = share;
+                    tag = ref repo.GetComponentRW<AggregateChild>(c);
+                    tag.Held = 0;
+                    if (roster)
+                        repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = c, Commander = unit, FireTeam = FireTeam.None, Designation = comp![g].Designation });
+                    continue;
+                }
                 int i = tag.Slot;
                 if (i >= slots.Count || !slots.IsUp(i)) { Remove(repo, c, "split: died before the handover"); continue; }   // died meanwhile (SV-7)
                 if (health && repo.HasComponent<Health>(c))
@@ -473,11 +658,11 @@ namespace Fdp.Toolkit.Aggregate
                 // ⭐⭐ X-2 X2-B (R-8354) — a squad's released man joins the unit's ROSTER through the ONE hierarchy path (UnitHierarchySystem: the
                 //   roster, his UnitSubordinate, the squad state, the wire mark) — so the re-resolved order's physical play has its men. Squad
                 //   echelon only (≤ 13 men ≤ UnitRoster.Capacity); a platoon's men are not its squads (F-X2-1). The roster lands a frame later.
-                if (squad)
+                if (roster)
                     repo.Bus.Publish(new CmdAssignSubordinate
                     {
                         Subordinate = c, Commander = unit, FireTeam = FireTeam.None,
-                        Designation = ChildDesignation?.Invoke(repo, unit, slots.Slots[i].CompositeSlot) ?? TacticalDesignation.Undefined,
+                        Designation = ChildFor(repo, unit, comp, slots.Slots[i].CompositeSlot).Designation,
                     });
             }
             _requested.Remove(unit);
@@ -497,9 +682,40 @@ namespace Fdp.Toolkit.Aggregate
             // a slot whose child is gone (killed and removed) is down; the rest take their child's state
             Span<bool> seen = stackalloc bool[UnitSlotTable.Capacity];
             var sum = Vector3.Zero; int n = 0;
+            IReadOnlyList<SplitChild>? comp = null;
             foreach (var c in Children(repo, unit))
             {
                 int i = repo.GetComponentRO<AggregateChild>(c).Slot;
+                if (repo.HasComponent<AggregateUnit>(c))
+                {
+                    // ⭐⭐ CE-8307 (R-8383; D-P7 "sum, then remove") — a UNIT child's table back into the parent, slot for slot by its leaf:
+                    //   health, stress and ammunition exactly as the child holds them (the manager merges a parent only once its children are stochastic)
+                    comp ??= CompositionOf(repo, unit);
+                    int g = comp == null ? -1 : IndexOf(comp, i);
+                    if (g >= 0 && repo.HasComponent<UnitSlotTable>(c))
+                    {
+                        var child = comp![g];
+                        ref readonly var share = ref repo.GetComponentRO<UnitSlotTable>(c);
+                        for (int p = 0; p < slots.Count; p++)
+                        {
+                            int leaf = slots.Slots[p].CompositeSlot;
+                            if (!child.Holds(leaf)) continue;
+                            int local = leaf - child.FirstSlot + 1;
+                            for (int j = 0; j < share.Count; j++)
+                            {
+                                if (share.Slots[j].CompositeSlot != local) continue;
+                                slots.Slots[p].Health = share.Slots[j].Health;
+                                slots.Slots[p].Stress = share.Slots[j].Stress;
+                                slots.Slots[p].Ammo = share.Slots[j].Ammo;
+                                seen[p] = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (repo.HasComponent<SimTransform>(c)) { sum += (Vector3)repo.GetComponentRO<SimTransform>(c).Position; n++; }
+                    Remove(repo, c, "merged");
+                    continue;
+                }
                 if (i < slots.Count)
                 {
                     seen[i] = true;

@@ -152,6 +152,75 @@ namespace Hrot.Core.Tkb
             return k >= 0 && k < leaves.Count ? leaves[k].Type : default;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8307</c> (R-8382 / R-8385; DESIGN_Split_One_Level.md) — the unit's DIRECT subordinates, what its split creates (X-5 / D-P7: one
+        /// level at a time), for <see cref="BusResolutionSwitch.Composition"/>: one <see cref="SplitChild"/> per composite slot INSTANCE in
+        /// declaration order — its key (1-based), type, designation, the leaves under it (the SAME flattening <see cref="Leaves"/> numbers, so the
+        /// ranges tile 1 … Leaves.Count) and whether it is itself a composite (⇒ a stochastic unit of its echelon). Empty when the type has no
+        /// composite. A platoon (305) gives 3 squads over leaves 1–10 / 11–20 / 21–30; a squad (302) gives its 10 men with key == leaf.
+        /// </summary>
+        public static List<SplitChild> Composition(ITkbDatabase db, TkbTypeId unitType)
+        {
+            var list = new List<SplitChild>();
+            if (!db.TryGetByType(unitType, out var t) || t?.GetDescriptor<TkbCompositionDef>() is not { } comp || comp.Subordinates.Count == 0) return list;
+            int leaf = 1, key = 0;
+            foreach (var slot in comp.Subordinates)
+                for (int i = 0; i < slot.Count; i++)
+                {
+                    key++;
+                    bool unit = db.TryGetByType(slot.TkbType, out var ct) && ct?.GetDescriptor<TkbCompositionDef>() is { Subordinates.Count: > 0 };
+                    int leaves = unit ? Math.Max(1, CountLeaves(db, slot.TkbType, 1)) : 1;
+                    byte echelon = unit ? EchelonOf(ct!.GetDescriptor<TkbCompositionDef>()!.Echelon) : (byte)0;
+                    list.Add(new SplitChild(key, slot.TkbType, slot.Designation, leaf, leaves, unit, echelon));
+                    leaf += leaves;
+                }
+            return list;
+        }
+
+        /// <summary>The leaves under <paramref name="type"/> as <see cref="Expand"/> counts them from depth <paramref name="depth"/> (no allocation).</summary>
+        private static int CountLeaves(ITkbDatabase db, TkbTypeId type, int depth)
+        {
+            if (!db.TryGetByType(type, out var t) || t == null) return 0;
+            var comp = t.GetDescriptor<TkbCompositionDef>();
+            if (comp == null || comp.Subordinates.Count == 0 || depth >= MaxDepth) return depth > 0 ? 1 : 0;
+            int n = 0;
+            foreach (var slot in comp.Subordinates)
+                for (int i = 0; i < slot.Count; i++) n += CountLeaves(db, slot.TkbType, depth + 1);
+            return n;
+        }
+
+        /// <summary>⭐ CE-8307 — how many DIRECT subordinates the composite of <paramref name="unitType"/> has (−1 when it has none). No allocation.</summary>
+        public static int DirectChildren(ITkbDatabase db, TkbTypeId unitType)
+        {
+            if (!db.TryGetByType(unitType, out var t) || t?.GetDescriptor<TkbCompositionDef>() is not { } comp || comp.Subordinates.Count == 0) return -1;
+            int n = 0;
+            for (int i = 0; i < comp.Subordinates.Count; i++) n += comp.Subordinates[i].Count;
+            return n;
+        }
+
+        /// <summary>⭐ CE-8307 (R-8388) — does the split of <paramref name="unitType"/> create UNITS (a direct subordinate is itself a composite: a
+        /// platoon's squads) rather than men? No allocation.</summary>
+        public static bool SplitsIntoUnits(ITkbDatabase db, TkbTypeId unitType)
+        {
+            if (!db.TryGetByType(unitType, out var t) || t?.GetDescriptor<TkbCompositionDef>() is not { } comp) return false;
+            for (int i = 0; i < comp.Subordinates.Count; i++)
+                if (db.TryGetByType(comp.Subordinates[i].TkbType, out var ct) && ct?.GetDescriptor<TkbCompositionDef>() is { Subordinates.Count: > 0 }) return true;
+            return false;
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8389) — <see cref="UnitSplits.RostersItsChildren"/> for <paramref name="unit"/>: its composite's DIRECT count (the
+        /// children its split creates), else — no TKB, no composite — its slot table's count (each slot a man). The behaviours side of the ONE rule.</summary>
+        public static bool RostersItsChildren(EntityRepository repo, Entity unit)
+        {
+            int n = -1;
+            if (repo.HasSingletonManaged<ITkbDatabase>() && repo.IsComponentTypeRegistered<TkbIdentity>() && repo.HasComponent<TkbIdentity>(unit)
+                && repo.GetSingletonManaged<ITkbDatabase>() is { } db)
+                n = DirectChildren(db, repo.GetComponentRO<TkbIdentity>(unit).TkbType);
+            if (n < 0)
+                n = repo.IsComponentTypeRegistered<UnitSlotTable>() && repo.HasComponent<UnitSlotTable>(unit) ? repo.GetComponentRO<UnitSlotTable>(unit).Count : 0;
+            return UnitSplits.RostersItsChildren(n);
+        }
+
         /// <summary>⭐ <c>X-2</c> X2-B (R-8354) — the designation of the unit's composite slot <paramref name="compositeSlot"/> (1-based, as filled; the
         /// SAME leaf as <see cref="ChildType"/>), for <see cref="BusResolutionSwitch.ChildDesignation"/>: what the released man is in the roster.</summary>
         public static TacticalDesignation ChildDesignation(ITkbDatabase db, TkbTypeId unitType, int compositeSlot)
