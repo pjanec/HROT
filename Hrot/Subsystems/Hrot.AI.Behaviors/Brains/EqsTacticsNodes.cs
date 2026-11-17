@@ -370,7 +370,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-3170 (docs/DESIGN_Entity_Control.md C-5) — an attack order's target wins while the unit still REMEMBERS it (the
             //   order seeds the memory; fog of war still applies after that) and it is in the fight: hidden or not, a nearer threat
             //   does not take it over. (The squad's assignment stays a ranking bias, IsAssignedTarget: it orders the SEEN ones.)
-            if (DesignatedTarget.Of(world, self, out var designated) && Engageable(world, designated)
+            if (DesignatedTarget.Of(world, self, out var designated) && Engageable(world, self, designated)
                 && Remembers(world, self, designated))
             {
                 threat = designated;
@@ -385,15 +385,16 @@ namespace Hrot.AI.Behaviors.Brains
             //   knocked-out man stays in the world and in memory). 📌 Live ua-ifv-standoff: the IFV killed one RPG man, kept him as its
             //   threat (nothing else scored above zero), stood guarding the corpse, and two live men walked up to it unengaged.
             threat = score <= 0f && !current.IsNull && Remembers(world, self, current) ? current : top;
-            if (!threat.IsNull && !Engageable(world, threat)) threat = FirstLiveRemembered(world, self);
+            if (!threat.IsNull && !Engageable(world, self, threat)) threat = FirstLiveRemembered(world, self);
             return !threat.IsNull;
         }
 
         /// <summary>⭐ CE-2202 + ⭐ CE-2233 (CIV-0) + ⭐ CE-2318 — a threat to fight: in the fight (never a body, never a man down —
         /// <c>Injury.IsInTheFight</c>, Injury States I4) and not a NEUTRAL (a civilian is
         /// remembered — a police line must see a crowd — but is never the threat; its side is read live, so a flip to Hostile counts).</summary>
-        private static bool Engageable(EntityRepository world, Entity e)
-            => Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e) && !Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e);
+        private static bool Engageable(EntityRepository world, Entity self, Entity e)
+            => Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e)
+               && (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || Fdp.Toolkit.Combat.ForceLevels.IsOrdered(world, self, e));   // ⭐ CE-4649 R-3101 — an explicit order names a neutral (a civilian, a bird) as the target
 
         /// <summary>⭐ CE-2282 DA-27 — the first identified, live, engageable entity in memory (score order) that his SECTOR allows him to
         /// choose (<c>EngagementAreas.Allows</c>), or none.</summary>
@@ -405,7 +406,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Engageable(world, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
+                if (Engageable(world, self, e) && Fdp.Toolkit.Behavior.Components.EngagementAreas.Allows(world, self, e)) return e;
             }
             return Entity.Null;
         }
@@ -418,7 +419,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (TargetMemory.IsAnonymous(in mem, i)) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (Engageable(world, e)) return e;
+                if (Engageable(world, self, e)) return e;
             }
             return Entity.Null;
         }
