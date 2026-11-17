@@ -415,12 +415,12 @@ namespace Hrot.AI.Behaviors.Brains
                     var next = w.SearchMan != 0 ? new Entity((ulong)w.SearchMan) : Entity.Null;
                     if (slot == 0 && !next.IsNull && ctx.World.IsAlive(next) && ctx.World.HasComponent<SimTransform>(next))
                     {
-                        // ⭐ K-7 — to ARM'S LENGTH of the man (0.7 m on the searcher's own side, 0.4 m arrival): 📐 cp-routine-car — sent onto him with a
+                        // ⭐ K-7 — to ARM'S LENGTH of the man (1.2 m on the searcher's own side, 0.4 m arrival — outside the crowd's push, inside custody's 2 m reach): 📐 cp-routine-car — sent onto him with a
                         //   watch post (1 m arrival) he stood ~1.9 m off, outside custody's 1.5 m reach, and the search aborted and restarted for good
                         var man = ctx.World.GetComponentRO<SimTransform>(next).Position;
                         var from = new Vector2(at.X - man.X, at.Y - man.Y);
                         var dir = from.LengthSquared() > 1e-4f ? Vector2.Normalize(from) : new Vector2(right.X, right.Y);
-                        return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = new Vector3(man.X + dir.X * 0.7f, man.Y + dir.Y * 0.7f, man.Z),
+                        return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = new Vector3(man.X + dir.X * 1.2f, man.Y + dir.Y * 1.2f, man.Z),
                                                  Speed = p.Speed, ArrivalRadius = 0.4f, RoleId = role };
                     }
                     return new MemberOrder { Kind = MemberOrderKind.Watch, Point = to, Speed = p.Speed, ArrivalRadius = 1f, Post = new MemberPost { Set = 1, Radius = 1f },

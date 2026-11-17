@@ -37,10 +37,11 @@ namespace Hrot.AI.Behaviors.Brains
                     .Action(bb => bb.Leave, EmbarkNodes.Disembark)
                     .Action(HandsUp));
 
-        /// <summary>Hands up, held (Running) — the checkpoint ends it.</summary>
+        /// <summary>Hands up, standing still, held (Running) — the checkpoint ends it.</summary>
         [SharedAiAction]
         public static NodeStatus HandsUp(Entity self, EntityRepository world)
         {
+            LocomotionMoveTo.Stop(world, self);   // ⭐ K-7 — he STANDS (as Surrender does): 📐 cp-routine-car — without it he drifted 0.5 m/s from the searcher and every search aborted
             if (Gestures.Of(world, self) != GestureKind.HandsUp) Gestures.Set(world, self, GestureKind.HandsUp);
             return NodeStatus.Running;
         }

@@ -76,8 +76,10 @@ namespace Fdp.Toolkit.Civilians
         public static bool Owns(EntityRepository world, Entity man)
             => world.IsAlive(man) && Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(world, man, CustodyKey);
 
-        /// <summary>CU-3 — how close the soldier must be (m).</summary>
-        public const float Reach = 1.5f;
+        /// <summary>CU-3 — how close the soldier must be (m). ⭐ <c>CE-4622</c> K-7 (R-2135, cross-lane — behaviors): 2 m, was 1.5 — 📐 measured on
+        /// <c>cp-routine-car</c>: the crowd keeps two walking men ~1.2–1.8 m apart (separation at 1.5 × their combined radius), so a searcher closing to
+        /// 1.5 m PUSHED the man away at ~0.5 m/s and every search aborted; 2 m is an arm's length and a step.</summary>
+        public const float Reach = 2f;
         /// <summary>CU-3 — how long a search takes (s).</summary>
         public const double SearchSeconds = 3.0;
 
