@@ -31,6 +31,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultSpeed = 10f, ArrivalRadius = 15f;
         /// <summary>⭐ CE-9017 — a blocked lead (its move failed but it can move) asks again after this long (s): the convoy waits, it does not give up.</summary>
         public const float RetrySeconds = 2f;
+        /// <summary>⭐ CE-9022 — how long an arrived lead keeps leading its column so the followers close up before it ends (sim seconds).</summary>
+        public const float CloseUpSeconds = 10f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct ConvoyParams
@@ -52,6 +54,8 @@ namespace Hrot.AI.Behaviors.Brains
             public uint MoveInstance;
             /// <summary>⭐ CE-9017 — when the lead's move last failed while it could still move (blocked: a queue, a breakdown); 0 = not waiting.</summary>
             public double BlockedSince;
+            /// <summary>⭐ CE-9022 — when the lead arrived (stopped, still leading its column so the followers close up); 0 = not arrived.</summary>
+            public double ArrivedAt;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -142,11 +146,16 @@ namespace Hrot.AI.Behaviors.Brains
                 // arrived: within ArrivalRadius, or ⭐ CE-9018 its OWN move reports Success — the executor's arrival is the authority (a SUMO shadow
                 //   ends up to TrafficShadowFollowSystem.ArrivalSlackMetres = 25 m short of the destination; 📌 cv-blocked-road: "Arrived" 22 m short,
                 //   and the convoy never completed)
-                if (Flat(here, p.Destination) <= ArrivalRadius
+                if (s.ArrivedAt > 0 || Flat(here, p.Destination) <= ArrivalRadius
                     || (s.Issued != 0 && OurMove(world, self, in s) && world.GetComponentRO<LocomotionChannel>(self).Status == NodeStatus.Success))
                 {
-                    LocomotionMoveTo.Stop(world, self);
-                    SetController(world, self, new FormationController());   // the column ends: its followers see a lead that no longer leads one
+                    // ⭐ CE-9022 — the convoy HALTS CLOSED UP: the lead stops but leads its column CloseUpSeconds longer, so the followers drive up to
+                    //   their places on its path; then the column ends (its followers see a lead that no longer leads one). 📌 cv-mode-1-to-2 (cluster):
+                    //   ended at once, the followers stopped where they were — strung out 15/23/25 m, the tail 70 m from the destination.
+                    double now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(world);
+                    if (s.ArrivedAt <= 0) { LocomotionMoveTo.Stop(world, self); s.ArrivedAt = Math.Max(now, 1e-6); }
+                    if (now - s.ArrivedAt < CloseUpSeconds) return NodeStatus.Running;
+                    SetController(world, self, new FormationController());
                     s.Done = 1;
                     return NodeStatus.Success;
                 }

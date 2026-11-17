@@ -1,0 +1,151 @@
+<!--STATUS
+state: LIVE — a DRAFT (recorded direction, not a buildable design)
+updated: 2026-11-17
+current-answer: the whole file
+stale-below: none
+known-rot: none
+known-conflict: none
+related-designs:
+  - ../../reference/NED_DDS_Protocol.md — OWNS the wire an outside node reads and writes (its first outside reader is the DIS/HLA gateway)
+  - DESIGN-IG.md — the image-generator node role (IG) inside HROT, today raylib / the 3-D map; the Unreal client is another IG
+  - ../thermal/DESIGN_Thermal_Drivers.md — the external INFRARED image generator connects the same way (DDS, the drivers on the entities)
+  - ../weapons/DRAFT_Weapon_Malfunctions_And_Physical_Devices.md — physical devices in the loop: another outside node on the same bus
+-->
+
+# DRAFT — Unreal Engine as an image generator next to HROT (option B) — CE-4651
+
+🔒 User, `2026-11-16`: *"Is there any real possibility how to embed the HROT engine into an Unreal based application?"* — then, on the two options:
+*"Yes, the option B looks very attractive."* · `2026-11-17`: *"we talked about Unreal Engine integration using option B, which is actually HROT engine running
+in parallel to Unreal Engine plugin, and they talk over DDS. Is that recorded somewhere?"* — recorded here.
+
+## The direction (option B)
+
+**Unreal runs next to a background HROT and joins its cluster as an IMAGE-GENERATOR node** — just another node on the bus:
+
+| part | how |
+|---|---|
+| process | the Unreal plugin starts `Hrot.ClusterRunner` (headless) as a background process, or connects to a cluster already running elsewhere |
+| data in | the plugin subscribes to HROT's DDS topics (positions and rotations, damage, effects, weather, …) through CycloneDDS's native C / C++ library — the protocol is already written up for outsiders (`NED_DDS_Protocol.md`) |
+| same machine | ✅ **local sockets** (🔒 user, `2026-11-17`: *"no shared memory support, we will use local sockets"*) |
+| control | the existing HTTP debug API (load, play, pause, possess) or the command topics |
+| what HROT changes | nothing — the IG role exists; Unreal only subscribes and draws |
+
+**Why B, not A** (A = the .NET runtime hosted INSIDE the Unreal process via `nethost` / `hostfxr`, the way the Stride host composes a node in-process):
+B keeps two processes (a crash in one does not kill the other; each debugs normally), changes nothing in HROT, fits the cluster design, and the same client
+can later point at a remote cluster or join a multiplayer session. ⇒ A only for a specific need: one executable to ship, the lowest possible latency for a
+first-person player, or game code that must call the simulation synchronously (and even then HROT steps on its own threads, Unreal reads snapshots).
+
+## The user's direction, `2026-11-17`
+
+🔒 *"unreal should play the same role as the 3d map, including the gizmos and FPS player inputs"* · *"how to import terrains is the right question,
+likely the one to be solved first as everything depends on that. I need to use the nice unreal renderer and its capability to render nice terrain. Out
+terrains are minimalistic but unreal can render them in nice way. We could import our terrain to unreal to make it nicer, or vice versa."* ·
+*"maybe we can author terrain in unreal is a way compatible with our terrain?"*
+
+⇒ the Unreal client is a full **3-D map station**: it draws the world, the gizmos (selection, routes, areas, labels, the NATO symbols) and takes the
+FPS player's input — the role the 3-D map has in HROT today. ⇒ **the terrain comes first.**
+
+## What a HROT terrain IS *(measured `2026-11-17`)*
+
+| layer | today | file |
+|---|---|---|
+| ground | a HEIGHT GRID — small terrains an ASCII grid (10–100 m cells, e.g. `basic-desert` 61 × 61 at 10 m); the large imported ones a TILED store (256 × 256 posts, 1 m, 16-bit) from a GeoTIFF DEM | `*.height.asc`, `DESIGN_Terrain_Import_UTM.md` §2 |
+| the semantic world | ONE GeoJSON: `building` (footprint + height; interiors designed), `wall` (a line + a material: hedge, wood fence, steel plate, …), `surface` (an area of class `open` / `forest` / `water`), `prism`, `ramp`, `slab`, lone trees | `*.world.geojson` (`city-battle`: 472 buildings, 194 walls, 146 surfaces) |
+| roads | the SUMO network (lanes with their geometry) + `roads.json` | `roads.json`, the `.net.xml` |
+| geo | an origin (lat / lon) or a UTM frame | `terrain.json` |
+| changes at run time | breaches, craters, felled trees, collapsed buildings, bulldozer cuts — replicated (Dynamic Terrain, §2b of CAPABILITIES) | the terrain feature topics |
+
+⇒ our terrain is **minimal geometry + rich MEANING** (what each area and line IS). That is exactly what a renderer needs to DRESS it procedurally.
+
+## How Unreal makes it look far better — dressing the MEANING, not replacing the ground
+
+| what | Unreal feature | driven by our data |
+|---|---|---|
+| the ground surface | a **Landscape** from our height samples (World Partition for the large terrains); an **auto-material** blending grass / dirt / rock / sand by slope, height and noise, with **Runtime Virtual Texturing** so roads and objects blend into the ground; fine **displacement** (Nanite tessellation) for close-up relief — cosmetic only, within a few cm | the height grid + the `surface` classes as landscape layer weights |
+| forests, grass, rocks, hedges | the **PCG framework** (procedural content generation) scatters trees in `forest` polygons, grass and small stones on `open`, hedges along `hedge` walls, reeds at water edges; **Nanite foliage**; free photogrammetry assets (**Fab / Megascans**) | the `surface` and `wall` features; lone trees placed EXACTLY |
+| buildings | **procedural facades** on our footprints and heights (PCG shape grammar / modular kits: walls, windows, roofs, doors where our doors are); damaged variants for breaches | `building` footprints, heights, doors, interiors |
+| roads | road meshes and markings along the SUMO lanes (landscape splines or PCG along a spline), kerbs, sidewalks | the SUMO network's lane geometry |
+| water | the **Water** plugin (lakes, rivers, shores with foam) | `surface: water` + OSM waterways |
+| sky, light, weather | **Lumen** global illumination and reflections, **Sky Atmosphere**, **Volumetric Clouds**, height fog, rain / snow particles, the sun from the date and lat / lon | our replicated weather and time of day (`WeatherConditions`, the solar position) |
+| effects | **Niagara** explosions, smoke, fire, dust, muzzle flashes; **decals** and mesh patches for craters and scorch; **Chaos** fracture for a breaching wall | our effect and terrain-change messages |
+| beyond the map edge | **Cesium for Unreal**: real-world terrain and imagery around the play area, georeferenced by our origin — a horizon instead of the world's end (aircraft already fly beyond the map, RS-2a) | the terrain's geo origin |
+| people and vehicles (later) | MetaHumans, motion matching driven by our pose and gait | the replicated pose, stance, animation state |
+
+## ⭐ The one rule — what may differ between HROT and Unreal
+
+| must be IDENTICAL (it changes the simulation) | may be Unreal-ONLY (cosmetic) |
+|---|---|
+| ground height (a man and a tank stand on the same ground; line of sight is HROT's) · every building's footprint, height, doors and windows · walls and their materials · forest outlines and lone trees · water · roads | ground texture and micro-relief (≤ a few cm) · grass, flowers, small stones, leaves · facade detail, signs, clutter that blocks nothing · lighting, sky, post-processing |
+
+## The direction — ⭐ the terrain PACKAGE is the contract, written and read by both sides *(lean, not decided)*
+
+| option | what | lean |
+|---|---|---|
+| **A** HROT → Unreal | an exporter turns the terrain package into an Unreal level: the landscape from the heights, the semantic features as data the plugin's PCG graphs dress | ⭐ FIRST — every existing and OSM-imported terrain becomes beautiful with no hand work; one-way, simple |
+| **B** Unreal → HROT (the user's idea) | the terrain is AUTHORED in Unreal — sculpt the landscape, place TAGGED actors (a `HrotBuilding` with its footprint and height, `HrotWall` splines with a material, `HrotSurface` volumes: forest / water / open, road splines) — and an exporter WRITES the same package (heights → our tiles; tagged actors → the GeoJSON; roads → a SUMO network) | ⭐ SECOND — feasible because the package's vocabulary is small; the Unreal-only dressing stays in the level, untagged, never exported |
+| round trip | A and B are one MAPPING TABLE used both ways; the package is versioned by content hash (terrain versions, AQ112), so a terrain edited in Unreal is a new version every node loads | — |
+| ⛔ rejected | Unreal-native data as the truth (HROT reading `.umap` / landscape assets) — HROT would depend on an Unreal installation, and the OSM pipeline and the editor's terrain tools would lose their output format | — |
+
+## Open — to measure before a design (updated)
+
+| # | question |
+|---|---|
+| U-2 | the minimal entity snapshot (pose, type, damage, person pose, effects) — which topics and rates |
+| U-3 | type → Unreal asset (the DIS type / TKB class chain — the same key the 3-D map's families use) |
+| U-4 | the FPS player's input from Unreal back to HROT (`ManualDrive`, station commands) and its latency |
+| U-5 | the terrain export (option A): landscape sizes (Unreal needs particular vertex counts per component — pad or resample our posts), 1 m posts for the large terrains, the world-partition grid, the UTM / lat-lon frame |
+| U-6 | ⭐ **the gizmos in Unreal**: HROT draws them with its own projectors (ImGui / raylib); lean — stream the projectors' PRIMITIVE draw lists (lines, rings, labels, icons in world space) to the client so ONE gizmo implementation serves both maps, rather than re-implementing each gizmo in Unreal |
+| U-7 | dynamic terrain in Unreal: a breach, a crater, a felled tree, a collapsed building — which become mesh swaps, decals or a landscape patch |
+| U-8 | option B's tagged-actor vocabulary and the exporter (an Unreal editor plugin) |
+
+## Where the terrain starts — OSM straight into Unreal, or OSM into HROT then amended in Unreal? *(`2026-11-17`; lean, not decided)*
+
+🔒 User: *"or we import from open street maps directly to unreal using some existing importer that does it nice? or we import to our terrain and ammend
+it in unreal?"*
+
+**Existing OSM → Unreal importers** (web search `2026-11-17`; vendor claims, not verified): **City Generator** and **Road Generator (OSM to Unreal)** on Fab
+— roads on landscape splines, buildings and driveways from OSM through PCG graphs (a 4 × 4 km Miami recreation is shown); **Landscape Combinator** — real
+DEM landscapes, OSM ways as splines, buildings from OSM; **TopoFetch** — elevation, satellite texture, buildings and roads, UE 5.8+; the old
+**StreetMap** plugin (UE4, flat — no heights); **Cesium for Unreal** — streamed OSM buildings or Google photorealistic tiles, georeferenced, with only
+approximate collision. ⚠ DEM support and what each exposes as data is unconfirmed.
+
+| option | what | ⭐ verdict |
+|---|---|---|
+| **1** OSM → Unreal directly (one of the importers) | the nicest look fastest | ⛔ as the SOURCE: it is a SECOND interpretation of the same OSM — its building heights, road geometry and ground resampling will not match HROT's, and HROT needs its own data anyway (SUMO's network for traffic, the navmesh, line of sight, breaching). Two importers of one source drift ("one implementation per concept") — and the simulation and the picture would disagree on where a wall is |
+| **2** OSM → **HROT** (our pipeline, built: DEM heights, buildings, walls, surfaces, the SUMO network by `netconvert`) → export to Unreal → **amend in Unreal** → the sim-relevant amendments exported back (tagged actors, option B above) | one interpretation of OSM; the simulation and the picture agree by construction; Unreal adds the beauty and the hand edits | ⭐ **the lean** |
+| **2 + 1's generators** | in step "export to Unreal", feed the importers' PCG building / road generators OUR footprints, heights and lanes instead of raw OSM — their nice facades and road meshes on our geometry | ⭐ worth measuring (U-9): do their PCG graphs accept generic polygons / splines as input? |
+| Cesium | the real world BEYOND the play area (a horizon), never inside it | ✅ as a backdrop |
+
+| # | open |
+|---|---|
+| ~~U-9~~ | ✅ answered below: Landscape Combinator yes (GeoTIFF + GDAL vectors), City / Road Generator only through splines, TopoFetch no |
+| U-10 | what an Unreal amendment may change and still export (a moved building, a new wall, a sculpted ditch) — the tag vocabulary of option B |
+
+### U-9 answered from the documentation *(`2026-11-17`; three web readers — vendor docs, not tried in Unreal)*
+
+| plugin | price · licence | takes OUR data? | fit |
+|---|---|---|---|
+| **Landscape Combinator** (open source, GitHub; UE 5.8, Windows + Linux) | free for personal use from GitHub; ⚠ commercial = its paid Fab listing (the LICENSE file not read) | ✅ **heightmap**: a local **GeoTIFF**, georeferenced (CRS default EPSG:4326), or a folder of `_x0_y0` tiles; Z scale 1 = real size · ✅ **vectors**: "any vector file supported by GDAL (e.g., Shapefile, GeoJSON, KML)" · ✅ **buildings** from closed footprint SPLINES, height from a `height` tag / floors from `building_levels` (⚠ whether a local file's attributes reach those tags is not stated) · ✅ **roads** from spline components | ⭐ **the best fit** — our height tiles as GeoTIFF, our `*.world.geojson` (⚠ local metres today: needs our geo frame written into it, or "Skip Coordinate Conversion"), our lanes as splines |
+| **City Generator** ($99.99) / **Road Generator** ($39.99), Fab | licence text blank on both listings | ⛔ not documented: OSM import or splines drawn by hand; building height one parameter stepped by floor; roads are landscape splines; no GeoJSON / CSV / heightmap input | ⚠ usable only through a script of ours that creates their splines from our data — their docs do not promise it |
+| **TopoFetch** ($49.99, commercial licence) | — | ⛔ downloads everything itself (OpenTopography, OSM, imagery); no own-file input | ⛔ out |
+| Epic's PCG / Georeferencing / landscape import | free with Unreal | ⚠ not verified — the docs pages did not render for the reader | to check in an installed Unreal (`Engine/Plugins`) |
+
+⇒ **lean for option A's first step**: export our terrain as a **GeoTIFF heightmap + GeoJSON vectors with our geo frame**, and let **Landscape Combinator** build the landscape, buildings and road splines in Unreal; dress the rest with Epic's PCG. ⚠ The first concrete test (on the Windows machine with Unreal): one of our terrains through Landscape Combinator — do the heights line up to the centimetre, and do our building heights reach its tags?
+
+Sources: [StreetMap](https://github.com/MikeFricker/StreetMap) · [OSM importer forum](https://forums.unrealengine.com/t/plugin-openstreetmap-importer/81775) ·
+[Landscape Combinator](https://forums.unrealengine.com/t/plugin-landscape-combinator-a-plugin-to-create-real-world-landscapes-free-for-personal-use/772305) ·
+[Road Generator (OSM to Unreal), Fab](https://www.fab.com/listings/f205fd21-1428-4a4b-b067-a46d1a2fe86f) · [City Generator thread](https://forums.unrealengine.com/t/yazan-hanna-city-generator/2719107) ·
+[Miami City Environment](https://forums.unrealengine.com/t/miami-city-environment/2856143) · [Cesium photorealistic tiles](https://cesium.com/learn/unreal/unreal-photorealistic-3d-tiles/) ·
+[Cesium collision](https://community.cesium.com/t/enabling-collision-sun-shadows/27862) · [Landscape Combinator docs](https://landscapecombinator.github.io/LandscapeCombinator/) · [its GitHub](https://github.com/LandscapeCombinator/LandscapeCombinator) · [City Generator, Fab](https://www.fab.com/listings/657d0a1d-dd2f-4016-a3df-821560216c78) · [TopoFetch docs](https://topofetch.com/docs)
+
+## ⛔ HISTORY — the first open list
+
+| # | question |
+|---|---|
+| ~~U-1~~ | ✅ answered: no shared memory — local sockets |
+| U-2 | the minimal entity snapshot an Unreal client needs (pose, type → its Unreal asset, damage state, pose of a person, effects) — which topics, which rates |
+| U-3 | the type → Unreal asset mapping: the DIS type / the TKB class chain (the same key the 3-D map's families use) |
+| U-4 | the possessed player: input from Unreal back to HROT (the existing `ManualDrive` / station commands) and the latency it adds |
+| U-5 | the terrain: the same height field and buildings as HROT (the terrain package export) so a body stands on the same ground on both sides |
+
+⛔ Not approved as a build; a design comes when the user asks for one.

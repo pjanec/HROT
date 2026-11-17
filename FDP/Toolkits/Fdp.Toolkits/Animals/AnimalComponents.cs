@@ -8,6 +8,10 @@ namespace Fdp.Toolkit.Animals
     public enum AnimalSpecies : byte
     {
         Cattle = 0, Sheep = 1, HorseHerd = 2, HorseRiding = 3, HorseWar = 4, Dog = 5, Cat = 6, BirdFlock = 7, Bird = 8, Hen = 9, Pig = 10, Goat = 11,
+        /// <summary>⭐ CE-4649 part C ④ (AN-20c) — the duck (TKB 713) and its flock (714): species values 12, 13 (the TKB order past the area, 712).</summary>
+        Duck = 12, DuckFlock = 13,
+        /// <summary>⭐ CE-4649 part D (AN-21a, AN-21f) — the rabbit (TKB 715) and the hunting dog (716): species values 14, 15.</summary>
+        Rabbit = 14, HuntingDog = 15,
     }
 
     /// <summary>⭐ <c>CE-4623</c> §6.1 — what an animal is doing, as the presentation needs it (pose, gait, the alarm look).</summary>
@@ -25,6 +29,8 @@ namespace Fdp.Toolkit.Animals
         Rest = 4,
         /// <summary>A guard dog barking or attacking an intruder.</summary>
         Guard = 5,
+        /// <summary>⭐ CE-4649 part D (AN-21b) — frozen and crouched (the rabbit): still, low; its stance (<c>StanceIntent</c>) is Crouched.</summary>
+        Crouch = 6,
     }
 
     /// <summary>⭐ <c>CE-4623</c> — flags on <see cref="AnimalState"/>.</summary>
@@ -60,6 +66,8 @@ namespace Fdp.Toolkit.Animals
         public SimInstant NextZoneLookAt;
         /// <summary>⭐ AB-5 — a TERRITORIAL animal's intruder: the nearest person on its ground (the guard dog's bark and bite), Null = none.</summary>
         public Entity Intruder;
+        /// <summary>⭐ CE-4649 part D (AN-21f) — a HUNTING DOG's handler (the nearest hunter) and quarry (the nearest game animal in flight): written by the fear system's serial step, read by the dog's brain. Null = none.</summary>
+        public Entity Handler, Quarry;
         /// <summary>⭐ AB-5 — a ridden horse bolts until this sim time (0 = not bolting).</summary>
         public SimInstant BoltUntil;
         /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>

@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "demo-city",
-    "description": "What: On demo-city, with SUMO background traffic (600 cars, seed 1), four APCs ('Escort 1'..'Escort 4') drive south down the three-lane avenue (e_axis_n_drop_d_3_6, x 145.2) as a road convoy: 'Escort 1' handed to SUMO (ConvoyOrder, Mode Traffic, 9 m/s), the others on its path — to (215, 1240), 70 m east of the avenue, OFF the SUMO network. The lead leaves SUMO where the network ends nearest the destination (mode 1 → 2) and drives the off-road leg on our own route; the column follows it off the road. Judge: (1) the lead runs PlatformConvoy and is handed to SUMO; (2) it leaves SUMO; (3) it reaches the off-road destination; (4) the column never splits; (5) the tail ends near it. Check: scripts/scenario-regression.sh cv-mode-1-to-2"
+    "description": "What: On demo-city, with SUMO background traffic (600 cars, seed 1), four APCs ('Escort 1'..'Escort 4') drive south down the avenue inside the terrain world (e_d_3_6_d_3_5 → e_d_3_5_d_3_4, x 145.2; the world is [0, 800]², where our own planner works) as a road convoy: 'Escort 1' handed to SUMO (ConvoyOrder, Mode Traffic, 9 m/s), the others on its path — to (220, 525), 62 m east of the road (nearest the NORTHBOUND carriageway), OFF the SUMO network. The lead leaves SUMO where the network ends nearest the destination (mode 1 → 2) and drives the off-road leg on our own route; the column follows it off the road. Judge: (1) the lead runs PlatformConvoy and is handed to SUMO; (2) it leaves SUMO; (3) it reaches the off-road destination; (4) the column never splits; (5) the tail ends near it. Check: scripts/scenario-regression.sh cv-mode-1-to-2"
   },
   "entities": {
     "c0900000-0000-4000-8000-000000000051": {
       "SimTransform": {
         "Position": [
           145.2,
-          1500,
+          740,
           0
         ],
         "Rotation": [
@@ -35,8 +35,8 @@
         "Name": "PlatformConvoy",
         "Params": {
           "Destination": [
-            215,
-            1240,
+            220,
+            525,
             0
           ],
           "Rank": 0,
@@ -51,7 +51,7 @@
       "SimTransform": {
         "Position": [
           145.2,
-          1515,
+          755,
           0
         ],
         "Rotation": [
@@ -72,8 +72,8 @@
         "Name": "PlatformConvoy",
         "Params": {
           "Destination": [
-            215,
-            1240,
+            220,
+            525,
             0
           ],
           "Rank": 1,
@@ -89,7 +89,7 @@
       "SimTransform": {
         "Position": [
           145.2,
-          1530,
+          770,
           0
         ],
         "Rotation": [
@@ -110,8 +110,8 @@
         "Name": "PlatformConvoy",
         "Params": {
           "Destination": [
-            215,
-            1240,
+            220,
+            525,
             0
           ],
           "Rank": 2,
@@ -127,7 +127,7 @@
       "SimTransform": {
         "Position": [
           145.2,
-          1545,
+          785,
           0
         ],
         "Rotation": [
@@ -148,8 +148,8 @@
         "Name": "PlatformConvoy",
         "Params": {
           "Destination": [
-            215,
-            1240,
+            220,
+            525,
             0
           ],
           "Rank": 3,

@@ -14,6 +14,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
     public sealed class HeldManGizmo : IStatelessGizmo
     {
         public const float RingPx = 4f;
+        /// <summary>⭐ <c>CE-8307</c> (review F10) — a held UNIT child (a platoon's squad before the handover) is drawn as a unit: a wider double ring.</summary>
+        public const float UnitRingPx = 10f;
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
@@ -21,8 +23,12 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (child.Held == 0) return;
             var side = !child.Unit.IsNull && view.IsAlive(child.Unit) && view.HasComponent<EntityInfo>(child.Unit) ? view.GetComponentRO<EntityInfo>(child.Unit).ForceId : ForceId.Neutral;
             var p = view.GetComponentRO<SimTransform>(entity).Position;
-            draw.DrawSphere(p, RingPx, SidePalette.Of(side), 1.5f, SizeMode.ScreenPixels, PipelineTarget.Map2D | PipelineTarget.FlatOnly,
+            bool unit = view.HasComponent<AggregateUnit>(entity);   // ⭐ CE-8307 — a held squad, not a held man
+            draw.DrawSphere(p, unit ? UnitRingPx : RingPx, SidePalette.Of(side), 1.5f, SizeMode.ScreenPixels, PipelineTarget.Map2D | PipelineTarget.FlatOnly,
                 DebugTraceLayers.UnitCards, default, LineStyle.Dashed);
+            if (unit)
+                draw.DrawSphere(p, UnitRingPx - 3f, SidePalette.Of(side), 1.5f, SizeMode.ScreenPixels, PipelineTarget.Map2D | PipelineTarget.FlatOnly,
+                    DebugTraceLayers.UnitCards, default, LineStyle.Dashed);
         }
     }
 }

@@ -130,6 +130,14 @@ namespace Fdp.Toolkit.Navigation
         /// <summary>The mask of <see cref="FlagShiftRoadUse"/>'s three bits.</summary>
         public const byte FlagMaskRoadUse = 0b1110_0000;
 
+        /// <summary>
+        /// ⭐ AQ93 / CE-9020 — how far short of its destination a move handed to the civilian traffic may end and still have ARRIVED. 📐 SUMO
+        /// ends a shadow up to one step short of the destination (≤ 7 m at 14 m/s, Dt 0.5) and the mirror resolves one step behind the clock
+        /// (another ≤ 7 m): measured ~14 m short (2026-10-17, demo-city); 25 keeps the margin. The ONE value for the shadow's mover
+        /// (<c>TrafficShadowFollowSystem</c>) and the move's executor (<c>MoveToExecutor</c>, which drives on from a traffic leg that ended farther).
+        /// </summary>
+        public const float TrafficArrivalSlackMetres = 25f;
+
         /// <summary>The <see cref="RoadUse"/> packed in <paramref name="flags"/>.</summary>
         public static RoadUse RoadUseOf(byte flags) => (RoadUse)((flags & FlagMaskRoadUse) >> FlagShiftRoadUse);
 

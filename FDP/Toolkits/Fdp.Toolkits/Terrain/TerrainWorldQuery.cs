@@ -53,6 +53,8 @@ namespace Fdp.Toolkit.Terrain
 
         public float GroundHeightAt(float x, float y) => World.GroundHeightAt(x, y, Doors);   // ⭐ CE-1034 H1 — the height grid, else the flat ground; ⭐ CE-4591 (D-1) — with the view's craters
 
+        public float WoodDensityAt(float x, float y) => World.Woods?.DensityAt(x, y) ?? 0f;   // ⭐ CE-4649 part D
+
         public float SurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.SurfaceZ(x, y, zHint));
         public float HullSurfaceZ(float x, float y, float zHint) => Cratered(x, y, World.HullSurfaceZ(x, y, zHint));   // ⭐ CE-4598 (D-4)
 

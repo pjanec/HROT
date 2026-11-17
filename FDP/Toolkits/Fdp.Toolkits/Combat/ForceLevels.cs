@@ -90,8 +90,9 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool IsOrdered(EntityRepository world, Entity unit, Entity target)
         {
-            if (unit.IsNull || target.IsNull || !world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(unit)) return false;
-            if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, target) && Fdp.Toolkit.Animals.Animals.MayEngage(world, unit, target)) return true;
+            if (unit.IsNull || target.IsNull) return false;
+            if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, target) && Fdp.Toolkit.Animals.Animals.MayEngage(world, unit, target)) return true;   // ⭐ CE-4649 part D (AN-21g) — the standing hunting rule
+            if (!world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(unit)) return false;
             var origin = world.GetComponentRO<BehaviorState>(unit).Origin;
             if (origin != BehaviorOrigin.Operator && origin != BehaviorOrigin.Superior) return false;
             return DesignatedTarget.Of(world, unit, out var designated) && designated == target;

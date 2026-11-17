@@ -431,6 +431,46 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.False(ForceLevels.IsOrdered(_world.Repo, own, bird));                         // on his own: no
         }
 
+        /// <summary>⭐⭐ <c>CE-4649</c> PART D (AN-21g) — the HUNTER's STANDING rule (<c>HuntingRulesDto</c>): a unit whose TYPE lists a species may engage animals of exactly those species on its own — it reads them as a CONTACT, as danger 1, not a
+        /// neutral, conduct and neutral holds lifted — while an animal of another species, a DOG, and every PERSON stay held; a unit with no rule engages none. ✅ Red-proof: <c>MayEngage</c> returning true for any animal ⇒ the dog / duck rows go red.</summary>
+        [Fact]
+        public void CE4649_TheHuntersStandingRule_NamesSpecies_NeverADogNeverAPerson()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            if (!_world.Repo.IsComponentTypeRegistered<BehaviorState>()) _world.Repo.RegisterComponent<BehaviorState>();
+            var hunterT = Typed("Hunter", 9301, new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo });
+            hunterT.AddDescriptor(new HuntingRulesDto { Species = new System.Collections.Generic.List<byte> { (byte)Fdp.Toolkit.Animals.AnimalSpecies.Rabbit } });
+            _world.UseTkb(hunterT, Typed("Soldier", RiflemanType, new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo }));
+            var hunter = Man(9301, Vector3.Zero, ForceId.Friend);
+            var soldier = Observer();
+            Entity Animal(Fdp.Toolkit.Animals.AnimalSpecies sp)
+            {
+                var a = _world.Repo.CreateEntity();
+                _world.Repo.AddComponent(a, new SimTransform { Position = new Vector3(30f, 0f, 0f), Rotation = Quaternion.Identity });
+                _world.Repo.AddComponent(a, new EntityInfo { ForceId = ForceId.Neutral });
+                _world.Repo.AddComponent(a, new Health { Current = 3, Max = 3 });
+                _world.Repo.AddComponent(a, new Fdp.Toolkit.Animals.AnimalState { Species = sp });
+                return a;
+            }
+            var rabbit = Animal(Fdp.Toolkit.Animals.AnimalSpecies.Rabbit); var dog = Animal(Fdp.Toolkit.Animals.AnimalSpecies.HuntingDog); var duck = Animal(Fdp.Toolkit.Animals.AnimalSpecies.Duck);
+            var civ = Man(PistolCivType, new Vector3(30f, 5f, 0f), ForceId.Hostile, civilian: true);
+            Assert.True(Fdp.Toolkit.Animals.Animals.MayEngage(_world.Repo, hunter, rabbit));
+            Assert.False(Fdp.Toolkit.Animals.Animals.MayEngage(_world.Repo, hunter, dog));    // a dog: never
+            Assert.False(Fdp.Toolkit.Animals.Animals.MayEngage(_world.Repo, hunter, duck));   // not listed
+            Assert.False(Fdp.Toolkit.Animals.Animals.MayEngage(_world.Repo, hunter, civ));    // a person: never
+            Assert.False(Fdp.Toolkit.Animals.Animals.MayEngage(_world.Repo, soldier, rabbit)); // no rule
+            Assert.False(ThreatDanger.IsNeutralFor(_world.Repo, hunter, rabbit));
+            Assert.True(ThreatDanger.IsNeutralFor(_world.Repo, hunter, dog));
+            Assert.True(ThreatDanger.IsNeutralFor(_world.Repo, soldier, rabbit));
+            Assert.Equal(1f, ThreatDanger.Of(_world.Repo, hunter, rabbit));
+            Assert.Equal(0f, ThreatDanger.Of(_world.Repo, hunter, dog));
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, hunter, rabbit, lethal: true));
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, hunter, civ, lethal: true) == false);
+            Assert.False(Fdp.Toolkit.Animals.Animals.NotAContact(_world.Repo, rabbit, hunter));   // game enters the hunter's memory
+            Assert.True(Fdp.Toolkit.Animals.Animals.NotAContact(_world.Repo, rabbit, soldier));   // …and nobody else's
+        }
+
         private static readonly DISEntityType PoliceDis = new() { Kind = 3, Domain = 1, Category = Armament.SecurityForceCategory };
 
         private Entity Police(Vector3 at)

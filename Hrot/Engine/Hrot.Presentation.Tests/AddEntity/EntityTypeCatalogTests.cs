@@ -625,6 +625,7 @@ public sealed class EntityTypeCatalogTests
         211 Marksman (SVD) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         212 Rifleman (anti-drone shotgun) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         213 Rifleman (anti-drone shotgun, red) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
+        214 Hunter (12-gauge) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit

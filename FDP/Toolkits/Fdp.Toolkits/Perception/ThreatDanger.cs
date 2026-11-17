@@ -26,7 +26,8 @@ namespace Fdp.Toolkit.Perception
             if (IsOutOfTheFight(view, target)) return 0f;
             // ⭐ CE-2233 (CIV-0; DESIGN_Civilians_And_Crowd_Control CV-8, R-3013) — a NEUTRAL is no danger: a civilian is not a threat
             //   until a visible hostile act flips its side (CV-4). Here, once, for every threat reader — like the dead above.
-            if (IsNeutral(view, target)) return 0f;
+            if (IsNeutralFor(view, self, target)) return 0f;   // ⭐ CE-4649 part D — game for a hunter is a target, not a neutral
+            if (Fdp.Toolkit.Animals.Animals.MayEngage(view, self, target)) return 1f;   // ⭐ CE-4649 part D (AN-21g) — game is a full target to the hunter whose rule names it (it carries no armament to judge)
             // ⭐ CV-13a (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a man showing HANDS UP is held like a neutral, whatever his
             //   side: no danger while his hands are up, the full danger the moment they come down (a feint is read live). Not disarmed (AW-5).
             if (ShowsHandsUp(view, target)) return 0f;
@@ -61,6 +62,10 @@ namespace Fdp.Toolkit.Perception
 
         /// <remarks>⭐ <c>CE-4623</c> AB-5 (AR-6) — an animal ATTACKING right now (<see cref="Fdp.Toolkit.Animals.AnimalFlags.Dangerous"/>, the
         /// guard dog's bite) is not held as a neutral: it may be fired at (self-defence, <c>ForceLevels.SelfDefence</c>). It never changes side.</remarks>
+        /// <summary>⭐ <c>CE-4649</c> part D (AN-21g) — <see cref="IsNeutral"/> as <paramref name="observer"/> reads it: an animal of a species the observer's standing hunting rule names is GAME, not a neutral (a person never is).</summary>
+        public static bool IsNeutralFor(ISimulationView view, Entity observer, Entity target)
+            => IsNeutral(view, target) && !Fdp.Toolkit.Animals.Animals.MayEngage(view, observer, target);
+
         public static bool IsNeutral(ISimulationView view, Entity target)
             => !target.IsNull && view.IsAlive(target) && view.HasComponent<EntityInfo>(target)
                && view.GetComponentRO<EntityInfo>(target).ForceId == ForceId.Neutral

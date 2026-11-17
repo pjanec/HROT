@@ -277,14 +277,45 @@ namespace Hrot.AI.Behaviors.Brains
             p.VehicleOrder[slot] = want;
             if (want == ConvoyPlan.VehicleRoute)
             {
-                var order = JsonSerializer.Serialize(new FollowRouteParamsJsonDto { RouteEntityId = new EntityRef(p.RouteNet), Speed = p.Speed }, json);
-                if (CommandOrders.StillRunning(world, self, v, BehaviorNames.FollowRoute, order)) return;
-                CommandOrders.Assign(world, self, v, BehaviorNames.FollowRoute, order, newOrder: true);
+                // ⭐ CE-9012 (R-9008) — the vehicles drive the route as ONE road column: the first that can move leads it (PlatformConvoy, Mode Route),
+                //   the rest follow on its path at their rank — never split (⛔ before: each its own FollowRoute, the column strung out)
+                int rank = ColumnRank(ref p, slot, n, world, out var lead);
+                int leadNet = rank == 0 || !world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(lead) ? 0
+                    : world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(lead).Value;
+                var order = JsonSerializer.Serialize(new ConvoyOrder
+                {
+                    Destination = new PointLink(new WorldPoint(p.RouteEnd.X, p.RouteEnd.Y, p.RouteEnd.Z)),
+                    Lead = leadNet == 0 ? EntityLink.None : new EntityLink(new EntityRef(leadNet)),
+                    Rank = rank, Mode = CarKinem.Convoy.ConvoyMode.Route, Speed = p.Speed,
+                    Route = new EntityLink(new EntityRef(p.RouteNet)),
+                }, json);
+                if (CommandOrders.StillRunning(world, self, v, BehaviorNames.PlatformConvoy, order)) return;
+                CommandOrders.Assign(world, self, v, BehaviorNames.PlatformConvoy, order, newOrder: true);
             }
             else if (want == ConvoyPlan.VehicleFight)
                 CommandOrders.Assign(world, self, v, BehaviorNames.VehicleFightFromCover, "{}", newOrder: true);
             else CommandOrders.Order(world, self, v, "Hold", "{}", newOrder: true);
             ws.Orders++;
+        }
+
+        /// <summary>⭐ CE-9012 — the slot's vehicle's place in the road column: its rank among the DISTINCT vehicles that can move, in roster order
+        /// (0 = the lead); <paramref name="lead"/> the first of them.</summary>
+        public static unsafe int ColumnRank(ref ConvoyPlan p, int slot, int n, EntityRepository world, out Entity lead)
+        {
+            lead = Entity.Null;
+            int rank = 0;
+            for (int o = 0; o < n && o <= slot; o++)
+            {
+                var v = p.VehicleOf(o);
+                if (v.IsNull || !ConvoyConditions.CanMove(world, v)) continue;
+                bool shared = false;
+                for (int q = 0; q < o; q++) if (p.Vehicle[q] == p.Vehicle[o]) { shared = true; break; }
+                if (shared) continue;
+                if (lead.IsNull) lead = v;
+                if (o == slot) break;
+                rank++;
+            }
+            return rank;
         }
 
         /// <summary>A squad riding <paramref name="v"/> has a man out of it.</summary>
@@ -410,7 +441,12 @@ namespace Hrot.AI.Behaviors.Brains
                     && Flat(StaffComposerSystem.CentreOf(world, squad), p.RouteEnd) > FootArrivalMetres) return false;
                 var v = p.VehicleOf(s);   // ⭐ CE-2354 — every vehicle that can move, whoever rides it
                 if (v.IsNull || !ConvoyConditions.CanMove(world, v)) continue;
-                if (!world.HasComponent<SimTransform>(v) || Flat(world.GetComponentRO<SimTransform>(v).Position, p.RouteEnd) > ArrivalMetres) return false;
+                // ⭐ CE-9012 — a column halts with each vehicle a rank behind the lead on the route: arrived within ArrivalMetres + rank × the gap
+                bool sharedV = false;
+                for (int q = 0; q < s; q++) if (p.Vehicle[q] == p.Vehicle[s]) { sharedV = true; break; }
+                if (sharedV) continue;
+                float reach = ArrivalMetres + ColumnRank(ref p, s, n, world, out _) * CarKinem.Systems.ConvoyLeadSystem.DefaultGap;
+                if (!world.HasComponent<SimTransform>(v) || Flat(world.GetComponentRO<SimTransform>(v).Position, p.RouteEnd) > reach) return false;
             }
             return true;
         }

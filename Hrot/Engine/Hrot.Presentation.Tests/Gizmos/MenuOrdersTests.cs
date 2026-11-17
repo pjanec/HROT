@@ -387,8 +387,15 @@ public sealed class MenuOrdersTests : IDisposable
         _w.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
         _w.AddComponent(_unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
         var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
-        foreach (var want in new[] { "Resolution", "now: stochastic", "not pinned", "Make physical now", "Make fusion now", "Aggregate now", "already stochastic", "Pin - keep as it is", "Unpin (policy decides)" })
+        foreach (var want in new[] { "Resolution", "now: stochastic", "not pinned", "Make physical now", "Aggregate now", "already stochastic", "Pin - keep as it is", "Unpin (policy decides)" })
             Assert.Contains(want, menu);
+        // ⛔ R-8008 — the FusionSquad is shown nowhere: no "Make fusion" row, and a unit that IS Fusion (recorded) reads as stochastic
+        Assert.DoesNotContain("usion", menu, StringComparison.OrdinalIgnoreCase);
+        _w.SetComponent(_unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Fusion, Echelon = 1 });
+        var fusionMenu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        Assert.DoesNotContain("usion", fusionMenu, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("now: stochastic", fusionMenu);
+        _w.SetComponent(_unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
         // the clicked unit has a network identity ⇒ the write is REQUESTED from its owner (the one edit path): the command carries the pin
         Click(mi, GlobalActionIds.ResolutionPhysical);
         _w.Bus.SwapBuffers();

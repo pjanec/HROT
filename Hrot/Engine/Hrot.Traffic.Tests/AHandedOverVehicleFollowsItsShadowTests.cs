@@ -59,6 +59,110 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.Equal(0f, world.GetComponent<VehicleState>(e).Speed);
     }
 
+    /// <summary>⭐ <c>CE-9020</c> ③ — a hand-over SUMO will not take (no shadow ever comes) holds only <see cref="TrafficShadowFollowSystem.RefusedHoldSeconds"/>:
+    /// then the traffic leg ends where the body stands (arrived — the move's executor drives on itself). 🔴 Red-proof: no time-out ⇒ it holds for ever
+    /// (CE-9020, measured on <c>cv-mode-1-to-2</c>) ⇒ red.</summary>
+    [Fact]
+    public void CE9020_ARefusedHandover_HoldsOnlyUntilTheTimeOut()
+    {
+        using var world = World(out var e);
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0);
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0 + TrafficShadowFollowSystem.RefusedHoldSeconds - 0.1);
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.Traffic, world.GetComponent<NavState>(e).Mode);   // still waiting
+        Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);
+
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0 + TrafficShadowFollowSystem.RefusedHoldSeconds + 0.1);
+        follow.Execute(world, 0.05f);
+        var nav = world.GetComponent<NavState>(e);
+        Assert.Equal(KinematicsMode.None, nav.Mode);
+        Assert.Equal(1, nav.HasArrived);
+        Assert.Equal(0, nav.IsBlocked);
+        Assert.False(world.HasComponent<TrafficShadowFollow>(e));
+    }
+
+    /// <summary>⭐ <c>CE-9020</c> ② — the destination (400, 400) is 100 m off the only road (y = 300): the hand-over sent SUMO the nearest road
+    /// point (400, 300), and a shadow gone THERE is the traffic leg's arrival (the executor drives on); gone elsewhere it is still lost.
+    /// 🔴 Red-proof: the follow judging only the destination ⇒ "lost" at the road point ⇒ red.</summary>
+    [Theory]
+    [InlineData(395f, 300f, 1)]   // at the road point
+    [InlineData(150f, 300f, 0)]   // on the road, far from it
+    public void CE9020_TheShadowGoneAtTheRoadPoint_IsTheTrafficLegsArrival(float x, float y, byte arrived)
+    {
+        using var world = World(out var e);
+        world.RegisterManagedComponent<TrafficNetCache>();
+        var model = Sim.Ingest.NetworkParser.ParseXml(
+            "<net><location netOffset=\"0,0\" convBoundary=\"0,0,600,600\" projParameter=\"!\"/>"
+            + "<edge id=\"e\" from=\"a\" to=\"b\"><lane id=\"e_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"0,300 600,300\"/></edge></net>");
+        var place = SumoNetPlacement.For(model, new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null);
+        world.SetSingletonManaged(new TrafficNetCache("x.net.xml", "x.net.xml", model, "0", place));
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 400), out var road, out bool onNet));
+        Assert.False(onNet);
+        Assert.Equal(400f, road.X, 1); Assert.Equal(300f, road.Y, 1);
+
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, new[] { Shadow(x, y, 0f) }, now: 1.0);
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.5);
+        follow.Execute(world, 0.05f);
+
+        Assert.Equal(KinematicsMode.None, world.GetComponent<NavState>(e).Mode);
+        Assert.Equal(arrived, world.GetComponent<NavState>(e).HasArrived);
+    }
+
+    /// <summary>⭐ <c>CE-9020</c> ① — a divided road: eastbound at y = 300, westbound at y = 320; the destination (400, 380) is nearest the
+    /// WESTBOUND carriageway. A vehicle coming from the west is sent to the EASTBOUND one (the way it approaches, within the direction margin);
+    /// with no approach, the nearest; a destination ON the net is sent as it is. 🔴 Red-proof: the nearest lane only ⇒ the opposite carriageway
+    /// (measured on <c>cv-mode-1-to-2</c>: SUMO drove on past the destination looking for a way round) ⇒ red.</summary>
+    [Fact]
+    public void CE9020_TheRoadPoint_IsOnTheCarriagewayTheVehicleApproachesOn()
+    {
+        var model = Sim.Ingest.NetworkParser.ParseXml(
+            "<net><location netOffset=\"0,0\" convBoundary=\"0,0,600,600\" projParameter=\"!\"/>"
+            + "<edge id=\"east\" from=\"a\" to=\"b\"><lane id=\"east_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"0,300 600,300\"/></edge>"
+            + "<edge id=\"west\" from=\"b\" to=\"a\"><lane id=\"west_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"600,320 0,320\"/></edge></net>");
+        var place = SumoNetPlacement.For(model, new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null);
+
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out var road, out bool onNet, from: new Vector2(50, 300)));
+        Assert.False(onNet);
+        Assert.Equal(300f, road.Y, 1);                                       // the eastbound carriageway it drives
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out road, out _, from: new Vector2(550, 320)));
+        Assert.Equal(320f, road.Y, 1);                                       // coming from the east: the westbound one
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 380), out road, out _));
+        Assert.Equal(320f, road.Y, 1);                                       // no approach: the nearest
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 305), out road, out onNet, from: new Vector2(550, 320)));
+        Assert.True(onNet);                                                  // on the net: as it is
+        Assert.Equal(new Vector2(400, 305), road);
+    }
+
+    /// <summary>⭐ <c>CE-9019</c> — a NEW Traffic intent replaces the shadow (the traffic node takes the old one back; the new one spawns a step later):
+    /// that gap is a HOLD for the new intent, never "the shadow is gone" — while the SAME intent's shadow gone is still taken back.
+    /// 🔴 Red-proof: the follow not keyed on the intent ⇒ mode None in the gap (📌 cv-blocked-road: every re-issue behind the breakdown lost its shadow).</summary>
+    [Fact]
+    public void CE9019_ANewIntentsShadowGap_IsAHold_NotALoss()
+    {
+        using var world = World(out var e);
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        world.AddComponent(e, new Fdp.Toolkit.Navigation.NavigationIntent { Mode = Fdp.Toolkit.Navigation.NavigationMode.Traffic, IntentId = 1 });
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, new[] { Shadow(100, 50, 0f) }, now: 1.0);
+        follow.Execute(world, 0.05f);
+
+        world.GetComponentRW<Fdp.Toolkit.Navigation.NavigationIntent>(e).IntentId = 2;          // asked again: a new shadow
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.5);
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.Traffic, world.GetComponent<NavState>(e).Mode);           // waiting for it
+        Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);
+
+        Frame(world, new[] { Shadow(101, 50, 0f) }, now: 2.0);                                 // the new shadow
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 2.5);                                 // and it is gone, same intent: taken back
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.None, world.GetComponent<NavState>(e).Mode);
+    }
+
     [Fact]
     public void G4_ABodyThisNodeDoesNotMove_IsLeftAlone()
     {

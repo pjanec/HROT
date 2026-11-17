@@ -257,7 +257,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if ((mem.Modalities[i] & (byte)SensorModality.Visual) == 0) continue;
                 if (mem.LastSeenTick[i] <= now && now - mem.LastSeenTick[i] > withinTicks) continue;
                 var e = new Entity((ulong)mem.EntityIds[i]);
-                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, self, e)) continue;
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !(KillZone.Hostile(world, self, e) || Fdp.Toolkit.Animals.Animals.MayEngage(world, self, e))) continue;   // ⭐ CE-4649 part D (AN-21g) — game is an enemy to the hunter whose rule names it
                 return true;
             }
             return false;

@@ -100,7 +100,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((0, 0), (p.OrdersTo(p.Alpha, BehaviorNames.SquadRecover), p.OrdersTo(p.Alpha, BehaviorNames.SquadEmbark)));
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(p.S.Repo, p.Bravo, ifv));
             p.Ticks(3);
-            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.FollowRoute), p.OrdersTo(ifv, BehaviorNames.FollowRoute)));   // carried on: Alpha not waited for
+            Assert.Equal((2, 2), (p.OrdersTo(apc, BehaviorNames.PlatformConvoy), p.OrdersTo(ifv, BehaviorNames.PlatformConvoy)));   // carried on: Alpha not waited for
 
             p.S.Repo.GetComponentRW<SimTransform>(apc).Position = new Vector3(0f, 375f, 0f);
             p.S.Repo.GetComponentRW<SimTransform>(ifv).Position = new Vector3(2f, 370f, 0f);

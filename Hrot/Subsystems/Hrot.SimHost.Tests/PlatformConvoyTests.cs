@@ -165,7 +165,7 @@ namespace Hrot.SimHost.Tests
         }
 
         [Fact]
-        public void AFollower_JoinsBehindItsLead_AndIsDoneWhenTheLeadArrives()
+        public void AFollower_JoinsBehindItsLead_TheArrivedColumnClosesUp_ThenTheFollowerIsDone()
         {
             var w = World();
             var lead = Vehicle(w, Vector3.Zero);
@@ -177,8 +177,17 @@ namespace Hrot.SimHost.Tests
             var m = w.GetComponentRO<FormationFollower>(f);
             Assert.Equal((lead, (ushort)2, (byte)1), (m.Leader, m.SlotIndex, m.IsInFormation));
 
+            void At(double t) => w.SetSingletonUnmanaged(new GlobalTime { TotalTime = t, DeltaTime = 0.05f, TimeScale = 1f });
+            At(50);
             w.GetComponentRW<SimTransform>(lead).Position = new Vector3(380, 0, 0);   // ⭐ CE-9018 — 20 m short, but its executor says it ARRIVED (a SUMO shadow ends ≤ 25 m short)
             w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Success;
+            // ⭐ CE-9022 — arrived, it HALTS but leads its column CloseUpSeconds longer, so the followers close up (🔴 red-proof: ending at once ⇒ red)
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            Assert.True(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));   // still in its slot, closing up
+            At(50 + PlatformConvoyBehavior.CloseUpSeconds - 0.5);
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            At(50 + PlatformConvoyBehavior.CloseUpSeconds + 0.1);
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
             Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));   // the column ended
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));

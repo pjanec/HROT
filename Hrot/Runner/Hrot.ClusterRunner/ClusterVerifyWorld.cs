@@ -90,11 +90,51 @@ internal sealed class ClusterVerifyWorld : IVerifyWorld, IShotWorld, IDisposable
         return comps;
     }
 
-    public JsonArray Shots() => Get("/combat/shots?last=100000")?["shots"] as JsonArray ?? new JsonArray();
+    public JsonArray Shots() => CombatRows("/combat/shots?last=100000", "shots");
 
-    public JsonArray Blasts() => Get("/combat/detonations?last=100000")?["detonations"] as JsonArray ?? new JsonArray();
+    public JsonArray Blasts() => CombatRows("/combat/detonations?last=100000", "detonations");
+
+    /// <summary>
+    /// ⭐ CE-9016 (found by the convoy lane, cv-ambush / uc-convoy-hit-ifv) — the combat log lives on the node that RESOLVES combat (the Muscle,
+    /// SimHost), not on the Scenario (brain) node the run reads: measured on --mode all, the IED's detonation was logged on SimHost (count 1) and
+    /// Scenario held none, so every shot / blast row of the cluster tier read nothing ("the charge goes off" FAIL while it went off). ⇒ read each
+    /// world node's log and take the one that holds rows (the larger; a tie keeps Scenario). ⛔ Not a merge: a row's <c>seq</c> is per node.
+    /// </summary>
+    private JsonArray CombatRows(string path, string field)
+    {
+        var best = Get(path)?[field] as JsonArray ?? new JsonArray();
+        foreach (var owner in OwnerPerspectives)
+        {
+            Post("/perspective", new JsonObject { ["name"] = owner });
+            var rows = Get(path)?[field] as JsonArray;
+            Post("/perspective", new JsonObject { ["name"] = "Scenario" });
+            if (rows != null && rows.Count > best.Count) best = rows;
+        }
+        return best;
+    }
 
     public string? SetComponent(int networkId, string component, JsonObject patch)
+    {
+        string? error = PostComponent(networkId, component, patch);
+        // ⭐ CE-9021 (found by the convoy lane, cv-blocked-road) — the run reads the Scenario (brain) node, but a component another node OWNS (a body's
+        //   SimTransform is the Muscle's) is refused there: "owned by another node … would be overwritten by the owner". ⛔ Before, the `do` was only
+        //   noted as a problem and the run went on with the world unchanged (the broken truck never cleared, the convoy rightly waited for ever).
+        //   ⇒ apply it through the owner's perspective, then return to Scenario.
+        if (error is null || !error.Contains("owned by another node", StringComparison.Ordinal)) return error;
+        foreach (var owner in OwnerPerspectives)
+        {
+            Post("/perspective", new JsonObject { ["name"] = owner });
+            string? again = PostComponent(networkId, component, patch);
+            Post("/perspective", new JsonObject { ["name"] = "Scenario" });
+            if (again is null) return null;
+        }
+        return error;
+    }
+
+    /// <summary>⭐ CE-9021 — the other perspectives that hold a world and may own a component (the Muscle: bodies' poses, health …).</summary>
+    private static readonly string[] OwnerPerspectives = { "SimHost" };
+
+    private string? PostComponent(int networkId, string component, JsonObject patch)
         => Post($"/entities/{networkId}/component", new JsonObject { ["networkId"] = networkId, ["componentType"] = component, ["patch"] = patch.DeepClone() }).Error;
 
     // ── IShotWorld: the units by name ─────────────────────────────────────────────

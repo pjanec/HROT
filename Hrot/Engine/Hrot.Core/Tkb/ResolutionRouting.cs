@@ -93,6 +93,24 @@ namespace Hrot.Core.Tkb
             const AggregateResolution p = AggregateResolution.Physical;
             yield return new Row("InfantrySquad", p, "Defend", "SquadDefend");
             yield return new Row("InfantrySquad", p, "BreakContact", "BreakContact");
+            // ⭐ CE-8307 (agg-behaviors, cross-lane; R-8386, X2-I) — a split PLATOON / COMPANY is a physical command unit over stochastic children
+            //   (the split goes one level): its Defend re-resolves to its own physical play, which orders the children by kind (ST-0). Only a play that
+            //   FULFILS the kind gets a row (BehaviorParamsValidationTests.X2C2_*)
+            yield return new Row("InfantryPlatoon", p, "Defend", "PlatoonDefend");
+            yield return new Row("InfantryCompany", p, "Defend", "CompanyDefend");
+            // ⭐ CE-8307 (R-8392, the review's F1 (a)) — every echelon play that FULFILS a kind: PlatoonAttack / CompanyAttack (Fulfils = Attack since
+            //   CE-8307), PlatoonHold, PlatoonBound, PlatoonSupportByFire
+            yield return new Row("InfantryPlatoon", p, "Attack", "PlatoonAttack");
+            yield return new Row("InfantryPlatoon", p, "Hold", "PlatoonHold");
+            yield return new Row("InfantryPlatoon", p, "Bound", "PlatoonBound");
+            yield return new Row("InfantryPlatoon", p, "SupportByFire", "PlatoonSupportByFire");
+            yield return new Row("InfantryCompany", p, "Attack", "CompanyAttack");
+            // ⭐ CE-8307 (R-8392, F1 (b)) — a kind no echelon play fulfils: THE ONE RELAY (UnitRelayBehaviors) passes the same order to every child
+            foreach (var cls in new[] { "InfantryPlatoon", "InfantryCompany" })
+            {
+                yield return new Row(cls, p, "Move", "UnitRelayMove");
+                yield return new Row(cls, p, "BreakContact", "UnitRelayBreakContact");
+            }
         }
 
         /// <summary>The row for exactly (<paramref name="className"/>, <paramref name="resolution"/>, <paramref name="order"/>), else null.</summary>

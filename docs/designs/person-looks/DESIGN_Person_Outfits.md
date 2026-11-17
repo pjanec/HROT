@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: READY-TO-BUILD — OF-1…OF-12 ✅ APPROVED `2026-11-17` (R-4288; the Insurgent 2003 takes the fighter look); handoff HANDOFF_Coordinator_To_Ui_Person_Outfits.md; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
-current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the catalogue content · §6 acceptance · §7 ids · §8 slices
+build-state: BUILDING (`2026-11-17`: the data path by backend, the drawing by ui, the Afghan people §10 BUILT — `civ-afghan-village` ✅; ⏳ `civ-middle-east-market`, `me-fighters-ambush`) — OF-1…OF-12 ✅ APPROVED `2026-11-17` (R-4288; the Insurgent 2003 takes the fighter look); handoff HANDOFF_Coordinator_To_Ui_Person_Outfits.md; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
+current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the catalogue content · §6 acceptance · §7 ids · §8 slices · ⭐ §10 the Native American ornaments and the AFGHAN people (ui, as built `2026-11-17`, R-1066)
 stale-below: none
 known-rot: none
 known-conflict: DESIGN_Map_3D_Mode.md §6q O-1…O-5 (clothes drawn in CODE from everyday palettes, the woman drawn by chance) — OF-2 / OF-3 replace that; §6q is updated when this is built
@@ -162,6 +162,8 @@ Skin tones for all nine: the four middle tones of today's five (light olive to b
 | what | id |
 |---|---|
 | TKB types (fighters) | **2010–2012** (the urban-combat range; 2000–2009 in use — measured in `Hrot.Core` Tkb / MapDefinitions on every lane; the builder re-checks the whole tree) |
+| TKB types (Afghan, §10, ui) | **1111–1116** Afghan man, woman, boy, girl, elderly man, elderly woman (`CivilianTkbCatalog`) · **2016–2018** Afghan fighters rifle / RPG / machine gunner (`UrbanCombatTkbCatalog`) — R-1066 |
+| TKB types (archers, bows design) | **2013–2015** — backend's (Archer, Crossbowman, …) |
 | TKB types | **1105–1110** (free on every lane branch, measured `2026-11-17`; 1101–1104 civilians, 1201–1203 security) |
 | `OutfitDto` | a TKB descriptor — no component id, no wire (the TKB is built the same on every node) |
 | tracker / ruling | `CE-4648` (programme row) · decisions to be recorded on approval |

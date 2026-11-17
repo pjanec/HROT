@@ -29,17 +29,25 @@ public static class SplitProgress
         _ => u.Splitting == SplitStage.Merging ? AggregateResolution.Stochastic : AggregateResolution.Physical,
     };
 
-    /// <summary>The men a split has created so far for <paramref name="unit"/> (its <see cref="AggregateChild"/> entities).</summary>
+    /// <summary>The men a split has created so far for <paramref name="unit"/> (its <see cref="AggregateChild"/> men; a squad child counts the men it carries).</summary>
     public static int MenCreated(EntityRepository w, Entity unit)
     {
         if (!w.IsComponentTypeRegistered<AggregateChild>()) return 0;
         var q = Children.GetValue(w, static world => world.Query().With<AggregateChild>().Build());
         int n = 0;
-        foreach (var e in q) if (w.GetComponentRO<AggregateChild>(e).Unit == unit) n++;
+        bool tables = w.IsComponentTypeRegistered<AggregateUnit>() && w.IsComponentTypeRegistered<UnitSlotTable>();
+        foreach (var e in q)
+        {
+            if (w.GetComponentRO<AggregateChild>(e).Unit != unit) continue;
+            // ⭐ CE-8307 (review F10) — MEN, not children: a platoon's child is a SQUAD carrying its men (its share of the table)
+            if (tables && w.HasComponent<AggregateUnit>(e)) n += w.HasComponent<UnitSlotTable>(e) ? w.GetComponentRO<UnitSlotTable>(e).Present() : 0;
+            else n++;
+        }
         return n;
     }
 
-    private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic => "Stochastic", AggregateResolution.Fusion => "Fusion", _ => "Physical" };
+    private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic or AggregateResolution.Fusion => "Stochastic", _ =>   // R-8008: a Fusion unit is never drawn as such
+         "Physical" };
 
     private static readonly Dictionary<int, FixedString64> ChangeTexts = new();
 

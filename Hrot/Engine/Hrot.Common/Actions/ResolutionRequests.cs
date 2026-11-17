@@ -25,7 +25,8 @@ namespace Hrot.Common.Actions
         public static ResolutionPin PinOf(byte packed) => (ResolutionPin)((packed >> 2) & 3);
         public static SplitStage StageOf(byte packed) => (SplitStage)((packed >> 4) & 7);
 
-        private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic => "stochastic", AggregateResolution.Fusion => "fusion", _ => "physical" };
+        private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic or AggregateResolution.Fusion => "stochastic", _ =>   // R-8008: Fusion is never shown
+             "physical" };
         private static string PinWord(ResolutionPin p) => p switch
         {
             ResolutionPin.PinKeep => "pinned as it is", ResolutionPin.PinPhysical => "pinned physical", ResolutionPin.PinStochastic => "pinned stochastic", _ => "not pinned",
@@ -46,7 +47,6 @@ namespace Hrot.Common.Actions
                 {
                     new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { Label = $"now: {Word(res)} · {PinWord(pin)}", Enabled = false },
                     Row(GlobalActionIds.ResolutionPhysical, "Make physical now", "resolution/split", res == AggregateResolution.Physical ? "already physical" : busy),
-                    Row(GlobalActionIds.ResolutionFusion, "Make fusion now", "resolution/fusion", "no fusion request exists (the pin is physical or stochastic)"),
                     Row(GlobalActionIds.ResolutionAggregate, "Aggregate now", "resolution/merge", res == AggregateResolution.Stochastic ? "already stochastic" : busy),
                     new Fdp.Toolkit.Diagnostics.Gizmos.Interaction.ContextMenuItemDto { IsSeparator = true },
                     Row(GlobalActionIds.ResolutionPinKeep, "Pin - keep as it is", "resolution/pin", pin == ResolutionPin.PinKeep ? "already pinned" : null),

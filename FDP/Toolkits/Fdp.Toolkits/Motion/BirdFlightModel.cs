@@ -61,7 +61,7 @@ namespace Fdp.Toolkit.Motion
             var fwd = new Vector2(MathF.Cos(yaw), MathF.Sin(yaw));
             // height: cruise far away, come down onto the point near it
             float ground = f.Ground(here.X, here.Y);
-            float wantZ = dist > DescendWithinM ? MathF.Max(ground + CruiseAglM, target.Z) : target.Z;
+            float wantZ = dist > DescendWithinM ? MathF.Max(ground + CruiseOf(in f), target.Z) : target.Z;
             float vz = Math.Clamp((wantZ - here.Z) / MathF.Max(dt, 1e-3f), -MaxVerticalMps, MaxVerticalMps);
             var v = new Vector3(fwd.X * hs, fwd.Y * hs, vz);
             f.Velocity.Linear = v;
@@ -93,6 +93,17 @@ namespace Fdp.Toolkit.Motion
             var w = f.World;
             return w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(f.Self)
                    && w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(f.Self).Current <= 0f;
+        }
+
+        /// <summary>⭐ CE-4649 part C ④ (AN-20c) — a DUCK flies LOW over the water and the fields (m above the ground); every other bird cruises at <see cref="CruiseAglM"/>.</summary>
+        public const float DuckCruiseAglM = 8f;
+
+        private static float CruiseOf(in MotionFrame f)
+        {
+            var w = f.World;
+            if (w.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>() && w.HasComponent<Fdp.Toolkit.Animals.AnimalState>(f.Self)
+                && w.GetComponentRO<Fdp.Toolkit.Animals.AnimalState>(f.Self).Species is Fdp.Toolkit.Animals.AnimalSpecies.Duck or Fdp.Toolkit.Animals.AnimalSpecies.DuckFlock) return DuckCruiseAglM;
+            return CruiseAglM;
         }
 
         /// <summary>A bird is never flown by hand (no possession of a bird).</summary>

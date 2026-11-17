@@ -42,5 +42,15 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>The squads' asked speed (m/s); 0 = their own.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+        /// <summary>⭐ <c>CE-8307</c> (R-8392; the neutral <c>AttackOrder</c>, R-8300) — the entity to attack when no <see cref="Position"/> is given: the
+        /// area is centred on it when the play starts.</summary>
+        [JsonPropertyName("Target")]
+        public EntityLink Target;
+
+        /// <summary>⭐ <c>CE-8307</c> (R-8392; the neutral <c>AttackOrder</c>) — support by fire, do not close. ⚠ The platoon's attack has no hold-back
+        /// preset: the resolution reconciler never re-resolves a hold-back attack to this play (it waits — X2-D), and a direct sender gets the full
+        /// attack (F-SOL-4).</summary>
+        [JsonPropertyName("HoldBack")]
+        public bool HoldBack;
     }
 }

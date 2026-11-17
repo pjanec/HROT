@@ -21,4 +21,7 @@ public struct TrafficShadowFollow
     public float LastY;
     /// <summary>The sim time of the last sighting.</summary>
     public double At;
+    /// <summary>⭐ CE-9019 — the <c>NavigationIntent.IntentId</c> this follow serves (0 = none known). A NEW Traffic intent is a new shadow: the old one is
+    /// taken back and the new one spawns a step later, so a follow of another intent starts over (a hold), never reads that gap as "the shadow is gone".</summary>
+    public uint IntentId;
 }
