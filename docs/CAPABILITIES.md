@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -288,6 +288,11 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 
 ## 7. Platoon and command chain
 
+- *(added `2026-11-17`)* **NATO symbols on the map for every unit** — squad, platoon, company and battalion, real or stochastic: the symbol
+  is worked out from what the unit is made of (riflemen ⇒ infantry, tanks ⇒ armour), in its side's frame, drawn in the unit card's left cell or
+  alone at the unit's centre with one echelon per zoom band, and in the ORBAT tree; one layer switch turns it on or off. A man or a vehicle never
+  gets one. (agg-ui, CE-8608…CE-8611, [DESIGN_Unit_Symbols](UX/DESIGN_Unit_Symbols.md); rails `UnitSymbolDeriverTests`, `SymbolRendererFrameRail`) — ⚠ seen in the
+  stochastic-unit scenarios; not yet checked by eye on an ordinary squad scenario
 - **Platoon march:** squads in columns, with one held back. ▶ `sl0-platoon-march` ✅
 - **Platoon bound:** one squad supports while another moves to the objective. The platoon freezes both squads on contact and resumes when
   it is gone. ▶ `cc-platoon-bound` ✅
@@ -372,7 +377,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - 🚧 **A minefield is one object:** an outline, a mine type (anti-personnel, anti-tank or mixed), a spacing and a row direction. Thousands of
   mines are worked out from it, the same on every computer, never stored one by one.
 - 🚧 **Stepping on a mine:** a man sets off an anti-personnel mine; an anti-tank mine needs a vehicle's weight and hits it from below. A mine
-  goes off once. ▶ `mf-strike-and-halt` ✅ (a patrol strikes an unknown field: one blast, a man hurt, the patrol halts, the cells round it suspected — ⏳ backing out on its own track waits on the breadcrumb record) · `mf-at-vs-vehicle` ❌ (a man crosses an AT field unharmed and a tank sets one off and stops — but the burst does not hurt the tank and hurts the man 35 m off: the AT mine's effects, terrain)
+  goes off once. ▶ `mf-strike-and-halt` ✅ (a patrol strikes an unknown field: one blast, a man hurt, the patrol halts, the cells round it suspected) · *(`2026-11-17`)* ⭐ each man now BACKS OUT along his own footprints (MR-5, behaviors — the breadcrumbs are terrain's; ⏳ the scenario's re-run with the back-out is the lane's next report) · `mf-at-vs-vehicle` ❌ (a man crosses an AT field unharmed and a tank sets one off and stops — but the burst does not hurt the tank and hurts the man 35 m off: the AT mine's effects, terrain)
 - 🚧 **Each side knows only what it has learned:** a strike makes the area round it SUSPECTED; engineers sweep it slowly and mark the cells
   clear or mined; a marked field is known to everyone who sees it; your own fields are known from the start. The knowledge is saved, replayed
   and shared by the whole side. ▶ `mf-recon-and-mark` ✅ (an engineer traces an unknown field on swept-clear cells only and marks it) · ⏳ `mf-side-knowledge-replay` (waits on the knowledge save entry)
@@ -440,9 +445,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 | | what |
 |---|---|
 | **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
-| **being built** | 🚧 minefields, §9b · 🧪 the stochastic unit, §15 (experimental) |
-| **designed, not built** | 📐 checkpoints and ramming (§9) · mounted archers (bows from horseback, later) · knowledge of other places per side (a destroyed bridge, a cleared building — the minefield builds the shared machinery first) |
-| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · radar SAMs · smoke · counter-battery fire · rappel · wind drift on rounds |
+| **being built** | 🚧 minefields, §9b · 🚧 road convoys (§9, 5 of 6 scenarios) · 🚧 air combat — the 2v2 gun hits and the cluster run (§10) · 🧪 the stochastic unit, §15 (experimental, merged) · 🚧 the items in §16 |
+| **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers (records only, CE-4635…CE-4646) |
+| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
 ## 14. Authoring, live control and review — what a user can change, and when *(added `2026-11-06`)*
@@ -483,7 +488,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | Crew and seat presets, weapon loadout | ○ | – | – | 🟡 set by the unit's type, not per scenario |
 | Starting posture (e.g. prone) | – | – | – | ⏳ not saved |
 | Heal, damage, resupply, repair a unit | – | – | – | ⏳ the menu items are reserved, no handler |
-| Symbol style per unit | – | – | – | ⏳ designed |
+| Symbol style per unit | – | – | – | 🟡 the NATO symbol is derived from the unit's TYPE (a type can name its role); on / off per layer, not per unit (§7) |
 | **Compositions (macros):** save a selection, insert by reference with arguments and a preview, bind fields to parameters | ● | ● | – | ✅ |
 
 ### 14.3 AI behaviour, missions and orders
@@ -561,7 +566,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | *(2026-11-16)* The terrain editor, the user-friendly way: draw walls, fences, hedges, ditches and berms that follow the slope; place a ROW of obstacles as one group; delete or edit several placed objects at once in one undo step | ● | – | – | ✅ CE-4594, CE-5008, CE-5015, CE-5017 ([DESIGN_Terrain_Editor_UX](DESIGN_Terrain_Editor_UX.md)) |
 | *(2026-11-16)* Animal areas: what lives there, how many | ● | – | – | ⚠ CE-4623 (the form binds to a temporary component until backend lands) |
 
-## 15. The stochastic unit — whole units fought as numbers *(🧪 experimental, `2026-11-16`: three `exp/agg-*` lanes — [DESIGN_Stochastic_Units_And_Resolution](designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) §23, CE-4616)*
+## 15. The stochastic unit — whole units fought as numbers *(🧪 experimental, `2026-11-16` — ⭐ MERGED into `coordinator` `2026-11-17` (24 / 24 aggregate scenarios on its branch; the ordinary scenarios checked unchanged); ⏳ a platoon splitting into its SQUADS rather than 30 men is being built — three `exp/agg-*` lanes — [DESIGN_Stochastic_Units_And_Resolution](designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) §23, CE-4616)*
 
 - 🧪 **One entity for a whole platoon, company or battalion,** its men and vehicles kept as slots (health, ammunition, stress), so a large
   battle costs a fraction of one fought man by man. The SAME orders, reports and SITREPs as physical units.
@@ -569,3 +574,19 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
   by a chance that grows with exposure, and fights with killer–victim tables generated from the real weapon and armour models.
 - 🧪 **Changing resolution mid-run:** a stochastic unit can split into real soldiers and vehicles when the fight comes close — keeping every
   identity — and merge back later.
+
+## 16. Being built now *(added `2026-11-17` — every item judged by its scenarios when it lands)*
+
+- 🚧 **What a person wears comes from the catalogue** — each person type lists its garments, colours, hair and headwear, and every person is varied
+  only WITHIN that list (R-4287); fixes the "adult woman" type drawn as a man half the time. ⭐ **Middle-East civilians** — men in robes with a shemagh
+  or a skullcap, women in an abaya and hijab or niqab, boys and girls — and **Middle-East fighters** in local dress with chest rigs and face wraps; the
+  insurgent takes the fighter look. ▶ ⏳ `civ-middle-east-market` · ⏳ `me-fighters-ambush` ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md), CE-4648 — backend the data, ui the drawing)
+- 🚧 **Bows and crossbows** — the arrow seen along its arc, STUCK where it lands (in a wall or the ground, at its angle) and in a body (it stays
+  when he falls), SILENT to every AI ear, shot from horseback; an archery target that scores by ring. ▶ ⏳ `bw-arrow-arc` · `bw-unheard` ·
+  `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` · `bw-archery-contest` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md), CE-4649)
+- 🚧 **Birds you can shoot** — a lone bird falls, a round through a flock brings one down; **ducks**, hunted with the shotgun. ▶ ⏳ `an-duck-hunt`
+  ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4b)
+- 🚧 **The rabbit and the hunt** — a rabbit freezes, then bolts in zigzags for the wood; hunting dogs flush it, hunters shoot animals only.
+  ▶ ⏳ `an-rabbit-bolts` · ⏳ `scenarios/fun/hunting/rabbit-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4c)
+- 🚧 *(the fun pack)* **The Native American warrior** — a bow and a thrown tomahawk, on foot or on horseback; a mounted war party circles its
+  target at a gallop, shooting. ▶ ⏳ `scenarios/fun/western/war-party` · ⏳ `archer-ambush` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §9, CE-4650)
