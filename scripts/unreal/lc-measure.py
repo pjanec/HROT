@@ -26,6 +26,38 @@ def hrot_sample(z, x0, y0, cell, x, y):
 
 
 def compare_buildings(res, folder, name, frame, z, x0, y0, cell):
+    """Each Unreal building against OUR footprint of the same id (the plugin carries the feature's attributes onto the building as
+    UOSMUserData — the `name` field): the footprint's box and the height above the lowest ground under it. Unmatched ids are counted."""
+    de, dn = frame["localToProjected"]
+    ours = {}
+    for f in json.load(open(os.path.join(folder, f"{name}.vectors.geojson"), encoding="utf-8"))["features"]:
+        if f["properties"].get("hrot_kind") != "building": continue
+        ring = np.array(f["geometry"]["coordinates"][0], dtype=float) - [de, dn]
+        ours[f["properties"].get("name")] = {"min": ring.min(0), "max": ring.max(0), "height": f["properties"]["height"],
+                                             "levels": f["properties"].get("building_levels"), "ring": ring}
+    built = [b for b in res.get("buildings") or [] if "min" in b]
+    if not built or not any(b.get("name") for b in built):
+        return compare_buildings_by_box(res, folder, name, frame, z, x0, y0, cell)
+    edges, dh, base, by_levels, missing = [], [], [], {}, 0
+    for b in built:
+        o = ours.get(b.get("name"))
+        if o is None: missing += 1; continue
+        ground = min(hrot_sample(z, x0, y0, cell, x, y) for x, y in o["ring"])
+        edges.append(float(np.abs(np.concatenate([np.array(b["min"][:2]) - o["min"], np.array(b["max"][:2]) - o["max"]])).max()))
+        dh.append(b["max"][2] - ground - o["height"]); base.append(b["min"][2] - ground)
+        by_levels.setdefault(o["levels"], []).append(dh[-1])
+    e, h = np.array(edges), np.array(dh)
+    seen = {b.get("name") for b in built}
+    return {"unreal": len(built), "ours": len(ours), "matchedById": len(e), "unrealWithoutOurId": missing,
+            "oursNotBuilt": sum(1 for k in ours if k not in seen),
+            "footprintBoxEdge_m": {"median": round(float(np.median(e)), 3), "within0.1m": round(float(np.mean(e < 0.1)), 3),
+                                   "within1m": round(float(np.mean(e < 1)), 3), "p99": round(float(np.percentile(e, 99)), 3)},
+            "heightMinusOurs_m": {"median": round(float(np.median(h)), 3), "p10": round(float(np.percentile(h, 10)), 3), "p90": round(float(np.percentile(h, 90)), 3)},
+            "byLevels": {str(k): round(float(np.median(v)), 3) for k, v in sorted(by_levels.items(), key=lambda kv: kv[0] or 0)},
+            "baseMinusLowestGround_m": {"median": round(float(np.median(base)), 3), "p90": round(float(np.percentile(base, 90)), 3)}}
+
+
+def compare_buildings_by_box(res, folder, name, frame, z, x0, y0, cell):
     """Each Unreal building (its bounds, HROT metres) against our footprint whose bounding box overlaps it most: the footprint's box
     (x, y) and the height above the ground (top − HROT's lowest ground under the footprint)."""
     de, dn = frame["localToProjected"]
@@ -80,7 +112,10 @@ def main():
     import rasterio
     with rasterio.open(os.path.join(folder, f"{name}.height.tif")) as ds:
         z = ds.read(1)[::-1].astype(np.float64)   # back to row 0 = south
-    x0, y0 = frame["southWestPost"]; cell = frame["cell"]; rows, cols = z.shape
+    x0, y0 = frame["southWestPost"]; cell = frame["cell"]
+    hc, hr = frame.get("hrotPosts") or [z.shape[1], z.shape[0]]
+    z = z[:hr, :hc]   # HROT's own grid (the export may be padded past the east / north edge - UL-7)
+    rows, cols = z.shape
 
     rng = np.random.default_rng(4651)
     posts = [(x0 + c * cell, y0 + r * cell) for r in range(rows) for c in range(cols)]

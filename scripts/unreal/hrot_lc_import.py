@@ -200,10 +200,24 @@ def step_measure_buildings():
     for a in unreal.GameplayStatics.get_all_actors_of_class(world(), unreal.Building):
         try:
             lo, hi = bounds_m(a)
-            out.append({"label": a.get_actor_label(), "min": [round(v, 3) for v in lo], "max": [round(v, 3) for v in hi]})
+            ud = a.root_component.get_asset_user_data_of_class(unreal.OSMUserData)
+            name = ud.get_editor_property("fields").get("name", "") if ud else ""   # our footprint's id, carried from the GeoJSON
+            out.append({"label": a.get_actor_label(), "name": name, "min": [round(v, 3) for v in lo], "max": [round(v, 3) for v in hi]})
         except Exception as ex:
             out.append({"label": a.get_actor_label(), "error": str(ex)})
     R["buildings"] = out
+    # the INPUT of each building too: the footprint splines the importer made (by the same id), to tell the importer's error from the generator's
+    sp = []
+    for a in unreal.GameplayStatics.get_all_actors_with_tag(world(), "hrot_buildings"):
+        for c in a.get_components_by_class(unreal.SplineComponent):
+            ud = c.get_asset_user_data_of_class(unreal.OSMUserData)
+            name = ud.get_editor_property("fields").get("name", "") if ud else ""
+            n = c.get_number_of_spline_points()
+            pts = [c.get_location_at_spline_point(i, unreal.SplineCoordinateSpace.WORLD) for i in range(n)]
+            if pts:
+                xs = [p.x / 100 for p in pts]; ys = [-p.y / 100 for p in pts]
+                sp.append({"name": name, "min": [round(min(xs), 3), round(min(ys), 3)], "max": [round(max(xs), 3), round(max(ys), 3)], "points": n})
+    R["buildingSplines"] = sp
     n_splines = len(unreal.GameplayStatics.get_all_actors_with_tag(world(), "hrot_buildings"))
     R["buildingSplineActors"] = n_splines
     log(f"{len(out)} buildings, {n_splines} spline actors tagged hrot_buildings")

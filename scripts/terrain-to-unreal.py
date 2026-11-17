@@ -13,7 +13,7 @@ Writes into <out-folder>:
     <name>.vectors.geojson  buildings (Polygon: height, building_levels, base_z, template), walls (LineString: material, height,
                             thickness), surfaces (Polygon: class open / forest / water), prisms (Polygon: clutter, height),
                             lone trees (Point), roads (LineString, sampled from roads.json's Hermite segments: lanes, lane_width)
-    <name>.<kind>s.geojson  the same features, one file per kind (buildings, walls, surfaces, prisms, trees, roads), in WGS84
+    <name>.<kind>s.geojson  the same features, one file per kind (buildings, roofs, walls, surfaces, prisms, trees, roads), in WGS84
                             lon / lat (UL-5: Landscape Combinator's spline importer reads every vector file as EPSG:4326)
     <name>.frame.json       the frame used: CRS, the local → projected offset, the grid size — what the import / the checks read
 
@@ -88,12 +88,19 @@ def frame_of(terrain, mode):
 
 # ── features ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 _templates = {}
+TEMPLATE_DIRS = []   # the terrain's own buildings/ first (an imported terrain generates one template per house), then the shared ones
 
 
 def template(name):
     if name not in _templates:
-        with open(os.path.join(REPO, "assets", "buildings", f"{name}.building.json"), encoding="utf-8") as f:
-            _templates[name] = json.load(f)
+        for d in TEMPLATE_DIRS:
+            path = os.path.join(d, f"{name}.building.json")
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    _templates[name] = json.load(f)
+                break
+        else:
+            raise SystemExit(f"building template '{name}' not found in {TEMPLATE_DIRS}")
     return _templates[name]
 
 
@@ -120,7 +127,7 @@ def hermite(seg, step=2.0):
 
 
 def features(folder, terrain, world):
-    feats, counts = [], {}
+    feats, counts, roof_of = [], {}, {}
 
     def add(geom_type, coords, props):
         feats.append({"type": "Feature", "properties": props, "geometry": {"type": geom_type, "coordinates": coords}})
@@ -129,6 +136,14 @@ def features(folder, terrain, world):
     for f in world["features"]:
         p, g = f["properties"], f["geometry"]
         kind = p.get("kind")
+        label = str(p.get("label", ""))
+        if kind == "building" and g["type"] == "Polygon" and label.endswith("-roof"):
+            # an imported terrain models a house's ROOF as its own prism on top of the walls ("<id>-roof", baseZ = the eaves): in Unreal it
+            # is that house's roof, not another building from the ground ⇒ its own file, and the house gets its roof height
+            add("Polygon", [ring(g["coordinates"][0])], {"hrot_kind": "roof", "parent": label[:-5], "height": p.get("height"),
+                                                          "base_z": p.get("baseZ"), "name": label})
+            roof_of[label[:-5]] = p.get("height")
+            continue
         if kind == "building":
             if g["type"] == "Point":   # a template placement
                 t = template(p["template"])
@@ -142,9 +157,9 @@ def features(folder, terrain, world):
                 fp = ring(g["coordinates"][0]); extra = {}
             add("Polygon", [fp], {"hrot_kind": "building", "building": "yes", "height": round(height, 3),
                                   "building_levels": levels, "name": p.get("label", ""), **extra})
-        elif kind == "wall":
+        elif kind in ("wall", "fence"):
             add("LineString", [tuple(c[:2]) for c in g["coordinates"]],
-                {"hrot_kind": "wall", "barrier": "hedge" if p.get("material") == "hedge" else "wall", "material": p.get("material", ""),
+                {"hrot_kind": "wall", "barrier": "hedge" if p.get("material") == "hedge" else ("fence" if kind == "fence" else "wall"), "material": p.get("material", kind),
                  "height": p.get("height"), "thickness": p.get("thickness"), "name": p.get("label", "")})
         elif kind == "surface":
             cls = p.get("surface", "open")
@@ -158,6 +173,10 @@ def features(folder, terrain, world):
         else:
             counts["skipped:" + str(kind)] = counts.get("skipped:" + str(kind), 0) + 1
 
+    for f in feats:   # each house gets its roof's height (the roof prisms come in any order)
+        pr = f["properties"]
+        if pr["hrot_kind"] == "building" and pr.get("name") in roof_of:
+            pr["roof_height"] = roof_of[pr["name"]]
     for road_file in terrain.get("roadNetworks") or []:
         with open(os.path.join(folder, road_file), encoding="utf-8") as f:
             net = json.load(f)
@@ -180,11 +199,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("terrain"); ap.add_argument("out")
     ap.add_argument("--crs", choices=("auto", "local"), default="auto")
+    ap.add_argument("--component-quads", type=int, choices=(7, 15, 31, 63, 127, 255), default=None,
+                    help="pad to whole components of this many quads (default: 255 above 2 000 quads, 127 above 400, else 63)")
+    ap.add_argument("--no-pad", action="store_true", help="write the grid as it is (Unreal may resample it - UL-7)")
     a = ap.parse_args()
     import rasterio
     from rasterio.transform import from_origin
 
     folder = os.path.abspath(a.terrain)
+    # the shared templates: the repo's assets/buildings, and the editor's data root (data/shared/assets/buildings) when it has one
+    TEMPLATE_DIRS[:] = [os.path.join(folder, "buildings")] + [d for d in (os.path.join(os.path.dirname(os.path.dirname(folder)), "buildings"),
+                        os.path.join(REPO, "data", "shared", "assets", "buildings"), os.path.join(REPO, "assets", "buildings")) if os.path.isdir(d)]
     with open(os.path.join(folder, "terrain.json"), encoding="utf-8") as f:
         terrain = json.load(f)
     name = terrain.get("name") or os.path.basename(folder)
@@ -195,6 +220,19 @@ def main():
     hp = os.path.join(folder, hg)
     z, x0, y0, cell = read_heights(hp) if hp.endswith(".heights") else read_asc(hp)
     rows, cols = z.shape
+    hrot_posts = [cols, rows]
+
+    # ⭐ UL-7 (measured): Unreal builds a landscape from whole COMPONENTS of 7 · 15 · 31 · 63 · 127 · 255 quads. A grid that is not a whole
+    # number of them is RESAMPLED by "Auto" (Stechovice 4 066 × 4 304 quads → stretched to 16 × 17 components of 255: heights off by up to
+    # 1 m) or tiled into the smallest component that divides it (city-battle 1 500 = 100 × 15 ⇒ 10 000 components). ⇒ pad the east and
+    # north edges up to whole components by REPEATING the edge posts — what HROT's own ground does past its edge (Sample clamps), so the
+    # play area is untouched and the vertices stay on our posts.
+    quads = max(cols, rows) - 1
+    comp = a.component_quads or (255 if quads > 2000 else 127 if quads > 400 else 63)
+    pad_c = (-(cols - 1)) % comp; pad_r = (-(rows - 1)) % comp
+    if not a.no_pad and (pad_c or pad_r):
+        z = np.pad(z, ((0, pad_r), (0, pad_c)), mode="edge")   # row 0 = south ⇒ the added rows are NORTH, the added columns EAST
+        rows, cols = z.shape
 
     crs, (de, dn), what = frame_of(terrain, a.crs)
     os.makedirs(a.out, exist_ok=True)
@@ -239,7 +277,8 @@ def main():
     # (quotes, brackets) is an invalid path and its Reproject phase fails ⇒ "EPSG:n", or the PROJ string for the transverse Mercator
     user_input = (f"EPSG:{crs.to_epsg()}" if crs.to_epsg() else crs.to_proj4().replace(" +type=crs", "")) if crs else None
     info = {"terrain": name, "frame": what, "crsUserInput": user_input, "crs": crs.to_wkt() if crs else None, "epsg": crs.to_epsg() if crs else None,
-            "localToProjected": [de, dn], "posts": [cols, rows], "cell": cell, "southWestPost": [x0, y0],
+            "localToProjected": [de, dn], "posts": [cols, rows], "hrotPosts": hrot_posts, "componentQuads": None if a.no_pad else comp,
+            "components": None if a.no_pad else [(cols - 1) // comp, (rows - 1) // comp], "cell": cell, "southWestPost": [x0, y0],
             "zMin": float(z.min()), "zMax": float(z.max()), "features": counts}
     with open(os.path.join(a.out, f"{name}.frame.json"), "w", encoding="utf-8") as f:
         json.dump(info, f, indent=1)
