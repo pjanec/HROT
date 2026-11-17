@@ -16,7 +16,7 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 
 | # | step | state | result |
 |---|---|---|---|
-| A | outfits — data (CE-4648) | 🟡 building (worker) | — |
+| A | outfits — data (CE-4648) | ✅ built (`38dd2d0fc`, `032465362`) | `OutfitDto` (TKB, `Body.Outfit`) · `OutfitCatalog` holds every palette (none left in `Outfits.cs`) · `Wardrobe` flattened once into `TypeLook` (+ `Sex`) · OF-2 the type's sex drives the dresser (the old 50 % roll still consumed) · OF-6 fixed-order slot draw for authored wardrobes · OF-11 the wardrobe wins over the class · types **1105–1110** (one `Civilian(...)` helper) and **2010 / 2011 / 2012** (one `Insurgent(...)` helper; 2012 because a man-portable PKM-class MG exists) · 2003 wears the fighter wardrobe (OF-12). ⭐ **Identity proved by an exact probe**: seeds 1–500 × every existing person type × side × own colour reproduce the pre-change outfits (fixture `Map3D/Fixtures/outfits-baseline.txt`), except 2003 and the seeds where 1101 / 1102's old 50 % sex roll disagreed with the type (⚠ 1101 changed too: the MALE type is now always a man — the same defect's other half). 9 new `CE4648` rails, 5 mutations red-proved; OF-7 0 bytes over 500 dressed people. ⚠ A PNG diff cannot prove identity: the frame rails differ between two BASELINE runs (`map3d-ce4031-sumo-people` 700–1100 px) — nondeterministic before this change. Gates: Presentation 2311 / 16 / 11 (reds pre-existing at `c71fe5ede` or green alone — listed in the worker report); `EntityTypeCatalogTests` moved by exactly the 9 type lines; ts-three-defenders, ua-weapon-choice, ua-armed-shield PASS; ua-rpg-window CRASHES — not outfits: **CE-3467** (a 4096-byte memory block through the parallel phase's command buffer), fix in flight |
 | B | bows (CE-4649) | ⏳ | — |
 | C | birds (AN-20) | ⏳ | — |
 | D | the rabbit hunt (AN-21) | ⏳ | — |
@@ -54,8 +54,17 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 | R-3098 | the existing wardrobes (everyday, child, elderly, police, soldier) keep their EXACT draw sequence, reading every colour from `OutfitCatalog` data (no palette left in code); a type with an authored `OutfitDto` is dressed by the OF-6 fixed-order slot draw. ⭐ Why: today's dresser consumes its random stream conditionally (`Outfits.cs:156-177`: suit, sleeves, skirt/shorts rolls depend on earlier rolls), so one generic slot draw would reshuffle every existing crowd and break the design's own acceptance ("the existing frames pixel-identical", §6). The OF-2 sex fix still consumes the old 50 % roll, so nothing else shifts | the user accepting a one-time reshuffle of every crowd's clothes ⇒ the everyday set becomes ordinary slot data and one draw procedure remains |
 | R-3099 | an arrow / bolt that hits an ANIMAL wounds it as any round does, and leaves NO stuck mark — animals have no part boxes in the hit test (S0); the round is torn down | an animal part kit in `BodyPartRay` (sim + ui) — filed as a follow-up |
 | R-3100 | the bow's silence (BW-9) is a property of the MUNITION (`Silent` on the arrow / bolt rows), checked in `SoundEmissionSystem` beside the two existing exceptions — a man who carries a bow AND a rifle is still heard when he fires the rifle | the user wanting a quiet SHOOTER type instead |
+| R-3102 | outfits as built: the garment enums live in `Hrot.Core.Tkb/OutfitKinds.cs` (the DDS IDL generator puts every enum of the DTO file in one scope — `None` collided); `OutfitOption.Kind` is the member name, parsed once at flatten; `OutfitDto` also has `Over`, an `OutfitCamo` and per-sex `OutfitSet`s; the §5 colours are the worker's RGB picks (ui tunes against the mockups) | ui's mockups (R-4143) moving a colour or a kind |
 | R-3101 | ⭐ widened by the user `2026-11-17` (*"Shouldnt the soldier shoot at people if directly ordered? He just should not on his own"*): an EXPLICIT ORDER on a target — an operator's attack, a superior's `FireAtTarget` naming it — lifts the CONDUCT hold and the NEUTRAL hold for that target, a person or an animal. On his OWN (SOP, reactions, utility) a unit still never fires lethal at an unarmed civilian or an animal; self-defence (aimed at, attacked, a `Dangerous` animal) unchanged; the hunter's standing rule (AN-21g) is a standing order for its listed species. ⛔ The unit's `Roe.ForceLevel` cap still applies (a NonLethal police unit ordered to attack uses non-lethal force). Lean, awaiting the user's nod | the user wanting the force-level cap lifted by a direct order too, or a separate "fire on civilians" order kind for people |
 
 ## Stand-in looks left for ui
 
-*(filled as each step lands)*
+| what | stand-in (A, `Outfits.Details` boxes) |
+|---|---|
+| Robe | the skirt box to the ankles in the top colour; legs `Hidden` in the same colour |
+| Abaya | a slightly wider box to the ground |
+| LongSkirt | the skirt box to the ankles |
+| ChestRig | the police vest box in drab + two pouches |
+| Cap · Skullcap | the police cap (crown + peak) / the crown only, in the cloth colour |
+| Hijab · Niqab · Shemagh · ShemaghFaceWrap | the long-hair box in the cloth colour, the head's hair tinted the same (hair hidden); Niqab and the face wrap add a lower-face box and no beard; ⛔ no agal ring on the shemagh |
+| Helmet · PoliceCap · RiotHelmet · Jacket · Suit · Uniform | the existing boxes and cloth rules |
