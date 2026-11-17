@@ -166,9 +166,11 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ResolutionRoutingTable.Plays.Defend, s.TaskName);                                // it never ends by itself
         }
 
-        /// <summary>⭐ <c>ST-1</c> — a unit already at its Defend position occupies at ONCE (no move, no order to the follower): Set on the first tick, still <c>Stopped</c>/<c>Arrived</c>.</summary>
+        /// <summary>⭐ <c>ST-1</c> — a unit already at its Defend position occupies at ONCE (no move, no order to the follower): Set on the first tick, still <c>Stopped</c>/<c>Arrived</c>.
+        /// ⭐ R-8342 — and it KEEPS a position it already prepared: an authored Fortified unit ordered to defend where it stands stays Fortified (an unprepared one starts Hasty).
+        /// ✅ Red-proof: the old unconditional <c>Prepared = Hasty</c> at occupation ⇒ the Fortified unit drops to Hasty ⇒ red.</summary>
         [Fact]
-        public void ST1_Defend_WhereItAlreadyStands_OccupiesAtOnce_WithoutAMove()
+        public void ST1_Defend_WhereItAlreadyStands_OccupiesAtOnce_WithoutAMove_AndKeepsItsPreparedLevel()
         {
             var (s, mv, repo, u) = StochasticMover(at: new Vector3(100f, 100f, 0f));
             s.Order("{" + Loc("Position", new Vector3(110f, 100f, 0f)) + "}", ResolutionRoutingTable.Plays.Defend);
@@ -176,6 +178,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, Reports(repo, u, ProgressKind.Set));
             Assert.Equal(UnitMoveState.Arrived, MoveOf(repo, u));
             Assert.Equal(PreparedLevel.Hasty, repo.GetComponentRO<AggregateUnit>(u).Prepared);
+
+            var (s2, mv2, repo2, f) = StochasticMover(at: new Vector3(100f, 100f, 0f));
+            repo2.GetComponentRW<AggregateUnit>(f).Prepared = PreparedLevel.Fortified;                     // an authored, long-held position
+            s2.Order("{" + Loc("Position", new Vector3(110f, 100f, 0f)) + "}", ResolutionRoutingTable.Plays.Defend);
+            Seconds(s2, mv2, 5);
+            Assert.Equal(1, Reports(repo2, f, ProgressKind.Set));
+            Assert.Equal(PreparedLevel.Fortified, repo2.GetComponentRO<AggregateUnit>(f).Prepared);
         }
 
         /// <summary>⭐ <c>ST-1</c> (0 B) — the move play's STEADY tick — watching a unit on its route — allocates nothing (CLAUDE.md "HOT PATH"). ✅ Red-proof: a <c>new List</c> in <c>Step</c> ⇒ red.</summary>

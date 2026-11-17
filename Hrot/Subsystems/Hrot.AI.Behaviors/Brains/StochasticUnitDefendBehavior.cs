@@ -23,6 +23,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ ST-1 (R-8307) — the approach: the move's progress, and whether it is over (arrived, or none was needed).</summary>
         public MoveDrive Drive;
         public byte Approached;
+        /// <summary>⭐ R-8342 — 1 = it occupied WITHOUT moving (it already stood there): a better prepared level it already held is kept.</summary>
+        public byte InPlace;
     }
 
     /// <summary>
@@ -79,7 +81,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var at = world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : p.Position;
                     if (p.Drive.Started == 0 && Vector3.Distance(new Vector3(at.X, at.Y, 0f), new Vector3(p.Position.X, p.Position.Y, 0f)) <= StochasticUnitMoves.ArrivalRadiusMetres)
-                        p.Approached = 1;   // already there: occupy at once
+                    { p.Approached = 1; p.InPlace = 1; }   // already there: occupy at once
                     else
                         switch (StochasticUnitMoves.Step(ref p.Drive, p.Position, UnitFormation.Line, self, world))
                         {
@@ -98,7 +100,9 @@ namespace Hrot.AI.Behaviors.Brains
                     u.Move = UnitMoveState.Arrived;
                     u.Destination = p.Position;
                     u.Activity &= ~UnitActivity.Moving;
-                    u.Prepared = PreparedLevel.Hasty;
+                    // ⭐ R-8342 — a unit that occupies WHERE IT STANDS keeps the position it already prepared (an authored Prepared / Fortified one, P-5);
+                    //   a unit that MOVED into a new position starts Hasty, and every unit then climbs with time in position (R-8306)
+                    if (p.InPlace == 0 || u.Prepared < PreparedLevel.Hasty) u.Prepared = PreparedLevel.Hasty;
                     u.PreparedSince = now;
                 }
                 else if (world.HasComponent<SimTransform>(self)) world.GetComponentRW<SimTransform>(self).Position = p.Position;   // a body-less test unit with no follower
