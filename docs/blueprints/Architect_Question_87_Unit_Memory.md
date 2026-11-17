@@ -4,7 +4,7 @@ updated: 2026-10-09 (U-0 built: §0, §2, C and U-1 restated without the pending
 build-state: READY-TO-BUILD — A–G APPROVED by the user 2026-10-09 (R-237; D″ already BUILT as U-0); H is an explanation, asked for, not a decision — revised 2026-10-09 after the user's questions: fully lazy creation, two nodes, §3a why a tier move strands pointers and why the store moves at all
 current-answer: §0 the requirement · §2 diagrams · §3 decisions A–H · §3a why the store moved and why D″ need not · §3b lookup performance (measured) · §5 slices
 stale-below: §8 HISTORY (two superseded leans — do not quote them)
-known-rot: none yet
+known-rot: §3a's "FDP adds move nothing and are allowed mid-phase" was measured under SERIAL brains; under the parallel brain phase every add is deferred to the merge (DESIGN_Parallel_Simulation §18.5 D-31), so D″'s mid-tick append needs DESIGN_Occurrence_Scoped_Storage §34.7 (2026-11-17, CE-9013 / CE-3467)
 known-conflict: DESIGN_Parameter_Model.md:386 — "True entity-wide data is an ECS component field — not a variable section. No new variable owner is needed." (user, 2026-08-16). The user's 2026-10-09 requirement (§0) overrides its second sentence for behaviour-owned data: unit memory IS a new variable owner. Engine-read data stays an ECS component (§4)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_Command_Chain_Example.md — CC-1 follows §4: the staff systems keep a commander's knowledge in COMPONENTS; R-2042 states the scope rule (component per entity, slots per running behaviour)

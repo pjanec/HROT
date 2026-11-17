@@ -1,5 +1,5 @@
 {
- "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-7 the routine car.",
+ "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4622 K-7 the routine car.",
  "runFor": 90,
  "golden": {
   "every": 10
@@ -32,6 +32,13 @@
    "path": "CheckpointWatch.Released",
    "op": ">=",
    "value": 1
+  },
+  {
+   "name": "the driver boards again after the release",
+   "on": "embark",
+   "who": "Driver",
+   "is": true,
+   "after": "the car is searched and released"
   },
   {
    "name": "nobody fires at it",

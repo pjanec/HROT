@@ -122,6 +122,10 @@ namespace Fdp.Toolkit.Combat
             for (int i = 0; i < memory.Count; i++)
             {
                 if (TargetMemory.IsAnonymous(in memory, i)) continue;
+                // ⭐ a vehicle this checkpoint searched and RELEASED is waved through — not judged again as it drives on past the post (📐 cp-civilian-stops:
+                //   the released car read as a THREAT the moment it moved off the line)
+                //   — the last vehicle it searched, unless it was HELD (stage 3: something found); the stage itself resets once the car drives off
+                if (best.LastSearched != 0 && memory.EntityIds[i] == best.LastSearched && best.SearchStage != 3) continue;
                 var e = new Entity((ulong)memory.EntityIds[i]);
                 if (!world.IsAlive(e) || !Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, e)) continue;
                 if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, e, out var at, out var velocity)) continue;
