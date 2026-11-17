@@ -118,14 +118,25 @@ approximate collision. ⚠ DEM support and what each exposes as data is unconfir
 
 | # | open |
 |---|---|
-| U-9 | which of City Generator / Road Generator / Landscape Combinator can be driven from OUR data (polygons with heights, lane splines) rather than an `.osm` file — their PCG input nodes |
+| ~~U-9~~ | ✅ answered below: Landscape Combinator yes (GeoTIFF + GDAL vectors), City / Road Generator only through splines, TopoFetch no |
 | U-10 | what an Unreal amendment may change and still export (a moved building, a new wall, a sculpted ditch) — the tag vocabulary of option B |
+
+### U-9 answered from the documentation *(`2026-11-17`; three web readers — vendor docs, not tried in Unreal)*
+
+| plugin | price · licence | takes OUR data? | fit |
+|---|---|---|---|
+| **Landscape Combinator** (open source, GitHub; UE 5.8, Windows + Linux) | free for personal use from GitHub; ⚠ commercial = its paid Fab listing (the LICENSE file not read) | ✅ **heightmap**: a local **GeoTIFF**, georeferenced (CRS default EPSG:4326), or a folder of `_x0_y0` tiles; Z scale 1 = real size · ✅ **vectors**: "any vector file supported by GDAL (e.g., Shapefile, GeoJSON, KML)" · ✅ **buildings** from closed footprint SPLINES, height from a `height` tag / floors from `building_levels` (⚠ whether a local file's attributes reach those tags is not stated) · ✅ **roads** from spline components | ⭐ **the best fit** — our height tiles as GeoTIFF, our `*.world.geojson` (⚠ local metres today: needs our geo frame written into it, or "Skip Coordinate Conversion"), our lanes as splines |
+| **City Generator** ($99.99) / **Road Generator** ($39.99), Fab | licence text blank on both listings | ⛔ not documented: OSM import or splines drawn by hand; building height one parameter stepped by floor; roads are landscape splines; no GeoJSON / CSV / heightmap input | ⚠ usable only through a script of ours that creates their splines from our data — their docs do not promise it |
+| **TopoFetch** ($49.99, commercial licence) | — | ⛔ downloads everything itself (OpenTopography, OSM, imagery); no own-file input | ⛔ out |
+| Epic's PCG / Georeferencing / landscape import | free with Unreal | ⚠ not verified — the docs pages did not render for the reader | to check in an installed Unreal (`Engine/Plugins`) |
+
+⇒ **lean for option A's first step**: export our terrain as a **GeoTIFF heightmap + GeoJSON vectors with our geo frame**, and let **Landscape Combinator** build the landscape, buildings and road splines in Unreal; dress the rest with Epic's PCG. ⚠ The first concrete test (on the Windows machine with Unreal): one of our terrains through Landscape Combinator — do the heights line up to the centimetre, and do our building heights reach its tags?
 
 Sources: [StreetMap](https://github.com/MikeFricker/StreetMap) · [OSM importer forum](https://forums.unrealengine.com/t/plugin-openstreetmap-importer/81775) ·
 [Landscape Combinator](https://forums.unrealengine.com/t/plugin-landscape-combinator-a-plugin-to-create-real-world-landscapes-free-for-personal-use/772305) ·
 [Road Generator (OSM to Unreal), Fab](https://www.fab.com/listings/f205fd21-1428-4a4b-b067-a46d1a2fe86f) · [City Generator thread](https://forums.unrealengine.com/t/yazan-hanna-city-generator/2719107) ·
 [Miami City Environment](https://forums.unrealengine.com/t/miami-city-environment/2856143) · [Cesium photorealistic tiles](https://cesium.com/learn/unreal/unreal-photorealistic-3d-tiles/) ·
-[Cesium collision](https://community.cesium.com/t/enabling-collision-sun-shadows/27862)
+[Cesium collision](https://community.cesium.com/t/enabling-collision-sun-shadows/27862) · [Landscape Combinator docs](https://landscapecombinator.github.io/LandscapeCombinator/) · [its GitHub](https://github.com/LandscapeCombinator/LandscapeCombinator) · [City Generator, Fab](https://www.fab.com/listings/657d0a1d-dd2f-4016-a3df-821560216c78) · [TopoFetch docs](https://topofetch.com/docs)
 
 ## ⛔ HISTORY — the first open list
 
