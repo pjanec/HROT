@@ -34,21 +34,24 @@ namespace Hrot.Core.Tkb
             new(TkbEntityTypes.Animal_HorseWar, "HorseWar", 1, DisCategoryHorse, 3, 2.5f, 0.75f, 1.7f, 400f, 15f, T(4, fearless: true, flee: 13f, fleeDist: 100f, recover: 10f, breaks: true, jumps: true, call: 120f, callRange: 800f, alarmRange: 1200f, walk: 1.6f)),
             new(TkbEntityTypes.Animal_Dog, "Dog", 1, DisCategoryDog, 1, 0.9f, 0.3f, 0.6f, 80f, 12f, T(5, fearless: true, territorial: true, flight: 30f, panic: 8f, flee: 10f, fleeDist: 30f, recover: 20f, call: 120f, callRange: 1000f, alarmRange: 1000f, walk: 1.2f)),
             new(TkbEntityTypes.Animal_Cat, "Cat", 1, DisCategoryCat, 1, 0.45f, 0.15f, 0.3f, 20f, 8f, T(6, flight: 8f, panic: 3f, flee: 7f, fleeDist: 30f, recover: 60f, jumps: true, call: 300f, callRange: 60f, alarmRange: 80f, walk: 0.7f)),
-            new(TkbEntityTypes.Animal_BirdFlock, "BirdFlock", 2, DisCategoryBird, 2, 6f, 6f, 1f, 40f, 12f, T(7, flight: 40f, panic: 15f, flee: 12f, fleeDist: 400f, recover: 120f, cohesion: 1f, call: 8f, callRange: 150f, alarmRange: 250f, walk: 5f)),
+            new(TkbEntityTypes.Animal_BirdFlock, "BirdFlock", 2, DisCategoryBird, 2, 6f, 6f, 1f, 40f, 12f, T(7, flight: 40f, panic: 15f, flee: 12f, fleeDist: 400f, recover: 120f, cohesion: 1f, call: 8f, callRange: 150f, alarmRange: 250f, walk: 5f, lone: TkbEntityTypes.Animal_Bird)),
             new(TkbEntityTypes.Animal_Bird, "Bird", 2, DisCategoryBird, 1, 0.25f, 0.3f, 0.15f, 5f, 10f, T(8, flight: 20f, panic: 8f, flee: 10f, fleeDist: 200f, recover: 90f, call: 20f, callRange: 120f, alarmRange: 200f, walk: 5f)),
             new(TkbEntityTypes.Animal_Hen, "Hen", 1, DisCategoryPoultry, 1, 0.4f, 0.25f, 0.4f, 15f, 4f, T(9, flight: 6f, panic: 2f, flee: 3.5f, fleeDist: 20f, recover: 20f, cohesion: 0.5f, call: 20f, callRange: 150f, alarmRange: 250f, walk: 0.4f)),
             new(TkbEntityTypes.Animal_Pig, "Pig", 1, DisCategoryPig, 1, 1.4f, 0.6f, 0.8f, 200f, 5f, T(10, flight: 10f, panic: 4f, flee: 4.5f, fleeDist: 30f, recover: 40f, cohesion: 0.6f, call: 40f, callRange: 300f, alarmRange: 800f, walk: 0.6f)),
             new(TkbEntityTypes.Animal_Goat, "Goat", 1, DisCategoryGoat, 1, 1.2f, 0.4f, 0.8f, 100f, 8f, T(11, flight: 15f, panic: 6f, flee: 7f, fleeDist: 60f, recover: 40f, cohesion: 0.4f, jumps: true, call: 40f, callRange: 400f, alarmRange: 600f, walk: 0.8f)),
+            // ⭐ CE-4649 part C ④ (AN-20c) — the DUCK (~0.5 m, flies LOW: BirdFlightModel.CruiseOf) and its flock; the shootable birds' LoneType is what a hit leaves dead
+            new(TkbEntityTypes.Animal_DuckFlock, "DuckFlock", 2, DisCategoryBird, 4, 6f, 6f, 1f, 40f, 14f, T(13, flight: 40f, panic: 15f, flee: 14f, fleeDist: 400f, recover: 120f, cohesion: 0.6f, call: 6f, callRange: 200f, alarmRange: 300f, walk: 6f, lone: TkbEntityTypes.Animal_Duck)),
+            new(TkbEntityTypes.Animal_Duck, "Duck", 2, DisCategoryBird, 3, 0.5f, 0.3f, 0.2f, 6f, 14f, T(12, flight: 12f, panic: 5f, flee: 14f, fleeDist: 250f, recover: 90f, call: 12f, callRange: 200f, alarmRange: 300f, walk: 6f)),
         };
 
         private static AnimalTemperamentDto T(byte species, float flight = 0f, float panic = 0f, float flee = 0f, float fleeDist = 0f, float recover = 0f,
             float cohesion = 0f, bool fearless = false, bool territorial = false, bool breaks = false, bool jumps = false, float call = 0f,
-            float callRange = 0f, float alarmRange = 0f, float walk = 1f, float bolt = 0f)
+            float callRange = 0f, float alarmRange = 0f, float walk = 1f, float bolt = 0f, long lone = 0)
             => new()
             {
                 Species = species, FlightZoneM = flight, PanicZoneM = panic, FleeSpeed = flee, FleeDistanceM = fleeDist, Recovery = recover,
                 HerdCohesion = cohesion, Fearless = fearless, Territorial = territorial, Breaks = breaks, Jumps = jumps, CallInterval = call,
-                CallRangeM = callRange, AlarmRangeM = alarmRange, WalkSpeed = walk, BoltFear = bolt,
+                CallRangeM = callRange, AlarmRangeM = alarmRange, WalkSpeed = walk, BoltFear = bolt, LoneType = lone,
             };
 
         public static void RegisterAll(ITkbDatabase tkb)

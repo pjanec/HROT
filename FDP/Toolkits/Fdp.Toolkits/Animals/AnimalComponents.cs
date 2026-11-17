@@ -8,6 +8,8 @@ namespace Fdp.Toolkit.Animals
     public enum AnimalSpecies : byte
     {
         Cattle = 0, Sheep = 1, HorseHerd = 2, HorseRiding = 3, HorseWar = 4, Dog = 5, Cat = 6, BirdFlock = 7, Bird = 8, Hen = 9, Pig = 10, Goat = 11,
+        /// <summary>⭐ CE-4649 part C ④ (AN-20c) — the duck (TKB 713) and its flock (714): species values 12, 13 (the TKB order past the area, 712).</summary>
+        Duck = 12, DuckFlock = 13,
     }
 
     /// <summary>⭐ <c>CE-4623</c> §6.1 — what an animal is doing, as the presentation needs it (pose, gait, the alarm look).</summary>

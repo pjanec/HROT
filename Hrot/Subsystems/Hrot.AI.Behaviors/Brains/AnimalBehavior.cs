@@ -121,7 +121,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Cohesion = t?.HerdCohesion ?? 0f,
                     Fearless = (byte)(t is { Fearless: true } ? 1 : 0),
                     Territorial = (byte)(t is { Territorial: true } ? 1 : 0),
-                    Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird) ? 1 : 0),
+                    Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird || t.Species == (byte)AnimalSpecies.Duck || t.Species == (byte)AnimalSpecies.DuckFlock) ? 1 : 0),
                     CallInterval = t?.CallInterval ?? SimDuration.Zero,
                 },
             };

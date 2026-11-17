@@ -56,6 +56,8 @@ namespace Hrot.Map.Common
         public const long Animal_Pig = 710;
         public const long Animal_Goat = 711;
         public const long AnimalArea = 712;
+        /// <summary>⭐ CE-4649 part C ④ (AN-20c) — the DUCK and its flock; 713/714 measured free on every lane 2026-11-17 (700–799 beyond 712).</summary>
+        public const long Animal_Duck = 713, Animal_DuckFlock = 714;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;

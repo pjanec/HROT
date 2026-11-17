@@ -204,7 +204,7 @@ namespace Fdp.Toolkit.Terrain
             if (repo.IsComponentTypeRegistered<AnimalState>() && repo.HasComponent<AnimalState>(e))
             {
                 var species = repo.GetComponentRO<AnimalState>(e).Species;
-                if (species is AnimalSpecies.BirdFlock or AnimalSpecies.Bird) return false;   // ⛔ birds never (MR-16), whatever their locomotion says
+                if (species is AnimalSpecies.BirdFlock or AnimalSpecies.Bird or AnimalSpecies.Duck or AnimalSpecies.DuckFlock) return false;   // ⛔ birds never (MR-16), whatever their locomotion says
                 animal = true; vehicle = false;
             }
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>() && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) return false;   // its vehicle is the body

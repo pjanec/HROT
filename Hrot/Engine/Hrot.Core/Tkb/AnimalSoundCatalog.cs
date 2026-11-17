@@ -17,7 +17,7 @@ namespace Hrot.Core.Tkb
     {
         /// <summary>The first animal sound type (§6.1).</summary>
         public const long Base = 7800;
-        public const int Species = 12, Lines = 8, Count = Species * Lines;   // 96: 7800 … 7895
+        public const int Species = 14, Lines = 8, Count = Species * Lines;   // 112: 7800 … 7911 (⭐ CE-4649 part C ④: species 12 = Duck, 13 = DuckFlock — the block grew by two species)
         public const int Call = 0, Alarm = 1, Special = 2, HoovesWalk = 3, HoovesTrot = 4, HoovesGallop = 5, Wings = 6, Flutter = 7;
 
         /// <summary>The animals' priorities: a call is ambient colour, an alarm or a bark is what the operator must catch (the voices' level), movement sits with footsteps.</summary>
@@ -33,7 +33,7 @@ namespace Hrot.Core.Tkb
         public static int LineOf(long type) => (int)((type - Base) % Lines);
 
         /// <summary>The species of an animal TKB type 700…711 (its sound block's <c>s</c>); −1 for any other type.</summary>
-        public static int SpeciesOfEntityType(long tkbType) => tkbType >= 700 && tkbType <= 711 ? (int)(tkbType - 700) : -1;
+        public static int SpeciesOfEntityType(long tkbType) => tkbType >= 700 && tkbType <= 711 ? (int)(tkbType - 700) : tkbType == 713 || tkbType == 714 ? (int)(tkbType - 701) : -1;   // 712 is the area: no voice
 
         /// <summary>Every type of the block, with its (species, line).</summary>
         public static IEnumerable<(long Type, int Species, int Line)> All()
@@ -44,7 +44,7 @@ namespace Hrot.Core.Tkb
         /// <summary>How far a species' rest call carries (m): the loud animals far, a cat hardly.</summary>
         public static float CallRange(int species) => species switch
         {
-            0 => 200f, 1 => 150f, 2 => 250f, 3 => 250f, 4 => 250f, 5 => 200f, 6 => 50f, 7 => 120f, 8 => 80f, 9 => 80f, 10 => 150f, _ => 150f,
+            0 => 200f, 1 => 150f, 2 => 250f, 3 => 250f, 4 => 250f, 5 => 200f, 6 => 50f, 7 => 120f, 8 => 80f, 9 => 80f, 10 => 150f, 12 => 200f, 13 => 200f, _ => 150f,
         };
 
         /// <summary>The sound of a type of the block — its TKB <see cref="SoundDto"/> when one is registered, else the built-in placeholder; null for a type that is no animal sound.</summary>
@@ -88,7 +88,7 @@ namespace Hrot.Core.Tkb
         /// <summary>The seconds between one species' rest calls — a range, a herd is not a choir.</summary>
         public static (float Min, float Max) Interval(int species) => species switch
         {
-            0 => (14f, 40f), 1 => (8f, 25f), 2 => (20f, 60f), 3 => (20f, 60f), 4 => (20f, 60f), 5 => (10f, 40f), 6 => (25f, 70f), 7 => (5f, 15f), 8 => (4f, 12f), 9 => (3f, 10f), 10 => (10f, 30f), _ => (10f, 30f),
+            0 => (14f, 40f), 1 => (8f, 25f), 2 => (20f, 60f), 3 => (20f, 60f), 4 => (20f, 60f), 5 => (10f, 40f), 6 => (25f, 70f), 7 => (5f, 15f), 8 => (4f, 12f), 9 => (3f, 10f), 10 => (10f, 30f), 12 => (5f, 14f), 13 => (4f, 10f), _ => (10f, 30f),
         };
 
         private static uint Hash(uint x) { x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16; return x; }

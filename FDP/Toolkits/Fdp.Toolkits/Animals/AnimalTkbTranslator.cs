@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Animals
                 repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationIntent());
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>() && !repo.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(entity))
                 repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationStatus());
-            if ((AnimalSpecies)dto.Species == AnimalSpecies.BirdFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
+            if ((AnimalSpecies)dto.Species is AnimalSpecies.BirdFlock or AnimalSpecies.DuckFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
                 repo.AddComponent(entity, new FlockState { Count = DefaultFlockCount, InitialCount = DefaultFlockCount, Seed = (uint)template.TkbType, Mode = FlockMode.Perched });
         }
     }
