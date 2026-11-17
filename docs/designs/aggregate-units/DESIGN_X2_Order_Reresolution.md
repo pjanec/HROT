@@ -315,6 +315,10 @@ entity dump — judged by the men not leaving their posts instead. ⚠ A merge's
 `TacticalIntentResolutionSystemTests` (+ `ScenarioRulesTests`, `BasicInfantrySopTests`) 545/0 plain; under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`
 541/4 — the 4 are `BasicInfantrySopTests`' soldier SOP (an undeclared `EntityInfo` read in `EqsTacticsNodes.Engageable`, no X-2 code on the stack; not proved at the base).
 
+**End-of-run sweep** (every `agg-*` + the four defend scenarios, after merging `coordinator`): first pass 12 of 13 reached green, `agg-merge-back` 62/64 ⇒ R-8372;
+after it, the remaining 18 (agg-merge-back included) 18/18, every golden SAME (the defend ones have none). **Parallel:** `HROT_PARALLEL_SIM=1 stepped-hash.py --threads 1,4,8 --chunk 60`
+(6 s, past the 2.25 s handover and the re-issue) on `agg-squad-holds-house` and `agg-split-keeps-order` — STATE EQUAL.
+
 **Findings while building:** F-X2-5, F-X2-6 (§10).
 
 **Lane decisions:** R-8364 … R-8372 (above) · R-8365 is the user's ruling.
