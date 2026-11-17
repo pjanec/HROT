@@ -178,11 +178,23 @@ namespace Hrot.Core.Tkb
             Set(tkb, MunitionTkbCatalog.TkbChaff, new MunitionEffectsDto { Release = ChaffCloud });
             // ⭐ CE-4618 (radar SAM U-2) — the SAM's launch: a booster flash at the mouth; it bursts in the air as a medium fragmentation burst (the proximity fuze)
             Set(tkb, MunitionTkbCatalog.TkbRadarSamMissile, new MunitionEffectsDto { MuzzleFlash = MissileLaunchFlash, Explosion = ExplosionMedium, Decal = DecalMedium });
+            ApplyAirMissileEffects(tkb);   // ⭐ CE-4647 (air combat AC-15 step 4)
             // ⭐ CE-4624 (minefields MS-U4, MR-17; the mockup's 3-D panel) — the mines' bursts: an AP mine a medium dust burst at the foot, an AT mine and the line
             //   charge the huge dark column (several kg of explosive); each scorches the ground under it.
             Set(tkb, MunitionTkbCatalog.TkbMineAntiPersonnel, new MunitionEffectsDto { Explosion = ExplosionMedium, Decal = DecalSmall });
             Set(tkb, MunitionTkbCatalog.TkbMineAntiTank, new MunitionEffectsDto { Explosion = ExplosionHuge, Decal = DecalLarge });
             Set(tkb, MunitionTkbCatalog.TkbLineCharge, new MunitionEffectsDto { Explosion = ExplosionHuge, Decal = DecalLarge });
+        }
+
+        /// <summary>🔧 AirMunitionStandIn — the air lane's AAM ids (DESIGN_Air_Combat §7): 6060 AIM-9X · 6061 AIM-120 · 6062 R-73 · 6063 R-77.</summary>
+        public static readonly long[] AirMissileIds = { 6060, 6061, 6062, 6063 };
+
+        /// <summary>⭐ CE-4647 (air combat AC-15 step 4) — an air-to-air missile leaves its rail like the radar SAM leaves its tube: the booster's flash and the puff of smoke; it bursts as a medium fragmentation burst.
+        /// <c>Set</c> skips an id the TKB does not hold, so this costs nothing until the air lane's munitions are merged. ⭐ Re-bind: the ids come from the air lane's constants.</summary>
+        public static void ApplyAirMissileEffects(ITkbDatabase tkb)
+        {
+            foreach (long aam in AirMissileIds)
+                Set(tkb, aam, new MunitionEffectsDto { MuzzleFlash = MissileLaunchFlash, Explosion = ExplosionMedium, Decal = DecalMedium });
         }
 
         private static void Set(ITkbDatabase tkb, long ammoType, MunitionEffectsDto set)

@@ -227,6 +227,39 @@ sequenceDiagram
 *Why ui and not the air lane: the body is chosen by the class chain, so the air lane's only visual act is naming the class — exactly the radar SAM's split (§2a there).*
 
 
+### 4e. ⭐ AS-BUILT — the looks (ui, `2026-11-17`; the mockups of §4d are the acceptance, the rails below measure them)
+
+```mermaid
+graph TD
+  subgraph Presentation["every map host — presentation only, no wire"]
+    FAM["VisualFamilies.Of(type) — class TwinEngineFighter ⇒ TwinEngineJet (AirClassStandIn)"] --> KIT["ShapeKits.TwinEngineJet (the MiG)"]
+    EBL["EntityBodyLayer3D.Draw"] --> JS["JetStores.Left — the missiles left, from the WeaponAmmo mirror"]
+    EBL --> FS["FighterStateStandIn.Read — Throttle, GLoad"]
+    JS --> LOAD["JetStores.Load — rails + missiles + flames + vortex (cached per type, size, load: 0 B)"]
+    FS --> LOAD
+    PL["ProjectileLayer.Draw3D"] --> TRAIL["TrailFactor(BurnOf(ammo), now − path.FirstSeen)"]
+    ESS["EffectSpawnSystem + WeaponKits.BlastOf"] --> LAUNCH["flash (MissileLaunchFlash) + puff at the rail"]
+    WSS["WreckSpawnSystem (existing)"] --> FALL["Fire + Smoke anchored to the dead jet's body"]
+    PS["PossessionStation.DrawOverlay (FixedWing)"] --> HUD["FighterHud.Build / Draw"]
+    HUD --> FS
+    AG["AirArenaGizmo.Draw / Handles / Clamp — over ArenaShape"]
+  end
+```
+
+*What the picture shows that prose hid: nothing here crosses the wire — every look is derived on each host from state that already replicates (the ammunition mirror, the round's age, the health crossing); the two states the air lane has not yet merged (`FighterPilotState`, `AirArena`) enter through ONE small stand-in each.*
+
+| piece | as built | deviation from the §4d mockup / what waits |
+|---|---|---|
+| the MiG body | `VisualFamily.TwinEngineJet` (appended), `ShapeKits.TwinEngineJet`, box 17.3 × 11.4 × 4.7 m, `KitPart.RollDegrees` (new, last parameter) for the canted fins; class bound by name through `VisualFamilies.AirClassStandIn` | the kit's gear is drawn in the air as the F-16's is (existing kit behaviour; the mockup omits gear) |
+| stores | `JetStores`: pylons always, one missile per round left of the mount whose AMMUNITION is an air-to-air missile (IR 6060 / 6062, radar 6061 / 6063 — `AirMunitionStandIn`), the left rail first | the F-16 draws none until the air lane gives it missile mounts |
+| AAM in flight | the smoke trail from the round's AGE (`RoundPath.FirstSeen`, first seen on this host) against `ProjectileLayer.BurnOf` (IR 5 s, radar 8 s — `BurnStandIn`), a 0.8 s linger, then NONE; the launch: `EffectTkbCatalog.ApplyAirMissileEffects` + `WeaponKits.BlastOf` ⇒ `Launch` for a jet's missile mount | the four AAM look ROWS (length, colour, diameter) are the air lane's placeholders — tuned at the re-bind; a round first seen mid-flight (a late joiner) shows its trail from then |
+| afterburner · vortex · fall | flames (amber cones, one per nozzle) from `Throttle ≥ 0.9` (the contract's); wingtip tubes 40 m back from `GLoad ≥ 6`; a dead jet burns by the EXISTING W3 wreck fire + smoke anchored to its body (rail: they follow it down), its afterburner out | the vortex is a straight stateless tube, not the curved vapour of the path; a curved smoke trail behind a falling jet is a follow-up |
+| the arena | `AirArenaGizmo.Draw` (2-D: dashed ring + 6 % fill; 3-D: floor ring, ceiling ring, ticks, spokes), `Handles` (centre, radius, floor, ceiling: position, hit test, drag), `Clamp` (the ONE validation the form shares), over the seam `ArenaShape` | the projector over the `AirArena` component, the edit command and the Details form's four fields wait for the air lane's component; floor / ceiling read as heights above the ground at the centre |
+| the fighter HUD | `FighterHud.Build` (pure) / `Draw`: the pipper = `TargetLead.Point`, SEARCH / IN ZONE / LOCK, the warning from the existing `RadarWarning` and `MissileWarning`, g from the state seam; anchors measured in the frame rail | the zone is a range band (500 m … 6 km) and the lock a 15° cone (`ZoneStandIn`) until the air lane's employment zone exists |
+
+**Prior state superseded:** §4d's table said "nothing for the body" of a MiG would be a new F-16 — now `TwinEngineJet`; the "gun only needs its effect-set and tracer rows" line stands (nothing built here).
+
+
 ## 5. The numbers *(public figures, rounded; the builder tunes and records each as a lane decision)*
 
 ### 5a. The jets

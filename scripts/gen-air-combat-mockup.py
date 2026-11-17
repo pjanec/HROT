@@ -219,8 +219,11 @@ def hud_svg():
     s.text(vx + vw / 2, vy + 46, "HDG 045", "#E6EBF2", 12, "middle")
     ctx = [("SPD 152 m/s  ALT 312 m  HDG 045", "#96C8FF"), ("HEALTH 400/400", "#78EB78"), ("> M61 20 mm  500", "#FFDC5A"), ("  IR missile  2", "#D7D7D7"), ("  Radar missile  2", "#D7D7D7"),
            ("  Flares 30   Chaff 30", "#D7D7D7"), ("LMB fire  Tab weapon  Esc release", "#AFAFAF")]
-    for i, (t, c) in enumerate(ctx): s.text(vx + 10, vy + 82 + i * 21, t, c, 14)
-    s.text(vx + 10, vy + 82 + 7 * 21 + 12, "(unchanged: the real flyer HUD lines)", C.NOTE, 10.5)
+    # the real HUD text sits BOTTOM-LEFT of the visible map (PossessionStation.HudOrigin: 16 px margin), a black 150-alpha box behind, 21 px lines
+    by0 = vy + vh - 16 - len(ctx) * 21
+    s.rect(vx + 8, by0 - 6, 300, len(ctx) * 21 + 8, "#000000", op=0.59)
+    for i, (t, c) in enumerate(ctx): s.text(vx + 16, by0 + 14 + i * 21, t, c, 14)
+    s.text(vx + 320, by0 + 14, "(unchanged: the real flyer HUD lines, bottom-left)", C.NOTE, 10.5)
     # target and the NEW elements
     tx, ty = vx + 560, vy + 235
     s.raw(f"<polygon points='{tx - 14},{ty} {tx + 14},{ty + 3} {tx + 8},{ty + 6} {tx - 8},{ty + 6}' fill='#202428'/><rect x='{tx - 2}' y='{ty - 7}' width='4' height='13' fill='#202428'/>")
@@ -240,26 +243,26 @@ def hud_svg():
     s.text(zx, zy + 4, "IN ZONE", HUDG, 20, "middle", "bold")
     s.line(zx - 80, zy - 22, zx - 62, zy - 22, HUDG, 2); s.line(zx - 80, zy - 22, zx - 80, zy - 8, HUDG, 2); s.line(zx + 80, zy - 22, zx + 62, zy - 22, HUDG, 2); s.line(zx + 80, zy - 22, zx + 80, zy - 8, HUDG, 2)
     # g readout and the radar warning (left column, under the context)
-    s.rect(vx + 10, vy + vh - 120, 90, 28, "#10131A", op=0.55, rx=3); s.text(vx + 55, vy + vh - 100, "G  6.2", HUDA, 18, "middle", "bold")
+    s.rect(vx + vw - 106, vy + vh - 52, 90, 28, "#10131A", op=0.55, rx=3); s.text(vx + vw - 61, vy + vh - 32, "G  6.2", HUDA, 18, "middle", "bold")
     # radar warning ring (bottom-left)
-    rx, ry, rr = vx + 90, vy + vh - 220, 46
+    rx, ry, rr = vx + 90, vy + 330, 46
     s.raw(f"<circle cx='{rx}' cy='{ry}' r='{rr}' fill='#10131A' fill-opacity='0.55' stroke='{C.NOTE}'/><circle cx='{rx}' cy='{ry}' r='{rr / 2}' fill='none' stroke='{C.NOTE}' stroke-dasharray='2 3'/>")
     s.line(rx, ry - rr, rx, ry + rr, "#3A3F4A", 1); s.line(rx - rr, ry, rx + rr, ry, "#3A3F4A", 1)
     s.raw(f"<polygon points='{rx - 24},{ry - 39} {rx - 17},{ry - 29} {rx - 31},{ry - 29}' fill='{HUDR}'/>")
     s.text(rx + rr + 12, ry - 8, "LAUNCH  IR  4.2 s", HUDR, 14, "start", "bold"); s.text(rx + rr + 12, ry + 10, "(tracked: amber tick, no text)", C.NOTE, 10.5)
     # callouts (grey, not drawn)
-    s.callout(px, py - 20, 600, 120, ["gun pipper: where the burst will be when", "it arrives (the led point, accelerating target)"])
-    s.callout(tx + 26, ty - 26, 600, 160, ["lock diamond + range / closure"])
-    s.callout(zx + 60, zy - 14, 640, vy + vh - 150, ["IN ZONE: a missile shot now cannot", "be out-run (the employment zone, AC-8)"])
-    s.callout(rx - 24, ry - 39, vx + 190, vy + 380, ["radar warning: a tick at the bearing of the emitter /", "the nearest inbound missile; the text on a LAUNCH"])
+    s.callout(px, py - 20, 480, 120, ["gun pipper: where the burst will be when", "it arrives (the led point, accelerating target)"])
+    s.callout(tx + 26, ty - 26, 560, 170, ["lock diamond + range / closure"])
+    s.callout(zx + 60, zy - 14, 480, vy + vh - 130, ["IN ZONE: a missile shot now cannot", "be out-run (the employment zone, AC-8)"])
+    s.callout(rx - 24, ry - 39, vx + 160, vy + 255, ["radar warning: a tick at the bearing of the emitter /", "the nearest inbound missile; the text on a LAUNCH"])
     # right column: the states, zoomed
     x0 = 840
     panel(s, x0, 60, 380, 130, "pipper + lead line");
     s.raw(f"<polygon points='{x0 + 70},{125} {x0 + 98},{128} {x0 + 92},{131} {x0 + 76},{131}' fill='#D0D4DA'/>")
     s.raw(f"<circle cx='{x0 + 150}' cy='132' r='19' fill='none' stroke='{HUDA}' stroke-width='2'/><circle cx='{x0 + 150}' cy='132' r='2.4' fill='{HUDA}'/>"); s.line(x0 + 90, 130, x0 + 132, 128, HUDA, 1.5, "4 3")
-    s.text(x0 + 190, 128, "shown inside 500 m,", C.SUB, 12); s.text(x0 + 190, 144, "gun selected (> M61)", C.SUB, 12); s.text(x0 + 12, 178, "amber; red when the aim is off by < 2 deg", C.NOTE, 10.5)
+    s.text(x0 + 190, 128, "the burst meets him", C.SUB, 12); s.text(x0 + 190, 144, "where the pipper is", C.SUB, 12); s.text(x0 + 12, 178, "amber; shown inside 500 m with the gun selected", C.NOTE, 10.5)
     panel(s, x0, 200, 380, 150, "missile cue - three states")
-    for i, (lab, col, sub) in enumerate((("SEARCH", C.GREY, "no lock, no cue"), ("IN ZONE", HUDG, "target inside the zone; seeker looking"), ("LOCK", HUDA, "seeker has it (diamond), tone on; amber -> green in zone"))):
+    for i, (lab, col, sub) in enumerate((("SEARCH", C.GREY, "no lock, no cue"), ("IN ZONE", HUDG, "target inside the zone; seeker looking"), ("LOCK", HUDA, "seeker has it: diamond; amber, green in zone"))):
         s.text(x0 + 14, 240 + i * 36, lab, col, 16, "start", "bold"); s.text(x0 + 110, 240 + i * 36, sub, C.SUB, 11.5)
     panel(s, x0, 360, 380, 130, "radar warning - two states")
     s.raw(f"<polygon points='{x0 + 30},{415} {x0 + 38},{426} {x0 + 22},{426}' fill='{HUDA}'/>"); s.text(x0 + 60, 424, "TRACKED - a radar has you (amber tick)", C.SUB, 12)
@@ -268,7 +271,7 @@ def hud_svg():
     for i, (t, c, sub) in enumerate((("G  3.1", "#D7D7D7", "below 6"), ("G  6.8", HUDA, "6 g and up: vortex trails show"), ("G  8.7", HUDR, "within 1 g of the limit"))):
         s.text(x0 + 14, 540 + i * 26, t, c, 16, "start", "bold"); s.text(x0 + 110, 540 + i * 26, sub, C.SUB, 12)
     s.note(20, 640, ["Layout rule (the measured rail): every new element is at a FIXED anchor - the lock diamond on the target's screen point, the pipper on the led point, the IN ZONE tag",
-                     "bottom-centre, the radar ring bottom-left, the g tag under it; ALL under the existing compass strip (PlayerHudLayer.Top = 62 px).",
+                     "bottom-centre, the radar ring left, the g tag bottom-right; ALL under the existing compass strip (PlayerHudLayer.Top = 62 px).",
                      "The player flies the MANUAL mouse-aim pilot (mode 8 is AI only): the aim is the look, the HUD shows the cues; there is no autopilot cue here."], C.SUB, 11.5)
     s.note(20, 700, ["Out of scope (unchanged): the compass strip, SPD/ALT/HDG, HEALTH and weapon lines, the crosshair, the kill feed and mission column."], C.NOTE, 11)
     return s

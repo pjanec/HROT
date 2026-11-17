@@ -212,6 +212,8 @@ public static class WeaponKits
         {
             VisualFamily.SpArtillery => FiringBlast.Ground,
             VisualFamily.AirDefenceVehicle => FiringBlast.Launch,   // ⭐ CE-4618 — a SAM's booster smoke at the canister's mouth
+            // ⭐ CE-4647 (air combat AC-15 step 4) — a fighter's missile leaving its rail: the booster's flash (the mount's own effect set) and the puff left at the rail (the shot's origin)
+            VisualFamily.Jet or VisualFamily.TwinEngineJet when mount is { } m && (JetStores.IsIr(m.AmmoGuid) || JetStores.IsRadar(m.AmmoGuid)) => FiringBlast.Launch,
             VisualFamily.WeaponSystem when kind == WeaponKind.TowedGun => FiringBlast.Ground,
             VisualFamily.WeaponSystem when IsShoulderFired(kind) => FiringBlast.Backblast,
             VisualFamily.Person when IsLauncher(tkb, mount) => FiringBlast.Backblast,

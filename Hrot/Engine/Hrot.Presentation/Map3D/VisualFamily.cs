@@ -69,6 +69,9 @@ public enum VisualFamily : byte
     /// a tracked engineer carrier with a line-charge launcher at the rear and a FLAIL drum on two arms in front that spins while the flail is on (<see cref="FlailActivity"/>).
     /// ⛔ Appended (a byte value others may store), AFTER the animals. ✅ Bound (2026-11-16) to terrain's class: <c>["MineClearer"]</c> in <see cref="VisualFamilies.FamilyOfClass"/>, type 116 through the real catalogue; the kit is scaled to the TKB's 9.0 × 4.4 × 3.2 m box.</summary>
     MineClearer,
+    /// <summary>⭐ CE-4647 (docs/designs/air-attack/DESIGN_Air_Combat.md §4d, AC-15) — a twin-engine fighter (class <c>TwinEngineFighter</c>, the MiG-29, type 409, DIS <c>1.2.*.1.&lt;sub&gt;</c>): two canted fins,
+    /// two nozzles, intakes under the wings. More specific than <c>Fighter</c>/<c>Jet</c>, so the MiG is not an F-16. ⛔ Appended (a byte value others may store).</summary>
+    TwinEngineJet,
 }
 
 /// <summary>
@@ -115,6 +118,13 @@ public static class VisualFamilies
         ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat,
     };
 
+    /// <summary>⭐ CE-4647 — <c>AirClassStandIn</c>: the air lane's class <c>TwinEngineFighter</c> is declared in ITS contract (<c>NOTE_Air_To_Ui_Air_Combat_Contract.md</c>); until it is merged the table has no such class, so
+    /// the name is bound HERE, by name, and costs nothing (a chain that never names it never asks). ⭐ Re-bind: move the entry into <see cref="FamilyOfClass"/>, delete this.</summary>
+    public static IReadOnlyDictionary<string, VisualFamily> AirClassStandIn { get; } = new Dictionary<string, VisualFamily>
+    {
+        ["TwinEngineFighter"] = VisualFamily.TwinEngineJet,
+    };
+
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
     /// because its DIS Kind is the unit Kind (11), no longer because it carries a <see cref="TkbCompositionDef"/>.</summary>
     /// <para>⭐ CE-1086 (§6n N-7) — a <see cref="VisualFamily.Jet"/> whose class chain names <c>Uav</c> and that FLIES AS A ROTORCRAFT
@@ -140,7 +150,7 @@ public static class VisualFamilies
     {
         var chain = EntityClassTable.Default.Chain(dis);
         for (int i = chain.Count - 1; i >= 0; i--)
-            if (FamilyOfClass.TryGetValue(chain[i].Name, out var family)) return family;
+            if (FamilyOfClass.TryGetValue(chain[i].Name, out var family) || AirClassStandIn.TryGetValue(chain[i].Name, out family)) return family;
         return VisualFamily.Unknown;
     }
 
