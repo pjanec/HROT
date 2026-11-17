@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT end to end (agg-behaviors' planner + PlannedPosts 138, agg-backend's wait `b0d53162e`; §9 verdict 2026-11-17: agg-squad-holds-house's 10 men land on the house's wall posts); OPEN: DP3-D ② (after X-2)
+build-state: BUILT end to end (agg-behaviors' planner + PlannedPosts 138, agg-backend's wait `b0d53162e`; §9 verdict 2026-11-17: agg-squad-holds-house's 10 men land on the house's wall posts); OPEN: DP3-D ② — designed in DESIGN_X2_Order_Reresolution.md §7 X2-F (READY-TO-BUILD 2026-11-17)
 updated: 2026-11-17 (§9 the end-to-end verdict)
 current-answer: §9 AS BUILT (read first) · §0 the decision · §2 the claim table · §3 classes (as built) · §4 sequence · §5 modules · §6 the sub-questions with leans · §7 acceptance
 stale-below: nothing.
@@ -12,6 +12,7 @@ related-designs:
   - ../eqs-2/EQS_Design_v1.3_final.md — OWNS the child-sensor road the asks ride (EqsChildSensor, epochs, the Muscle's 10 Hz solver) and the baked cover provider (A7) that is this problem's "precomputed tactical data"
   - ../../DESIGN_World_Survey_Sensor.md — OWNS the frame / fan / coverage surveys (WorldSurveyChildSensor) the plan's later stages ask
   - ../../DESIGN_Orders_Params_Entity_Classes.md — OWNS the order routing the handover's re-resolution (X-2) goes through
+  - DESIGN_X2_Order_Reresolution.md — OWNS X-2 (the order re-issued on a switch) and therefore DP3-D ② as designed (§7 X2-F, R-8359: Posts from PlannedPosts, MaxPosts 8 → 13, the recording measured — the blackboard is recorded bytes, the component layout unchanged)
 -->
 
 # D-P3 — real defence posts for a splitting stochastic squad *(agg-behaviors, `2026-11-16`)*
