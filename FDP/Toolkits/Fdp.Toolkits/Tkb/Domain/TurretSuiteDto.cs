@@ -72,5 +72,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// expendables (flare, chaff), counted and spent like any round, released by <c>Countermeasures.Release</c> — ⛔ NOT a weapon: no
         /// target, no damage, never chosen to fire at anything (the "armed" readers skip it). The aircraft's LAST mount. Appended.</summary>
         Countermeasure = 12,
+        /// <summary>⭐ <c>CE-10000</c> (air lane, AC-8, R-10002; DESIGN_Air_Combat §3) — an AIR-TO-AIR missile rail (AIM-9 / AIM-120 class):
+        /// fired at aircraft only, inside the employment zone, one at a time per target. ⛔ Never <see cref="Sam"/> (the ground-AA SOP row
+        /// reads it). Appended.</summary>
+        AirToAir = 13,
     }
 }

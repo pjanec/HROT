@@ -101,13 +101,62 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.HasComponent<BallisticProjectile>(e) && repo.GetComponentRO<BallisticProjectile>(e).StoppedTick != 0) continue;
                 var pos = repo.GetComponentRO<SimTransform>(e).Position;
                 ref var vel = ref repo.GetComponentRW<SimVelocity>(e).Linear;
-                if (Steer(repo, world, ref g, pos, vel, out var desired))
+                bool steered = Steer(repo, world, ref g, pos, vel, out var desired);
+                if (g.MaxG > 0f)
+                {
+                    // ⭐⭐ CE-10002 (AC-6) — boost / coast, the g by speed², the lag; too slow ⇒ DEFEATED: it expires, its shot row says so
+                    if (Motor(ref g, ref vel, steered, desired, deltaTime))
+                    {
+                        if (ShotLog.Peek(repo)?.Of(e) is { } shot) ShotLog.End(shot, ShotOutcome.Defeated, tick, pos);
+                        // ⭐ AC-9a — the aircraft it was after counts it (its motion node's report; this system runs on that node, serially)
+                        if (repo.IsAlive(g.Target) && repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FighterPilotState>()
+                            && repo.HasComponent<Fdp.Toolkit.Motion.FighterPilotState>(g.Target))
+                        {
+                            ref var fp = ref repo.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(g.Target);
+                            if (fp.Defeated < 255) fp.Defeated++;
+                        }
+                        repo.DestroyEntity(e);
+                        continue;
+                    }
+                }
+                else if (steered)
                     vel = Turn(vel, desired, TurnRateOf(g.TurnRateDegPerSec) * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
                 // ⭐ CE-3198 (§3b) — the overfly fuze: fires DOWN as the round passes over the roof
                 if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) { repo.DestroyEntity(e); continue; }
                 // ⭐ CE-2187 (§3c, AD2) — the proximity fuze: bursts where its step passes closest to its target
                 if (g.ProximityM > 0f && ProximityFuze(repo, e, in g, pos, vel, deltaTime, tick)) repo.DestroyEntity(e);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-10002 (AC-6, RV-1; DESIGN_Air_Combat §3, §5b) — a motor round's step: it BOOSTS to <see cref="GuidedRound.SpeedMps"/> over its
+        /// burn, then COASTS losing <see cref="GuidedRound.DragPerS"/> (more while it turns: × (1 + the g it pulls ÷ its MaxG)); the g it can
+        /// pull is <c>MaxG·(v / SpeedMps)²</c> (a slowing missile gets LESS agile); its steering follows the lead through a first-order
+        /// lag. True when it is DEFEATED (coasting below <see cref="GuidedRound.MinSpeedMps"/>). Pure arithmetic: no allocation.
+        /// </summary>
+        public static bool Motor(ref GuidedRound g, ref Vector3 vel, bool steered, Vector3 desired, float dt)
+        {
+            if (g.SpeedNow <= 0f) g.SpeedNow = MathF.Max(vel.Length(), 1f);
+            if (g.BurnLeftS > 0f) { g.SpeedNow = MathF.Min(g.SpeedMps, g.SpeedNow + g.BoostMps2 * dt); g.BurnLeftS -= dt; }
+            else g.SpeedNow = MathF.Max(0f, g.SpeedNow - g.DragPerS * (1f + g.LoadG / g.MaxG) * dt);
+            if (g.BurnLeftS <= 0f && g.MinSpeedMps > 0f && g.SpeedNow < g.MinSpeedMps) return true;
+            float v = MathF.Max(g.SpeedNow, 1f);
+            float ratio = v / MathF.Max(g.SpeedMps, 1f);
+            float gAvail = g.MaxG * ratio * ratio;
+            var dir = vel.LengthSquared() > 1e-8f ? Vector3.Normalize(vel) : g.SteerDir;
+            g.LoadG = 0f;
+            if (steered)
+            {
+                float k = g.SteerLagS > 0f ? MathF.Min(1f, dt / g.SteerLagS) : 1f;
+                var s = g.SteerDir + (desired - g.SteerDir) * k;
+                g.SteerDir = s.LengthSquared() > 1e-8f ? Vector3.Normalize(s) : desired;
+                var next = Turn(dir, g.SteerDir, gAvail * 9.81f / v * dt);
+                float turned = MathF.Acos(Math.Clamp(Vector3.Dot(dir, next), -1f, 1f));
+                g.LoadG = turned / MathF.Max(dt, 1e-4f) * v / 9.81f;
+                dir = next;
+            }
+            vel = dir * g.SpeedNow;
+            return false;
         }
 
         /// <summary>Above the roof, a fuze this much higher than the overfly height still fires (the round's path is not exact).</summary>

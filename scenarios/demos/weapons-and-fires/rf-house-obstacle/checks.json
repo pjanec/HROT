@@ -1,0 +1,21 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2355 S3) \u2014 rf-house-obstacle, the scenario's Judge list: both sides fight (each fires \u2014 the fight is joined, neither idles for the run). \u26a0 Left out: (1) 'neither idles hidden more than 12 s' (a gap is not a cue; 'fires within 12 s' is NOT it \u2014 measured, they first fire at ~17 s while moving), (2) 'one of them flanks: around House A or through its two doors' (a route, printed) and (3) 'neither stays in the house's dead ground longer than 20 s' (a dwell in a region).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "Blue",
+      "before": 120
+    },
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "Red",
+      "before": 120
+    }
+  ]
+}

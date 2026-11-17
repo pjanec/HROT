@@ -123,5 +123,61 @@ namespace Hrot.Core.Tests.Services
             var e = world.CreateEntity(); world.AddComponent(e, cells[0]);
             Assert.Empty(TerrainObjectRequests.ForCraters(world, craters, new Ids()));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> MS-T2 (KR-15) — the whole loop: a world's knowledge / strikes / lanes records → <c>PlaceKnowledgeSection.Write</c> → text → <c>Read</c> → <c>ForPlaceKnowledge</c> requests →
+        /// the same records (the knowledge's header and cells, 100 struck mines as two chunks of ≤ 96, 9 lanes as two chunks of ≤ 8), transient, untargeted (the loader's), with TKB 7206 / 7207 / 7208;
+        /// a world that already holds a record of a family gets none of that family (a re-commit doubles nothing).
+        /// 🔴 Red-proof: drop the re-chunking ⇒ the 97th mine is lost (<c>TryAdd</c> refuses past capacity); drop <c>IsTransient</c> ⇒ the record entity would be saved as an entity.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4624_SavedPlaceKnowledge_BecomesTheSameRecords_ChunkedAndTransient_AndAReCommitDoublesNothing()
+        {
+            var field = Guid.Parse("a7000000-0000-4000-8000-0000000000f1");
+            using var src = new EntityRepository();
+            src.RegisterComponent<MinefieldKnowledge>(); src.RegisterComponent<MinefieldStrikes>(); src.RegisterComponent<MinefieldLanes>();
+            var k = new MinefieldKnowledge();
+            k.Header.SubjectKind = SubjectKind.Entity; k.Header.Subject = field; k.Header.ObjectIndex = -1; k.Header.SidePlus1 = 2; k.Header.Kind = PlaceKnowledgeKind.Minefield;
+            k.Header.Marked = 1; k.Header.LearnedAt = (SimInstant)7.5; k.Header.Source = KnowledgeSource.Recon;
+            k.Set(10, 20, MineCellKnowledge.KnownMined); k.Set(59, 63, MineCellKnowledge.Suspected);
+            var e = src.CreateEntity(); src.AddComponent(e, k);
+            for (int chunk = 0; chunk < 2; chunk++)
+            {
+                var s = new MinefieldStrikes { Field = field, Chunk = (ushort)chunk };
+                for (int i = 0; i < (chunk == 0 ? MinefieldStrikes.Capacity : 4); i++) s.TryAdd(new StrikeItem(field, (short)(chunk * 200 + i), (short)i, MineGone.Struck));
+                e = src.CreateEntity(); src.AddComponent(e, s);
+            }
+            for (int chunk = 0; chunk < 2; chunk++)
+            {
+                var l = new MinefieldLanes { Field = field, Chunk = (ushort)chunk };
+                for (int i = 0; i < (chunk == 0 ? MinefieldLanes.Capacity : 1); i++) l.TryAdd(new LaneItem(field, new Vector2(chunk * 100 + i, 0), new Vector2(chunk * 100 + i, 50), 4.5f, 2));
+                e = src.CreateEntity(); src.AddComponent(e, l);
+            }
+            var section = PlaceKnowledgeSection.Write(src)!;
+            var saved = PlaceKnowledgeSection.Read(new JsonObject { [PlaceKnowledgeSection.Name] = JsonNode.Parse(section.ToJsonString()) });
+
+            Assert.Equal((1, 100, 9), (saved.Knowledge.Count, saved.Strikes[field].Count, saved.Lanes[field].Count));
+            using var world = new EntityRepository();
+            world.RegisterComponent<MinefieldKnowledge>(); world.RegisterComponent<MinefieldStrikes>(); world.RegisterComponent<MinefieldLanes>();
+            var requests = TerrainObjectRequests.ForPlaceKnowledge(world, saved, new Ids());
+            Assert.Equal(1 + 2 + 2, requests.Count);
+            Assert.All(requests, r => { Assert.True(r.IsTransient); Assert.Equal(EntityCreationRouting.DefaultEntityCreationRequestProcessor, r.OwnerAppInstanceId); });
+            var know = requests.Single(r => (long)r.TkbType == MinefieldKnowledge.TkbType).InitialComponents!.OfType<MinefieldKnowledge>().Single();
+            Assert.Equal((field, (byte)2, (byte)1, 7.5), (know.Header.Subject, know.Header.SidePlus1, know.Header.Marked, (double)know.Header.LearnedAt));
+            Assert.Equal(KnowledgeSource.Recon, know.Header.Source);
+            Assert.Equal(MineCellKnowledge.KnownMined, know.Get(10, 20));
+            Assert.Equal(MineCellKnowledge.Suspected, know.Get(59, 63));
+            Assert.Equal(MineCellKnowledge.Unknown, know.Get(0, 0));
+            var strikes = requests.Where(r => (long)r.TkbType == MinefieldStrikes.TkbType).Select(r => r.InitialComponents!.OfType<MinefieldStrikes>().Single()).ToList();
+            Assert.Equal(new[] { MinefieldStrikes.Capacity, 4 }, strikes.Select(s => (int)s.Count).ToArray());
+            Assert.Equal(new ushort[] { 0, 1 }, strikes.Select(s => s.Chunk).ToArray());
+            var lanes = requests.Where(r => (long)r.TkbType == MinefieldLanes.TkbType).Select(r => r.InitialComponents!.OfType<MinefieldLanes>().Single()).ToList();
+            Assert.Equal(new[] { MinefieldLanes.Capacity, 1 }, lanes.Select(l => (int)l.Count).ToArray());
+
+            foreach (var r in requests)   // a re-commit: every family already has an entity
+                foreach (var c in r.InitialComponents!)
+                    switch (c) { case MinefieldKnowledge a: world.AddComponent(world.CreateEntity(), a); break; case MinefieldStrikes b: world.AddComponent(world.CreateEntity(), b); break; case MinefieldLanes d: world.AddComponent(world.CreateEntity(), d); break; }
+            Assert.Empty(TerrainObjectRequests.ForPlaceKnowledge(world, saved, new Ids()));
+        }
     }
 }

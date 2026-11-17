@@ -207,6 +207,7 @@ namespace Hrot.Map.Common.Replication.Egress
             EcsNavMode.PathToPoint   => ENavigationMode.NAV_PATH_TO_POINT,
             EcsNavMode.Manual        => ENavigationMode.NAV_MANUAL,   // ⭐ CE-3173
             EcsNavMode.Traffic       => ENavigationMode.NAV_TRAFFIC,  // ⭐ AQ93 R-4023
+            EcsNavMode.AirCombat     => ENavigationMode.NAV_AIR_COMBAT,   // ⭐ CE-10000 (AC-2, RV-6) — mode 8 crosses the wire
             _                        => ENavigationMode.NAV_NONE,
         };
     }

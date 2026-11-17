@@ -169,6 +169,140 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsCrater> Craters;
     }
 
+    // ⭐ CE-4624 MS-T2 (minefields §3a, §6.1) — the minefield (authored: parameters + lanes), its ground-truth strikes and a side's knowledge of it. Reliable + TransientLocal +
+    //   KeepLast(1) keyed by entity: a late joiner gets every field, strike and cell. Field / subject ids travel as the two halves of the stable Guid.
+    [DdsStruct]
+    public partial struct DdsMinefieldLane
+    {
+        public float Ax;
+        public float Ay;
+        public float Bx;
+        public float By;
+        public float Width;
+        public byte ClearedBySidePlus1;
+        public int KnownToSides;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefield
+    {
+        [DdsKey]
+        public int EntityId;
+        /// <summary><c>MineType</c>: 1 anti-personnel · 2 anti-tank · 3 mixed.</summary>
+        public byte MineKind;
+        public byte AntiHandling;
+        public byte LaneCount;
+        public float SpacingM;
+        public float OrientationDeg;
+        public int Seed;
+        public int KnownAtStartSides;
+        [DdsManaged] public List<DdsMinefieldLane> Lanes;
+    }
+
+    /// <summary>⭐ CE-4624 — one struck / cleared mine of <see cref="EntityMinefieldStrikes"/>: its lattice (row, col) and how it went (1 struck · 2 cleared).</summary>
+    [DdsStruct]
+    public partial struct DdsMineGone
+    {
+        public int Row;
+        public int Col;
+        public byte How;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldStrikes
+    {
+        [DdsKey]
+        public int EntityId;
+        public long FieldLo;
+        public long FieldHi;
+        public int Chunk;
+        [DdsManaged] public List<DdsMineGone> Mines;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldKnowledge
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte SubjectKind;
+        public byte SidePlus1;
+        public byte Kind;
+        public byte State;
+        public byte Source;
+        public byte Marked;
+        public int Chunk;
+        public long SubjectLo;
+        public long SubjectHi;
+        public int ObjectIndex;
+        public double LearnedAt;
+        /// <summary>The 2-bit grid (60 × 64 cells, 960 bytes) packed four bytes to an int, little-endian.</summary>
+        [DdsManaged] public List<int> Cells;
+    }
+
+    /// <summary>⭐ CE-4624 MS-T4 — one cleared lane of <see cref="EntityMinefieldLanes"/>: its segment, width and the clearing side + 1.</summary>
+    [DdsStruct]
+    public partial struct DdsClearedLane
+    {
+        public float Ax;
+        public float Ay;
+        public float Bx;
+        public float By;
+        public float Width;
+        public byte SidePlus1;
+    }
+
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityMinefieldLanes
+    {
+        [DdsKey]
+        public int EntityId;
+        public long FieldLo;
+        public long FieldHi;
+        public int Chunk;
+        [DdsManaged] public List<DdsClearedLane> Lanes;
+    }
+
+    // ⭐ CE-4622 K-2 — a hull's ram order (RamOrder), the Brain group's, applied on every other node (the node that moves the hull reads it): the MineClearing shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityRamOrder
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Crowd;
+        public int TargetNetId;
+    }
+
+    // ⭐ CE-4624 MS-T4 — a mine clearer's tool marker (MineClearing), the Brain group's, applied on every other node (the Muscle that clears reads it): the BladeCut shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityMineClearing
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Tool;
+        public float WidthM;
+        public float ToX;
+        public float ToY;
+        public float ToZ;
+    }
+
     // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
@@ -182,6 +316,68 @@ namespace Hrot.NED.Descriptors
         public int CellY;
         /// <summary>X0, Y0, X1, Y1, … — each felled trunk's centre in centimetres.</summary>
         [DdsManaged] public List<int> Trunks;
+    }
+
+    // ⭐ CE-10000 (air lane, AC-2; DESIGN_Air_Combat §4b) — a fighter's air-combat ORDER (AirCombatSteer), its brain → the motion node; the target, the
+    //   arena as network ids (0 = none). Reliable + TransientLocal + KeepLast 1, keyed by entity, sent on change (the BladeCut shape).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAirCombatSteer
+    {
+        [DdsKey] public int EntityId;
+        public byte Manoeuvre;
+        public byte Lapse;
+        public int Target;
+        public int Arena;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+        public float Throttle;
+        public float FloorAgl;
+        public float MaxG;
+    }
+
+    // ⭐ CE-10000 (air lane, AC-2 / AC-9a) — a fighter's REPORT (FighterPilotState), the motion node → every node (the brain's missile defence, the
+    //   looks' afterburner and vortex trails). Sent on a change of its rounded values (0.1 g, 1 m, 1°, 0.1 s) — a few samples a second in a turn.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityFighterPilotState
+    {
+        [DdsKey] public int EntityId;
+        public float GLoad;
+        public float Throttle;
+        public byte GcasActive;
+        public ushort GcasCount;
+        public float MinAgl;
+        public byte Inbound;
+        public float ThreatBearingDeg;
+        public byte ThreatSeeker;
+        public float ThreatClosureMps;
+        public float ThreatTtiS;
+        public double LastDitchAt;
+        public byte Defeated;
+        public float SpeedMps;
+    }
+
+    // ⭐ CE-10000 (air lane, AC-10) — the air-combat ARENA (AirArena), its creator's brain → every node. Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAirArena
+    {
+        [DdsKey] public int EntityId;
+        public float CentreX;
+        public float CentreY;
+        public float CentreZ;
+        public float RadiusM;
+        public float FloorAglM;
+        public float CeilingAglM;
+        public float MaxShotRangeM;
+        public float StalemateSeconds;
+        public byte LapsesOff;
+        public double LastHitAt;
     }
 
     // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (BladeCut), published by the owner of dtBladeCut (the Brain group) on change, applied on every other node.
@@ -1185,6 +1381,7 @@ namespace Hrot.NED.Descriptors
         NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
         NAV_MANUAL          = 6,   // ⭐ CE-3173 — the operator drives the body (ManualDrive); entered once
         NAV_TRAFFIC         = 7,   // ⭐ AQ93 R-4023 — SUMO drives the body (a shadow car); the owner follows it
+        NAV_AIR_COMBAT      = 8,   // ⭐ CE-10000 (AC-2, RV-6) — a fighter flies its brain's AirCombatSteer (the motion node's Fight)
     }
 
     /// <summary>

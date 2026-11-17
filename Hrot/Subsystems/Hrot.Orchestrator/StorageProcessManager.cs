@@ -229,22 +229,7 @@ public sealed class StorageProcessManager
     /// </summary>
     private void CompileTerrainOverlay(JsonObject canonical, string scenarioDir, string scenarioName)
     {
-        try
-        {
-            var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
-            var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition, unique: new Hrot.Terrain.Random.SynthUniqueBuildings(), bridgeNet: new Hrot.Traffic.BridgeNetBuilder(),
-                reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4592 (G-16) — a shaped / padded ground reaches SUMO   // ⭐ T-7a — the bridges' SUMO net; ⭐ T-3 part 2 — the same generator the editor's live overlay uses
-            if (r.Wrote && r.Folder != null && r.ContentHash != null)
-            {
-                // ⭐ O-8 (CE-4420) — also kept BY HASH beside the terrains on the NAS ({nas}/assets/terrain/overlays/<hash>), so a recording that names the overlay can load it later
-                //   (the Replay Browser's catalog reads the NAS root), long after the scenario was edited again
-                new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(r.Folder, Path.Combine(ContentLayout.TerrainAssets(_nasBasePath),
-                    Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, r.ContentHash));
-            }
-            if (r.Wrote)
-                FdpLog<StorageProcessManager>.Info(
-                    $"[StorageProcessManager] compiled the terrain overlay of '{scenarioName}': {r.Blocks} block(s), {r.Houses} house(s), {r.Woods} wood(s), hash {r.ContentHash}.");
-        }
+        try { CompileOverlayCore(canonical, scenarioDir, scenarioName); }
         catch (Exception ex)
         {
             FdpLog<StorageProcessManager>.Error("[StorageProcessManager] could not compile the terrain overlay of '{0}' (the scenario itself was saved): {1}", scenarioName, ex.Message);
@@ -252,6 +237,79 @@ public sealed class StorageProcessManager
             //   there. No overlay at all is the honest state (the load of a scenario whose blocks have no overlay says so); a stale one is silently wrong.
             DeleteOverlayFolders(scenarioDir, scenarioName);
         }
+    }
+
+    /// <summary>⭐ THE ONE overlay compile (the save's and AQ112 C's re-compile): throws on a failure — the callers decide what a failed compile leaves behind.</summary>
+    private Fdp.Toolkit.Terrain.OverlayCompileResult CompileOverlayCore(JsonObject canonical, string scenarioDir, string scenarioName)
+    {
+        var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
+        var r = Fdp.Toolkit.Terrain.OverlayCompiler.Compile(canonical, scenarioDir, terrains.ResolveDefinition, unique: new Hrot.Terrain.Random.SynthUniqueBuildings(), bridgeNet: new Hrot.Traffic.BridgeNetBuilder(),
+            reElevateNet: (net, ground) => Hrot.Terrain.InputSet.NetElevation.Apply(net, ground, force: true));   // ⭐ CE-4592 (G-16) — a shaped / padded ground reaches SUMO   // ⭐ T-7a — the bridges' SUMO net; ⭐ T-3 part 2 — the same generator the editor's live overlay uses
+        if (r.Wrote && r.Folder != null && r.ContentHash != null)
+        {
+            // ⭐ O-8 (CE-4420) — also kept BY HASH beside the terrains on the NAS ({nas}/assets/terrain/overlays/<hash>), so a recording that names the overlay can load it later
+            //   (the Replay Browser's catalog reads the NAS root), long after the scenario was edited again
+            new Fdp.Toolkit.Orchestration.Assets.AssetTreeSync().Sync(r.Folder, Path.Combine(ContentLayout.TerrainAssets(_nasBasePath),
+                Fdp.Toolkit.Terrain.TerrainCatalog.OverlaysDirectoryName, r.ContentHash));
+        }
+        if (r.Wrote)
+            FdpLog<StorageProcessManager>.Info(
+                $"[StorageProcessManager] compiled the terrain overlay of '{scenarioName}': {r.Blocks} block(s), {r.Houses} house(s), {r.Woods} wood(s), hash {r.ContentHash}.");
+        return r;
+    }
+
+    /// <summary>One scenario the re-compile moved: its overlay's base hash before and after.</summary>
+    public sealed record RecompileMoved(string Scenario, string FromBaseHash, string ToBaseHash);
+    /// <summary>One scenario the re-compile could not move, and why; its old overlay is untouched (it still loads on the old version).</summary>
+    public sealed record RecompileFailed(string Scenario, string Reason);
+    /// <summary>What <see cref="RecompileScenariosOnTerrain"/> did.</summary>
+    public sealed record RecompileReport(string Terrain, string? CurrentHash, IReadOnlyList<RecompileMoved> Moved, IReadOnlyList<RecompileFailed> Failed, int AlreadyCurrent);
+
+    /// <summary>
+    /// ⭐⭐ AQ112 C (R-4280, D-4) — <i>Re-compile scenarios on this terrain</i>: after a re-import, every scenario whose terrain overlay names <paramref name="terrainName"/> on an OLD content hash is compiled again through THE ONE compile
+    /// (<see cref="CompileOverlayCore"/> — the save's), which resolves the CURRENT terrain, so its overlay moves to the new version. A CONVENIENCE, not a blocker: an un-recompiled scenario still loads on its old version (AQ112 B). A scenario that fails is
+    /// REPORTED and its old overlay stays (never deleted — unlike a save's failed compile). A scenario with no overlay is none of this batch's business.
+    /// </summary>
+    public RecompileReport RecompileScenariosOnTerrain(string terrainName)
+    {
+        var moved = new List<RecompileMoved>(); var failed = new List<RecompileFailed>(); int current = 0;
+        var terrains = Fdp.Toolkit.Terrain.TerrainCatalog.ForNode(localStagingRoot: null, nasRoot: _nasBasePath);
+        string? def = terrains.ResolveDefinition(terrainName);
+        string? currentHash = def == null ? null : Fdp.Toolkit.Terrain.TerrainContentHash.OfTerrain(def);
+        string root = ContentLayout.Scenarios(_nasBasePath);
+        if (def == null || !Directory.Exists(root)) return new RecompileReport(terrainName, currentHash, moved, failed, 0);
+
+        var dirs = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(root, ContentLayout.ScenarioFileName, SearchOption.AllDirectories))
+        {
+            string rel = Path.GetRelativePath(root, file).Replace('\\', '/');
+            if (rel.Contains("/foreign/") || rel.Contains("/.") || rel.Contains("/terrain-overlay") || rel.StartsWith(".")) continue;   // a slice, a foreign copy, an autosave, the overlay's own folder — not a scenario
+            dirs.Add(Path.GetDirectoryName(file)!);
+        }
+        dirs.Sort(StringComparer.Ordinal);
+        foreach (string dir in dirs)
+        {
+            string name = Path.GetRelativePath(root, dir).Replace('\\', '/');
+            string headerFile = Path.Combine(dir, Fdp.Toolkit.Terrain.OverlayCompiler.FolderName, Fdp.Toolkit.Terrain.TerrainOverlayHeader.FileName);
+            if (!File.Exists(headerFile)) continue;
+            try
+            {
+                var header = Fdp.Toolkit.Terrain.TerrainOverlayHeader.Parse(File.ReadAllText(headerFile), dir);
+                if (!string.Equals(header.BaseName, terrainName, StringComparison.Ordinal)) continue;
+                if (string.Equals(header.BaseHash, currentHash, StringComparison.Ordinal)) { current++; continue; }
+                OverlayCompileTracker.WaitAsync(name).GetAwaiter().GetResult();   // after a save's compile still in flight
+                var canonical = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(dir, ContentLayout.ScenarioFileName)))!;
+                var r = CompileOverlayCore(canonical, dir, name);
+                if (r.Wrote && r.BaseHash != null) moved.Add(new RecompileMoved(name, header.BaseHash, r.BaseHash));
+                else failed.Add(new RecompileFailed(name, "the scenario has no terrain blocks or features any more — nothing was compiled"));
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException or InvalidCastException or UnauthorizedAccessException)
+            {
+                failed.Add(new RecompileFailed(name, ex.Message));
+                FdpLog<StorageProcessManager>.Error("[StorageProcessManager] AQ112 C: could not re-compile '{0}' on '{1}': {2}", name, terrainName, ex.Message);
+            }
+        }
+        return new RecompileReport(terrainName, currentHash, moved, failed, current);
     }
 
     private static void DeleteOverlayFolders(string scenarioDir, string scenarioName)

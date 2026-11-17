@@ -1,0 +1,119 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an F-16 flies a route at 300 m that leaves the 2 km air-range grid at x 1 km, turns 5 km beyond its edge and comes back (CE-10001; S0 \u2461: beyond the edge the ground is the edge's height + low hills). Judge: GCAS is never needed; it is never lost."
+  },
+  "entities": {
+    "ac000005-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -2000.0,
+          -1500.0,
+          395.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "ac000005-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "ac000005-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": {
+                "routeEntityId": "ac000005-0000-4000-8000-000000000002",
+                "Speed": 220
+              },
+              "Triggers": []
+            }
+          ]
+        }
+      }
+    },
+    "ac000005-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -500,
+          -1500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Edge route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -500,
+            "Y": -1500,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": 6000,
+            "Y": -1500,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": 6000,
+            "Y": -2500,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          },
+          {
+            "X": -500,
+            "Y": -2500,
+            "Z": 0,
+            "TargetSpeed": 220,
+            "HeightAgl": 300
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

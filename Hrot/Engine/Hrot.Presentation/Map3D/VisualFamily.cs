@@ -65,6 +65,13 @@ public enum VisualFamily : byte
     Pig,
     /// <summary>⭐ CE-4623 — a goat (class <c>Goat</c>, <c>3.1.*.208</c>, type 711).</summary>
     Goat,
+    /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, MS-U4) — the mine-clearing vehicle (class <c>MineClearer</c>, DIS <c>1.1.*.9.2</c>, TKB 116 <c>Engineer_MineClearer</c>):
+    /// a tracked engineer carrier with a line-charge launcher at the rear and a FLAIL drum on two arms in front that spins while the flail is on (<see cref="FlailActivity"/>).
+    /// ⛔ Appended (a byte value others may store), AFTER the animals. ✅ Bound (2026-11-16) to terrain's class: <c>["MineClearer"]</c> in <see cref="VisualFamilies.FamilyOfClass"/>, type 116 through the real catalogue; the kit is scaled to the TKB's 9.0 × 4.4 × 3.2 m box.</summary>
+    MineClearer,
+    /// <summary>⭐ CE-4647 (docs/designs/air-attack/DESIGN_Air_Combat.md §4d, AC-15) — a twin-engine fighter (class <c>TwinEngineFighter</c>, the MiG-29, type 409, DIS <c>1.2.*.1.&lt;sub&gt;</c>): two canted fins,
+    /// two nozzles, intakes under the wings. More specific than <c>Fighter</c>/<c>Jet</c>, so the MiG is not an F-16. ⛔ Appended (a byte value others may store).</summary>
+    TwinEngineJet,
 }
 
 /// <summary>
@@ -102,6 +109,8 @@ public static class VisualFamilies
         ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
+        ["TwinEngineFighter"] = VisualFamily.TwinEngineJet,   // ⭐ CE-4647 — the MiG-29 (DIS 1.2.*.1.200, type 409): more specific than Fighter / Jet, so it is not an F-16
+        ["MineClearer"] = VisualFamily.MineClearer,     // ⭐ CE-4624 — the mine-clearing vehicle (1.1.*.9.2, TKB 116): bound to terrain's class
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
         ["Motorcycle"] = VisualFamily.Motorcycle,       // ⭐ CE-4621 — the motorcycle (DIS 1.1.*.80, type 115)
         ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
@@ -146,6 +155,7 @@ public static class VisualFamilies
         VisualFamily.Person => "_person",
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
+        VisualFamily.MineClearer => "_tank",   // ⭐ CE-4624 — a tracked body on the 2-D picker; its own glyph (assets/icons/_mineclearer, the mockup's) is a follow-up asset
         VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
         VisualFamily.Cattle => "_cattle", VisualFamily.Sheep => "_sheep", VisualFamily.Horse => "_horse", VisualFamily.Dog => "_dog", VisualFamily.Cat => "_cat",
         VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat",   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)

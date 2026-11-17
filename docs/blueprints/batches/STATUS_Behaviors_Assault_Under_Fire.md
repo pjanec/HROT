@@ -9,6 +9,10 @@ related-designs:
   - STATUS_Behaviors_Command_Chain_Overnight.md — the previous night: the evidence behind CE-2436
 -->
 
+
+> ✅ **`2026-11-16` — APPROVED by the user** (minefield handoff §0a: *"approved, behaviors are not working on minefields yet, pls ammend their handoff"*): every lane decision here (R-2106…R-2121, R-2124) is approved as built; the ledger rows are promoted.
+> ⚠ R-2114 (a failed approach re-ordered): add a cooldown only if a run shows it looping (user). Still open: CE-2440 (not reproduced), CE-2441.
+
 # STATUS — `behaviors`, the assault under fire (CE-2436)
 
 Scope frozen at `8d5169c5f`. Started at `a7359633e` (merged `coordinator@a768da341`).

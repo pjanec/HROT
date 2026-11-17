@@ -75,6 +75,11 @@ namespace Fdp.Toolkit.Animals
         public static bool IsAnimal(ISimulationView view, Entity e)
             => view.IsAlive(e) && view.HasComponent<AnimalState>(e);
 
+        /// <summary>⭐ <c>CE-3453</c> — a sensor track that must not enter a man's target memory: an animal AREA (an authored outline, no body) or an
+        /// animal that is not attacking. ⛔ They crowded the 16 slots and evicted every enemy (the animal feature scenarios, `2026-11-16`).</summary>
+        public static bool NotAContact(ISimulationView view, Entity e)
+            => view.IsAlive(e) && (view.HasComponent<AnimalArea>(e) || (view.HasComponent<AnimalState>(e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) == 0));
+
         /// <summary>An animal attacking right now (<see cref="AnimalFlags.Dangerous"/>) — self-defence covers firing at it (AR-6).</summary>
         public static bool IsDangerous(ISimulationView view, Entity e)
             => IsAnimal(view, e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) != 0;

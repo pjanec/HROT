@@ -468,6 +468,11 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>The HUD: a crosshair, health, the weapons (the selected one marked, its round), the locked shot and the keys.
         /// ⭐ CE-1078 — plus a bracket on the locked target and a ring where the gun points, so the operator sees the turret catch up.</summary>
+        private readonly FighterHud _fighterHud = new();
+
+        /// <summary>⭐ CE-4647 — what the fighter HUD said in the last frame (rails).</summary>
+        public FighterHudModel FighterHudNow { get; private set; }
+
         public void DrawOverlay(RenderContext ctx)
         {
             if (Fall != null && _world() is { } fw) { DrawFall(fw); return; }   // ⭐ CE-1220 (§8k K-1)
@@ -572,6 +577,9 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
             }
+            // ⭐ CE-4647 (AC-15 step 7; mockup air-combat-hud.svg) — a possessed FIGHTER's cues: the gun pipper, the missile cue, the radar warning, the g (the manual mouse-aim pilot; mode 8 is AI only)
+            if (_driver.Scheme == ControlScheme.FixedWing)
+                FighterHud.Draw(FighterHudNow = _fighterHud.Build(w, _driver.Unit, camera.Forward, _driver.Mount, w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime), camera, font);
             long hudT = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ W-P1
             PlayerHudLayer.Draw(w, _driver.Unit, camera, size, font, HudOn, ScoreboardHeld);
             Fdp.Presentation.WindowManager.WindowTimings.Record("(HUD layer)", hudT);   // ⭐ H1 / H2 (CE-4226..4228) — the training and game HUD, the kill feed, the streak, the bounty

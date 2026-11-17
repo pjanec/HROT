@@ -35,9 +35,18 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.EntityGuid>();                 // MemberEvaluation — a member's guid
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // InsertMacro — the expansion's state
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.RefKey>();                     // MemberEvaluation.Names — a member's key
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.Minefield>();               // ⭐ CE-4624 MS-B2 — a recon reads the field's parameters (nobody writes them in the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Navigation.NavigationStatus>();      // ⭐ CE-2439 — a commander reads a member's route state (hill attack); nobody writes it in the phase
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Components.TargetMemory>();  // ⭐ CE-4621 MC-4 — a dash bike's lookout reads its riders' memory (last tick)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.SkillAmplifier>();        // SetSkillAmplifier — the verdict's read of the amplifier
+            // ⭐ CE-4622 K-4…K-6 — the checkpoint reads the vehicles on its approach and the people it searches (all written outside the phase: the mover,
+            //   replication, custody, the follow-ups): a vehicle's speed and replicated motion, its stations (the concealed boot), its hostile act, custody
+            ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleState>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkVelocity>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkTransform>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.HostileAct>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.Custody>();
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan
         }
     }

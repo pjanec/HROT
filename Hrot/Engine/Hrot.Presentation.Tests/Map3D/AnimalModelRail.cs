@@ -68,32 +68,32 @@ public sealed class AnimalModelRail
     [Fact]
     public void TheAnimalArea_IsBornWithACattlePasture_ItsOptionsAreOneEditEach_PigsAndGoatsDefaultToEnclosed()
     {
-        var born = Hrot.ScenarioEditor.Tools.AreaAuthoringArm.BornWith(Hrot.UI.Common.AddEntity.AnimalAreaOps.AreaType, new Hrot.Map.Common.Components.EditablePolyline { Points = new List<Vector2>() }, default);
-        var def = Assert.Single(born.OfType<Hrot.UI.Common.AddEntity.AnimalAreaDef>());
+        var born = Hrot.ScenarioEditor.Tools.AreaAuthoringArm.BornWith(Hrot.Map.Common.TkbEntityTypes.AnimalArea, new Hrot.Map.Common.Components.EditablePolyline { Points = new List<Vector2>() }, default);
+        var def = Assert.Single(born.OfType<Fdp.Toolkit.Animals.AnimalArea>());
         Assert.Equal((AnimalSpecies.Cattle, (ushort)12, (byte)0), (def.Species, def.Count, def.Enclosed));
         Assert.Equal(0x5B, born.OfType<Hrot.Map.Common.Components.MapOverlayStyle>().Single().BorderR);   // the pasture green outline
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.EnclosedByDefault(AnimalSpecies.Pig) && Hrot.UI.Common.AddEntity.AnimalAreaOps.EnclosedByDefault(AnimalSpecies.Goat));
         Assert.False(Hrot.UI.Common.AddEntity.AnimalAreaOps.EnclosedByDefault(AnimalSpecies.Cattle) || Hrot.UI.Common.AddEntity.AnimalAreaOps.EnclosedByDefault(AnimalSpecies.Hen));
         using var world = new EntityRepository();
-        world.RegisterComponent<Hrot.UI.Common.AddEntity.AnimalAreaDef>();
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalArea>();
         var e = world.CreateEntity();
-        world.AddComponent(e, Hrot.UI.Common.AddEntity.AnimalAreaDef.Default(AnimalSpecies.Cattle));
+        world.AddComponent(e, Hrot.UI.Common.AddEntity.AnimalAreaOps.Default(AnimalSpecies.Cattle));
         var ops = typeof(Hrot.UI.Common.AddEntity.AnimalAreaOps);
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetSpecies(world, e, AnimalSpecies.Pig));
-        Assert.Equal(1, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Enclosed);       // followed the species' default
+        Assert.Equal(1, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Enclosed);       // followed the species' default
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetEnclosed(world, e, false));
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetSpecies(world, e, AnimalSpecies.Goat));
-        Assert.Equal(0, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Enclosed);       // the author chose open: kept
+        Assert.Equal(0, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Enclosed);       // the author chose open: kept
         Assert.False(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetSpecies(world, e, AnimalSpecies.Goat));   // no change, no edit step
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetCount(world, e, 9999));
-        Assert.Equal(Hrot.UI.Common.AddEntity.AnimalAreaOps.MaxCount, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Count);
+        Assert.Equal(Hrot.UI.Common.AddEntity.AnimalAreaOps.MaxCount, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Count);
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetCount(world, e, -5));
-        Assert.Equal(1, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Count);
-        uint s0 = world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Seed;
+        Assert.Equal(1, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Count);
+        uint s0 = world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Seed;
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.Reroll(world, e));
-        Assert.NotEqual(s0, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Seed);
+        Assert.NotEqual(s0, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Seed);
         Assert.True(Hrot.UI.Common.AddEntity.AnimalAreaOps.SetSeed(world, e, 4711u));
-        Assert.Equal(4711u, world.GetComponentRO<Hrot.UI.Common.AddEntity.AnimalAreaDef>(e).Seed);
+        Assert.Equal(4711u, world.GetComponentRO<Fdp.Toolkit.Animals.AnimalArea>(e).Seed);
     }
 
     // ── the kits ────────────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Core.Serialization.Migrations;
 using Fdp.Core;
@@ -96,6 +97,7 @@ public static class ScenarioMergeCore
         var mergedEntities = new JsonObject();
         // ── ⭐ Buildings 5e — TerrainObjects: disjoint union too (a door's state is written only by its owner, I1) ──
         var mergedTerrainObjects = new JsonObject();
+        var mergedKnowledge = new JsonObject();   // ⭐ CE-4624 MS-T2 (KR-15) — what the sides learned of places, + each field's strikes and lanes
         JsonObject? world = null;   // ⭐ CE-4154 — Header.World: ONE source (the Brain's slice, I4)
         ScenarioHeader? macroHeader = null;   // ⭐ CE-4210 MA-4 — the macro fields (Kind, Params, Anchor, Placement, Relocatable): the first slice that has any
         string? macroHeaderJson = null;
@@ -208,6 +210,18 @@ public static class ScenarioMergeCore
                     mergedTerrainObjects[kv.Key] = kv.Value?.DeepClone();
                 }
             }
+            // ⭐ CE-4624 MS-T2 (KR-15, MR-2) — the `Knowledge` section: two deciding nodes each save their OWN records of one (field, side), so a duplicate key is the NORMAL case —
+            //   merged by the kind's policy (lattice max per cell, Marked OR; strikes and lanes: the union), never thrown on
+            if (Fdp.Toolkit.Terrain.PlaceKnowledgeSection.Of(dom) is { } knowledge)
+            {
+                foreach (var kv in knowledge)
+                {
+                    if (kv.Value is not JsonObject mineK) continue;
+                    mergedKnowledge[kv.Key] = mergedKnowledge[kv.Key] is JsonObject haveK
+                        ? Fdp.Toolkit.Terrain.PlaceKnowledgeSection.Merge(kv.Key, haveK, mineK)
+                        : mineK.DeepClone();
+                }
+            }
         }
 
         // ── Assemble: same shape/order as a single-node save (ScenarioSerializer + ScenarioSaveCore) ──
@@ -223,6 +237,12 @@ public static class ScenarioMergeCore
             canonical["Header"] = header;
         }
         if (mergedTerrainObjects.Count > 0) canonical[Fdp.Toolkit.Terrain.TerrainObjectsSection.Name] = mergedTerrainObjects;
+        if (mergedKnowledge.Count > 0)
+        {
+            var sortedKnowledge = new JsonObject();   // the single-node save's key order
+            foreach (var key in mergedKnowledge.Select(kv => kv.Key).OrderBy(k => k, StringComparer.Ordinal).ToList()) sortedKnowledge[key] = mergedKnowledge[key]!.DeepClone();
+            canonical[Fdp.Toolkit.Terrain.PlaceKnowledgeSection.Name] = sortedKnowledge;
+        }
         JsonEnvelope.Write(canonical, new DocumentMeta(canonicalDocType, schemaVersion!.Value));
 
         return new ScenarioMergeResult(canonical, foreign);

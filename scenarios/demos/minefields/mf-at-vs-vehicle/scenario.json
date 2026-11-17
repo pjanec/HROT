@@ -1,0 +1,148 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: 'Field D', an enemy ANTI-TANK field (110-150, 50-110, a mine every 4 m), unknown to Friend. A Friend 'Walker' crosses it on foot from (70, 70) to (185, 70); a Friend M1 'Tank' drives across it from (60, 95) to (190, 95). An anti-tank mine needs a vehicle's weight: the man walks over it unharmed; the tank sets one off, is hurt from BELOW (the armour's Bottom facing), and its MineStrike drill stops it (CE-4624 MS-T1, MS-B1; Minefields MF-2, MR-10, MR-16). Judge: (1) the Walker gets across (x > 160) and is never hurt; (2) a mine goes off; (3) the Tank is hurt; (4) the Tank reacts MineStrike; (5) the Tank does not get across (x stays below 160). Not yet: followers reversing in the struck vehicle's tracks (R-2125, INTERIM until terrain's breadcrumbs). Check: scripts/scenario-regression.sh mf-at-vs-vehicle"
+  },
+  "entities": {
+    "a4624f30-0000-4000-8000-0000000000f1": {
+      "SimTransform": {
+        "Position": [
+          110,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8830
+      },
+      "EntityInfo": {
+        "Name": "Field D",
+        "ForceId": "Hostile"
+      },
+      "Minefield": {
+        "Type": "AntiTank",
+        "SpacingM": 4,
+        "OrientationDeg": 0,
+        "Seed": 4
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 40,
+            "Y": 0
+          },
+          {
+            "X": 40,
+            "Y": 60
+          },
+          {
+            "X": 0,
+            "Y": 60
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          70,
+          70,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Walker",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "speed": 1.5,
+          "arrivalRadius": 3,
+          "target": [
+            185,
+            70,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          60,
+          95,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "speed": 6,
+          "arrivalRadius": 5,
+          "target": [
+            190,
+            95,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

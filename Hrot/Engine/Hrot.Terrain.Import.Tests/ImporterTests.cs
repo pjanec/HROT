@@ -644,6 +644,50 @@ public class ImporterTests : IDisposable
     }
 
     // ---- all or nothing
+    /// <summary>
+    /// ⭐⭐ AQ112 A (R-4280, D-4) — a replacing import KEEPS the old terrain: its whole folder moves to <c>versions/&lt;oldHash&gt;/</c> (the hash <see cref="TerrainContentHash"/> gave it), the new one stands in its place, and a SECOND replace
+    /// keeps the first version where it was (never nested inside the newest). The report names the hash kept; the content hash of the new terrain is not moved by the <c>versions/</c> beside it; the very same content imported again keeps nothing.
+    /// 🔴 Red-proof: have <c>Swap</c> delete <c>old</c> as before ⇒ no versions folder; nest the old <c>versions/</c> into the new slot ⇒ the second assertion block fails.
+    /// </summary>
+    [Fact]
+    public async Task Replace_KeepsTheOldFolderUnderVersionsByHash_AndNeverNestsThem_AQ112A()
+    {
+        var m1 = new MiniSet(); m1.Buildings.Add(MiniSet.Rect("b", 0, 0, 10, 8));
+        var m2 = new MiniSet(); m2.Buildings.Add(MiniSet.Rect("b", 0, 0, 12, 8));
+        var m3 = new MiniSet(); m3.Buildings.Add(MiniSet.Rect("b", 0, 0, 14, 8));
+        string s1 = m1.Write(Path.Combine(_env.Root, "a1")), s2 = m2.Write(Path.Combine(_env.Root, "a2")), s3 = m3.Write(Path.Combine(_env.Root, "a3"));
+        var imp = _env.Importer();
+        string folder = await imp.ImportAsync(s1, "t", false, null, default);
+        Assert.False(Directory.Exists(Path.Combine(folder, "versions")));
+        File.WriteAllText(Path.Combine(folder, "marker.txt"), "v1");
+        string h1 = TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json"));   // the marker is content: the hash the catalog will be asked for
+
+        await imp.ImportAsync(s2, "t", true, null, default);
+        Assert.Equal(h1, imp.LastReport!.KeptVersionHash);
+        string v1 = Path.Combine(folder, "versions", h1);
+        Assert.True(File.Exists(Path.Combine(v1, "terrain.json")));
+        Assert.Equal("v1", File.ReadAllText(Path.Combine(v1, "marker.txt")));
+        Assert.Equal(h1, TerrainContentHash.OfTerrain(Path.Combine(v1, "terrain.json")));       // the kept folder IS the old content
+        Assert.False(File.Exists(Path.Combine(folder, "marker.txt")));                          // the new terrain has none of it
+        string h2 = TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json"));
+        Assert.NotEqual(h1, h2);
+        Assert.Equal(new[] { "t" }, Directory.GetDirectories(_env.Terrains).Select(Path.GetFileName).ToArray());   // no .old- / .import- leftovers
+        Assert.Equal(v1, new TerrainCatalog(new[] { _env.Terrains }).ResolveDefinition("t", h1) is { } d ? Path.GetDirectoryName(d) : null);
+
+        await imp.ImportAsync(s3, "t", true, null, default);
+        Assert.Equal(h2, imp.LastReport!.KeptVersionHash);
+        Assert.True(File.Exists(Path.Combine(folder, "versions", h1, "terrain.json")));         // the first version stays where it was
+        Assert.True(File.Exists(Path.Combine(folder, "versions", h2, "terrain.json")));
+        Assert.False(Directory.Exists(Path.Combine(folder, "versions", h2, "versions")));       // ⛔ never nested into the version
+        Assert.Equal(2, Directory.GetDirectories(Path.Combine(folder, "versions")).Length);
+
+        string h3 = TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json"));
+        await imp.ImportAsync(s3, "t", true, null, default);                                    // the very same content again
+        Assert.Null(imp.LastReport!.KeptVersionHash);
+        Assert.Equal(2, Directory.GetDirectories(Path.Combine(folder, "versions")).Length);
+        Assert.Equal(h3, TerrainContentHash.OfTerrain(Path.Combine(folder, "terrain.json")));
+    }
+
     [Fact]
     public async Task Replace_False_RefusesAnExistingTerrain_Replace_True_ReplacesIt()
     {

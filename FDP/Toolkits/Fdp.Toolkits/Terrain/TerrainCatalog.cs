@@ -69,6 +69,27 @@ namespace Fdp.Toolkit.Terrain
             return ResolveKeptGround(relative);
         }
 
+        /// <summary>⭐ AQ112 A — the sub-folder of a terrain folder holding its OLD versions: <c>&lt;terrain&gt;/versions/&lt;contentHash&gt;/</c>, each the whole folder as it was before a re-import. Excluded from the terrain's content hash.</summary>
+        public const string VersionsDirectoryName = "versions";
+
+        /// <summary>
+        /// ⭐⭐ AQ112 B (R-4280) — THE ONE rule that finds a terrain by CONTENT: the current definition when its content hash is <paramref name="expectedHash"/>
+        /// (or <paramref name="expectedHash"/> is null/empty — then it is <see cref="ResolveDefinition(string)"/>), else the kept old version
+        /// <c>&lt;terrain folder&gt;/versions/&lt;expectedHash&gt;/terrain.json</c>, else <c>null</c> (the caller names the missing version). Callers that HOLD a hash pass it: the overlay load (its base hash), the replay (the recording's).
+        /// </summary>
+        public string? ResolveDefinition(string terrainName, string? expectedHash)
+        {
+            var current = ResolveDefinition(terrainName);
+            if (current == null || string.IsNullOrEmpty(expectedHash)) return current;
+            if (expectedHash.IndexOfAny(new[] { '/', '\\', '.' }) >= 0) throw new ArgumentException($"Terrain hash '{expectedHash}' is not a hash.", nameof(expectedHash));
+            if (string.Equals(TerrainContentHash.OfTerrain(current), expectedHash, StringComparison.Ordinal)) return current;
+            var version = Path.Combine(Path.GetDirectoryName(current)!, VersionsDirectoryName, expectedHash, DefinitionFileName);
+            return File.Exists(version) ? version : null;
+        }
+
+        private static bool IsInsideAVersion(string relativeFolder)
+            => relativeFolder.StartsWith(VersionsDirectoryName + "/", StringComparison.Ordinal) || relativeFolder.Contains("/" + VersionsDirectoryName + "/", StringComparison.Ordinal);
+
         /// <summary>The folder inside a terrain that keeps the ground it was built on (E-1): <c>&lt;terrain&gt;/source/base</c>.</summary>
         public const string KeptGroundPath = "source/base";
 
@@ -110,7 +131,7 @@ namespace Fdp.Toolkit.Terrain
                 foreach (var def in Directory.EnumerateFiles(root, DefinitionFileName, SearchOption.AllDirectories))
                 {
                     string rel = Path.GetRelativePath(root, Path.GetDirectoryName(def)!).Replace('\\', '/');
-                    if (rel.EndsWith("/" + KeptGroundPath, StringComparison.Ordinal)) holders.Add(Path.GetFullPath(Path.Combine(root, rel, "..", "..")));
+                    if (!IsInsideAVersion(rel) && rel.EndsWith("/" + KeptGroundPath, StringComparison.Ordinal)) holders.Add(Path.GetFullPath(Path.Combine(root, rel, "..", "..")));
                 }
                 holders.Sort(StringComparer.Ordinal);
                 foreach (var holder in holders)
@@ -168,6 +189,7 @@ namespace Fdp.Toolkit.Terrain
                 {
                     var folder = Path.GetDirectoryName(def)!;
                     var rel = Path.GetRelativePath(root, folder).Replace('\\', '/');
+                    if (IsInsideAVersion(rel)) continue;   // ⭐ AQ112 A — a kept old version is found by HASH (ResolveDefinition(name, hash)), never listed
                     if (rel.EndsWith("/" + KeptGroundPath, StringComparison.Ordinal)) continue;   // a kept ground is not a terrain of its own: ⭐ resolved by name (ResolveDefinition), never listed
                     if (rel != ".") names.Add(rel);
                 }

@@ -186,17 +186,83 @@ namespace Hrot.Editor.Director
                     };
                     return ok ? _rel : null;
                 }
+                case "knowledge":
+                    return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
                 default:
                 {
-                    if (_w.World is not { } world) return null;
                     // a task cue may name several behaviours: any of them
                     var specs = a.Is is JsonArray many ? many.Select(x => a with { Is = x?.DeepClone() }) : new[] { a };
-                    return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                    if (_w.World is { } world) return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                    // ⭐ RT-5 (R-3094) — a world with no repository (the cluster tier reads a node over HTTP): the SAME value comparisons
+                    //   (AnchorBook's TaskHolds / SideHolds / HealthHolds / EmbarkHolds / GestureHolds, CE-4117 N6) on the unit's dumped components.
+                    //   ⛔ Before, every near / task / side / health / embark / gesture cue silently read false there.
+                    var who = UnitsNamed(a.Who!).ToList();
+                    return specs.Any(s => who.Any(id => Components(id) is { } comps && StateHolds(s, comps))) ? _rel : null;
                 }
             }
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4624</c> (Minefields MR-19, R-4277) — what <see cref="CheckCue.Side"/> knows of the minefield <see cref="AnchorSpec.Who"/> names, as the side's
+        /// own readers see it (<see cref="Fdp.Toolkit.Terrain.PlaceKnowledgeTable"/>, the union of every node's records): <c>Marked</c> holds when the side knows it in full
+        /// (marked, or known at start); a cell state holds when the COUNT of the field's grid cells the side knows in that state compares by <c>op</c> / <c>value</c>.
+        /// For any field the name matches.
+        /// </summary>
+        private bool KnowledgeHolds(EntityRepository world, CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.Side is null || !Enum.TryParse<ForceId>(c.Side, true, out var force)) return false;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) return false;
+            var state = c.Spec.Is is JsonValue sv ? sv.ToString() : "";
+            var table = Fdp.Toolkit.Terrain.PlaceKnowledgeTable.Of(world);
+            var outline = new List<System.Numerics.Vector2>();
+            foreach (var id in UnitsNamed(who))
+            {
+                var field = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (field.IsNull || !world.HasComponent<Fdp.Toolkit.Terrain.Minefield>(field)) continue;
+                if (state == "Marked") { if (table.Marked((int)force, field)) return true; continue; }
+                if (!Enum.TryParse<Fdp.Toolkit.Terrain.MineCellKnowledge>(state, out var want)) return false;
+                outline.Clear();
+                if (!Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.TryOutline(world, field, outline, out var anchor)) continue;
+                var g = Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.Grid(world.GetComponentRO<Fdp.Toolkit.Terrain.Minefield>(field), anchor, outline);
+                int n = 0;
+                for (int r = 0; r < g.Rows; r++)
+                    for (int col = 0; col < g.Cols; col++)
+                        if (table.Knows((int)force, field, col, r) == want) n++;
+                if (Compare(JsonValue.Create(n), c.Op, c.Value)) return true;
+            }
+            return false;
+        }
+
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;
+
+        /// <summary>⭐ RT-5 (R-3094) — a STATE cue on one unit's DUMPED components (enum fields by name, a vector as [x, y, z]): the comparison is
+        /// AnchorBook's own, value for value; only the reading differs.</summary>
+        private bool StateHolds(AnchorSpec a, JsonObject comps)
+        {
+            switch (a.On)
+            {
+                case "near":
+                    if (a.Point is not { } p || At(comps, "SimTransform.Position") is not JsonArray pos || pos.Count < 2) return false;
+                    return System.Numerics.Vector2.Distance(new System.Numerics.Vector2((float)(Num(pos[0]) ?? 0), (float)(Num(pos[1]) ?? 0)), p) <= a.Within;
+                case "task":
+                    if (comps["BehaviorState"] is not JsonObject bs) return false;
+                    int hash = (int)(Num(bs["ActiveBehaviorHash"]) ?? 0);
+                    // the hash's name: the world's own map, else the start record of the behaviour now running (the dump carries no registry)
+                    string? started = comps["BehaviorStartRecord"]?["BehaviorName"]?.ToString();
+                    return AnchorBook.TaskHolds(a, hash, h => _w.BehaviourName(h) ?? started);
+                case "side":
+                    return Enum.TryParse<Fdp.Core.ForceId>(At(comps, "EntityInfo.ForceId")?.ToString(), true, out var side) && AnchorBook.SideHolds(a, side);
+                case "health":
+                    if (comps["Health"] is not JsonObject hp) return false;
+                    return AnchorBook.HealthHolds(a, (float)(Num(hp["Current"]) ?? 0), (float)(Num(hp["Max"]) ?? 0));
+                case "embark":
+                    return AnchorBook.EmbarkHolds(a, comps["IsEmbarkedTag"] is JsonObject);
+                case "gesture":
+                    return AnchorBook.GestureHolds(a, Enum.TryParse<Fdp.Toolkit.Combat.GestureKind>(At(comps, "Gesture.Kind")?.ToString(), true, out var g) ? g : Fdp.Toolkit.Combat.GestureKind.None);
+                default:
+                    return false;
+            }
+        }
 
         private JsonObject? Components(int id)
         {
@@ -329,12 +395,16 @@ namespace Hrot.Editor.Director
         private readonly IVerifyWorld _w;
         private readonly bool _full;
         private readonly JsonArray _snapshots = new();
+        private readonly string[] _visible;
 
         /// <param name="full">Keep each component in full, not its hash (<c>golden.full</c> — to run a difference down).</param>
-        public ScenarioGolden(IVerifyWorld world, bool full = false)
+        /// <param name="checkPaths">⭐ RT-3 — the paths the scenario's checks read: kept in each snapshot's VISIBLE state beside
+        /// <see cref="VisibleState.Paths"/>.</param>
+        public ScenarioGolden(IVerifyWorld world, bool full = false, IEnumerable<string>? checkPaths = null)
         {
             _w = world ?? throw new ArgumentNullException(nameof(world));
             _full = full;
+            _visible = VisibleState.Paths.Concat(checkPaths ?? Array.Empty<string>()).Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         }
 
         public int Snapshots => _snapshots.Count;
@@ -371,11 +441,32 @@ namespace Hrot.Editor.Director
                         _ => p?.DeepClone(),
                     },
                     ["health"] = ConditionBook.At(comps, "Health.Current")?.DeepClone(),
+                    ["visible"] = Visible(comps),
                     ["components"] = hashes,
                 };
             }
             _snapshots.Add(new JsonObject { ["t"] = Math.Round(rel, 4), ["units"] = units });
             LastTime = rel;
+        }
+
+        /// <summary>⭐ RT-3 — the unit's VISIBLE state: each of <see cref="VisibleState.Paths"/> and the checks' paths it carries (handles by
+        /// meaning, numbers to 0.001).</summary>
+        private JsonObject Visible(JsonObject comps)
+        {
+            var o = new JsonObject();
+            foreach (var path in _visible)
+                if (ConditionBook.At(comps, path) is { } v) o[path] = RoundAll(ByMeaning(v.DeepClone()));
+            return o;
+        }
+
+        private static JsonNode? RoundAll(JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o: foreach (var k in o.Select(kv => kv.Key).ToList()) if (o[k] is JsonValue) o[k] = R(o[k]); else RoundAll(o[k]); return o;
+                case JsonArray a: for (int i = 0; i < a.Count; i++) if (a[i] is JsonValue) a[i] = R(a[i]); else RoundAll(a[i]); return a;
+                default: return R(n);
+            }
         }
 
         private static readonly System.Text.RegularExpressions.Regex HandleShape = new(@"^\[(\d+), v\d+\]$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
@@ -467,7 +558,20 @@ namespace Hrot.Editor.Director
         /// Every difference of <paramref name="run"/> from <paramref name="golden"/> (numbers within 0.001 — <see cref="ComponentDiffService"/>,
         /// the <c>/diff/compare</c> tolerance), ordered so the FIRST line answers "when did it start to differ, and in whom".
         /// </summary>
-        public static IReadOnlyList<string> Compare(JsonObject golden, JsonObject run)
+        public static IReadOnlyList<string> Compare(JsonObject golden, JsonObject run) => CompareCore(WithoutVisible(golden), WithoutVisible(run));
+
+        /// <summary>⭐ RT-3 — the FULL comparison leaves the visible map out: it repeats what the components already hold, and the replay harness
+        /// (H1–H5, R1) compares by component, with its own carried-by-the-recording filter.</summary>
+        private static JsonObject WithoutVisible(JsonObject g)
+        {
+            if ((g["snapshots"] as JsonArray)?.OfType<JsonObject>().Any(s => (s["units"] as JsonObject)?.Any(u => (u.Value as JsonObject)?.ContainsKey("visible") == true) == true) != true) return g;
+            var c = (JsonObject)g.DeepClone();
+            foreach (var s in c["snapshots"]!.AsArray().OfType<JsonObject>())
+                foreach (var (_, u) in (s["units"] as JsonObject ?? new JsonObject())) (u as JsonObject)?.Remove("visible");
+            return c;
+        }
+
+        private static IReadOnlyList<string> CompareCore(JsonObject golden, JsonObject run)
         {
             var diff = new ComponentDiffService();
             var lines = new List<string>();
@@ -491,6 +595,39 @@ namespace Hrot.Editor.Director
                 break;
             }
             return lines;
+        }
+
+        /// <summary>
+        /// ⭐ RT-3 (R-4279, docs/DESIGN_Scenario_Regression.md §11) — the golden as a scenario's WARNING: what a user could SEE differ — the
+        /// times of its anchors and expectations, its rounds and bursts, and per snapshot each unit's position, health and VISIBLE state
+        /// (<see cref="VisibleState.Paths"/> + the fields its checks read). ⛔ Not internal blackboards, brain diagnostics or a component added
+        /// since the capture: 📐 measured `2026-11-16`, every golden red on <c>farm-under-fire</c> / <c>ua-drone-shelter</c> was one of those
+        /// while all 19 expectations passed. (<see cref="Compare"/> stays the FULL comparison the replay harness needs.)
+        /// </summary>
+        public static IReadOnlyList<string> CompareVisible(JsonObject golden, JsonObject run)
+        {
+            var lines = new List<string>(CompareCore(Seen(golden), Seen(run)));
+            if ((golden["snapshots"] as JsonArray)?.OfType<JsonObject>().Any(s => (s["units"] as JsonObject)?.Select(u => u.Value).OfType<JsonObject>().Any(u => u["visible"] is null) == true) == true)
+                lines.Insert(0, "the golden predates the visible-state comparison (RT-3) — re-capture it once: --verify <scenario> --verify-capture");
+            return lines;
+        }
+
+        /// <summary>A golden reduced to what <see cref="CompareVisible"/> compares.</summary>
+        private static JsonObject Seen(JsonObject g)
+        {
+            var o = new JsonObject();
+            foreach (var key in new[] { "times", "shots", "blasts" }) o[key] = g[key]?.DeepClone();
+            var snaps = new JsonArray();
+            foreach (var s in (g["snapshots"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
+            {
+                var units = new JsonObject();
+                foreach (var (name, u) in (s["units"] as JsonObject ?? new JsonObject()))
+                    if (u is JsonObject uo)
+                        units[name] = new JsonObject { ["position"] = uo["position"]?.DeepClone(), ["health"] = uo["health"]?.DeepClone(), ["visible"] = uo["visible"]?.DeepClone() ?? new JsonObject() };
+                snaps.Add(new JsonObject { ["t"] = s["t"]?.DeepClone(), ["units"] = units });
+            }
+            o["snapshots"] = snaps;
+            return o;
         }
 
         /// <summary>
@@ -519,6 +656,7 @@ namespace Hrot.Editor.Director
                     foreach (var (_, unit) in units)
                     {
                         if (unit is not JsonObject u) continue;
+                        u.Remove("visible");   // ⭐ RT-3 — the harness compares by component (the visible map repeats them)
                         if (!keepCarried) { u.Remove("position"); u.Remove("health"); }
                         if (u["components"] is JsonObject comps)
                             foreach (var name in comps.Select(kv => kv.Key).ToList())
@@ -596,7 +734,10 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ CE-4061 — the key a director report writes this under.</summary>
         public string Kind => "verify";
 
-        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is ("none" or "same" or "captured") && Replay is (null or "same")
+        /// <summary>⭐ RT-3 (R-4279) — what the run reports but does NOT fail on: a golden that differs (in VISIBLE state) or is missing.</summary>
+        public IReadOnlyList<string> Warnings => Golden is "different" or "missing" ? new[] { $"golden {Golden} — re-capture with --verify-capture if the change is intended" } : Array.Empty<string>();
+
+        public bool Passed => Problems.Count == 0 && Verdicts.All(v => v.Ok) && Golden is not "not-captured" && Replay is (null or "same")
                               && Review is (null or { Verdict: "same" }) && ReturnDiff.Count == 0 && Playback is (null or { Verdict: "same" }) && Seek is (null or { Verdict: "same" })
                               && Branch is (null or { Verdict: "same" });
 
@@ -618,6 +759,7 @@ namespace Hrot.Editor.Director
             ["reload"] = Reload,
             ["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode?)v.ToJson()).ToArray()),
             ["golden"] = Golden,
+            ["warnings"] = new JsonArray(Warnings.Select(x => (JsonNode?)x).ToArray()),
             ["goldenDiff"] = new JsonArray(GoldenDiff.Select(x => (JsonNode?)x).ToArray()),
             ["written"] = new JsonArray(Written.Select(x => (JsonNode?)x).ToArray()),
             ["problems"] = new JsonArray(Problems.Select(x => (JsonNode?)x).ToArray()),
@@ -693,7 +835,7 @@ namespace Hrot.Editor.Director
             _w = world ?? throw new ArgumentNullException(nameof(world));
             _book = new ConditionBook(checks, world, t0);
             _every = snapshotEvery ?? checks.GoldenEvery;
-            _run = _every is null ? null : new ScenarioGolden(world, checks.GoldenFull || snapshotEvery != null);
+            _run = _every is null ? null : new ScenarioGolden(world, checks.GoldenFull || snapshotEvery != null, checks.Paths());
             _nextSample = FirstAtOrAfter(startAt, checks.SampleEvery);
             _nextSnapshot = _every is { } e ? FirstAtOrAfter(startAt, e) : 0;
         }
@@ -768,11 +910,25 @@ namespace Hrot.Editor.Director
             else if (_golden == null) r.Golden = "missing";
             else
             {
-                var diff = ScenarioGolden.Compare(_golden, json);
+                var diff = ScenarioGolden.CompareVisible(_golden, json);   // ⭐ RT-3 — visible state; a difference is a WARNING
                 r.Golden = diff.Count == 0 ? "same" : "different";
                 r.GoldenDiff.AddRange(diff);
             }
             return r;
         }
+    }
+
+    /// <summary>
+    /// ⭐ RT-3 (R-4279) — the state a scenario's golden compares beside each unit's position and health: what a user SEES of a unit (its side,
+    /// whether it is aboard, its movement phase, its mode as a civilian / an animal / a flock, its weapon posture, what it shows). ⭐ A
+    /// scenario's checks add the fields THEY read. ⛔ Never internal state (blackboards, brain diagnostics, start records).
+    /// </summary>
+    public static class VisibleState
+    {
+        public static readonly IReadOnlyList<string> Paths = new[]
+        {
+            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Demeanour", "Custody",
+            "AnimalState", "FlockState",
+        };
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json.Nodes;
+using Fdp.Core;
 using Hrot.UI.Common.Map3D.Director;
 
 namespace Hrot.Editor.Director
@@ -26,11 +27,18 @@ namespace Hrot.Editor.Director
         public JsonNode? Value { get; init; }
         /// <summary><c>field</c>: <c>any</c> (default) · <c>all</c> · <c>atLeast:n</c> of the units <see cref="AnchorSpec.Who"/> names.</summary>
         public string Quantifier { get; init; } = "any";
+        /// <summary>⭐ <c>CE-4624</c> <c>knowledge</c>: the SIDE whose knowledge of the field <see cref="AnchorSpec.Who"/> names is read (a <c>ForceId</c> name).</summary>
+        public string? Side { get; init; }
 
         public string On => Spec.On;
 
-        /// <summary>The cues a check may use: the take's nine and <c>field</c>.</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field" }).ToArray();
+        /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
+        /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
+        /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge" }).ToArray();
+
+        /// <summary>⭐ <c>CE-4624</c> — what a <c>knowledge</c> cue's <c>is</c> may say.</summary>
+        public static readonly IReadOnlyList<string> KnowledgeStates = new[] { "Marked", "Suspected", "KnownClear", "KnownMined", "Unknown" };
 
         public static readonly IReadOnlyList<string> Ops = new[] { "==", "!=", "<", "<=", ">", ">=", "in", "contains" };
 
@@ -81,6 +89,9 @@ namespace Hrot.Editor.Director
         public IReadOnlyList<string> Later { get; init; } = Array.Empty<string>();
 
         /// <summary>Every unit a cue or an action names (to validate against the scenario's cast).</summary>
+        /// <summary>⭐ RT-3 — the component paths the expectations read (a golden keeps them as visible state).</summary>
+        public IEnumerable<string> Paths() => Expect.Select(e => e.Cue.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.Ordinal);
+
         public IEnumerable<string> Names() =>
             Anchors.Values.SelectMany(a => a.Names())
                 .Concat(Expect.SelectMany(e => e.Cue.Names()))
@@ -207,7 +218,8 @@ namespace Hrot.Editor.Director
             if (!CheckCue.Kinds.Contains(on)) problems.Add($"{where}: cue '{on}' is not one of {string.Join(", ", CheckCue.Kinds)}");
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
-            string? hit = null, path = null, op = "==", quantifier = "any";
+            string? hit = null, path = null, op = "==", quantifier = "any", side = null;
+            bool opGiven = false;
             JsonNode? value = null;
             foreach (var (k, v) in o)
             {
@@ -219,7 +231,8 @@ namespace Hrot.Editor.Director
                     case "at": spec["target"] = v?.DeepClone(); break;          // a shot's target: "at" reads as the sentence says
                     case "hit": hit = v?.ToString(); break;
                     case "path": path = v?.ToString(); break;
-                    case "op": op = v?.ToString() ?? "=="; break;
+                    case "op": op = v?.ToString() ?? "=="; opGiven = true; break;
+                    case "side": side = v?.ToString(); break;
                     case "value": value = v?.DeepClone(); break;
                     case "quantifier": quantifier = v?.ToString() ?? "any"; break;
                     case "where":
@@ -235,20 +248,31 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on != "field" || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge") || !p.Contains("is not one of", StringComparison.Ordinal)));
             parsed = parsed with { On = on };
             if (on == "field")
             {
                 if (string.IsNullOrWhiteSpace(path)) problems.Add($"{where}: a field cue needs path (Component.Field)");
                 if (parsed.Who == null) problems.Add($"{where}: a field cue needs who");
             }
+            if (on == "knowledge")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a knowledge cue needs who (the minefield's name)");
+                if (side == null || !Enum.TryParse<ForceId>(side, ignoreCase: true, out _)) problems.Add($"{where}: a knowledge cue needs side (a ForceId: Friend, Hostile, …)");
+                var state = parsed.Is is JsonValue sv ? sv.ToString() : null;
+                if (state == null || !CheckCue.KnowledgeStates.Contains(state))
+                    problems.Add($"{where}: a knowledge cue's is is one of {string.Join(", ", CheckCue.KnowledgeStates)}");
+                if (!opGiven) op = ">=";
+                value ??= JsonValue.Create(1);
+            }
+            else if (side != null) problems.Add($"{where}: side belongs to a knowledge cue");
             if (!CheckCue.Ops.Contains(op)) problems.Add($"{where}: op '{op}' is not one of {string.Join(" ", CheckCue.Ops)}");
             if (quantifier is not ("any" or "all") && !(quantifier.StartsWith("atLeast:", StringComparison.Ordinal)
                 && int.TryParse(quantifier[8..], NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
                 problems.Add($"{where}: quantifier is any, all or atLeast:n");
             if (where_.Count > 0 && on is not ("shot" or "blast")) problems.Add($"{where}: where filters a shot or a blast row");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Side = side };
         }
     }
 }

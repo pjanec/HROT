@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(79, idx.Count);   // ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2)
-        Assert.Equal(79, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(91, idx.Count);   // ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2); ⭐ CE-4624 — + the mine clearer (page 1, slot 2/2)
+        Assert.Equal(91, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -610,6 +610,7 @@ public sealed class EntityTypeCatalogTests
         113 HMMWV (drone jammer) | dis 1.1.225.6.9.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         114 Radar SAM vehicle | dis 1.1.222.28.1.0.0 | family AirDefenceVehicle | folder Platform/Land/Russia/Air Defence Vehicle | icon _wheeled
         115 Motorcycle | dis 1.1.0.80.1.0.0 | family Motorcycle | folder Platform/Land/Motorcycle | icon _motorcycle
+        116 Mine Clearer (engineer tank) | dis 1.1.225.9.2.0.0 | family MineClearer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon _tank
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -639,6 +640,7 @@ public sealed class EntityTypeCatalogTests
         406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         407 Recon drone | dis 1.2.0.50.2.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         408 Bomber drone | dis 1.2.0.50.3.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
+        409 MiG-29 Fulcrum | dis 1.2.222.1.200.0.0 | family TwinEngineJet | folder Platform/Air/Russia/Fighter/Air Defense | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
@@ -703,6 +705,7 @@ public sealed class EntityTypeCatalogTests
         8820 Barrel | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8821 Jersey barrier | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

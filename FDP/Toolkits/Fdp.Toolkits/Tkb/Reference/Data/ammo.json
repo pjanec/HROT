@@ -29,6 +29,12 @@
     "Stinger warhead": {"type": "frag", "calibreMm": 70, "massG": 3000, "velocity": 700, "explosiveKg": 1.0},
     "Igla warhead": {"type": "frag", "calibreMm": 72, "massG": 1270, "velocity": 570, "explosiveKg": 0.39},
     "Radar SAM warhead": {"type": "frag", "calibreMm": 210, "massG": 15000, "velocity": 800, "explosiveKg": 4.5},
-    "8 kg demolition charge": {"type": "frag", "calibreMm": 0, "massG": 12000, "velocity": 1, "explosiveKg": 8.0, "fuzeDelayS": 5}
+    "IR AAM warhead": {"type": "frag", "calibreMm": 127, "massG": 9400, "velocity": 850, "explosiveKg": 3.6},
+    "radar AAM warhead": {"type": "frag", "calibreMm": 178, "massG": 18000, "velocity": 1100, "explosiveKg": 7.0},
+    "20mm HEI": {"type": "he", "calibreMm": 20, "massG": 100, "velocity": 1030, "explosiveKg": 0.01},
+    "8 kg demolition charge": {"type": "frag", "calibreMm": 0, "massG": 12000, "velocity": 1, "explosiveKg": 8.0, "fuzeDelayS": 5},
+    "anti-personnel mine": {"type": "frag", "calibreMm": 0, "massG": 200, "velocity": 1, "explosiveKg": 0.1},
+    "anti-tank mine": {"type": "he", "calibreMm": 0, "massG": 9000, "velocity": 1, "explosiveKg": 7.5},
+    "line charge": {"type": "he", "calibreMm": 0, "massG": 60000, "velocity": 1, "explosiveKg": 60.0}
   }
 }

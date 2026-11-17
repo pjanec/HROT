@@ -85,6 +85,19 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4591 (P-4) — a ground cell's craters, the node that decided them → every node (each node's DoorStates.Craters unions every such entity).
             yield return new EntityGroundDamageEgressTranslator(participant);
             yield return new EntityGroundDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4624 MS-T2 — the minefield (authored), its strikes and a side's knowledge: every node role (KG-9)
+            yield return new EntityMinefieldEgressTranslator(participant);
+            yield return new EntityMinefieldIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldStrikesEgressTranslator(participant);
+            yield return new EntityMinefieldStrikesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldKnowledgeEgressTranslator(participant);
+            yield return new EntityMinefieldKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMinefieldLanesEgressTranslator(participant);                  // ⭐ CE-4624 MS-T4 — the lanes a node cleared
+            yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
+            yield return new EntityMineClearingIngressTranslator(participant, entityMap);
+            yield return new EntityRamOrderEgressTranslator(participant);                        // ⭐ CE-4622 K-2 — the hull's ram order (Brain group, the MineClearing pair)
+            yield return new EntityRamOrderIngressTranslator(participant, entityMap);
             // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.
             yield return new EntityBladeCutEgressTranslator(participant);
             yield return new EntityBladeCutIngressTranslator(participant, entityMap);
@@ -158,6 +171,13 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityUnitSlotTableIngressTranslator(participant, entityMap);
             yield return new EntityUnitHoldingsEgressTranslator(participant);
             yield return new EntityUnitHoldingsIngressTranslator(participant, entityMap);
+            // ⭐ CE-10000 (air lane, AC-2 / AC-9a / AC-10) — a fighter's order (Brain → its motion node), its report (Muscle → every node), the arena.
+            yield return new EntityAirCombatSteerEgressTranslator(participant);
+            yield return new EntityAirCombatSteerIngressTranslator(participant, entityMap);
+            yield return new EntityFighterPilotStateEgressTranslator(participant);
+            yield return new EntityFighterPilotStateIngressTranslator(participant, entityMap);
+            yield return new EntityAirArenaEgressTranslator(participant);
+            yield return new EntityAirArenaIngressTranslator(participant, entityMap);
             // ⭐ CE-3256 (BR-4) — a man in custody (Brain → every node).
             yield return new Hrot.Map.Common.Replication.Egress.EntityCustodyEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityCustodyIngressTranslator(participant, entityMap);

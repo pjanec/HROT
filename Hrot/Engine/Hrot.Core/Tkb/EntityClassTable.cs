@@ -142,6 +142,8 @@ namespace Hrot.Core.Tkb
             // ⭐ macros S3a ③ (SR-178, docs/DESIGN_Scenario_Macros.md §14) — a macro INSTANCE marker: a cultural feature of Category 90 (HROT; free — no other class
             //   uses Kind 5 below the level). The mask names the level Kind 5 · Domain 0 · Category 90, so the picker names it (DisNameTable).
             yield return C("ScenarioMacro", "Scenario Macro (HROT)", "5.0.*.90");
+            // ⭐ CE-4624 (minefields §3a, MS-T1) — the minefield: a cultural feature (5.0.*.91, beside the scenario macro's 5.0.*.90), one entity per field
+            yield return C("Minefield", "Minefield (HROT)", "5.0.*.91");
             yield return C("Supply", "Supply", "6");
             yield return C("Radio", "Radio", "7");
             yield return C("Expendable", "Expendable", "8");
@@ -168,6 +170,8 @@ namespace Hrot.Core.Tkb
             yield return C("LargeTrackedUtilityVehicle", "Large Tracked Utility Vehicle", "1.1.*.9");
             // ⭐ CE-6006 (showcase world, D-6) — the bulldozer: a large tracked utility vehicle (a D9) with its own subcategory, so the 3-D map draws a dozer, not a box
             yield return C("Bulldozer", "Bulldozer (HROT)", "1.1.*.9.1");
+            // ⭐ CE-4624 (minefields MS-T4, MF-9) — the mine-clearing vehicle (TKB 116): a heavier large tracked utility vehicle, beside the dozer; ui maps the class to its 3-D family (MS-U4)
+            yield return C("MineClearer", "Mine Clearer (HROT)", "1.1.*.9.2");
             // ⭐ CE-4617 (B-2, the ids note) — the radar SAM vehicle: SISO category 28 "Air Defense / Missile Defense Unit Equipment"; ui maps
             //   the class to its 3-D family (VisualFamily.AirDefenceVehicle) — the ONE key both lanes share
             yield return C("AirDefenceVehicle", "Air Defence Vehicle", "1.1.*.28");
@@ -198,6 +202,9 @@ namespace Hrot.Core.Tkb
             yield return C("CargoPlane", "Cargo Plane", "1.2.*.3,4,5,8,57");
             yield return C("Fighter", "Fighter/Air Defense", "1.2.*.1");
             yield return C("AttackAircraft", "Attack/Strike", "1.2.*.2");
+            // ⭐ CE-10000 (air lane, AC-7, R-10002) — the MiG-29 class (409): a HROT subcategory under Fighter (the LandAnimal 200+ precedent), so its
+            //   twin-fin body is keyed by a class, never a country (DESIGN_Air_Combat §4d; the look is ui's, AC-15)
+            yield return C("TwinEngineFighter", "Twin-Engine Fighter (HROT)", "1.2.*.1.200");
             yield return C("Bomber", "Bomber", "1.2.*.3");
             yield return C("CargoTanker", "Cargo/Tanker", "1.2.*.4");
             yield return C("PatrolAircraft", "ASW/Patrol/Observation", "1.2.*.5");

@@ -117,6 +117,8 @@ namespace Fdp.Toolkit.Terrain
         public const int TreeFell = 5104;
         /// <summary>⭐ CE-4624 (minefields §6.1) — <c>MineStruck</c>, <c>MinefieldCellsSwept</c>, <c>MinefieldMarked</c>, <c>LaneCleared</c> (5105–5108 free on every lane, <c>2026-11-16</c>).</summary>
         public const int MineStruck = 5105, MinefieldCellsSwept = 5106, MinefieldMarked = 5107, LaneCleared = 5108;
+        /// <summary>⭐ CE-4624 MS-T4 (MR-15) — <c>MinesCleared</c>: a plough / flail / line charge cleared mines (5109 free on every lane, <c>2026-11-16</c>).</summary>
+        public const int MinesCleared = 5109;
     }
 
     /// <summary>

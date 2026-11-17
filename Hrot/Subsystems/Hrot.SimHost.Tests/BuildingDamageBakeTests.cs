@@ -116,13 +116,15 @@ namespace Hrot.SimHost.Tests
         private static TerrainPrism Car(float x) => TerrainObstacles.PrismOf(new Vector3(x, 40f, 0f), 0f, new ObstacleShape { Length = 4.5f, Width = 1.8f, Height = 1.5f }, TerrainMaterialLibrary.Shared.Get("concrete", "t"), "obstacle:1");
 
         /// <summary>A node whose residency committed the baseline load bake of the house terrain by the SAME factory (its serial recorded, as <c>Prepare</c> does).</summary>
-        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode()
+        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode() => IncrementalNode(_house);
+
+        private (TerrainResidency Residency, RecastNavmeshFactory Factory) IncrementalNode(TerrainWorld terrain)
         {
             var residency = new TerrainResidency(_staging, new RoadNetworkHolder());
             var factory = Recast();
-            var baseline = factory.Build(_house);
+            var baseline = factory.Build(terrain);
             residency.AttachNavmesh(factory, _node);
-            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = _house, TerrainName = "range", Navmesh = baseline, BakeSerial = factory.BakeSerial });
+            residency.Commit(_world, new TerrainResidency.Staged { Definition = new TerrainDefinition { Name = "range" }, World = terrain, TerrainName = "range", Navmesh = baseline, BakeSerial = factory.BakeSerial });
             return (residency, factory);
         }
 
@@ -191,6 +193,50 @@ namespace Hrot.SimHost.Tests
             Assert.False(_world.GetSingletonManaged<TerrainWorld>()!.SegmentBlocked(new Vector3(25f, 15f, 1f), new Vector3(25f, 25f, 1f)));   // the resident world has the gap
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4630</c> — a DOOR-SIZED passage (a hull's bump, 1.2 m) is walkable after the bake, as a wider one is: the navmesh's erosion by the infantry radius leaves a
+        /// way through. 🔴 Red-proof: keep a breached panel whole in the bake (<c>TerrainObstacles</c>' re-expansion skipped) ⇒ 6 of 6 red.
+        /// </summary>
+        [Theory]
+        [InlineData(1.2f)] [InlineData(1.6f)] [InlineData(2.2f)]
+        public void CE4630_ADoorSizedPassage_IsWalkableAfterTheBake(float width)
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            Damage(new WallBreach(South(), 4f, 4f + width, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            Assert.True(_node.PathExists(Outside, Inside, (uint)NavLayerMask.Infantry), $"no path through a {width} m passage");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4630</c> (the possession rail) — a POSSESSED walker's steps, clamped to the node's navmesh exactly as <c>CarKinematicsSystem</c>'s manual branch clamps them
+        /// (<c>ManualMotion.KeepOnNavmesh</c>), carry him through a bumped 1.2 m hole into the house once the bake has committed — never slid back out. 📐 Measured live too
+        /// (`2026-11-16`, the editor, bt-doors): a possessed rifleman walked a possessed bulldozer's bump hole into House A. 🔴 Red-proof: as above ⇒ he stops at the wall.
+        /// </summary>
+        [Theory]
+        [InlineData(1.2f, 24.6f)] [InlineData(2.2f, 25.1f)] [InlineData(1.2f, 24.3f)]
+        public void CE4630_APossessedWalker_WalksThroughABumpedHole(float width, float x)
+        {
+            Node(muscle: true);
+            var sys = Sys();
+            Damage(new WallBreach(South(), 4f, 4f + width, 0f, 2.2f, BreachKind.Passage));
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6; sys.Execute(_world, 0.016f);
+            RunUntilBaked(sys, 1);
+            var pos = new Vector2(x, 14f);
+            var log = new System.Text.StringBuilder();
+            for (int i = 0; i < 600; i++)
+            {
+                var before = pos;
+                pos += new Vector2(0f, 1.4f / 60f);
+                bool changed = CarKinem.Controllers.ManualMotion.KeepOnNavmesh(_node, (uint)NavLayerMask.Infantry, before, ref pos, 0f);
+                if (changed && log.Length < 600) log.Append($"[{i}: {before.X:F2},{before.Y:F2} -> {pos.X:F2},{pos.Y:F2}] ");
+            }
+            Assert.True(pos.Y > 22f, $"stuck at {pos}: {log}");
+        }
+
         /// <summary>A field cut in two by a 1 m brick garden wall along y = 30 (beyond the bounds both ways — no way round), and a 1.5 m hedge-high wall along y = 45.</summary>
         private const string Garden = """
             { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 60, 60], "groundZ": 0 }, "features": [
@@ -235,6 +281,32 @@ namespace Hrot.SimHost.Tests
             RunUntilBaked(sys, 1);
             Assert.True(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "a man walks through both gaps");
             Assert.NotEmpty(_world.GetSingletonManaged<TerrainWorld>()!.BakedPassages);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4629</c> (found by the feature scenario <c>tt-dozer-breach</c>) — on an INCREMENTAL node (the load's bake is the baseline, as every live node runs) a cut in a FREE WALL re-bakes the
+        /// tiles under that wall line: the far field is reached through the gap. 📐 Live: the dozer's cuts in a fence and two garden walls left the navmesh closed ("180 reused, 0 baked")
+        /// — the dirty region had a box for a building's damage only, never for a free-wall line's group (CE-4599). 🔴 Red-proof: skip non-building groups in
+        /// <c>TerrainResidency.DirtyRegions</c> again ⇒ no tile rebakes and the far field stays out of reach.
+        /// </summary>
+        [Fact]
+        public void CE4629_AFreeWallCut_IsReBaked_OnAnIncrementalNode()
+        {
+            var garden = TerrainWorldParser.Parse(Garden, "range");
+            var (_, factory) = IncrementalNode(garden);
+            var sys = Sys();
+            Vector3 near = new(30f, 20f, 0f), far = new(30f, 40f, 0f);
+            Assert.False(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "the garden wall closes the far field");
+            int wall = BuildingPanelIndex.ToGlobal(garden, 0, 0);
+            var p = garden.Panels[wall];
+            var d = new BuildingDamage { Building = 0 };
+            BuildingDamages.Add(ref d, new WallBreach(wall, 33f, 38.3f, p.BaseZ, p.TopZ, BreachKind.Passage), garden);
+            var e = _world.CreateEntity(); _world.AddComponent(e, d); _world.SetManagedComponent(e, new TerrainObjectKey { Key = "range/wall:Garden" });
+            sys.Execute(_world, 0.016f);
+            _wall = 0.6;
+            RunUntilBaked(sys, 1);
+            Assert.True(factory.LastStats.Baked > 0, $"no tile was re-baked ({factory.LastStats.Reused} reused)");
+            Assert.True(_node.PathExists(near, far, (uint)NavLayerMask.Infantry), "a man walks through the cut");
         }
 
         /// <summary>

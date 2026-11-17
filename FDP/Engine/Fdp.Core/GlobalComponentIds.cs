@@ -26,7 +26,13 @@ namespace Fdp.Core
     /// 496–511 held back (the 512-bit mask). 📄 docs/blueprints/batches/NOTE_Backend_To_All_Lanes_Component_Id_Space.md.</para>
     /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
-    /// agg-behaviors 324–326, agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
+    /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
+    /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
+    /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
+    /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months; the
+    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line).</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -352,6 +358,15 @@ namespace Fdp.Core
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
         public const int EffectAnchor            = 125;
+
+        /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
+        /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
+        /// ⚠ 126 fixed by the coordinator (127 taken by CheckpointWatch; 128 RELEASED to the air lane — MissileDefenceState, R-4285).</summary>
+        public const int RamOrder                = 126;
+
+        /// <summary><c>CheckpointWatch</c> — ⭐ CE-4622 K-4 (DESIGN_Checkpoint_And_Ramming.md CP-2, §5a held 127): a checkpoint commander's watch on its approach — the
+        /// vehicle that matters most, its verdict and seconds to the stand-off. Brain-local, unmanaged, never saved.</summary>
+        public const int CheckpointWatch         = 127;
 
         // IDs 124â€“139 are reserved for future IG components.
 
@@ -1337,6 +1352,15 @@ namespace Fdp.Core
         /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
         public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
 
+        /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
+        /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
+        /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
+        public const int MinefieldLanes = 324, MineClearing = 325;
+
+        /// <summary>⭐ CE-4624 MS-T2 (MR-5, R-5049) — <c>MineBreadcrumbs</c>: a unit's own recent track near a minefield (the back-out path), written by its brain node, recorded,
+        /// not replicated. ⚠ 326 measured free on every lane 2026-11-16.</summary>
+        public const int MineBreadcrumbs = 326;
+
         /// <summary><c>SimLink</c> — ⭐ N-1 (CE-4463, docs/DESIGN_Threaded_Work_Inventory.md §8): a THREADED node's link on its presentation world A (the sim job
         /// queue + the simulation world). A node-local managed singleton, never saved, recorded or sent; excluded from the staging pull (A owns it).
         /// ⚠ 475 measured free in backend, ui, behaviors, coordinator, exp/integration and exp/perf 2026-11-12 (and in no test).</summary>
@@ -1371,20 +1395,33 @@ namespace Fdp.Core
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
         /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
-        public const int Fear = 500;
+        public const int Fear = 130;   // ⭐ CE-4623 AB-10 (2026-11-16): the animals' ids MOVED 500–507 → 130–137 — 500–511 is R-44's TEST-ONLY range (a test's own [ComponentId(503)] collided with HerdMember in one test process) and the terrain lane took 500 for PlacementGroup the same day; 130–137 measured free on backend, behaviors, ui and coordinator in every *ComponentIds*.cs and every literal ComponentId(n)
         /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
-        public const int AnimalState = 501;
+        public const int AnimalState = 131;
         /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
-        public const int FlockState = 502;
+        public const int FlockState = 132;
         /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
-        public const int HerdMember = 503;
+        public const int HerdMember = 133;
         /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
-        public const int AnimalHome = 504;
+        public const int AnimalHome = 134;
         /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
-        public const int HerdState = 505;
+        public const int HerdState = 135;
         /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
-        public const int AnimalArea = 506;
+        public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
-        public const int AnimalAreaPopulated = 507;
+        public const int AnimalAreaPopulated = 137;
+
+        // ⭐ CE-10000 (R-10000, the `air` lane — docs/designs/air-attack/DESIGN_Air_Combat.md §4a, §7) — the air-combat contract. The five ids
+        //   measured free on every lane branch 2026-11-17 (see the header). ⛔ Permanent: recorded and (three of them) on the wire.
+        /// <summary><c>AirCombatSteer</c> — the brain's air-combat order to its motion node (Brain group, <c>dtAirCombatSteer</c> 216).</summary>
+        public const int AirCombatSteer = 277;
+        /// <summary><c>FighterPilotState</c> — the motion node's g, GCAS and live threat report (Muscle group, <c>dtFighterPilotState</c> 217).</summary>
+        public const int FighterPilotState = 278;
+        /// <summary><c>AirCombatState</c> — the air-combat behaviour's working state (brain, recorded; skill authored).</summary>
+        public const int AirCombatState = 279;
+        /// <summary><c>MissileDefenceState</c> — the one missile defence's state (brain, recorded).</summary>
+        public const int MissileDefenceState = 128;
+        /// <summary><c>AirArena</c> — the show's stage, an authored entity (Brain group, <c>dtAirArena</c> 218).</summary>
+        public const int AirArena = 160;
     }
 }

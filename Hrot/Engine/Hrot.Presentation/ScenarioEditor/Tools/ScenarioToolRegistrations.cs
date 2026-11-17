@@ -98,8 +98,12 @@ namespace Hrot.ScenarioEditor.Tools
                 new ToolDescriptor(ScenarioToolIds.Edit, "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped,
                                    ShowOnToolbar: true, ToggleOnReactivate: true,
                                    Hint: DrawingMenu.EditShapeHint, Glyph: Fdp.Presentation.Fonts.IconsFontAwesome6.DrawPolygon),
-                target => ToggleEntityGizmo<EditablePolyline>(target, EditorTool.Edit,
-                    (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove)));
+                // ⭐ CE-4647 (AC-15) — an AIR ARENA has no outline: "Edit Shape" on it arms its four handles (centre, radius, floor, ceiling: AirArenaHandleGizmo); everything else edits its polyline as ever
+                target => world() is { } arenaWorld && Hrot.UI.Common.AddEntity.AirArenaOps.Is(arenaWorld, target)
+                    ? ToggleEntityGizmoCore(target, EditorTool.Edit, (w, x) => Hrot.UI.Common.AddEntity.AirArenaOps.Is(w, x), "AirArena",
+                          (w, e, netId, onRemove) => new AirArenaHandleGizmo(w, e, netId, onRemove))
+                    : ToggleEntityGizmo<EditablePolyline>(target, EditorTool.Edit,
+                          (w, e, netId, onRemove) => new VertexEditGizmo(w, e, netId, onRemove)));
 
             controller.Register(
                 new ToolDescriptor(ScenarioToolIds.Route, "Edit Route", ToolModality.Modal, ToolArbiter.EntityScoped,
@@ -159,13 +163,21 @@ namespace Hrot.ScenarioEditor.Tools
                 EditorTool tool,
                 Func<EntityRepository, Entity, int, Action, IEntityStatefulGizmo> factory)
                 where TComponent : class
+                => ToggleEntityGizmoCore(e, tool, (w, x) => w.HasManagedComponent<TComponent>(x), typeof(TComponent).Name, factory);
+
+            ToolActivationOutcome ToggleEntityGizmoCore(
+                Entity e,
+                EditorTool tool,
+                Func<EntityRepository, Entity, bool> has,
+                string componentName,
+                Func<EntityRepository, Entity, int, Action, IEntityStatefulGizmo> factory)
             {
                 if (world() is not { } w)  return Unserviceable(tool, "this host has no world");
                 if (gizmos() is not { } g) return Unserviceable(tool, "this host composes no entity gizmo system");
 
                 if (e == Entity.Null)                      return Unserviceable(tool, "nothing is selected");
-                if (!w.HasManagedComponent<TComponent>(e))
-                    return Unserviceable(tool, $"the selected entity has no {typeof(TComponent).Name}");
+                if (!has(w, e))
+                    return Unserviceable(tool, $"the selected entity has no {componentName}");
 
                 // ⭐⭐⭐ §6.7 — ARM ONLY WITH A REAL ANCHOR ID, because these gizmos' handles are
                 //   identified by it: VertexEditGizmo.cs:145 and RouteWaypointGizmo.cs:135 stamp

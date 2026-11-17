@@ -208,10 +208,15 @@ namespace Hrot.ScenarioEditor.Tools
         {
             var components = new List<object> { polyline, style };
             if (tkbType == TkbEntityTypes.WeatherRegion) components.Add(Fdp.Toolkit.Weather.WeatherConditions.Standard);
-            if (tkbType == Hrot.UI.Common.AddEntity.AnimalAreaOps.AreaType)   // ⭐ CE-4623 AU-7 — an animal area is born with a pasture of cattle (the form changes it) and its own green outline
+            if (tkbType == TkbEntityTypes.AnimalArea)   // ⭐ CE-4623 AU-7 — an animal area is born with a pasture of cattle (the form changes it) and its own green outline
             {
-                components.Add(Hrot.UI.Common.AddEntity.AnimalAreaDef.Default(Fdp.Toolkit.Animals.AnimalSpecies.Cattle));
+                components.Add(Hrot.UI.Common.AddEntity.AnimalAreaOps.Default(Fdp.Toolkit.Animals.AnimalSpecies.Cattle));
                 components[1] = AnimalAreaStyle();
+            }
+            if (tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType)   // ⭐ CE-4624 MS-U3 (MR-8) — a minefield is born WITHOUT the generic overlay style (MinefieldGizmo draws it) and with its parameters
+            {
+                components.RemoveAll(c => c is MapOverlayStyle);
+                components.Add(Hrot.UI.Common.AddEntity.MinefieldOps.Default());
             }
             if (tkbType == TkbEntityTypes.SpawnArea) components.Add(new Hrot.Common.SpawnArea { Side = Fdp.Core.ForceId.Friend, FacingDeg = 0f });   // ⭐ Player Join S2-b — edited in Details
             return components;

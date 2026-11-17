@@ -197,6 +197,17 @@ public sealed class TerrainResidency
 
         // ⭐ W12 — a terrain is a FOLDER, resolved by the one catalog (staging → shared → shipped).
         string? definitionPath = _catalog.ResolveDefinition(terrainName);
+        // ⭐⭐ AQ112 B (R-4280) — an overlay names the base it was compiled over by HASH: when the current terrain was re-imported since, the kept old version is the base
+        //   (the replay's recording opens its overlay through here too — its TerrainHash IS the overlay header's base hash)
+        if (definitionPath != null && !string.IsNullOrEmpty(overlayFolder)
+            && File.Exists(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))
+        {
+            string wantedBase = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder).BaseHash;
+            definitionPath = _catalog.ResolveDefinition(terrainName, wantedBase)
+                ?? throw new InvalidOperationException(
+                    $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{terrainName}' content hash '{wantedBase}', but that version is not available: the resident terrain "
+                  + $"('{definitionPath}') has content hash '{TerrainContentHash.OfTerrain(definitionPath!)}' and there is no '{TerrainCatalog.VersionsDirectoryName}/{wantedBase}' beside it. Recompile the overlay (save the scenario) against this terrain.");
+        }
         if (definitionPath == null)
             throw new FileNotFoundException(
                 $"[Terrain] Terrain '{terrainName}' was not found: no '{terrainName}/{TerrainCatalog.DefinitionFileName}' "
@@ -543,6 +554,7 @@ public sealed class TerrainResidency
         internal IReadOnlyList<OverlayPart> Parts = System.Array.Empty<OverlayPart>();
         internal CraterTable? Craters;   // ⭐ CE-4591 — the craters this bake laid into the ground
         internal FelledTrees? Trees;     // ⭐ CE-4603 — the trunks this bake left out
+        internal MinefieldSet? Minefields;   // ⭐ CE-4624 MS-T3 — the minefields (and lanes) this bake stamped into its navmesh
         /// <summary>
         /// ⭐ O-7 B (B-5) — where this bake differs from the last one committed on the same base (obstacle prisms, building damage, live-overlay parts): the rectangles a 3-D chunk rebuild must redo.
         /// Null = unknown (the first bake after a base change, or another bake in between) = everything. Set on every bake, whether or not this node bakes a navmesh.
@@ -590,8 +602,15 @@ public sealed class TerrainResidency
 
     /// <summary>⭐ <c>CE-4603</c> (B-6) — and the view's FELLED lone trunks left out (every node: the drawing hides them; the navmesh opens where they stood), their boxes dirty.</summary>
     public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees)
+        => BakeObstacles(obstacles, damage, overlay, craters, trees, null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-3) — and the world's MINEFIELDS (with their lanes) laid into <see cref="TerrainWorld.Minefields"/> for the navmesh to stamp as composite areas. Like building damage,
+    /// only a node that does world queries (<see cref="BakesDamage"/>) bakes them; the dirty region gains the box of every field added, removed, edited or laned (old and new): only the tiles under it rebake.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
     {
-        if (!BakesDamage) damage = null;
+        if (!BakesDamage) { damage = null; minefields = null; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var baseWorld = overlay?.Base ?? _baseWorld;
         int baseVersion = overlay?.BaseVersion ?? BaseVersion;
@@ -603,10 +622,10 @@ public sealed class TerrainResidency
         if (overlay != null && damage != null) damage = damage.RemapTo(terrain);
         var damageNow = DamageHashes(terrain, damage);
         var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
-        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); }   // ⭐ CE-4591 (V-4), CE-4603
-        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters; bake.Trees = trees;
+        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); MinefieldDirt(minefields, dirty); }   // ⭐ CE-4591 (V-4), CE-4603, CE-4624
+        bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters; bake.Trees = trees; bake.Minefields = minefields;
         bake.Dirty = diffed ? dirty : null;
-        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees, minefields));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
         {
             // ⭐ CE-4427 R-6 — the factory checks "its last bake is the one I committed" UNDER its own lock and hands back THIS bake's serial
@@ -637,7 +656,7 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
-        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastMinefields = bake.Minefields; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         // ⭐ CE-4427 R-4 — a world that numbers its buildings / panels differently replaces the old one: every BuildingDamage entity is re-keyed to it BEFORE it is published (main thread, here)
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
@@ -671,6 +690,32 @@ public sealed class TerrainResidency
     private int _lastBakeBase = int.MinValue;
     private CraterTable? _lastCraters;
     private FelledTrees? _lastTrees;
+    private MinefieldSet? _lastMinefields;
+
+    /// <summary>
+    /// ⭐ <c>CE-4624</c> MS-T3 (MR-3) — adds to <paramref name="rects"/> the box (grown 3 m: the tile hash reaches 3 m) of every minefield that is new, gone or changed (its outline, its orientation, a lane added or lost in a
+    /// seek — compared by <see cref="TerrainMinefield.Hash"/>) since the last committed bake, old place and new: only the navmesh tiles under them rebake.
+    /// </summary>
+    internal void MinefieldDirt(MinefieldSet? now, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)
+    {
+        MinefieldSet? was;
+        lock (_dirtyGate) was = _lastMinefields;
+        if (ReferenceEquals(was, now)) return;
+        var before = new Dictionary<Guid, TerrainMinefield>();
+        if (was != null) foreach (var f in was.Fields) before[f.Field] = f;
+        var grow = new System.Numerics.Vector2(3f);
+        if (now != null)
+            foreach (var f in now.Fields)
+            {
+                if (before.Remove(f.Field, out var old))
+                {
+                    if (old.Hash == f.Hash) continue;
+                    if (old.Min != f.Min || old.Max != f.Max) rects.Add((old.Min - grow, old.Max + grow));   // moved or reshaped: where it was too (the same box once)
+                }
+                rects.Add((f.Min - grow, f.Max + grow));
+            }
+        foreach (var f in before.Values) rects.Add((f.Min - grow, f.Max + grow));   // gone
+    }
 
     /// <summary>⭐ <c>CE-4603</c> — the box of every trunk felled since the last committed bake, or standing again (a seek back).</summary>
     internal void TreeDirt(FelledTrees? now, TerrainWorld terrain, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)
@@ -772,9 +817,27 @@ public sealed class TerrainResidency
         foreach (var b in new HashSet<int>(damage.Keys.Concat(lastDamage.Keys)))
         {
             damage.TryGetValue(b, out var now); lastDamage.TryGetValue(b, out var was);
-            if (now == was || (uint)b >= (uint)baseWorld.Buildings.Count || baseWorld.Buildings[b].Footprint.Length == 0) continue;
+            if (now == was) continue;
             var lo = new System.Numerics.Vector2(float.MaxValue); var hi = new System.Numerics.Vector2(float.MinValue);
-            foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            if (WallGroups.IsBuilding(baseWorld, b))
+            {
+                if (baseWorld.Buildings[b].Footprint.Length == 0) continue;
+                foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            }
+            else
+            {
+                // ⭐ CE-4629 (found by tt-dozer-breach) — a FREE-WALL line's group (CE-4599) is dirty where its panels stand: ⛔ was skipped (only a building had a box), so a cut in a
+                //   garden wall or a fence was never re-baked — the navmesh kept the wall closed while the world showed the gap
+                for (int i = 0; i < baseWorld.Panels.Count; i++)
+                {
+                    if (WallGroups.Of(baseWorld, i) != b) continue;
+                    var pa = baseWorld.Panels[i];
+                    float t = pa.Thickness * 0.5f;
+                    lo = System.Numerics.Vector2.Min(lo, System.Numerics.Vector2.Min(pa.A, pa.B) - new System.Numerics.Vector2(t));
+                    hi = System.Numerics.Vector2.Max(hi, System.Numerics.Vector2.Max(pa.A, pa.B) + new System.Numerics.Vector2(t));
+                }
+                if (lo.X > hi.X) continue;
+            }
             rects.Add((lo, hi));
         }
         return rects;

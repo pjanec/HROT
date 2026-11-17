@@ -221,6 +221,43 @@ namespace Hrot.SimHost.Tests
             Assert.True(t.SegmentBlocked(new Vector3(-5f, 10f, 1f), new Vector3(5f, 10f, 1f), DoorStates.Of(_w, t)));   // the rest of the wall stands
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4629</c> ② — the AI dozer's ordered cut is the ONE multi-panel cut (<c>ContactBreach.CutAlong</c>): on a straight wall AND on a wall made of 1 m pieces (a
+        /// wall stepping with the slope is pieces of ≤ 2 m, CE-5015) the gap is at least the blade's width (4.3 m + the margin each side). 🔴 Red-proof: clamp the cut to
+        /// the one nearest panel again (<c>DozerCutSystem.CutWall</c>) ⇒ the stepped wall's gap is ~1 m.
+        /// </summary>
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void CE4629_TheDozersCut_IsBladeWide_OnAStraightAndOnASteppedWall(bool stepped)
+        {
+            var coords = new System.Text.StringBuilder();
+            for (int y = -10; y <= 10; y += stepped ? 1 : 20) coords.Append(coords.Length > 0 ? "," : "").Append("[10,").Append(y).Append(']');
+            var t = TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,50,50],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"wall\",\"label\":\"w\",\"height\":2.0,\"thickness\":0.3,\"material\":\"brick\"}," +
+                "\"geometry\":{\"type\":\"LineString\",\"coordinates\":[" + coords + "]}}]}", "range");
+            _w.SetSingletonManaged(t);
+            var d = _w.CreateEntity();
+            _w.AddComponent(d, new SimTransform { Position = new Vector3(5.5f, 0.3f, 0f), Rotation = Quaternion.Identity });   // the blade (half the 8 m hull ahead) at x 9.5
+            _w.AddComponent(d, new CarKinem.Core.VehicleParams { Length = 8f, Width = 4.3f });
+            _w.AddComponent(d, new BladeCut { Active = 1, Target = BladeCutTarget.Wall, At = new Vector3(10f, 0.3f, 0f), PushSeconds = 0.1f });
+            var cut = new DozerCutSystem();
+            var events = new List<BuildingDamageEvent>();
+            for (int i = 0; i < 5 && cut.Cuts == 0; i++) { cut.Execute(_w, Dt); _w.Bus.SwapBuffers(); events.AddRange(_w.Bus.Read<BuildingDamageEvent>().ToArray()); }
+            Assert.Equal(1, cut.Cuts);
+            if (stepped) Assert.True(events.Count >= 5, $"one cut on the 1 m pieces it spans, got {events.Count}");
+            float lo = float.MaxValue, hi = float.MinValue;
+            foreach (var ev in events)
+            {
+                var p = t.Panels[ev.Panel]; var dir = Vector2.Normalize(p.B - p.A);
+                float y1 = (p.A + dir * ev.From).Y, y2 = (p.A + dir * ev.To).Y;
+                lo = System.MathF.Min(lo, System.MathF.Min(y1, y2)); hi = System.MathF.Max(hi, System.MathF.Max(y1, y2));
+                Assert.Equal(2f, ev.Top - ev.Bottom, 2);
+            }
+            Assert.True(hi - lo >= 4.3f + 1f - 0.05f, $"the gap is {hi - lo:F2} m — narrower than the blade");
+            Assert.Equal(0.3f, (lo + hi) * 0.5f, 1);
+        }
+
         /// <summary>⭐ B-4 — a point on the lone oak fells it (the trunk wins over nothing); a point on open ground fails at once; a point beside a roadblock is that roadblock.</summary>
         [Fact]
         public void CE4601_APointOnATrunk_FellsIt_OpenGroundFails_AndAPointByARoadblockClearsTheRoadblock()

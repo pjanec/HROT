@@ -631,6 +631,10 @@ namespace Hrot.Map.Definitions.Tkb
                         new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Passenger, Exposed = true,
                                       X = -0.45f, Z = 0.85f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Ride,
                                       TraverseMinDeg = 30f, TraverseMaxDeg = 330f },
+                        // ⭐ CE-4621 IM-2 (feature scenario ua-moto-parked-bomb, R-3088) — the PANNIER: one cargo station, stowed and concealed,
+                        //   appended after the seats as the car's boot (CE-3233 ST-9). ⛔ Without it a ParkedBomb's "cargo charge" could not ride the
+                        //   bike at all — the play's rail placed the charge by hand, so no rail saw the gap; the scenario did.
+                        new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false },
                     },
                 })
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto
@@ -844,6 +848,50 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 1 });
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4624</c> (minefields MS-T4, DESIGN_Minefields.md MF-9, §3a) — the MINE-CLEARING VEHICLE, TKB 116: an engineering tank (a heavier tracked utility vehicle than the dozer — a plough, a flail and a line-charge
+        /// launcher are hung on it), NO weapon. Class <c>MineClearer</c> 1.1.*.9.2 (beside the dozer's 1.1.*.9.1). The brain (<c>ClearLane</c>, behaviors' MS-B3) adds and drives its
+        /// <see cref="Fdp.Toolkit.Terrain.MineClearing"/> marker exactly as the dozer's brain adds <c>BladeCut</c> (the type carries none until its first order); the MUSCLE (<c>MineTriggerSystem</c>) clears. The kit (plough / flail
+        /// / launcher meshes, the loop sound) is ui's MS-U4.
+        /// <para>🛡 Heavier than the dozer (58 t against 49 t): 70 mm front, 50 sides and rear, 40 roof, health 1500; blast susceptibility 0.1 so a mine's burst under the hull stays survivable (the AT mine's 250 damage ×
+        /// 6 hits, not 1). Starter numbers — the engine decides nothing by them but the "heavier than the dozer" order and the armour law.</para>
+        /// </summary>
+        private static void DefineMineClearer(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Engineer_MineClearer;
+            builder
+                .DefineVehicle(type, "Mine Clearer (engineer tank)")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPEVEM-------";   // 2525B ground equipment · vehicle · engineer · mine clearing
+                    v.ColorHex = "#8C7A3A";             // dull olive
+                    v.Scale = 1.2f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 58_000;
+                    p.Length = 9.0f;   // with the plough / flail boom
+                    p.Width = 4.4f;
+                    p.Height = 3.2f;
+                    p.MaxSpeed = 9.0f; p.MaxSpeedRev = 4.5f; p.Acceleration = 1.0f; p.TurnRate = 25f;   // it drives the lane at the tool's pace (the brain), not at this
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 70; c.ArmorSide = 50; c.ArmorRear = 50; c.ArmorTop = 40;
+                    c.MaxHealth = 1500;
+                    c.BlastSusceptibility = 0.1f;
+                    c.EyeHeight = 2.8f;
+                    c.SensorRange = 500;
+                })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 2 = the mine clearer (HROT, EntityClassTable "MineClearer")
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 2 });
+        }
+
         public static void RegisterAll(TkbDatabase tkbDb)
         {
             var builder = new NedTkbBuilder(tkbDb);
@@ -880,6 +928,7 @@ namespace Hrot.Map.Definitions.Tkb
                     // ⭐ M6 (DESIGN_Armour_Hit_Model §2, D-F) — the roof, the composite front against a shaped charge, and the health
                     //   STATED (the value front × 5 gave it, so no fight moves on that number)
                     c.ArmorTop = 60; c.ArmorFrontCe = 900; c.ArmorSideCe = 450;
+                    c.ArmorBottom = 50;   // ⭐ CE-4624 (MR-10) — the belly plate: an anti-tank mine's burst (120 mm) gets through it (behaviors' mf-at-vs-vehicle finding)
                     c.MaxHealth = 3000;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT shrugs off blast; its fragments and direct hits still count
                     c.EyeHeight = 2.5f;   // ⭐ M5 — the gunner's sight / the commander's hatch
@@ -942,6 +991,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorRear = 40;
                     // ⭐ M6 — aluminium + spaced steel: the roof, the spaced front against a shaped charge, the health as before (100 × 5)
                     c.ArmorTop = 30; c.ArmorFrontCe = 150; c.ArmorSideCe = 80;
+                    c.ArmorBottom = 25;   // ⭐ CE-4624 (MR-10) — the belly
                     c.MaxHealth = 500;
                     c.BlastSusceptibility = 0.1f;   // ⭐ R-2019 D-M2 (AE3) — IFV: blast damages optics and running gear only
                     c.EyeHeight = 2.7f;   // ⭐ M5
@@ -1009,6 +1059,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorRear = 150;
                     // ⭐ M6 — the roof, Kontakt ERA on the front and sides against a shaped charge, the health as before (500 × 5)
                     c.ArmorTop = 40; c.ArmorFrontCe = 700; c.ArmorSideCe = 350;
+                    c.ArmorBottom = 40;   // ⭐ CE-4624 (MR-10) — the belly
                     c.MaxHealth = 2500;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
@@ -1250,6 +1301,84 @@ namespace Hrot.Map.Definitions.Tkb
                         Wheel("main right", -0.6f, -1.18f, -1.90f, 0.36f, 1.0f, retractable: true),
                     },
                 });
+            // ⭐ CE-10000 (air lane, AC-7; DESIGN_Air_Combat §5a) — the MiG-29 class (409): the body (public figures, rounded: 17.3 m long, 11.4 m
+            //   span, 4.7 m high, a tricycle gear), the hostile symbol; DIS 1.2.222.1.200 (R-10002). Flight, weapons, radar and brain arrive in S3.
+            DefineAircraft(builder, TkbEntityTypes.Jet_MiG29, "MiG-29 Fulcrum", "SHAPMFF-------", "#7C8A96",
+                new DISEntityType { Kind = 1, Domain = 2, Country = Russia, Category = 1, Subcategory = 200 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 17.32f, Width = 11.36f, Height = 4.73f,
+                    BodyCentreX = 0.50f, BodyCentreZ = 0.46f,          // box bottom = the tyres (−1.90)
+                    GroundContacts =
+                    {
+                        Wheel("nose",        3.9f,  0f,    -1.90f, 0.26f, 1.2f, retractable: true),
+                        Wheel("main left",  -0.7f,  1.55f, -1.90f, 0.38f, 1.0f, retractable: true),
+                        Wheel("main right", -0.7f, -1.55f, -1.90f, 0.38f, 1.0f, retractable: true),
+                    },
+                });
+            builder.WithFaction(TkbEntityTypes.Jet_MiG29, 2);
+            // ⭐⭐ CE-10001 (air lane, AC-3, §5a) — the jets FLY, and they DIFFER (RV-8): the F-16 the better sustained turn (6.5 g at 220 m/s —
+            //   the integrator's thrust − parasite − DragK·(n² − 1) balance: 12 − 12·(220/400)² = 0.203·(6.5² − 1)), the MiG the better
+            //   instantaneous turn and roll (9.5 g, 270 deg/s; sustains 5.5 g at 220). Public figures, rounded (DESIGN_Air_Combat §5a). Route
+            //   flight: cruise 220 m/s at 300 m, a 50 m/s climb, a 60 deg route bank.
+            builder.WithFlight(TkbEntityTypes.Jet_F16, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing, new FlightParamsDto
+            {
+                MaxSpeedMps = 400f, CruiseSpeedMps = 220f, StallSpeedMps = 70f, MaxBankDeg = 60f, ClimbMps = 50f, TurnRateDeg = 20f,
+                EnduranceSeconds = 7200f, ContactRadiusM = 2f, BodyRadiusM = 2f, BodyHeightM = 4.9f, HoverHeightM = 300f,
+                AccelMps2 = 12f, MaxG = 9f, CornerSpeedMps = 170f, DragK = 0.203f, RollRateDeg = 240f,
+            });
+            builder.WithFlight(TkbEntityTypes.Jet_MiG29, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing, new FlightParamsDto
+            {
+                MaxSpeedMps = 380f, CruiseSpeedMps = 220f, StallSpeedMps = 70f, MaxBankDeg = 60f, ClimbMps = 50f, TurnRateDeg = 20f,
+                EnduranceSeconds = 7200f, ContactRadiusM = 2f, BodyRadiusM = 2f, BodyHeightM = 4.7f, HoverHeightM = 300f,
+                AccelMps2 = 13f, MaxG = 9.5f, CornerSpeedMps = 160f, DragK = 0.295f, RollRateDeg = 270f,
+            });
+            // ⭐ CE-10001 (AC-7, §5a, RV-17) — health and armour faces (front · side · rear · top, mm RHA against cannon fragments), the eyes
+            //   (8 km: ≥ the show's 6 km shot cap — S0 ③, the vision range is the observer's own), a brain (AT4: Health is the Brain group's),
+            //   the dispenser as the LAST mount (BS-1 §5.4c). The guns and the missile rails are S3's (CE-10003).
+            foreach (var (jet, health, front, side) in new[] { (TkbEntityTypes.Jet_F16, 400, 4f, 4f), (TkbEntityTypes.Jet_MiG29, 450, 5f, 5f) })
+                builder.WithCombat(jet, c =>
+                {
+                    c.MaxHealth = health;
+                    c.BlastSusceptibility = 0.8f;
+                    c.ArmorFront = front; c.ArmorSide = side; c.ArmorRear = 2; c.ArmorTop = 2;
+                    c.EyeHeight = 1f;
+                    c.SensorRange = 8000;
+                    // ⭐ CE-10003 (S3, AC-8, §5a) — the weapon suite, in the order ui's JetStores draws: the gun (mount 0, FIXED forward,
+                    //   a 2° cone, ≤ 500 m by the employment rule), the IR rail pair (OUTBOARD), the radar rail pair (INBOARD), the dispenser LAST.
+                    //   The guns' damage is their round's (the library); a missile's is its warhead's. The radar: 40 km stated against 10 m².
+                    bool us = jet == TkbEntityTypes.Jet_F16;
+                    long gunRound = us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbM61Hei : Hrot.Core.Tkb.MunitionTkbCatalog.TkbGsh30Hei;
+                    string gunLib = us ? Hrot.Core.Tkb.MunitionTkbCatalog.M61HeiLibraryName : Hrot.Core.Tkb.MunitionTkbCatalog.Gau8HeiLibraryName;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "M61A1 Vulcan 20mm" : "GSh-30-1 30mm", Ammunition = us ? 500 : 150, Range = 1500f,
+                        RateOfFire = us ? 6000 : 1800, DispersionMils = 4f, FixedConeDeg = 2f, FireOnMove = true, Category = WeaponCategory.Autocannon,
+                        Penetration = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryPenetration(gunLib), DamagePerHit = Hrot.Core.Tkb.MunitionTkbCatalog.LibraryDamage(gunLib),
+                        AmmoTkb = (Fdp.Core.TkbTypeId)gunRound, MuzzleOffset = new System.Numerics.Vector3(5f, 0.5f, 0.3f),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "AIM-9X rails" : "R-73 rails", Ammunition = 2, MagazineSize = 2, Range = 8000f, RateOfFire = 30, DamagePerHit = 400,
+                        AimSeconds = 1f, FireOnMove = true, Category = WeaponCategory.AirToAir,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim9x : Hrot.Core.Tkb.MunitionTkbCatalog.TkbR73),
+                    });
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = us ? "AIM-120 rails" : "R-77 rails", Ammunition = 2, MagazineSize = 2, Range = 20000f, RateOfFire = 30, DamagePerHit = 600,
+                        AimSeconds = 1f, FireOnMove = true, Category = WeaponCategory.AirToAir,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(us ? Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim120 : Hrot.Core.Tkb.MunitionTkbCatalog.TkbR77),
+                    });
+                    c.RadarRange = 40000;
+                    c.Weapons.Add(Dispenser(flares: 30, chaff: 30));
+                })
+                .WithBehavior(jet);
+            // ⭐ CE-10001 — the F-16's ejection seat: the A-10's (Airborne insertion B-7), the seat 4 m ahead of the CG
+            builder.WithEjection(TkbEntityTypes.Jet_F16, new Fdp.Toolkit.Tkb.Domain.EjectionDto
+                { PilotType = TkbEntityTypes.Infantry_Pilot, SeatX = 4f, SeatZ = 1.1f, AutoEjectBelowFraction = 0.2f });
+            builder.WithEjection(TkbEntityTypes.Jet_MiG29, new Fdp.Toolkit.Tkb.Domain.EjectionDto
+                { PilotType = TkbEntityTypes.Infantry_Pilot, SeatX = 4.5f, SeatZ = 1.1f, AutoEjectBelowFraction = 0.2f });
             DefineAircraft(builder, TkbEntityTypes.Cargo_C130, "C-130H Hercules", "SFAPMFC-------", "#7A8076",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 4 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
@@ -1276,6 +1405,7 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
             // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
@@ -1284,6 +1414,7 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
                    .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
@@ -1294,6 +1425,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   brain (nothing could release their flares), so they carry none yet.
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
+            DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
@@ -1392,6 +1524,11 @@ namespace Hrot.Map.Definitions.Tkb
             var terrainFeature = new TkbTemplate("Terrain Feature", TkbEntityTypes.TerrainFeature);
             terrainFeature.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(terrainFeature);
+            // ⭐ CE-4624 (minefields §3a, MS-T1) — the MINEFIELD: one authored entity per field (DIS 5.0.0.91, class "Minefield"), a map graphic like a terrain feature;
+            //   its Minefield component and its ONE EditablePolyline outline arrive when it is placed / loaded (the mines are derived, never entities).
+            var minefield = new TkbTemplate("Minefield", TkbEntityTypes.Minefield) { DisType = new DISEntityType { Kind = 5, Category = 91 } };
+            minefield.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(minefield);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

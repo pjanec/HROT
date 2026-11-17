@@ -7,6 +7,7 @@ stale-below: § HISTORY at the bottom (§2–§5 as first approved)
 known-rot: §2a's missile id 6047 — taken (the 60 mm mortar smoke, CE-7025); as built 6050 (§7)
 known-conflict: none
 related-designs:
+  - DESIGN_Air_Combat.md — OWNS air-to-air combat and the aircraft's ONE MissileDefence (AC-9: RS-6's reaction is folded into it) and the missile energy (AC-6) the radar SAM's round gets
   - DESIGN_Air_Operations.md — OWNS the air defence frame (§7d AD1–AD6: this is AD6), the aircraft's missile warning and evasion (§7e), ground air defence `AirDefenceNodes` (§7f) this extends
   - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS guidance, the seekers, the proximity fuze, chaff seduction (§3c) the SAM's missile uses
   - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — OWNS the sensor pattern copied here (§6 F: vision's chain + a signature filter) and the carriage trap (§8.7)

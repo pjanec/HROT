@@ -222,6 +222,10 @@ namespace Fdp.Toolkit.Terrain
         /// navmesh bakes FINE cells, so a 0.8–1 m gap in a garden wall is resolved (CE-3111 measured a 0.8–0.9 m opening failing at the coarse cell). Empty on a content world.</summary>
         public IReadOnlyList<(Vector2 Min, Vector2 Max)> BakedPassages { get; init; } = Array.Empty<(Vector2, Vector2)>();
 
+        /// <summary>⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-3) — the minefields of the world this bake was made for (a derived world from <see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?, CraterTable?, FelledTrees?, MinefieldSet?)"/>):
+        /// each with its outline and lanes. The navmesh bake stamps them as composite areas (<c>NavDoorways.Minefields</c>); who may USE a polygon is the query filter's job, by what the mover's side knows. Empty on a content world.</summary>
+        public IReadOnlyList<TerrainMinefield> Minefields { get; init; } = Array.Empty<TerrainMinefield>();
+
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 
@@ -1014,6 +1018,8 @@ namespace Fdp.Toolkit.Terrain
                     float lo = t0, hi = t1;
                     // ⭐ CE-4598 (D-4) — for a HULL a wall panel or a door leaf reaches the band above its top: the hull's body under the line
                     bool banded = hull && pi >= 0 && (pi >= Prisms.Count || prism.Panel >= 0);
+                    // ⭐ R-4280 (R-5000 changed) — a panel lower than a kerb never meets a hull: it rolls over it
+                    if (hull && pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && prism.TopZ - prism.BaseZ < Fdp.Toolkit.World.HullTrace.MinPanelHeightM) continue;
                     float top = banded ? prism.TopZ + hullBand : prism.TopZ;
                     if (MathF.Abs(dz) < 1e-6f)
                     {

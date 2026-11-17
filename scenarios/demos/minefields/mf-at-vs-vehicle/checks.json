@@ -1,0 +1,60 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Minefields MR-19 / R-4277: an AT field lets a man pass and stops a tank from below. From the header's Judge (1)-(5).",
+  "runFor": 150,
+  "golden": false,
+  "anchors": {
+    "strike": {
+      "on": "blast"
+    }
+  },
+  "expect": [
+    {
+      "name": "the Walker gets across",
+      "on": "field",
+      "who": "Walker",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 160
+    },
+    {
+      "name": "the Walker is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Walker",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "a mine goes off",
+      "on": "blast"
+    },
+    {
+      "name": "the Tank is hurt",
+      "on": "field",
+      "who": "Tank",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 3000,
+      "after": "strike"
+    },
+    {
+      "name": "the Tank reacts MineStrike",
+      "on": "task",
+      "who": "Tank",
+      "is": "MineStrike",
+      "after": "strike"
+    },
+    {
+      "name": "the Tank does not get across",
+      "never": {
+        "on": "field",
+        "who": "Tank",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 160
+      }
+    }
+  ]
+}

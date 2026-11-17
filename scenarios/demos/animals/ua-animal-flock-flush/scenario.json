@@ -1,0 +1,315 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "farm",
+    "description": "What: a flock betrays an ambush (CE-4623 AB-5 / AB-8; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain the 'Orchard birds' area (36 x 36 m at (240, 120)) holds one perched, singing flock of 20. A three-man ambush party ('Ambusher 1'..'3', Hostile) walks from (290, 172) through the orchard to an ambush spot at its south edge (\u2248 (225, 100)); a three-man patrol ('Patrol 1'..'3', Friend) walks east along y = 78 (north of the pasture fence) from x 40. The men in the orchard are inside the birds' flight zone: the flock lifts off and the birdsong stops BEFORE any shot is fired, and the alarm call reaches the patrol's ears. Judge: (1) the flock is perched at the start (2) the flock lifts off (3) the birdsong stops (the flock is frightened) (4) both happen before the first shot (5) a patrol man hears it before the first shot. Check: scripts/scenario-regression.sh ua-animal-flock-flush"
+  },
+  "entities": {
+    "46230b03-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          240,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Orchard birds",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -18,
+            "Y": -18
+          },
+          {
+            "X": 18,
+            "Y": -18
+          },
+          {
+            "X": 18,
+            "Y": 18
+          },
+          {
+            "X": -18,
+            "Y": 18
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "BirdFlock",
+        "Enclosed": 0,
+        "Count": 20,
+        "Seed": 4631
+      }
+    },
+    "46230b03-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          290,
+          172,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Ambusher 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            226,
+            100,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b03-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          286,
+          174,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Ambusher 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            223,
+            102,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b03-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          282,
+          176,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Ambusher 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            220,
+            104,
+            0
+          ],
+          "speed": 1.4,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b03-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          40,
+          78,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            290,
+            78,
+            0
+          ],
+          "speed": 1.2,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b03-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          34,
+          78,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            284,
+            78,
+            0
+          ],
+          "speed": 1.2,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b03-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          28,
+          78,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Patrol 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            278,
+            78,
+            0
+          ],
+          "speed": 1.2,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

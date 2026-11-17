@@ -151,6 +151,9 @@ public static class Icons
             case "terrain/walls": icon = new("\uf7a4", IconPalette.Grey); return true;   // WallBrick
             case "terrain/clutter": icon = new("\uf793", IconPalette.Grey); return true;   // Dumpster
             case "terrain/water": icon = new("\uf773", IconPalette.Blue); return true;   // Water
+            // ⭐ CE-4624 (minefields MS-U3, minefields-visuals.svg "the Minefield form") — the field's own glyph (FA land-mine-on, in the field red) and its lanes' header (road)
+            case "minefield/field": icon = new("\ue51b", IconPalette.Red); return true;   // LandMineOn
+            case "minefield/lanes": icon = new("\uf018", IconPalette.Grey); return true;   // Road
             case "terrain/reroll": icon = new("\uf522", IconPalette.Amber); return true;   // Dice
             case "terrain/rotate": icon = new("\uf2f1", IconPalette.Grey); return true;   // Rotate
             case "terrain/move": icon = new("\uf047", IconPalette.Grey); return true;   // UpDownLeftRight
@@ -300,6 +303,8 @@ public static class Icons
         "terrain/walls",
         "terrain/clutter",
         "terrain/water",
+        "minefield/field",
+        "minefield/lanes",
         "terrain/reroll",
         "terrain/rotate",
         "terrain/move",

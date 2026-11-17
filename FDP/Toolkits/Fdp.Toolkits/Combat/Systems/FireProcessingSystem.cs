@@ -410,6 +410,15 @@ namespace Fdp.Toolkit.Combat.Systems
                         Rejection     = missile.Guidance == Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar ? missile.ChaffRejection : missile.FlareRejection,
                         TurnRateDegPerSec = missile.TurnRateDegPerSec,   // ⭐ CE-2222 — the profile TopAttackFits just fitted
                         ClimbAngleDeg     = missile.ClimbAngleDeg,
+                        // ⭐ CE-10002 (AC-6) — the motor: from the launcher's own speed to SpeedMps over the burn; the g limit, the coast, the lag
+                        SpeedNow      = missile.MaxG > 0f ? LaunchSpeed(repo, shooter) : 0f,
+                        BurnLeftS     = missile.MaxG > 0f ? missile.BurnSeconds : 0f,
+                        BoostMps2     = missile.MaxG > 0f && missile.BurnSeconds > 0f ? MathF.Max(0f, missile.SpeedMps - LaunchSpeed(repo, shooter)) / missile.BurnSeconds : 0f,
+                        MaxG          = missile.MaxG,
+                        DragPerS      = missile.DragPerS,
+                        MinSpeedMps   = missile.MinSpeedMps,
+                        SteerLagS     = missile.SteerLagS,
+                        SteerDir      = velocity.LengthSquared() > 1e-6f ? Vector3.Normalize(velocity) : Vector3.UnitX,
                     });
                     // ⭐ CE-2189 (DESIGN_Missiles_And_Ammo §3c, AD4) — a GUIDED missile launched at an aircraft warns it: its brain (local, or
                     //   over the wire) learns where from, the seeker and the flight time. One warning per round, at launch.
@@ -426,6 +435,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 }
 
                 // ⭐ T-4 — the shot's record, with the inputs it was fired with (GET /combat/shots)
+                // (⭐ CE-10002 — a motor round leaves at its launcher's speed: LaunchSpeed below)
                 ShotLog.For(repo).Add(new ShotRecord
                 {
                     Tick = currentTick, Shooter = shooter, Target = target, Bullet = bullet, WeaponIndex = evt.WeaponIndex,
@@ -477,6 +487,11 @@ namespace Fdp.Toolkit.Combat.Systems
         /// 0) and the reason, echoing the request's id. Every reader that draws, hears or fears a shot skips it
         /// (<see cref="WeaponFireNotification.Fired"/>); the brain's ledger clears the reservation and takes the reason as its hold.
         /// </summary>
+        /// <summary>⭐ CE-10002 (AC-6) — the speed a motor round leaves at: its launcher's (an aircraft's), at least a tube's 30 m/s.</summary>
+        public const float TubeSpeedMps = 30f;
+        private static float LaunchSpeed(EntityRepository repo, Entity shooter)
+            => repo.IsAlive(shooter) && repo.HasComponent<SimVelocity>(shooter) ? MathF.Max(TubeSpeedMps, repo.GetComponentRO<SimVelocity>(shooter).Linear.Length()) : TubeSpeedMps;
+
         private static void Refuse(EntityRepository repo, in WeaponFireIntent evt, FireRefusal why, double now)
             => repo.Bus.Publish(new WeaponFireNotification
             {

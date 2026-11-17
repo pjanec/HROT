@@ -127,6 +127,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             ENavigationMode.NAV_PATH_TO_POINT  => EcsNavMode.PathToPoint,
             ENavigationMode.NAV_MANUAL         => EcsNavMode.Manual,   // ⭐ CE-3173
             ENavigationMode.NAV_TRAFFIC        => EcsNavMode.Traffic,  // ⭐ AQ93 R-4023
+            ENavigationMode.NAV_AIR_COMBAT     => EcsNavMode.AirCombat,   // ⭐ CE-10000 (AC-2, RV-6)
             _                                  => EcsNavMode.None,
         };
     }

@@ -81,6 +81,9 @@ public enum PartRole : byte
     WingLeft, WingRight,
     /// <summary>⭐ CE-4623 — an animal's neck, head, ears, horns and mane: pitch about the withers (<see cref="KitPart.SwingPivot"/>) by <see cref="MotionPose.Head"/> (+ = the nose DOWN: grazing).</summary>
     AnimalHead,
+    /// <summary>⭐ CE-4624 (DESIGN_Minefields MS-U4) — the mine clearer's flail drum and its chains: they turn about the drum's LATERAL axis (<see cref="KitPart.SwingPivot"/>, the drum's centre) by
+    /// <see cref="MotionPose.Flail"/> while the flail is on, still when it is off.</summary>
+    FlailDrum,
 }
 
 /// <summary>
@@ -101,10 +104,11 @@ public enum PartRole : byte
 /// <para>⭐ CE-4623 (animals, AU-3) — <paramref name="Gait"/> + <paramref name="GaitPhase"/> + <paramref name="Swing"/> (the amplitude) give each quadruped leg its own swing
 /// (<see cref="QuadrupedGaits.LegAngle"/>); <paramref name="Tuck"/> (0..1) draws the legs folded up in a jump; <paramref name="Wing"/> is a bird's wing angle (radians);
 /// <paramref name="Head"/> an animal's head pitch about its withers (+ = down).</para>
+/// <para>⭐ CE-4624 — <paramref name="Flail"/>: the mine clearer's flail drum angle (radians) about its lateral axis (+ = the top turning forward, <see cref="PartRole.FlailDrum"/>).</para>
 public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
                                          float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
                                          float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f,
-                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand)
+                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand, float Flail = 0f)
 {
     public static readonly MotionPose Still = default;
 }
@@ -142,7 +146,7 @@ public readonly record struct KitPivots(Vector2 Turret, Vector2 GunTrunnionXZ);
 public readonly record struct KitPart(
     PartShape Shape, Vector3 Centre, Vector3 Extent, ColourRole Colour, PartAxis Axis = PartAxis.Z, float PitchDegrees = 0f,
     float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null,
-    FaceOn Face = FaceOn.None, int Round = -1)
+    FaceOn Face = FaceOn.None, int Round = -1, float RollDegrees = 0f)
 {
     /// <summary>The part's transform in BODY space (metres, before the entity's own rotation and position), unarticulated.</summary>
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
@@ -172,6 +176,7 @@ public readonly record struct KitPart(
             }
             local = Matrix4x4.CreateTranslation(0, 0, -0.5f) * Matrix4x4.CreateScale(diameter, diameter, length) * lay;
         }
+        if (RollDegrees != 0f) local *= Matrix4x4.CreateRotationX(RollDegrees * MathF.PI / 180f);   // ⭐ CE-4647 — a fin canted outward (applied FIRST: about the part's own long axis)
         if (PitchDegrees != 0f) local *= Matrix4x4.CreateRotationY(PitchDegrees * MathF.PI / 180f);
         if (YawDegrees != 0f) local *= Matrix4x4.CreateRotationZ(YawDegrees * MathF.PI / 180f);
         var m = local * Matrix4x4.CreateTranslation(centre);
@@ -193,6 +198,13 @@ public readonly record struct KitPart(
                 // ⭐ CE-4618 — about the mast's vertical axis (SwingPivot, a fraction like every pivot), so a panel off the axis ORBITS it
                 var axis = SwingPivot is { } mast ? new Vector3(mast.X * size.X, mast.Y * size.Y, 0f) : new Vector3(centre.X, centre.Y, 0f);
                 m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(motion.Antenna) * Matrix4x4.CreateTranslation(axis);
+                break;
+            }
+            case PartRole.FlailDrum when motion.Flail != 0f:
+            {
+                // ⭐ CE-4624 — about the drum's lateral (y) axis through its centre, so a chain off the axis ORBITS it (CreateRotationY: + = +x toward −z, the top forward)
+                var axis = SwingPivot is { } drum ? drum * size : centre;
+                m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationY(motion.Flail) * Matrix4x4.CreateTranslation(axis);
                 break;
             }
             case PartRole.QuadFrontLeft or PartRole.QuadFrontRight or PartRole.QuadHindLeft or PartRole.QuadHindRight
@@ -295,8 +307,8 @@ public sealed record ShapeKit(KitPart[] Parts, KitPivots Pivots)
 public static class ShapeKits
 {
     internal static KitPart Box(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, float pitch = 0f,
-                               float yaw = 0f, PartRole role = PartRole.Hull)
-        => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, PartAxis.Z, pitch, yaw, role);
+                               float yaw = 0f, PartRole role = PartRole.Hull, float roll = 0f)
+        => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, PartAxis.Z, pitch, yaw, role, RollDegrees: roll);
 
     internal static KitPart Cyl(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c,
                                PartRole role = PartRole.Hull)
@@ -313,7 +325,7 @@ public static class ShapeKits
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
     public const float WheelRadiusOfHeight = 0.21f;
 
-    private static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
+    internal static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
 
     public static readonly ShapeKit Tank = new(new[]
@@ -401,6 +413,34 @@ public static class ShapeKits
         Box(0.30f, 0f, 0.13f, 0.02f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
         Box(-0.10f, 0.10f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),                     // main gear
         Box(-0.10f, -0.10f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+    }, default);
+
+    /// <summary>
+    /// ⭐ CE-4647 (docs/designs/air-attack/DESIGN_Air_Combat.md §4d, AC-15; mockup <c>air-combat-body.svg</c>) — a twin-engine fighter (MiG-29-like; y = span): a wide blended body
+    /// between TWO engine bays, a flat underbody, wings swept 28°, TWO fins swept 28° and canted 7° outward, TWO nozzles, the intakes UNDER the wing roots, tailplanes on the booms.
+    /// ⛔ The table is the mockup's (<c>scripts/gen-air-combat-mockup.py</c> MIG): change one, change both. Its missiles: <c>JetStores</c>.
+    /// </summary>
+    public static readonly ShapeKit TwinEngineJet = new(new[]
+    {
+        Cyl(PartAxis.X, -0.02f, 0f, 0.44f, 0.62f, 0f, 0.27f, ColourRole.Body),               // the blended centre body
+        Cone(PartAxis.X, 0.38f, 0f, 0.45f, 0.18f, 0f, 0.24f, ColourRole.Body),               // nose
+        Box(0.17f, 0f, 0.60f, 0.16f, 0.05f, 0.09f, ColourRole.Glass),                        // canopy
+        Box(0.00f, 0f, 0.36f, 0.46f, 0.20f, 0.025f, ColourRole.Body),                        // the flat underbody between the bays
+        Box(-0.10f, 0.25f, 0.37f, 0.30f, 0.46f, 0.025f, ColourRole.Body, yaw: 28f),          // wing, left
+        Box(-0.10f, -0.25f, 0.37f, 0.30f, 0.46f, 0.025f, ColourRole.Body, yaw: -28f),        // wing, right
+        Cyl(PartAxis.X, -0.20f, 0.075f, 0.38f, 0.46f, 0f, 0.22f, ColourRole.Body),           // the two engine bays
+        Cyl(PartAxis.X, -0.20f, -0.075f, 0.38f, 0.46f, 0f, 0.22f, ColourRole.Body),
+        Cyl(PartAxis.X, -0.445f, 0.075f, 0.38f, 0.07f, 0f, 0.19f, ColourRole.Dark),          // TWO nozzles
+        Cyl(PartAxis.X, -0.445f, -0.075f, 0.38f, 0.07f, 0f, 0.19f, ColourRole.Dark),
+        Box(0.06f, 0.075f, 0.25f, 0.22f, 0.07f, 0.13f, ColourRole.Dark),                     // the intakes, under the wing roots
+        Box(0.06f, -0.075f, 0.25f, 0.22f, 0.07f, 0.13f, ColourRole.Dark),
+        Box(-0.43f, 0.15f, 0.36f, 0.12f, 0.26f, 0.02f, ColourRole.Body, yaw: 30f),           // tailplane, left
+        Box(-0.43f, -0.15f, 0.36f, 0.12f, 0.26f, 0.02f, ColourRole.Body, yaw: -30f),         // tailplane, right
+        Box(-0.37f, 0.115f, 0.68f, 0.17f, 0.012f, 0.40f, ColourRole.Body, -28f, roll: -7f),  // TWO fins, canted outward
+        Box(-0.37f, -0.115f, 0.68f, 0.17f, 0.012f, 0.40f, ColourRole.Body, -28f, roll: 7f),
+        Box(0.27f, 0f, 0.12f, 0.02f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
+        Box(-0.06f, 0.08f, 0.12f, 0.03f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),                     // main gear
+        Box(-0.06f, -0.08f, 0.12f, 0.03f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),
     }, default);
 
     /// <summary>A transport (C-130-like proportions; y = wingspan): round fuselage, nose, cockpit glass, a straight high wing with
@@ -615,6 +655,82 @@ public static class ShapeKits
     /// ripper are drawn lowered; a lift pose would be a part role of its own (not needed by the showcase).</summary>
     public static readonly ShapeKit Bulldozer = new(BulldozerParts(), default);
 
+    // ── ⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a MS-U4; the mockup minefields-visuals.svg "The mine clearer") — the MINE CLEARER: a tracked engineer carrier, a launcher at the rear, a flail on two arms ─────
+    // Metres as the mockup (scripts/gen-minefields-mockup.py clearer()) draws them, ALL shifted by McShift in x so the box is centred on the footprint: tracks 7.0 m, hull 6.6 × 1.0 at z 1.35, a
+    // superstructure 3.0 × 0.75 at z 2.2 (no turret: an engineer vehicle), the line-charge launcher box 1.6 × 0.45 at the rear top (x −2.6, z 2.75) with its rail, two arms forward to a Ø 0.75
+    // flail drum (x 4.6, z 0.75) whose chains lash out to 0.9 m. The drum is the only moving part (<see cref="PartRole.FlailDrum"/>).
+    private const float McL = 9.2f, McW = 3.5f, McH = 3.3f;
+    private const float McShift = -1.0f;                      // the mockup's x → the kit's x (the tracks reach −3.5 → −4.5, the chain tips +5.5 → +4.5: the box is ±4.6)
+    private const float McDrumX = 4.6f + McShift, McDrumZ = 0.75f;
+    /// <summary>The flail drum's chains: how many per row, and the rows' y (the drum is 3.4 m wide). Alternate rows are staggered by half a pitch so the spin reads from above.</summary>
+    private const int McChains = 8;
+    private static readonly float[] McRows = { -1.4f, -0.7f, 0f, 0.7f, 1.4f };
+
+    /// <summary>A mine-clearer box from the MOCKUP's metres (x forward, y left, z up; <paramref name="x"/> is the mockup's — the shift is applied here).</summary>
+    private static KitPart Mc(float x, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f, PartRole role = PartRole.Hull)
+        => Box((x + McShift) / McL, cy / McW, cz / McH, lx / McL, ly / McW, lz / McH, c, pitch, role: role);
+
+    /// <summary>A mine-clearer cylinder from the mockup's metres: <paramref name="len"/> along its axis, <paramref name="dia"/> across.</summary>
+    private static KitPart McCyl(PartAxis axis, float x, float cy, float cz, float len, float dia, ColourRole c, PartRole role = PartRole.Hull)
+    {
+        var centre = new Vector3((x + McShift) / McL, cy / McW, cz / McH);
+        var extent = axis switch
+        {
+            PartAxis.X => new Vector3(len / McL, 0f, dia / McH),
+            PartAxis.Y => new Vector3(0f, len / McW, dia / McH),
+            _ => new Vector3(dia / McL, 0f, len / McH),
+        };
+        // the flail's parts turn about the drum's centre (a lateral axis through it): its fraction is the pivot
+        return new KitPart(PartShape.Cylinder, centre, extent, c, axis, Role: role,
+                           SwingPivot: role == PartRole.FlailDrum ? new Vector3(McDrumX / McL, 0f, McDrumZ / McH) : null);
+    }
+
+    private static KitPart[] MineClearerParts()
+    {
+        var p = new List<KitPart>(140);
+        foreach (float s in new[] { 1f, -1f })   // the two track units: a run 7.0 m long, the road wheels' faces on its outer side
+        {
+            float y = s * 1.3f;
+            p.Add(Mc(0f, y, 0.45f, 7.0f, 0.8f, 0.9f, ColourRole.Dark));                                       // the track
+            for (int i = 0; i < 7; i++)
+                p.Add(McCyl(PartAxis.Y, -3.0f + i, s * 1.72f, 0.45f, 0.06f, 0.62f, ColourRole.Metal));        // a road wheel's face (the mockup's lighter squares)
+            p.Add(Mc(3.6f, s * 1.55f, 1.55f, 1.8f, 0.2f, 0.22f, ColourRole.Body, 22f));                        // the arm, hull front to the drum's end (pitched down 22°)
+            p.Add(Mc(4.55f, s * 1.65f, 1.0f, 0.15f, 0.2f, 0.5f, ColourRole.Dark));                             // its bracket on the drum's end
+        }
+        // the hull and the superstructure (no turret)
+        p.Add(Mc(-0.2f, 0f, 1.35f, 6.6f, 2.5f, 1.0f, ColourRole.Body));                                       // the hull, 6.6 × 1.0
+        p.Add(Mc(-0.8f, 0f, 2.2f, 3.0f, 2.0f, 0.75f, ColourRole.Body));                                       // the superstructure, 3.0 × 0.75
+        p.Add(Mc(0.71f, 0f, 2.3f, 0.04f, 1.6f, 0.4f, ColourRole.Glass));                                      // the front vision slit
+        p.Add(Mc(-0.4f, 1.01f, 2.3f, 1.4f, 0.04f, 0.35f, ColourRole.Glass));                                  // side glass, left
+        p.Add(Mc(-0.4f, -1.01f, 2.3f, 1.4f, 0.04f, 0.35f, ColourRole.Glass));                                 // side glass, right
+        p.Add(Mc(3.15f, 0f, 1.35f, 0.1f, 2.2f, 0.7f, ColourRole.Dark));                                       // the front plate the arms hang from
+        // the line-charge launcher at the REAR top: the box 1.6 × 0.45 (x −2.6, z 2.75) and its two rails, raised toward the front
+        p.Add(Mc(-2.6f, 0f, 2.75f, 1.6f, 1.6f, 0.45f, ColourRole.Body));                                      // the launcher box
+        p.Add(Mc(-3.0f, 0f, 2.15f, 0.9f, 1.3f, 0.7f, ColourRole.Dark));                                       // its pedestal on the rear deck (the box overhangs it)
+        foreach (float rs in new[] { 1f, -1f })
+            p.Add(Mc(-2.0f, rs * 0.45f, 3.0f, 1.2f, 0.1f, 0.08f, ColourRole.Metal, -18f));                    // a rail, pitched up 18° (the mockup's −18)
+        // the flail: the drum across the front (3.4 m wide, Ø 0.75) and the chains lashing out from it, with a ball at each tip
+        p.Add(McCyl(PartAxis.Y, 4.6f, 0f, McDrumZ, 3.4f, 0.75f, ColourRole.Dark, PartRole.FlailDrum));        // the drum
+        for (int r = 0; r < McRows.Length; r++)
+            for (int i = 0; i < McChains; i++)
+            {
+                float a = (i + (r % 2) * 0.5f) * MathF.PI * 2f / McChains;   // the chain's angle on the drum (counter-clockwise from +x, z up)
+                float c = MathF.Cos(a), sn = MathF.Sin(a);
+                float tip = sn < -0.5f ? MathF.Min(0.9f, (McDrumZ - 0.05f) / -sn) : 0.9f;   // a chain pointing down stops at the ground, as the mockup clamps it
+                float mid = (0.38f + tip) / 2f, len = tip - 0.38f;
+                var chain = Mc(4.6f + c * mid, McRows[r], McDrumZ + sn * mid, len, 0.04f, 0.04f, ColourRole.Dark, -a * 180f / MathF.PI, PartRole.FlailDrum);
+                var ball = Mc(4.6f + c * tip, McRows[r], McDrumZ + sn * tip, 0.14f, 0.14f, 0.14f, ColourRole.Dark, 0f, PartRole.FlailDrum);
+                var pivot = new Vector3(McDrumX / McL, 0f, McDrumZ / McH);
+                p.Add(chain with { SwingPivot = pivot });
+                p.Add(ball with { SwingPivot = pivot });
+            }
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-4624 — the mine clearer (x forward, the flail at +x, the launcher at the rear): see <see cref="MineClearerParts"/>. No turret; the flail drum and its chains
+    /// (<see cref="PartRole.FlailDrum"/>) turn on <see cref="MotionPose.Flail"/>.</summary>
+    public static readonly ShapeKit MineClearer = new(MineClearerParts(), default);
+
     // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
     private const float SaL = 9.1f, SaW = 2.8f, SaH = 4.2f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): the TKB's own box (type 114: 9.1 × 2.8 × 4.2 m) — so the kit's metres ARE metres
     /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
@@ -752,9 +868,11 @@ public static class ShapeKits
         VisualFamily.Drone => Drone,
         VisualFamily.SpArtillery => SpArtillery,
         VisualFamily.AttackJet => AttackJet,
+        VisualFamily.TwinEngineJet => TwinEngineJet,   // ⭐ CE-4647
         VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
+        VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
             or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat => AnimalKits.For(family),   // ⭐ CE-4623
@@ -776,8 +894,10 @@ public static class ShapeKits
         VisualFamily.Drone => new Vector3(0.6f, 0.6f, 0.3f),
         VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
         VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
+        VisualFamily.TwinEngineJet => new Vector3(17.3f, 11.4f, 4.7f),   // ⭐ CE-4647 — a MiG-29's length, span, height (the TKB's own wins)
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
+        VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird

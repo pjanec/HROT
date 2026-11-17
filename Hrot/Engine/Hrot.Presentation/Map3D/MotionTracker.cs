@@ -38,6 +38,9 @@ public sealed class MotionTracker
     /// <see cref="RotorSpoolSeconds"/> like a rotor.</summary>
     public const float AntennaRevsPerSecond = 0.6f;
 
+    /// <summary>⭐ CE-4624 — a mine clearer's flail drum: turns per second while the flail is on (a flail lashes fast), spooling over <see cref="FlailSpoolSeconds"/>.</summary>
+    public const float FlailRevsPerSecond = 4f, FlailSpoolSeconds = 1f;
+
     /// <summary>⭐ CE-4621 — a motorcycle's lean into a turn: <c>atan(v · yawRate / g)</c>, at most <see cref="MaxBank"/> (rad, ~35°), eased with <see cref="BankSeconds"/> (s). A DRAWING only.</summary>
     public const float MaxBank = 0.61f, BankSeconds = 0.15f;
 
@@ -131,7 +134,7 @@ public sealed class MotionTracker
         float along = Vector3.Dot(new Vector3(delta.X, delta.Y, 0f), new Vector3(forward.X, forward.Y, 0f));
         float planar = new Vector2(delta.X, delta.Y).Length();
 
-        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f, bank = 0f, wing = 0f, head = 0f, tuck = 0f;
+        float swing = 0f, rotor = 0f, lean = 0f, stride = 0f, moving = 0f, antenna = 0f, bank = 0f, wing = 0f, head = 0f, tuck = 0f, flail = 0f;
         var gaitKind = QuadGait.Stand;
         switch (family)
         {
@@ -224,6 +227,16 @@ public sealed class MotionTracker
                 antenna = st.RotorAngle;
                 break;
             }
+            case VisualFamily.MineClearer:
+            {
+                // ⭐ CE-4624 — tracked: no wheel to roll. The flail drum spools up while the flail is on (rotorTurning = FlailActivity.IsOn) and down when it stops, turning by the frame
+                //   clock × the sim's pace like the antenna / a rotor (CE-1353) — the same on every host, and a paused sim stops it. No allocation: floats in the state.
+                float step = (float)dt / FlailSpoolSeconds;
+                st.RotorRate = rotorTurning ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
+                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * FlailRevsPerSecond * MathF.PI * 2f * spinDt);
+                flail = st.RotorAngle;
+                break;
+            }
             case VisualFamily.Helicopter:
             case VisualFamily.AttackHelicopter:   // ⭐ CE-1103 — its rotors spool as a helicopter's
             {
@@ -245,7 +258,7 @@ public sealed class MotionTracker
 
         st.Last = position;
         st.SimTime = simTime;
-        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna, Bank: bank, Wing: wing, Head: head, Tuck: tuck, Gait: gaitKind);
+        return new MotionPose(rotor, st.Roll, swing, lean, Stride: stride, GaitPhase: st.Gait, Moving: moving, CrawlPhase: st.Crawl, Antenna: antenna, Bank: bank, Wing: wing, Head: head, Tuck: tuck, Gait: gaitKind, Flail: flail);
     }
 
     /// <summary>Forgets entities not seen for a while — called once per frame with the set drawn this frame.</summary>
