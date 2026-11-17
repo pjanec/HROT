@@ -39,7 +39,8 @@ public static class SplitProgress
         return n;
     }
 
-    private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic => "Stochastic", AggregateResolution.Fusion => "Fusion", _ => "Physical" };
+    private static string Word(AggregateResolution r) => r switch { AggregateResolution.Stochastic or AggregateResolution.Fusion => "Stochastic", _ =>   // R-8008: a Fusion unit is never drawn as such
+         "Physical" };
 
     private static readonly Dictionary<int, FixedString64> ChangeTexts = new();
 
