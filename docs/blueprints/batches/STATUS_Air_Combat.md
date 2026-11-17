@@ -116,7 +116,7 @@ related-designs:
 | red-proofs | one compiling mutation each, its own test project built + filtered, reverted (tree clean) | ✅ all RED: `CE10002_TheFighterDefence` (live end → snapshot), `CE10003_AFightersRadar` (exemption removed), `CE10003_TheZone` (coast drag dropped), `CE10003_TheGunLead` (acceleration term dropped), `CE10005_SkillOnTheDefence` (the Ace read as a Veteran) | the four from the S3 commit now proven |
 | protocol | `python3 scripts/protocol-doc-check.py` | OK (162 topics, 105 ordinals) | no wire change (the radar's class is `Unknown`) |
 | ⭐ the cluster | `--mode all` (domain 47, port 8179), `POST /scenario/load/live ac-dogfight-1v1`, sampled on the SimHost perspective | ✅ mode 8 crosses the wire (`NavigationIntent.Mode AirCombat` on SimHost); Merge → the pass at 16 s (640 m) → LeadPursuit / Drag / Beam → a kill at ~40 s; 4 shots, the head-on pair DEFEATED | found R-10027 + R-10028 (both fixed, then re-run) |
-| `stepped-hash.py --threads 1,4,8 --scenario ac-dogfight-2v2 --chunk 400` (40 s, past the first shots) | ⏳ the run was stopped at the 30 min background limit (three runs of a Release build beside two verify runs) — the earlier 2 s run is STATE EQUAL | — |
+| `python3 scripts/stepped-hash.py --threads 1,4,8 --scenario ac-dogfight-2v2 --chunk 400` (6 × 400 steps = 40 s, past the first shots at ~21 s; final Release build `8d31f80b2`) | ✅ **STATE EQUAL** at 1 / 4 / 8 threads (38 entities, 0 types differ, 0 SimTransform rows) | was 2 s only |
 | `sam-site` chaff band | ⏳ not re-measured (one seeded run gives no band) | — |
 
 ## Gates *(CLAUDE.md rule 8 — the contract commit; base = `4fa79837f`)*
@@ -144,8 +144,14 @@ related-designs:
 
 - ⚠ **GCAS predicts STRAIGHT AHEAD** (as the real Auto-GCAS does): a planned turn short of terrain can trip it (measured on a U-turn 100 m from the wall). Accepted; scenarios keep routes clear of it.
 - ✅ ~~the §5b missile is very dodgeable (R-10007)~~ — hardened by the user's decision (R-10018).
-- ⏳ **still to build** (the next session's plan, in order): ① a TRANSIT move's defence (`MissileDefence.Run` with a MoveTo flight from the route / point move behaviours) ⇒ write `ac-sam-dodge` and `ac-attack-evades`; ② the CAP (a Hold over the arena + the fighter SOP row: an air contact ⇒ Attack) and a next-target pick after a kill (R-10014) — deconfliction through the group's shared contacts; ③ skill that decides (`ac-skill-decides` ❌: a Rookie's flares later / fewer); ④ `ac-guns-turning`; ⑤ `sam-site`'s chaff band (a seeded multi-run); ⑥ the `--mode all` cluster run of `ac-dogfight-1v1`; ⑦ red-prove the four new rails.
-- ⚠ **show finding**: with R-10018 the fights end on missiles at range — the 1v1 never merges inside 2 km and the 2v2 has no gun hit. For the show, the arena's `MaxShotRangeM` (6 km) is the knob (the user's: AC-11).
+- ⭐ **CE-10005 (`2026-11-17`) — the plan left after it:** ① `ac-dogfight-2v2`'s gun HIT (guns fire — 245 rounds with the 2.5 km cap — none hits: a
+  Rookie fires from a PURE pursuit, which does not fly the gun lead; lean: a Rookie inside 800 m flies a lead pursuit too, poorly — a coarser lead, his
+  6.5 g — then re-measure); ② a ROUTE (FollowRoute) transit's defence (only the Move is wired); ③ `sam-site`'s chaff band (a seeded multi-run);
+  ⑤ the cluster run was made BEFORE the
+  post-kill hold (`8d31f80b2`) — re-run it once to see the winner hold over the arena; ⑥ the perception grid is the terrain's 2 km: air-defence
+  scenarios must stay inside it (a larger `air-range` re-bakes the navmesh, R-10009).
+- ✅ ~~still to build (the S0–S4 session's plan)~~ — done by CE-10005 except the items above: ① a TRANSIT move's defence (`MissileDefence.Run` with a MoveTo flight from the route / point move behaviours) ⇒ write `ac-sam-dodge` and `ac-attack-evades`; ② the CAP (a Hold over the arena + the fighter SOP row: an air contact ⇒ Attack) and a next-target pick after a kill (R-10014) — deconfliction through the group's shared contacts; ③ skill that decides (`ac-skill-decides` ❌: a Rookie's flares later / fewer); ④ `ac-guns-turning`; ⑤ `sam-site`'s chaff band (a seeded multi-run); ⑥ the `--mode all` cluster run of `ac-dogfight-1v1`; ⑦ red-prove the four new rails.
+- ✅ ~~show finding: the fights end on missiles at range~~ — the merge holds fire to the pass (R-10020); the 1v1 closes at 14 s. ⚠ the 2v2's gun hit is still open (above).
 
 - ⚠ the component-id space is exhausted (R-10000) — a decision for the user before the next lane needs an id.
 - the `AirArena` entity needs a TKB type to be authored (S4): a free entity-type id outside the air blocks — measured then.
