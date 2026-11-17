@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md \u00a75 S-6): mode 2, an off-road start joins the road net, drives its lane, leaves it to an off-road target, unsplit. No golden yet (first run).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): mode 2, an off-road start joins the road net, drives its lane, leaves it to an off-road target, unsplit. The lane rows judge EVERY sample between x 350 and x 450 (a lane band, y 541.8 ± 3.5), not one point — the cluster tier samples about once a second (a 3 m circle was stepped over). No golden yet. The band is x 350–450: at x 300 the road graph kinks 12 m to the SUMO junction's centre (CE-9011, the importer) and every vehicle on it swerves there. The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner).",
   "runFor": 120,
   "golden": false,
   "expect": [
@@ -16,14 +16,44 @@
       "is": "PlatformConvoy"
     },
     {
-      "name": "the lead drives the road in its lane (lane 0, y 541.8)",
-      "on": "near",
+      "name": "the lead reaches x 350 on the road",
+      "on": "field",
       "who": "Convoy 1",
-      "point": [
-        350,
-        541.8
-      ],
-      "within": 2.5
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 350
+    },
+    {
+      "name": "the lead passes x 450 on the road",
+      "on": "field",
+      "who": "Convoy 1",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 450
+    },
+    {
+      "name": "the lead keeps its lane from x 350 to 450 (never south of it)",
+      "never": {
+        "on": "field",
+        "who": "Convoy 1",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 538.3
+      },
+      "after": "the lead reaches x 350 on the road",
+      "before": "the lead passes x 450 on the road"
+    },
+    {
+      "name": "the lead keeps its lane from x 350 to 450 (never north of it)",
+      "never": {
+        "on": "field",
+        "who": "Convoy 1",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 545.3
+      },
+      "after": "the lead reaches x 350 on the road",
+      "before": "the lead passes x 450 on the road"
     },
     {
       "name": "the lead reaches the off-road target",
@@ -36,23 +66,72 @@
       "within": 20
     },
     {
-      "name": "the tail drives the road too",
-      "on": "near",
+      "name": "the tail reaches x 350 on the road",
+      "on": "field",
       "who": "Convoy 4",
-      "point": [
-        350,
-        541.8
-      ],
-      "within": 3
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 350
     },
     {
-      "name": "the column never splits",
+      "name": "the tail passes x 450 on the road",
+      "on": "field",
+      "who": "Convoy 4",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 450
+    },
+    {
+      "name": "the tail keeps its lane from x 350 to 450 (never south of it)",
       "never": {
         "on": "field",
-        "who": "Convoy 1",
-        "path": "ConvoyTrail.TailLag",
+        "who": "Convoy 4",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 538.3
+      },
+      "after": "the tail reaches x 350 on the road",
+      "before": "the tail passes x 450 on the road"
+    },
+    {
+      "name": "the tail keeps its lane from x 350 to 450 (never north of it)",
+      "never": {
+        "on": "field",
+        "who": "Convoy 4",
+        "path": "SimTransform.Position.1",
         "op": ">",
-        "value": 40
+        "value": 545.3
+      },
+      "after": "the tail reaches x 350 on the road",
+      "before": "the tail passes x 450 on the road"
+    },
+    {
+      "name": "the column never splits (Convoy 2 never more than 35 m behind Convoy 1)",
+      "never": {
+        "on": "far",
+        "who": "Convoy 2",
+        "from": "Convoy 1",
+        "m": 35
+      },
+      "before": "the lead reaches the off-road target"
+    },
+    {
+      "name": "the column never splits (Convoy 3 never more than 35 m behind Convoy 2)",
+      "never": {
+        "on": "far",
+        "who": "Convoy 3",
+        "from": "Convoy 2",
+        "m": 35
+      },
+      "before": "the lead reaches the off-road target"
+    },
+    {
+      "name": "the column never splits (Convoy 4 never more than 35 m behind Convoy 3)",
+      "never": {
+        "on": "far",
+        "who": "Convoy 4",
+        "from": "Convoy 3",
+        "m": 35
       },
       "before": "the lead reaches the off-road target"
     },
