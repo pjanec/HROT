@@ -25,4 +25,14 @@ read from the shape), so the Ditch Rifle row is what sees the carve. **Golden: c
 
 ## 2. Gates (rule 8)
 
-*(filled when the background gate run lands)*
+Built from the final tree `75b2475da`, test projects built then `--no-build`.
+
+| gate | command | result | note |
+|---|---|---|---|
+| toolkit terrain (merge, woods, chunk trees …) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter …Fdp.Toolkit.Terrain.Tests` | **471 / 471** | |
+| presentation: Map3D, AddEntity, the draw panel, terrain editor, minefield (frame rails under `xvfb-run -a`) | `xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build --filter "…Map3D\|…AddEntity\|…TerrainDrawPanel\|…TerrainEditor\|…Minefield"` | 843 pass · **8 red** · 7 skipped | ⭐ **6 PRE-EXISTING**, confirmed red at the base `ea1dd1750` in a clean worktree: `S1_TheIconFallback…` (`"_tank"` vs null), `CE1309_TheMindStateBar…`, `CE1086_TheFpvDrone…` (size), `TheGalleryOpenedOnClutter…` (no greyed scatter tile), `CE4388_TheCachedWireSphere…` (timing), `MotorcycleModelRail…` (seats 3 vs 2) — none in this batch's code; ⚠ 2 red ONLY in the full run (`FighterHudRail…SteadyFrameAllocatesNothing`, `CE4582_TheCardsHide…`): green at base AND green 3/3 alone on this tree ⇒ in-suite interference, not this batch |
+| SimHost: overlay, terrain load, bakes | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter "…Overlay\|…TerrainLoad\|…Bake"` | **96 / 96** | |
+| the new rails, each red-proved | `CE1963_*` (flat grid off ⇒ z 0.00 / 34.00) · `CE1964_*` (the no-grid guard back) · `CE1968_*` (clip off ⇒ a trunk at x 10.6) · `CE1966_*` (red before the fix: `Unknown`) | all red, then green | |
+| ⭐ the feature scenario | `OUT=… NO_BUILD=1 scripts/scenario-regression.sh tt-ground-shaping` | **7 / 7**; golden captured + 2 fresh runs "same" | with the flat grid off: the hill and hollow rows red |
+| `tracker-counts.py --check` | | OK | no new ids; CE-1963/1964/1966/1968 marked done |
+| not run | E2E / `--mode all`; `HROT_PARALLEL_SIM` checks | — | no behaviour code changed (terrain data, drawing, a tool's preview) |
