@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb;
@@ -302,6 +303,40 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<Fear>(flock).Value = 0f;
             w.Run(Flock.Recovery * AnimalBehavior.LookBackShare + 0.5);
             Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a LONE bird that is only FRIGHTENED (fear 0.5, band 2, below panic) TAKES OFF: it flies to a point beyond the flight model's descent distance
+        /// (so it climbs to cruise) and is Flying — a 15 m hop never left the ground. A cow at the same fear still only moves off 15 m. ✅ Red-proof: the bird branch removed ⇒ 15 m, not flying ⇒ red.</summary>
+        [Fact]
+        public void CE4649_AFrightenedLoneBird_TakesOff_ACowOnlyMovesOff()
+        {
+            var w = new World();
+            var bird = w.Animal(FlockType, new Vector3(-100, 0, 10), AnimalSpecies.Bird);
+            w.Repo.AddComponent(bird, new FlockState { Count = 1, InitialCount = 1, Mode = FlockMode.Landed });
+            w.Start(bird);
+            w.Run(0.5);
+            w.Repo.GetComponentRW<Fear>(bird) = new Fear { Value = 0.5f, FrightFrom = new Vector3(-150, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
+            w.Run(0.3);
+            var (to, _, moving) = w.Move(bird);
+            Assert.True(moving);
+            Assert.True(Vector3.Distance(new Vector3(-100, 0, 10), to) > Fdp.Toolkit.Motion.BirdFlightModel.DescendWithinM, $"it flies past the descent distance: {to}");
+            Assert.Equal(FlockMode.Flying, w.Repo.GetComponentRO<FlockState>(bird).Mode);
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a lone BIRD's collider is its BODY (radius 0.15 m = half its 0.3 m width, height 0.15 m), not the 2.5 m fallback circle that made it a 5 m barn door; (the round\'s height band follows it: RaycastSolverSystemTests CE4649). ✅ Red-proof: the animal arm of the translator removed ⇒ radius 2.5 ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ALoneBirdsCollider_IsItsBody_AndARoundAt25mHitsIt()
+        {
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.AnimalTkbCatalog.RegisterAll(db);
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>(); repo.RegisterComponent<Health>(); repo.RegisterComponent<PhysicsCollider>();
+            var bird = repo.CreateEntity();
+            repo.AddComponent(bird, new SimTransform { Position = new Vector3(40f, 0f, 25f), Rotation = Quaternion.Identity });
+            new Fdp.Toolkit.Combat.Translators.CombatTkbTranslator().Inject(repo, bird, db.GetByType((long)Hrot.Map.Common.TkbEntityTypes.Animal_Bird)!);
+            ref readonly var col = ref repo.GetComponentRO<PhysicsCollider>(bird);
+            Assert.Equal(0.15f, col.Radius, 3);
+            Assert.Equal(0.15f, col.Height, 3);
         }
 
         /// <summary>⭐ <c>CE-4623</c> AB-9 — an ENCLOSED pen holds its animals: a frightened one runs only to the pen's edge, where one in an open

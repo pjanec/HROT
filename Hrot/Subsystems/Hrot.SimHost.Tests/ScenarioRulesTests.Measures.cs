@@ -4,6 +4,9 @@ using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Tkb;
+using Fdp.Interfaces;
 using Fdp.Toolkit.ScenarioRules;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Utility;
@@ -23,6 +26,71 @@ namespace Hrot.SimHost.Tests
 
         private static string MeasureJson(ObjWorld w, Entity subject, string extra = "", string common = "")
             => $"{{{Common(w, subject, common)}{extra}}}";
+
+        /// <summary>⭐⭐ <c>CE-4649</c> (BW-11) — ArcheryScore: Σ <c>ArcheryScoring.RingAt</c> over the subject's arrows that struck an archery target: a centre hit (ring 10), a hit 18 cm off (ring 7) and a centre hit struck 0.57 m in front of the target's origin (depth is no miss: ring 10) ⇒ Value 27
+        /// over 3 arrows; another archer's arrow, a non-arrow round and a hit on a non-target prop add nothing; no arrow yet ⇒ Value 0, Score 0. ✅ Red-proof: <c>Add</c> counting every shooter's arrows ⇒ 37 ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ArcheryScore_SumsTheRingsOfTheArrowsThatStruckATarget()
+        {
+            var w = new ObjWorld();
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            w.Repo.SetSingletonManaged<ITkbDatabase>(db);
+            if (!w.Repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Contracts.DetonationNotification>()) w.Repo.Bus.Register<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+            var archer = w.Man(new Vector3(0, 0, 0), ForceId.Friend);
+            var rival = w.Man(new Vector3(5, 0, 0), ForceId.Friend);
+            var target = w.Man(new Vector3(30, 0, 0), ForceId.Hostile);
+            w.Repo.AddComponent(target, new TkbIdentity { TkbType = (TkbTypeId)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbArcheryTarget });
+            var wall = w.Man(new Vector3(40, 0, 0), ForceId.Hostile);   // a prop that is no archery target
+            var score = w.Objective("ArcheryScore", MeasureJson(w, archer));
+            w.Run(1);
+            Assert.Equal(0f, w.S(score).Value); Assert.Equal(0f, w.S(score).Score);   // no arrow yet is not a pass
+
+            void Strike(Entity by, Entity at, float dz, long ammo)
+                => w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = by, Target = at, HitX = 30f, HitY = 0f, HitZ = 1.0f + dz, Ammo = ammo });
+            Strike(archer, target, 0f, Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow);       // ring 10
+            Strike(rival, target, 0f, Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow);        // another archer's
+            w.Tick();
+            Strike(archer, target, 0.18f, Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow);    // ring 7
+            Strike(archer, target, 0f, 0);                                                // no munition type: not an arrow
+            Strike(archer, wall, 0f, Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow);         // not an archery target
+            // a dead-centre arrow that struck the front of the prop 0.57 m before its origin (travelling +Y): the depth is no miss ⇒ ring 10, not 0
+            w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = archer, Target = target, HitX = 30f, HitY = -0.57f, HitZ = 1.0f, TravelY = 1f, Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow });
+            w.Tick();
+            w.Run(1);
+            Assert.Equal(27f, w.S(score).Value);
+            Assert.Contains("3 arrow", w.S(score).Reason.ToString());
+        }
+
+        /// <summary>⭐⭐ <c>CE-4649</c> (BW-11) — the contest's composition: two archers' <c>ArcheryScore</c> under a <c>Points</c> root; the root sums them and a <c>Best</c> over it names the higher (Reason "name — value").</summary>
+        [Fact]
+        public void CE4649_ArcheryScore_UnderPoints_AndBest_NamesTheWinner()
+        {
+            var w = new ObjWorld(); w.WithHistory();   // the cadence as the cluster runs it
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            w.Repo.SetSingletonManaged<ITkbDatabase>(db);
+            if (!w.Repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Contracts.DetonationNotification>()) w.Repo.Bus.Register<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+            var a1 = w.Man(new Vector3(0, 0, 0), ForceId.Friend); w.Repo.GetComponentRW<EntityInfo>(a1).Name = "Archer 1";
+            var a2 = w.Man(new Vector3(5, 0, 0), ForceId.Friend); w.Repo.GetComponentRW<EntityInfo>(a2).Name = "Archer 2";
+            var target = w.Man(new Vector3(30, 0, 0), ForceId.Hostile);
+            w.Repo.AddComponent(target, new TkbIdentity { TkbType = (TkbTypeId)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbArcheryTarget });
+            var root = w.Objective("Points", $"{{\"common\":{{\"title\":\"Contest\",\"subject\":{w.Net(a1)},\"scored\":false}}}}");
+            string Child(Entity who) => $"{{\"common\":{{\"title\":\"Archery score\",\"subject\":{w.Net(who)},\"parent\":{w.Net(root)},\"group\":\"score\"}}}}";
+            var s1 = w.Objective("ArcheryScore", Child(a1));
+            var s2 = w.Objective("ArcheryScore", Child(a2));
+            var best = w.Objective("Best", $"{{\"common\":{{\"title\":\"Best\",\"parent\":{w.Net(root)},\"scored\":false}},\"among\":{w.Net(root)},\"measure\":\"Archery score\",\"min\":1}}");
+            w.Run(1);
+            void Strike(Entity by, float dz)
+                => w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = by, Target = target, HitX = 30f, HitY = 0f, HitZ = 1.0f + dz, Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow });
+            Strike(a1, 0f); Strike(a2, 0.18f);
+            w.Tick();
+            w.Run(1);
+            Assert.Equal(17f, w.S(root).Value);        // 10 + 7
+            Assert.Equal("Archer 1 — 10", w.S(best).Reason.ToString());
+        }
 
         /// <summary>HitRatio — shots by the men ÷ hits on a hostile, per the CE-4155 attribute: <c>last</c> counts a hit whose Source is a man, <c>original</c> one whose OriginalSource is, <c>both</c> either;
         /// a shot by a stranger and a hit on a friend are no part of it; 0 shots ⇒ Value 0, Active, Score 0; default target 0.30. ✅ Red-proof: <c>NoHarmBehavior.Sources</c> returning the

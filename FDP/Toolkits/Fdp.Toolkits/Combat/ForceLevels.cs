@@ -75,9 +75,26 @@ namespace Fdp.Toolkit.Combat
         public static bool ConductPermits(EntityRepository world, Entity unit, Entity target, bool lethal)
         {
             if (!lethal || target.IsNull || !world.IsAlive(target) || Armament.IsCombatant(world, target)) return true;
+            if (IsOrdered(world, unit, target)) return true;   // ⭐ CE-4649 R-3101 — a man told to attack THIS target (not the force cap: Permits still applies it)
             if (Fdp.Toolkit.Animals.Animals.IsDangerous(world, target)) return true;   // ⭐ CE-4623 AB-5 — an attacking animal: no conduct hold
             if (Armament.Judge(world, unit, target) == ArmedJudgement.IdentifiedLethal) return true;
             return AimsAt(world, target, unit);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART C ① (R-3101) — is firing on <paramref name="target"/> an EXPLICIT ORDER of <paramref name="unit"/>? Yes when its RUNNING behaviour was
+        /// given by an Operator or a Superior (<see cref="BehaviorOrigin"/>; not its own SOP, a reaction or a utility decision) and the attack order designated THIS entity
+        /// (<see cref="DesignatedTarget"/>, written by <c>UntilTargetDown</c>). An explicit order lifts the NEUTRAL hold and the CONDUCT hold for that target, a person or an animal;
+        /// ⛔ not the unit's <c>Roe.ForceLevel</c> cap (<see cref="LevelFor"/> still applies: a NonLethal unit ordered to attack stays non-lethal).
+        /// ⭐ The SEAM for the hunter (AN-21g, part D): a standing order "may engage animals of species …" answers through <see cref="Fdp.Toolkit.Animals.Animals.MayEngage"/>.
+        /// </summary>
+        public static bool IsOrdered(EntityRepository world, Entity unit, Entity target)
+        {
+            if (unit.IsNull || target.IsNull || !world.IsComponentTypeRegistered<BehaviorState>() || !world.HasComponent<BehaviorState>(unit)) return false;
+            if (Fdp.Toolkit.Animals.Animals.IsAnimal(world, target) && Fdp.Toolkit.Animals.Animals.MayEngage(world, unit, target)) return true;
+            var origin = world.GetComponentRO<BehaviorState>(unit).Origin;
+            if (origin != BehaviorOrigin.Operator && origin != BehaviorOrigin.Superior) return false;
+            return DesignatedTarget.Of(world, unit, out var designated) && designated == target;
         }
 
         /// <summary>Does <paramref name="target"/> aim a lethal weapon at <paramref name="unit"/> (his replicated <see cref="WeaponPosture"/>)?</summary>

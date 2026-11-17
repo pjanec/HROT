@@ -85,6 +85,9 @@ namespace Fdp.Toolkit.Animals
             => IsAnimal(view, e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) != 0;
 
         /// <summary>By DIS alone (a template, no entity): a life form in the animal categories 200…209.</summary>
+        /// <summary>⭐ CE-4649 part C ① — the SEAM for AN-21g's hunter: does <paramref name="unit"/> carry a STANDING order to engage animals of this species? Not built (part D); always false.</summary>
+        public static bool MayEngage(ISimulationView view, Entity unit, Entity animal) => false;
+
         public static bool IsAnimalDis(DISEntityType dis) => dis.Kind == 3 && dis.Category >= 200 && dis.Category <= 209;
     }
 }

@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: CE-4649 (bows BW-11) - on basic-desert three Archers (Friend, 80/110/140,100) each shoot 5 arrows at the face centre of an archery target prop 30 m north (TKB 2015, a straw boss with a 10-ring face). Judge: (1) 15 arrows are fired (2) every arrow ends in a target (Hit) or the ground (StoppedByTerrain). The ring of each strike is ArcheryScoring.RingOf (railed: 10 at the centre, 1 at the rim, 0 beyond); wiring it into the rules' Points score is not built (no free component id; the rules' Points composite is behaviors') - see the status. Check: scripts/scenario-regression.sh bw-archery-contest"
+  "description": "What: CE-4649 (bows BW-11) - on basic-desert three Archers (Friend, 80/110/140,100) each shoot 5 arrows at the face centre of an archery target prop 30 m north (TKB 2015, a straw boss with a 10-ring face). Judge: (1) 15 arrows are fired (2) every arrow ends in a target (Hit) or the ground (StoppedByTerrain). Each archer's ArcheryScore measure sums the rings (ArcheryScoring.RingAt) of his arrows that strike a target, under a Points root; a Best names the top archer. Judge: (3) every archer's ArcheryScore is above 0. The Points root and the Best are authored but NOT judged: with the parallel or threaded kernel on, a rule created at load never sees its children (CE-4649 note), so they only read right under HROT_PARALLEL_SIM=0 HROT_THREADED_KERNEL=0. Check: scripts/scenario-regression.sh bw-archery-contest"
  },
  "entities": {
   "4649a006-0000-4000-8000-000000000010": {
@@ -233,6 +233,120 @@
    },
    "TargetMemory": {
     "Entries": []
+   }
+  },
+  "4649a006-0000-4000-8000-0000000000a0": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Archery contest",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Points",
+    "Params": {
+     "common": {
+      "title": "Archery contest",
+      "group": "score",
+      "scored": false
+     },
+     "target": 150
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a006-0000-4000-8000-0000000000b0": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Archery score 1",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ArcheryScore",
+    "Params": {
+     "common": {
+      "title": "Archery score",
+      "subject": "4649a006-0000-4000-8000-000000000010",
+      "parent": "4649a006-0000-4000-8000-0000000000a0",
+      "group": "score",
+      "points": 1
+     },
+     "target": 50
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a006-0000-4000-8000-0000000000b1": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Archery score 2",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ArcheryScore",
+    "Params": {
+     "common": {
+      "title": "Archery score",
+      "subject": "4649a006-0000-4000-8000-000000000011",
+      "parent": "4649a006-0000-4000-8000-0000000000a0",
+      "group": "score",
+      "points": 1
+     },
+     "target": 50
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a006-0000-4000-8000-0000000000b2": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Archery score 3",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "ArcheryScore",
+    "Params": {
+     "common": {
+      "title": "Archery score",
+      "subject": "4649a006-0000-4000-8000-000000000012",
+      "parent": "4649a006-0000-4000-8000-0000000000a0",
+      "group": "score",
+      "points": 1
+     },
+     "target": 50
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a006-0000-4000-8000-0000000000c0": {
+   "TkbIdentity": {
+    "TkbType": 8860
+   },
+   "EntityInfo": {
+    "Name": "Best archer",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Best",
+    "Params": {
+     "common": {
+      "title": "Best archer",
+      "parent": "4649a006-0000-4000-8000-0000000000a0",
+      "group": "awards",
+      "scored": false
+     },
+     "among": "4649a006-0000-4000-8000-0000000000a0",
+     "measure": "Archery score",
+     "min": 1
+    },
+    "Origin": "Superior"
    }
   }
  }

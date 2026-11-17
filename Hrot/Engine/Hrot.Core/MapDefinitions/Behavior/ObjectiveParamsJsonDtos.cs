@@ -166,6 +166,19 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("target")] public float? Target;
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-4649</c> (bows BW-11, R-3103) — <c>ArcheryScore</c>: the rings the subject's ARROWS scored on archery targets (a prop type with an <c>ArcheryTargetDto</c>): each arrow that
+    /// strikes a target adds <c>ArcheryScoring.RingOf</c> of its strike's distance from the scoring face's centre (10 at the centre … 1 at the rim, 0 beyond). Higher is better; default target
+    /// 50 (five arrows at the centre). Under a <c>Points</c> composite it is the archer's game score; a <c>Best</c> over the composite names the winner.
+    /// </summary>
+    [ParamsDto]
+    public struct ArcheryScoreParamsJsonDto
+    {
+        public const string BehaviorId = BehaviorNames.ArcheryScore;
+        [JsonPropertyName("common")] public ObjectiveCommon Common;
+        [JsonPropertyName("target")] public float? Target;
+    }
+
     /// <summary>What a <c>Count</c> counts.</summary>
     public enum CountWhat : byte
     {
