@@ -68,6 +68,15 @@ related-designs:
 | protocol | `python3 scripts/protocol-doc-check.py` | OK (162 topics, 105 ordinals) | +3 topics, +3 ordinals, mode 8 documented |
 | build | `--no-build` above after `dotnet build <test project> --no-restore` on each | 0 errors | — |
 
+## Gates — S1 + S2 half *(base = `ui` at `e0814c90b` for the scenario comparison)*
+
+| gate | command | result | vs base |
+|---|---|---|---|
+| T-1 motion + guided suites | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter "GuidedRoundSystemTests\|FixedWingModelTests\|RotorcraftModelTests\|Countermeasure\|AirRoute"` | 74 / 0 / 0 | +10 new rails (7 S1, 3 S2); GCAS rails red-proven (GCAS off ⇒ both red) |
+| S1 scenarios | `scripts/scenario-regression.sh ac-cruise-altitude,ac-gcas-ridge,ac-gcas-inverted,ac-gcas-steep-ridge,ac-map-edge` | 5 / 5 PASS; goldens captured, re-verified "same" in fresh processes | new |
+| air scenarios that move | the same script on `sam-site, ua-air-defence, ua-air-attack, ua-eject, ua-shootdown-eject, ua-air-strike` | `ua-air-defence` FAILS ("the Apache receives a missile warning") — ✅ PRE-EXISTING: same red on the base worktree; all others PASS; `ua-eject` / `ua-shootdown-eject` goldens re-recorded (described in commit `a91139374`); `sam-site` passes (no golden; its chaff band NOT re-measured — S2's second half) | `ua-air-attack` was red with GCAS and is green again after R-10010 |
+| ⛔ not run | `HROT_PARALLEL_SIM` / read-check / world guard, `stepped-hash.py`, the cluster run | — | no behaviour code yet (S3); the motion node is serial |
+
 ## Open findings
 
 - ⚠ **GCAS predicts STRAIGHT AHEAD** (as the real Auto-GCAS does): a planned turn short of terrain can trip it (measured on a U-turn 100 m from the wall). Accepted; scenarios keep routes clear of it.
