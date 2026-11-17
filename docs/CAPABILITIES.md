@@ -251,7 +251,8 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
-  fire stops. ▶ `uf-alone-under-fire` ✅
+  fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
+- ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅
 - **Reflexes without orders:** a soldier with no task still reacts to fire by his type's standing orders (SOP); one stamped inert does
   not. A civilian ordered to stand still is frightened all the same. ▶ `df-lone-soldier-reflex` · `df-civilian-ordered`
 - **Grenade or rifle:** against a man behind sandbags, the grenadier closes in and lobs a grenade while the rifleman fires.
@@ -493,7 +494,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | what you can do | Edit | Live | Review | status |
 |---|:-:|:-:|:-:|---|
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
-| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ · ⚠ a weighted-mean root objective never aggregates its children (`sr-objectives-march`, CE-3460) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
 | Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |
