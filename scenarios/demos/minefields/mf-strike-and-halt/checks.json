@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Minefields MR-19 / R-4277: a patrol strikes an unknown field, halts, and the side suspects the cells round the blast. From the header's Judge (1)-(5); the back-out waits on terrain's breadcrumbs (R-2125).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Minefields MR-19 / R-4277: a patrol strikes an unknown field, halts, and the side suspects the cells round the blast. From the header's Judge (1)-(5); row (6) the back-out (MR-5; R-2125's interim ended).",
   "runFor": 120,
   "golden": false,
   "anchors": {
@@ -42,6 +42,13 @@
         "n": 2
       },
       "before": "strike+60"
+    },
+    {
+      "name": "the patrol backs out along its own track",
+      "on": "task",
+      "who": "*Man",
+      "is": "BackOut",
+      "after": "strike"
     }
   ]
 }

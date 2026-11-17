@@ -284,12 +284,16 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Breach = "Breach";
         /// <summary>⭐ CE-4624 MS-B4 — a squad whose route reaches a minefield halts short of it and calls the engineers.</summary>
         public const string MinefieldAhead = "MinefieldAhead";
+        /// <summary>⭐ CE-4624 MS-B1 back-out (MR-5) — a man walks his own breadcrumbs back out of a minefield, then holds (his unit’s MineStrike orders it).</summary>
+        public const string BackOut = "BackOut";
         /// <summary>⭐ CE-4622 K-2 (Checkpoint RM-2) — a vehicle drives INTO a body or a crowd: its avoidance skips the target, it may break a weak barrier, the car commits a Lethal act.</summary>
         public const string RamTarget = "RamTarget";
         /// <summary>⭐ CE-4622 K-4 (Checkpoint CP-1) — a squad mans a vehicle checkpoint: stopper, searchers, the overwatch MG and the reaction at their posts, watching the approach.</summary>
         public const string Checkpoint = "Checkpoint";
         /// <summary>⭐ CE-4622 K-6 (Checkpoint CP-4) — a stopped civilian answers "out, hands up": he gets out and stands with his hands up (a reaction).</summary>
         public const string ComplyAtCheckpoint = "ComplyAtCheckpoint";
+        /// <summary>⭐ CE-4622 follow-up (R-2133) — a vehicle the checkpoint signals slows and stops at the line until it is let go (a reaction).</summary>
+        public const string StopAtSignal = "StopAtSignal";
         /// <summary>⭐ CE-3454 (Motorcycle PF-3) — a man in an open FIRING seat (a pillion, a mounted archer, a pickup-bed rifleman) fires at an enemy he sees inside his seat's arc, from the seat (a reaction).</summary>
         public const string FireFromSeat = "FireFromSeat";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
