@@ -1,0 +1,72 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "anchors": {
+    "two": {
+      "on": "field",
+      "who": "Viper",
+      "path": "FighterPilotState.Inbound",
+      "op": "==",
+      "value": 2
+    }
+  },
+  "expect": [
+    {
+      "name": "two missiles inbound at once",
+      "on": "field",
+      "who": "Viper",
+      "path": "FighterPilotState.Inbound",
+      "op": "==",
+      "value": 2
+    },
+    {
+      "name": "Fulcrum 1 fires",
+      "on": "shot",
+      "by": "Fulcrum 1",
+      "n": 1
+    },
+    {
+      "name": "Fulcrum 2 fires",
+      "on": "shot",
+      "by": "Fulcrum 2",
+      "n": 1
+    },
+    {
+      "name": "the defence ends with nothing inbound",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.Phase",
+      "op": "in",
+      "value": [
+        "None",
+        0
+      ],
+      "after": "two"
+    },
+    {
+      "name": "both missile rows END (hit or beaten)",
+      "on": "shot",
+      "by": "*Fulcrum",
+      "n": 2,
+      "where": {
+        "weaponIndex": [
+          ">=",
+          1
+        ],
+        "outcome": [
+          "in",
+          [
+            "Hit",
+            "Defeated",
+            "Expired",
+            "Detonated",
+            "StoppedByTerrain"
+          ]
+        ]
+      }
+    }
+  ]
+}

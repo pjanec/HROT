@@ -34,16 +34,15 @@ public readonly record struct FighterHudModel(bool Active, bool GunSelected, boo
 /// ⭐ CE-4647 (AC-15 step 7; docs/designs/air-attack/DESIGN_Air_Combat.md §4d; mockup <c>air-combat-hud.svg</c>) — the FIGHTER HUD of a possessed F-16 / MiG (the manual mouse-aim pilot: mode 8 is AI only), over the existing flyer HUD
 /// (<c>PossessionStation.Hud</c>, Entity Control §8f — unchanged): a gun PIPPER at the led point, the missile cue (SEARCH / IN ZONE / LOCK), the radar warning (a tick at the emitter's bearing, the text on a LAUNCH) and the g.
 /// <para>📐 The pipper is <see cref="TargetLead.Point"/> — the ONE predictor of rounds, missiles and gun runs; the warning reads the EXISTING <see cref="RadarWarning"/> and <see cref="MissileWarning"/>.
-/// 🔧 <c>ZoneStandIn</c> — the air lane has no employment zone yet (S3): the zone is a plain range band (<see cref="MissileMinRangeM"/> … <see cref="MissileMaxRangeM"/>, the show rule AC-11's 6 km), not
-/// the air lane's speed-and-aspect zone (AC-8); ⭐ re-bind: ask its zone.</para>
+/// ✅ The zone is the air lane's: <see cref="EmploymentZone.Inside"/> (AC-8 — the missile's motor model against the target's present speed and aspect), the ONE zone the fighter's brain reads too. IN ZONE ⇔ it says so.</para>
 /// ⭐ HOT PATH: the target scan is one cached query; every text is a cached string per value — a steady frame allocates nothing.
 /// </summary>
 public sealed class FighterHud
 {
     /// <summary>The gun's reach for the pipper (m, DESIGN §AC-8: "fires ≤ 500 m"), its default muzzle speed (m/s) where the mount says none.</summary>
     public const float GunRangeM = 500f, DefaultMuzzleSpeed = 1050f;
-    /// <summary>🔧 ZoneStandIn — a missile shot is worth taking between these ranges (m); the seeker locks inside <see cref="LockConeDeg"/> of the look; a target is "found" inside <see cref="SearchConeDeg"/>.</summary>
-    public const float MissileMinRangeM = 500f, MissileMaxRangeM = Fdp.Toolkit.Motion.AirArena.DefaultMaxShotRangeM, LockConeDeg = 15f, SearchConeDeg = 30f, MaxSearchRangeM = 9000f;
+    /// <summary>The seeker locks inside <see cref="LockConeDeg"/> of the look; a target is "found" inside <see cref="SearchConeDeg"/> and <see cref="MaxSearchRangeM"/> (a radar missile's zone reaches 20 km).</summary>
+    public const float LockConeDeg = 15f, SearchConeDeg = 30f, MaxSearchRangeM = 30000f;
     /// <summary>g from which the read-out turns amber (also the vortex trails' threshold) and red.</summary>
     public const float HighG = 6f, LimitG = 8f;
 
@@ -131,7 +130,8 @@ public sealed class FighterHud
             if (!has) cue = MissileCue.Search;
             else
             {
-                bool inZone = rangeM >= MissileMinRangeM && rangeM <= MissileMaxRangeM;
+                // the air lane's employment zone, for THIS missile (its MissileDto from the mount's ammunition type) against the target's present speed and aspect
+                bool inZone = tkb!.TryGetByType((long)m!.AmmoGuid, out var round) && round.GetDescriptor<MissileDto>() is { } dto && EmploymentZone.Inside(dto, own, vel, at, tvel, 1f, false);
                 bool locked = Vector3.Dot((at - own) / rangeM, fwd) >= MathF.Cos(LockConeDeg * MathF.PI / 180f);
                 cue = locked ? (inZone ? MissileCue.LockInZone : MissileCue.Lock) : (inZone ? MissileCue.InZone : MissileCue.Search);
             }

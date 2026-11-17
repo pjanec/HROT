@@ -1,0 +1,135 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an Ace F-16 against a Rookie MiG, lapses OFF in the arena, merging head-on from 10 km (CE-10004, AC-12). Judge: the Rookie is shot down inside 300 s and the Ace is never lost."
+  },
+  "entities": {
+    "ac000020-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -5000,
+          300,
+          2097.6
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000020-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Ace"
+      }
+    },
+    "ac000020-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          5000,
+          -300,
+          2084.3
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000020-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Rookie"
+      }
+    },
+    "ac000020-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8840
+      },
+      "EntityInfo": {
+        "Name": "Arena",
+        "ForceId": "Neutral"
+      },
+      "AirArena": {
+        "Centre": [
+          0,
+          0,
+          100.0
+        ],
+        "RadiusM": 4000,
+        "FloorAglM": 300,
+        "CeilingAglM": 6000,
+        "MaxShotRangeM": 6000,
+        "StalemateSeconds": 90,
+        "LapsesOff": 1
+      }
+    }
+  }
+}

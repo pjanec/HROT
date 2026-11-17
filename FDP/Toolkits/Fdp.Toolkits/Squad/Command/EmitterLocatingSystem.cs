@@ -60,6 +60,8 @@ namespace Fdp.Toolkit.Squad.Command
             {
                 var r = repo.GetComponentRO<RadarEmission>(e);
                 if (!RadarEmissions.Radiates(repo, e, in r)) continue;
+                // ⭐ CE-10003 (air combat RV-3, AC-13) — an AIRCRAFT emitter (a fighter's own radar) is no "air defence" to locate: RS-7 is for ground radars
+                if (Fdp.Toolkit.Motion.Locomotions.IsAircraft(repo, e)) continue;
                 double on = now - r.OnSince;
                 if (on < ContinuousSeconds) continue;
                 if (_sent.TryGetValue(e, out var last) && last >= r.OnSince && now - last < ResendSeconds) continue;

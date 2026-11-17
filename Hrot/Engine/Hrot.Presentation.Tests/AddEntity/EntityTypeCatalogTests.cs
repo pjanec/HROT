@@ -706,6 +706,7 @@ public sealed class EntityTypeCatalogTests
         8821 Jersey barrier | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
+        8840 Air Arena | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
         8851 SUMO car | dis 1.1.0.81.0.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         8860 Objective | dis - | family Unknown | folder Other | icon -

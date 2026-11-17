@@ -1,0 +1,71 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S4 \u2014 a DEMO (Scenario Regression \u00a75): expect rows only.",
+  "runFor": 600,
+  "golden": false,
+  "expect": [
+    {
+      "name": "four missiles",
+      "on": "shot",
+      "by": "*",
+      "n": 4,
+      "where": {
+        "weaponIndex": [
+          ">=",
+          1
+        ]
+      }
+    },
+    {
+      "name": "a gun hit",
+      "on": "shot",
+      "by": "*",
+      "n": 1,
+      "where": {
+        "weaponIndex": 0,
+        "outcome": "Hit"
+      }
+    },
+    {
+      "name": "two kills",
+      "on": "field",
+      "who": "*",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "quantifier": "atLeast:2",
+      "before": 600
+    },
+    {
+      "name": "never a shot beyond 6 km",
+      "never": {
+        "on": "shot",
+        "by": "*",
+        "n": 1,
+        "where": {
+          "range": [
+            ">",
+            6000
+          ]
+        }
+      }
+    },
+    {
+      "name": "no Viper hits a Viper",
+      "never": {
+        "on": "shot",
+        "by": "*Viper",
+        "n": 1,
+        "hit": "*Viper"
+      }
+    },
+    {
+      "name": "no Fulcrum hits a Fulcrum",
+      "never": {
+        "on": "shot",
+        "by": "*Fulcrum",
+        "n": 1,
+        "hit": "*Fulcrum"
+      }
+    }
+  ]
+}

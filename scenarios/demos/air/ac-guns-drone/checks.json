@@ -1,0 +1,34 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S3 \u2014 feature (golden).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Viper's gun fires",
+      "on": "shot",
+      "by": "Viper",
+      "n": 1,
+      "where": {
+        "weaponIndex": 0
+      },
+      "before": 60
+    },
+    {
+      "name": "the drone is hit",
+      "on": "hit",
+      "target": "Drone",
+      "before": 60
+    },
+    {
+      "name": "the drone is destroyed",
+      "on": "field",
+      "who": "Drone",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 90
+    }
+  ]
+}

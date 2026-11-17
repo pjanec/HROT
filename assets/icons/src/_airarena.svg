@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<!-- CE-4647 the Air Arena picker glyph: the faint dashed stage ring with a fighter inside it (side profile facing right is for bodies; this is a map graphic, drawn from above) -->
+<circle cx="64" cy="64" r="54" fill="#6AB0FF" fill-opacity="0.14" stroke="#6AB0FF" stroke-width="6" stroke-dasharray="14 9"/>
+<g transform="translate(64 66) rotate(-35)">
+  <path d="M26 0 L-4 -7 L-4 -26 L-14 -26 L-18 -9 L-30 -6 L-30 6 L-18 9 L-14 26 L-4 26 L-4 7 Z" fill="#EEF2F6" stroke="#2A3139" stroke-width="3" stroke-linejoin="round"/>
+</g>
+<rect x="56" y="56" width="16" height="16" rx="2" fill="#F2C033" stroke="#222" stroke-width="2" opacity="0"/>
+</svg>

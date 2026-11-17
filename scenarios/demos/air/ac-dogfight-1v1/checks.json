@@ -1,0 +1,43 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S3 \u2014 a DEMO (Scenario Regression \u00a75): expect rows only, no golden.",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "they close to 2 km",
+      "on": "close",
+      "who": "Viper",
+      "from": "Fulcrum",
+      "m": 2000,
+      "before": 120
+    },
+    {
+      "name": "a shot inside 120 s",
+      "on": "shot",
+      "by": "*",
+      "n": 1,
+      "before": 120
+    },
+    {
+      "name": "one is shot down",
+      "on": "field",
+      "who": "*",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 300
+    },
+    {
+      "name": "the fight stays over the map",
+      "never": {
+        "on": "far",
+        "who": "*",
+        "point": [
+          0,
+          0
+        ],
+        "m": 10000
+      }
+    }
+  ]
+}

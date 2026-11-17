@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: BUILDING (S0 + S1 built, §8a) — READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
+build-state: BUILDING (S0 + S1 built §8a; S2 §8b + §8c; S3 / S4 built §8c — scenarios in STATUS) — READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
 current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the review (its fixes are folded; kept as the record)
 stale-below: none
 known-rot: none (the review's corrections are folded)
@@ -293,6 +293,25 @@ graph TD
 | steering lag · fuze | 0.4 s · 8 m | 0.4 s · 12 m | 0.4 s · as built |
 | seeker | cone 90°, flare rejection 0.6 | cone 60°, chaff end-game (RS-3), the notch | as built + the notch (radar) |
 
+⭐⭐ **AS HARDENED — R-10018** (🔒 user, `2026-11-17`: *"Harden as you lean."*; earlier: *"i need a hit unless aircraft does evading maneuver or fires chaff"*;
+the bands: undefended ≈ 90 %, a late reaction 40–60 %, a timely defence 10–25 %). Inside the SAME model (AC-6, R-4283 — lead pursuit with energy):
+
+| change | IR AAM | radar AAM | radar SAM | Stinger | Igla |
+|---|---|---|---|---|---|
+| `MaxG` (still × (v / SpeedMps)²) | 40 → **50** | 35 → **44** | 30 → **38** | 20 → **25** | 18 → **23** |
+| flare / chaff rejection | 0.6 → **0.82** | 0.9 (kept) | 0.9 (kept) | 0.6 → **0.82** | 0.4 → **0.7** |
+| the lead | ⭐ on the round's CURRENT speed (`GuidedRoundSystem.Steer`, a motor round), not its burn-out speed — the same lead pursuit with a true input | ← | ← | ← | ← |
+| kept | `SteerLagS` 0.4 · `DragPerS` · `MinSpeedMps` · burn · fuze | | | | |
+
+📐 **Measured** (the Monte-Carlo rail, 300 seeded IR shots, 1.2–3 km, any aspect; the defence now also drops the flares the system drops, one seeded
+draw each — `CountermeasureSystem.Seduce`'s rule): **timely 73 (24 %) · late 124 (41 %) · undefended 281 (94 %)**. Why these knobs (a sweep, `2026-11-17`):
+`DragPerS` and `MinSpeedMps` barely move a 1.2–3 km shot (the round arrives before it slows); a shorter lag kills the DEFENDED as surely as the
+undefended (lag 0.05: timely 78 %, none 85 %); the lead on the burn-out speed was why half of the straight-flying targets were MISSED; with it fixed,
+the maneuver alone leaves a timely defence at ~45–55 % — the decoys' rejection sets the defended bands.
+
+⛔ **SUPERSEDED** (the §5b round below, as first built): `MaxG` 40 / 35 / 30 / 20 / 18, flare rejection 0.6 / 0.6 / 0.4, the lead on `SpeedMps` —
+measured (R-10007, 300 shots, no flares in the rail): **timely 5 % · late 13 % · undefended 50 %** — far too dodgeable.
+
 📐 **Why a dodge can work and can fail** (as amended, RV-1): at 2.5 s to go a 9 g break moves the jet ≈ 275 m off the predicted point; a 40 g
 round at full speed can follow ≈ 1 200 m — but only at full speed, and only after its 0.4 s lag. A round that has coasted to 400 m/s has
 `40·(400/850)²` ≈ 9 g left — no more than the jet. ⇒ an early drag (bleed its speed) or a well-timed break (inside its lag) beats it; a late
@@ -380,11 +399,48 @@ frame's half-moved one. ⛔ No allocation and no LINQ in `Fight`, `Steer3D`, `Gc
 |---|---|---|
 | AC-6 the motor | `GuidedRound` + `SpeedNow`, `BurnLeftS`, `BoostMps2`, `MaxG`, `DragPerS`, `MinSpeedMps`, `SteerLagS`, `SteerDir`, `LoadG`; `GuidedRoundSystem.Motor` — boost from the LAUNCHER's speed (≥ a tube's 30 m/s) to `SpeedMps` over the burn, then coast losing `DragPerS·(1 + n/MaxG)`; g = `MaxG·(v/SpeedMps)²`; the steering follows the lead (still on `SpeedMps`, as AC-6 says) through a first-order lag; coasting below `MinSpeedMps` ⇒ the round expires and its shot row ends `ShotOutcome.Defeated` (appended). `MaxG` 0 ⇒ the old constant-speed round (ATGMs unchanged) | — |
 | §5b numbers | the four AAMs (contract) + the SAMs: Stinger 2 s / 20 g / −60 / 250, Igla 2 s / 18 g / −60 / 250, radar SAM 4 s / 30 g / −40 / 300, all a 0.4 s lag | — |
-| ⭐ the acceptance (RV-1) | `GuidedRoundSystemTests.AC6_MonteCarlo_…`: 300 seeded IR shots, 1.2–3 km, ANY aspect, at an F-16 that drags (> 4 s to go), beams (inside) and breaks (inside 2.5 s): 📐 measured **timely (0.7 s, a Veteran) 16 / 300 = 5 % · LateWarning (2.7 s) 38 = 13 % · no defence 150 = 50 %**; stated bands 6…30 · 25…60 · 120…180 | ⚠ R-10007: the design's EXAMPLE band ("30–60 % against a Veteran") is NOT what the §5b round gives — with its 0.4 s lag and the lead on the burn-out speed it is beaten ~19 times in 20 by a timely defence. The numbers were kept (the handoff: no guidance tuning beyond the design); the user decides whether the missile should be harder (a shorter lag, the lead on the current speed) |
+| ⭐ the acceptance (RV-1) | `GuidedRoundSystemTests.AC6_MonteCarlo_…`: 300 seeded IR shots, 1.2–3 km, ANY aspect, at an F-16 that drags (> 4 s to go), beams (inside) and breaks (inside 2.5 s): 📐 measured **timely (0.7 s, a Veteran) 16 / 300 = 5 % · LateWarning (2.7 s) 38 = 13 % · no defence 150 = 50 %**; stated bands 6…30 · 25…60 · 120…180 | ⛔ SUPERSEDED by R-10018 (§5b: the user hardened it — timely 24 %, late 41 %, none 94 %, flares in the rail). Was: ⚠ R-10007: the design's EXAMPLE band ("30–60 % against a Veteran") is NOT what the §5b round gives — with its 0.4 s lag and the lead on the burn-out speed it is beaten ~19 times in 20 by a timely defence. The numbers were kept (the handoff: no guidance tuning beyond the design); the user decides whether the missile should be harder (a shorter lag, the lead on the current speed) |
 | AC-9a the live threat | `Motion/AirCombat/ThreatScan.cs` — once per tick the motion node gathers the homing rounds (tick-start positions, per-thread buffers, no steady allocation); each fixed-wing writes the rounds aimed at it into `FighterPilotState` (`Inbound`, the nearest-in-time's compass bearing, seeker, closure, live time to impact); `GuidedRoundSystem` counts a defeated round into its target's `Defeated` | — |
 | AC-9 the reflex | `FixedWingModel.Autonomous`, before any mode: inside `ThreatScan.LastDitchS` (2.5 s) the jet breaks level ACROSS the missile's line at its full g, whatever the brain asked; GCAS already holding keeps the stick; a G-LOC'd pilot does nothing; `LastDitchAt` stamped on entry | — |
 | AC-8 the suites (S3's catalogue half) | F-16 / MiG: mount 0 the gun (M61 500 rds 6 000/min · GSh-30-1 150 rds 1 800/min, fixed 2° cone), mount 1 the IR rail pair (AIM-9X / R-73, `AirToAir`), mount 2 the radar pair (AIM-120 / R-77), the dispenser last; a 40 km radar | the order ui's `JetStores` draws (IR outboard, radar inboard) |
-| not yet | `MissileDefence` (the brain's drag / beam / flares — AC-9's brain half), the grammar items, the six S2 scenarios, `sam-site`'s chaff band; S3's behaviour; S4 | ⏳ (STATUS_Air_Combat.md) |
+| ~~not yet~~ | ⛔ SUPERSEDED by §8c (the second half) | — |
+
+### 8c. As built — S2 (second half), S3 and S4 *(the `air` lane, `2026-11-17`; verdicts in `STATUS_Air_Combat.md`)*
+
+```mermaid
+classDiagram
+  class AirAttackNodes { <<existing>> Run() · Defend() ★ · RadarTracked() ⇒ MissileDefence }
+  class MissileDefence { <<★ built>> +Run(world, self, ref MissileDefenceState, now, Flight, out Manoeuvre, out started) · +RadarTracked() · +RadarEscape() · +Load() / Store() }
+  class AirCombatNodes { <<★ built>> +Applies() · +Fight() · +Pick() · Missile() · Gun() · Lapses() }
+  class EmploymentZone { <<★ built, public static>> +MaxRange() · +Of() · +Inside() }
+  class TargetLead { <<existing>> +PointAccelerating() ★ }
+  class AirArenaSystem { <<★ built, serial pre-pass>> +PrepareFrame() · +Containing() }
+  class ThreatScan { <<existing>> +TickStart() ★ (the mode-8 targets' tick-start state) }
+  class GuidedRoundSystem { <<existing>> +InNotch() ★ (RV-4) }
+  AirAttackNodes ..> AirCombatNodes : Attack on an aircraft ⇒ profile AirCombat (8)
+  AirAttackNodes ..> MissileDefence : MoveTo flight (beam)
+  AirCombatNodes ..> MissileDefence : fighter flight (Drag / Beam / LastDitch)
+  AirCombatNodes ..> EmploymentZone
+  AirCombatNodes ..> TargetLead
+  AirCombatNodes ..> AirArenaSystem : reads the frame's index
+  AirArenaSystem --> AirArena : LastHitAt (the one writer)
+```
+
+*What the picture shows that prose hid: the brain reads the arena through a SERIAL index (never a query in the parallel phase); the zone is one public
+static that the brain AND the HUD read; the air attack and the dogfight share the defence through one `Run` with two flight shapes.*
+
+| item | as built | deviation — argued |
+|---|---|---|
+| AC-9 `MissileDefence` | `Brains/MissileDefence.cs`. Start: a `MissileWarning` newer than the last answered, seen after `Flight.ReactionS` (skill + a LateWarning's 2 s), its missile still in the air (live count, else the snapshot window). Live (`FighterPilotState`): seeker, time to impact, bearing; ends when `Inbound == 0` past a 1 s grace (fighter) / 4 s (MoveTo). Fighter: IR > 4 s ⇒ Drag, else Beam; the motion node's reflex (`LastDitchAt` < 1.5 s ago) ⇒ LastDitch. MoveTo flight: ALWAYS the beam break (§7e E4 — a helicopter has no energy to drag with). Decoys: none while dragging; flares near; chaff only inside `ChaffEndGameS`; cap 4 + 2 per extra inbound. `MissileDefenceState.DecoysTotal` (appended) counts them for the checks | R-10011: a decoy writes no shot row (`FireProcessingSystem.cs:111` skips a dispenser), so `shot … where ammo contains "Flare"` (§6) cannot be said — the checks read `DecoysTotal` |
+| `AirAttackNodes` folded in | its evade (NewWarning / BeginEvade / Evade) is now `Defend` → `MissileDefence.Run`; the radar escape's body and `RadarTracked` live in `MissileDefence`; ⭐ RV-3: a radar carried by an AIRCRAFT does not trigger RS-6 (`RadarTracked`) nor RS-7 (`EmitterLocatingSystem` skips aircraft emitters) | the A-10's evade now ends on the live count, not the snapshot window (a golden may move — STATUS) |
+| AC-6 the notch (RV-4) | `GuidedRoundSystem.InNotch`: a radar seeker does not see a target whose speed along the line of sight is < 50 m/s while it is < 300 m above the ground | it was missing from §8b's motor |
+| grammar (RV-15) | `far` / `close` verifier cues (`who`, `from` a unit (3-D) or `point` (horizontal), `m`); the shot row's `range` (muzzle → aim at launch) in `GET /combat/shots`; `Defeated` (§8b) via `where: {"outcome": "Defeated"}` | R-10012: `close` added beside `far` (the 1v1's "near Viper Fulcrum 1500": the take's `near` takes a point only, and the take grammar is ui's) |
+| AC-13 the behaviour | `AirAttackProfile.AirCombat = 8`: `AirAttackNodes.Run` hands an Attack whose target is an aircraft, flown by a fixed-wing with an `AirToAir` mount, to `AirCombatNodes.Fight`; mode 8 entered once (a new `IntentId`); state in `AirCombatState` (mounts found once, the decision clock, the missile's action, the target's sampled acceleration); `AirCombatSteer` written only on change. Manoeuvres (`Pick`): defensive (its nose on me, mine not on it, < 3 km) ⇒ Break (an Ace with energy: Climb); Rookie ⇒ PurePursuit; > 4 km ⇒ PurePursuit; an overshoot (< 800 m, closing > 60 m/s) ⇒ LagPursuit; an Ace slow and off-nose ⇒ Extend; else Lead (< 45° off) / Pure. Kill ⇒ Success (B14: the attack on an entity ends); winchester or < 50 % health ⇒ Disengage 6 km out, then Success | R-10014: no next-target pick after a kill and no deconfliction search — the order names the bandit (a scenario's orders deconflict); the CAP (Hold + the fighter SOP row) is NOT built — ⏳ |
+| AC-8 weapons | missiles through the weapon channel's `AimAndFire` (the named mount, 1 round — its friendly-line and ROE holds apply, RV-11); IR within 3 km else radar; only inside the seeker's half-cone (IR 45°, radar 30°), inside `EmploymentZone.Inside` (Rookie the max, Veteran 0.8 × max, Ace the no-escape range), never beyond the arena's `MaxShotRangeM`; one at a time per target: after HIS shot a pilot waits for the target's live `Inbound` to clear (≤ 25 s). Gun: ≤ 500 m, the nose within 2° of `TargetLead.PointAccelerating` (the target's acceleration sampled every 0.25 s), a 20-round `FireAtPoint` burst re-aimed every tick | — |
+| RV-6 tick-start | `ThreatScan.Begin` also gathers every `AirCombatSteer.Target`'s tick-start position and velocity; `FixedWingModel.TargetState` reads them first | — |
+| AC-10 / AC-11 / AC-12 | `AirArenaSystem` (serial pre-pass in `BrainPhase.PrepareToolkitFrame`): indexes the arenas, stamps `LastHitAt` when a fighter in one loses health. The brain: floor and shot cap from the arena; the soft edge = `ReturnToArena` (toward the centre) while outside the radius (the defence and a disengage override it); the start = `Merge` through the centre while > 4 km from the bandit. Lapses: a forced one holds; past `StalemateSeconds` with no hit, one draw a second (`SimRng.FromSim(index, salt, second)`; Rookie 5 %, Veteran 3 %, Ace 2 %) among Fixation (gun track, a third of the floor) · LateWarning (+2 s) · EnergyBleed (throttle 0.3), 10 s each; G-LOC after 5 s above 8 g, 3 s | R-10015: the "pull back grows with the distance outside" is a manoeuvre switch at the radius, not a blend (the defence overrides it — RV-9's actual hazard) |
+| the arena's type | TKB **8840** "Air Arena" (a map graphic), R-10013 | — |
+
 
 
 

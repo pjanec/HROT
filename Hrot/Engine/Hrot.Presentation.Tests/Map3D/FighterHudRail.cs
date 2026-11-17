@@ -83,23 +83,33 @@ public sealed class FighterHudRail
     }
 
     [Fact]
-    public void TheMissileCue_IsSearchWithNothingInTheCone_InZoneInsideTheBandOffTheSeeker_LockOutsideTheBand_LockInZoneInBoth()
+    public void TheMissileCue_IsSearchWithNothingInTheCone_InZoneExactlyWhenTheAirLanesZoneSaysSo_LockedOrNot_ForBothJetsIrAndRadar()
     {
-        using var s = new Scene(); var hud = new FighterHud();
-        Assert.Equal(MissileCue.Search, s.Build(hud, Ir).Missile);             // nobody there
-        var foe = s.Jet(TkbEntityTypes.Jet_F16, new Vector3(3000f, 0f, 0f), Vector3.Zero, ForceId.Hostile);
-        Assert.Equal(MissileCue.LockInZone, s.Build(hud, Ir).Missile);         // dead ahead, 3 km
-        s.World.SetComponent(foe, new SimTransform { Position = new Vector3(8000f, 0f, 0f), Rotation = Quaternion.Identity });
-        Assert.Equal(MissileCue.Lock, s.Build(hud, Radar).Missile);            // 8 km: the seeker has him, the shot is too far
-        float a20 = 20f * MathF.PI / 180f;
-        s.World.SetComponent(foe, new SimTransform { Position = new Vector3(MathF.Cos(a20), MathF.Sin(a20), 0f) * 3000f, Rotation = Quaternion.Identity });
-        Assert.Equal(MissileCue.InZone, s.Build(hud, Ir).Missile);             // 20° off the nose: in range, the seeker does not have him
-        float a45 = 45f * MathF.PI / 180f;
-        s.World.SetComponent(foe, new SimTransform { Position = new Vector3(MathF.Cos(a45), MathF.Sin(a45), 0f) * 3000f, Rotation = Quaternion.Identity });
-        var off = s.Build(hud, Ir);
-        Assert.False(off.HasTarget); Assert.Equal(MissileCue.Search, off.Missile);   // outside the search cone
-        s.World.SetComponent(foe, new SimTransform { Position = new Vector3(300f, 0f, 0f), Rotation = Quaternion.Identity });
-        Assert.Equal(MissileCue.Lock, s.Build(hud, Ir).Missile);               // too close for a missile (500 m): locked, not in the zone
+        foreach (long type in new[] { TkbEntityTypes.Jet_F16, AirCombatLooksRail.Mig })
+            foreach (Func<WeaponMountDto, bool> pick in new Func<WeaponMountDto, bool>[] { AirCombatLooksRail.IsIrMount, AirCombatLooksRail.IsRadarMount })
+            {
+                int mount = AirCombatLooksRail.MountIndex(Real, type, pick);
+                var dto = Real.GetByType((long)Real.GetByType(type).GetDescriptor<WeaponSuiteDto>()!.Mounts[mount].AmmoGuid).GetDescriptor<MissileDto>()!;
+                using var s = new Scene(type); var hud = new FighterHud();
+                Assert.Equal(MissileCue.Search, s.Build(hud, mount).Missile);             // nobody there
+                var foeType = type == AirCombatLooksRail.Mig ? TkbEntityTypes.Jet_F16 : AirCombatLooksRail.Mig;
+                var foe = s.Jet(foeType, new Vector3(3000f, 0f, 0f), Vector3.Zero, ForceId.Hostile);
+                bool sawIn = false, sawOut = false;
+                foreach (var (range, off, vel) in new[] { (300f, 0f, 0f), (700f, 0f, 0f), (3000f, 0f, 0f), (3000f, 20f, 0f), (9000f, 0f, 0f), (9000f, 0f, 300f), (15000f, 0f, 0f), (22000f, 0f, 0f), (22000f, 0f, -250f), (28000f, 0f, 0f) })
+                {
+                    float a = off * MathF.PI / 180f; var at = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f) * range;
+                    var tv = new Vector3(vel, 0f, 0f);   // + = running away along the nose
+                    s.World.SetComponent(foe, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                    s.World.SetComponent(foe, new SimVelocity { Linear = tv });
+                    bool zone = EmploymentZone.Inside(dto, Vector3.Zero, Vector3.Zero, at, tv, 1f, false);
+                    bool locked = off <= FighterHud.LockConeDeg;
+                    var cue = s.Build(hud, mount).Missile;
+                    var want = locked ? (zone ? MissileCue.LockInZone : MissileCue.Lock) : (zone ? MissileCue.InZone : MissileCue.Search);
+                    Assert.True(want == cue, $"type {type} mount {mount}: {range:0} m, {off:0}° off, opening {vel:0} ⇒ zone {zone}, wanted {want}, drew {cue}");
+                    if (zone) sawIn = true; else sawOut = true;
+                }
+                Assert.True(sawIn && sawOut, $"type {type} mount {mount}: the samples cross the zone's edge (in {sawIn}, out {sawOut})");
+            }
     }
 
     [Fact]

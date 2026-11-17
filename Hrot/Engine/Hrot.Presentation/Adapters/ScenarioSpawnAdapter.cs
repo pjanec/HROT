@@ -233,7 +233,7 @@ namespace Hrot.UI.Common.Adapters
                 {
                     cmd.InitialComponents ??= new System.Collections.Generic.List<object>();
                     Hrot.UI.Common.AddEntity.MacroBirth.BornWith(cmd.TkbType, macroPath, cmd.InitialComponents);   // ⭐ CE-4210 MA-7 — the instance is born with its MacroInstance
-                    Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(cmd.TkbType, cmd.InitialComponents);          // ⭐ Player Join S2-a — a Deploy Role is born with its DeployRole
+                    Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(cmd.TkbType, cmd.InitialComponents, cmd.InitialTransform?.Position);          // ⭐ Player Join S2-a — a Deploy Role is born with its DeployRole
                     if (terrainPlacement is not null)                                                              // ⭐ Terrain authoring U-2 — a block / house is born with its TerrainBlock / TerrainFeature: the seed its ghost showed, the heading the drag and R gave
                         Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(cmd.TkbType, terrainSpec, cmd.InitialTransform?.Rotation ?? Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth, cmd.InitialComponents, terrainPlacement.Seed, terrainPlacement.RotationDeg);
 

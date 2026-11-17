@@ -1,0 +1,46 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S3 \u2014 feature (golden).",
+  "runFor": 300,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "winchester": {
+      "on": "field",
+      "who": "Viper",
+      "path": "AirCombatState.Manoeuvre",
+      "op": "in",
+      "value": [
+        "Disengage",
+        12
+      ]
+    }
+  },
+  "expect": [
+    {
+      "name": "Viper fires",
+      "on": "shot",
+      "by": "Viper",
+      "n": 1
+    },
+    {
+      "name": "Viper disengages",
+      "on": "field",
+      "who": "Viper",
+      "path": "AirCombatState.Manoeuvre",
+      "op": "in",
+      "value": [
+        "Disengage",
+        12
+      ]
+    },
+    {
+      "name": "and leaves",
+      "on": "far",
+      "who": "Viper",
+      "from": "Fulcrum",
+      "m": 5000,
+      "after": "winchester"
+    }
+  ]
+}
