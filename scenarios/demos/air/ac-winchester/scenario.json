@@ -1,0 +1,103 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: a Veteran F-16 ('Viper') with an EMPTY gun attacks, from 7 km behind, a MiG that only flies straight and cannot be shot down (health 100 000 \u2014 the test is the winchester, not the kill) (CE-10003, AC-13). Judge: it fires its missiles; with none left it DISENGAGES (its AirCombatState) and is 5 km from the MiG inside 300 s."
+  },
+  "entities": {
+    "ac000018-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -7000,
+          0,
+          2100.8
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000018-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      },
+      "WeaponState": {
+        "Ammo": 0
+      }
+    },
+    "ac000018-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          2100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          200,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "IntentId": 1,
+        "FinalDestination": [
+          60000,
+          0,
+          2100
+        ],
+        "TargetSpeed": 200
+      }
+    }
+  }
+}

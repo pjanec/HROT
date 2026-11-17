@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.AmmoLoadout>();              // CE-7035 — what a forces man's weapon is loaded with (a baton round is no cover, CE-2239)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.BallisticProjectile>();      // CE-7035 — a lying round / stone a rioter may pick up (a live grenade is not a stone, CE-2238)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.FighterPilotState>();   // ⭐ CE-10003 (air combat RV-6) — a bandit's live "inbound" (one missile at a time); the MOTION node writes it, never the brain phase
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.AirArena>();            // ⭐ CE-10003 — the arena (AirArenaSystem writes it serially, before the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.EffectState>();                         // CE-7035 — an effect on a man (a rioter's target choice, CE-2238)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponAmmo>();               // CE-4610 — the SITREP ammo colour (StaffComposerSystem.AmmoOf): a man's rounds, a tick old
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();      // a member aboard

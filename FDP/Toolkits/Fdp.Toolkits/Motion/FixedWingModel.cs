@@ -43,13 +43,17 @@ namespace Fdp.Toolkit.Motion
             //   missile's path whatever the brain asked (GCAS, when it already holds the stick, keeps it; a G-LOC'd pilot does nothing)
             ThreatScan.Begin(f.World);
             if (ThreatScan.Scan(f.Self, f.Transform.Position, f.Velocity.Linear, ref pilot, out _, out var threatVel)
-                && pilot.ThreatTtiS < ThreatScan.LastDitchS && pilot.GcasActive == 0 && !GLocked(in f))
+                && pilot.ThreatTtiS < ThreatScan.LastDitchS && pilot.GcasActive == 0 && !GLocked(in f) && !LateWarned(in f))
             {
                 var now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(f.World);
                 if (pilot.LastDitchAt == SimInstant.Zero || (now - pilot.LastDitchAt).Seconds > 3f) pilot.LastDitchAt = now;
                 var lim = FighterLimits.Of(in p);
                 var body = BodyOf(in f, in p);
-                float g = Steer3D.Step(ref body, ThreatScan.LastDitchDirection(body.Vel, threatVel), lim.MaxG, 1f, in lim, dt);
+                // ⭐ CE-10005 (AC-12, R-10019) — the reflex pulls the g THIS pilot will pull (the steer's skill g), never more than the airframe's
+                float reflexG = f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
+                                && f.World.GetComponentRO<AirCombatSteer>(f.Self).MaxG > 0f
+                    ? MathF.Min(lim.MaxG, f.World.GetComponentRO<AirCombatSteer>(f.Self).MaxG) : lim.MaxG;
+                float g = Steer3D.Step(ref body, ThreatScan.LastDitchDirection(body.Vel, threatVel), reflexG, 1f, in lim, dt);
                 Apply(ref f, in body);
                 pilot.Throttle = 1f;
                 Track(ref f, ref pilot, g, dt);
@@ -159,6 +163,10 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>How far ahead (s) a lead pursuit leads its target (the gun's ~1 km/s round over a fight's range); a lag pursuit lags.</summary>
         public const float LeadSeconds = 0.8f, LagSeconds = 1.5f;
+        /// <summary>⭐ CE-10005 — inside this (m) a lead pursuit leads by the gun round's time of flight at <see cref="GunRoundMps"/>.</summary>
+        public const float GunLeadRangeM = 800f, GunRoundMps = 1000f;
+        /// <summary>⭐ CE-10005 — how much harder than a pursuit a gun track pulls out its error to the lead (× the error, added).</summary>
+        public const float GunTrackBoost = 2f;
         /// <summary>A manoeuvre with no throttle stated flies at this.</summary>
         public const float DefaultThrottle = 0.8f;
 
@@ -211,7 +219,27 @@ namespace Fdp.Toolkit.Motion
                     if (s.Manoeuvre == Manoeuvre.Break) throttle = 1f;
                     return Toward(b.Pos, aim, level);
                 case Manoeuvre.LeadPursuit:
-                    return Toward(b.Pos, hasTarget ? aim + tv * LeadSeconds : aim, level);
+                {
+                    // ⭐ CE-10005 (AC-8) — inside the gun's reach the lead is the ROUND's time of flight (r ÷ ~1 km/s), so the nose can meet the
+                    //   brain's 2° gun cone; 📐 measured on ac-guns-turning: the fixed 0.8 s lead held the nose ~10° off the gun's lead at 400 m
+                    //   and the gun never fired. Beyond GunLeadRangeM the 0.8 s lead (the two agree at that range)
+                    float lead = LeadSeconds;
+                    if (hasTarget)
+                    {
+                        float r = Vector3.Distance(b.Pos, aim);
+                        // the brain's GUN lead (its round, the target's acceleration) as an offset from the target — the pipper on the bandit
+                        if (r < GunLeadRangeM && s.Point != Vector3.Zero)
+                        {
+                            // the pilot TRACKS the pipper: the error to the lead is pulled out GunTrackBoost × harder than a pursuit's (📐 measured
+                            //   on ac-guns-turning: the plain proportional pull left the flight path a steady ~6° behind the lead of a 5 g target)
+                            var d = Toward(b.Pos, aim + s.Point, level);
+                            var tracked = d + (d - fwd) * GunTrackBoost;
+                            return tracked.LengthSquared() > 1e-6f ? Vector3.Normalize(tracked) : d;
+                        }
+                        if (r < GunLeadRangeM) lead = MathF.Max(0.15f, r / GunRoundMps);
+                    }
+                    return Toward(b.Pos, hasTarget ? aim + tv * lead : aim, level);
+                }
                 case Manoeuvre.LagPursuit:
                     return Toward(b.Pos, hasTarget ? aim - tv * LagSeconds : aim, level);
                 case Manoeuvre.Climb:
@@ -262,6 +290,12 @@ namespace Fdp.Toolkit.Motion
             => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
                && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse == PilotLapse.GLoc;
 
+        /// <summary>⭐ CE-10004 (AC-12, R-10016) — a pilot in a LateWarning or a Fixation lapse has not seen the missile yet: no last-ditch reflex (his 2 s late
+        /// reaction would come after the 2.5 s window anyway).</summary>
+        private static bool LateWarned(in MotionFrame f)
+            => f.World.IsComponentTypeRegistered<AirCombatSteer>() && f.World.HasComponent<AirCombatSteer>(f.Self)
+               && f.World.GetComponentRO<AirCombatSteer>(f.Self).Lapse is PilotLapse.LateWarning or PilotLapse.Fixation;
+
         /// <summary>A unit horizontal vector along a compass bearing (0 = north = +Y, clockwise).</summary>
         internal static Vector3 Bearing(float deg)
         {
@@ -274,6 +308,7 @@ namespace Fdp.Toolkit.Motion
         {
             pos = default; vel = default;
             if (t.IsNull || !w.IsAlive(t) || !w.HasComponent<SimTransform>(t)) return false;
+            if (ThreatScan.TickStart(t, out pos, out vel)) return true;   // ⭐ CE-10003 (RV-6) — the tick-start state, never a half-moved one
             pos = w.GetComponentRO<SimTransform>(t).Position;
             if (w.HasComponent<SimVelocity>(t)) vel = w.GetComponentRO<SimVelocity>(t).Linear;
             return true;

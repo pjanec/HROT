@@ -1,0 +1,96 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: a Veteran F-16 ('Viper') behind a recon drone flying straight north at 1.2 km (650 m ahead), ordered to attack it (CE-10003, AC-8, AC-13) \u2014 inside the missiles' 500 m minimum, so it is the GUN at the led point. Judge: a Viper GUN round (mount 0) hits the drone inside 60 s and the drone is destroyed inside 90 s."
+  },
+  "entities": {
+    "ac000015-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          -650,
+          1300.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0.0,
+          100.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000015-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000015-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          1300.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          40,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 407
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Hostile"
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "IntentId": 1,
+        "FinalDestination": [
+          0,
+          20000,
+          1300.0
+        ],
+        "TargetSpeed": 40
+      }
+    }
+  }
+}

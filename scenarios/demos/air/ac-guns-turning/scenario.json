@@ -1,0 +1,105 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an Ace F-16 ('Viper') 700 m behind a MiG ('Fulcrum') that flies a sustained 5 g level turn (an authored mode-8 Break at 5 g toward a point 400 m to its left \u2014 inside its turn circle, so it circles for ever; no behaviour, no weapons used; health 100 000 \u2014 the test is the gun, not the kill) (CE-10005, AC-8 / RV-10: the gun lead adds the target's acceleration). Judge: a Viper GUN round hits the turning MiG inside 120 s."
+  },
+  "entities": {
+    "ac000019-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          0,
+          2071.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          200.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000019-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Ace"
+      }
+    },
+    "ac000019-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          2100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          200,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "NavigationIntent": {
+        "Mode": "AirCombat",
+        "IntentId": 1
+      },
+      "AirCombatSteer": {
+        "Manoeuvre": "Break",
+        "Point": [
+          0,
+          400,
+          2100
+        ],
+        "MaxG": 5,
+        "Throttle": 0.8,
+        "FloorAgl": 300
+      }
+    }
+  }
+}

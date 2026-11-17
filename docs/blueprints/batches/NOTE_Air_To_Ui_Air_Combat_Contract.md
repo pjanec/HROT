@@ -29,6 +29,7 @@ Every type below **compiles and is registered today**; the behaviour behind it a
 | its entity class | **`TwinEngineFighter`** = `1.2.*.1.200` (under `Fighter` 1.2.*.1) | `EntityClassTable` |
 | munitions AIM-9X · AIM-120 · R-73 · R-77 class · M61 20 mm HEI · GSh-30-1 30 mm HEI | **6060 · 6061 · 6062 · 6063 · 6064 · 6065** | `MunitionTkbCatalog.TkbAim9x …` |
 | weapon category air-to-air | **`WeaponCategory.AirToAir = 13`** | `TurretSuiteDto.cs` |
+| ⭐ TKB the **Air Arena** (S4, R-10013) — ui's picker row (R-1060) keys on it | **8840** (a map graphic, no body; its `AirArena` component arrives when placed / loaded) | `TkbEntityTypes.AirArena` |
 
 ⚠ **How the five component ids were found (R-10000):** a full scan of every `[ComponentId]`, every `*Ids` constant and every literal on coordinator,
 behaviors, backend, ui, terrain, convoy and the three `exp/agg-*` branches. 128, 160, 277, 278, 279 were the ONLY ids nobody declares or uses —
@@ -41,8 +42,8 @@ whose own file declares only 262–269; the note is corrected.
 |---|---|---|
 | `AirCombatSteer` | `Manoeuvre Manoeuvre` · `PilotLapse Lapse` · `Entity Target` · `Entity Arena` · `Vector3 Point` · `float Throttle` (0…1) · `float FloorAgl` · `float MaxG` | Brain group · `dtAirCombatSteer` (ids as network ids) |
 | `FighterPilotState` | `float GLoad` · `float Throttle` (0…1, 1 = full afterburner) · `byte GcasActive` · `ushort GcasCount` · `float MinAgl` · `byte Inbound` · `float ThreatBearingDeg` · `GuidanceKind ThreatSeeker` · `float ThreatClosureMps` · `float ThreatTtiS` · `SimInstant LastDitchAt` · `byte Defeated` · `float SpeedMps` | Muscle group · `dtFighterPilotState` (sent on a change of its rounded values: 0.1 g, 0.05 throttle) |
-| `AirCombatState` | `Entity Target` · `Manoeuvre` · `PilotSkill Skill` · `PilotLapse Lapse` · `PilotLapse ForcedLapse` · `SimInstant LapseUntil, NextDecision, LastShotAt` · `byte Kills, Shots` · `float HighGSeconds` | brain, not replicated; `Skill` / `ForcedLapse` authored |
-| `MissileDefenceState` | `MissileDefencePhase Phase` · `GuidanceKind Seeker` · `byte Decoys, Resume` · `SimInstant StartedAt, WarnedAt, LastDecoyAt` · `ushort Count` | brain, not replicated |
+| `AirCombatState` | `Entity Target` · `Manoeuvre` · `PilotSkill Skill` · `PilotLapse Lapse` · `PilotLapse ForcedLapse` · `SimInstant LapseUntil, NextDecision, LastShotAt` · `byte Kills, Shots` · `float HighGSeconds` · ⭐ (S3, appended) `byte GunMount, IrMount, RadarMount` · `uint MissileAction` · `Vector3 TargetVel, TargetAccel` · `float TargetVelAt` · `SimInstant StartedAt` | brain, not replicated; `Skill` / `ForcedLapse` authored |
+| `MissileDefenceState` | `MissileDefencePhase Phase` · `GuidanceKind Seeker` · `byte Decoys, Resume` · `SimInstant StartedAt, WarnedAt, LastDecoyAt` · `ushort Count` · ⭐ `ushort DecoysTotal` (S2, appended) | brain, not replicated |
 | `AirArena` | `Vector3 Centre` · `float RadiusM, FloorAglM, CeilingAglM, MaxShotRangeM, StalemateSeconds` · `byte LapsesOff` · `SimInstant LastHitAt` | Brain group · `dtAirArena`; saved with the scenario |
 
 | enum | values |
@@ -63,6 +64,14 @@ whose own file declares only 262–269; the note is corrected.
 | the four AAM looks, the two guns' tracers | `MunitionTkbCatalog.BuiltInLooks[6060…6065]` — ⚠ PLACEHOLDER rows (plain `Missile` with a smoke trail; the guns trace); ui replaces them |
 
 `MissileDto` gained (all 0 = the old constant-speed round): `BurnSeconds` · `MaxG` · `DragPerS` · `MinSpeedMps` · `SteerLagS`.
+
+## ⭐ The employment zone — for the HUD (S3, AC-8)
+
+`Fdp.Toolkit.Combat.EmploymentZone` (public static, allocation-free — the ONE zone the brain shoots by and the HUD shows):
+`EmploymentZone.Of(MissileDto, shooterPos, shooterVel, targetPos, targetVel)` → `(Max, NoEscape)` metres · `EmploymentZone.Inside(…, fraction, noEscape)`
+· `EmploymentZone.MinRangeM` (500 m). The missile is `CombatTkb.MissileOf(world, mount.AmmoGuid)`. ⭐ ui's `FighterHud` `ZoneStandIn` can be replaced by it
+(IN ZONE = `Inside(…, 1f, false)`, LOCK = inside the no-escape range), and the shot cap is the arena's `MaxShotRangeM`. The gun's pipper with the target's
+acceleration: `TargetLead.PointAccelerating(…, targetAccel)`.
 
 ## What changes when
 

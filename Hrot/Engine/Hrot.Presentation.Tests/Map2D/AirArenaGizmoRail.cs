@@ -27,6 +27,22 @@ public sealed class AirArenaGizmoRail
 {
     private static readonly ArenaShape Arena = new(new Vector2(1000f, 2000f), 6000f, 150f, 4000f);
 
+    /// <summary>⭐ CE-4647 (R-1060) — the picker lists the arena (point tool, Map Graphics) and a placed one is BORN with the default AirArena centred on the click, never twice.
+    /// 🔴 Red-proof: drop the <c>AirArena</c> branch from <c>GameplayBirth.BornWith</c> ⇒ no component.</summary>
+    [Fact]
+    public void ThePickerListsTheArena_AndAPlacedOneIsBornWithAnAirArenaCentredOnTheClick()
+    {
+        Assert.Equal(Hrot.UI.Common.AddEntity.PlacementToolKind.Point, Hrot.UI.Common.AddEntity.PlacementToolRegistry.ToolFor(Hrot.Map.Common.TkbEntityTypes.AirArena));
+        Assert.False(Hrot.UI.Common.AddEntity.PlacementToolRegistry.HasSide(Hrot.Map.Common.TkbEntityTypes.AirArena));
+        var comps = new System.Collections.Generic.List<object>();
+        Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.AirArena, comps, new Vector3(1234f, -567f, 9f));
+        Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(Hrot.Map.Common.TkbEntityTypes.AirArena, comps, new Vector3(1f, 1f, 0f));
+        var born = Assert.Single(comps);
+        var a = Assert.IsType<Fdp.Toolkit.Motion.AirArena>(born);
+        Assert.Equal(1234f, a.Centre.X); Assert.Equal(-567f, a.Centre.Y);
+        Assert.True(a.RadiusM > 0f);
+    }
+
     private static int Lines(DebugPrimitiveBuffer b, Rgba32 colour)
     {
         int n = 0; var f = b.GetFrame();

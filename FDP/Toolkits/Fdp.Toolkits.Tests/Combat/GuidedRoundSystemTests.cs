@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Systems;
 using Fdp.Toolkit.Physics.Components;
@@ -400,9 +401,11 @@ namespace Fdp.Toolkit.Combat.Tests
         private static GuidedRound IrAam(Vector3 launchVel) => new()
         {
             Guidance = GuidanceKind.InfraRed, SpeedMps = 850f, SpeedNow = MathF.Max(30f, launchVel.Length()),
-            BurnLeftS = 5f, BoostMps2 = (850f - MathF.Max(30f, launchVel.Length())) / 5f, MaxG = 40f, DragPerS = 40f, MinSpeedMps = 300f,
+            BurnLeftS = 5f, BoostMps2 = (850f - MathF.Max(30f, launchVel.Length())) / 5f, MaxG = 50f, DragPerS = 40f, MinSpeedMps = 300f,
             SteerLagS = 0.4f, SteerDir = Vector3.Normalize(launchVel), ProximityM = 8f,
         };
+        /// <summary>⭐ R-10018 — the IR AAM's flare rejection (the catalogue's).</summary>
+        private const float FlareRejection = 0.82f;
 
         /// <summary>
         /// One engagement, both bodies stepped at 60 Hz: the round homes on the jet's lead (<c>TargetLead.Point</c>, as the system does) through
@@ -430,11 +433,15 @@ namespace Fdp.Toolkit.Combat.Tests
             var g = IrAam(launchVel);
             var mPos = from; var mVel = launchVel;
             const float dt = 1f / 60f;
+            // ⭐ R-10018 — the defence's FLARES, by the system's own rule (CountermeasureSystem.Seduce: one seeded draw per flare, at or above
+            //   the round's Rejection it is rejected): one per 0.5 s while beaming / breaking (inside 4 s to go), at most 4
+            var flareRng = new Random(seed * 7919 + 17);
+            int flares = 0; float nextFlare = 0f;
             for (int i = 0; i < 60 * 30; i++)
             {
                 float t = i * dt;
                 // the round: lead pursuit through the lag and the motor
-                var lead = TargetLead.Point(mPos, Vector3.Zero, g.SpeedMps, jet.Pos, jet.Vel);
+                var lead = TargetLead.Point(mPos, Vector3.Zero, MathF.Max(g.SpeedNow, 1f), jet.Pos, jet.Vel);   // ⭐ R-10018 — on its CURRENT speed, as the system
                 var to = lead - mPos;
                 bool defeated = GuidedRoundSystem.Motor(ref g, ref mVel, to.LengthSquared() > 1e-6f, to.LengthSquared() > 1e-6f ? Vector3.Normalize(to) : mVel, dt);
                 if (defeated) { end = $"defeated at {t:F1} s"; return false; }
@@ -450,6 +457,11 @@ namespace Fdp.Toolkit.Combat.Tests
                 if (t >= reactS)
                     want = tti > 4f ? Vector3.Normalize(away + new Vector3(0, 0, -0.1f)) : Vector3.Normalize(across + new Vector3(0, 0, -0.15f));
                 if (t >= reactS && tti < 2.5f) want = across;
+                if (t >= reactS && tti <= 4f && flares < 4 && t >= nextFlare)
+                {
+                    flares++; nextFlare = t + 0.5f;
+                    if (flareRng.NextDouble() >= FlareRejection) { end = $"seduced at {t:F1} s"; return false; }
+                }
                 Fdp.Toolkit.Motion.Steer3D.Step(ref jet, want, 9f, 1f, in l, dt);
                 // the proximity fuze over this step (the system's own rule: the closest point of the round's step)
                 float len2 = step.LengthSquared();
@@ -479,13 +491,14 @@ namespace Fdp.Toolkit.Combat.Tests
                 if (Engage(seed, reactS: 999f)) none++;     // no defence at all
             }
             string all = $"of {Shots}: timely {timely}, late {late}, none {none}";
-            Assert.True(timely >= 6 && timely <= 30, "timely outside its stated band 6…30 — " + all);
-            Assert.True(late >= 25 && late <= 60, "late outside its stated band 25…60 — " + all);
-            Assert.True(none >= 120 && none <= 180, "no defence outside its stated band 120…180 — " + all);
-            Assert.True(late >= 2 * timely && none >= 2 * late, "the defence is not what saves it — " + all);
+            // ⭐ R-10018 (user 2026-11-17: "Harden as you lean." — the bands: undefended ≈ 90 %, late 40–60 %, timely 10–25 %)
+            Assert.True(timely >= 30 && timely <= 75, "timely outside 10…25 % — " + all);
+            Assert.True(late >= 120 && late <= 180, "late outside 40…60 % — " + all);
+            Assert.True(none >= 255 && none <= 291, "no defence outside 85…97 % — " + all);
+            Assert.True(late >= timely + 30 && none >= late + 60, "the defence is not what saves it — " + all);
         }
 
-        /// <summary>⭐ R-10007 — the seeded shots per profile. 📐 Measured `2026-11-17` (300 seeds): timely 16 (5 %), late 38 (13 %), none 150 (50 %).</summary>
+        /// <summary>⭐ R-10007 — the seeded shots per profile. 📐 Measured `2026-11-17` (300 seeds) with the §5b round: timely 16 (5 %), late 38 (13 %), none 150 (50 %) — SUPERSEDED by R-10018 (the measured numbers are in the design's §5b).</summary>
         private const int Shots = 300;
 
         /// <summary>⭐ AC-6 — the motor: it boosts to its speed over the burn, coasts losing DragPerS, and is DEFEATED below its minimum.</summary>
@@ -516,5 +529,54 @@ namespace Fdp.Toolkit.Combat.Tests
             // turn rate = g·9.81 / v ⇒ at half speed: a quarter of the g at half the speed = half the rate
             Assert.Equal(0.5f, half / full, 2);
         }
-}
+
+        // ── ⭐⭐ CE-10003 (air combat AC-8, RV-10) — the employment zone and the accelerating gun lead ─────────────────────────────────
+
+        private static MissileDto Ir() => new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 850f, BurnSeconds = 5f, MaxG = 40f, DragPerS = 40f, MinSpeedMps = 300f };
+
+        /// <summary>
+        /// ⭐ CE-10003 — the zone from the motor model (§5b IR): a tail chase on a 220 m/s target reaches ~6.4 km; the no-escape range is shorter
+        /// than the max; a head-on target (closing) is reachable much farther; a constant-speed round (no motor) is not limited by a burn-out.
+        /// (the mutant that reddens it, not run:) the coast's drag ignored ⇒ the tail-chase max runs to the 60 s cap (> 30 km) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10003_TheZone_TailChaseShorterThanHeadOn_NoEscapeInsideMax()
+        {
+            float tail = EmploymentZone.MaxRange(Ir(), 220f, 220f);
+            float head = EmploymentZone.MaxRange(Ir(), 220f, -220f);
+            float noEscape = EmploymentZone.MaxRange(Ir(), 220f, 400f);
+            Assert.InRange(tail, 5500f, 7500f);
+            Assert.True(head > tail + 4000f, $"head-on {head:0} vs tail {tail:0}");
+            Assert.True(noEscape < tail, $"no-escape {noEscape:0} vs max {tail:0}");
+            var (max, ne) = EmploymentZone.Of(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f));
+            Assert.InRange(max, 5500f, 7500f);
+            Assert.True(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f), 0.8f, false));
+            Assert.False(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(6900f, 0f, 0f), new Vector3(220f, 0f, 0f), 0.8f, false));
+            Assert.False(EmploymentZone.Inside(Ir(), Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(300f, 0f, 0f), new Vector3(220f, 0f, 0f), 1f, false));   // inside the minimum
+            Assert.True(ne <= max);   // a pure tail chase: the target already runs straight away — the two ranges meet
+            // ⛔ no allocation in the zone maths (CLAUDE.md hot path): a steady call allocates nothing
+            var ir = Ir();
+            EmploymentZone.Of(ir, Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f, 0f, 0f), new Vector3(220f, 0f, 0f));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) EmploymentZone.Of(ir, Vector3.Zero, new Vector3(220f, 0f, 0f), new Vector3(3000f + i, 0f, 0f), new Vector3(220f, 0f, 0f));
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>
+        /// ⭐ CE-10003 (RV-10) — the gun lead on a TURNING target adds ½·a·t²: a 9 g turn at 800 m is ~28 m the straight lead misses; zero
+        /// acceleration is the straight lead. (the mutant that reddens it, not run:) the acceleration term dropped ⇒ the two leads equal ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10003_TheGunLead_AddsTheTargetsAcceleration()
+        {
+            var shooter = Vector3.Zero; var sv = new Vector3(200f, 0f, 0f);
+            var target = new Vector3(800f, 0f, 0f); var tv = new Vector3(0f, 200f, 0f); var a = new Vector3(-88f, 0f, 0f);   // 9 g toward its turn centre
+            var straight = TargetLead.Point(shooter, sv, 1030f, target, tv);
+            Assert.Equal(straight, TargetLead.PointAccelerating(shooter, sv, 1030f, target, tv, Vector3.Zero));
+            var turning = TargetLead.PointAccelerating(shooter, sv, 1030f, target, tv, a);
+            float t = TargetLead.FlightTime(shooter, sv, 1030f, target, tv);
+            Assert.InRange(Vector3.Distance(straight, turning), 0.5f * 88f * t * t - 0.5f, 0.5f * 88f * t * t + 0.5f);
+            Assert.InRange(Vector3.Distance(straight, turning), 15f, 40f);   // 📐 19 m at 800 m with a 1 030 m/s round
+        }
+    }
 }

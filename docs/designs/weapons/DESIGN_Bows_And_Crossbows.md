@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-17
 build-state: READY-TO-BUILD — BW-1…BW-13 ✅ APPROVED `2026-11-17` (R-4289); BW-14 withdrawn → Animals AN-20, ⛔ NOT approved
-current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the first fun content (NA-1…NA-7, not approved)
+current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the first fun content (NA-1…NA-7, approved R-4290)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -212,7 +212,7 @@ ring score from a mark; the held bow drawn while aiming (frame vs mockup).
 | **S3 the looks** (ui, from S1) | BW-3, BW-10, the stuck draws — mockups first | the frame rails vs mockups |
 | **S4 riders and the contest** | BW-8 (+ the scenario), BW-11 (target prop + scoring) | `bw-mounted-archers`, `bw-archery-contest` |
 
-## 9. The first fun content — the Native American archer and the mounted archer *(coordinator, `2026-11-17`; ⛔ NOT approved; the fun pack, CE-4650)*
+## 9. The first fun content — the Native American archer and the mounted archer *(coordinator, `2026-11-17`; ✅ APPROVED `2026-11-17` (R-4290); the fun pack, CE-4650)*
 
 🔒 User, `2026-11-17`: *"please add also an Indian guy with the bow. As one of the first funny items. and the one who can ride horse and shoot from his back."*
 

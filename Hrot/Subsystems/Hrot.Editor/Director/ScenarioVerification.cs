@@ -188,6 +188,9 @@ namespace Hrot.Editor.Director
                 }
                 case "knowledge":
                     return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
+                case "far":
+                case "close":
+                    return _w.World is { } dw && DistanceHolds(dw, c) ? _rel : null;
                 default:
                 {
                     // a task cue may name several behaviours: any of them
@@ -229,6 +232,38 @@ namespace Hrot.Editor.Director
                     for (int col = 0; col < g.Cols; col++)
                         if (table.Knows((int)force, field, col, r) == want) n++;
                 if (Compare(JsonValue.Create(n), c.Op, c.Value)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ CE-10002 (air combat RV-15, R-10012) — <c>far</c> / <c>close</c>: some unit <see cref="AnchorSpec.Who"/> names is more than (<c>far</c>) /
+        /// within (<c>close</c>) <see cref="CheckCue.M"/> of the unit <see cref="CheckCue.From"/> names (3-D; the nearest of them) or of
+        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing.
+        /// </summary>
+        private bool DistanceHolds(EntityRepository world, CheckCue c)
+        {
+            if (c.Spec.Who is not { } who) return false;
+            bool far = c.On == "far";
+            foreach (var id in UnitsNamed(who))
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (e.IsNull || !world.HasComponent<SimTransform>(e)) continue;
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                float d = float.MaxValue;
+                if (c.From != null)
+                {
+                    foreach (var fid in UnitsNamed(c.From))
+                    {
+                        var f = new Fdp.Toolkit.Replication.EntityRef(fid).Resolve(world);
+                        if (f.IsNull || f == e || !world.HasComponent<SimTransform>(f)) continue;
+                        d = MathF.Min(d, System.Numerics.Vector3.Distance(at, world.GetComponentRO<SimTransform>(f).Position));
+                    }
+                    if (d == float.MaxValue) continue;
+                }
+                else if (c.Spec.Point is { } p) d = System.Numerics.Vector2.Distance(new System.Numerics.Vector2(at.X, at.Y), p);
+                else continue;
+                if (far ? d > c.M : d <= c.M) return true;
             }
             return false;
         }

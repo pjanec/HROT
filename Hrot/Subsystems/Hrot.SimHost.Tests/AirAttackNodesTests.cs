@@ -1732,5 +1732,114 @@ namespace Hrot.SimHost.Tests
             _w.SetSingleton(new GlobalTime { TotalTime = 81.0 });
             Assert.Equal(NodeStatus.Success, AirArmedSearchBehavior.Search(ref p, ref ws, heli, _w));
         }
+
+        // ── ⭐⭐ CE-10002 (air combat AC-9, RV-2 / RV-3) — THE ONE missile defence, on its fighter path ───────────────────────────────
+
+        private Entity Fighter(Vector3 at, Vector3 vel)
+        {
+            Reg<Fdp.Toolkit.Motion.FighterPilotState>(); Reg<Fdp.Toolkit.Motion.MissileDefenceState>(); Reg<Fdp.Toolkit.Motion.Locomotion>();
+            var e = _w.CreateEntity();
+            _w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            _w.AddComponent(e, new SimVelocity { Linear = vel });
+            _w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            _w.AddComponent(e, new Fdp.Toolkit.Motion.FighterPilotState { MinAgl = float.MaxValue });
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐ CE-10002 (AC-9) — a fighter's defence: STARTED by the launch only after the pilot's reaction; it reads the LIVE threat from
+        /// <see cref="Fdp.Toolkit.Motion.FighterPilotState"/> — an IR missile 6 s out is DRAGGED, at 3 s it is BEAMED; the motion node's reflex
+        /// shows as LastDitch; it ENDS when nothing is inbound (not on the launch snapshot's time).
+        /// (the mutant that reddens it, not run:) the snapshot's time instead of the live count ⇒ the defence still runs at the end ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10002_TheFighterDefence_DragsFar_BeamsNear_EndsWhenNothingIsInbound()
+        {
+            var jet = Fighter(new Vector3(0f, 0f, 2000f), new Vector3(220f, 0f, 0f));
+            var flight = new MissileDefence.Flight { Fighter = true, ReactionS = 0.7f };
+            ref var live = ref _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet);
+            live.Inbound = 1; live.ThreatSeeker = Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed; live.ThreatTtiS = 6f; live.ThreatBearingDeg = 270f;
+            Warn(jet, new Vector3(-3000f, 0f, 2000f), Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed, 30f, 10.0);
+            var ds = default(Fdp.Toolkit.Motion.MissileDefenceState);
+
+            Assert.False(MissileDefence.Run(_w, jet, ref ds, 10.3, in flight, out _, out _));        // inside the reaction: not yet
+            Assert.True(MissileDefence.Run(_w, jet, ref ds, 10.8, in flight, out var m, out bool started));
+            Assert.True(started);
+            Assert.Equal(Fdp.Toolkit.Motion.Manoeuvre.Drag, m);
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Drag, ds.Phase);
+
+            _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet).ThreatTtiS = 3f;
+            Assert.True(MissileDefence.Run(_w, jet, ref ds, 12.0, in flight, out m, out _));
+            Assert.Equal(Fdp.Toolkit.Motion.Manoeuvre.Beam, m);
+
+            _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet).LastDitchAt = (SimInstant)12.5;
+            Assert.True(MissileDefence.Run(_w, jet, ref ds, 13.0, in flight, out m, out _));
+            Assert.Equal(Fdp.Toolkit.Motion.Manoeuvre.LastDitch, m);
+
+            _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet).Inbound = 0;   // beaten — the snapshot said 30 s
+            Assert.False(MissileDefence.Run(_w, jet, ref ds, 14.0, in flight, out _, out _));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.None, ds.Phase);
+            Assert.Equal(1, ds.Count);
+        }
+
+        /// <summary>
+        /// ⭐ CE-10005 (AC-12, R-10019) — skill on the DEFENCE: a radar missile 6 s out is BEAMED by a Veteran (AC-9), DRAGGED by an Ace (a far
+        /// shot runs out of energy behind him); a Rookie never drags (an IR missile 6 s out is beamed). Red-proven: the Ace's reading forced
+        /// back to the Veteran's ⇒ the Ace beams ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10005_SkillOnTheDefence_TheAceDragsARadarShot_TheRookieNeverDrags()
+        {
+            Fdp.Toolkit.Motion.MissileDefencePhase PhaseFor(MissileDefence.Reading read, Fdp.Toolkit.Tkb.Domain.GuidanceKind seeker)
+            {
+                var jet = Fighter(new Vector3(0f, 0f, 2000f), new Vector3(220f, 0f, 0f));
+                ref var live = ref _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet);
+                live.Inbound = 1; live.ThreatSeeker = seeker; live.ThreatTtiS = 6f; live.ThreatBearingDeg = 270f;
+                Warn(jet, new Vector3(-3000f, 0f, 2000f), seeker, 30f, 10.0);
+                var ds = default(Fdp.Toolkit.Motion.MissileDefenceState);
+                var flight = new MissileDefence.Flight { Fighter = true, ReactionS = 0.3f, Read = read };
+                Assert.True(MissileDefence.Run(_w, jet, ref ds, 10.5, in flight, out _, out _));
+                return ds.Phase;
+            }
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Beam, PhaseFor(MissileDefence.Reading.Veteran, Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Drag, PhaseFor(MissileDefence.Reading.Ace, Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Beam, PhaseFor(MissileDefence.Reading.Rookie, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Drag, PhaseFor(MissileDefence.Reading.Veteran, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed));
+        }
+
+        /// <summary>
+        /// ⭐ CE-10005 (AC-10, R-10020) — the MERGE: the aim point passes the arena's centre 300 m to the pilot's RIGHT (two pilots from opposite
+        /// sides pass left-to-left, 600 m apart); the merge ends at the pass (the bandit behind the wing line) or inside 1 km.
+        /// </summary>
+        [Fact]
+        public void CE10005_TheMerge_PassesLeftToLeft_AndEndsAtThePass()
+        {
+            var arena = new Fdp.Toolkit.Motion.AirArena { Centre = new Vector3(0f, 0f, 100f), RadiusM = 4000f };
+            var west = AirCombatNodes.MergePoint(new Vector3(-4000f, 0f, 2000f), in arena);
+            var east = AirCombatNodes.MergePoint(new Vector3(4000f, 0f, 2000f), in arena);
+            Assert.Equal(-AirCombatNodes.MergeOffsetM, west.Y, 1);   // heading east, its right is south
+            Assert.Equal(AirCombatNodes.MergeOffsetM, east.Y, 1);
+            Assert.False(AirCombatNodes.Passed(new Vector3(-2000f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(2000f, 300f, 2000f)));
+            Assert.True(AirCombatNodes.Passed(new Vector3(500f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(-500f, 300f, 2000f)) );
+            Assert.True(AirCombatNodes.Passed(new Vector3(-350f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(350f, 300f, 2000f)));   // inside 1 km
+        }
+
+        /// <summary>
+        /// ⭐ CE-10003 (air combat RV-3) — a radar carried by an AIRCRAFT (a fighter's own) tracking a jet does not trigger RS-6's escape;
+        /// a ground radar does. (the mutant that reddens it, not run:) the exemption removed ⇒ the aircraft emitter counts ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10003_AFightersRadar_DoesNotTriggerTheRadarEscape_AGroundRadarDoes()
+        {
+            Reg<RadarWarning>();
+            var jet = Fighter(new Vector3(0f, 0f, 2000f), new Vector3(220f, 0f, 0f));
+            var bandit = Fighter(new Vector3(4000f, 0f, 2000f), new Vector3(-220f, 0f, 0f));
+            var ground = _w.CreateEntity();
+            _w.AddComponent(ground, new SimTransform { Position = new Vector3(4000f, 0f, 0f), Rotation = Quaternion.Identity });
+            _w.AddComponent(jet, new RadarWarning { Level = RadarWarningLevel.Tracked, Emitter = bandit, BearingDeg = 90f });
+            Assert.False(MissileDefence.RadarTracked(_w, jet));
+            _w.GetComponentRW<RadarWarning>(jet).Emitter = ground;
+            Assert.True(MissileDefence.RadarTracked(_w, jet));
+        }
     }
 }

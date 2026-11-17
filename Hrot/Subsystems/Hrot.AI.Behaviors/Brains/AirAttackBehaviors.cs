@@ -40,6 +40,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// hover over the point, drops one round when it stands over it (the hover release cue, <c>BombBallistics.ReleaseNow</c>), and flies
         /// back to where it started — it lives to drop again.</summary>
         HoverDrop = 7,
+        /// <summary>⭐⭐ CE-10003 (air combat AC-13, R-2015) — an Attack on an AIRCRAFT by a fighter with an air-to-air weapon: the dogfight
+        /// (<see cref="AirCombatNodes"/>, mode 8).</summary>
+        AirCombat = 8,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -343,6 +346,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MinEvadeS = 4f, EvadeMarginS = 2f;
         /// <summary>⭐ <c>CE-2191</c> — a helicopter breaks DOWN to this height above the target's ground (m); a plane keeps its pass height.</summary>
         public const float EvadeHeightAglRotor = 25f;
+        /// <summary>⭐ CE-10005 (R-10023) — a plane's missile break flies no lower than this above the ground (m).</summary>
+        public const float EvadeHeightAglPlane = 150f;
         /// <summary>⭐ <c>CE-2191</c> — how much of the break turns AWAY from the missile (the rest puts it on the beam).</summary>
         public const float EvadeDragFraction = 0.3f;
 
@@ -398,11 +403,19 @@ namespace Hrot.AI.Behaviors.Brains
             if (entity)
             {
                 // ⭐ B14 — the attack on an entity ends the moment it is destroyed; until then the point follows it (B13)
-                if (!Injury.IsInTheFight(world, p.Target)) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+                if (!Injury.IsInTheFight(world, p.Target) && ws.Profile != AirAttackProfile.AirCombat) { StopFire(world, self, ref ws); return NodeStatus.Success; }
                 if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var now3, out _)) p.Point = now3;
             }
             var target = p.Point;
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+
+            // ⭐⭐ CE-10003 (AC-13, R-2015) — an Attack on an AIRCRAFT by a fighter: the air-combat profile of this ONE attack
+            if (entity && (ws.Profile == AirAttackProfile.AirCombat || (ws.Stage == StageStart && AirCombatNodes.Applies(world, self, p.Target))))
+            {
+                ws.Profile = AirAttackProfile.AirCombat;
+                ws.Stage = StageRunIn;
+                return AirCombatNodes.Fight(ref p, ref ws, self, world, now);
+            }
 
             if (ws.Stage == StageStart)
             {
@@ -452,10 +465,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Profile == AirAttackProfile.HoverDrop) return HoverDrop(ref p, ref ws, self, world, at, target, now);
 
             // ⭐ CE-2191 (§7e) — a missile warning interrupts any stage: decoys, a break onto the missile's beam, then the attack comes round
-            if (NewWarning(world, self, ref ws, now)) BeginEvade(ref p, ref ws, self, world, at);
-            if (ws.Stage == StageEvade) return Evade(ref p, ref ws, self, world, at, target, now);
-            // ⭐ CE-4617 (B-4, RS-6) — a radar TRACKING it (its own RadarWarning, derived on this node): off the radar's bearing and down
-            //   below its clutter floor; the attack comes round 8 s after the track ends, and that pass is NOT counted (a radar abort)
+            //   ⭐⭐ CE-10002 (AC-9, RV-14) — through THE ONE missile defence (MissileDefence.Run, a MoveTo flight): started by the launch,
+            //   held while the motion node's live threat says a round is inbound (else the launch snapshot), state in MissileDefenceState
+            if (Defend(ref p, ref ws, self, world, at, now)) return NodeStatus.Running;
+            if (ws.Stage == StageEvade) return ComeRound(ref p, ref ws, self, world, at, target, countPass: true);
+            // ⭐ CE-4617 (B-4, RS-6) — a GROUND radar TRACKING it (its own RadarWarning, derived on this node): off the radar's bearing and down
+            //   below its clutter floor; the attack comes round 8 s after the track ends, and that pass is NOT counted (a radar abort).
+            //   ⭐ RV-3 — a fighter's radar (an aircraft emitter) is exempt (MissileDefence.RadarTracked)
             if (RadarTracked(world, self))
             {
                 if (ws.Stage != StageRadarEvade) BeginRadarEvade(ref p, ref ws, self, world, at);
@@ -732,17 +748,6 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static Vector4 Sample(in AirAttackState ws, int i) => i switch { 0 => ws.Seen0, 1 => ws.Seen1, 2 => ws.Seen2, _ => ws.Seen3 };
 
-        /// <summary>⭐ <c>CE-2191</c> — a warning this attack has not answered yet, about a missile still in the air (a warning older than its
-        /// time to impact and the margin is a missile already gone — an attack that starts later ignores it).</summary>
-        private static bool NewWarning(EntityRepository world, Entity self, ref AirAttackState ws, double now)
-        {
-            if (!world.IsComponentTypeRegistered<MissileWarning>() || !world.HasComponent<MissileWarning>(self)) return false;
-            var w = world.GetComponentRO<MissileWarning>(self);
-            if (w.At <= ws.WarnedAt) return false;
-            ws.WarnedAt = w.At;
-            return now <= w.At + MathF.Max(w.TimeToImpactS, MinEvadeS) + EvadeMarginS;
-        }
-
         /// <summary>⭐ <c>CE-2191</c> — the decoy that fools the warned seeker: a flare an infra-red one, chaff a radar one; none for a
         /// command-guided or fire-and-forget missile (the break alone).</summary>
         public static DecoyKind? DecoyFor(Fdp.Toolkit.Tkb.Domain.GuidanceKind seeker) => seeker switch
@@ -761,54 +766,40 @@ namespace Hrot.AI.Behaviors.Brains
             => kind == DecoyKind.Chaff && w.TimeToImpactS - (now - (double)w.At) > Fdp.Toolkit.Combat.Systems.CountermeasureSystem.ChaffEndGameS;
 
         /// <summary>
-        /// ⭐ <c>CE-2191</c> — the break: the weapon stops, and the aircraft turns to put the missile on its BEAM (90° to the line to the missile,
-        /// on the side nearer its heading, a little away from it — the line-of-sight rate a 30°/s seeker cannot follow) and flies
-        /// <see cref="BreakAwayM"/> out; a helicopter also drops to <see cref="EvadeHeightAglRotor"/>. A second warning re-breaks.
+        /// ⭐⭐ CE-10002 (AC-9) — the attack's missile defence, through <see cref="MissileDefence.Run"/> (a MoveTo flight: the beam break
+        /// <see cref="BreakAwayM"/> out; a helicopter drops to <see cref="EvadeHeightAglRotor"/>, a plane keeps its height). True while it runs;
+        /// on its first frame the weapon stops and the stage to come back to is kept. A second launch re-breaks.
         /// </summary>
-        private static void BeginEvade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at)
+        private static bool Defend(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, double now)
         {
-            StopFire(world, self, ref ws);
-            if (ws.Stage != StageEvade) ws.Resume = ws.Stage == StageOrbit ? StageOrbit : StageRunIn;
-            ws.Stage = StageEvade;
-            ws.Decoys = 0;
-            var w = world.GetComponentRO<MissileWarning>(self);
-            ws.EvadeUntil = w.At + MathF.Max(w.TimeToImpactS, MinEvadeS) + EvadeMarginS;
-            float b = w.BearingDeg * (MathF.PI / 180f);
-            var toMissile = new Vector2(MathF.Sin(b), MathF.Cos(b));   // 0 = north (+Y), clockwise
-            var beam = new Vector2(toMissile.Y, -toMissile.X);
-            var heading = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out _, out var v) && v.X * v.X + v.Y * v.Y > 1f
-                ? Vector2.Normalize(new Vector2(v.X, v.Y)) : ws.Dir;
-            if (Vector2.Dot(beam, heading) < 0f) beam = -beam;
-            var dir = Vector2.Normalize(beam - toMissile * EvadeDragFraction);
+            var before = MissileDefence.Load(world, self);
+            var ds = before;
             bool rotor = Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
-            float height = rotor ? EvadeHeightAglRotor : at.Z - p.Point.Z;
-            var to = at + new Vector3(dir * BreakAwayM, 0f);
-            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + height), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
+            // ⭐ CE-10005 (R-10023) — a PLANE breaks at no less than EvadeHeightAglPlane above the ground under it: 📐 measured on ac-attack-evades,
+            //   the A-10's beam break "at its height" from a 16 m gun-run pass flew into the hills and it crashed
+            float planeZ = MathF.Max(at.Z, (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f) + EvadeHeightAglPlane);
+            var flight = new MissileDefence.Flight { Fighter = false, MoveZ = rotor ? p.Point.Z + EvadeHeightAglRotor : planeZ, Speed = p.Speed, FallbackDir = ws.Dir };
+            bool defending = MissileDefence.Run(world, self, ref ds, now, in flight, out _, out bool started);
+            if (!Same(in before, in ds)) MissileDefence.Store(world, self, in ds);
+            if (started)
+            {
+                StopFire(world, self, ref ws);
+                if (ws.Stage != StageEvade) ws.Resume = ws.Stage == StageOrbit ? StageOrbit : StageRunIn;
+                ws.Stage = StageEvade;
+            }
+            return defending && ws.Stage == StageEvade;
         }
 
-        /// <summary>
-        /// ⭐ <c>CE-2191</c> — the evasion: up to <see cref="DecoySalvo"/> decoys of the warned seeker's kind, one per dispenser interval
-        /// (<see cref="Countermeasures.Release"/>), while the break flies; when the missile is past, the attack comes round — the orbit
-        /// carries on where it was; any other profile flies a fresh run-in from where it is now, and the aborted pass counts (B14: three).
-        /// </summary>
-        private static NodeStatus Evade(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world,
-                                        Vector3 at, Vector3 target, double now)
-        {
-            var w = world.GetComponentRO<MissileWarning>(self);
-            if (ws.Decoys < DecoySalvo && DecoyFor(w.Seeker) is { } kind && !ChaffTooEarly(kind, in w, now)
-                && Countermeasures.Release(world, self, kind)) ws.Decoys++;
-            if (now < ws.EvadeUntil) return NodeStatus.Running;
-            return ComeRound(ref p, ref ws, self, world, at, target, countPass: true);
-        }
+        /// <summary>Byte equality of two defence states (no boxing: the state is written only when it changed).</summary>
+        internal static bool Same(in MissileDefenceState a, in MissileDefenceState b)
+            => System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<MissileDefenceState>(in a))
+                .SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<MissileDefenceState>(in b)));
 
         /// <summary>
         /// ⭐ <c>CE-4617</c> (B-4, RS-6 / RV-9) — is <paramref name="self"/> TRACKED by a radar now (its <see cref="Fdp.Toolkit.Perception.Radar.RadarWarning"/>,
         /// written on this node by <c>RadarWarningReceiverSystem</c> from the emitters' replicated state)? A searching radar does not count.
         /// </summary>
-        public static bool RadarTracked(EntityRepository world, Entity self)
-            => world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarWarning>()
-               && world.HasComponent<Fdp.Toolkit.Perception.Radar.RadarWarning>(self)
-               && world.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarWarning>(self).Level == Fdp.Toolkit.Perception.Radar.RadarWarningLevel.Tracked;
+        public static bool RadarTracked(EntityRepository world, Entity self) => MissileDefence.RadarTracked(world, self);
 
         /// <summary>⭐ <c>CE-4617</c> — the radar escape: the weapon stops; the aircraft turns AWAY from the radar's bearing (half beam, half away —
         /// off the line it is tracked along) and drops to <see cref="RadarEvadeAglM"/>, below the clutter floor.</summary>
@@ -821,18 +812,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static void RadarEscape(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at)
-        {
-            var w = world.GetComponentRO<Fdp.Toolkit.Perception.Radar.RadarWarning>(self);
-            float b = w.BearingDeg * (MathF.PI / 180f);
-            var toRadar = new Vector2(MathF.Sin(b), MathF.Cos(b));   // 0 = north (+Y), clockwise
-            var beam = new Vector2(toRadar.Y, -toRadar.X);
-            var heading = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out _, out var v) && v.X * v.X + v.Y * v.Y > 1f
-                ? Vector2.Normalize(new Vector2(v.X, v.Y)) : ws.Dir;
-            if (Vector2.Dot(beam, heading) < 0f) beam = -beam;
-            var dir = Vector2.Normalize(beam - toRadar);
-            var to = at + new Vector3(dir * BreakAwayM, 0f);
-            LocomotionMoveTo.Issue(world, self, new Vector3(to.X, to.Y, p.Point.Z + RadarEvadeAglM), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Flee);
-        }
+            => MissileDefence.RadarEscape(world, self, at, p.Point.Z + RadarEvadeAglM, p.Speed, ws.Dir);
 
         /// <summary>⭐ <c>CE-4617</c> — while tracked it keeps escaping (a fresh leg when one ends); <see cref="RadarClearS"/> after the last track
         /// the attack comes round — ⭐ a radar abort is NOT a counted pass (RV-9: three aborts would drive it off without firing).</summary>
@@ -1064,6 +1044,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// velocity (a door gun 32 + k is its weapon system, on its own mount 0), else the mount's, else the engine's fallback.
         /// 📐 Measured live (ua-air-attack ⑤): the M134 flies at its WeaponState's 500 m/s while the lead assumed the 800 m/s fallback ⇒
         /// every round passed ~3 m over the truck.</summary>
+        /// <summary>⭐ CE-10003 — <see cref="RoundSpeed"/> for the air-combat gun.</summary>
+        internal static float RoundSpeedOf(EntityRepository world, Entity self, byte mount) => RoundSpeed(world, self, mount);
+
+        /// <summary>⭐ CE-10003 — <see cref="Retarget"/> for the air-combat gun.</summary>
+        internal static void RetargetFire(EntityRepository world, Entity self, uint started, Vector3 aim) => Retarget(world, self, started, aim);
+
         private static float RoundSpeed(EntityRepository world, Entity self, byte mount)
         {
             if (mount == AirAttackProfiles.None) return Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.MuzzleVelocity;
@@ -1216,6 +1202,10 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var memory = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(drone);
             var best = Entity.Null;
             float bestScore = 0f;
+            // ⭐ CE-10005 (AC-13, R-10022) — a FIGHTER (a fixed-wing with an air-to-air mount) on a CAP picks only AIRCRAFT, and one a wingman
+            //   already fights only when nothing else is left (deconfliction through the arena's tick-start index of the fighters' targets)
+            bool fighter = AirCombatNodes.IsFighter(world, drone);
+            if (fighter) return PickBandit(world, drone, in memory, centre, radius);
             for (int i = 0; i < memory.Count; i++)
             {
                 if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;   // heard, never identified: nothing to dive on
@@ -1226,6 +1216,34 @@ namespace Hrot.AI.Behaviors.Brains
                 if (score > bestScore) { bestScore = score; best = e; }
             }
             return best;
+        }
+
+        /// <summary>
+        /// ⭐ CE-10005 (AC-13 / RV-11, R-10022) — a FIGHTER's pick: the hostile AIRCRAFT it remembers inside the area. Deconflicted with no
+        /// cross-entity read in the phase: a bandit a wingman already fights (the arena's tick-start index) is taken only when nothing else is
+        /// left, and when several are free the pilots of one force spread by RANK (the k-th pilot by entity index takes the k-th bandit by
+        /// entity index) — so two pilots picking on the same tick do not pick the same bandit. Allocation-free (≤ 16 candidates).
+        /// </summary>
+        private static unsafe Entity PickBandit(EntityRepository world, Entity self, in Fdp.Toolkit.Perception.Components.TargetMemory memory, Vector3 centre, float radius)
+        {
+            var force = world.HasComponent<EntityInfo>(self) ? world.GetComponentRO<EntityInfo>(self).ForceId : ForceId.Neutral;
+            Span<Entity> free = stackalloc Entity[16];
+            int nFree = 0;
+            var taken = Entity.Null;
+            for (int i = 0; i < memory.Count; i++)
+            {
+                if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;
+                var e = new Entity((ulong)memory.EntityIds[i]);
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !Hostile(world, self, e) || !Locomotions.IsAircraft(world, e)) continue;
+                if (new Vector2(memory.PositionsX[i] - centre.X, memory.PositionsY[i] - centre.Y).Length() > radius) continue;
+                if (Fdp.Toolkit.Motion.AirArenaSystem.TakenByAnother(world, self, force, e)) { if (taken.IsNull || e.Index < taken.Index) taken = e; continue; }
+                if (nFree == free.Length) continue;
+                int at = nFree++;
+                while (at > 0 && free[at - 1].Index > e.Index) { free[at] = free[at - 1]; at--; }   // sorted by entity index
+                free[at] = e;
+            }
+            if (nFree == 0) return taken;
+            return free[Fdp.Toolkit.Motion.AirArenaSystem.RankOf(world, self, force) % nFree];
         }
 
         /// <summary>freshness × the warhead's share of a kill × the kind's weight.</summary>

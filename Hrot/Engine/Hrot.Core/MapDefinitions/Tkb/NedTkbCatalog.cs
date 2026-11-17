@@ -1529,6 +1529,11 @@ namespace Hrot.Map.Definitions.Tkb
             var minefield = new TkbTemplate("Minefield", TkbEntityTypes.Minefield) { DisType = new DISEntityType { Kind = 5, Category = 91 } };
             minefield.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(minefield);
+            // ⭐ CE-10004 (air combat AC-10, R-10013) — the AIR ARENA: an authored stage (a map graphic like the minefield); its AirArena component
+            //   arrives when it is placed / loaded (ui's picker row, R-1060, keys on this type)
+            var airArena = new TkbTemplate("Air Arena", TkbEntityTypes.AirArena);
+            airArena.AddDescriptor(new MapGraphicDef());
+            tkbDb.Register(airArena);
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);

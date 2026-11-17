@@ -1,0 +1,221 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an Ace F-16 ('Viper') with a Rookie wingman ('Viper 2') against an Ace MiG ('Fulcrum') with a Rookie wingman ('Fulcrum 2'), each ordered on a different bandit, in a 4 km arena over the hills (CE-10004, AC-10\u2026AC-13). \u26a0 This DEMO's arena authors its own shot cap, MaxShotRangeM 2.5 km (the default stays 6 km, AC-11 / R-10025): the show is a close fight where a missile beaten leaves the jets near enough for the guns. Judge: four missiles and a gun hit, two kills inside 600 s; never a shot beyond 6 km; never a friendly hit."
+  },
+  "entities": {
+    "ac00001f-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -5000,
+          -600,
+          2096.6
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00001f-0000-4000-8000-000000000003"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Ace"
+      }
+    },
+    "ac00001f-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -5300,
+          600,
+          2091.4
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00001f-0000-4000-8000-000000000004"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Rookie"
+      }
+    },
+    "ac00001f-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          5000,
+          600,
+          2097.6
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00001f-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Ace"
+      }
+    },
+    "ac00001f-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          5300,
+          -600,
+          2091.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00001f-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Rookie"
+      }
+    },
+    "ac00001f-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8840
+      },
+      "EntityInfo": {
+        "Name": "Arena",
+        "ForceId": "Neutral"
+      },
+      "AirArena": {
+        "Centre": [
+          0,
+          0,
+          100.0
+        ],
+        "RadiusM": 4000,
+        "FloorAglM": 300,
+        "CeilingAglM": 6000,
+        "MaxShotRangeM": 2500,
+        "StalemateSeconds": 90,
+        "LapsesOff": 0
+      }
+    }
+  }
+}

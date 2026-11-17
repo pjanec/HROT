@@ -161,6 +161,31 @@ namespace Fdp.Toolkit.Navigation.Tests
             Assert.InRange(((System.Numerics.Vector3)_repo.GetComponent<SimTransform>(entity).Position).Length(), 0f, 0.01f);
         }
 
+        /// <summary>⭐ <c>CE-2445</c> (RM-2, R-2129; docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md §5b) — a RAMMING hull's move whose end is inside
+        /// the 50 m run-in is driven STRAIGHT (no path request, <c>Direct</c>): it meets a weak barrier instead of steering round it. The same move 200 m out
+        /// is planned; with the order OFF (or no order) it is planned. ✅ Red-proof: the run-in rule dropped ⇒ red.</summary>
+        [Theory]
+        [InlineData(30f, (byte)1, true)]
+        [InlineData(200f, (byte)1, false)]
+        [InlineData(30f, (byte)0, false)]
+        public void CE2445_ARammingHull_InsideItsRunIn_DrivesStraight_ElsePlans(float metres, byte active, bool straight)
+        {
+            if (!_repo.IsComponentTypeRegistered<global::CarKinem.Core.RamOrder>()) _repo.RegisterComponent<global::CarKinem.Core.RamOrder>();
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
+            _repo.AddComponent(entity, new NavState());
+            _repo.AddComponent(entity, new NavigationStatus());
+            _repo.AddComponent(entity, new global::CarKinem.Core.RamOrder { Active = active });
+            _repo.AddComponent(entity, PathToPoint(1, new Vector3(metres, 0f, 0f)));
+
+            _system.Execute(_repo, 0f);
+            _repo.Bus.SwapBuffers();
+
+            Assert.Equal(straight ? 0 : 1, _view.ReadEvents<PathfindingRequestEvent>().Length);
+            Assert.Equal(straight ? KinematicsMode.Direct : KinematicsMode.None, _repo.GetComponent<NavState>(entity).Mode);
+            if (straight) Assert.Equal(5f, _repo.GetComponent<NavState>(entity).TargetSpeed);   // it drives at once, at the move's speed
+        }
+
         /// <summary>⭐ CE-3026 — DirectPoint means STRAIGHT: no path request, the vehicle drives at once.</summary>
         [Fact]
         public void DirectPoint_DrivesStraight_PublishesNoPathRequest()

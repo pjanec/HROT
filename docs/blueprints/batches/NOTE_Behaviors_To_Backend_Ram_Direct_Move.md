@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — for backend (navigation)
+state: RESOLVED — built by behaviors (user, 2026-11-17); FYI backend
 updated: 2026-11-17
 current-answer: the whole note
 related-designs:
@@ -7,7 +7,9 @@ related-designs:
   - ../../DESIGN_Vehicle_Breaching.md — the contact breach the ram should reach
 -->
 
-# NOTE — behaviors → backend: a ramming car needs a DIRECT move inside its run-in (CE-2445)
+# NOTE — behaviors → backend: a ramming car needs a DIRECT move inside its run-in (CE-2445) — ✅ BUILT BY BEHAVIORS, FYI
+
+⭐ **`2026-11-17` — the user asked behaviors to build it** (*"please take the backend direct move navigation for RAM cars yourself"*). ⭐ Cross-lane edit, said: `NavigationIntentBridgeSystem` (one guarded line before the mode switch) + `RamOrder.RunInMetres` / `InRunIn` — a `PathToPoint` from a hull with an active `RamOrder` ending inside 50 m is driven as `DirectPoint` (the existing `Direct` drive). Rail `NavigationIntentBridgePipelineTests.CE2445_*`. `cp-ram-barrier` 4/4. Nothing in `NavigationComponents.cs` changed. — the original note follows.
 
 📐 **Measured `2026-11-17` on `scenarios/demos/checkpoint/cp-ram-barrier`** (behaviors, CE-4622 K-8). A `RamTarget` car (a hull with an active
 `RamOrder`) drives at a man behind a row of four barrels across the road. About 20 m out the PLANNER routes it round them: it veers to y 287 and stops beside
