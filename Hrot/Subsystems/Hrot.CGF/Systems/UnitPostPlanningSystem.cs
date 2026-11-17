@@ -35,13 +35,15 @@ namespace Hrot.CGF.Systems
         {
             public DefencePosts Posts;
             public DefenceAsk Ask;
-            public AuthoredPosts Authored;
             public Vector3 Position;
             public float Radius;
             public SimInstant StartedAt;
             public double LastStep;
             public bool Done;
         }
+
+        /// <summary>A Defend order carries no authored posts (<c>DefendOrder</c> has no <c>Posts</c>), so the plan asks for every man (D-2f's "none").</summary>
+        private static readonly AuthoredPosts NoAuthoredPosts = default;
 
         private readonly bool _gateOnAuthority;
         private readonly Dictionary<Entity, Plan> _plans = new();
@@ -89,7 +91,7 @@ namespace Hrot.CGF.Systems
                 var at = (Vector3)repo.GetComponentRO<SimTransform>(unit).Position;
                 UnitSplits.FallbackPosts(in u, at, in slots, _fallback);
                 var crew = new SlotCrew(repo, unit, now, in slots, _fallback);
-                if (!DefencePlan.Step(ref plan.Posts, ref plan.Ask, in crew, in plan.Authored, plan.Position, plan.Radius)) continue;
+                if (!DefencePlan.Step(ref plan.Posts, ref plan.Ask, in crew, in NoAuthoredPosts, plan.Position, plan.Radius)) continue;
                 plan.Done = true;
                 Publish(repo, unit, plan, in crew);
             }
