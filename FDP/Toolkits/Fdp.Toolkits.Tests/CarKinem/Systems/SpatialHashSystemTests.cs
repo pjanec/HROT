@@ -155,6 +155,42 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-10006</c> (air combat AC-8, R-10029) — an AIRCRAFT beyond the grid is kept aside for the rounds (<c>AirOutside</c>, in the
+        /// published <see cref="SpatialGridData"/>), never counted as dropped nor warned about; a GROUND unit at the same place is still the
+        /// authoring error CE-2193 says (dropped, warned). 🔴 Red-proof (mutant, run): the aircraft branch removed ⇒ Dropped 2, AirOutside 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10006_AnAircraftBeyondTheGrid_IsKeptForTheRounds_AGroundUnitIsStillDropped()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SpatialGridData>();
+            repo.RegisterComponent<PhysicsCollider>();
+            repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            Entity At(float x, Fdp.Toolkit.Tkb.Domain.LocomotionClass c)
+            {
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new SimTransform { Position = new Vector3(x, 0f, 2000f), Rotation = Quaternion.Identity });
+                repo.AddComponent(e, new PhysicsCollider { Radius = 2f, Height = 4.9f });
+                repo.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = c });
+                return e;
+            }
+            var jet = At(3000f, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing);
+            At(-3000f, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked);
+            At(100f, Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing);   // inside: in the grid as before
+            var sys = new SpatialHashSystem();
+            sys.Execute(repo, 0.016f);
+            Assert.Equal(1, sys.Dropped);      // the tank
+            Assert.Equal(1, sys.Warnings);
+            Assert.Equal(1, sys.AirOutside);   // the jet
+            var data = repo.GetSingleton<SpatialGridData>();
+            Assert.Equal(1, data.AirOutsideCount);
+            Assert.Equal(jet, data.AirOutside[0]);
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — the collider hash (the door for bullets, near misses, the radius search, network raycasts
         /// and avoidance) leaves out a passenger inside an ENCLOSED vehicle and keeps one on an OPEN cabin. 📄 DESIGN_Entity_Interactions §7.2a.</summary>
         [Fact]

@@ -197,6 +197,15 @@ namespace Fdp.Toolkit.Physics.Systems
                 : grid.QueryNeighbors((start2D + end2D) * 0.5f, Vector2.Distance(start2D, end2D) * 0.5f + PhysicsConstants.QueryExpansionRadius,
                                       candidates[..PhysicsConstants.MaxBroadphaseCandidates]);   // the old disc, measured only
             if (overflow) Interlocked.Increment(ref _candidateOverflows);
+            // ⭐ CE-10006 (air combat AC-8, R-10029) — the aircraft beyond the grid (SpatialHashSystem keeps them aside): every round tests
+            //   these few too, so a jet fighting beyond a small range is still met (the exact tests below decide)
+            for (int k = 0; k < gridData.AirOutsideCount && nc < candidates.Length; k++)
+            {
+                var air = gridData.AirOutside[k];
+                if (!repo.IsAlive(air) || !repo.HasComponent<SimTransform>(air)) continue;
+                var ap = repo.GetComponent<SimTransform>(air).Position;
+                candidates[nc++] = (air, new Vector2(ap.X, ap.Y));
+            }
 
             float  bestT   = float.MaxValue;
             Entity bestEnt = default;
@@ -278,7 +287,12 @@ namespace Fdp.Toolkit.Physics.Systems
                 if (PhysicsConstants.IsBulletRay(req.RayId) && collider.Height > 0f && !PhysicsColliderReaders.IsPerson(repo, candidate))
                 {
                     if (!Intersection2D.SegmentInCircle(start2D, end2D, c2D, collider.Radius, out float tIn, out float tOut)) continue;
-                    if (!ZBandOverlap(req.Start.Z, req.End.Z, tf.Position.Z, tf.Position.Z + collider.Height, ref tIn, ref tOut)) continue;
+                    // ⭐ CE-10006 (air combat AC-8, R-10029) — a PLANE's position is its body's CENTRE (its gear hangs below it), so its band is
+                    //   centred there: 📐 ac-dogfight-2v2 — 215 gun rounds passed a median 2.6 m from the bandit's centre and NONE hit, because the
+                    //   band ran from the centre UP (a round aimed at the jet passes at its centre height, half of them under the band)
+                    float low = Fdp.Toolkit.Motion.Locomotions.Of(repo, candidate) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing
+                        ? tf.Position.Z - 0.5f * collider.Height : tf.Position.Z;
+                    if (!ZBandOverlap(req.Start.Z, req.End.Z, low, low + collider.Height, ref tIn, ref tOut)) continue;
                     if (tIn < bestT) { bestT = tIn; bestEnt = candidate; anyHit = true; bestHasPart = false; }
                     continue;
                 }

@@ -199,7 +199,8 @@ namespace Hrot.AI.Behaviors.Brains
                 m = Manoeuvre.Disengage;
                 throttle = 1f;
             }
-            else if (inArena && OutsideBy(me, in arena) > 0f && !(cs.Lapse == PilotLapse.Fixation) && cs.Manoeuvre is not (Manoeuvre.None or Manoeuvre.Merge))   // the merge flies IN from outside
+            else if (inArena && OutsideBy(me, in arena) > 0f && !(cs.Lapse == PilotLapse.Fixation) && cs.Manoeuvre is not (Manoeuvre.None or Manoeuvre.Merge)   // the merge flies IN from outside
+                     && !(hasTarget && OnHisTail(me, myVel, tp) && OutsideBy(me, in arena) < SoftEdgeYieldM))   // ⭐ R-10029 — a hot pursuit near the edge goes on
             {
                 // ⭐ AC-10 (RV-9) — the SOFT edge: outside the arena it turns back toward the centre; the defence and a disengage override it
                 m = Manoeuvre.ReturnToArena;
@@ -243,9 +244,29 @@ namespace Hrot.AI.Behaviors.Brains
                 var los = tp - me;
                 float r = los.Length();
                 float closing = r > 1e-3f ? -Vector3.Dot(tv - myVel, los / r) : 0f;
+                // ⭐ CE-10006 (AC-8, R-10029) — CLOSE TO GUNS: beyond the gun's reach a bandit holding or opening the range is chased at full
+                //   power (📐 ac-dogfight-2v2: the Ace sat 650–1 150 m dead astern of a dragging bandit, lead pursuit at 0.85 throttle, and the
+                //   range OPENED from 655 to 1 150 m — no Ace ever reached gun range, so no gun hit)
+                if (r > GunRangeM + CloseMarginM && closing < CloseToGunsMps) throttle = 1f;
                 if (r < 700f && closing > 15f) throttle = 0.2f;
                 if (r < BreakAwayM) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }   // never into it (nor into its falling wreck)
                 if (r < 1200f && Rounds(world, self, cs.GunMount) <= 0) { m = Manoeuvre.LagPursuit; throttle = 0.1f; }
+            }
+            // ⭐ CE-10006 (AC-13a, R-10029) — NOSE TO NOSE the break-off is by TIME, not distance, and it turns OFF the line (a lag pursuit of a
+            //   head-on bandit still points at it), held while the two still close: 📐 ac-dogfight-2v2 with close-to-guns — the two Aces met
+            //   head-on at 262–380 m/s closing, lagged off at 250 m (< 1 s) and collided (both lost)
+            if (hasTarget && !defending && !steerAtPoint && m is Manoeuvre.LeadPursuit or Manoeuvre.PurePursuit or Manoeuvre.LagPursuit or Manoeuvre.Break or Manoeuvre.ReturnToArena)
+            {
+                var los = tp - me;
+                float r = los.Length();
+                float closing = r > 1e-3f ? -Vector3.Dot(tv - myVel, los / r) : 0f;
+                if (closing > 0f && r < closing * BreakAwayS && AngleDeg(tv, -los) < HeadOnBreakDeg
+                    && (AngleDeg(myVel, los) < HeadOnBreakDeg || cs.Manoeuvre == Manoeuvre.Break))
+                {
+                    var away = Flat(los);
+                    point = me + new Vector3(new Vector2(away.Y, -away.X) * 2000f, 0f);   // to my RIGHT: both break right ⇒ left-to-left (R-10020)
+                    m = Manoeuvre.Break; steerAtPoint = true; throttle = 1f;
+                }
             }
             if (cs.Lapse == PilotLapse.EnergyBleed) throttle = 0.3f;   // AC-12 — a slow turn under corner speed
             // ⭐ CE-10005 (AC-8, R-10024) — a lead pursuit inside the gun's reach flies the GUN's lead: its offset from the bandit (the round's
@@ -274,6 +295,21 @@ namespace Hrot.AI.Behaviors.Brains
                 Throttle = throttle, FloorAgl = floor, MaxG = PullG(skill), Arena = inArena ? arenaE : Entity.Null,
             });
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ CE-10006 (R-10029) — beyond <see cref="GunRangeM"/> + <see cref="CloseMarginM"/> a pursuit closing slower than
+        /// <see cref="CloseToGunsMps"/> (m/s) goes to full power; the soft edge yields to a pursuit with the bandit ON THE NOSE
+        /// (<see cref="OnHisTail"/>) while less than <see cref="SoftEdgeYieldM"/> outside the arena (AC-10: the pull grows with the distance).</summary>
+        public const float CloseToGunsMps = 50f, CloseMarginM = 200f, SoftEdgeYieldM = 1000f, HotPursuitM = 2000f, HotPursuitDeg = 30f;
+        /// <summary>⭐ R-10029 — nose to nose (each within <see cref="HeadOnBreakDeg"/> of the other) a pilot breaks off right this long (s) before
+        /// the two would meet (AC-13a).</summary>
+        public const float BreakAwayS = 2f, HeadOnBreakDeg = 30f;
+
+        /// <summary>⭐ R-10029 — a hot pursuit: the bandit inside <see cref="HotPursuitM"/> and within <see cref="HotPursuitDeg"/> of my nose.</summary>
+        public static bool OnHisTail(Vector3 me, Vector3 myVel, Vector3 tp)
+        {
+            var los = tp - me;
+            return los.Length() < HotPursuitM && myVel.LengthSquared() > 1f && AngleDeg(myVel, los) < HotPursuitDeg;
         }
 
         /// <summary>⭐ CE-10005 (AC-10, R-10020) — the merge passes this far (m) to the right of the arena's centre; it ends inside
