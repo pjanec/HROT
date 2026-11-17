@@ -355,7 +355,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   who stops and sets it off as the searchers come — the price of a search) · `cp-moto-attack` ✅ (two men on one bike: a threat, no engine rung)
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
 - *(added `2026-11-17`)* **Vehicles hurt the people they hit,** by speed and weight; a ramming car does not swerve for its target, and its ram is a
-  lethal act once it is in its last 50 m. ▶ `cp-ram-barrier` ⚠ the car paths ROUND a weak barrier instead of through it (CE-2445, backend's direct move)
+  lethal act once it is in its last 50 m, where it drives the straight line — through a weak barrier, not round it. ▶ `cp-ram-barrier` ✅ (through four barrels, then fired on)
 
 ## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
 
