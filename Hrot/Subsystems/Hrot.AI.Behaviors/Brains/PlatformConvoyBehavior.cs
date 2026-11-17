@@ -82,7 +82,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool IsLead(in ConvoyParams p, Entity self) => p.Rank == 0 || p.LeadPacked == 0 || p.LeadPacked == (long)self.PackedValue;
 
         /// <summary>⭐ C-9 — the lead's road use: SUMO for <c>Traffic</c> (with its beacon when priority), our own route otherwise (<c>Auto</c> = our route: it
-        /// ignores lights by construction while SumoSharp H14 is not synced — R-9012).</summary>
+        /// ignores lights by construction while SumoSharp H17 is not synced).</summary>
         public static RoadUse LeadRoadUse(in ConvoyParams p)
             => (ConvoyMode)p.Mode == ConvoyMode.Traffic ? (p.Priority != 0 ? RoadUse.InTrafficPriority : RoadUse.InTraffic) : RoadUse.StronglyPrefer;
 

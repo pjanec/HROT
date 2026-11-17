@@ -5246,7 +5246,7 @@ collides with work in flight.
 
 ### 🚚 `convoy` lane — the road convoy (CE-4631, R-4282; block CE-9000…CE-9999)
 
-- [ ] **CE-9000** · `convoy` 🚧 **S-1** — upstream SumoSharp H14 (the priority twin vType, the red ignored while giving way, `SetExternalVehicleMaxSpeed`) + sync; `RoadUse.InTrafficPriority`; `TrafficHandover.Priority` / `MaxSpeed` (C-1, C-2, C-3, C-6). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-1.
+- [ ] **CE-9000** · `convoy` 🚧 **S-1** — upstream SumoSharp H17, purely additive (the priority twin vType; `SetExternalVehicleMaxSpeed` with an exact restore) + sync; `RoadUse.InTrafficPriority`; `TrafficHandover.Priority` / `MaxSpeed` (C-1, C-2, C-3, C-6). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-1.
 - [ ] **CE-9001** · `convoy` 🚧 **S-2** — the column-follower: `ConvoyMember` (108), `ConvoyTrail` (109), `ConvoyLeadSystem`, `ConvoyFollowSystem`, `KinematicsMode.Column` (C-4, C-6). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-2.
 - [ ] **CE-9002** · `convoy` 🚧 **S-3** — no cutting in: the column's gaps told to SUMO as chains of squares along the trail (C-5). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-3.
 - [ ] **CE-9003** · `convoy` 🚧 **S-4** — mode 2: the outer-lane offset where road points are emitted (C-7). 📄 [DESIGN_Road_Convoy.md](../designs/vehicle-tactics/DESIGN_Road_Convoy.md) §5 S-4.
