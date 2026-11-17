@@ -84,6 +84,16 @@ namespace Fdp.Toolkit.Physics.Systems
                     if (repo.IsAlive(bulletEntity)
                         && (repo.GetLifecycleState(bulletEntity) == EntityLifecycle.TearDown || !_resolved.Add(bulletEntity))) continue;
 
+                    // ⭐⭐ CE-4649 part C ③ (AN-20b) — a round into a FLOCK (one entity drawn as N birds): a chance per bird it passes to hit ONE; the flock's own health is never touched.
+                    //   A hit consumes the round (BallisticsSystem destroys a TearDown round); a miss lets it fly on to its next segment.
+                    if (Fdp.Toolkit.Animals.FlockHits.IsFlock(repo, hit.HitEntity))
+                    {
+                        if (Fdp.Toolkit.Animals.FlockHits.TryHit(repo, hit.HitEntity, hit.Start, hit.End, hit.Start + hit.T * (hit.End - hit.Start), hit.RayId)
+                            && repo.IsAlive(bulletEntity))
+                            view.GetCommandBuffer().SetLifecycleState(bulletEntity, EntityLifecycle.TearDown);
+                        continue;
+                    }
+
                     // Bullet hit -> emit HitEvent (Combat toolkit will consume in Phase 5).
                     repo.Bus.Publish(new HitEvent
                     {

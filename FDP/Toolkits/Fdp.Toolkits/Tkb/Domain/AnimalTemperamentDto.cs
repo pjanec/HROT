@@ -43,5 +43,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float WalkSpeed { get; init; }
         /// <summary>A ridden horse BOLTS above this fear (0..1); 0 = never (AR-10).</summary>
         public float BoltFear { get; init; }
+        /// <summary>⭐ CE-4649 part C ③ — for a FLOCK: the TKB type of ONE of its birds (what a round that hits a bird of the flock leaves, dead); 0 = none.</summary>
+        public long LoneType { get; init; }
     }
 }
