@@ -27,7 +27,12 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
     /// <summary>How near the destination the shadow must vanish for an arrival. 📐 SUMO ends it at the destination's lane offset
     /// (H13) but up to one step SHORT of it (≤ 7 m at 14 m/s, Dt 0.5), and the mirror resolves one step behind the clock (another
     /// ≤ 7 m): a shadow that arrived is last seen ~14 m short (measured 2026-10-17, demo-city). 25 m keeps the margin.</summary>
-    public const float ArrivalSlackMetres = 25f;
+    public const float ArrivalSlackMetres = Fdp.Toolkit.Navigation.NavigationConstants.TrafficArrivalSlackMetres;
+
+    /// <summary>⭐ CE-9020 ③ — how long a body waits for a shadow SUMO will not spawn (sim seconds; the traffic node retries a refusal every
+    /// <c>TrafficSession.RetrySeconds</c> = 2 s). Then the traffic leg ends where it stands, and the move's executor drives the move itself.
+    /// ⛔ Before: a refused hand-over held for ever (CE-9020, measured on <c>cv-mode-1-to-2</c>).</summary>
+    public const double RefusedHoldSeconds = 8.0;
 
     private readonly Dictionary<string, TrafficCarPose> _shadows = new(StringComparer.Ordinal);
 
@@ -47,30 +52,58 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
             foreach (var car in frame.Cars)
                 if (car.Id is { } id && id.StartsWith(ShadowPrefix, StringComparison.Ordinal)) _shadows[id] = car;
 
+        bool intents = world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>();
         foreach (var e in world.Query().With<NavState>().With<SimTransform>().WithOwned<SimTransform>().With<NetworkIdentity>().Build())
         {
             var nav = world.GetComponent<NavState>(e);
             if (nav.Mode != KinematicsMode.Traffic) continue;
             int id = world.GetComponentRO<NetworkIdentity>(e).Value;
-            var f = world.HasComponent<TrafficShadowFollow>(e) ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
+            uint intentId = intents && world.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e)
+                ? world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(e).IntentId : 0u;
+            bool had = world.HasComponent<TrafficShadowFollow>(e);
+            var f = had ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
+            // ⭐ CE-9019 — a follow of ANOTHER intent: the shadow is being replaced (taken back, the new one spawns a step later) — start over
+            if (had && f.IntentId != intentId) { f = default; had = false; }
 
             if (_shadows.TryGetValue(ShadowIdOf(id), out var shadow))
             {
                 Follow(world, e, shadow, f, now);
-                world.AddComponent(e, new TrafficShadowFollow { Seen = 1, LastX = shadow.X, LastY = shadow.Y, At = now });
+                world.AddComponent(e, new TrafficShadowFollow { Seen = 1, LastX = shadow.X, LastY = shadow.Y, At = now, IntentId = intentId });
                 if (nav.IsBlocked != 0) { nav.IsBlocked = 0; world.SetComponent(e, nav); }
                 continue;
             }
+            var at = world.GetComponentRO<SimTransform>(e).Position;
+            var here = new Vector2(at.X, at.Y);
+            var dest = new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y);
+            bool arrived;
             if (f.Seen == 0)
             {
-                // Waiting for SUMO to spawn the shadow: a deliberate hold, not "stuck".
-                if (nav.IsBlocked == 0) { nav.IsBlocked = 1; world.SetComponent(e, nav); }
-                continue;
+                // Waiting for SUMO to spawn the shadow: a deliberate hold, not "stuck" — the hold's start kept on the follow (At).
+                bool holding = had;
+                if (!holding) world.AddComponent(e, new TrafficShadowFollow { Seen = 0, At = now, IntentId = intentId });
+                if (!holding || now - f.At < RefusedHoldSeconds)
+                {
+                    if (nav.IsBlocked == 0) { nav.IsBlocked = 1; world.SetComponent(e, nav); }
+                    continue;
+                }
+                // ⭐ CE-9020 ③ — SUMO would not take it: the traffic leg ends here, and the executor drives on (MoveToExecutor).
+                arrived = true;
             }
-            // The shadow is gone: arrived near the destination, or lost.
-            var at = world.GetComponentRO<SimTransform>(e).Position;
-            float reach = MathF.Max(nav.ArrivalRadius, ArrivalSlackMetres);
-            bool arrived = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(nav.FinalDestination.X, nav.FinalDestination.Y)) <= reach;
+            else
+            {
+                // The shadow is gone: arrived near the destination — ⭐ CE-9020 ② or near the road point SUMO was sent for a destination
+                //   off its net (the same TrafficRoadPoint the hand-over used; the executor drives the rest) — or lost.
+                float reach = MathF.Max(nav.ArrivalRadius, ArrivalSlackMetres);
+                arrived = Vector2.Distance(here, dest) <= reach;
+                //   ⭐ judged by distance, not by the chosen lane: within (how far the destination is off the net + the direction margin + the
+                //   slack) of it — the hand-over may have picked a lane up to DirectionMarginMetres farther than the nearest (TrafficRoadPoint.Near).
+                if (!arrived && TrafficNetCache.Of(world) is { } net)
+                {
+                    double off = TrafficRoadPoint.OffNet(net.Model, net.Placement, dest);
+                    if (off > TrafficRoadPoint.SnapRadius && !double.IsPositiveInfinity(off))
+                        arrived = Vector2.Distance(here, dest) <= off + TrafficRoadPoint.DirectionMarginMetres + reach;
+                }
+            }
             nav.Mode = KinematicsMode.None;
             nav.TargetSpeed = 0f;
             nav.IsBlocked = 0;

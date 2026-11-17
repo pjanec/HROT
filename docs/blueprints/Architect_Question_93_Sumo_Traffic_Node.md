@@ -342,14 +342,21 @@ sequenceDiagram
   N-->>S: intent, so KinematicsMode.Traffic, hold position
   N-->>T: intent on the replica
   T->>T: stop feeding this entity as an obstacle
-  T->>E: SpawnVehicle id hrot:netId, route to destination, departPos, departSpeed, departLane
+  T->>T: TrafficRoadPoint.Near(destination), the nearest road point when it is off the net (CE-9020)
+  T->>E: SpawnVehicle id hrot:netId, route to that point, departPos, departSpeed, departLane
   E-->>M: lifecycle and frames for hrot:netId (via sumo topics)
   M-->>S: dead-reckoned shadow pose
   S->>S: write SimTransform (SimHost still owns it), NED publishes as usual
   alt SUMO reports Arrived, or the brain changes the intent
     T->>E: Despawn
     E-->>M: lifecycle dispose of hrot:netId
-    M-->>S: shadow gone, so leave Traffic mode, NavigationStatus Arrived
+    M-->>S: shadow gone at the destination or at its road point, so HasArrived, NavigationStatus Arrived
+  else SUMO refuses it for RefusedHoldSeconds (CE-9020)
+    S->>S: the hold ends where the body stands, HasArrived, NavigationStatus Arrived
+  end
+  opt arrived farther than the arrival slack from the destination (CE-9020, mode 1 to 2)
+    B->>N: MoveToExecutor writes the same move as PathToPoint, road use stepped down
+    N-->>S: our own path planner drives the rest
   end
 ```
 
@@ -1213,6 +1220,8 @@ spawn); ownership never moves.
 | G2 | ✅ the wire carries it: `ENavigationMode.NAV_TRAFFIC` = 7 both ways (`EveryMode_RoundTripsTheWire` covers it). ✅ A node with role `Traffic` and no Muscle builds ONE read-only translator, `NavigationIntentIngressTranslator` (`NedReplicationModule._trafficTranslators`), and `TrafficPack.Serving` registers `NavigationIntent` — the R-3015 role gate kept everything else out |
 | G3 | ✅ SumoSharp **H13** (`f252ddc`, vendored): `LiveCitySim.SpawnExternalVehicle(id, x, y, heading, speed, destX, destY, vType?)` (x, y = FRONT bumper; heading = atan2, 0 east) — start lane ≤ 10 m within 90° of the heading, route by SUMO's router, arrival at the destination's lane offset (a new `arrivalPos`, ≤ one step short); `DespawnExternalVehicle`; `ExternalVehicleArrived`. HROT: `TrafficHandoverSystem` (serving node, Input phase) → `TrafficRuntime.SetHandovers` → `TrafficSession.ApplyHandovers` (spawn per new intent id; an unmapped TKB type falls back to SUMO's default car; a refusal retried every 2 s SUMO time; a withdrawn intent despawns; an ARRIVED shadow is not respawned while its intent stands) |
 | G1 trigger | ✅ the operator's way in: a MOVE order with `roadUse: "InTraffic"` (`RoadUse.InTraffic` = 5, in the intent's road-use flag bits) — `MoveToExecutor` asks `NavigationMode.Traffic` instead of a path; the order completes on `Arrived` like any move. Rail `MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan` |
+| ⭐ **off-net destination — mode 1 → 2** (CE-9020, `2026-11-17`, convoy lane, as the user asked of it) | ① `TrafficHandoverSystem.Gather` sends SUMO `TrafficRoadPoint.Near(destination)` — the destination itself when a drivable lane is within H13's snap radius (10 m), else the nearest point on one (rings to 2 km; the lane grid built once per parsed net). ⛔ Before: H13 refused a destination with no lane near it and the body held for ever. ② `TrafficShadowFollowSystem` calls the SAME function, so a shadow gone near that road point is the traffic leg's ARRIVAL (`HasArrived`). ③ a hand-over SUMO will not spawn holds only `RefusedHoldSeconds` = 8 s (refusals are retried every 2 s), then also ends as arrived where the body stands. ④ `MoveToExecutor`, seeing `Arrived` on a `Traffic` intent farther than `NavigationConstants.TrafficArrivalSlackMetres` from the destination, writes the SAME move again as `PathToPoint` (in-traffic → `Prefer`, priority → `StronglyPrefer`) and keeps Running — one route planner for every mover; the open question of the frame (`NOTE_Convoy_To_Traffic_Mode_1_To_2.md`) resolved on its lean. ⚠ "Arrived" on the wire now means "the traffic leg ended", read by the one executor that asked for it. Rails: `AVehicleHandedToSumoArrivesTests.CE9020_*`, `AHandedOverVehicleFollowsItsShadowTests.CE9020_*`, `MoveToExecutorTests.CE9020_*`; scenario `cv-mode-1-to-2` |
+| ⭐ **a waiting shadow is never lost** (CE-9019, `2026-11-17`, traced on `cv-blocked-road`) | ① `NavigationExecutionSystem`'s stall watchdog skips a body in `KinematicsMode.Traffic`, as it skips a deliberate hold: standing in SUMO's queue (a red light, a breakdown ahead) is SUMO's to resolve. ⛔ Before: `FailedBlocked` 6 s behind a broken truck while the shadow still drove. ② `TrafficShadowFollow` carries the `IntentId` it serves; a follow of another intent starts over (a hold). ⛔ Before: a NEW Traffic intent's shadow swap (the old taken back, the new spawned a step later) read as "the shadow is gone" ⇒ mode `None` ⇒ every re-issue lost its shadow. A shadow genuinely gone still ends the mode (the G5 path). Rails: `NavigationExecutionSystemTests.CE9019_*`, `AHandedOverVehicleFollowsItsShadowTests.CE9019_*` |
 | G5 slack | ⭐ `ArrivalSlackMetres` = 25 m, measured: a shadow that arrived is last seen ~14 m short (H13 ends it ≤ one step before the point, the mirror resolves one step behind the clock) — the first 15 m was too tight |
 
 Rails: `AHandedOverVehicleFollowsItsShadowTests` (hold, follow + speed, arrived near / not far, a body this node does not move is untouched, a shadow is no replica) · `AVehicleHandedToSumoArrivesTests` (demo-city: the shadow drives a route a SUMO car drove and vanishes at the destination; revoking it takes it back) · upstream `HrotExternalVehicleTests` (4).

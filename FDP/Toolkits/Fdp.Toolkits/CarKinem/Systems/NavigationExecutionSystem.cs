@@ -268,7 +268,11 @@ namespace CarKinem.Systems
                 // ⭐ Buildings 5d-3 — a DELIBERATE hold (NavState.IsBlocked: waiting at a door it is opening) is not being
                 //   stuck: it neither counts toward a replan nor raises MoveBlockedEvent. The count restarts when it ends.
                 // ⭐ CE-3286 (R-3025) — nor is a hull BACKING OUT of a wall (HullRecovery): the recovery is this watchdog's remedy, not stuck.
-                if (repo.HasComponent<NavState>(entity) && repo.GetComponent<NavState>(entity).IsBlocked != 0 || frustration.RecoverDir != 0)
+                // ⭐ CE-9019 — nor is a body SUMO drives (KinematicsMode.Traffic): standing in SUMO's queue (a red light, a breakdown ahead) is SUMO's
+                //   to resolve; a shadow that is really gone ends the mode itself (TrafficShadowFollowSystem). 📌 cv-blocked-road (traced): FailedBlocked
+                //   6 s behind a broken truck with the shadow still driving — and every re-issue then lost the new shadow.
+                if (repo.HasComponent<NavState>(entity) && (repo.GetComponent<NavState>(entity).IsBlocked != 0 || repo.GetComponent<NavState>(entity).Mode == KinematicsMode.Traffic)
+                    || frustration.RecoverDir != 0)
                 {
                     if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
                     {

@@ -139,6 +139,10 @@ namespace Fdp.Toolkit.Navigation.Executors
             switch (status.Result)
             {
                 case NavigationResult.Arrived:
+                    // ⭐ CE-9020 (mode 1 → 2) — a move handed to the civilian traffic whose traffic leg ENDED short of the destination (SUMO was
+                    //   sent the nearest road point to a destination off its net, or would not take the move at all): the same move goes on,
+                    //   planned by our own planner with the road use stepped down — one route planner for every mover. Arrived only there.
+                    if (intent.Mode == NavigationMode.Traffic && TryDriveOn(entity, ref channel, world, in intent)) break;
                     channel.Status = NodeStatus.Success;
                     world.Bus.Publish(new MoveCompletedEvent
                     {
@@ -168,6 +172,26 @@ namespace Fdp.Toolkit.Navigation.Executors
                     // Keep Running — nothing to do.
                     break;
             }
+        }
+
+        /// <summary>⭐ CE-9020 — the traffic leg of <paramref name="intent"/> has ended; when the body is still farther from the destination than
+        /// a traffic arrival may end (<see cref="NavigationConstants.TrafficArrivalSlackMetres"/>), the move is written again as our own path
+        /// (in-traffic → <see cref="RoadUse.Prefer"/>, priority → <see cref="RoadUse.StronglyPrefer"/>, the escort keeping to the roads) and
+        /// the channel keeps Running. False ⇒ it has arrived.</summary>
+        private static unsafe bool TryDriveOn(Entity entity, ref LocomotionChannel channel, EntityRepository world, in NavigationIntent intent)
+        {
+            if (!world.IsComponentTypeRegistered<SimTransform>() || !world.HasComponent<SimTransform>(entity)) return false;
+            var at = world.GetComponentRO<SimTransform>(entity).Position;
+            float dx = at.X - intent.FinalDestination.X, dy = at.Y - intent.FinalDestination.Y;
+            float reach = MathF.Max(intent.ArrivalRadius, NavigationConstants.TrafficArrivalSlackMetres);
+            if (dx * dx + dy * dy <= reach * reach) return false;
+            MoveToParams p;
+            fixed (byte* src = channel.Params)
+                p = *(MoveToParams*)src;
+            var use = NavigationConstants.RoadUseOf(p.Flags) == RoadUse.InTrafficPriority ? RoadUse.StronglyPrefer : RoadUse.Prefer;
+            p.Flags = NavigationConstants.WithRoadUse(p.Flags, use);
+            WriteIntent(world, entity, in p);
+            return true;
         }
 
         // ── OnExit ────────────────────────────────────────────────────────────────────────────────

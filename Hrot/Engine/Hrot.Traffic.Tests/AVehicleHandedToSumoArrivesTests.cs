@@ -74,6 +74,62 @@ public sealed class AVehicleHandedToSumoArrivesTests
         Assert.True(freed > capped + 1f, $"freed, it still drove {freed:0.00} m/s");
     }
 
+    /// <summary>⭐ <c>CE-9020</c> ① (mode 1 → 2) — a destination OFF the net (beside the road the car drove, farther than SUMO's snap radius):
+    /// sent as it is, SUMO refuses the hand-over; through <see cref="TrafficHandoverSystem.Gather"/> it is sent the nearest road point, SUMO drives
+    /// the shadow there and it vanishes within the arrival slack of that point (where <see cref="TrafficShadowFollowSystem"/> reads it as the
+    /// traffic leg's arrival). 🔴 Red-proof: <c>Gather</c> sending the destination as it is ⇒ refused ⇒ "never drove" ⇒ red.</summary>
+    [Fact]
+    public void CE9020_ADestinationOffTheNet_IsDrivenToTheNearestRoadPoint()
+    {
+        var cache = Load(out var world);
+        using var _ = world;
+        using var session = Session(cache);
+        var (start, heading, dest) = ARouteACarDrove(session, cache);
+        var (off, road) = BesideTheRoad(cache, dest, heading);
+
+        session.SetHandovers(new[] { Handover(cache, start, heading, off, intent: 1) });   // the destination as it is
+        session.StepTo(session.Time + 1.0);
+        Assert.Null(Shadow(session, cache));                                                 // refused: no lane near it
+
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        var e = world.CreateEntity();
+        var fwd = new Vector2(MathF.Cos(heading), MathF.Sin(heading));
+        world.AddComponent(e, new SimTransform { Position = new Vector3(start - fwd * 2.5f, 0), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, heading) });
+        world.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(Body));
+        world.AddComponent(e, new Fdp.Toolkit.Navigation.NavigationIntent
+            { Mode = Fdp.Toolkit.Navigation.NavigationMode.Traffic, IntentId = 2, FinalDestination = new Vector3(off, 0) });
+        session.SetHandovers(TrafficHandoverSystem.Gather(world, cache.Placement, null, cache.Model));
+
+        bool seen = false;
+        Vector2 last = default;
+        double end = session.Time + 200.0;
+        for (double t = session.Time + 0.5; t < end && (!seen || Shadow(session, cache) is not null); t += 0.5)
+        {
+            session.StepTo(t);
+            if (Shadow(session, cache) is { } p) { seen = true; last = new Vector2(p.X, p.Y); }
+        }
+        Assert.True(seen, "SUMO never drove the shadow — the road point was refused too");
+        Assert.True(Vector2.Distance(last, road) < TrafficShadowFollowSystem.ArrivalSlackMetres,
+            $"the shadow was last seen {Vector2.Distance(last, road):0.0} m from the road point");
+        Assert.True(Vector2.Distance(last, off) > TrafficShadowFollowSystem.ArrivalSlackMetres, "the destination itself was off the road — the rail proves nothing");
+    }
+
+    // A point to the RIGHT of the road at `at` (the side of its own lane), farther from every lane than the arrival slack, whose road point
+    // is still on that road (within 12 m of `at`).
+    private static (Vector2 Off, Vector2 Road) BesideTheRoad(TrafficNetCache cache, Vector2 at, float heading)
+    {
+        var right = new Vector2(MathF.Sin(heading), -MathF.Cos(heading));
+        for (float d = 30f; d <= 80f; d += 5f)
+        {
+            var off = at + right * d;
+            if (TrafficRoadPoint.Near(cache.Model, cache.Placement, off, out var road, out bool onNet) && !onNet
+                && Vector2.Distance(off, road) > TrafficShadowFollowSystem.ArrivalSlackMetres + 5f && Vector2.Distance(road, at) < 12f)
+                return (off, road);
+        }
+        throw new Xunit.Sdk.XunitException("no point beside the road the car drove is off the net — the rail proves nothing");
+    }
+
     [Fact]
     public void RevokingTheHandover_TakesTheShadowBack()
     {
