@@ -422,6 +422,7 @@ namespace Fdp.Toolkits.Tests.Replication
             ["CompanyDefendParamsJsonDto.ShootAndMoveSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
             ["PlatoonDefendParamsJsonDto.ShootAndMoveSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
             ["SquadDefendParamsJsonDto.ShootAndMoveSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
+            ["DefendOrder.ShootAndMoveSeconds"] = "agg-behaviors R-8300: the neutral Defend order holds each field with the SAME name and type as the plays' own DTOs (the contract rail's rule) — a plain float with them until S-d proves the JSON path",
             ["ClearObstacleOrder.PushSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
             ["DroneOperatorOrder.IntervalSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",
             ["CombatPostureAdvanceJsonDto.CooldownSeconds"] = "the authored (JSON / TKB) form of a duration: a plain float until S-d proves its loader's JSON path round-trips a SimDuration",

@@ -26,7 +26,8 @@ namespace Hrot.Common.Orders
     /// <param name="Name">Its JSON name.</param>
     /// <param name="Required">Marked <c>[Required]</c> (R-2002): the order cannot go without it.</param>
     /// <param name="Presets">The <c>[MapPickableEntity]</c> presets narrowing an entity pick (empty = any entity).</param>
-    public sealed record OrderField(string Name, Type Type, OrderFieldKind Kind, bool Required, IReadOnlyList<string> Presets);
+    /// <param name="AnyOf">⭐ R-8316 — the <see cref="RequiredAnyOfAttribute"/> group: the order cannot go with none of the group's fields set (null = not in a group).</param>
+    public sealed record OrderField(string Name, Type Type, OrderFieldKind Kind, bool Required, IReadOnlyList<string> Presets, string? AnyOf = null);
 
     /// <summary>One order of the vocabulary, as a front-end sees it.</summary>
     /// <param name="ActionId">Its unit-menu action id (<see cref="OrderMenu.ActionBase"/> + its index in name order).</param>
@@ -138,7 +139,8 @@ namespace Hrot.Common.Orders
                     m.Item2,
                     m.Item2 == typeof(Fdp.Toolkit.Replication.PointLink) ? OrderFieldKind.MapPoint : m.Item2 == typeof(Fdp.Toolkit.Replication.EntityLink) ? OrderFieldKind.MapEntity : OrderFieldKind.Value,   // ⭐ S0 item 5: the AUTHORED types key the picker
                     m.Item1.IsDefined(typeof(RequiredAttribute), inherit: true),
-                    m.Item1.GetCustomAttribute<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>()?.FilterPresets ?? Array.Empty<string>()))
+                    m.Item1.GetCustomAttribute<Fdp.Toolkit.Behavior.Attributes.MapPickableEntityAttribute>()?.FilterPresets ?? Array.Empty<string>(),
+                    m.Item1.GetCustomAttribute<RequiredAnyOfAttribute>()?.Group))
                 .ToArray();
         }
 
@@ -148,7 +150,8 @@ namespace Hrot.Common.Orders
 
         private static (OrderPick Pick, string? Field) PickOf(IReadOnlyList<OrderField> fields)
         {
-            var required = fields.Where(f => f.Required).ToArray();
+            // ⭐ R-8316 — an any-of group counts as ONE required pick, by its FIRST declared field (Attack: the Target entity the EnemyClick fills)
+            var required = fields.Where(f => f.Required || (f.AnyOf != null && fields.First(g => g.AnyOf == f.AnyOf) == f)).ToArray();
             if (required.Length == 0) return (OrderPick.None, null);
             if (required.Length > 1 || required[0].Kind == OrderFieldKind.Value) return (OrderPick.Several, null);
             return (required[0].Kind == OrderFieldKind.MapPoint ? OrderPick.Point : OrderPick.Entity, required[0].Name);
@@ -162,19 +165,32 @@ namespace Hrot.Common.Orders
             List<OrderField>? missing = null;
             foreach (var f in order.Fields)
             {
-                if (!f.Required) continue;
-                JsonNode? value = null;
-                bool found = false;
-                if (json != null)
-                    foreach (var kv in json)
-                        if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; found = true; break; }
-                // ⚠ an entity of 0 is no entity: compared as JSON text, because a JsonValue built from an int does not answer
-                //   TryGetValue<long> (the CE-2148 rail caught it).
-                bool set = found && value != null
-                    && !(f.Kind == OrderFieldKind.MapEntity && value is JsonValue && value.ToJsonString() == "0");
-                if (!set) (missing ??= new List<OrderField>()).Add(f);
+                if (!f.Required && f.AnyOf == null) continue;
+                if (!IsSet(f, json))
+                {
+                    // ⭐ R-8316 — an any-of group is missing while NO member of it is set, and is reported ONCE, by its first declared field (the one a pick fills)
+                    if (f.AnyOf != null && !f.Required)
+                    {
+                        bool groupSet = false;
+                        foreach (var g in order.Fields) if (g.AnyOf == f.AnyOf && IsSet(g, json)) { groupSet = true; break; }
+                        if (groupSet || order.Fields.First(g => g.AnyOf == f.AnyOf) != f) continue;
+                    }
+                    (missing ??= new List<OrderField>()).Add(f);
+                }
             }
             return missing ?? (IReadOnlyList<OrderField>)Array.Empty<OrderField>();
+        }
+
+        private static bool IsSet(OrderField f, JsonObject? json)
+        {
+            JsonNode? value = null;
+            bool found = false;
+            if (json != null)
+                foreach (var kv in json)
+                    if (string.Equals(kv.Key, f.Name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; found = true; break; }
+            // ⚠ an entity of 0 is no entity: compared as JSON text, because a JsonValue built from an int does not answer
+            //   TryGetValue<long> (the CE-2148 rail caught it).
+            return found && value != null && !(f.Kind == OrderFieldKind.MapEntity && value is JsonValue && value.ToJsonString() == "0");
         }
 
         /// <summary>⭐ <c>CE-2176</c> — the map-point fields <paramref name="json"/> sets to something that is not a geodetic point:

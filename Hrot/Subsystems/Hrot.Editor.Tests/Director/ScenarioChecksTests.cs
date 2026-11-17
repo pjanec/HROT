@@ -421,6 +421,49 @@ public sealed class ScenarioChecksTests
         Assert.Contains(mood, l => l.Contains("units.B.components.Mood"));
     }
 
+    /// <summary>⭐ R-8320 — a field path with a <c>*</c> part counts the ARRAY's elements that satisfy the comparison (the stochastic unit's slot table): <c>elements</c> is the least count.</summary>
+    [Fact]
+    public void R8320_AFieldPathWithAStar_CountsTheElementsThatHold()
+    {
+        var comps = JsonNode.Parse("""{"UnitSlotTable": {"Count": 3, "Slots": [{"Health": 25, "CompositeSlot": 1}, {"Health": 0, "CompositeSlot": 2}, {"Health": 0, "CompositeSlot": 3}, {"Health": 0, "CompositeSlot": 0}]}}""")!;
+        JsonNode Zero = JsonValue.Create(0)!;
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 3));          // the unused fourth slot is all zeros too
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 4));
+        var used = new List<(string, string, JsonNode?)> { ("CompositeSlot", ">", JsonValue.Create(0)) };   // where: only the slots a composite filled
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 2, used));
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 3, used));
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Nope.*.Health", "<=", Zero, 1));
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Count", "==", JsonValue.Create(3), 1));   // no star: the plain read
+        var checks = Parse("""{"runFor": 5, "expect": [{"name": "two down", "on": "field", "who": "U", "path": "UnitSlotTable.Slots.*.Health", "op": "<=", "value": 0, "elements": 2}]}""", out var problems);
+        Assert.Empty(problems);
+        Assert.Equal(2, checks.Expect[0].Cue.Elements);
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.*.B", "elements": 0}]}""", out var bad);
+        Assert.Contains(bad, l => l.Contains("elements"));
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.B", "where": {"C": 1}}]}""", out var plain);
+        Assert.Contains(plain, l => l.Contains("where"));
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.*.B", "where": {"C": [">", 0]}}]}""", out var starred);
+        Assert.Empty(starred);
+    }
+
+    /// <summary>
+    /// ⭐ R-8335 (agg-behaviors) — a <c>field</c> cue's <c>who</c> may be a NETWORK ID (as the near / task cues read one): an UNNAMED entity — a
+    /// stochastic unit's split child — is judged by it. 🔴 Red-proof: drop the id branch of <c>UnitsNamed</c> ⇒ the unnamed child never holds.
+    /// </summary>
+    [Fact]
+    public void R8335_AFieldCueNamesAnUnnamedEntityByItsNetworkId()
+    {
+        var checks = Parse("""{"runFor": 1, "expect": [{"name": "the child's key", "on": "field", "who": "1007", "path": "EntityGuid.Value", "op": "==", "value": "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9"}, {"name": "a gone id", "on": "field", "who": "1099", "path": "EntityGuid.Value", "op": "==", "value": "x"}]}""", out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("A", 1, 100, 0);
+        w.Comps[1007] = new JsonObject { ["EntityGuid"] = new JsonObject { ["Value"] = "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9" } };   // no name: not in Named()
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0.5);
+        book.Finish(1);
+        var v = book.Verdicts();
+        Assert.True(v.Single(x => x.Name == "the child's key").Ok);
+        Assert.False(v.Single(x => x.Name == "a gone id").Ok);
+    }
+
     /// <summary>
     /// ⭐⭐ RT-3 (R-4279) — the golden compares VISIBLE state: an internal blackboard / diagnostics component that differs (or a component
     /// added since the capture) is NOT a difference; a visible mode (<c>AnimalState</c>), a field the checks read (<c>Fuel.Litres</c>) and a

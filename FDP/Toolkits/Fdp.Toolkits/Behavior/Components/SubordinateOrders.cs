@@ -44,6 +44,11 @@ namespace Fdp.Toolkit.Behavior.Components
             }
         }
 
+        /// <summary>⭐ agg-behaviors R-8301 — the tactical-intent prefix of an ABSTRACT order (<c>Order.&lt;Kind&gt;</c>). ⛔ Mirrors
+        /// <c>OrderAttribute.IntentPrefix</c> (Hrot.Core, which this assembly cannot see); a rail pins the two equal. An entry whose
+        /// <see cref="Entry.Behavior"/> starts with it was an order the receiver resolved itself, so its release is the UNNAMED clear.</summary>
+        public const string OrderIntentPrefix = "Order.";
+
         public IReadOnlyList<Entry> Orders { get; init; }   // ⭐ CE-4046 — read-only (same name and wire shape as the array it was)
 
         public SubordinateOrders(Entry[] orders) => Orders = orders;
@@ -90,7 +95,7 @@ namespace Fdp.Toolkit.Behavior.Components
                 if (!repo.IsAlive(e.Member)) continue;
                 repo.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {
-                    Entity = e.Member, Kind = TacticalIntentKind.Clear, IntentId = e.Behavior, Origin = e.Origin,
+                    Entity = e.Member, Kind = TacticalIntentKind.Clear, IntentId = e.Behavior.StartsWith(OrderIntentPrefix, StringComparison.Ordinal) ? string.Empty : e.Behavior, Origin = e.Origin,   // ⭐ R-8301
                 });
                 EngagementAreas.WithdrawSuperior(repo, e.Member);   // ⭐ CE-2302 (DA-32) — the sector the run gave him ends with it
                 released++;

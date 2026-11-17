@@ -1,0 +1,72 @@
+{
+  "$doc": "\u00a723.6 ST-5, C-7: ResolutionManagerSystem.Decide - an enemy within ForcedRange (300 m) skips straight from NotSplitting to Materialising in the same step (goto case Planning), so Planning is never at a step boundary; with the enemy in the band but not forced the stage is held one step. The stochastic fire phase targets only stochastic units, so 'before any stochastic step fights it' is encoded as: the platoon writes no fire line and loses no health while stochastic.",
+  "runFor": 30,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "C-7: a physical weapon 250 m off (inside the forced range, 300 m) - the platoon hands over",
+      "on": "field",
+      "who": "Blue Platoon Forced",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 5
+    },
+    {
+      "name": "... with NO planning time: the Planning stage is never seen (straight to Materialising)",
+      "never": {
+        "on": "field",
+        "who": "Blue Platoon Forced",
+        "path": "AggregateUnit.Splitting",
+        "op": "==",
+        "value": "Planning"
+      }
+    },
+    {
+      "name": "... and no stochastic step fights before it: it fires no stochastic line",
+      "never": {
+        "on": "field",
+        "who": "Blue Platoon Forced",
+        "path": "FireAllocation.Count",
+        "op": ">",
+        "value": 0
+      }
+    },
+    {
+      "name": "... nor loses a man to one",
+      "never": {
+        "on": "field",
+        "who": "Blue Platoon Forced",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 24.9,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        }
+      }
+    },
+    {
+      "name": "the control: a physical enemy 450 m off (inside the band, outside the forced range) - the process plans first (Planning seen)",
+      "on": "field",
+      "who": "Blue Platoon Planned",
+      "path": "AggregateUnit.Splitting",
+      "op": "==",
+      "value": "Planning",
+      "before": 5
+    },
+    {
+      "name": "... and hands over too",
+      "on": "field",
+      "who": "Blue Platoon Planned",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 20
+    }
+  ]
+}

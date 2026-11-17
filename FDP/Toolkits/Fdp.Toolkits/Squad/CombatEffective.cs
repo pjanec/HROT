@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Toolkit.Aggregate;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat;
@@ -49,6 +50,8 @@ namespace Fdp.Toolkit.Squad
         private static bool IsInTheFight(ISimulationView view, Entity member, int depth, bool standing)
         {
             if (member.IsNull || !view.IsAlive(member)) return false;
+            // ⭐ agg-behaviors ST-0 ① (RV-5; design §23.7) — a stochastic unit: its live (standing) slots, by the SAME MinEffective rule as a roster
+            if (AggregateUnits.IsStochastic(view, member)) return AggregateUnits.InTheFight(view, member, standing);
             if (!IsUnit(view, member))
                 return Injury.IsInTheFight(view, member) && !(standing && Behavior.Components.Stresses.IsBroken(view, member));
             if (depth >= MaxDepth) return false;
@@ -60,6 +63,12 @@ namespace Fdp.Toolkit.Squad
         private static int Fighting(ISimulationView view, Entity unit, int depth, bool standing, out int count)
         {
             count = 0;
+            if (AggregateUnits.IsStochastic(view, unit))   // ⭐ ST-0 ① — its men are its slots
+            {
+                AggregateUnits.Slots(view, unit, standing, out int live, out int total, out _);
+                count = total;
+                return live;
+            }
             if (!view.HasComponent<UnitRoster>(unit)) return 0;
             ref readonly var roster = ref view.GetComponentRO<UnitRoster>(unit);
             count = roster.Count;

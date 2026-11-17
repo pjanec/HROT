@@ -1,0 +1,463 @@
+{
+  "$doc": "\u00a723.6 ST-5, judged as built: D-P3 (planned posts from SquadDefend's window / door survey) is STOPPED (R-8330, design \u00a723.5c), so a split squad's men stand on UnitSplits.FallbackPosts - a line across the heading (heading 0: along x) through the unit's position, rows of <= 12, width max(Width, 2 m x men). When D-P3 lands, the window / door rows replace the line rows. Children by network id (no name, F-22; R-8335): measured 1030-1039.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the squad in the house de-aggregates: Physical",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 20
+    },
+    {
+      "name": "its slot table is whole (10 men up)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 10,
+      "atEnd": true
+    },
+    {
+      "name": "house: child 0 (slot 1) carries the stable key uuid5(unit, child:1)",
+      "on": "field",
+      "who": "1030",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "b7eb8db5-e374-5d37-90e5-e84865743245",
+      "after": "split"
+    },
+    {
+      "name": "house: child 1 (slot 2) carries the stable key uuid5(unit, child:2)",
+      "on": "field",
+      "who": "1031",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "93fc61af-2ed0-51c0-b4eb-a786a200076f",
+      "after": "split"
+    },
+    {
+      "name": "house: child 2 (slot 3) carries the stable key uuid5(unit, child:3)",
+      "on": "field",
+      "who": "1032",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "eccf4b15-554f-5ca6-9823-9e8e662d8f7a",
+      "after": "split"
+    },
+    {
+      "name": "house: child 3 (slot 4) carries the stable key uuid5(unit, child:4)",
+      "on": "field",
+      "who": "1033",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "e2c796c7-aa04-5209-9137-d14c04f61bee",
+      "after": "split"
+    },
+    {
+      "name": "house: child 4 (slot 5) carries the stable key uuid5(unit, child:5)",
+      "on": "field",
+      "who": "1034",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8bea274c-ffb5-58b0-83b1-3e080d6324cb",
+      "after": "split"
+    },
+    {
+      "name": "house: child 5 (slot 6) carries the stable key uuid5(unit, child:6)",
+      "on": "field",
+      "who": "1035",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "dd63e206-27e6-577e-a527-c627cecfbcb6",
+      "after": "split"
+    },
+    {
+      "name": "house: child 6 (slot 7) carries the stable key uuid5(unit, child:7)",
+      "on": "field",
+      "who": "1036",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5a2062c5-0cba-5ca8-8972-5c3e0c54f794",
+      "after": "split"
+    },
+    {
+      "name": "house: child 7 (slot 8) carries the stable key uuid5(unit, child:8)",
+      "on": "field",
+      "who": "1037",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "1db2eccb-0699-5120-a7bb-ce3253ab348c",
+      "after": "split"
+    },
+    {
+      "name": "house: child 8 (slot 9) carries the stable key uuid5(unit, child:9)",
+      "on": "field",
+      "who": "1038",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "28209c39-32c1-5403-b3f9-98d738be6d05",
+      "after": "split"
+    },
+    {
+      "name": "house: child 9 (slot 10) carries the stable key uuid5(unit, child:10)",
+      "on": "field",
+      "who": "1039",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "2057eecd-be3a-5c1c-9fb2-cee871bf8ecf",
+      "after": "split"
+    },
+    {
+      "name": "house: child 0 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1030",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 1 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1031",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 2 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1032",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 3 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1033",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 4 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1034",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 5 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1035",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 6 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1036",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 7 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1037",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 8 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1038",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 9 stands within 12 m of the unit's place",
+      "on": "near",
+      "who": "1039",
+      "point": [
+        125,
+        161,
+        0
+      ],
+      "within": 12,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 0 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1030",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 0 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1030",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 1 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1031",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 1 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1031",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 2 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1032",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 2 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1032",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 3 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1033",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 3 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1033",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 4 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1034",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 4 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1034",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 5 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1035",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 5 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1035",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 6 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1036",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 6 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1036",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 7 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1037",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 7 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1037",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 8 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1038",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 8 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1038",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 9 stands on the fallback line across the squad's heading (y <= the house's 161 + 1 m)",
+      "on": "field",
+      "who": "1039",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 162,
+      "after": "split",
+      "before": "split+1"
+    },
+    {
+      "name": "house: child 9 ... (y >= 161 - 1 m)",
+      "on": "field",
+      "who": "1039",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "after": "split",
+      "before": "split+1"
+    }
+  ],
+  "anchors": {
+    "split": {
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  }
+}

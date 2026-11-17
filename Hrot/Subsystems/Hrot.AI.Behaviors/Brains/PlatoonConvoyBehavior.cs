@@ -314,10 +314,11 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // the same order this run last gave is not given again — a finished embark is not restarted — except a recovery the
                 // squad reported ended (Set or TaskFailed) with the man still lying: tried again, at most MaxRecovers times
-                if (CommandOrders.Gave(world, self, squad, behaviour, order)
+                var kind = behaviour == BehaviorNames.SquadDefend ? OrderKind.Defend : 0;   // ⭐ agg-behaviors R-8305 — the secure arm is a neutral Defend, routed by kind
+                if (CommandOrders.Gave(world, self, squad, CommandOrders.KeyFor(world, squad, kind, behaviour), order)
                     && (behaviour != BehaviorNames.SquadRecover || !CasevacAnswers.Returned(world, self, slot))) return;
                 if (behaviour == BehaviorNames.SquadRecover) p.Recovers[slot]++;
-                CommandOrders.Assign(world, self, squad, behaviour, order, newOrder: true);
+                CommandOrders.Route(world, self, squad, kind, behaviour, order, newOrder: true);
             }
             ws.Orders++;
         }
@@ -341,7 +342,7 @@ namespace Hrot.AI.Behaviors.Brains
                 case ConvoyPlan.PhaseSecure:   // DA-101 — only a squad with a man out; one still aboard stays
                     if (!Dismounted(world, squad)) return false;
                     behaviour = BehaviorNames.SquadDefend;
-                    order = JsonSerializer.Serialize(new SquadDefendParamsJsonDto
+                    order = JsonSerializer.Serialize(new DefendOrder
                     {
                         Position = !v.IsNull && world.HasComponent<SimTransform>(v) ? world.GetComponentRO<SimTransform>(v).Position : StaffComposerSystem.CentreOf(world, squad),
                         SearchRadius = SecureRadius, Speed = p.Speed,

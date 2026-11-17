@@ -1,0 +1,88 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: on basic-desert a BLUE and a RED stochastic platoon (30 men each, from the TKB composite) face each other 200 m apart, both defending. They fire on each other (agg-backend's phase A), so their slot tables CHANGE during the run (hits, stress, ammunition). Judge: the run is recorded; the review harness (--verify-review-at) seeks through it and every component - above all UnitSlotTable and UnitHoldings - equals live at every keyframe, and live comes back exact. Check: scripts/scenario-regression.sh agg-recorded and: dotnet <runner> --mode editor --headless --verify agg-recorded --verify-review-at 30"
+  },
+  "entities": {
+    "a9000003-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            300,
+            200,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000003-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Stochastic Platoon",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            300,
+            400,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

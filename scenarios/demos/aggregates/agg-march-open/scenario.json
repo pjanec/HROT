@@ -1,0 +1,50 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin (flat, empty) a dismounted STOCHASTIC 'Blue Stochastic Platoon' (30 men) is ordered to move 2 km east, (100,300) to (2100,300), by the generic Move play. Judge: it marches as a column (Formation Column), its route is the straight 2000 m leg, and its TAIL arrives within +-10 % of M-2's predicted time: (2000 + 145 m column) / (1.5 m/s x 0.9) = 1589 s, so between 1430 s and 1748 s. Fail: it arrives outside that window, or not as a column. Check: scripts/scenario-regression.sh agg-march-open (~6 min)"
+  },
+  "entities": {
+    "a9000004-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitMove",
+        "Params": {
+          "Location": [
+            2100,
+            300,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

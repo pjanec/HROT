@@ -27,6 +27,9 @@ namespace Hrot.Editor.Director
         public JsonNode? Value { get; init; }
         /// <summary><c>field</c>: <c>any</c> (default) · <c>all</c> · <c>atLeast:n</c> of the units <see cref="AnchorSpec.Who"/> names.</summary>
         public string Quantifier { get; init; } = "any";
+        /// <summary><c>field</c> (agg-behaviors, R-8320): the ELEMENT count of a path with a <c>*</c> part (<c>UnitSlotTable.Slots.*.Health</c>) — the cue holds for a unit when at least this many
+        /// elements of the array satisfy the comparison (default 1). A path with no <c>*</c> ignores it.</summary>
+        public int Elements { get; init; } = 1;
         /// <summary>⭐ <c>CE-4624</c> <c>knowledge</c>: the SIDE whose knowledge of the field <see cref="AnchorSpec.Who"/> names is read (a <c>ForceId</c> name).</summary>
         public string? Side { get; init; }
 
@@ -219,6 +222,7 @@ namespace Hrot.Editor.Director
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null;
+            int elements = 1;
             bool opGiven = false;
             JsonNode? value = null;
             foreach (var (k, v) in o)
@@ -235,6 +239,9 @@ namespace Hrot.Editor.Director
                     case "side": side = v?.ToString(); break;
                     case "value": value = v?.DeepClone(); break;
                     case "quantifier": quantifier = v?.ToString() ?? "any"; break;
+                    case "elements":
+                        if (v is JsonValue ev && ev.TryGetValue<int>(out var en) && en >= 1) elements = en; else problems.Add($"{where}: elements is an integer >= 1");
+                        break;
                     case "where":
                         if (v is not JsonObject w) { problems.Add($"{where}: where is an object"); break; }
                         foreach (var (f, c) in w)
@@ -270,9 +277,10 @@ namespace Hrot.Editor.Director
             if (quantifier is not ("any" or "all") && !(quantifier.StartsWith("atLeast:", StringComparison.Ordinal)
                 && int.TryParse(quantifier[8..], NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
                 problems.Add($"{where}: quantifier is any, all or atLeast:n");
-            if (where_.Count > 0 && on is not ("shot" or "blast")) problems.Add($"{where}: where filters a shot or a blast row");
+            if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
+            if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Side = side };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side };
         }
     }
 }
