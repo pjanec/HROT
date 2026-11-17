@@ -36,12 +36,18 @@
       "value": 2
     },
     {
-      "name": "no MiG round hits the F-16 in 30 s",
+      "name": "no MiG MISSILE hits the F-16 in 30 s (R-10029: its gun may \u2014 the MiG closes while the F-16 beams)",
       "never": {
         "on": "shot",
         "by": "Fulcrum",
         "n": 1,
-        "hit": "Viper"
+        "hit": "Viper",
+        "where": {
+          "weaponIndex": [
+            ">=",
+            1
+          ]
+        }
       },
       "before": 30
     }
