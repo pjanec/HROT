@@ -208,8 +208,8 @@ public static class AnimalKits
                                                      0.06f, 0.22f, -0.30f, 0.12f, 0.05f, 0.12f, 150f, ColourRole.Body, Horns: HornKind.Back, Beard: true, LegCol: ColourRole.Dark, UprightEars: true);
 
     // ⭐ AN-21e — the rabbit: ~0.40 m long, ~0.15 m wide, ~0.3 m tall to the ear tips; a round body, the haunches higher, big hind legs, long upright ears, a white puff of a tail (docs/designs/animals/DESIGN_Animals.md §4c)
-    internal static readonly QuadSpec RabbitSpec = new(-0.15f, 0.12f, 0.14f, 0.07f, 0.14f, 40f, 0.05f, 0.08f, 0.09f, 20f, 0.08f, 0.08f, 0.08f, 0.03f, 0.05f, ColourRole.Light,
-                                                       0.03f, 0.09f, -0.11f, 0.05f, 0.012f, 0.02f, 110f, ColourRole.Bone, LegCol: ColourRole.Body, Rabbit: true);
+    internal static readonly QuadSpec RabbitSpec = new(-0.19f, 0.12f, 0.14f, 0.045f, 0.10f, 20f, 0.04f, 0.08f, 0.08f, 30f, 0.07f, 0.075f, 0.075f, 0.025f, 0.045f, ColourRole.Light,
+                                                       0.03f, 0.08f, -0.09f, 0.055f, 0.012f, 0.02f, 110f, ColourRole.Bone, LegCol: ColourRole.Body, Rabbit: true);
 
     internal static QuadSpec SpecOf(VisualFamily f) => f switch
     {
@@ -228,7 +228,15 @@ public static class AnimalKits
         var k = new MetreKit();
         // the torso (a sheep's is wool: the lighter shade), a paler belly strip under it
         float tcx = (s.X0 + s.X1) / 2f;
-        k.Add(tcx, 0f, s.Z0 + s.BodyH / 2f, s.X1 - s.X0, s.BodyW, s.BodyH, s.TorsoCol);
+        if (!s.Rabbit) k.Add(tcx, 0f, s.Z0 + s.BodyH / 2f, s.X1 - s.X0, s.BodyW, s.BodyH, s.TorsoCol);
+        else
+        {
+            // ⭐ HUNCHED (the rabbit sits): low shoulders, the back stepping up to big rounded haunches (heights shrink when crouched)
+            float hs = lying ? 0.75f : 1f, z0 = s.Z0;
+            k.Add(0.045f, 0f, z0 + 0.05f * hs, 0.15f, 0.11f, 0.10f * hs, s.TorsoCol);                 // the chest and shoulders: low
+            k.Add(-0.06f, 0f, z0 + 0.075f * hs, 0.10f, 0.13f, 0.15f * hs, s.TorsoCol);               // the back rising
+            k.Add(-0.115f, 0f, z0 + 0.09f * hs - 0.015f, 0.15f, 0.15f, 0.20f * hs, s.TorsoCol);      // the haunches: the highest, roundest part
+        }
         var w = Withers(s);
         // the neck: from the withers forward and up by NeckUp; it, the mane and the head pitch about the withers (grazing, alert)
         float up = s.NeckUp * MathF.PI / 180f;
@@ -250,8 +258,8 @@ public static class AnimalKits
             if (s.Rabbit)
             {
                 // two LONG ears (~0.10 m): upright, leaning a little back; laid back along the neck when the rabbit lies / crouches
-                if (lying) k.Add(ears.X - 0.05f, sy * 0.03f, ears.Z + 0.015f, 0.03f, 0.035f, 0.10f, s.HeadCol, pitch: -80f, role: skull, pivot: w, pivot2: n);
-                else k.Add(ears.X - 0.01f, sy * 0.03f, ears.Z + 0.045f, 0.03f, 0.035f, 0.095f, s.HeadCol, pitch: -10f, role: skull, pivot: w, pivot2: n);
+                if (lying) k.Add(ears.X - 0.05f, sy * 0.035f, ears.Z + 0.015f, 0.02f, 0.018f, 0.10f, s.HeadCol, pitch: -80f, role: skull, pivot: w, pivot2: n);
+                else k.Add(ears.X - 0.015f, sy * 0.035f, ears.Z + 0.05f, 0.02f, 0.018f, 0.11f, s.HeadCol, pitch: -18f, role: skull, pivot: w, pivot2: n);
             }
             else if (s.UprightEars) k.Add(ears.X, sy * (s.HeadW / 2f - 0.02f), ears.Z + 0.05f, 0.035f, 0.04f, 0.10f, s.HeadCol, role: skull, pivot: w, pivot2: n);
             else if (s.FloppyEars) k.Add(ears.X - 0.02f, sy * (s.HeadW / 2f + 0.05f), ears.Z, 0.10f, 0.07f, 0.035f, s.HeadCol == ColourRole.Dark ? ColourRole.Dark : ColourRole.Body, pitch: 25f, role: skull, pivot: w, pivot2: n);
@@ -276,7 +284,8 @@ public static class AnimalKits
             var pivot = new Vector3(xs[i], ys[i], hipZ);
             float len = hipZ - s.HoofH;
             k.Add(xs[i], ys[i], s.HoofH + len / 2f, s.LegT, s.LegT, len, s.LegCol, role: role, pivot: pivot);
-            k.Add(xs[i], ys[i], s.HoofH / 2f, s.LegT * 1.1f, s.LegT * 1.1f, s.HoofH, ColourRole.Dark, role: role, pivot: pivot);
+            if (s.Rabbit && i >= 2) k.Add(xs[i] + 0.05f, ys[i], s.HoofH / 2f, 0.13f, s.LegT * 1.1f, s.HoofH, s.LegCol, role: role, pivot: pivot);   // the hind foot: a long FLAT foot on the ground, the leg folded above it
+            else k.Add(xs[i], ys[i], s.HoofH / 2f, s.LegT * 1.1f, s.LegT * 1.1f, s.HoofH, s.Rabbit ? s.LegCol : ColourRole.Dark, role: role, pivot: pivot);
         }
         // the tail: hanging by TailDeg from straight down toward the rear
         var root = new Vector3(s.X0, 0f, s.Z0 + s.BodyH * 0.85f);
@@ -286,8 +295,7 @@ public static class AnimalKits
         k.Add(tc.X, 0f, tc.Z, 0.05f, 0.05f, s.TailL, s.TailCol, pitch: s.TailDeg);
         if (s.Rabbit)
         {
-            k.Add(s.X0 - 0.015f, 0f, s.Z0 + s.BodyH * 0.72f, 0.065f, 0.06f, 0.06f, ColourRole.Bone);   // the white puff of a tail
-            k.Add(s.HindX + 0.02f, 0f, s.Z0 + s.BodyH * 0.62f, 0.16f, 0.16f, 0.17f, s.TorsoCol);          // the haunch: big hind quarters, higher than the back
+            k.Add(s.X0 - 0.005f, 0f, s.Z0 + (lying ? 0.10f : 0.13f), 0.07f, 0.07f, 0.07f, ColourRole.Bone);   // the white puff of a tail, at the rear of the haunch: seen from behind and the side
         }
         if (s.CurlyTail) k.Add(root.X - 0.07f, 0f, root.Z + 0.08f, 0.07f, 0.05f, 0.05f, s.TailCol);
         if (s.Udder && !lying) k.Add(s.X0 + 0.55f, 0f, s.Z0 - 0.03f, 0.30f, 0.22f, 0.12f, ColourRole.Skin);
