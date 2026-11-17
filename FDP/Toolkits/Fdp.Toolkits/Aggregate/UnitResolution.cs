@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat.Components;
@@ -138,6 +139,34 @@ namespace Fdp.Toolkit.Aggregate
         /// <summary>The policy in force (agg-behaviors' <c>ResolutionPolicy</c> plugs in here); default SV-9's fixed bands.</summary>
         public Func<EntityRepository, ResolutionBands> Policy { get; init; } = static _ => ResolutionBands.Default;
 
+        /// <summary>
+        /// ⭐⭐ <c>X-2</c> X2-D (R-8357, agg-behaviors; DESIGN_X2_Order_Reresolution.md §7) — why an AUTOMATIC switch of <c>unit</c> to the target
+        /// resolution must WAIT (non-null = the reason): the unit's current order has no play at the target (an untyped order, or a kind with no
+        /// row there — SV-10). ⭐ Only the automatic manager consults it: the instructor's pin (SV-14) always goes (the order is then cleared and
+        /// its commander hears TaskFailed — the behaviours' reconciler does that). Null (the default) ⇒ nothing ever waits. ⛔ The manager learns
+        /// nothing about tactics: the host plugs the behaviours' answer in (<c>CgfLogicPack</c>: <c>OrderReissue.BlockReason</c>).
+        /// </summary>
+        public Func<EntityRepository, Entity, AggregateResolution, string?>? SwitchBlocked { get; init; }
+        // ⭐ X2-D — the last reason each unit waited for (logged once per change, at Debug); a unit is added on its first block only (rare)
+        private readonly Dictionary<Entity, string> _blockedWhy = new();
+
+        /// <summary>⭐ X2-D — does <see cref="SwitchBlocked"/> hold the automatic switch of <paramref name="unit"/> to <paramref name="target"/>?</summary>
+        private bool Blocked(EntityRepository repo, Entity unit, AggregateResolution target)
+        {
+            var why = SwitchBlocked?.Invoke(repo, unit, target);
+            if (why == null)
+            {
+                if (_blockedWhy.Count > 0) _blockedWhy.Remove(unit);
+                return false;
+            }
+            if (!_blockedWhy.TryGetValue(unit, out var last) || last != why)
+            {
+                _blockedWhy[unit] = why;
+                Fdp.Core.Logging.FdpLog<ResolutionManagerSystem>.Debug("[ResolutionManager] unit #{0} waits to go " + target + ": " + why, unit.Index);
+            }
+            return true;
+        }
+
         public ResolutionManagerSystem(IUnitResolutionSwitch @switch, bool gateOnAuthority = false)
         {
             _switch = @switch ?? throw new ArgumentNullException(nameof(@switch));   // ⛔ never a silent default: a manager with no switch does nothing
@@ -237,6 +266,8 @@ namespace Fdp.Toolkit.Aggregate
                         if (u.Pin == ResolutionPin.PinStochastic || u.Pin == ResolutionPin.PinKeep && !forced) return;
                         if (u.Pin == ResolutionPin.PinPhysical || trigger)
                         {
+                            // ⭐ X2-D (R-8357) — an AUTOMATIC split waits while the unit's order has no physical play; the pin goes regardless (SV-14)
+                            if (u.Pin != ResolutionPin.PinPhysical && Blocked(repo, unit, AggregateResolution.Physical)) return;
                             u.Splitting = SplitStage.Planning;
                             u.SplittingSince = now;
                             if (forced) goto case SplitStage.Planning;   // C-7: no planning time
@@ -297,6 +328,7 @@ namespace Fdp.Toolkit.Aggregate
                 // ⭐ CE-8013 ④ — UNOBSERVED too; ⭐ F-23 — and no man of it in CONTACT (automatic only)
                 if (!far || Observed(repo, unit) || InContact(repo, unit)) { u.SplittingSince = now; return; }
                 if ((double)now - (double)u.SplittingSince < b.QuietSeconds) return;
+                if (Blocked(repo, unit, AggregateResolution.Stochastic)) return;   // ⭐ X2-D (R-8357) — the order has no stochastic play: the automatic merge waits
             }
             u.Splitting = SplitStage.Merging;
             _switch.Merge(repo, unit);
@@ -358,6 +390,10 @@ namespace Fdp.Toolkit.Aggregate
         /// hosts, rails) — ⚠ a networked host passes it, or the children's replicas outlive the merge.</summary>
         public Func<Fdp.Toolkit.Lifecycle.EntityLifecycleModule?>? Lifecycle { get; init; }
 
+        /// <summary>⭐ <c>X-2</c> X2-B (R-8354, agg-behaviors) — the designation of the unit's composite slot (host-supplied, from the same TKB leaf
+        /// as <see cref="ChildType"/>): what the released man is assigned under in the unit's roster. Null ⇒ <see cref="TacticalDesignation.Undefined"/>.</summary>
+        public Func<EntityRepository, Entity, int, TacticalDesignation>? ChildDesignation { get; init; }
+
         private void Remove(EntityRepository repo, Entity c, string why)
         {
             var elm = Lifecycle?.Invoke();
@@ -410,6 +446,7 @@ namespace Fdp.Toolkit.Aggregate
             ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
             bool health = repo.IsComponentTypeRegistered<Health>();
             bool stress = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>();
+            bool squad = repo.HasComponent<AggregateUnit>(unit) && repo.GetComponentRO<AggregateUnit>(unit).Echelon == 0;
             foreach (var c in Children(repo, unit))
             {
                 ref var tag = ref repo.GetComponentRW<AggregateChild>(c);
@@ -424,6 +461,15 @@ namespace Fdp.Toolkit.Aggregate
                     repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.Stress>(c).Level = (float)slots.Slots[i].Stress;
                 UnitAmmunition.ToSoldier(repo, c, slots.Slots[i].Ammo);   // ⭐ CE-8013 ③ (X-4)
                 tag.Held = 0;
+                // ⭐⭐ X-2 X2-B (R-8354) — a squad's released man joins the unit's ROSTER through the ONE hierarchy path (UnitHierarchySystem: the
+                //   roster, his UnitSubordinate, the squad state, the wire mark) — so the re-resolved order's physical play has its men. Squad
+                //   echelon only (≤ 13 men ≤ UnitRoster.Capacity); a platoon's men are not its squads (F-X2-1). The roster lands a frame later.
+                if (squad)
+                    repo.Bus.Publish(new CmdAssignSubordinate
+                    {
+                        Subordinate = c, Commander = unit, FireTeam = FireTeam.None,
+                        Designation = ChildDesignation?.Invoke(repo, unit, slots.Slots[i].CompositeSlot) ?? TacticalDesignation.Undefined,
+                    });
             }
             _requested.Remove(unit);
         }
@@ -463,6 +509,9 @@ namespace Fdp.Toolkit.Aggregate
             }
             for (int i = 0; i < slots.Count; i++) if (!seen[i] && slots.IsUp(i)) slots.Slots[i].Health = (Half)0f;
             if (n > 0 && repo.HasComponent<SimTransform>(unit)) repo.GetComponentRW<SimTransform>(unit).Position = sum / n;   // the centroid (X-4)
+            // ⭐⭐ X-2 X2-B (R-8354, F-X2-4) — the men are gone, so is the unit's ROSTER: a stochastic unit that kept one (even empty — the
+            //   DestructionOrder cascade empties it, never removes it) would drop out of the staff composer's stochastic arm (no SITREP / Set / TaskFailed)
+            if (repo.IsComponentTypeRegistered<UnitRoster>() && repo.HasComponent<UnitRoster>(unit)) repo.RemoveComponent<UnitRoster>(unit);
         }
 
         private static int Count(EntityRepository repo, Entity unit)

@@ -102,4 +102,29 @@ public sealed class BehaviorParamsValidationTests
         Assert.Equal(2, perKind["BreakContact"]);   // BreakContact + the stochastic unit's StochasticUnitBreakContact (ST-2)
         Assert.True(perKind["Move"] >= 4 && perKind["Attack"] >= 4 && perKind["Hold"] >= 4, "the walk finds the plays (not vacuous)");
     }
+
+    /// <summary>⭐⭐ <c>X-2</c> X2-C2 (R-8356, R-8302 "built from Fulfils + the echelon class") — every PHYSICAL fallback row of the routing table names a
+    /// production play that FULFILS the row's order, and is needed: the <c>&lt;Class&gt;&lt;Order&gt;</c> name rule finds nothing for that class and order
+    /// (a row the name rule resolves would be dead — a data error). ✅ Red-proof: a row <c>(InfantrySquad, Physical, Hold) → SquadHold</c> added ⇒ the
+    /// name rule resolves <c>InfantrySquadHold</c> ⇒ red.</summary>
+    [Fact]
+    public void X2C2_EveryPhysicalFallbackRow_FulfilsItsOrder_AndTheNameRuleFindsNothing()
+    {
+        var registry = Production();
+        var defaults = ParamsDtoRegistry.Default;
+        int n = 0;
+        foreach (var row in Hrot.Core.Tkb.ResolutionRoutingTable.Default.Rows.Where(r => r.Resolution == Fdp.Toolkit.Aggregate.AggregateResolution.Physical))
+        {
+            n++;
+            Assert.True(registry.TryGetId(row.Behaviour, out _), row.Behaviour + " is a production play");
+            Assert.True(defaults.TryGetBehavior(row.Behaviour, out var decl), row.Behaviour);
+            Assert.Equal(row.Order, decl.Fulfils);
+            var cls = Hrot.Core.Tkb.EntityClassTable.Default.Find(row.Class)!;
+            var dis = new Fdp.Core.DISEntityType { Kind = 11, Domain = 1, Country = 225, Category = 1, Subcategory = 2 };
+            Assert.True(Hrot.Core.Tkb.EntityClassTable.Default.Chain(dis).Any(c => c.Name == cls.Name), "the rail's DIS is the row's class");
+            var named = Hrot.Core.Tkb.OrderResolver.Resolve(Hrot.Core.Tkb.EntityClassTable.Default, dis, row.Order, x => registry.TryGetId(x, out _));
+            Assert.Equal(Hrot.Core.Tkb.OrderResolution.NoBehaviour, named.Outcome);
+        }
+        Assert.Equal(2, n);   // Defend, BreakContact
+    }
 }

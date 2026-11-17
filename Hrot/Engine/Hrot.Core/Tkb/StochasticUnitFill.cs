@@ -151,6 +151,15 @@ namespace Hrot.Core.Tkb
             int k = compositeSlot - 1;
             return k >= 0 && k < leaves.Count ? leaves[k].Type : default;
         }
+
+        /// <summary>⭐ <c>X-2</c> X2-B (R-8354) — the designation of the unit's composite slot <paramref name="compositeSlot"/> (1-based, as filled; the
+        /// SAME leaf as <see cref="ChildType"/>), for <see cref="BusResolutionSwitch.ChildDesignation"/>: what the released man is in the roster.</summary>
+        public static TacticalDesignation ChildDesignation(ITkbDatabase db, TkbTypeId unitType, int compositeSlot)
+        {
+            var leaves = Leaves(db, unitType);
+            int k = compositeSlot - 1;
+            return k >= 0 && k < leaves.Count ? leaves[k].Designation : TacticalDesignation.Undefined;
+        }
     }
 
     /// <summary>

@@ -25,23 +25,31 @@ namespace Fdp.Toolkits.Tests.Aggregate
         {
             public readonly EntityRepository W = new();
             public readonly Entity Unit, Enemy;
-            public readonly BusResolutionSwitch Switch = new() { ChildType = (_, _, _) => Rifleman };
+            public readonly BusResolutionSwitch Switch;
             public readonly ResolutionManagerSystem Manager;
             public readonly List<Guid> Created = new();
             public double T;
 
-            public Host(ResolutionPin pin = ResolutionPin.NoPin, float enemyAt = 3000f)
+            public Host(ResolutionPin pin = ResolutionPin.NoPin, float enemyAt = 3000f, byte echelon = 0,
+                        Func<EntityRepository, Entity, AggregateResolution, string?>? blocked = null)
             {
+                // ⭐ X2-B — each composite slot's designation: slot 1 the leader, the rest wingmen (what StochasticUnitFill gives a squad)
+                Switch = new BusResolutionSwitch
+                {
+                    ChildType = (_, _, _) => Rifleman,
+                    ChildDesignation = (_, _, slot) => slot == 1 ? Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader : Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman,
+                };
                 W.RegisterComponent<SimTransform>(); W.RegisterComponent<EntityInfo>(); W.RegisterComponent<AggregateUnit>();
                 W.RegisterComponent<UnitSlotTable>(); W.RegisterComponent<AggregateChild>(); W.RegisterComponent<EntityGuid>();
                 W.RegisterComponent<Health>(); W.RegisterComponent<GlobalTime>();
                 W.RegisterComponent<PlannedPosts>(); W.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
-                Manager = new ResolutionManagerSystem(Switch);
+                W.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+                Manager = new ResolutionManagerSystem(Switch) { SwitchBlocked = blocked };
                 Unit = W.CreateEntity();
                 W.AddComponent(Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
                 W.AddComponent(Unit, new EntityInfo { ForceId = ForceId.Friend, Name = "Alpha" });
                 W.AddComponent(Unit, new EntityGuid(new Guid("8e5a1d3c-0000-4000-8000-000000008012")));
-                W.AddComponent(Unit, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Width = 60f, Pin = pin });
+                W.AddComponent(Unit, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Width = 60f, Pin = pin, Echelon = echelon });
                 var s = new UnitSlotTable { Count = 6 };
                 for (int i = 0; i < 6; i++) s.Slots[i] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f, CompositeSlot = (byte)(i + 1) };
                 s.Slots[2].Health = (Half)12.5f;   // a wounded man
@@ -339,6 +347,89 @@ namespace Fdp.Toolkits.Tests.Aggregate
             var u = w.CreateEntity();
             w.AddComponent(u, new UnitSlotTable());
             Assert.Throws<InvalidOperationException>(() => new BusResolutionSwitch().Materialise(w, u, ReadOnlySpan<Vector3>.Empty));
+        }
+        /// <summary>⭐⭐ <c>X-2</c> X2-B (R-8354; DESIGN_X2_Order_Reresolution.md §8 S1) — a SQUAD's handover publishes ONE <c>CmdAssignSubordinate</c> per released
+        /// man (the dead one never created, so never assigned), under the unit, with his composite leaf's designation; a PLATOON's publishes none
+        /// (F-X2-1: its men are not its squads). ✅ Red-proofs: the publish dropped ⇒ 0 ≠ 5 · the designation taken from the slot index, not the
+        /// composite slot ⇒ the leader is not slot 1's man.</summary>
+        [Fact]
+        public void X2B_ASquadsHandover_AssignsEveryReleasedMan_ToTheUnit_UnderHisLeafsDesignation_APlatoonsNone()
+        {
+            foreach (byte echelon in new byte[] { 0, 1 })
+            {
+                using var h = new Host(enemyAt: 500f, echelon: echelon);
+                h.Step(); h.Step();                                              // Planning, Materialising
+                Assert.Empty(h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());   // nothing while held
+                h.Step();                                                        // the handover
+                Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+                var assigns = h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray();
+                if (echelon != 0) { Assert.Empty(assigns); continue; }
+                Assert.Equal(5, assigns.Length);                                 // the five live men (slot 5 is dead)
+                var men = h.Children();
+                foreach (var a in assigns)
+                {
+                    Assert.Equal(h.Unit, a.Commander);
+                    Assert.Contains(a.Subordinate, men);
+                    int slot = h.W.GetComponentRO<AggregateChild>(a.Subordinate).Slot;   // slot index 0 ⇔ composite slot 1
+                    Assert.Equal(slot == 0 ? Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader : Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman, a.Designation);
+                }
+                Assert.Equal(5, new HashSet<Entity>(Array.ConvertAll(assigns, a => a.Subordinate)).Count);   // one each
+            }
+        }
+
+        /// <summary>⭐⭐ <c>X-2</c> X2-B (F-X2-4) — a MERGE leaves no <c>UnitRoster</c> on the unit (the men are gone; a kept roster, even empty, would
+        /// drop the unit out of the staff composer's stochastic arm). ✅ Red-proof: the removal dropped ⇒ the roster survives ⇒ red.</summary>
+        [Fact]
+        public void X2B_AMerge_LeavesNoRoster()
+        {
+            using var h = new Host(ResolutionPin.PinPhysical);
+            h.Step(); h.Step(); h.Step();
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();         // what UnitHierarchySystem builds from the assigns
+            foreach (var c in h.Children()) Fdp.Core.CommandHierarchy.UnitRoster.Add(ref roster, c);
+            h.W.AddComponent(h.Unit, roster);
+            h.W.GetComponentRW<AggregateUnit>(h.Unit).Pin = ResolutionPin.PinStochastic;
+            h.Step();
+            Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+            Assert.False(h.W.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(h.Unit));
+        }
+
+        /// <summary>⭐⭐ <c>X-2</c> X2-D (R-8357, SV-10 / SV-14) — while <see cref="ResolutionManagerSystem.SwitchBlocked"/> holds a reason, an AUTOMATIC
+        /// split and an automatic merge WAIT; the reason gone, they go; the instructor's PIN goes regardless. ✅ Red-proofs: the split's check
+        /// dropped ⇒ it plans while blocked ⇒ red · the merge's check dropped ⇒ it merges while blocked ⇒ red · the check applied to the pin ⇒ the
+        /// pinned split waits ⇒ red.</summary>
+        [Fact]
+        public void X2D_ABlockedAutomaticSwitch_Waits_APinnedOneGoes()
+        {
+            string? why = "no physical play for Recover";
+            using (var h = new Host(enemyAt: 500f, blocked: (_, _, _) => why))
+            {
+                for (int i = 0; i < 3; i++) h.Step();
+                Assert.Equal(SplitStage.NotSplitting, h.U.Splitting);          // the automatic split waits
+                Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+                why = null;
+                h.Step();
+                Assert.Equal(SplitStage.Planning, h.U.Splitting);              // the reason gone: it goes
+                h.Step(); h.Step();
+                Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+
+                why = "no stochastic play for Embark";                           // now the merge
+                h.MoveEnemy(3000f);
+                for (int s = 0; s < (int)ResolutionBands.Default.QuietSeconds + 3; s++) h.Step();
+                Assert.Equal(AggregateResolution.Physical, h.U.Resolution);    // the automatic merge waits
+                why = null;
+                h.Step();
+                Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
+            }
+            why = "blocked";
+            using (var h = new Host(ResolutionPin.PinPhysical, blocked: (_, _, _) => why))
+            {
+                h.Step(); h.Step(); h.Step();
+                Assert.Equal(AggregateResolution.Physical, h.U.Resolution);    // the pin goes (SV-14)
+                h.W.GetComponentRW<AggregateUnit>(h.Unit).Pin = ResolutionPin.PinStochastic;
+                h.Step();
+                Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);  // and back, pinned
+            }
         }
     }
 }
