@@ -93,6 +93,25 @@ stay guarding … attack … horses … two types … a passenger seat … gaits
 | **AN-19** | ⭐ **ANIMAL SOUNDS — an important part of the scene** | ⭐ every animal is a SOUND SOURCE through the ONE existing sound path — `SoundEmissionSystem` (the AI hears it within its acoustic range) and the presentation's `SoundSources` → `SoundMixer` (the operator hears what the AI hears, FPS Audio AU-4 / AU-5 / AU-10), a new `SoundSourceClass.Animal` with a `SoundFamily` per species. Four kinds: ① **calls at rest** — moo, baa, neigh, bark, cluck, oink, bleat, meow, birdsong — at a seeded random interval per species (a herd is not a choir); ② **alarm calls** when frightened — a bellow, a squeal, a hen's cackle, a whinny, a flock's alarm; ③ **movement** — hooves by gait (walk / trot / gallop louder and faster), a flock's WINGS at take-off, a hen's flutter; ④ the **dog's bark** — loud, far-carrying. ⭐ **A tactical cue**: a bark, a herd's alarm or BIRDS FLUSHING from a tree are heard by soldiers' ears — the classic sign that someone is moving out there; an ambient BIRDSONG bed in parks / orchards while calm that falls SILENT after shooting | 🔒 user: *"the sounds that animals are making. This is the important part of the scene, so please don't forget to include it"* · one sound path for everything (ruling 9); clips are data |
 | **AN-12** | destructible, neutral | every animal has Health, injury states, the dead figure; hit by fire, blasts, vehicles (RM-1); a NEUTRAL side — soldiers do not target animals unless attacked (the dog) or ordered | 🔒 user: *"destructible the same way"* |
 
+## 4b. Shootable birds and the duck — AN-20 *(coordinator, `2026-11-17`; ⛔ NOT approved — moved here from the bow design's BW-14)*
+
+🔒 User, `2026-11-17`: *"Do we have some birds like flying ducks that can be hunted …?"* · *"Does it make sense to shoot at flying ducks? Aren't they
+out of reach of a usual bow? It doesn't mean that we cannot shoot them using firearms … the ducks should stay just the relation to the archery might be
+confusing."*
+
+📐 Measured: a lone bird (708) is its own entity (5 health, `LocomotionClass.Bird`, `BirdFlightModel` ~25 m above the ground); a flock (707) is ONE
+entity drawn as N birds (AN-4) — a flock bird exists only in the drawing; ⛔ there is no duck; ⚠ NOT measured whether a round can hit a lone bird
+(its collider / layer — a bird is not an aircraft, so AT1's air fix may not reach it) nor whether a killed bird falls. ✅ a SHOTGUN exists (the anti-drone
+man's 12-gauge, 12 pellets over 15 mils, spent past 60 m — `NedTkbCatalog.cs:58-66`, CE-2436 AU-7) — the right weapon for birds.
+
+| # | decision — ⭐ lean | why | rejected — one line |
+|---|---|---|---|
+| **AN-20a** | a LONE bird is a target any round can hit (bullet, shotgun pellet, arrow) and kill; killed, it falls (the dead-flyer fall) and lies | hunting; the measure above decides how much is new | — |
+| **AN-20b** | a FLOCK: a round (or pellet) that passes through the flock's volume has a chance per drawn bird it passes to hit ONE — the flock's count drops by one, a lone DEAD bird is spawned there and falls; the rest flee (the existing fear) | a flock bird must be hittable without a brain each (AN-4) | a brain per flock bird |
+| **AN-20c** | a new species **Duck** (~0.5 m, flies a loose V low over water and fields, quacks) — a lone duck and a duck flock type, ids measured free | the bird the user asked for | — |
+| **AN-20d** | the scenario **`an-duck-hunt`**: a hunter with the shotgun shoots a lone duck and into a duck flock over a field — a lone duck `health == 0` and lying · the flock's count drops ≥ 1, a dead duck lies · the flock flees | R-4277 | — |
+| **AN-20e** | the bird-shooting GAME (scores, rounds) stays the fun pack's (CE-4633) | engine shared, content separate (R-4281) | — |
+
 ## 4a. The fixed ids — for EVERY lane *(measured free on `coordinator`, `backend`, `ui`, `behaviors`, `terrain`, `2026-11-16`)*
 
 📐 TKB types 700–799 are used nowhere (the hundreds: vehicles 100s, people 200s, units 300s, aircraft 400s, weapon systems 600s); DIS life-form
