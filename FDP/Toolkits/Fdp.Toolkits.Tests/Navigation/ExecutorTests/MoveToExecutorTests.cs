@@ -96,7 +96,7 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
         [Fact]
         public void MoveToExecutor_InTraffic_AsksTrafficMode_OtherRoadUsesPlan()
         {
-            foreach (var (use, mode) in new[] { (Fdp.Toolkit.Navigation.RoadUse.InTraffic, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, NavigationMode.PathToPoint) })
+            foreach (var (use, mode) in new[] { (Fdp.Toolkit.Navigation.RoadUse.InTraffic, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.InTrafficPriority, NavigationMode.Traffic), (Fdp.Toolkit.Navigation.RoadUse.StronglyPrefer, NavigationMode.PathToPoint) })   // ⭐ CE-9000: the escort (beacon on) is handed over too
             {
                 var (world, entity, channel) = BuildWorld(new Vector2(300f, 150f), arrivalRadius: 5f, speed: 15f);
                 unsafe

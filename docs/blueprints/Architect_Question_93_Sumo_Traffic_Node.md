@@ -15,6 +15,7 @@ known-rot: §3.0's red "not composed in slice 1" box is slice 1's state — SimH
 known-conflict: none. ⚠ Relation to §2.1e ① of DESIGN_Terrain_Zones_And_Assets.md (the scenario names only a terrain) —
   CONSISTENT: the SUMO net is a terrain asset (R-4021); only the traffic DEMAND is a scenario entity.
 related-designs:
+  - ../designs/vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy: a priority-handed lead (§14 grows Priority + a speed cap, upstream H14) and the column's gaps as bodies (§13 grows)
   - docs/DESIGN_Terrain_From_OSM.md §5.4 — OWNS the OSM importer's road step, which now writes our heights into the net after netconvert (E2b)
   - docs/DESIGN_Uniform_Gizmo_Membership.md §8.5b/§8.7 — OWNS which hosts draw and PUBLISH the map gizmos; the road layer rides that seam (§12.4)
   - docs/DESIGN_Subsystem_Composition_Unification.md §4.1ae — OWNS how every host composes a capability (one shared walk) and the per-node terrain content the pack's net loader joins

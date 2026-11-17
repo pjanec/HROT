@@ -218,6 +218,36 @@ class Svg:
         with open(path, "w", encoding="utf-8") as f: f.write("\n".join(self.o))
 
 
+# ── NATO / APP-6 land-unit symbol (DESIGN_Stochastic_Unit_UI §6, DESIGN_Unit_Symbols) — the ONE mockup drawing of it ──
+NATO_FILL = {"F": "#80E0FF", "H": "#FF8080", "N": "#AAFFAA", "U": "#FFFF80"}
+
+
+def nato(svg, cx, cy, aff, arm, ech, w=34, h=22, sw=1.4):
+    """Centre (cx, cy): the FRAME by affiliation (friend rectangle, hostile diamond, neutral square, unknown quatrefoil) in the standard's pale fill, the ARM
+    icon (inf X, armour oval, mech both, recon slash, arty dot), the ECHELON marks above (none when h < 15 — a row-sized symbol)."""
+    fill = NATO_FILL[aff]; k = "#000"
+    if aff == "F":
+        svg.rect(cx - w / 2, cy - h / 2, w, h, fill, stroke=k, sw=sw); bx, by = w / 2, h / 2; top = cy - h / 2
+    elif aff == "H":
+        r = h * 0.8
+        svg.raw(f"<polygon points='{cx},{cy - r} {cx + r},{cy} {cx},{cy + r} {cx - r},{cy}' fill='{fill}' stroke='{k}' stroke-width='{sw}'/>"); bx = by = r * 0.5; top = cy - r
+    elif aff == "N":
+        svg.rect(cx - h / 2 - 2, cy - h / 2 - 2, h + 4, h + 4, fill, stroke=k, sw=sw); bx = by = h / 2; top = cy - h / 2 - 2
+    else:
+        r = h * 0.36
+        svg.raw("".join(f"<circle cx='{cx + dx}' cy='{cy + dy}' r='{r}' fill='{fill}' stroke='{k}' stroke-width='{sw}'/>" for dx, dy in ((0, -r), (r, 0), (0, r), (-r, 0))))
+        svg.raw(f"<circle cx='{cx}' cy='{cy}' r='{r * 1.3}' fill='{fill}'/>"); bx = by = r; top = cy - h * 0.72
+    if arm in ("inf", "mech"):
+        svg.line(cx - bx, cy - by, cx + bx, cy + by, k, sw); svg.line(cx - bx, cy + by, cx + bx, cy - by, k, sw)
+    if arm in ("armour", "mech"):
+        svg.raw(f"<ellipse cx='{cx}' cy='{cy}' rx='{bx * 0.62}' ry='{by * 0.55}' fill='none' stroke='{k}' stroke-width='{sw}'/>")
+    if arm == "recon": svg.line(cx - bx, cy + by, cx + bx, cy - by, k, sw)
+    if arm == "arty": svg.raw(f"<circle cx='{cx}' cy='{cy}' r='{by * 0.38}' fill='{k}'/>")
+    if h < 15: return
+    marks = {"team": "Ø", "squad": "•", "section": "••", "platoon": "•••", "company": "|", "battalion": "||"}[ech]
+    svg.text(cx, top - 2, marks, k, 11 if ech not in ("company", "battalion") else 12, "middle", "bold")
+
+
 def render(svg_path, png_path, w, h, scale=2):
     """Render an SVG to PNG with the preinstalled Playwright Chromium (for the chat; never commit the PNG)."""
     import subprocess, json

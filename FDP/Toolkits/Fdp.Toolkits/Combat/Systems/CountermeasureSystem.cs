@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Combat.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CountermeasureSystem : IEcsModuleSystem
     {
-        /// <summary>The seduction draw's salt (one site, one salt — <see cref="SimRng.FromSim"/>).</summary>
+        /// <summary>The seduction draw's salt (one site, one salt — <see cref="SimRng.FromSim(int, int, float)"/>).</summary>
         public const int SeductionSalt = 0x2188;
 
         private EntityQuery? _decoys, _rounds;

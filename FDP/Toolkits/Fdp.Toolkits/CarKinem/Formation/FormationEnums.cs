@@ -5,7 +5,7 @@ namespace CarKinem.Formation
     /// </summary>
     public enum FormationType : byte
     {
-        Column = 0,  // Single file, vehicles behind leader
+        Column = 0,  // Single file: ⭐ CE-9004 — each member drives the LEADER'S ACTUAL PATH at Spacing × slot behind it, along the path (ConvoyLeadSystem / ConvoyFollowSystem)
         Wedge = 1,   // V-formation, vehicles spread left/right/back
         Line = 2,    // Abreast, vehicles left/right
         Custom = 3   // User-defined slot offsets

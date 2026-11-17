@@ -44,7 +44,20 @@ namespace Hrot.AI.Behaviors.Brains
             public Vector2 FallbackDir;
             /// <summary>The pilot's reaction to a launch (s; AC-12's skill + a LateWarning lapse's 2 s). 0 = at once.</summary>
             public float ReactionS;
+            /// <summary>⭐ CE-10005 (AC-12, R-10019) — the decoys this pilot releases against ONE missile (0 ⇒ <see cref="AirAttackNodes.DecoySalvo"/>):
+            /// a Rookie releases <see cref="RookieDecoys"/>.</summary>
+            public byte DecoyCap;
+            /// <summary>⭐ CE-10005 (AC-12, R-10019) — how well the pilot reads the missile: <see cref="Reading.Rookie"/> never drags (he turns
+            /// level across it — a beam); <see cref="Reading.Ace"/> drags ANY seeker while it is far (a max-range radar shot runs out of energy
+            /// behind him); the default (a Veteran, any non-fighter) is AC-9's rule: IR far ⇒ drag, else beam.</summary>
+            public Reading Read;
         }
+
+        /// <summary>How the pilot reads an incoming missile (AC-12's decision quality on the defence).</summary>
+        public enum Reading : byte { Veteran = 0, Rookie = 1, Ace = 2 }
+
+        /// <summary>A Rookie's decoys per missile (AC-12, R-10019).</summary>
+        public const byte RookieDecoys = 2;
 
         /// <summary>The aircraft's defence state (default when it has none yet).</summary>
         public static MissileDefenceState Load(EntityRepository world, Entity self)
@@ -90,7 +103,7 @@ namespace Hrot.AI.Behaviors.Brains
                         ds.Count++;
                     }
                     ds.Seeker = w.Seeker;
-                    if (flight.Fighter) ds.Phase = PhaseOf(live, in pilot, w.Seeker, Tti(live, in pilot, in w, now), now);
+                    if (flight.Fighter) ds.Phase = PhaseOf(live, in pilot, w.Seeker, Tti(live, in pilot, in w, now), now, flight.Read);
                     else
                     {
                         // a MoveTo flight always BEAMS (§7e E4 — the drag is a fighter's); a second launch re-breaks
@@ -111,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
 
             if (flight.Fighter)
             {
-                ds.Phase = PhaseOf(live, in pilot, seeker, tti, now);
+                ds.Phase = PhaseOf(live, in pilot, seeker, tti, now, flight.Read);
                 manoeuvre = ds.Phase switch
                 {
                     MissileDefencePhase.Drag => Manoeuvre.Drag,
@@ -121,7 +134,8 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // ── the decoys of the seeker's kind: flares near (beam / last ditch), chaff only in the end-game (RS-3) ──
-            int cap = AirAttackNodes.DecoySalvo + 2 * Math.Max(0, (live ? pilot.Inbound : 1) - 1);
+            int perMissile = flight.DecoyCap > 0 ? flight.DecoyCap : AirAttackNodes.DecoySalvo;
+            int cap = perMissile + (perMissile / 2) * Math.Max(0, (live ? pilot.Inbound : 1) - 1);
             if (ds.Decoys < cap && ds.Phase != MissileDefencePhase.Drag && AirAttackNodes.DecoyFor(seeker) is { } kind
                 && !(kind == DecoyKind.Chaff && tti > Fdp.Toolkit.Combat.Systems.CountermeasureSystem.ChaffEndGameS)
                 && Countermeasures.Release(world, self, kind))
@@ -136,11 +150,13 @@ namespace Hrot.AI.Behaviors.Brains
         private static float Tti(bool live, in FighterPilotState pilot, in MissileWarning w, double now)
             => live && pilot.Inbound > 0 ? pilot.ThreatTtiS : MathF.Max(0f, w.TimeToImpactS - (float)(now - (double)w.At));
 
-        /// <summary>The fighter's phase: the motion node's reflex fired lately ⇒ LastDitch; IR far ⇒ Drag; else Beam.</summary>
-        private static MissileDefencePhase PhaseOf(bool live, in FighterPilotState pilot, GuidanceKind seeker, float tti, double now)
+        /// <summary>The fighter's phase: the motion node's reflex fired lately ⇒ LastDitch; far ⇒ Drag (IR; an Ace any seeker; a Rookie never);
+        /// else Beam.</summary>
+        private static MissileDefencePhase PhaseOf(bool live, in FighterPilotState pilot, GuidanceKind seeker, float tti, double now, Reading read)
         {
             if (live && pilot.LastDitchAt != SimInstant.Zero && now - (double)pilot.LastDitchAt < LastDitchHoldS) return MissileDefencePhase.LastDitch;
-            return seeker == GuidanceKind.InfraRed && tti > DragAboveS ? MissileDefencePhase.Drag : MissileDefencePhase.Beam;
+            bool drags = read switch { Reading.Rookie => false, Reading.Ace => true, _ => seeker == GuidanceKind.InfraRed };
+            return drags && tti > DragAboveS ? MissileDefencePhase.Drag : MissileDefencePhase.Beam;
         }
 
         /// <summary>⭐ CE-2191 (§7e E4) — the MoveTo break: 90° to the line to the missile on the side nearer the heading, a little away from it,

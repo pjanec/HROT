@@ -224,7 +224,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void HsmTerminal_DestroyedEntity_PrunedFromTrackingDict()
         {
-        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
             var world    = TestWorldFactory.Create();
             var registry = new BehaviorRegistry();
             const int behaviorId = 9103;

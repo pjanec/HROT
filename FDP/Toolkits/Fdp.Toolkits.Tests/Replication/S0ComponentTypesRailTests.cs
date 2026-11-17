@@ -58,6 +58,21 @@ namespace Fdp.Toolkits.Tests.Replication
             ["FormationTarget.TargetPosition"] = "world XY place, no 2-D point type yet (S3 relocator) — not invented here",
         };
 
+        /// <summary>⭐ SR-140 as AMENDED by S9′ (<c>DESIGN_Scenario_Entity_Keys.md</c> S9′ (a)) — an authored reference MAY sit in a component when a PERSON
+        /// authors it; the scenario loader resolves it there (<c>StagingEntityExtractor</c>'s <c>RefResolve</c> walk). <c>Type.Member</c> → who authors it.
+        /// ⭐ A decision each; never a silencer — a code-written reference stays an <see cref="EntityRef"/> (and goes through a GUID-keyed translator).</summary>
+        internal static readonly Dictionary<string, string> AuthoredInAComponent = new(StringComparer.Ordinal)
+        {
+            ["ResolutionPolicy.Area0"] = "SV-15 detail area, named by a person (the SetResolutionPolicy verb's `area`, a trigger or the game master) — CE-8304, R-8380",
+            ["ResolutionPolicy.Area1"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area2"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area3"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area4"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area5"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area6"] = "SV-15 detail area, as Area0",
+            ["ResolutionPolicy.Area7"] = "SV-15 detail area, as Area0",
+        };
+
         /// <summary>S9' (c) — components saved through a GUID-keyed translator (DESIGN_Scenario_Entity_Keys §0a): their entity references are written as GUIDs, so an
         /// <c>EntityRef</c> / id field in them is not a network id in the file.</summary>
         internal static readonly HashSet<string> GuidKeyedTranslators = new(StringComparer.Ordinal)
@@ -129,7 +144,8 @@ namespace Fdp.Toolkits.Tests.Replication
             var offences = new List<string>();
             foreach (var c in comps)
                 foreach (var (key, t) in Members(c, c.Name))
-                    if (Offence(t, key.Substring(key.LastIndexOf('.') + 1)) is { } why && !NotSpatial.ContainsKey(key))
+                    if (Offence(t, key.Substring(key.LastIndexOf('.') + 1)) is { } why && !NotSpatial.ContainsKey(key)
+                        && !(t == typeof(EntityLink) && AuthoredInAComponent.ContainsKey(key)))
                         offences.Add($"{c.Namespace}.{key} ({t.Name}) — {why}");
             var sb = new StringBuilder();
             foreach (var o in offences.OrderBy(s => s, StringComparer.Ordinal)) sb.AppendLine(o);
@@ -203,6 +219,14 @@ namespace Fdp.Toolkits.Tests.Replication
             Assert.NotNull(IdOffence(typeof(object), typeof(long), "TargetId"));
             Assert.Null(IdOffence(typeof(object), typeof(int), "Count"));
             Assert.Null(IdOffence(typeof(Fdp.Toolkit.Replication.Components.PartMetadata), typeof(float), "Unit"));
+        }
+
+        [Fact]
+        public void S9Prime_EveryAuthoredInAComponentEntry_StillNamesAnEntityLinkMember()
+        {
+            var links = new HashSet<string>(SavedComponents().SelectMany(c => Members(c, c.Name)).Where(m => m.Type == typeof(EntityLink)).Select(m => m.Key));
+            var stale = AuthoredInAComponent.Keys.Where(k => !links.Contains(k)).ToList();
+            Assert.True(stale.Count == 0, "AuthoredInAComponent entries name no saved EntityLink member any more: " + string.Join(", ", stale));
         }
 
         [Fact]

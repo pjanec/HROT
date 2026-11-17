@@ -33,6 +33,8 @@ namespace Hrot.SimHost
             world.RegisterComponent<FormationFollower>();
             world.RegisterComponent<FormationController>();
             world.RegisterComponent<FormationTarget>();
+            world.RegisterComponent<CarKinem.Convoy.ConvoyTrail>();      // ⭐ CE-9001 — a Column formation (DESIGN_Road_Convoy C-4): the leader's actual path …
+            world.RegisterComponent<CarKinem.Convoy.ConvoyProgress>();   // … and a follower's place on it
 
             // CQRS navigation status — written by the Muscle tier (NavigationExecutionSystem)
             // and read by the Brain tier (MoveToExecutor).

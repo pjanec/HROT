@@ -59,7 +59,7 @@ namespace Hrot.AI.Behaviors.StandardLibrary
 
         /// <summary>
         /// A deterministic pseudo-random integer in [<paramref name="minInclusive"/>, <paramref name="maxExclusive"/>),
-        /// seeded from <paramref name="self"/>, <paramref name="salt"/> and sim time (<see cref="SimRng.FromSim"/>) — the
+        /// seeded from <paramref name="self"/>, <paramref name="salt"/> and sim time (<see cref="SimRng.FromSim(int, int, float)"/>) — the
         /// same run replays the same numbers. ⚠ Stateless: two calls with the same salt in one tick return the same value;
         /// the salt pin is how an author tells them apart.
         /// </summary>

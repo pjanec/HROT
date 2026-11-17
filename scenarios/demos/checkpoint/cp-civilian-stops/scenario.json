@@ -1,0 +1,367 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a civilian car that STOPS ON ITS OWN at the checkpoint's signal (CE-4622, R-2133's follow-up; docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md CP-2, CP-3) on basic-desert: the squad 'Checkpoint' (Stopper, Searcher 1, Searcher 2, Rifleman, Gunner with an M249) runs Checkpoint on the 'Checkpoint approach' route (stop line x 380). A Neutral 'Car' with its 'Driver' drives east from x 100 to x 700 at 12 m/s — its route runs straight THROUGH the checkpoint, nothing authored slows it. The Stopper's signal asks it to stop (StopAtSignal, a reaction): it slows, stops at the line, is searched and released, and drives on along its route. Judge: (1) the Stopper signals (2) the car takes StopAtSignal (3) it reads ROUTINE (4) the Driver gets out with his hands up, the car is searched and RELEASED (5) the car drives on past x 500 after the release (6) nobody fires, never a threat. Check: scripts/scenario-regression.sh cp-civilian-stops"
+  },
+  "entities": {
+    "c4622001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          60,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Checkpoint approach",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 60,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 0,
+            "HeightAgl": 0
+          },
+          {
+            "X": 380,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 0,
+            "HeightAgl": 0
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "c4622001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          430,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Checkpoint",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Checkpoint",
+        "Params": {
+          "Approach": "c4622001-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          425,
+          288,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Stopper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+        "Designation": "Rifleman"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          428,
+          288,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Searcher 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+        "Designation": "Rifleman"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          431,
+          288,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Searcher 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+        "Designation": "Rifleman"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          434,
+          288,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rifleman",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+        "Designation": "Rifleman"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          437,
+          288,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Gunner",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+        "Designation": "AutomaticRifleman"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 1002
+      },
+      "EntityInfo": {
+        "Name": "Car",
+        "ForceId": "Neutral"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "c4622001-0000-4000-8000-000000000021"
+        ],
+        "Seats": [
+          0
+        ]
+      },
+      "Behavior": {
+        "Name": "FollowRoute",
+        "Params": {
+          "routeEntityId": "c4622001-0000-4000-8000-000000000020",
+          "Speed": 12
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Driver",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "c4622001-0000-4000-8000-000000000010",
+        "Seat": 0
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c4622001-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Car route",
+        "ForceId": "Neutral"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": 100,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 12,
+            "HeightAgl": 0
+          },
+          {
+            "X": 700,
+            "Y": 300,
+            "Z": 0,
+            "TargetSpeed": 12,
+            "HeightAgl": 0
+          }
+        ],
+        "IsLoop": false
+      }
+    }
+  }
+}

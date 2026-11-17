@@ -1,0 +1,78 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a 'Blue Stochastic Squad' with NO order stands at (300,300); a 'Red Stochastic Squad' defending 200 m north at (300,500) fires on it (agg-backend's phase A). Judge: fired on while not defending, Blue's SOP (StochasticUnitSop) orders BreakContact: it withdraws about 300 m from where it stands, away from the contact, and arrives. Fail: it stands and is shot, or it withdraws toward the enemy. Check: scripts/scenario-regression.sh agg-break-contact"
+  },
+  "entities": {
+    "a9000009-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "SquadCognitiveState": {}
+    },
+    "a9000009-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Stochastic Squad",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            300,
+            500,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      },
+      "SquadCognitiveState": {}
+    }
+  }
+}

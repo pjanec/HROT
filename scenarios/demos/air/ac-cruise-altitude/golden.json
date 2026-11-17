@@ -48,7 +48,6 @@
             "ActiveMissionPlan": "0e8f2c2cd0701c52",
             "ActiveSensorTracks": "b0438f6fac96a015",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -88,7 +87,7 @@
             "VisualData": "aafd8e2499406d58",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -157,7 +156,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "7d8c2a5305606d6e",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -202,10 +200,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -274,7 +272,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "836adb72e5da0efb",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -319,10 +316,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -391,7 +388,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "d1f48520114d5ebd",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -436,10 +432,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -508,7 +504,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "0ba363f11b851bf6",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -553,10 +548,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -625,7 +620,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "cf11bd67ae5e6cc3",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -670,10 +664,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -742,7 +736,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "dd780e5cd15d41eb",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -787,10 +780,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -859,7 +852,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "f6652510b634546a",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -904,10 +896,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -976,7 +968,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "ed3eb8e1c6616551",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1021,10 +1012,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -1093,7 +1084,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "e90db0852d978334",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1138,10 +1128,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -1210,7 +1200,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "03fdc1812b9ae317",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1255,10 +1244,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -1327,7 +1316,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "30187395f89a6eef",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1372,10 +1360,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {
@@ -1444,7 +1432,6 @@
             "ActorCapabilityState": "c96ce970ba4444ef",
             "AirFollower": "a349d3f7b2de7500",
             "AirPath": "4c54e5eb5ee2d9ef",
-            "AmmoLoadout": "12e924de5df3feba",
             "BehaviorStartRecord": "783c6fdbe517982c",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1489,10 +1476,10 @@
             "TkbIdentity": "a0cd58c9669d4ff7",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "aafd8e2499406d58",
-            "WeaponAmmo": "cad0bca3ba9bd517",
+            "WeaponAmmo": "2865cd5c6672221c",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "285e167edb3e0c6f"
+            "WeaponState": "a622b3e983cd999c"
           }
         },
         "Viper route": {

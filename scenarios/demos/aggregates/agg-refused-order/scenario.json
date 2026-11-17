@@ -1,0 +1,104 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: on demo-city a physical 'Blue Company' (no play) over a STOCHASTIC 'Blue Stochastic Battery' (an artillery battery: three M109 holdings from its TKB composite). At 10 s a superior-origin order Strike (3 rounds on (300,900)) reaches the battery - the (class, resolution) table has no Strike row for a stochastic unit (a physical battery runs ArtilleryUnitStrike). Judge: (1) the order is refused and the company hears PROGRESS TaskFailed; (2) nothing else happens: the battery runs no play and does not move. Fail: no TaskFailed, or the battery starts a StochasticUnit play. Check: scripts/scenario-regression.sh agg-refused-order"
+  },
+  "entities": {
+    "a9000002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          240,
+          405,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      }
+    },
+    "a9000002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          260,
+          440,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 304
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Battery",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000002-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000002-0000-4000-8000-000000000003": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Strike with the battery",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {
+          "common": {
+            "title": "Strike with the battery"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 10
+          },
+          "do": [
+            {
+              "act": "Order",
+              "args": {
+                "target": "a9000002-0000-4000-8000-000000000002",
+                "behavior": "Order.Strike",
+                "params": {
+                  "Location": [
+                    300,
+                    900,
+                    0
+                  ],
+                  "Rounds": 3
+                }
+              }
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

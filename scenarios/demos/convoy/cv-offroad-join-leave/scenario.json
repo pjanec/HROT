@@ -1,0 +1,165 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "city-battle",
+    "description": "What: On city-battle, four APCs ('Convoy 1'..'Convoy 4') stand OFF the road in a column facing north at (200, 500..455), 42+ m south of the east-west road at y 541.8 (lane 0 of city-battle's SUMO-imported net: its lines ARE the driving lane); 'Convoy 1' leads a road convoy (ConvoyOrder, Mode Route — our own route) to (500, 586.8), 45 m north of the same road; the other three follow it (Rank 1..3, Gap 15). ⚠ At x 300 the imported road graph kinks 12 m north to the SUMO junction's centre (CE-9011), so the column swerves there and the lane is judged on x 350–450. The route avoids the y-954 road: a hedge in the asset crosses it (x 135, x 221). Judge: (1) the lead runs PlatformConvoy; (2) it joins the road and drives its lane; (3) it leaves the road and reaches the target off-road; (4) the column never splits — the tail's lag behind its place stays under 40 m all the way; (5) the tail drives the road too and ends near the target. Fail: a follower routes on its own, the column stretches apart, or the convoy leaves the lane. Check: scripts/scenario-regression.sh cv-offroad-join-leave"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          200,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            500,
+            586.8,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          200,
+          485,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            500,
+            586.8,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          200,
+          470,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            500,
+            586.8,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          200,
+          455,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy 4",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            500,
+            586.8,
+            0
+          ],
+          "Rank": 3,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

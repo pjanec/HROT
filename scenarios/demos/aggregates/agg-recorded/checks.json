@@ -1,0 +1,39 @@
+{
+  "$doc": "\u00a723.6 ST-0, 'a run recorded and replayed shows the same slot table at every keyframe'. The replay comparison is the editor tier's review check (DESIGN_Scenario_Regression \u00a710-3, `--verify-review-at T`: REVIEW vs LIVE at each second, then AFTER vs LIVE[T], every component), not a checks.json row; these rows pin that the slot tables really CHANGE in the run (so the comparison is not vacuous).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the fight reaches the Blue platoon (a slot is down)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<=",
+      "value": 0,
+      "before": 55,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    },
+    {
+      "name": "the fight reaches the Red platoon (a slot is down)",
+      "on": "field",
+      "who": "Red Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<=",
+      "value": 0,
+      "before": 55,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    }
+  ]
+}

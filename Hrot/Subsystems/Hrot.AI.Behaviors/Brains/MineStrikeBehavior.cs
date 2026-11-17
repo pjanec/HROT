@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fbt;
@@ -21,8 +23,9 @@ namespace Hrot.AI.Behaviors.Brains
     /// until its side has MARKED the field, or <c>Hold</c> has passed. ⭐ It declares <c>Halts | LeavesRoute</c> (R-4263): a dismounted squad on a
     /// Dash presses on (the gate refuses the drill), a mobility-killed vehicle yields (the gate's "cannot comply"). ⭐ The report up the chain IS the
     /// knowledge path: the trigger's <see cref="MineStruck"/> reaches the side's <c>PlaceKnowledgeSystem</c> (MF-13 ①, MF-15) — nothing more to send.
-    /// ⚠ Not built (R-2125): backing out along per-mover breadcrumbs (MR-5 — no per-mover record exists yet; terrain MS-T2 owns it if it is engine
-    /// state) — the unit holds instead; the followers of a struck vehicle reversing in its tracks.
+    /// ⭐⭐ MR-5, BUILT (R-2125's interim ended — terrain's <see cref="MineBreadcrumbs"/>, MS-T2): every live man BACKS OUT along his own track to the
+    /// first point outside the field (<see cref="BackOutBehavior"/>) and holds there; a struck VEHICLE (or a lone man) backs out itself (<see cref="TrailWalk"/>,
+    /// reverse for a vehicle). No track ⇒ he holds where he stands. ⚠ Still not built: the followers of a struck vehicle reversing in its tracks.
     /// </summary>
     public static class MineStrikeBehavior
     {
@@ -41,6 +44,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public byte Ordered;
             public SimInstant Since;
+            /// <summary>⭐ MR-5 — a unit with no roster (a vehicle, a lone man) backs out ITSELF along its own track.</summary>
+            public TrailWalk Walk;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -72,28 +77,143 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Tick(ref MineStrikeParams p, ref MineStrikeState s, Entity self, EntityRepository world)
         {
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : world.SimulationTime;
+            var field = p.FieldNetId != 0 ? new Fdp.Toolkit.Replication.EntityRef(p.FieldNetId).Resolve(world) : Entity.Null;
             if (s.Ordered == 0)
             {
-                // ⭐ HALT: every live man holds where he stands; the unit (a man, a vehicle) stops; nothing is carried back across the field
+                // ⭐ HALT, then BACK OUT (MR-5): every live man walks his own track out of the field and holds there (no track ⇒ he holds where
+                //   he stands); the casualty is cared for where he lies — nothing is carried back across the field
                 if (world.HasComponent<UnitRoster>(self))
                 {
                     var roster = world.GetComponentRO<UnitRoster>(self);
+                    string json = BackOutBehavior.Json(p.FieldNetId);
                     for (int i = 0; i < roster.Count; i++)
                     {
                         var m = roster.SubordinateEntities[i];
-                        if (world.IsAlive(m) && Injury.IsInTheFight(world, m)) CommandOrders.Assign(world, self, m, BehaviorNames.PersonHold, "{}", newOrder: true);
+                        if (world.IsAlive(m) && Injury.IsInTheFight(world, m)) CommandOrders.Assign(world, self, m, BehaviorNames.BackOut, json, newOrder: true);
                     }
+                    LocomotionMoveTo.Stop(world, self);
                 }
-                LocomotionMoveTo.Stop(world, self);
+                else if (!TrailWalk.Start(ref s.Walk, world, self, field)) LocomotionMoveTo.Stop(world, self);   // a vehicle, a lone man: itself
                 s.Ordered = 1;
                 s.Since = (SimInstant)now;
-                return NodeStatus.Running;
             }
+            if (s.Walk.Started != 0) TrailWalk.Step(ref s.Walk, world, self);
             // ⭐ until the side has MARKED the field (the engineers' work, MS-B2), or the hold is over
-            var field = p.FieldNetId != 0 ? new Fdp.Toolkit.Replication.EntityRef(p.FieldNetId).Resolve(world) : Entity.Null;
             if (!field.IsNull && world.HasComponent<EntityInfo>(self)
                 && PlaceKnowledgeTable.Of(world).Marked((int)world.GetComponentRO<EntityInfo>(self).ForceId, field)) return NodeStatus.Success;
             return now - (double)s.Since >= (double)p.Hold ? NodeStatus.Success : NodeStatus.Running;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> MS-B1 back-out (Minefields MR-5; R-2125's interim ended by terrain's <see cref="MineBreadcrumbs"/>, MS-T2) — a mover walks its OWN
+    /// breadcrumbs back, newest first, to the first one OUTSIDE the struck field: safe by construction (what was under it has gone off or was never there).
+    /// Copied once at the start — the live trail keeps growing while it walks. Each leg is a short (≤ ~2 m) move, so the side's high price on a known
+    /// field cannot route it elsewhere. A vehicle backs (reverse allowed) and keeps its facing; a man walks. 0 B (fixed buffers).
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public unsafe struct TrailWalk
+    {
+        public const float ManSpeed = 1.2f, VehicleSpeed = 2f, ArrivalMetres = 0.75f;
+        public fixed float X[MineBreadcrumbs.Capacity];
+        public fixed float Y[MineBreadcrumbs.Capacity];
+        public byte Count, Next, Moving, Started;
+
+        [ThreadStatic] private static List<Vector2>? _outline;
+
+        /// <summary>Copies <paramref name="self"/>'s own trail, cut after its first point outside <paramref name="field"/> (the whole trail when the field
+        /// is unknown). False when he has no trail (he then holds where he is).</summary>
+        public static bool Start(ref TrailWalk t, EntityRepository world, Entity self, Entity field)
+        {
+            t = default;
+            t.Started = 1;
+            if (!world.IsComponentTypeRegistered<MineBreadcrumbs>() || !world.HasComponent<MineBreadcrumbs>(self)) return false;
+            var crumbs = world.GetComponentRO<MineBreadcrumbs>(self);
+            if (crumbs.Count == 0) return false;
+            var outline = _outline ??= new List<Vector2>(16);
+            bool known = !field.IsNull && MinefieldKnowledgeOps.TryOutline(world, field, outline, out _) && outline.Count >= 3;
+            int n = crumbs.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var p = crumbs.Back(i);
+                t.X[i] = p.X; t.Y[i] = p.Y;
+                t.Count = (byte)(i + 1);
+                if (known && i > 0 && !MinePattern.Inside(outline, p)) break;   // the first point outside: there it stops
+            }
+            return true;
+        }
+
+        /// <summary>One tick: the next leg (Running) until the last point is reached (Success; he is stopped there).</summary>
+        public static NodeStatus Step(ref TrailWalk t, EntityRepository world, Entity self)
+        {
+            if (t.Next >= t.Count) { if (t.Moving != 0) { LocomotionMoveTo.Stop(world, self); t.Moving = 0; } return NodeStatus.Success; }
+            if (t.Moving != 0)
+            {
+                var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Running) return NodeStatus.Running;
+                t.Next++;                                   // arrived — or this leg failed: the next point is on the same safe trail
+                t.Moving = 0;
+                if (t.Next >= t.Count) { LocomotionMoveTo.Stop(world, self); return NodeStatus.Success; }
+            }
+            bool vehicle = Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, self);
+            var to = new Vector3(t.X[t.Next], t.Y[t.Next], 0f);
+            if (!LocomotionMoveTo.Issue(world, self, to, vehicle ? VehicleSpeed : ManSpeed, ArrivalMetres, MoveGait.Upright,
+                    reverseAllowed: vehicle, onSurface: true)) return NodeStatus.Failure;
+            t.Moving = 1;
+            return NodeStatus.Running;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4624</c> MS-B1 back-out (MR-5) — <c>BackOut</c>, a man's order from his unit's <see cref="MineStrikeBehavior"/>: he walks his own
+    /// breadcrumbs back out of the struck field (<see cref="TrailWalk"/>), then HOLDS there for the engineers (as <c>PersonHold</c>). No trail ⇒ he holds where
+    /// he stands. Never ends by itself — the drill's end (the field marked, the hold over) gives the next order.
+    /// </summary>
+    public static class BackOutBehavior
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BackOutParams { public int FieldNetId; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BackOutBlackboard
+        {
+            public BackOutParams Params;
+            public TrailWalk Walk;
+        }
+
+        [BehaviorResolver(BehaviorNames.BackOut)]
+        public static void Resolve(in BackOutParamsJsonDto authored, ref BackOutBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Params = new BackOutParams { FieldNetId = authored.Field.Ref.NetworkId };
+            block.Walk = default;
+        }
+
+        [Behavior(BehaviorNames.BackOut, Conduct = Fdp.Toolkit.Behavior.Conduct.LeavesRoute, Params = typeof(BackOutParamsJsonDto),
+            Categories = BehaviorCategory.AllMilitary, Description = "Walks back out of a minefield along its own track, then holds.")]
+        [BTreeDefinition(BehaviorNames.BackOut, Curated = true, Group = "Library/Reactions", ParamsType = typeof(BackOutBlackboard))]
+        public static BTreeBuilder<BackOutBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<BackOutBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Params, bb => bb.Walk, Tick);
+
+        public static NodeStatus Tick(ref BackOutParams p, ref TrailWalk w, Entity self, EntityRepository world)
+        {
+            if (w.Started == 0)
+            {
+                var field = p.FieldNetId != 0 ? new Fdp.Toolkit.Replication.EntityRef(p.FieldNetId).Resolve(world) : Entity.Null;
+                if (!TrailWalk.Start(ref w, world, self, field)) LocomotionMoveTo.Stop(world, self);
+            }
+            TrailWalk.Step(ref w, world, self);
+            return NodeStatus.Running;   // then holds where the trail left him
+        }
+
+        /// <summary>The order's payload for <paramref name="fieldNetId"/> (allocates: once per strike, never per frame).</summary>
+        public static string Json(int fieldNetId) => "{\"Field\":" + fieldNetId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
+
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.BackOutBehavior.Tick")]
+        public static void Deactivate_Tick(ref BackOutParams p, ref TrailWalk w, Entity self, EntityRepository world)
+        {
+            if (w.Moving != 0) LocomotionMoveTo.Stop(world, self);
+            w = default;
         }
     }
 

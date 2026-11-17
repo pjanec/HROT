@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: BUILDING (S0 + S1 built §8a; S2 §8b + §8c; S3 / S4 built §8c — scenarios in STATUS) — READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
+build-state: BUILDING (S0 + S1 built §8a; S2 §8b + §8c; S3 / S4 built §8c; the closing fights, skill on the defence, the CAP, a transit's defence §8d — scenarios in STATUS) — READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
 current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the review (its fixes are folded; kept as the record)
 stale-below: none
 known-rot: none (the review's corrections are folded)
@@ -440,6 +440,45 @@ static that the brain AND the HUD read; the air attack and the dogfight share th
 | RV-6 tick-start | `ThreatScan.Begin` also gathers every `AirCombatSteer.Target`'s tick-start position and velocity; `FixedWingModel.TargetState` reads them first | — |
 | AC-10 / AC-11 / AC-12 | `AirArenaSystem` (serial pre-pass in `BrainPhase.PrepareToolkitFrame`): indexes the arenas, stamps `LastHitAt` when a fighter in one loses health. The brain: floor and shot cap from the arena; the soft edge = `ReturnToArena` (toward the centre) while outside the radius (the defence and a disengage override it); the start = `Merge` through the centre while > 4 km from the bandit. Lapses: a forced one holds; past `StalemateSeconds` with no hit, one draw a second (`SimRng.FromSim(index, salt, second)`; Rookie 5 %, Veteran 3 %, Ace 2 %) among Fixation (gun track, a third of the floor) · LateWarning (+2 s) · EnergyBleed (throttle 0.3), 10 s each; G-LOC after 5 s above 8 g, 3 s | R-10015: the "pull back grows with the distance outside" is a manoeuvre switch at the radius, not a blend (the defence overrides it — RV-9's actual hazard) |
 | the arena's type | TKB **8840** "Air Arena" (a map graphic), R-10013 | — |
+
+### 8d. As built — the fights close, skill decides, the CAP, a transit's defence *(the `air` lane, `2026-11-17`, CE-10005; verdicts in `STATUS_Air_Combat.md`)*
+
+```mermaid
+graph TD
+  subgraph CGF["Brain node — the parallel brain phase reads only the serial pre-pass's index"]
+    PRE["AirArenaSystem.PrepareFrame (serial) — arenas, LastHitAt ★ + every pilot's TARGET, force, rank (tick-start)"]
+    CAP["AirArmedSearch (existing, CE-2311) over the arena = the CAP"] -->|"a fighter: PickBandit (aircraft only, deconflicted by rank)"| AA["AirAttackNodes.Run ⇒ AirCombat profile"]
+    CAP -->|"radar Search"| RAD["RadarEmissions.Set (RS-10's one writer)"]
+    AA --> AC["AirCombatNodes.Fight — Merge (hold fire to the pass) · Pick · gun lead in the steer's Point · radar Track"]
+    AC --> RAD
+    AC --> MD["MissileDefence.Run — Reading (Rookie / Veteran / Ace) · DecoyCap"]
+    MOVE["AirOrderNodes.FlyTo (a Move = a TRANSIT) ★"] --> MD
+    ATK["AirAttackNodes.Defend (A-10, helicopters)"] --> MD
+    PRE -.-> CAP
+    PRE -.-> AC
+  end
+  subgraph SIM["Motion node"]
+    FW["FixedWingModel — LeadPursuit inside 800 m flies the brain's gun lead, tracked ×3 · the reflex at the PILOT's g"]
+  end
+  AC -- "AirCombatSteer (Point = the gun lead's offset, 1 m steps)" --> FW
+```
+
+*What the picture shows that prose hid: every cross-pilot question (who fights which bandit, my rank) is answered by the SERIAL pre-pass, so the CAP's
+deconfliction adds no cross-entity read to the parallel phase; and the one `MissileDefence` now has THREE callers — the fight, the attack and the transit.*
+
+| item | as built | deviation — argued |
+|---|---|---|
+| AC-12 skill on the DEFENCE (R-10019) | `MissileDefence.Flight.Read` (`Reading` Rookie · Veteran · Ace) and `DecoyCap`: a Rookie never drags and drops 2 decoys per missile (`RookieDecoys`; +1 per extra inbound), and flies the beam as a LEVEL `Break` at a point 2 km across the missile's line (the steer's target cleared); an Ace DRAGS any seeker while it is > 4 s out; a Veteran keeps AC-9 (IR far ⇒ drag, else beam). The reaction (AC-12) still gates the start; the motion node's reflex pulls the steer's skill g (`AirCombatSteer.MaxG`), never more | 📐 diagnosed on `ac-skill-decides`: the Ace was lost at 21.5 s to the Rookie's second radar shot (head-on 6 km shots, both beamed; a beam at 2 km height gives no notch). AC-9 named radar ⇒ beam for every pilot; the Ace's drag of a far radar shot is AC-12's "decision quality" applied to the defence |
+| AC-10 the MERGE (R-10020) | the start: both pilots fly through the arena's centre, `MergeOffsetM` 300 m to their RIGHT (left-to-left, 600 m apart — AC-13a), at corner × `MergeSpeedFactor` 1.2 (throttle 0.3 above it, else 1), and HOLD FIRE until the pass (`Passed`: the bandit behind the wing line or inside 1 km); the merge flies in from outside the arena (the soft edge waits for it) | 📐 the 1v1 never closed: both fired radar missiles head-on at 6 km at 4.4 s and both died at 12 s; and the merge never started — a fighter 4.03 km from the centre was OUTSIDE the 4 km radius, so `ReturnToArena` (weapons free) won. "Hold fire until the pass" is what a merge IS (the fight's start); AC-11's 6 km default is untouched |
+| AC-8 the gun (R-10024) | a LeadPursuit inside `GunLeadRangeM` (800 m) flies the brain's gun lead (`TargetLead.PointAccelerating`) carried as an OFFSET from the bandit in `AirCombatSteer.Point` (rounded to 1 m — the replicated steer changes only when the lead moves) and tracks it `GunTrackBoost` (2) × harder; the gun's 2° cone is judged on the NOSE (velocity + `AoaDegPerG` 0.6° × g toward the lift — the angle of attack), not the flight path | 📐 `ac-guns-turning`: the 0.8 s pursuit lead held the flight path a steady ~6° behind the gun's lead of a 5 g target and the gun never fired; after: 27 gun hits in 60 s |
+| AC-13 CAP (R-10022) | ⭐ the EXISTING `AirArmedSearch` (CE-2311: fly to an area, pick from its own memory, attack until destroyed, pick again) over the arena IS the CAP: a FIGHTER's pick (`DroneTargets.PickBandit`) takes only hostile AIRCRAFT, never one a friendly pilot already fights unless nothing else is left, and spreads same-tick picks by RANK (the k-th pilot by entity index takes the k-th free bandit); a higher-ranked pilot on a lower-ranked one's bandit yields it when another is free. `AirArenaSystem` (serial pre-pass) indexes every pilot's target / force / rank (dead pilots excluded). ⭐ The fighter's radar (AC-13: "it switches its own radar On") was MISSING — now Search on CAP, Track in the fight (`AirCombatNodes.Radar`, `RadarEmitterClass.Unknown`, no wire change) | the design's "Hold + a fighter SOP row" is NOT built: the seam law — a search-and-engage order already existed and is the aircraft's; a second CAP mechanism would duplicate it (ruling 9). R-10014's "no next-target pick" is SUPERSEDED for the CAP (the search picks again after a kill); a directly ordered Attack still ends on the kill (B14) |
+| AC-9 a TRANSIT's defence (R-10023) | `AirOrderNodes.FlyTo` (the Move order, every aircraft's transit) calls `MissileDefence.Run` with a MoveTo flight; while it runs the move waits, then is re-issued from where the aircraft is. A PLANE's beam break (transit and the attack's) flies no lower than `EvadeHeightAglPlane` 150 m above the ground under it | 📐 `ac-attack-evades`: the A-10's break "at its height" off a 16 m gun-run pass flew into the hills; a route (FollowRoute) transit is NOT wired (no scenario needs it) |
+| the serial brains' pre-pass (R-10027) | `BrainTickSystem` runs `BrainPhase.Prepare` on the SERIAL path too (it ran only in `RunParallel`) | 📐 the `--mode all` cluster (serial) never built the arena index: no merge, no floor, no shot cap, no stalemate clock |
+| the first decision / after a kill (R-10028) | the fight's first decision waits until both replicated motions are known (straight on, weapons safe); a kill sets the steer to HOLD over the arena (`ReturnToArena` at its centre — AC-13's "else Hold over the arena"), with no arena straight and level | 📐 cluster: no velocity on the first ticks ⇒ no head-on merge; the winner chased the falling wreck into GCAS at 9 g; flown straight instead, the 1v1's winner left 10 km of the start |
+| scenarios ON the 2 km range (finding) | the ground's EYES see only inside the perception grid, which `SpatialGridFit` fits to the terrain's bounds — the 2 × 2 km `air-range` (R-10009) ⇒ every air-defence scenario puts its SAMs inside it | widening the bounds re-bakes the navmesh over them (`TerrainBake` tiles by bounds) — R-10009's load-time cost |
+
+**Prior state superseded:** §8c's "the brain … switches its own radar On" was claimed by AC-13 and §4a but NOT built (now built); R-10014's "no
+next-target pick" holds only for a directly ordered Attack.
 
 
 

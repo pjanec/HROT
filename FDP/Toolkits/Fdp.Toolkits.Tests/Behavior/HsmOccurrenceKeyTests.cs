@@ -1798,7 +1798,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
     [Fact]
     public void O7_R48_TheTwoRegionMachineRunsThroughTheRealSystem_SlotResident_O7c4c()
     {
-        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         const ushort ActionId = 0x04C1;
         const int    DocId    = 0x04C2;
 
@@ -2086,7 +2085,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
     [Fact]
     public void E5_R4_AnInactiveHostResetsItsChildsCursor()
     {
-        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         const int DocId   = 0x5E20;
         const int SlotKey = 0x5E21;
         var neverEntered  = new Guid("07000000-0000-0000-0000-0000000000e3");

@@ -346,6 +346,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MinEvadeS = 4f, EvadeMarginS = 2f;
         /// <summary>⭐ <c>CE-2191</c> — a helicopter breaks DOWN to this height above the target's ground (m); a plane keeps its pass height.</summary>
         public const float EvadeHeightAglRotor = 25f;
+        /// <summary>⭐ CE-10005 (R-10023) — a plane's missile break flies no lower than this above the ground (m).</summary>
+        public const float EvadeHeightAglPlane = 150f;
         /// <summary>⭐ <c>CE-2191</c> — how much of the break turns AWAY from the missile (the rest puts it on the beam).</summary>
         public const float EvadeDragFraction = 0.3f;
 
@@ -773,7 +775,10 @@ namespace Hrot.AI.Behaviors.Brains
             var before = MissileDefence.Load(world, self);
             var ds = before;
             bool rotor = Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
-            var flight = new MissileDefence.Flight { Fighter = false, MoveZ = rotor ? p.Point.Z + EvadeHeightAglRotor : at.Z, Speed = p.Speed, FallbackDir = ws.Dir };
+            // ⭐ CE-10005 (R-10023) — a PLANE breaks at no less than EvadeHeightAglPlane above the ground under it: 📐 measured on ac-attack-evades,
+            //   the A-10's beam break "at its height" from a 16 m gun-run pass flew into the hills and it crashed
+            float planeZ = MathF.Max(at.Z, (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f) + EvadeHeightAglPlane);
+            var flight = new MissileDefence.Flight { Fighter = false, MoveZ = rotor ? p.Point.Z + EvadeHeightAglRotor : planeZ, Speed = p.Speed, FallbackDir = ws.Dir };
             bool defending = MissileDefence.Run(world, self, ref ds, now, in flight, out _, out bool started);
             if (!Same(in before, in ds)) MissileDefence.Store(world, self, in ds);
             if (started)
@@ -1197,6 +1202,10 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var memory = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(drone);
             var best = Entity.Null;
             float bestScore = 0f;
+            // ⭐ CE-10005 (AC-13, R-10022) — a FIGHTER (a fixed-wing with an air-to-air mount) on a CAP picks only AIRCRAFT, and one a wingman
+            //   already fights only when nothing else is left (deconfliction through the arena's tick-start index of the fighters' targets)
+            bool fighter = AirCombatNodes.IsFighter(world, drone);
+            if (fighter) return PickBandit(world, drone, in memory, centre, radius);
             for (int i = 0; i < memory.Count; i++)
             {
                 if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;   // heard, never identified: nothing to dive on
@@ -1207,6 +1216,34 @@ namespace Hrot.AI.Behaviors.Brains
                 if (score > bestScore) { bestScore = score; best = e; }
             }
             return best;
+        }
+
+        /// <summary>
+        /// ⭐ CE-10005 (AC-13 / RV-11, R-10022) — a FIGHTER's pick: the hostile AIRCRAFT it remembers inside the area. Deconflicted with no
+        /// cross-entity read in the phase: a bandit a wingman already fights (the arena's tick-start index) is taken only when nothing else is
+        /// left, and when several are free the pilots of one force spread by RANK (the k-th pilot by entity index takes the k-th bandit by
+        /// entity index) — so two pilots picking on the same tick do not pick the same bandit. Allocation-free (≤ 16 candidates).
+        /// </summary>
+        private static unsafe Entity PickBandit(EntityRepository world, Entity self, in Fdp.Toolkit.Perception.Components.TargetMemory memory, Vector3 centre, float radius)
+        {
+            var force = world.HasComponent<EntityInfo>(self) ? world.GetComponentRO<EntityInfo>(self).ForceId : ForceId.Neutral;
+            Span<Entity> free = stackalloc Entity[16];
+            int nFree = 0;
+            var taken = Entity.Null;
+            for (int i = 0; i < memory.Count; i++)
+            {
+                if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;
+                var e = new Entity((ulong)memory.EntityIds[i]);
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !Hostile(world, self, e) || !Locomotions.IsAircraft(world, e)) continue;
+                if (new Vector2(memory.PositionsX[i] - centre.X, memory.PositionsY[i] - centre.Y).Length() > radius) continue;
+                if (Fdp.Toolkit.Motion.AirArenaSystem.TakenByAnother(world, self, force, e)) { if (taken.IsNull || e.Index < taken.Index) taken = e; continue; }
+                if (nFree == free.Length) continue;
+                int at = nFree++;
+                while (at > 0 && free[at - 1].Index > e.Index) { free[at] = free[at - 1]; at--; }   // sorted by entity index
+                free[at] = e;
+            }
+            if (nFree == 0) return taken;
+            return free[Fdp.Toolkit.Motion.AirArenaSystem.RankOf(world, self, force) % nFree];
         }
 
         /// <summary>freshness × the warhead's share of a kill × the kind's weight.</summary>

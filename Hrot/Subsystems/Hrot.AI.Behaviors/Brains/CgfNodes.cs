@@ -323,6 +323,17 @@ namespace Hrot.AI.Behaviors.Brains
                 else if (p.RouteNetworkId <= 0) return NodeStatus.Running;
             }
 
+            WriteFollowRoute(world, self, p.TrajectoryId, p.RouteNetworkId, p.Loop);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-9012</c> — THE write of a route-following move to <paramref name="self"/>'s <see cref="LocomotionChannel"/> (the <c>FollowRoute</c> action
+        /// and a convoy lead on an authored route, <see cref="PlatformConvoyBehavior"/> — one writer for both): the route entity, its compiled trajectory when
+        /// this node has one (0 ⇒ the motion side resolves its own, CE-2171), a new action instance when the channel held another action or failed.
+        /// </summary>
+        public static void WriteFollowRoute(EntityRepository world, Entity self, int trajectoryId, int routeNetworkId, bool loop)
+        {
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
             if (world.HasComponent<BehaviorState>(self))
             {
@@ -339,14 +350,12 @@ namespace Hrot.AI.Behaviors.Brains
 
             WriteToLocomotionParams(ref channel, new Fdp.Toolkit.Navigation.FollowRouteParams
             {
-                TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
-                IsLooped     = (byte)(p.Loop ? 1 : 0),
-                RouteEntityId = p.RouteNetworkId,   // ⭐ CE-2171
+                TrajectoryId = trajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
+                IsLooped     = (byte)(loop ? 1 : 0),
+                RouteEntityId = routeNetworkId,   // ⭐ CE-2171
                 // ⭐ CE-2173 slice 3 (Air Ops §9b) — an aircraft held at an Unload / Pickup stop: its brain says when the hold is over.
-                ReleaseHold  = AirHolds.ShouldRelease(world, self, p.RouteNetworkId) ? (byte)1 : (byte)0,
+                ReleaseHold  = AirHolds.ShouldRelease(world, self, routeNetworkId) ? (byte)1 : (byte)0,
             });
-
-            return NodeStatus.Running;
         }
 
         /// <summary>BTree action node for the JoinFormation behavior.</summary>

@@ -50,6 +50,7 @@ namespace Hrot.Editor.DebugApi
                 foreach (var f in o.Fields)
                 {
                     var field = new JsonObject { ["name"] = f.Name, ["kind"] = f.Kind.ToString(), ["required"] = f.Required };
+                    if (f.AnyOf != null) field["requiredAnyOf"] = f.AnyOf;   // ⭐ R-8316 — the order needs one of the group's fields (Attack: Target or Position)
                     if (f.Presets.Count > 0) field["presets"] = new JsonArray(System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(f.Presets, p => (JsonNode?)p)));
                     fields.Add(field);
                 }

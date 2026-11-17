@@ -45,6 +45,7 @@ namespace Hrot.Editor.DebugApi
         {
             var properties = new JsonObject();
             var required = new JsonArray();
+            var anyOf = new System.Collections.Generic.Dictionary<string, JsonArray>();   // ⭐ R-8316 — [RequiredAnyOf(group)] members
 
             if (dtoType is not null)
             {
@@ -54,6 +55,12 @@ namespace Hrot.Editor.DebugApi
                     // ⭐ CE-2148 (F5, R-2002) — a [Required] field is one the order / behaviour cannot go without.
                     if (member.Member.IsDefined(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute), inherit: true))
                         required.Add(member.Name);
+                    if (member.Member.GetCustomAttributes(typeof(Hrot.Map.Definitions.Behavior.Orders.RequiredAnyOfAttribute), inherit: true) is { Length: > 0 } any)
+                    {
+                        var group = ((Hrot.Map.Definitions.Behavior.Orders.RequiredAnyOfAttribute)any[0]).Group;
+                        if (!anyOf.TryGetValue(group, out var arr)) anyOf[group] = arr = new JsonArray();
+                        arr.Add(new JsonObject { ["required"] = new JsonArray(member.Name) });
+                    }
                 }
             }
 
@@ -63,6 +70,7 @@ namespace Hrot.Editor.DebugApi
                 ["properties"] = properties,
             };
             if (required.Count > 0) schema["required"] = required;
+            foreach (var arr in anyOf.Values) schema["anyOf"] = arr;   // JSON-schema: at least one of the group's fields is present
             return schema;
         }
 

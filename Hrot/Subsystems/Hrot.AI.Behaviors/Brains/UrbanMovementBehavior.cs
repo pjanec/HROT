@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -176,8 +177,11 @@ namespace Hrot.AI.Behaviors.Brains
                     && Flat(new Vector3(p.GivenX[s], p.GivenY[s], p.GivenZ[s]), want) < (isLead ? 0.01f : ReorderMetres))
                     want = new Vector3(p.GivenX[s], p.GivenY[s], p.GivenZ[s]);
                 var order = MarchOrder(ref p, want, isLead);
-                if (CommandOrders.Gave(world, self, squad, BehaviorNames.SquadMarch, order)) continue;
-                CommandOrders.Assign(world, self, squad, BehaviorNames.SquadMarch, order, newOrder: true);
+                // ⭐ agg-behaviors R-8315 (F-6) — a stochastic squad is ordered March by KIND with the neutral MoveOrder (its March row resolves to StochasticUnitMove, which
+                //   reads MoveOrder, not SquadMarch's shape); a physical squad gets exactly the SquadMarch order it always did
+                var neutral = MarchMove(ref p, want, isLead);
+                if (CommandOrders.GaveRouted(world, self, squad, OrderKind.March, neutral, BehaviorNames.SquadMarch, order)) continue;
+                CommandOrders.Route(world, self, squad, OrderKind.March, neutral, BehaviorNames.SquadMarch, order, newOrder: true);
                 p.GivenX[s] = want.X; p.GivenY[s] = want.Y; p.GivenZ[s] = want.Z;
                 p.HasGiven[s] = 1;
                 p.GivenLead[s] = (byte)(isLead ? 1 : 0);
@@ -193,6 +197,11 @@ namespace Hrot.AI.Behaviors.Brains
                 Objective = to, Shape = 0, Speed = p.Speed, ArrivalRadius = lead ? p.ArrivalRadius * 0.5f : p.ArrivalRadius,
                 DangerAreas = lead,
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        /// <summary>⭐ R-8315 — the same march as the neutral <see cref="MoveOrder"/> a stochastic squad is ordered (its place, speed and arrival radius).</summary>
+        public static string MarchMove(ref UrbanPlan p, Vector3 to, bool lead)
+            => JsonSerializer.Serialize(new MoveOrder { Location = to, Speed = p.Speed, ArrivalRadius = lead ? p.ArrivalRadius * 0.5f : p.ArrivalRadius },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
 
         // ── the guards ───────────────────────────────────────────────────────────────────────────────────────────────
 

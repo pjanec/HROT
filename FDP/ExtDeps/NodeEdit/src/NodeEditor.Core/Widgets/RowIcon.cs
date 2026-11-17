@@ -17,9 +17,11 @@ public readonly struct RowIcon
     public string? Glyph { get; }
     /// <summary>The glyph's colour.</summary>
     public Vector4 Color { get; }
+    /// <summary>⭐ CE-8611 — an image icon's width over its height (a NATO unit symbol's frame is 1.5 : 1); 1 = the usual square.</summary>
+    public float Aspect { get; }
 
-    private RowIcon(nint texture, Vector2 uv0, Vector2 uv1, string? glyph, Vector4 color)
-    { Texture = texture; Uv0 = uv0; Uv1 = uv1; Glyph = glyph; Color = color; }
+    private RowIcon(nint texture, Vector2 uv0, Vector2 uv1, string? glyph, Vector4 color, float aspect = 1f)
+    { Texture = texture; Uv0 = uv0; Uv1 = uv1; Glyph = glyph; Color = color; Aspect = aspect > 0f ? aspect : 1f; }
 
     public static RowIcon None => default;
     public bool IsNone => Texture == 0 && Glyph is null;
@@ -28,6 +30,9 @@ public readonly struct RowIcon
 
     /// <summary>A Silk image: a texture and the uv rectangle of the icon in it.</summary>
     public static RowIcon Image(nint texture, Vector2 uv0, Vector2 uv1) => new(texture, uv0, uv1, null, Vector4.One);
+
+    /// <summary>⭐ CE-8611 — an image icon wider (or narrower) than the row's square: drawn the row's height tall and <paramref name="aspect"/> × that wide.</summary>
+    public static RowIcon Image(nint texture, Vector2 uv0, Vector2 uv1, float aspect) => new(texture, uv0, uv1, null, Vector4.One, aspect);
     /// <summary>A Silk image from an <see cref="IIconProvider"/> handle.</summary>
     public static RowIcon Image(in IconHandle handle) => new(handle.TextureId, handle.Uv0, handle.Uv1, null, Vector4.One);
     /// <summary>A glyph (a FontAwesome code point string) in a colour.</summary>

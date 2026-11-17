@@ -59,6 +59,94 @@ namespace Fdp.Core.Jobs
             DeferredCount = 0; _laterCount = 0; Commands.Clear();
             Array.Clear(_ownManaged, 0, _ownManagedCount); _ownManagedCount = 0;
             Array.Clear(_ownUnmanaged, 0, _ownUnmanagedCount); _ownUnmanagedCount = 0;
+            _ownRawCount = 0; _arena.Reset();
+        }
+
+        // ⭐⭐ CE-9013 (docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md §34.7) — an unmanaged component the job ADDS to its OWN entity and
+        //   must WRITE before the merge (a unit's memory block: the brain attaches slots into it in the same tick). A copy read-back (E-3,
+        //   TryGetOwnPendingAdd) cannot serve that, so the batch hands out zeroed native bytes that stay put until the merge, and the merge adds
+        //   them as the component FIRST in this batch (PlayOwnRaw, through AddComponentRaw — the path every deferred add takes, so the add order
+        //   stays the batch order: D-31). 0 B once warm: the arena's pages are reused, grown, never shrunk.
+        private (Entity Entity, int TypeId, IntPtr Ptr, int Size)[] _ownRaw = new (Entity, int, IntPtr, int)[4];
+        private int _ownRawCount;
+        private readonly RawArena _arena = new();
+
+        /// <summary>
+        /// ⭐ CE-9013 — <paramref name="size"/> zeroed bytes for the component <paramref name="typeId"/> the job is adding to its OWN entity
+        /// <paramref name="e"/>; writable through the returned pointer until the merge, which adds them as the component (first in this batch).
+        /// ⛔ Only the entity this thread is processing, only once per component per tick, and only a type the world has registered.
+        /// </summary>
+        public unsafe byte* AllocateOwnRaw(Entity e, int typeId, int size)
+        {
+            if (ParallelReadCheck.Current != e.Index)
+                throw new InvalidOperationException(
+                    $"AllocateOwnRaw: {e} is not the entity this job is processing ({ParallelReadCheck.Current}) — a component added to ANOTHER entity " +
+                    "inside a phase goes through the command buffer (the per-entity rule, DESIGN_Parallel_Simulation §18.5).");
+            if (size <= 0) throw new ArgumentOutOfRangeException(nameof(size), size, "AllocateOwnRaw: size must be positive.");
+            if (OwnRaw(e.Index, typeId) != null)
+                throw new InvalidOperationException($"AllocateOwnRaw: {e} already has a pending component of type id {typeId} this tick.");
+            byte* p = _arena.Allocate(size);
+            if (_ownRawCount == _ownRaw.Length) Array.Resize(ref _ownRaw, _ownRaw.Length * 2);
+            _ownRaw[_ownRawCount++] = (e, typeId, (IntPtr)p, size);
+            return p;
+        }
+
+        /// <summary>⭐ CE-9013 — the pending bytes of <paramref name="typeId"/> on entity <paramref name="index"/> in this batch, or null.</summary>
+        public unsafe byte* OwnRaw(int index, int typeId)
+        {
+            for (int i = 0; i < _ownRawCount; i++)
+                if (_ownRaw[i].Entity.Index == index && _ownRaw[i].TypeId == typeId) return (byte*)_ownRaw[i].Ptr;
+            return null;
+        }
+
+        /// <summary>How many own raw components are pending in this batch (a rail reads it).</summary>
+        public int OwnRawCount => _ownRawCount;
+
+        internal void PlayOwnRaw(EntityRepository repo)
+        {
+            for (int i = 0; i < _ownRawCount; i++)
+            {
+                var r = _ownRaw[i];
+                repo.AddComponentRaw(r.Entity, r.TypeId, r.Ptr, r.Size);   // ⛔ a dead entity is skipped (AddComponentRaw's IsAlive)
+            }
+            _ownRawCount = 0;
+        }
+
+        /// <summary>Native pages for <see cref="AllocateOwnRaw"/>: an allocation never moves until <see cref="Reset"/> (the next run).</summary>
+        private sealed unsafe class RawArena
+        {
+            private const int PageSize = 64 * 1024;
+            private (IntPtr Ptr, int Size)[] _pages = Array.Empty<(IntPtr, int)>();
+            private int _page, _used;
+
+            public byte* Allocate(int size)
+            {
+                int need = (size + 15) & ~15;
+                while (true)
+                {
+                    if (_page < _pages.Length && _used + need <= _pages[_page].Size)
+                    {
+                        byte* p = (byte*)_pages[_page].Ptr + _used;
+                        _used += need;
+                        System.Runtime.InteropServices.NativeMemory.Clear(p, (nuint)size);
+                        return p;
+                    }
+                    if (_page < _pages.Length && _used > 0) { _page++; _used = 0; continue; }
+                    if (_page < _pages.Length) { _page++; continue; }   // an empty page too small for this size: next
+                    int pageSize = Math.Max(PageSize, need);
+                    var ptr = (IntPtr)System.Runtime.InteropServices.NativeMemory.AlignedAlloc((nuint)pageSize, 16);
+                    Array.Resize(ref _pages, _pages.Length + 1);
+                    _pages[^1] = (ptr, pageSize);
+                    _page = _pages.Length - 1; _used = 0;
+                }
+            }
+
+            public void Reset() { _page = 0; _used = 0; }
+
+            ~RawArena()
+            {
+                foreach (var (ptr, _) in _pages) System.Runtime.InteropServices.NativeMemory.AlignedFree((void*)ptr);
+            }
         }
 
         // ⭐⭐ E-3 (CE-4509) — "own entity: direct access" holds for a managed component the job ADDS to its own entity: the add is structural,
@@ -371,7 +459,11 @@ namespace Fdp.Core.Jobs
                 finally { ParallelReadCheck.ExitPhase(); _repo = null; }
 
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                for (int b = 0; b < batches; b++) _contexts[b].Commands.Playback(repo);
+                for (int b = 0; b < batches; b++)
+                {
+                    _contexts[b].PlayOwnRaw(repo);   // ⭐ CE-9013 — the own components the batch wrote before the merge, first in its batch
+                    _contexts[b].Commands.Playback(repo);
+                }
                 for (int b = 0; b < batches; b++) _contexts[b].PlayLater(repo);
                 for (int b = 0; b < batches; b++)
                 {

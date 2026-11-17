@@ -40,6 +40,12 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>⭐ <c>CE-4621</c> M-3 (CD-2, R-4263) — cross an exposed zone at all costs: never halt, dismount, leave the route or
         /// seek cover (<see cref="OrderConduct"/>) until the unit cannot comply (<c>BehaviorConduct.CannotComply</c>).</summary>
         Dash = 14,
+        /// <summary>⭐ agg-behaviors R-8303 (B-8, ST-3) — engage from a distance and do NOT close (the base of fire): <c>SupportByFire</c>, <c>PlatoonSupportByFire</c>; a stochastic unit
+        /// resolves it to its Attack play, which reads an <see cref="AttackOrder"/> with <see cref="AttackOrder.HoldBack"/>.</summary>
+        SupportByFire = 15,
+        /// <summary>⭐ <c>CE-9004</c> (C-9, R-9008; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — drive in a road CONVOY: the lead to the destination,
+        /// the rest on its path, never split (<see cref="ConvoyOrder"/>, <c>PlatformConvoy</c>).</summary>
+        Convoy = 16,   // ⭐ was 15 on the convoy branch — 15 is SupportByFire (agg-behaviors, allocated first); referenced by NAME only
     }
 
     /// <summary>

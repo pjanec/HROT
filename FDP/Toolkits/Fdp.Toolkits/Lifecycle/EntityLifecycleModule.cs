@@ -46,6 +46,10 @@ namespace Fdp.Toolkit.Lifecycle
         // ⭐ CE-3136 P-7a (R-243) — requirements stated by a RULE over the TKB template, evaluated at BeginConstruction against the
         //   TKB as it is then (a scenario's knowledge base may replace the in-code one after composition).
         private readonly List<(Func<TkbTemplate, bool> Applies, int ModuleId)> _templateRequirements = new();
+
+        // ⭐ CE-8013 ② (SV-6) — requirements stated per ENTITY (a split's held child), evaluated at BeginConstruction — after the creation
+        //   request's components are on the entity (NetworkSpawningSystem begins construction LAST).
+        private readonly List<(Func<Entity, bool> Applies, int ModuleId)> _entityRequirements = new();
         
         private readonly int _timeoutFrames;
         
@@ -163,6 +167,24 @@ namespace Fdp.Toolkit.Lifecycle
         public void RegisterTemplateRequirement(Func<TkbTemplate, bool> applies, int moduleId)
             => _templateRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
 
+        /// <summary>
+        /// ⭐ <c>CE-8013</c> ② (SV-6) — module <paramref name="moduleId"/> must ack the construction of every ENTITY satisfying
+        /// <paramref name="applies"/> (a split's held child), evaluated when construction begins. ⚠ The module must exist on this node and ack,
+        /// or the entity times out (or, under <see cref="WaitWithoutTimeout"/>, waits).
+        /// </summary>
+        public void RegisterEntityRequirement(Func<Entity, bool> applies, int moduleId)
+            => _entityRequirements.Add((applies ?? throw new ArgumentNullException(nameof(applies)), moduleId));
+
+        /// <summary>Is <paramref name="entity"/>'s construction still waiting for <paramref name="moduleId"/>'s ack?</summary>
+        public bool IsWaitingFor(Entity entity, int moduleId)
+            => _pendingConstruction.TryGetValue(entity, out var p) && p.RemainingAcks.Contains(moduleId);
+
+        /// <summary>
+        /// ⭐ <c>CE-8013</c> ② — forget the construction of an entity that was DESTROYED while constructing (a cancelled split's held child):
+        /// no ack will come and, under an unbounded wait, nothing would ever end it. A no-op for an entity not constructing.
+        /// </summary>
+        public void AbandonConstruction(Entity entity) => _pendingConstruction.Remove(entity);
+
         // ⭐ CE-3304 — a participant whose work can take longer than the default timeout (frames) waits this long instead.
         private readonly Dictionary<int, int> _moduleTimeoutFrames = new();
 
@@ -259,6 +281,8 @@ namespace Fdp.Toolkit.Lifecycle
             if (_templateRequirements.Count > 0 && _tkb != null && _tkb.TryGetByType(blueprintId, out var template) && template != null)
                 foreach (var (applies, moduleId) in _templateRequirements)
                     if (applies(template)) participants.Add(moduleId);
+            for (int i = 0; i < _entityRequirements.Count; i++)
+                if (_entityRequirements[i].Applies(entity)) participants.Add(_entityRequirements[i].ModuleId);
 
             var order = new ConstructionOrder
             {

@@ -72,6 +72,19 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// labels behind terrain</i>. On (the default) ⇒ the 3-D map depth-tests the cards and place labels; off ⇒ on top (M13). The last toggled
         /// bit (<c>LayerControlDto.FirstUntoggledLayer</c> 29 → 30).</summary>
         public const byte HideLabelsBehindTerrain = 29;
+        /// <summary>⭐ <c>CE-8605</c> (docs/UX/DESIGN_Unit_Symbols.md O-1, R-8602) — the UNITS' cards (squad, platoon, company), split from the men's
+        /// (<see cref="Labels"/>, now "Men's cards"). Defined once, in the card API (<c>EntityCards.UnitCardsLayer</c>). On by default
+        /// (<c>LayerControlDto.FirstUntoggledLayer</c> 30 → 31).</summary>
+        public const byte UnitCards = EntityCards.UnitCardsLayer;
+
+        /// <summary>⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2, R-8602) — the units' NATO symbols: with the unit cards on, each card's left cell;
+        /// past the cards' zoom or with them off, the symbol alone at the unit's point, one echelon per zoom (P-3). On by default
+        /// (<c>LayerControlDto.FirstUntoggledLayer</c> 31 → 32).</summary>
+        public const byte UnitSymbols = EntityCards.UnitSymbolsLayer;
+
+        /// <summary>⭐ <c>CE-8613</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md UI-8, mockup ④) — Tactical Map Layers ▸ AI ▸ Detection levels:
+        /// a stochastic observer's line to each target it is detecting, with its level meter. OFF by default (<c>LayerControlDto.FirstUntoggledLayer</c> 32 → 33).</summary>
+        public const byte DetectionLevels = EntityCards.DetectionLevelsLayer;
         /// <summary>⭐ CE-1160 — the SELECTION ring (<c>SelectionHighlightGizmo</c>): above every bit a layer toggle owns
         /// (<c>LayerControlDto.FirstUntoggledLayer</c>), so it is always drawn. ⭐ <c>CE-1225</c> (§8 S-4): moved from 14 to the TOP bit, so the
         /// toggles stay one range from 0 and a new toggle never lands on it. 🔒 User, 2026-10-16: <i>"I need the entity selection and right

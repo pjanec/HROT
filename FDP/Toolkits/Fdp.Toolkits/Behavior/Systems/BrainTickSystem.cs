@@ -205,6 +205,10 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
+            // ⭐⭐ CE-10005 (air lane, cross-lane — said) — the SERIAL brains need the same pre-pass (the per-frame indexes brain code reads):
+            //   📐 measured on a `--mode all` cluster (serial): the arena index was never built, so the fighters saw no arena — no merge, no
+            //   floor, no shot cap, no stalemate clock — while the editor (parallel) had them. One pre-pass for both paths
+            if (!Parallel) BrainPhase.Prepare(repo);
             if (Parallel) RunParallel(repo, tiers, deltaTime, now, drain);
             else
             for (int t = 0; t < tiers.Count; t++)

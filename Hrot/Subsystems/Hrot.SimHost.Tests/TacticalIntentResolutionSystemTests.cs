@@ -659,6 +659,77 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(count, Fdp.Toolkit.Replication.Edits.EditOutcomeLog.Of(repo).Count);
         }
 
+        // ── ⭐⭐ CE-8000 / CE-8002 (CE-4616 ST-0 ④⑤; DESIGN_Stochastic_Units_And_Resolution §19 B-1, B-8) ──
+
+        private static AssignBehaviorEvent[] SuperiorOrder(EntityRepository repo, TacticalIntentResolutionSystem system, Entity e, string order)
+        {
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent { Entity = e, IntentId = "Order." + order, JsonParams = "{}", Origin = BehaviorOrigin.Superior });
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+            repo.Bus.SwapBuffers();
+            return repo.Bus.ReadManaged<AssignBehaviorEvent>().ToArray();
+        }
+
+        private static Entity Subordinate(EntityRepository repo, ulong dis, out Entity commander)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Squad.Command.ReportOutbox>()) repo.RegisterComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>();
+            commander = repo.CreateEntity();
+            var e = Typed(repo, dis);
+            repo.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            return e;
+        }
+
+        private static int TaskFailedQueued(EntityRepository repo, Entity unit)
+        {
+            if (!repo.HasComponent<Fdp.Toolkit.Squad.Command.ReportOutbox>(unit)) return 0;
+            var box = repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(unit);
+            int n = 0;
+            for (int i = 0; i < box.Queued.Count; i++)
+                if (box.Queued.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Progress
+                    && box.Queued.Items[i].Report.Subtype == (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed) n++;
+            return n;
+        }
+
+        /// <summary>⭐⭐ <c>CE-8002</c> (B-8, RV-6) — an order from a SUPERIOR that no class fulfils puts PROGRESS TaskFailed in the receiver's outbox
+        /// (the staff sends it up), so the commander stops waiting to its deadline. An operator's refused order does not (it has the Refused
+        /// outcome); a resolved one does not. ✅ Red-proof: the <c>ReportRefusal</c> call removed ⇒ 0 queued ⇒ red.</summary>
+        [Fact]
+        public void CE8002_ARefusedSuperiorsOrder_ReportsTaskFailed_ToTheCommander()
+        {
+            using var repo = CreateTestWorld();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), Behaviours("InfantrySquadMove"));
+            var squad = Subordinate(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225).Value, out _);
+
+            Assert.Empty(SuperiorOrder(repo, system, squad, "Strike"));
+            Assert.Equal(1, TaskFailedQueued(repo, squad));
+            Assert.Single(SuperiorOrder(repo, system, squad, "Move"));          // resolved ⇒ nothing more queued
+            Assert.Equal(1, TaskFailedQueued(repo, squad));
+            Assert.Empty(Order(repo, system, squad, "Strike"));                 // an OPERATOR's refusal ⇒ no report to a commander
+            Assert.Equal(1, TaskFailedQueued(repo, squad));
+        }
+
+        /// <summary>⭐⭐ <c>CE-8000</c> (SV-2, B-1, RV-7) — a STOCHASTIC squad resolves through the routing table: Defend ⇒ the generic play, never the
+        /// physical squad's <c>InfantrySquadDefend</c>; Strike is refused and its commander hears TaskFailed. The same squad back at Physical runs
+        /// the physical play. ✅ Red-proof: <c>ResolutionOf</c> returning Physical ⇒ InfantrySquadDefend ⇒ red.</summary>
+        [Fact]
+        public void CE8000_AStochasticSquad_ResolvesTheGenericPlay_NeverThePhysicalOne()
+        {
+            using var repo = CreateTestWorld();
+            repo.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+            var system = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(),
+                Behaviours("InfantrySquadDefend", Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend));
+            var squad = Subordinate(repo, Hrot.Core.Tkb.UnitDis.Land(Hrot.Core.Tkb.UnitArm.Infantry, Hrot.Core.Tkb.UnitEchelon.Squad, 225).Value, out _);
+            repo.AddComponent(squad, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic });
+
+            Assert.Equal(Hrot.Core.Tkb.ResolutionRoutingTable.Plays.Defend, Assert.Single(SuperiorOrder(repo, system, squad, "Defend")).BehaviorName);
+            Assert.Empty(SuperiorOrder(repo, system, squad, "Strike"));
+            Assert.Equal(1, TaskFailedQueued(repo, squad));
+
+            repo.GetComponentRW<Fdp.Toolkit.Aggregate.AggregateUnit>(squad).Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Physical;
+            Assert.Equal("InfantrySquadDefend", Assert.Single(SuperiorOrder(repo, system, squad, "Defend")).BehaviorName);
+        }
+
         /// <summary>F5 — a resolved order's <c>AssignBehaviorEvent</c> carries the request id on to the gate (and a mapped / pass-through one too). ✅ Red-proof: the copy next to <c>behaviorEvent.Origin</c> removed ⇒ red.</summary>
         [Fact]
         public void F5_AResolvedOrders_AssignBehaviorEvent_CarriesTheRequestId()

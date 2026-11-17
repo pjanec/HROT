@@ -1,0 +1,77 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4622 R-2133's follow-up: the civilian stops on the signal (StopAtSignal); one row per Judge line.",
+ "runFor": 120,
+ "golden": {
+  "every": 10
+ },
+ "expect": [
+  {
+   "name": "the Stopper signals",
+   "on": "gesture",
+   "who": "Stopper",
+   "is": "Warning"
+  },
+  {
+   "name": "the car takes StopAtSignal",
+   "on": "task",
+   "who": "Car",
+   "is": "StopAtSignal"
+  },
+  {
+   "name": "the car reads routine",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Routines",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the driver is told out, hands up",
+   "on": "task",
+   "who": "Driver",
+   "is": "ComplyAtCheckpoint"
+  },
+  {
+   "name": "the car is searched and released",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Released",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the driver boards again after the release",
+   "on": "embark",
+   "who": "Driver",
+   "is": true,
+   "after": "the car is searched and released"
+  },
+  {
+   "name": "the car drives on after the release",
+   "on": "near",
+   "who": "Car",
+   "point": [
+    520,
+    300
+   ],
+   "within": 20,
+   "after": "the car is searched and released"
+  },
+  {
+   "name": "nobody fires at it",
+   "never": {
+    "on": "shot"
+   }
+  },
+  {
+   "name": "never a threat",
+   "never": {
+    "on": "field",
+    "who": "Checkpoint",
+    "path": "CheckpointWatch.Threats",
+    "op": ">=",
+    "value": 1
+   }
+  }
+ ]
+}

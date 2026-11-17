@@ -1,0 +1,39 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S4 \u2014 feature (expect rows; a demo-length fight).",
+  "runFor": 300,
+  "golden": false,
+  "expect": [
+    {
+      "name": "an F-16 shoots at Fulcrum 1",
+      "on": "shot",
+      "by": "*Viper",
+      "n": 1,
+      "at": "Fulcrum 1"
+    },
+    {
+      "name": "an F-16 shoots at Fulcrum 2",
+      "on": "shot",
+      "by": "*Viper",
+      "n": 1,
+      "at": "Fulcrum 2"
+    },
+    {
+      "name": "a MiG is shot down",
+      "on": "field",
+      "who": "*Fulcrum",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 300
+    },
+    {
+      "name": "no Viper hits a Viper",
+      "never": {
+        "on": "shot",
+        "by": "*Viper",
+        "n": 1,
+        "hit": "*Viper"
+      }
+    }
+  ]
+}

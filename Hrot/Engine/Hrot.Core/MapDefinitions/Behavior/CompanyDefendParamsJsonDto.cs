@@ -23,6 +23,22 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Threat")]
         public PointLink Threat;
 
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("Left")]
+        public Fdp.Core.Bearing Left;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("Right")]
+        public Fdp.Core.Bearing Right;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("FallBackTo")]
+        public PointLink FallBackTo;
+
         /// <summary>The line's width (m); 0 = 300.</summary>
         [JsonPropertyName("Frontage")]
         public float Frontage;

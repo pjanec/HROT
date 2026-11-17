@@ -262,8 +262,11 @@ namespace Hrot.AI.Behaviors.Brains
                 for (int k = 0; k < now.OccupantCount; k++)
                     world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
                     {
-                        Entity = new Entity((ulong)now.Occupants[k]), IntentId = BehaviorNames.Embark, JsonParams = "{\"Vehicle\":" + net + "}",
-                        Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Reaction,
+                        // ⭐ the release is an INSTRUCTION (Superior): his "out, hands up" is a running reaction held until the checkpoint ends it, and a
+                        //   reaction yields only to a more urgent one — 📐 sent as a reaction (and keyed "Vehicle", Embark reads "vehicle") it was refused and
+                        //   every released man stood beside his car for good (cp-routine-car's golden: released ~50 s, still out at 90 s)
+                        Entity = new Entity((ulong)now.Occupants[k]), IntentId = BehaviorNames.Embark, JsonParams = "{\"vehicle\":" + net + "}",
+                        Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior,
                     });
             }
             ws.Reissue = 1;
@@ -348,7 +351,17 @@ namespace Hrot.AI.Behaviors.Brains
             //   speed then by the warning-shot time is a THREAT (the brake test alone names a fast car only ~2 s out — too late for any rung but lethal)
             if (now.Vehicle != 0 && now.Vehicle != now.SignalledVehicle && now.SecondsToStandOff <= p.Site.WarningSeconds
                 && now.Verdict == (byte)ApproachVerdict.Approaching)
-            { now.SignalledVehicle = now.Vehicle; now.ClosingAtSignal = now.ClosingMps; }
+            {
+                now.SignalledVehicle = now.Vehicle; now.ClosingAtSignal = now.ClosingMps;
+                // ⭐ R-2133's ⏭ — the signal ASKS the vehicle to stop at the line: a REACTION (an event, never a write — the reaction rules decide: a
+                //   vehicle whose ROE keeps it on its task never takes it; one under a RAM order ignores it); a civilian slows and stops (StopAtSignalBehavior)
+                world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+                {
+                    Entity = new Entity((ulong)now.Vehicle), IntentId = BehaviorNames.StopAtSignal, Origin = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Reaction,
+                    JsonParams = "{\"X\":" + p.Site.Stop.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+                               + ",\"Y\":" + p.Site.Stop.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "}",
+                });
+            }
             if (now.Verdict == (byte)ApproachVerdict.Approaching && now.Vehicle == now.SignalledVehicle
                 && now.SecondsToStandOff <= p.Site.WarningSeconds * VehicleLadder.WarningShotAt
                 && now.ClosingMps >= now.ClosingAtSignal * CheckpointBehavior.IgnoredFraction && now.ClosingMps >= VehicleApproachWatch.RoutineMps)
