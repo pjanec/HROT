@@ -9,10 +9,11 @@ using Fdp.ModuleHost.Abstractions;
 namespace CarKinem.Systems
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-9001</c> (C-4, C-6; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3, §4.4) — per road-convoy LEAD (a <see cref="ConvoyMember"/> of rank 0), on the
-    /// kinematic owner: records the lead's ACTUAL path into its own <see cref="ConvoyTrail"/>, gathers every member's place and speed on it (a declared read of
-    /// the members — they write only their own <see cref="ConvoyProgress"/>), and caps the lead's speed while the column is stretched (string stability: the
-    /// tail never falls further back). Writes only the lead's own components. 0 B per steady frame (cached query, fixed-size trail).
+    /// ⭐⭐ <c>CE-9001</c> / <c>CE-9004</c> (C-4, C-6; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3, §4.4) — per LEADER of a <see cref="FormationType.Column"/>
+    /// formation (its <see cref="FormationController"/>), on the kinematic owner: records the leader's ACTUAL path into its own <see cref="ConvoyTrail"/>, gathers
+    /// every follower's place and speed on it (its <see cref="FormationFollower"/> slot = its rank; a declared read — the followers write only their own
+    /// <see cref="ConvoyProgress"/>), and caps the leader's speed while the column is stretched (string stability). Writes only the leader's own components.
+    /// 0 B per steady frame (cached queries, fixed-size trail).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
@@ -21,27 +22,52 @@ namespace CarKinem.Systems
         /// <summary>The cap starts once the tail is this many gaps behind its place, and reaches 0 (the lead stops) at three times it.</summary>
         public const float SlackGaps = 1f;
 
-        private EntityQuery? _members;
+        private EntityQuery? _leads;
+        private EntityQuery? _followers;
+
+        /// <summary>A column's spacing and minimum gap (m) when its <see cref="FormationParams"/> name none.</summary>
+        public const float DefaultGap = 15f, DefaultMinGap = 7f;
+
+        public static float GapOf(in FormationController c) => c.Params.Spacing > 0f ? c.Params.Spacing : DefaultGap;
+        /// <summary>The minimum gap: half the spacing (no field of its own — <c>FormationController</c>'s bytes are in 75 scenario goldens).</summary>
+        public static float MinGapOf(in FormationController c) => c.Params.Spacing > 0f ? c.Params.Spacing * 0.5f : DefaultMinGap;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             // registered with the kinematic components (KinematicComponentRegistry) — never lazily mid-tick (D-26)
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<ConvoyTrail>()
-                || !repo.IsComponentTypeRegistered<ConvoyProgress>()) return;
-            _members ??= repo.Query().With<ConvoyMember>().With<SimTransform>().Build();
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<FormationController>() || !repo.IsComponentTypeRegistered<FormationFollower>()
+                || !repo.IsComponentTypeRegistered<ConvoyTrail>() || !repo.IsComponentTypeRegistered<ConvoyProgress>()) return;
+            _leads ??= repo.Query().With<FormationController>().With<SimTransform>().Build();
+            _followers ??= repo.Query().With<FormationFollower>().With<SimTransform>().Build();
 
-            foreach (var lead in _members)
+            foreach (var lead in _leads)
             {
-                ref readonly var m = ref repo.GetComponentRO<ConvoyMember>(lead);
-                if (m.Rank != 0) continue;
+                ref readonly var c = ref repo.GetComponentRO<FormationController>(lead);
+                // ⭐ every vehicle carries a default controller (VehicleKinematicsTkbTranslator) — it LEADS a column only while a follower names it
+                if (c.Type != FormationType.Column || !HasFollower(repo, lead))
+                {
+                    if (repo.HasComponent<ConvoyTrail>(lead)) repo.RemoveComponent<ConvoyTrail>(lead);   // the column dissolved
+                    continue;
+                }
                 if (!repo.HasComponent<ConvoyTrail>(lead)) repo.AddComponent(lead, new ConvoyTrail());
                 ref var trail = ref repo.GetComponentRW<ConvoyTrail>(lead);
                 var p = repo.GetComponentRO<SimTransform>(lead).Position;
                 var p2 = new Vector2(p.X, p.Y);
                 trail.Record(p2);
-                Gather(repo, lead, p2, m.Gap, ref trail);
+                Gather(repo, lead, p2, GapOf(in c), ref trail);
             }
+        }
+
+        private bool HasFollower(EntityRepository repo, Entity lead)
+        {
+            foreach (var e in _followers!)
+            {
+                if (e == lead) continue;
+                ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
+                if (f.IsInFormation != 0 && f.SlotIndex != 0 && f.Leader == lead) return true;   // a road column's slot names its leader explicitly
+            }
+            return false;
         }
 
         private void Gather(EntityRepository repo, Entity lead, Vector2 leadPos, float gap, ref ConvoyTrail trail)
@@ -49,25 +75,27 @@ namespace CarKinem.Systems
             unsafe
             {
                 trail.RankValid = 0; trail.LastRank = 0;
-                // the lead's own place: the newest point plus how far it has gone past it
+                // the leader's own place: the newest point plus how far it has gone past it
                 int newest = trail.Count - 1;
                 trail.RankS[0] = trail.NewestS + Vector2.Distance(leadPos, trail.Point(newest));
                 trail.RankV[0] = repo.HasComponent<VehicleState>(lead) ? repo.GetComponentRO<VehicleState>(lead).Speed : 0f;
                 trail.RankX[0] = leadPos.X; trail.RankY[0] = leadPos.Y;
                 trail.RankValid = 1u;
-                foreach (var e in _members!)
+                foreach (var e in _followers!)
                 {
                     if (e == lead) continue;
-                    ref readonly var m = ref repo.GetComponentRO<ConvoyMember>(e);
-                    if (m.Lead != lead || m.Rank == 0 || m.Rank >= ConvoyTrail.MaxRanks || !repo.HasComponent<ConvoyProgress>(e)) continue;
-                    trail.RankS[m.Rank] = repo.GetComponentRO<ConvoyProgress>(e).ArcS;
-                    trail.RankV[m.Rank] = repo.HasComponent<VehicleState>(e) ? repo.GetComponentRO<VehicleState>(e).Speed : 0f;
+                    ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
+                    int rank = f.SlotIndex;
+                    if (f.IsInFormation == 0 || rank == 0 || rank >= ConvoyTrail.MaxRanks || !repo.HasComponent<ConvoyProgress>(e)
+                        || f.Leader != lead) continue;
+                    trail.RankS[rank] = repo.GetComponentRO<ConvoyProgress>(e).ArcS;
+                    trail.RankV[rank] = repo.HasComponent<VehicleState>(e) ? repo.GetComponentRO<VehicleState>(e).Speed : 0f;
                     var ep = repo.GetComponentRO<SimTransform>(e).Position;
-                    trail.RankX[m.Rank] = ep.X; trail.RankY[m.Rank] = ep.Y;
-                    trail.RankValid |= 1u << m.Rank;
-                    if (m.Rank > trail.LastRank) trail.LastRank = m.Rank;
+                    trail.RankX[rank] = ep.X; trail.RankY[rank] = ep.Y;
+                    trail.RankValid |= 1u << rank;
+                    if (rank > trail.LastRank) trail.LastRank = (byte)rank;
                 }
-                // ⭐ C-6 — the tail's lag behind its place; the lead slows past one gap of slack and stops at three
+                // ⭐ C-6 — the tail's lag behind its place; the leader slows past one gap of slack and stops at three
                 trail.TailLag = 0f; trail.SpeedCapFactor = 1f;
                 if (trail.LastRank > 0 && trail.HasRank(trail.LastRank) && gap > 0f)
                 {
@@ -81,12 +109,12 @@ namespace CarKinem.Systems
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-9001</c> (C-4) — per road-convoy FOLLOWER, on the kinematic owner: finds its own place on the lead's trail (searched near its last place, so a
-    /// trail that crosses itself never makes it jump), its predecessor's place and speed (from the lead's trail — the lead's system gathered them), and drives
-    /// the trail at <see cref="ConvoyMember.Gap"/> ALONG THE PATH behind it: speed = the predecessor's + a P-term on the gap error, 0 at or under
-    /// <see cref="ConvoyMember.MinGap"/>, steered to a point a lookahead ahead of itself ON the trail. Writes only its own <see cref="FormationTarget"/>,
-    /// <see cref="ConvoyProgress"/> and <see cref="NavState"/> (<see cref="KinematicsMode.Column"/>); a vehicle that left the convoy goes back to
-    /// <see cref="KinematicsMode.None"/>.
+    /// ⭐⭐ <c>CE-9001</c> / <c>CE-9004</c> (C-4) — per FOLLOWER of a <see cref="FormationType.Column"/> formation, on the kinematic owner: finds its own place on the
+    /// leader's trail (searched near its last place, so a trail that crosses itself never makes it jump), its predecessor's place and speed (from the leader's
+    /// trail), and drives the trail at <see cref="FormationParams.Spacing"/> ALONG THE PATH behind it: speed = the predecessor's + a P-term on the gap error, 0
+    /// at or under half the spacing (along the path, and in metres plus its stopping distance), steered to a point a lookahead ahead of
+    /// itself ON the trail. Writes only its own <see cref="FormationTarget"/>, <see cref="ConvoyProgress"/> and <see cref="NavState"/>
+    /// (<see cref="KinematicsMode.Column"/>); a vehicle that left the column goes back to <see cref="KinematicsMode.None"/>.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
@@ -99,20 +127,20 @@ namespace CarKinem.Systems
         /// <summary>The search window around the last place: behind · ahead (m).</summary>
         public const float WindowBack = 15f, WindowAhead = 60f;
 
-        private EntityQuery? _members;
+        private EntityQuery? _followers;
         private EntityQuery? _progress;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<ConvoyProgress>()
-                || !repo.IsComponentTypeRegistered<ConvoyTrail>() || !repo.IsComponentTypeRegistered<FormationTarget>()) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<FormationFollower>() || !repo.IsComponentTypeRegistered<FormationController>()
+                || !repo.IsComponentTypeRegistered<ConvoyProgress>() || !repo.IsComponentTypeRegistered<ConvoyTrail>() || !repo.IsComponentTypeRegistered<FormationTarget>()) return;
 
-            // a vehicle whose membership ended (its behaviour removed ConvoyMember): back to no mode, its place forgotten
+            // a vehicle no longer in a column (its slot removed, or its leader no longer leads a column): back to no mode, its place forgotten
             _progress ??= repo.Query().With<ConvoyProgress>().Build();
             foreach (var e in _progress)
             {
-                if (repo.HasComponent<ConvoyMember>(e)) continue;
+                if (InColumn(repo, e, out _)) continue;
                 if (repo.HasComponent<NavState>(e) && repo.GetComponentRO<NavState>(e).Mode == KinematicsMode.Column)
                 {
                     ref var nav = ref repo.GetComponentRW<NavState>(e);
@@ -121,18 +149,29 @@ namespace CarKinem.Systems
                 repo.RemoveComponent<ConvoyProgress>(e);
             }
 
-            _members ??= repo.Query().With<ConvoyMember>().With<SimTransform>().With<NavState>().Build();
-            foreach (var e in _members)
+            _followers ??= repo.Query().With<FormationFollower>().With<SimTransform>().With<NavState>().Build();
+            foreach (var e in _followers)
             {
-                ref readonly var m = ref repo.GetComponentRO<ConvoyMember>(e);
-                if (m.Rank == 0 || !repo.IsAlive(m.Lead) || !repo.HasComponent<ConvoyTrail>(m.Lead)) continue;
-                ref readonly var trail = ref repo.GetComponentRO<ConvoyTrail>(m.Lead);
+                if (!InColumn(repo, e, out var lead) || !repo.HasComponent<ConvoyTrail>(lead)) continue;
+                ref readonly var trail = ref repo.GetComponentRO<ConvoyTrail>(lead);
                 if (trail.Count == 0) continue;
-                Follow(repo, e, in m, in trail);
+                ref readonly var c = ref repo.GetComponentRO<FormationController>(lead);
+                Follow(repo, e, repo.GetComponentRO<FormationFollower>(e).SlotIndex, ConvoyLeadSystem.GapOf(in c), ConvoyLeadSystem.MinGapOf(in c), in trail);
             }
         }
 
-        private static void Follow(EntityRepository repo, Entity e, in ConvoyMember m, in ConvoyTrail trail)
+        /// <summary>Is <paramref name="e"/> in a ROAD column: an active slot (≥ 1) with an explicit <see cref="FormationFollower.Leader"/>, alive and leading a <see cref="FormationType.Column"/>?</summary>
+        public static bool InColumn(EntityRepository repo, Entity e, out Entity lead)
+        {
+            lead = Entity.Null;
+            if (!repo.HasComponent<FormationFollower>(e)) return false;
+            ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
+            if (f.IsInFormation == 0 || f.SlotIndex == 0 || f.Leader.IsNull) return false;   // a commander-led slot is FormationTargetSystem's
+            lead = f.Leader;
+            return repo.IsAlive(lead) && repo.HasComponent<FormationController>(lead) && repo.GetComponentRO<FormationController>(lead).Type == FormationType.Column;
+        }
+
+        private static void Follow(EntityRepository repo, Entity e, int rank, float spacing, float minSpacing, in ConvoyTrail trail)
         {
             var p3 = repo.GetComponentRO<SimTransform>(e).Position;
             var p = new Vector2(p3.X, p3.Y);
@@ -151,20 +190,20 @@ namespace CarKinem.Systems
             if (prog.ArcS < trail.OldestS - 1e3) prog.ArcS = trail.OldestS - Vector2.Distance(p, trail.Point(0));   // the trail rolled past a far-behind vehicle
 
             // my predecessor: the rank ahead (the lead's system gathered it; a missing rank ⇒ the next one ahead)
-            int ahead = m.Rank - 1;
+            int ahead = rank - 1;
             while (ahead > 0 && !trail.HasRank(ahead)) ahead--;
             double predS = trail.RankArc(ahead);
             float predV = trail.RankSpeed(ahead);
-            int ranksAhead = m.Rank - ahead;
-            float gap = MathF.Max(m.Gap, m.MinGap) * ranksAhead;
-            float minGap = m.MinGap * ranksAhead;
+            int ranksAhead = rank - ahead;
+            float gap = MathF.Max(spacing, minSpacing) * ranksAhead;
+            float minGap = minSpacing * ranksAhead;
 
             float along = (float)(predS - prog.ArcS);
             float top = repo.HasComponent<VehicleParams>(e) ? repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd : 15f;
             // ⭐ never closer than the minimum gap — along the path AND in metres (a predecessor that reversed or cut back is nearer than its arc says)
             float cur0 = repo.HasComponent<VehicleState>(e) ? MathF.Max(0f, repo.GetComponentRO<VehicleState>(e).Speed) : 0f;
             float decel = repo.HasComponent<VehicleParams>(e) && repo.GetComponentRO<VehicleParams>(e).MaxDecel > 0f ? repo.GetComponentRO<VehicleParams>(e).MaxDecel : 6f;
-            bool tooClose = along <= minGap || Vector2.Distance(p, trail.RankPos(ahead)) <= m.MinGap + cur0 * cur0 / (2f * decel);   // + its stopping distance
+            bool tooClose = along <= minGap || Vector2.Distance(p, trail.RankPos(ahead)) <= minSpacing + cur0 * cur0 / (2f * decel);   // + its stopping distance
             float speed = tooClose ? 0f : Math.Clamp(predV + GapGain * (along - gap), 0f, MathF.Max(top, 0.1f));
 
             // the pursuit point: a lookahead ahead of me ON the trail, never past the predecessor's place less the minimum gap

@@ -140,22 +140,24 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
     /// </summary>
     public static void AddConvoyGaps(EntityRepository world, SumoNetPlacement placement, List<TrafficBody> into)
     {
-        if (!world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyMember>()) return;
+        if (!world.IsComponentTypeRegistered<CarKinem.Formation.FormationFollower>() || !world.IsComponentTypeRegistered<CarKinem.Formation.FormationController>()) return;
         bool trails = world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>() && world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyProgress>();
         bool velocity = world.IsComponentTypeRegistered<SimVelocity>();
         bool sized = world.IsComponentTypeRegistered<VehicleParams>();
-        var members = world.Query().With<CarKinem.Convoy.ConvoyMember>().With<SimTransform>().Build();
+        // ⭐ CE-9004 — a convoy is a Column formation: each follower (its slot = its rank) and the one ahead of it (slot − 1; slot 0 = the leader)
+        var members = world.Query().With<CarKinem.Formation.FormationFollower>().With<SimTransform>().Build();
         foreach (var e in members)
         {
-            var m = world.GetComponentRO<CarKinem.Convoy.ConvoyMember>(e);
-            if (m.Rank == 0 || HandedToSumo(world, e)) continue;
-            Entity pred = default; bool found = false;
-            foreach (var o in members)
-            {
-                var om = world.GetComponentRO<CarKinem.Convoy.ConvoyMember>(o);
-                if (om.Lead == m.Lead && om.Rank == m.Rank - 1) { pred = o; found = true; break; }
-            }
-            if (!found) continue;
+            if (!CarKinem.Systems.ConvoyFollowSystem.InColumn(world, e, out var lead) || HandedToSumo(world, e)) continue;
+            int slot = world.GetComponentRO<CarKinem.Formation.FormationFollower>(e).SlotIndex;
+            Entity pred = slot == 1 ? lead : default; bool found = slot == 1;
+            if (!found)
+                foreach (var o in members)
+                {
+                    if (o == e || !CarKinem.Systems.ConvoyFollowSystem.InColumn(world, o, out var ol) || ol != lead) continue;
+                    if (world.GetComponentRO<CarKinem.Formation.FormationFollower>(o).SlotIndex == slot - 1) { pred = o; found = true; break; }
+                }
+            if (!found || !world.HasComponent<SimTransform>(pred)) continue;
             float lf = EntityFootprint.DefaultLengthMetres, wf = lf * EntityFootprint.DefaultWidthFactor, lp = lf, wp = wf;
             if (sized) { EntityFootprint.Dimensions(world, e, out lf, out wf); EntityFootprint.Dimensions(world, pred, out lp, out wp); }
             var v = velocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
@@ -163,11 +165,11 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             var (vx1, vy1) = placement.ToNet(v.X, v.Y);
             float side = MathF.Max(wf, 1f);
 
-            if (trails && world.IsAlive(m.Lead) && world.HasComponent<CarKinem.Convoy.ConvoyTrail>(m.Lead) && world.HasComponent<CarKinem.Convoy.ConvoyProgress>(e)
-                && (pred == m.Lead || world.HasComponent<CarKinem.Convoy.ConvoyProgress>(pred)))
+            if (trails && world.HasComponent<CarKinem.Convoy.ConvoyTrail>(lead) && world.HasComponent<CarKinem.Convoy.ConvoyProgress>(e)
+                && (pred == lead || world.HasComponent<CarKinem.Convoy.ConvoyProgress>(pred)))
             {
-                ref readonly var trail = ref world.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(m.Lead);
-                double sp = pred == m.Lead ? trail.RankArc(0) : world.GetComponentRO<CarKinem.Convoy.ConvoyProgress>(pred).ArcS;
+                ref readonly var trail = ref world.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(lead);
+                double sp = pred == lead ? trail.RankArc(0) : world.GetComponentRO<CarKinem.Convoy.ConvoyProgress>(pred).ArcS;
                 double from = world.GetComponentRO<CarKinem.Convoy.ConvoyProgress>(e).ArcS + lf * 0.5, to = sp - lp * 0.5;
                 if (to - from < 0.5) continue;
                 int parts = Math.Min(63, Math.Max(1, (int)Math.Ceiling((to - from) / side)));

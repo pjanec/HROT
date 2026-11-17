@@ -5,34 +5,6 @@ using Fdp.Core;
 
 namespace CarKinem.Convoy
 {
-    /// <summary>
-    /// ⭐⭐ <c>CE-9001</c> (C-4, C-8; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3) — this vehicle is in a road convoy: the column's LEAD, its place
-    /// (<see cref="Rank"/> 0 = the lead itself) and the spacing. Written by the vehicle's OWN behaviour (own entity, R-4212); the kinematic owner's
-    /// <see cref="Systems.ConvoyLeadSystem"/> / <see cref="Systems.ConvoyFollowSystem"/> drive the column from it. Unmanaged (recorded, R-2084 "NEW COMPONENTS").
-    /// </summary>
-    [ComponentId(GlobalComponentIds.ConvoyMember)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct ConvoyMember
-    {
-        /// <summary>The column's lead (rank 0 holds itself).</summary>
-        public Entity Lead;
-        /// <summary>Centre-to-centre spacing to the vehicle ahead, measured ALONG the lead's path (m).</summary>
-        public float Gap;
-        /// <summary>At or under this (along the path, centre to centre) the vehicle stops — it never closes further (m).</summary>
-        public float MinGap;
-        /// <summary>The place in the column: 0 = the lead, 1 = right behind it …</summary>
-        public byte Rank;
-        /// <summary><see cref="ConvoyMode"/>.</summary>
-        public byte Mode;
-        /// <summary>Bit 0: the lead is a priority vehicle (beacon, siren — C-1).</summary>
-        public byte Flags;
-
-        public const float DefaultGap = 15f;
-        public const float DefaultMinGap = 7f;
-
-        public bool IsLead => Rank == 0;
-    }
-
     /// <summary>How the lead drives (C-9): on the SUMO network (handed to SUMO), or on our own route.</summary>
     public enum ConvoyMode : byte
     {

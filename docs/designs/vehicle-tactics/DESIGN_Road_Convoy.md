@@ -14,7 +14,9 @@ related-designs:
   - ../group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS the platoon's mounted convoy (§11a `PlatoonConvoyBehavior`, R-2069); its vehicles now drive as ONE column (§3 C-9)
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — OWNS the convoy-under-contact plays (§11 C-5, R-7010) that take over when a convoy is hit
   - DESIGN_Checkpoint_And_Ramming.md — a neighbour: a convoy meeting a checkpoint is that design's case, not this one's
-  - ../../reference/NED_DDS_Protocol.md — the wire: `ConvoyMember` (descriptor 198) is the one new type
+  - ../../reference/NED_DDS_Protocol.md — the wire: `FormationController` / `FormationFollower` (descriptors 198 / 199) carry the column
+  - ../aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md (on exp/agg-*) — OWNS the STOCHASTIC unit's column (§14 M-3 / M-4: one point, head on its route, tail `Depth` behind) and its split (§16a); a mounted column unit that splits should hand its vehicles a `ConvoyOrder` — ../../blueprints/batches/NOTE_Convoy_To_AggLanes.md
+  - ../commander-subordinates/DESIGN.md — OWNS `FormationController` / `FormationFollower`; §2.2 amended: `FormationFollower.Leader` (an explicit leader, the convoy's)
   - ../../DESIGN_Scenario_Regression.md — the feature scenarios' format (R-4277, R-4279)
 -->
 
@@ -79,13 +81,13 @@ modulates its speed so the tail never falls back (string stability: an error mus
 | **C-1** (R-9000) | how the lead is marked PRIORITY | `RoadUse.InTrafficPriority = 6` in the intent's road-use bits: "in traffic, beacon and siren on" | a new component on the wire: the intent already reaches every node that needs it (the traffic node composes its ingress, AQ93 G2) · a TKB "always priority" type: the beacon is a per-run state, not a vehicle class | a vehicle that must be priority WITHOUT being handed to SUMO |
 | **C-2** (R-9001) | what SUMO is told | upstream **H17** (purely additive — §6): `LiveCitySim.SpawnExternalVehicle(…, priority: true)` spawns the same vType's **priority twin** `<vType>@priority` = the base type + `HasBluelight`, `jmDriveAfterRedTime = ∞`, `jmIgnoreFoeProb = 1`, `jmIgnoreJunctionFoeProb = 1` — every one a feature SumoSharp already ports (ER3–ER5, A3); `VTypeParams` gains the four jm fields (null = unchanged) | per-vehicle overrides only: `HasBluelight` / `jmDriveAfterRedTime` are vType-only (②b) | SUMO gaining a per-vehicle device API |
 | **C-3** (R-9002) | cars ahead of the escort at a red | ⛔ **nothing new** (user, `2026-11-17`): on a single lane they drift to its edge but hold the line; the escort WAITS behind them until green and the queue clears; on two or more lanes they give way into the other lane and it passes; at the front it runs the red | a rule letting give-way cars enter on red — WITHDRAWN: real SUMO never does it, and it would have moved the parity goldens of SumoSharp's own emergency-vehicle scenarios | — |
-| **C-4** (R-9003) | the column-follower | ONE trail on the LEAD (`ConvoyTrail`, unmanaged ring: 256 points every 2 m + their arc length); every follower drives it at `rank × gap` behind the lead **along the path**, steered by pursuit of a point a lookahead ahead of its own position on the trail; its speed = predecessor's speed + a P-term on the gap error; at ≤ the minimum gap it stops; it never passes its predecessor's arc length. New `KinematicsMode.Column = 10` consumes the existing `FormationTarget` (pursuit point + authoritative speed). `ConvoyMember` (component 108): lead, rank, gap, mode, own arc length | `FormationFollower` slots: commander-tied, planned path, euclidean (④) — extended instead by reusing `FormationTarget` and its consumer · followers routing on their own: they split at the first junction | a column wider than one vehicle (a two-abreast formation is the formation system's, not this) |
+| **C-4** (R-9003) | the column-follower | ONE trail on the LEAD (`ConvoyTrail`, unmanaged ring: 256 points every 2 m + their arc length); every follower drives it at `rank × gap` behind the lead **along the path**, steered by pursuit of a point a lookahead ahead of its own position on the trail; its speed = predecessor's speed + a P-term on the gap error; at ≤ the minimum gap it stops; it never passes its predecessor's arc length. New `KinematicsMode.Column = 10` consumes the existing `FormationTarget` (pursuit point + authoritative speed). ⭐ **The column IS a formation (R-9012, §6):** the lead's `FormationController { Type = Column, Params.Spacing = gap }` (the minimum gap = half the spacing), each follower's `FormationFollower { SlotIndex = rank, Leader = lead }` — `ConvoyLeadSystem` / `ConvoyFollowSystem` are the `Column` type's follower, `FormationTargetSystem` keeps the other types | ⛔ SUPERSEDED: a new `ConvoyMember` component (108) — a second component for the concept `FormationController`/`FormationFollower` already name · `FormationFollower`'s slot SOLVER (planned path, euclidean, ④) for a column: it splits at junctions — the solver is replaced for `Column`, the components are kept · followers routing on their own: they split at the first junction | a column wider than one vehicle (a two-abreast formation is the formation system's, not this) |
 | **C-5** (R-9004) | no cutting in | the serving node tells SUMO each GAP between two consecutive convoy vehicles as a chain of rest/moving squares along the trail (synthetic negative ids `-(follower.Index·64 + k + 1)`, the static-obstacle scheme) — with the bodies themselves, ONE continuous obstacle | a single long body: placed by its centre, straight per lane — misses bends and junctions (⑦) | SumoSharp gaining a polyline obstacle |
 | **C-6** (R-9005) | the escort slows when the column stretches | the lead's speed CAP = `clamp(1 − (tailLag − slack) / (2 · slack), 0, 1)` × its top speed (stops at 3 × slack); mode 1: upstream **H17** `LiveCitySim.SetExternalVehicleMaxSpeed(id, cap)` — a MAX-SPEED cap (`SetVehicleParams{ MaxSpeed }`), the original remembered through a read-only `Engine.TryGetVehicleMaxSpeed` and restored exactly by `cap = null`; the vehicle's own drawn speed factor is never touched; mode 2: the lead's own `NavState.TargetSpeed` | stopping the lead outright: stop-and-go waves (string instability) | — |
 | **C-7** (R-9006) | mode 2's lane | (as built: for `RoadUse.StronglyPrefer` only — §6) the route's road points are offset to the OUTER lane on the travel side: `max(0, LaneWidth·(LaneCount − 1)/2)` right of the centre line (right-hand traffic — the only side SUMO models, ③); the access and egress legs are untouched | the centre line (today): head-on with oncoming SUMO cars in the 3-D view and in SUMO (our body overlaps both lanes) | a left-hand terrain (a `drivingSide` field on the road graph would then flip the sign) |
-| **C-8** (R-9007) | where the column lives | `ConvoyMember` is written by each vehicle's OWN behaviour (own entity, R-4212) and replicated (descriptor 198) so the kinematic owner and the traffic node see the column; `ConvoyTrail` is LOCAL to the kinematic owner (never on the wire, recorded) | the trail on the wire: 4 KB per lead per change — the followers' owner records it itself | the lead and its followers on DIFFERENT kinematic owners (then the trail goes on the wire) |
-| **C-9** (R-9008) | the order | `OrderKind.Convoy = 15` + `ConvoyOrder { Destination, Mode (Auto / Traffic / Route), Lead, Gap, Priority, Speed }`; behaviour `ConvoyColumn` on each vehicle: the lead moves (mode 1 `NavigationMode.Traffic` with C-1, mode 2 `MoveTo` with `RoadUse.StronglyPrefer`), a follower writes its `ConvoyMember`. `PlatoonConvoyBehavior` assigns its vehicles THIS order (rank by the route) instead of N independent `FollowRoute`s | N `FollowRoute`s (today): no order, no spacing — the split this programme exists to stop | — |
-| **C-10** (R-9009) | switching to action | contact (the existing `InContact` signals) or a new order ⇒ each vehicle's `ConvoyColumn` ends: the lead's intent leaves `Traffic` (the handover despawns the shadow, AQ93 G5), every `ConvoyMember` is removed, the vehicle's SOP / the platoon's Contact phase runs. Nothing is re-created | handing the vehicles back from SUMO: only the lead was ever handed | — |
+| **C-8** (R-9007) | where the column lives | the formation components (`FormationController` on the lead, `FormationFollower` on each follower) are written by each vehicle's OWN behaviour (own entity, R-4212) and replicated (descriptors 198 / 199) so the kinematic owner and the traffic node see the column; `ConvoyTrail` is LOCAL to the kinematic owner (never on the wire, recorded) | the trail on the wire: 4 KB per lead per change — the followers' owner records it itself | the lead and its followers on DIFFERENT kinematic owners (then the trail goes on the wire) |
+| **C-9** (R-9008) | the order | `OrderKind.Convoy = 15` + `ConvoyOrder { Destination, Mode (Auto / Traffic / Route), Lead, Gap, Priority, Speed }`; behaviour `ConvoyColumn` on each vehicle: the lead moves (mode 1 `NavigationMode.Traffic` with C-1, mode 2 `MoveTo` with `RoadUse.StronglyPrefer`), the lead sets its own `FormationController` to `Column`, a follower writes its own `FormationFollower` slot (built as `PlatformConvoy`). `PlatoonConvoyBehavior` assigns its vehicles THIS order (rank by the route) instead of N independent `FollowRoute`s | N `FollowRoute`s (today): no order, no spacing — the split this programme exists to stop | — |
+| **C-10** (R-9009) | switching to action | contact (the existing `InContact` signals) or a new order ⇒ each vehicle's `ConvoyColumn` ends: the lead's intent leaves `Traffic` (the handover despawns the shadow, AQ93 G5), every convoy `FormationFollower` is removed and the lead's controller reset (`ConvoyMembershipSystem`), the vehicle's SOP / the platoon's Contact phase runs. Nothing is re-created | handing the vehicles back from SUMO: only the lead was ever handed | — |
 | **C-11** (R-9010) | where SumoSharp changes land | UPSTREAM on `pjanec/SumoSharp` (a branch off `hrot/slice2`, its own tests + goldens there), then `scripts/sync-sumosharp.sh` — R-4046 | editing the vendored copy: `--verify` would fail and R-4046 forbids it | — |
 
 ## 4. UML
@@ -97,7 +99,9 @@ classDiagram
   direction LR
   class ConvoyOrder { <<NEW DTO>> Destination Mode Lead Gap Priority Speed }
   class ConvoyColumnBehavior { <<NEW behaviour, per vehicle>> lead moves, follower joins }
-  class ConvoyMember { <<NEW comp 108, wire 198>> Lead Rank Gap Mode ArcS }
+  class FormationController { <<existing, lead, wire 198>> Type Column, Params Spacing }
+  class FormationFollower { <<existing, grows, wire 199>> SlotIndex = rank, +Leader }
+  class ConvoyProgress { <<NEW comp 157, local>> ArcS OnTrail }
   class ConvoyTrail { <<NEW comp 109, local, recorded>> ring 256 x (x y s) }
   class ConvoyLeadSystem { <<NEW Simulation, per lead>> record trail, speed cap }
   class ConvoyFollowSystem { <<NEW Simulation, per follower>> pursuit point + speed }
@@ -112,22 +116,25 @@ classDiagram
   class RoadGraphRouter { <<existing, grows>> lane offset }
   ConvoyOrder --> ConvoyColumnBehavior
   PlatoonConvoyBehavior --> ConvoyOrder : per vehicle
-  ConvoyColumnBehavior --> ConvoyMember : own entity
+  ConvoyColumnBehavior --> FormationController : lead, own entity
+  ConvoyColumnBehavior --> FormationFollower : follower, own entity
   ConvoyColumnBehavior --> NavigationIntent : lead
   ConvoyLeadSystem --> ConvoyTrail : own
-  ConvoyLeadSystem ..> ConvoyMember : reads members
+  ConvoyLeadSystem ..> FormationController : Column leads
+  ConvoyLeadSystem ..> FormationFollower : reads slots
+  ConvoyFollowSystem --> ConvoyProgress : own
   ConvoyFollowSystem ..> ConvoyTrail : reads lead
   ConvoyFollowSystem --> FormationTarget : own
   CarKinematicsSystem ..> FormationTarget
   TrafficHandover ..> NavigationIntent
-  TrafficHandover ..> ConvoyMember : cap
+  TrafficHandover ..> ConvoyTrail : cap
   TrafficHandover --> LiveCitySim
-  TrafficBodies ..> ConvoyMember
+  TrafficBodies ..> FormationFollower
   LiveCitySim --> Engine
   ConvoyColumnBehavior ..> RoadGraphRouter : mode 2 via MoveTo
 ```
 
-*What the picture shows that prose hid:* one new pair of systems (lead / follower) and two components; every other box already exists and grows by a field or a method.
+*What the picture shows that prose hid:* one new pair of systems (lead / follower) and two LOCAL components (trail, progress) — the membership itself is the existing formation pair; every other box already exists and grows by a field or a method.
 The follower writes only ITS OWN `FormationTarget` — the lead's trail is a declared read — so the per-entity rule holds by construction.
 
 ### 4.2 Sequence — a mode-1 convoy crosses a junction on red while SUMO cars stop
@@ -167,7 +174,7 @@ sequenceDiagram
   participant K as CarKinematicsSystem
   P->>P: InContact: a squad reacts, an enemy seen within 300 m
   P->>C: contact or a new order
-  C->>C: remove own ConvoyMember
+  C->>C: remove own FormationFollower, lead resets its controller
   C->>N: lead: intent leaves Traffic
   H->>S: DespawnExternalVehicle(hrot id)
   K->>K: every vehicle back under our own driving
@@ -179,7 +186,7 @@ sequenceDiagram
 ```mermaid
 graph TD
   subgraph Brain["CGF / the editor: the brain"]
-    OC[ConvoyColumn behaviour] -->|own entity| CM[ConvoyMember]
+    OC[ConvoyColumn behaviour] -->|own entity| CM[FormationController / FormationFollower]
     OC -->|lead| NI[NavigationIntent]
   end
   subgraph Kin["SimHost / the editor: kinematic owner, GroundKinematicsModule"]
@@ -193,8 +200,8 @@ graph TD
     TBF[TrafficBodyFeedSystem] -->|bodies + gap squares| RT
     RT --> SUMO[LiveCitySim stepping thread]
   end
-  CM -.->|wire 198| LS
-  CM -.->|wire 198| TBF
+  CM -.->|wire 198 / 199| LS
+  CM -.->|wire 198 / 199| TBF
   NI -.->|wire 52| THS
   NOTRAIL[ConvoyTrail never on the wire]
   style NOTRAIL fill:#f66,color:#000
@@ -210,7 +217,7 @@ vehicles runs them — the editor, SimHost and any lightweight host by construct
 | slice | what | acceptance (the feature's own rails) |
 |---|---|---|
 | **S-1** (step 3) | H17 upstream (C-2, C-6 API; additive) + sync; `RoadUse.InTrafficPriority`; `TrafficHandover.Priority/MaxSpeed` | upstream: a priority twin runs a red at the front and waits behind a red queue; cars ahead on a multi-lane edge give way; the cap slows it and `null` restores it exactly; every existing golden byte-identical. HROT `AVehicleHandedToSumoArrivesTests` + a priority case |
-| **S-2** (step 4) | `ConvoyMember`, `ConvoyTrail`, the two systems, `KinematicsMode.Column` | a lead on a curved path + 3 followers: max along-path gap error ≤ 25 %, nobody passes, all stop within 2 s of the lead; 0 B per steady frame; under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
+| **S-2** (step 4) | the `Column` formation (was `ConvoyMember`), `ConvoyTrail`, the two systems, `KinematicsMode.Column` | a lead on a curved path + 3 followers: max along-path gap error ≤ 25 %, nobody passes, all stop within 2 s of the lead; 0 B per steady frame; under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` |
 | **S-3** (step 5) | gap squares in `TrafficBodies` | demo-city: a SUMO car never enters between two convoy vehicles |
 | **S-4** (step 6) | the lane offset; mode 2 | the route's road points lie on the outer lane; access / egress unchanged |
 | **S-5** (step 7) | `OrderKind.Convoy`, `ConvoyOrder`, `ConvoyColumn`; `PlatoonConvoyBehavior` uses it; contact ends it | an order forms the column; contact removes the shadow and every member |
@@ -225,5 +232,6 @@ vehicles runs them — the editor, SimHost and any lightweight host by construct
 | S-4 (CE-9003) | `RoadGraphRouter.KeepLane`, set by `RoutePlanner` for `RoadUse.StronglyPrefer` only — ⚠ and only on a net that declares **`linesAreCentres`** (R-9011) | ⚠ C-7 offset EVERY road leg at first; three `CE-3128` rails (a Prefer route on Main Street's centre line) went red ⇒ the lane is opt-in for the convoy's road use, so no other feature's routes (or goldens) move. ⏳ every vehicle keeping its lane is a later decision for the user |
 | S-4 amended (R-9011) | 📌 `cv-offroad-join-leave` on `city-battle`: the convoy drove onto the roadside hedge — an imported net (`NetRoadNetwork`) is written along each SUMO edge's LANE 0 (lanes 8 m wide there), so its lines are already the driving lane; the offset assumed centre lines. ⇒ `RoadNetworkJson.linesAreCentres` (absent = lane lines, as drawn); no asset changes (every terrain file is in its content hash) | ⚠ a two-way road imported as ONE forward edge is still driven on the forward lane both ways — the importer's choice (`written` skips the reverse edge) |
 | S-2 amended | 📌 the same scenario: a lead that overshot the turn onto the road and backed up (hull recovery) left a doubled-back trail, and the followers knotted on it ⇒ the trail records FORWARD motion only, and a follower also stops at `MinGap` + its stopping distance IN METRES from its predecessor (rail `ALeadThatBacksUp_…`) | — |
+| ⭐ **folded into formations** (R-9012, `2026-11-17`) | ⭐ **`ConvoyMember` WITHDRAWN** (user: *"Is the convoy member necessary? Cannot it be replaced with one of the formations components?"*). The lead's `FormationController { Type = Column, Params.Spacing }` — ⛔ no new `MinGap` field: `FormationController`'s bytes are hashed in 75 scenario goldens, so the minimum gap is half the spacing (every vehicle already carries one — `VehicleKinematicsTkbTranslator.cs:81`, default `Type` 0 = `Column`, so a column LEADS only with a follower, and the behaviour marks it by a `Spacing > 0`); each follower's `FormationFollower { SlotIndex = rank, Leader = lead (new, `Entity.Null` = the commander, as before) }`. `FormationTargetSystem` skips `Column` leaders (the convoy systems drive them); `UnitHierarchySystem` removes only commander-led slots. Component 108 is reserved again. Rails unchanged in meaning: `ConvoyColumnTests` / `PlatformConvoyTests` (+ the commander-led slot left alone, the lead's contact ends the column) / `TrafficBodyFeedTests.CE9002` | the explicit leader, not `UnitSubordinate.Commander`: 21 vehicles in 7 scenarios have a unit commander that is not their convoy lead, and a column must not re-parent the command chain |
 | found | 🐞 `city-battle`'s hedges cut 4 of its road segments (CE-9006, for the terrain lane) — a vehicle on the y-954 road is held at x 131 | the scenario routes along y 541.8 |
 | S-1 (CE-9000) | ✅ **BUILT end to end `2026-11-17`**: SumoSharp H17 pushed upstream (`hrot/slice2` → `eb88338`, together with HROT's T-7b closed edges, which had lived only in the vendored copy) and synced — `sync-sumosharp.sh --verify` passes again. `TrafficSession` spawns a `Priority` handover as the blue-light twin and caps its top speed from `TrafficHandover.MaxSpeed` (the lead's `ConvoyTrail.SpeedCapFactor` × its top speed; null restores). Rails: the arrival test as a theory (ordinary + priority), `AStretchedConvoysEscort_IsCappedThroughItsShadow_AndFreedAgain` (red-proved) — traffic suite 90/90. Upstream gate: `Traffic.sln` Release 0 failures (parity 793/5 incl. the emergency goldens, LiveCity 130/130 with 4 new H17 tests), `Sim.Bench` `A134ED3716DDE7BC` unchanged | the cap reaches SUMO only where the serving node holds the lead's trail (the editor); a dedicated traffic node needs the trail or the cap on the wire (C-8) |

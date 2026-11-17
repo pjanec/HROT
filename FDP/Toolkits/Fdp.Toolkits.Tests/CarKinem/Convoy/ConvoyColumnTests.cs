@@ -44,16 +44,16 @@ namespace CarKinem.Tests.Convoy
                 var r = Repo;
                 r.RegisterComponent<VehicleState>(); r.RegisterComponent<SimTransform>(); r.RegisterComponent<SimVelocity>(); r.RegisterComponent<VehicleParams>();
                 r.RegisterComponent<NavState>(); r.RegisterComponent<SpatialGridData>(); r.RegisterComponent<FormationTarget>();
-                r.RegisterComponent<ConvoyMember>(); r.RegisterComponent<ConvoyTrail>(); r.RegisterComponent<ConvoyProgress>();
+                r.RegisterComponent<FormationController>(); r.RegisterComponent<FormationFollower>(); r.RegisterComponent<ConvoyTrail>(); r.RegisterComponent<ConvoyProgress>();
                 r.SetSingletonUnmanaged(new GlobalTime { DeltaTime = Dt, TimeScale = 1.0f });
                 LeadE = Vehicle(new Vector2(0f, 0f), 20f);
-                r.AddComponent(LeadE, new ConvoyMember { Lead = LeadE, Rank = 0, Gap = 15f, MinGap = 7f });
+                r.AddComponent(LeadE, new FormationController { Type = FormationType.Column, Params = new FormationParams { Spacing = 15f } });
                 ref var nav = ref r.GetComponentRW<NavState>(LeadE);
                 nav.Mode = KinematicsMode.Direct; nav.TargetSpeed = 10f; nav.ArrivalRadius = 2f; nav.FinalDestination = new WorldPoint(Route[0].X, Route[0].Y, 0);
                 for (int i = 0; i < 3; i++)
                 {
                     F[i] = Vehicle(new Vector2(-spread * (i + 1), 0f), i == 2 ? tailTop : 20f);
-                    r.AddComponent(F[i], new ConvoyMember { Lead = LeadE, Rank = (byte)(i + 1), Gap = 15f, MinGap = 7f });
+                    r.AddComponent(F[i], new FormationFollower { Leader = LeadE, SlotIndex = (ushort)(i + 1), IsInFormation = 1, State = FormationMemberState.Rejoining });
                 }
             }
 
@@ -227,7 +227,7 @@ namespace CarKinem.Tests.Convoy
             var w = new World();
             for (int i = 0; i < 30 * 5; i++) w.Step();
             Assert.Equal(KinematicsMode.Column, w.Repo.GetComponentRO<NavState>(w.F[1]).Mode);
-            w.Repo.RemoveComponent<ConvoyMember>(w.F[1]);
+            w.Repo.RemoveComponent<FormationFollower>(w.F[1]);
             w.Step();
             Assert.Equal(KinematicsMode.None, w.Repo.GetComponentRO<NavState>(w.F[1]).Mode);
             Assert.False(w.Repo.HasComponent<ConvoyProgress>(w.F[1]));

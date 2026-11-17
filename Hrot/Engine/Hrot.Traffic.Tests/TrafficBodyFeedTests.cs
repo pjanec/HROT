@@ -80,13 +80,14 @@ public sealed class TrafficBodyFeedTests
     public void CE9002_AConvoysGap_IsToldAsSquares_FillingItEndToEnd()
     {
         using var world = World();
-        world.RegisterComponent<CarKinem.Convoy.ConvoyMember>();
+        if (!world.IsComponentTypeRegistered<CarKinem.Formation.FormationController>()) world.RegisterComponent<CarKinem.Formation.FormationController>();
+        if (!world.IsComponentTypeRegistered<CarKinem.Formation.FormationFollower>()) world.RegisterComponent<CarKinem.Formation.FormationFollower>();
         var truck = new VehicleParams { Class = VehicleClass.Truck, Length = 6f, Width = 2.5f };
         var lead = Body(world, new Vector3(20, 0, 0), LocomotionClass.Wheeled, truck, velocity: new Vector3(5, 0, 0));
         var follower = Body(world, new Vector3(0, 0, 0), LocomotionClass.Wheeled, truck, velocity: new Vector3(5, 0, 0));
         Body(world, new Vector3(0, 40, 0), LocomotionClass.Wheeled, truck);   // not in the convoy
-        world.AddComponent(lead, new CarKinem.Convoy.ConvoyMember { Lead = lead, Rank = 0, Gap = 20f, MinGap = 7f });
-        world.AddComponent(follower, new CarKinem.Convoy.ConvoyMember { Lead = lead, Rank = 1, Gap = 20f, MinGap = 7f });
+        world.AddComponent(lead, new CarKinem.Formation.FormationController { Type = CarKinem.Formation.FormationType.Column, Params = new CarKinem.Formation.FormationParams { Spacing = 20f } });
+        world.AddComponent(follower, new CarKinem.Formation.FormationFollower { Leader = lead, SlotIndex = 1, IsInFormation = 1 });
 
         var bodies = TrafficBodyFeedSystem.Gather(world, Anchored());
 

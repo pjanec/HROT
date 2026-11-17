@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using CarKinem.Convoy;
+using CarKinem.Formation;
 using Fbt;
 using Fbt.Compiler;
 using Fbt.Kernel;
@@ -19,11 +20,11 @@ namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
     /// ⭐⭐ <c>CE-9004</c> (C-9, C-10, R-9008 / R-9009; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §3, §4.2–§4.3) — a vehicle fulfilling a
-    /// <see cref="ConvoyOrder"/>. It writes only its OWN <see cref="ConvoyMember"/> (R-4212); the kinematic owner's <c>ConvoyLeadSystem</c> /
+    /// <see cref="ConvoyOrder"/>. It writes only its OWN formation components (R-4212): the lead its <see cref="FormationController"/> (a <see cref="FormationType.Column"/>), a follower its <see cref="FormationFollower"/> slot with an explicit leader; the kinematic owner's <c>ConvoyLeadSystem</c> /
     /// <c>ConvoyFollowSystem</c> drive the column from it. The LEAD moves to the destination — handed to SUMO (<see cref="ConvoyMode.Traffic"/>, beacon on when
     /// the order says priority) or on our own route (<see cref="ConvoyMode.Route"/> — <see cref="RoadUse.StronglyPrefer"/>, the outer lane); a FOLLOWER stops its
     /// own move and is driven along the lead's path. Success: the lead within <see cref="ArrivalRadius"/> of the destination; a follower when its lead
-    /// is done. ⭐ C-10 — contact or a new order ends the column: <see cref="ConvoyMembershipSystem"/> removes the membership of a vehicle no longer running this.
+    /// is done. ⭐ C-10 — contact or a new order ends the column: <see cref="ConvoyMembershipSystem"/> removes the column slot of a vehicle no longer running this, and ends the column of a lead that stopped.
     /// </summary>
     public static class PlatformConvoyBehavior
     {
@@ -34,7 +35,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public long LeadPacked;
             public Vector3 Destination;
-            public float Gap, MinGap, Speed;
+            public float Gap, Speed;
             public byte Rank, Mode, Priority;
         }
 
@@ -65,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Params = new ConvoyParams
             {
                 LeadPacked = lead, Destination = (Vector3)order.Destination,
-                Gap = order.Gap > 0f ? order.Gap : ConvoyMember.DefaultGap, MinGap = ConvoyMember.DefaultMinGap,
+                Gap = order.Gap > 0f ? order.Gap : CarKinem.Systems.ConvoyLeadSystem.DefaultGap,
                 Speed = order.Speed > 0f ? order.Speed : DefaultSpeed,
                 Rank = (byte)Math.Clamp(order.Rank, 0, ConvoyTrail.MaxRanks - 1), Mode = (byte)order.Mode, Priority = order.Priority ? (byte)1 : (byte)0,
             };
@@ -88,18 +89,19 @@ namespace Hrot.AI.Behaviors.Brains
 
         public static NodeStatus Tick(ref ConvoyParams p, ref ConvoyState s, Entity self, EntityRepository world)
         {
-            if (!world.IsComponentTypeRegistered<ConvoyMember>() || !world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
+            if (!world.IsComponentTypeRegistered<FormationController>() || !world.IsComponentTypeRegistered<FormationFollower>()
+                || !world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             if (s.Done != 0) return NodeStatus.Success;
             var here = world.GetComponentRO<SimTransform>(self).Position;
 
             if (IsLead(in p, self))
             {
-                if (!world.HasComponent<ConvoyMember>(self))
-                    world.AddComponent(self, new ConvoyMember { Lead = self, Rank = 0, Gap = p.Gap, MinGap = p.MinGap, Mode = p.Mode, Flags = p.Priority });
+                // ⭐ CE-9004 — the lead leads a COLUMN formation: its own controller says so (every vehicle carries one; written whole, own entity)
+                if (s.Issued == 0) SetController(world, self, Column(in p));
                 if (Flat(here, p.Destination) <= ArrivalRadius)
                 {
                     LocomotionMoveTo.Stop(world, self);
-                    world.RemoveComponent<ConvoyMember>(self);
+                    SetController(world, self, new FormationController());   // the column ends: its followers see a lead that no longer leads one
                     s.Done = 1;
                     return NodeStatus.Success;
                 }
@@ -113,28 +115,52 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Running;
             }
 
-            // a follower: driven along the lead's path by the kinematic owner; done when the lead is
+            // a follower: its slot in the lead's column (the kinematic owner drives it along the lead's path); done when the lead's column has ended
             var lead = new Entity((ulong)p.LeadPacked);
-            if (!world.IsAlive(lead) || (s.Stopped != 0 && !world.HasComponent<ConvoyMember>(lead)))
+            bool leading = world.IsAlive(lead) && world.HasComponent<FormationController>(lead) && Leads(in world.GetComponentRO<FormationController>(lead));
+            if (leading) s.Issued = 1;   // the lead's column seen at least once
+            if (!world.IsAlive(lead) || (s.Issued != 0 && !leading))
             {
-                if (world.HasComponent<ConvoyMember>(self)) world.RemoveComponent<ConvoyMember>(self);
+                Leave(world, self, lead);
                 s.Done = 1;
                 return NodeStatus.Success;
             }
-            if (!world.HasComponent<ConvoyMember>(self))
-                world.AddComponent(self, new ConvoyMember { Lead = lead, Rank = p.Rank, Gap = p.Gap, MinGap = p.MinGap, Mode = p.Mode, Flags = p.Priority });
+            if (!world.HasComponent<FormationFollower>(self) || world.GetComponentRO<FormationFollower>(self).Leader != lead)
+            {
+                var slot = new FormationFollower { SlotIndex = p.Rank, Leader = lead, IsInFormation = 1, State = FormationMemberState.Rejoining };
+                if (world.HasComponent<FormationFollower>(self)) world.SetComponent(self, slot); else world.AddComponent(self, slot);
+            }
             if (s.Stopped == 0) { LocomotionMoveTo.Stop(world, self); s.Stopped = 1; }
             return NodeStatus.Running;
+        }
+
+        /// <summary>The lead's column: <see cref="FormationType.Column"/> at the order's spacing (the minimum gap is half of it).</summary>
+        public static FormationController Column(in ConvoyParams p)
+            => new() { Type = FormationType.Column, Params = new FormationParams { Spacing = p.Gap } };
+
+        /// <summary>Does this controller lead a convoy column (a column with a spacing; a vehicle's default controller has none)?</summary>
+        public static bool Leads(in FormationController c) => c.Type == FormationType.Column && c.Params.Spacing > 0f;
+
+        private static void SetController(EntityRepository world, Entity self, FormationController c)
+        {
+            if (world.HasComponent<FormationController>(self)) world.SetComponent(self, c); else world.AddComponent(self, c);
+        }
+
+        /// <summary>Leaves the column of <paramref name="lead"/> (its slot only — never a slot under another leader).</summary>
+        public static void Leave(EntityRepository world, Entity self, Entity lead)
+        {
+            if (world.HasComponent<FormationFollower>(self) && world.GetComponentRO<FormationFollower>(self).Leader == lead) world.RemoveComponent<FormationFollower>(self);
         }
 
         private static float Flat(Vector3 a, Vector3 b) => Vector2.Distance(new Vector2(a.X, a.Y), new Vector2(b.X, b.Y));
     }
 
     /// <summary>
-    /// ⭐ <c>CE-9004</c> (C-10, R-9009) — a vehicle's convoy membership lives exactly as long as it RUNS <c>PlatformConvoy</c>: contact (a reaction takes over,
-    /// the order is only paused), a new order, or the behaviour's end removes its <see cref="ConvoyMember"/> — so the kinematic owner stops driving it in the
-    /// column at once and its own SOP / the platoon's Contact phase drives it; the lead's intent changes with the new behaviour, which takes its shadow out of
-    /// SUMO (AQ93 G5). Nothing is re-created. Writes only each entity's own membership (the per-entity rule); 0 B per steady frame.
+    /// ⭐ <c>CE-9004</c> (C-10, R-9009) — a vehicle's place in a convoy column lives exactly as long as it RUNS <c>PlatformConvoy</c>: contact (a reaction takes
+    /// over, the order is only paused), a new order, or the behaviour's end removes its explicitly-led <see cref="FormationFollower"/> (a slot with a
+    /// <see cref="FormationFollower.Leader"/> — only the convoy sets one; a commander-led slot is left to the command hierarchy) — so the kinematic owner stops
+    /// driving it in the column at once and its own SOP / the platoon's Contact phase drives it; the lead's intent changes with its new behaviour, which
+    /// takes its shadow out of SUMO (AQ93 G5). Nothing is re-created. Writes only each entity's own slot (the per-entity rule); 0 B per steady frame.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [UpdateAfter(typeof(Fdp.Toolkit.Behavior.Systems.LocomotionDispatcherSystem))]
@@ -143,19 +169,30 @@ namespace Hrot.AI.Behaviors.Brains
     {
         private static readonly int ConvoyHash = BehaviorHash.FromName(BehaviorNames.PlatformConvoy);
         private readonly bool _gateOnAuthority;
-        private EntityQuery? _members;
+        private EntityQuery? _followers, _leads;
 
         public ConvoyMembershipSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ConvoyMember>() || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
-            _members ??= repo.Query().With<ConvoyMember>().With<BehaviorState>().Build();
-            foreach (var e in _members)
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<FormationFollower>() || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
+            _followers ??= repo.Query().With<FormationFollower>().With<BehaviorState>().Build();
+            foreach (var e in _followers)
             {
                 if (_gateOnAuthority && !repo.HasAuthority<BehaviorState>(e)) continue;
+                if (repo.GetComponentRO<FormationFollower>(e).Leader.IsNull) continue;          // a commander-led slot: not the convoy's
                 if (repo.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash == ConvoyHash) continue;
-                repo.RemoveComponent<ConvoyMember>(e);
+                repo.RemoveComponent<FormationFollower>(e);
+            }
+            // a LEAD that stopped running the convoy ends its column (its followers then see no column and finish — C-10: the whole column reacts)
+            if (!repo.IsComponentTypeRegistered<FormationController>()) return;
+            _leads ??= repo.Query().With<FormationController>().With<BehaviorState>().Build();
+            foreach (var e in _leads)
+            {
+                if (_gateOnAuthority && !repo.HasAuthority<BehaviorState>(e)) continue;
+                if (!PlatformConvoyBehavior.Leads(in repo.GetComponentRO<FormationController>(e))) continue;
+                if (repo.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash == ConvoyHash) continue;
+                repo.SetComponent(e, new FormationController());
             }
         }
     }

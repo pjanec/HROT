@@ -1,5 +1,6 @@
 using System.Numerics;
 using CarKinem.Convoy;
+using CarKinem.Formation;
 using Fbt;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
@@ -48,7 +49,7 @@ namespace Hrot.SimHost.Tests
 
         private static PlatformConvoyBehavior.ConvoyParams Params(Entity lead, byte rank, ConvoyMode mode, bool priority = false) => new()
         {
-            LeadPacked = lead == default ? 0 : (long)lead.PackedValue, Destination = new Vector3(400, 0, 0), Gap = 15f, MinGap = 7f, Speed = 10f,
+            LeadPacked = lead == default ? 0 : (long)lead.PackedValue, Destination = new Vector3(400, 0, 0), Gap = 15f, Speed = 10f,
             Rank = rank, Mode = (byte)mode, Priority = priority ? (byte)1 : (byte)0,
         };
 
@@ -62,8 +63,9 @@ namespace Hrot.SimHost.Tests
                 var lead = Vehicle(w, Vector3.Zero);
                 var p = Params(default, 0, mode, priority); var s = default(PlatformConvoyBehavior.ConvoyState);
                 Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref p, ref s, lead, w));
-                var m = w.GetComponentRO<ConvoyMember>(lead);
-                Assert.Equal((lead, (byte)0), (m.Lead, m.Rank));
+                var c = w.GetComponentRO<FormationController>(lead);
+                Assert.Equal((FormationType.Column, 15f), (c.Type, c.Params.Spacing));   // the lead leads a column
+                Assert.False(w.HasComponent<FormationFollower>(lead));
                 Assert.Equal(want, AskedRoadUse(w, lead));
                 w.Dispose();
             }
@@ -79,14 +81,14 @@ namespace Hrot.SimHost.Tests
             var fp = Params(lead, 2, ConvoyMode.Route); var fs = default(PlatformConvoyBehavior.ConvoyState);
             PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w);
             Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));
-            var m = w.GetComponentRO<ConvoyMember>(f);
-            Assert.Equal((lead, (byte)2, 15f), (m.Lead, m.Rank, m.Gap));
+            var m = w.GetComponentRO<FormationFollower>(f);
+            Assert.Equal((lead, (ushort)2, (byte)1), (m.Leader, m.SlotIndex, m.IsInFormation));
 
             w.GetComponentRW<SimTransform>(lead).Position = new Vector3(395, 0, 0);   // the lead arrives
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
-            Assert.False(w.HasComponent<ConvoyMember>(lead));
+            Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));   // the column ended
             Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));
-            Assert.False(w.HasComponent<ConvoyMember>(f));
+            Assert.False(w.HasComponent<FormationFollower>(f));
             w.Dispose();
         }
 
@@ -97,16 +99,26 @@ namespace Hrot.SimHost.Tests
             var lead = Vehicle(w, Vector3.Zero);
             var hit = Vehicle(w, new Vector3(-15, 0, 0));
             var calm = Vehicle(w, new Vector3(-30, 0, 0));
-            w.AddComponent(lead, new ConvoyMember { Lead = lead, Rank = 0 });
-            w.AddComponent(hit, new ConvoyMember { Lead = lead, Rank = 1 });
-            w.AddComponent(calm, new ConvoyMember { Lead = lead, Rank = 2 });
+            var column = new FormationController { Type = FormationType.Column, Params = new FormationParams { Spacing = 15f } };
+            if (w.HasComponent<FormationController>(lead)) w.SetComponent(lead, column); else w.AddComponent(lead, column);
+            w.AddComponent(hit, new FormationFollower { Leader = lead, SlotIndex = 1, IsInFormation = 1 });
+            w.AddComponent(calm, new FormationFollower { Leader = lead, SlotIndex = 2, IsInFormation = 1 });
+            var squadMate = Vehicle(w, new Vector3(0, 50, 0));   // a commander-led slot (no explicit leader): never the convoy's to remove
+            w.AddComponent(squadMate, new FormationFollower { SlotIndex = 1, IsInFormation = 1 });
+            w.GetComponentRW<BehaviorState>(squadMate) = new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PushThrough), Origin = BehaviorOrigin.Reaction };
             w.GetComponentRW<BehaviorState>(hit) = new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PushThrough), Origin = BehaviorOrigin.Reaction };
 
             new ConvoyMembershipSystem().Execute(w, 0.05f);
 
-            Assert.False(w.HasComponent<ConvoyMember>(hit));   // contact: its SOP drives it now
-            Assert.True(w.HasComponent<ConvoyMember>(lead));
-            Assert.True(w.HasComponent<ConvoyMember>(calm));
+            Assert.False(w.HasComponent<FormationFollower>(hit));   // contact: its SOP drives it now
+            Assert.True(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));
+            Assert.True(w.HasComponent<FormationFollower>(calm));
+            Assert.True(w.HasComponent<FormationFollower>(squadMate));
+
+            // the LEAD taken by contact ends the whole column
+            w.GetComponentRW<BehaviorState>(lead) = new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.PushThrough), Origin = BehaviorOrigin.Reaction };
+            new ConvoyMembershipSystem().Execute(w, 0.05f);
+            Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));
             w.Dispose();
         }
     }

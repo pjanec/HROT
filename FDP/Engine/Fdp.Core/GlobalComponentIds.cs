@@ -301,9 +301,7 @@ namespace Fdp.Core
 
         // IDs 84â€“109 are reserved for future Vis2D toolkit components.
 
-        /// <summary><c>ConvoyMember</c> — ⭐ CE-9001 (convoy lane, R-4282; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md C-4/C-8): this vehicle's place in a road
-        /// convoy (lead, rank, gap). Written by the vehicle's own behaviour; on the wire (descriptor 198). Unmanaged, recorded.</summary>
-        public const int ConvoyMember = 108;
+        // 108 — reserved for the convoy lane (R-4282); ⛔ was ConvoyMember (CE-9001), withdrawn unused before any recording or save: a convoy is a Column formation (CE-9004).
 
         /// <summary><c>ConvoyTrail</c> — ⭐ CE-9001 (C-4/C-6): the convoy lead's actual path (a 256-point ring) + the column's ranks and the lead's speed cap.
         /// Local to the kinematic owner, recorded, never on the wire.</summary>
