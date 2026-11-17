@@ -196,3 +196,28 @@ The real drawing is `Outfits.Garments` (+ `Shemagh`, `FaceWrap`, `Hijab`, `Headb
 
 **Decisions** (status file): `R-1062` the Native American kinds are enum members added by ui (`OutfitTop.Buckskin`, `OutfitLegs.Breechcloth`, `OutfitHead.Headband`, `OutfitHair.Braids`, `OutfitBeard.Paint`); `R-1063` face paint lives in the BEARD slot (no new draw ⇒ no existing person moves; its colours come from a hash of the seed). The catalogue's off-white `White` is (244,243,238) so a thobe in the sun reads at least as bright as the everyday white shirt (a frame rail measures it).
 ⛔ Prior state: the S1 stand-ins (a robe = a lengthened skirt box, scarves = the long-hair box in the cloth's colour, a chest rig = the police vest box) are **SUPERSEDED** by the table above.
+
+## 10. Native American ornaments and Afghanistan (`CE-4648` / `CE-1957`, ui, `2026-11-17`)
+
+🔒 **User, `2026-11-17`:** *"The Native American with the feathers on the head is nice, but even better if he could have the Black hair, pigtails on both sides, and also a little bit more ornaments on his clothes. I would also like you to add some typical Afghanistan civilians, and also combatants."*
+Mockups: [`person-outfits-native-sheet.svg`](person-outfits-native-sheet.svg), [`person-outfits-afghan-sheet.svg`](person-outfits-afghan-sheet.svg) (generator `scripts/gen-person-outfits-mockup.py`). Frames: `PersonOutfitsRail` (lit 3/4 + side).
+
+**R-1064 — the `Extra` slot.** One LAST slot (`OutfitDto.Extra`, drawn after the beard, so every earlier draw — every existing person — is unchanged; pinned by `TheExtraSlot_IsDrawnLast_SoNothingElseMoves` over 1105's first 80 people and by the baseline probe). Kinds `OutfitExtra`: `Armbands`, `Necklace`, `ArmbandsNecklace`, `Waistcoat`, `Patu`, `WaistcoatPatu`. UML unchanged otherwise (`OutfitSet`/`Wardrobe.Set` carry the slot too).
+
+| what | kind (slot) | as drawn |
+|---|---|---|
+| beaded yoke | `BeadedYoke` (Over) | rows of blue / red / white / yellow squares across the chest and the back, two bands over the shoulders |
+| hair-pipe breastplate | `HairPipe` (Over); `YokeHairPipe` = both | six vertical white tubes between two leather bars |
+| armbands | `Armbands` (Extra) | a thin red band with a blue stripe round the MIDDLE of each upper arm, on the arm parts (they follow the pose) |
+| bead necklace | `Necklace` (Extra) | a white collar, a strand of beads on the chest, a yellow pendant |
+| beaded belt | (part of `Breechcloth`) | seven beads along the belt |
+| braids | `Braids` (Hair) | black hair; on each side a braid that grows out of the hair beside the face over the ear, over the shoulder and down the chest to a red tie |
+| perahan tunban | `Perahan` (Top) + `Tunban` (Legs) | a knee-length tunic, the sides left open between a front and a back panel; a baggy sleeve round each leg part (about twice the leg across) and a narrow cuff at the ankle |
+| waistcoat · patu | `Waistcoat` · `Patu` (Extra) | a dark vest with an open front · a wool shawl over the shoulders, down the back and over one shoulder |
+| pakol · lungee | `Pakol` · `Turban` (Head) | a flat round cap with a rolled rim · a wrapped turban wider and taller than the head with a loose tail |
+| chadari | `Chadari` (Top) | a full-body pleated cover crown to ankle, the head wholly covered but a dark grille over the eyes; hides hair, beard and the legs |
+
+**R-1065** — `OutfitCatalog.NativeAmericanWarrior` is ONE wardrobe; backend's warrior type (CE-4650 step E) just stamps it — [`NOTE_Ui_To_Backend_Native_American_Look.md`](../../blueprints/batches/NOTE_Ui_To_Backend_Native_American_Look.md).
+**R-1066** — Afghan wardrobes `OutfitCatalog.Afghan*`; ids **1111–1116** (`CivilianTkbCatalog`) and **2016–2018** (`UrbanCombatTkbCatalog`, 2013–2015 are backend's archers). Odds pinned over seeds 1–500 by `TheAfghanOdds_OverSeeds1To500`: fighters head cover ≥ 85 %, chest rig ≥ 60 %, a waistcoat or patu in ≥ 40 %; women mostly chadari; elders a lungee and a patu.
+Scenario: `scenarios/demos/civilians-and-crowd/civ-afghan-village` (36 people of 1111–1116 near and far, three fighters holding a post; `checks.json`: the cast exists as its types, everyone alive, the fighters hold; no golden).
+

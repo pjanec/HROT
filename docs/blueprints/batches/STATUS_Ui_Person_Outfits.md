@@ -39,3 +39,17 @@ Further decisions: the sleeve fringe of the buckskin is DROPPED (accepted at che
 | not run | `civ-middle-east-market` / `me-fighters-ambush` scenarios (not in this half's scope); the Native American type's thumbnail (not registered) |
 
 Ids: `R-1062`, `R-1063` (no `CE-` ids allocated).
+
+## Native American look + Afghan people (`CE-1957`, `2026-11-17`)
+
+| step | state |
+|---|---|
+| mockups (two checkpoints reviewed; fixes: baggy tunban, palette shown, armbands mid-arm, braids from the head) | ✅ |
+| drawing + `Extra` slot (R-1064), `NativeAmericanWarrior` (R-1065), `Afghan*` wardrobes + types 1111–1116 / 2016–2018 (R-1066) | ✅ |
+| rails: odds over seeds 1–500, the Extra-last pin, garment geometry, 0 B (all garments), lit frames | ✅ — red-proofs: the Afghan odds (chest rig 75→10 %), the Extra draw moved before the beard, the armband removed, the tunban narrowed — each went red, reverted |
+| goldens | `CE2138…` moved by exactly 9 lines (1111–1116, 2016–2018); atlas count |
+| scenario `civ-afghan-village` (36 villagers + 3 fighters; checks.json; preview.jpg) | `scripts/scenario-regression.sh civ-afghan-village` PASS (30 s sim) |
+| thumbnails (typical seeds) 1111–1116, 2016–2018 | ✅ |
+| docs: design §10, Map 3D §6q.3, CAPABILITIES, tracker CE-1957, `NOTE_Ui_To_Backend_Native_American_Look.md` | ✅ |
+
+Decisions: **R-1064** the `Extra` slot (last draw); **R-1065** `NativeAmericanWarrior` one wardrobe, backend stamps it; **R-1066** Afghan wardrobes and ids. Final warrior frame: `/tmp/claude-0/final/warrior-front-lit.png` (not committed — no screenshots in git).

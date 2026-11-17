@@ -165,10 +165,29 @@ public sealed class PersonOutfitsRail
         var feathers = new HashSet<int>(); for (int s = 1; s <= 60; s++) feathers.Add(DetailsOf(tkb, Index("headband"), s).Count(d => d.Colour.R > 200 && d.Colour.G > 200) );
         Assert.Equal([2, 4, 6], feathers.Order());                                                                                       // seeded 1…3 feathers (two white segments each)
         Assert.Equal(2, DetailsOf(tkb, Index("braids")).Count(d => d.Part == BlockFigure.TorsoIndex && d.Centre.X * 0.24f > 0.135f && d.Extent.Z * 0.56f > 0.29f));   // a braid each side, down the chest
+        // the warrior's ornaments: armbands round the MIDDLE of both upper arms (parts 6, 8; x runs along the arm, a third from the shoulder), the yoke's squares, six hair-pipe tubes, a necklace, a beaded belt
+        var warrior = DetailsOf(tkb, Index("warrior"));
+        Assert.Equal(4, warrior.Count(d => d.Part is 6 or 8 && d.Centre.X < -0.1f && d.Centre.X > -0.3f && d.Extent.X < 0.2f && d.Extent.Y > 1.1f));
+        Assert.True(warrior.Count(d => d.Part == BlockFigure.TorsoIndex && d.Extent.Y * 0.40f < 0.04f && d.Extent.Z * 0.56f < 0.04f) >= 27 + 7, "the yoke's squares and the belt's beads");
+        Assert.Equal(6, warrior.Count(d => d.Part == BlockFigure.TorsoIndex && d.Colour.R > 230 && d.Extent.Z * 0.56f > 0.28f));         // the hair-pipe tubes
+        Assert.Equal(2, warrior.Count(d => d.Part == BlockFigure.HeadIndex && d.Centre.Y * 0.20f is > 0.10f or < -0.10f && d.Extent.Z * 0.24f > 0.2f));   // a braid each side starts at the head, over the ear
+        // Afghan: the baggy tunban (each leg part gets a sleeve WIDER than the limb and a narrow cuff on the shin), the chadari, the lungee, the pakol
+        var af = DetailsOf(tkb, Index("af-perahan"));
+        Assert.Equal(4, af.Count(d => d.Part < 4 && d.Extent.Y >= 1.5f && d.Extent.Z >= 1.5f));
+        Assert.Equal(2, af.Count(d => d.Part is 1 or 3 && d.Extent.X < 0.2f && d.Extent.Y < 1.3f));
+        Assert.Contains(af, d => d.Part == BlockFigure.TorsoIndex && d.Centre.X * 0.24f > 0.135f && d.Extent.Z * 0.56f > 0.4f);       // the front panel to the knee; the sides stay open
+        Assert.True(DetailsOf(tkb, Index("af-chadari")).Count >= 14, "the pleated cover, crown to ankle, the grille");
+        Assert.Equal(HairStyle.None, Dressed(tkb, Index("af-chadari")).HairStyle);
+        var lungee = DetailsOf(tkb, Index("af-lungee"));
+        Assert.Contains(lungee, d => d.Part == BlockFigure.HeadIndex && d.Extent.Y * 0.20f >= 0.265f);   // wider than the head…
+        Assert.Contains(lungee, d => d.Part == BlockFigure.HeadIndex && WorldZ(d) > 1.85f);               // …and taller
+        Assert.Contains(lungee, d => d.Part == BlockFigure.TorsoIndex && d.Centre.X * 0.24f < -0.15f && d.Extent.Z * 0.56f > 0.45f);   // the loose tail
+        Assert.True(DetailsOf(tkb, Index("af-patu")).Count(d => d.Part == BlockFigure.TorsoIndex) >= 10, "the shawl");
         var paint = Dressed(tkb, Index("facepaint")); Assert.True(paint.FacePaint); Assert.Equal(BeardKind.None, paint.Face.Beard);
         Assert.Equal(3, DetailsOf(tkb, Index("facepaint")).Count);
     }
 
+    private const string BeardPin1105 = "00011121010210120201202202201120202201200020112112212222220212200221002201221201";
     private static readonly long[] Fighters = [2003, 2010, 2011, 2012];
 
     /// <summary>⭐ CE-4648 polish — the odds the user asked for, pinned over seeds 1–500 of the REAL catalogue: a Middle-East fighter wears head cover (shemagh, face wrap or skullcap)
@@ -201,10 +220,16 @@ public sealed class PersonOutfitsRail
             {
                 1105 or 1109 => o.TopKind == OutfitTop.Robe && o.HeadKind is OutfitHead.Shemagh or OutfitHead.Skullcap && o.Face.Beard != BeardKind.None,
                 1107 => o.TopKind == OutfitTop.Robe,
+                1111 => o.HeadKind is OutfitHead.Pakol or OutfitHead.Turban && o.ExtraKind is OutfitExtra.Waistcoat or OutfitExtra.Patu,
+                1112 or 1116 => o.TopKind == OutfitTop.Chadari,
+                1113 => o.HeadKind == OutfitHead.Pakol,
+                1114 => o.HeadKind == OutfitHead.Hijab,
+                1115 => o.HeadKind == OutfitHead.Turban && o.ExtraKind == OutfitExtra.Patu,
+                2016 or 2017 or 2018 => o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol && o.OverKind == OutfitOver.ChestRig,
                 _ => o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap && o.OverKind == OutfitOver.ChestRig,
             };
             var json = new System.Text.StringBuilder("{\n");
-            long[] types = [1105, 1107, 1109, 2003, 2010, 2011, 2012];
+            long[] types = [1105, 1107, 1109, 1111, 1112, 1113, 1114, 1115, 1116, 2003, 2010, 2011, 2012, 2016, 2017, 2018];
             for (int k = 0; k < types.Length; k++)
             {
                 var seeds = new List<long>();
@@ -214,6 +239,63 @@ public sealed class PersonOutfitsRail
             json.Append("}\n");
             var dir = new DirectoryInfo(AppContext.BaseDirectory); while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "scripts"))) dir = dir.Parent;
             File.WriteAllText(Path.Combine(dir!.FullName, "scripts", "thumbnail-typical-seeds.json"), json.ToString());
+        }
+    }
+
+    /// <summary>⭐ R-1066 — the odds of the Afghan wardrobes over seeds 1–500 of the REAL catalogue: fighters wear head cover in ≥ 85 % and a chest rig in ≥ 60 % (and often a waistcoat or a patu);
+    /// the women are mostly in the chadari; the elderly men mostly in a lungee with a patu; the boys always in a perahan.</summary>
+    [Fact]
+    public void TheAfghanOdds_OverSeeds1To500()
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
+        foreach (long type in new long[] { 2016, 2017, 2018 })
+        {
+            int covered = 0, rigged = 0, layered = 0;
+            for (int s = 1; s <= 500; s++)
+            {
+                var o = Of(type, s);
+                if (o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol or OutfitHead.Shemagh or OutfitHead.Skullcap or OutfitHead.ShemaghFaceWrap) covered++;
+                if (o.OverKind == OutfitOver.ChestRig) rigged++;
+                if (o.ExtraKind is OutfitExtra.Waistcoat or OutfitExtra.Patu or OutfitExtra.WaistcoatPatu) layered++;
+                Assert.Equal(OutfitTop.Perahan, o.TopKind); Assert.Equal(Legwear.Tunban, o.Legwear); Assert.Equal(CamoPattern.None, o.Camo);
+            }
+            Assert.True(covered >= 425, $"type {type}: head cover in {covered}/500");
+            Assert.True(rigged >= 300, $"type {type}: a chest rig in {rigged}/500");
+            Assert.True(layered >= 200, $"type {type}: a waistcoat or a patu in {layered}/500");
+        }
+        int Count(long type, Func<Outfit, bool> f) { int n = 0; for (int s = 1; s <= 500; s++) if (f(Of(type, s))) n++; return n; }
+        Assert.True(Count(1112, o => o.TopKind == OutfitTop.Chadari) >= 350, "the women are mostly in the chadari");
+        Assert.True(Count(1116, o => o.TopKind == OutfitTop.Chadari) >= 300, "so are the elderly women");
+        Assert.True(Count(1115, o => o.HeadKind == OutfitHead.Turban && o.ExtraKind == OutfitExtra.Patu) >= 220, "the elders: a lungee and a patu");
+        Assert.Equal(500, Count(1113, o => o.TopKind == OutfitTop.Perahan && o.Legwear == Legwear.Tunban));
+        Assert.True(Count(1111, o => o.HeadKind is OutfitHead.Pakol or OutfitHead.Turban or OutfitHead.Skullcap) >= 350, "a man covers his head");
+        Assert.True(Count(1114, o => o.HeadKind == OutfitHead.Hijab) >= 380, "a girl's coloured headscarf");
+    }
+
+    /// <summary>⭐ R-1064 — the Extra slot is drawn LAST: giving a wardrobe an Extra slot changes nothing but the extra (every other field of every person is identical), so no existing person moves.
+    /// 🔴 Red-proof: draw the extra BEFORE the beard in <c>Outfits.Dress</c> ⇒ the beard (and the face) of the people of a wardrobe with an Extra changes.</summary>
+    [Fact]
+    public void TheExtraSlot_IsDrawnLast_SoNothingElseMoves()
+    {
+        // ⭐ the pin: every slot is exactly two draws, so only a FIXED expectation tells where the Extra draws sit — the beard kinds (the slot just before the Extra) of 1105's first 80 people
+        {
+            var look = EntityBodyLayer3D.Resolve(HrotEnvironment.CreateTkb().GetByType(1105)!);
+            var sb = new System.Text.StringBuilder();
+            for (int s = 1; s <= 80; s++) sb.Append((int)Outfits.For(s, 1105, look.Soldier, look.Child, null, ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe).Face.Beard);
+            if (Environment.GetEnvironmentVariable("HROT_GEN_PIN") == "1") File.WriteAllText("/tmp/claude-0/pin.txt", sb.ToString());
+            Assert.Equal(BeardPin1105, sb.ToString());
+        }
+        var plain = OutfitCatalog.MiddleEastMan;
+        var withExtra = plain with { Extra = S(O("Waistcoat", Black)) };
+        var a = Wardrobe.Of(plain)!; var b = Wardrobe.Of(withExtra)!;
+        for (int seed = 1; seed <= 500; seed++)
+        {
+            var x = Outfits.For(seed, 1105, false, false, null, ForceId.Neutral, PersonKit.Civilian, false, PersonSex.Male, a);
+            var y = Outfits.For(seed, 1105, false, false, null, ForceId.Neutral, PersonKit.Civilian, false, PersonSex.Male, b);
+            Assert.Equal(OutfitExtra.None, x.ExtraKind);
+            Assert.Equal(OutfitExtra.Waistcoat, y.ExtraKind);
+            Assert.Equal(x with { ExtraKind = y.ExtraKind, ExtraColour = y.ExtraColour }, y);
         }
     }
 

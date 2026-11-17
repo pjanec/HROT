@@ -1,0 +1,144 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4648 civ-afghan-village: the Afghan types exist, stay alive, and the fighters hold. No golden (a presentation feature: the look is judged by the frame rails).",
+  "runFor": 30,
+  "expect": [
+    {
+      "name": "every villager stays alive",
+      "on": "field",
+      "who": "*Afghan ",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "Afghan man people are type 1111",
+      "on": "field",
+      "who": "*Afghan man",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1110.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan man people are no other type",
+      "on": "field",
+      "who": "*Afghan man",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1111.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan woman people are type 1112",
+      "on": "field",
+      "who": "*Afghan woman",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1111.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan woman people are no other type",
+      "on": "field",
+      "who": "*Afghan woman",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1112.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan boy people are type 1113",
+      "on": "field",
+      "who": "*Afghan boy",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1112.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan boy people are no other type",
+      "on": "field",
+      "who": "*Afghan boy",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1113.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan girl people are type 1114",
+      "on": "field",
+      "who": "*Afghan girl",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1113.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan girl people are no other type",
+      "on": "field",
+      "who": "*Afghan girl",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1114.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan elderly man people are type 1115",
+      "on": "field",
+      "who": "*Afghan elderly man",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1114.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan elderly man people are no other type",
+      "on": "field",
+      "who": "*Afghan elderly man",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1115.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan elderly woman people are type 1116",
+      "on": "field",
+      "who": "*Afghan elderly woman",
+      "path": "TkbIdentity.TkbType",
+      "op": ">",
+      "value": 1115.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "Afghan elderly woman people are no other type",
+      "on": "field",
+      "who": "*Afghan elderly woman",
+      "path": "TkbIdentity.TkbType",
+      "op": "<",
+      "value": 1116.5,
+      "quantifier": "all"
+    },
+    {
+      "name": "the fighters hold their post (x stays near 200)",
+      "on": "field",
+      "who": "*Afghan fighter",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 215,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "the fighters hold their post (y stays near 230)",
+      "on": "field",
+      "who": "*Afghan fighter",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 220,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}
