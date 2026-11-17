@@ -33,14 +33,12 @@
    "by": "Gunner"
   },
   {
-   "name": "it never reaches the rear posts",
-   "never": {
-    "on": "field",
-    "who": "VBIED",
-    "path": "SimTransform.Position.0",
-    "op": ">",
-    "value": 410
-   }
+   "name": "the VBIED is hit",
+   "on": "field",
+   "who": "VBIED",
+   "path": "Health.Current",
+   "op": "<",
+   "value": 300
   },
   {
    "name": "no burst among the rear posts",

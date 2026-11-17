@@ -224,7 +224,13 @@ namespace Hrot.AI.Behaviors.Brains
                 var man = new Entity((ulong)now.Occupants[k]);
                 if (world.IsAlive(man) && !IsAboard(world, man) && !Searched(world, man)) next = now.Occupants[k];
             }
-            if (next != now.SearchMan) { now.SearchMan = next; ws.Reissue = 1; }
+            // ⭐ K-7 — and when that man has MOVED more than 1 m since (📐 cp-routine-car: counted out while still at the car's point, he stepped 5 m to
+            //   the side and the searcher waited where he had been)
+            var nextAt = next != 0 ? world.GetComponentRO<SimTransform>(new Entity((ulong)next)).Position : default;
+            if (next != now.SearchMan || (next != 0 && Vector2.DistanceSquared(new Vector2(nextAt.X, nextAt.Y), new Vector2(now.SearchManX, now.SearchManY)) > 1f))
+            {
+                now.SearchMan = next; now.SearchManX = nextAt.X; now.SearchManY = nextAt.Y; ws.Reissue = 1;
+            }
             bool allMen = true;
             for (int k = 0; k < now.OccupantCount; k++)
             {

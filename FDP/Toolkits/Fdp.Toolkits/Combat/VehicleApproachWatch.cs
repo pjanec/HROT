@@ -197,6 +197,8 @@ namespace Fdp.Toolkit.Combat
         public long LastSearched;
         /// <summary>⭐ K-6 — the man out of the vehicle the men's searcher is sent to now (0 = none yet): a change re-issues his order.</summary>
         public long SearchMan;
+        /// <summary>⭐ K-7 — where that man stood when the searcher was sent (a move of more than 1 m re-sends him).</summary>
+        public float SearchManX, SearchManY;
         /// <summary>⭐ K-5 — 1 while the stopper shows the signal.</summary>
         public byte Signalling;
     }
