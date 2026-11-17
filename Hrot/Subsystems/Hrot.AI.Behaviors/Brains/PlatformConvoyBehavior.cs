@@ -45,6 +45,9 @@ namespace Hrot.AI.Behaviors.Brains
         public struct ConvoyState
         {
             public byte Issued, Stopped, Done;
+            /// <summary>⭐ CE-9015 — the locomotion action instance this behaviour last wrote (the lead's move, a follower's stop). Another instance in the
+            /// channel means a reaction wrote it while this order was paused: on resume the move is issued (the stop applied) again.</summary>
+            public uint MoveInstance;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -114,6 +117,14 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 // ⭐ CE-9004 — the lead leads a COLUMN formation: its own controller says so (every vehicle carries one; written whole, own entity)
                 if (s.Issued == 0) SetController(world, self, Column(in p));
+                // ⭐ CE-9014 — the lead's move FAILED (a mobility kill, no path): the column cannot go on behind it — the order fails, its column ends
+                //   (📌 cv-ambush: an IED stopped the lead for good and the convoy "ran" for ever, its followers parked in the kill zone)
+                if (s.Issued != 0 && OurMove(world, self, in s) && world.GetComponentRO<LocomotionChannel>(self).Status == NodeStatus.Failure)
+                {
+                    SetController(world, self, new FormationController());
+                    s.Done = 1;
+                    return NodeStatus.Failure;
+                }
                 if (Flat(here, p.Destination) <= ArrivalRadius)
                 {
                     LocomotionMoveTo.Stop(world, self);
@@ -121,6 +132,8 @@ namespace Hrot.AI.Behaviors.Brains
                     s.Done = 1;
                     return NodeStatus.Success;
                 }
+                // ⭐ CE-9015 — paused by a reaction (it wrote the channel): issue the move again on resume (📌 cv-ambush: the lead resumed and stood for good)
+                if (s.Issued != 0 && !OurMove(world, self, in s)) s.Issued = 0;
                 if (s.Issued == 0)
                 {
                     if (p.RouteNet > 0)
@@ -129,6 +142,7 @@ namespace Hrot.AI.Behaviors.Brains
                         if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
                         CgfNodes.WriteFollowRoute(world, self, CgfNodes.TryFindRouteTrajectory(world, p.RouteNet, out int trajectory) ? trajectory : 0, p.RouteNet, loop: false);
                         s.Issued = 1;
+                        s.MoveInstance = world.GetComponentRO<LocomotionChannel>(self).ActionInstanceId;
                         return NodeStatus.Running;
                     }
                     bool traffic = TrafficRuns(world);
@@ -138,6 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
                             source: LocomotionMoveTo.OrderSource(world, self), roadUse: LeadRoadUse(in p, traffic)))
                         return NodeStatus.Failure;
                     s.Issued = 1;
+                    s.MoveInstance = world.GetComponentRO<LocomotionChannel>(self).ActionInstanceId;
                 }
                 return NodeStatus.Running;
             }
@@ -157,9 +172,19 @@ namespace Hrot.AI.Behaviors.Brains
                 var slot = new FormationFollower { SlotIndex = p.Rank, Leader = lead, IsInFormation = 1, State = FormationMemberState.Rejoining };
                 if (world.HasComponent<FormationFollower>(self)) world.SetComponent(self, slot); else world.AddComponent(self, slot);
             }
-            if (s.Stopped == 0) { LocomotionMoveTo.Stop(world, self); s.Stopped = 1; }
+            if (s.Stopped != 0 && !OurMove(world, self, in s)) s.Stopped = 0;   // ⭐ CE-9015 — a reaction drove it while paused: stop its move again
+            if (s.Stopped == 0)
+            {
+                LocomotionMoveTo.Stop(world, self);
+                s.Stopped = 1;
+                if (world.HasComponent<LocomotionChannel>(self)) s.MoveInstance = world.GetComponentRO<LocomotionChannel>(self).ActionInstanceId;
+            }
             return NodeStatus.Running;
         }
+
+        /// <summary>⭐ CE-9015 — does the unit's locomotion channel still carry the action this behaviour wrote?</summary>
+        private static bool OurMove(EntityRepository world, Entity self, in ConvoyState s)
+            => world.HasComponent<LocomotionChannel>(self) && world.GetComponentRO<LocomotionChannel>(self).ActionInstanceId == s.MoveInstance;
 
         /// <summary>The lead's column: <see cref="FormationType.Column"/> at the order's spacing (the minimum gap is half of it).</summary>
         public static FormationController Column(in ConvoyParams p)

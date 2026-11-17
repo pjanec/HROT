@@ -96,6 +96,55 @@ namespace Hrot.SimHost.Tests
             w.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-9014</c> — a lead whose move FAILS (a mobility kill: its locomotion channel reports Failure) fails the order and ends its column,
+        /// so its followers finish too — ⛔ not a convoy "running" for ever behind a wreck. 🔴 Red-proof: the Failure check dropped ⇒ Running ⇒ red.</summary>
+        [Fact]
+        public void ALeadWhoseMoveFails_FailsTheOrder_AndEndsItsColumn()
+        {
+            var w = World();
+            var lead = Vehicle(w, Vector3.Zero);
+            var f = Vehicle(w, new Vector3(-15, 0, 0));
+            var lp = Params(default, 0, ConvoyMode.Route); var ls = default(PlatformConvoyBehavior.ConvoyState);
+            var fp = Params(lead, 1, ConvoyMode.Route); var fs = default(PlatformConvoyBehavior.ConvoyState);
+            PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w);
+            PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w);
+            Assert.True(w.HasComponent<FormationFollower>(f));
+            w.GetComponentRW<LocomotionChannel>(lead).Status = NodeStatus.Failure;   // the executor gave up: it cannot move
+            Assert.Equal(NodeStatus.Failure, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));
+            Assert.False(PlatformConvoyBehavior.Leads(in w.GetComponentRO<FormationController>(lead)));
+            Assert.Equal(NodeStatus.Success, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));   // its column ended
+            Assert.False(w.HasComponent<FormationFollower>(f));
+            w.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-9015</c> — a REACTION that drives the vehicle while the convoy order is paused (it writes the locomotion channel) does not end the
+        /// column: on resume the lead issues its move again and a follower stops its own move again — and a reaction's leftover Failure is not the
+        /// lead's move failing. 📌 cv-ambush: the hit lead's VehicleFightFromCover ended at once, the order resumed and the lead stood for good.
+        /// 🔴 Red-proof: no re-issue on resume ⇒ the channel keeps the reaction's action ⇒ red.</summary>
+        [Fact]
+        public void AfterAReactionDroveIt_TheResumedLeadMovesAgain_AndTheFollowerStopsAgain()
+        {
+            var w = World();
+            var lead = Vehicle(w, Vector3.Zero);
+            var f = Vehicle(w, new Vector3(-15, 0, 0));
+            var lp = Params(default, 0, ConvoyMode.Route); var ls = default(PlatformConvoyBehavior.ConvoyState);
+            var fp = Params(lead, 1, ConvoyMode.Route); var fs = default(PlatformConvoyBehavior.ConvoyState);
+            PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w);
+            PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w);
+            foreach (var e in new[] { lead, f })
+            {
+                ref var ch = ref w.GetComponentRW<LocomotionChannel>(e);   // a reaction (VehicleFightFromCover) takes the channel, then ends failing
+                unchecked { ch.ActionInstanceId++; }
+                ch.ActiveAction = NavigationConstants.ActionIdMoveTo; ch.Status = NodeStatus.Failure;   // its own move, failed
+            }
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref lp, ref ls, lead, w));   // ⛔ not Failure: that was the reaction's
+            var lc = w.GetComponentRO<LocomotionChannel>(lead);
+            Assert.Equal((NavigationConstants.ActionIdMoveTo, NodeStatus.Running), (lc.ActiveAction, lc.Status));   // its move, issued again
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref fp, ref fs, f, w));
+            Assert.Equal(0, w.GetComponentRO<LocomotionChannel>(f).ActiveAction);   // ⛔ the reaction's move left in place would drive it beside the column
+            w.Dispose();
+        }
+
         [Fact]
         public void AFollower_JoinsBehindItsLead_AndIsDoneWhenTheLeadArrives()
         {
