@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -438,8 +439,11 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
-                if (CommandOrders.StillRunning(world, self, platoon, behaviour, order)) continue;
-                CommandOrders.Assign(world, self, platoon, behaviour, order, newOrder: true);
+                // ⭐ agg-behaviors R-8305 / R-8315 — the Defend, PlatoonAttack and PlatoonSupportByFire arms are routed by kind with the TWO payloads (a stochastic
+                //   platoon gets Order(kind, neutral); a physical one exactly the play's own json); the vehicle / drone arms stay Assign (kind 0)
+                var kind = NeutralOf(ref p, behaviour, order, json, out var neutral);
+                if (CommandOrders.StillRoutedRunning(world, self, platoon, kind, neutral, behaviour, order)) continue;
+                CommandOrders.Route(world, self, platoon, kind, neutral, behaviour, order, newOrder: true);
                 CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — the colour the relief / LOST guards read
                 ws.Orders++;
             }
@@ -490,6 +494,29 @@ namespace Hrot.AI.Behaviors.Brains
             }, now + CommandNodes.ReportDelaySeconds);
         }
 
+        /// <summary>⭐ R-8315 — the NEUTRAL form of the order <see cref="OrderFor"/> chose, and its kind (0 = no neutral kind: a vehicle or the drone team stays <c>Assign</c>).
+        /// Defend is the one payload; the assault is an <see cref="AttackOrder"/> on the objective; the base of fire an <see cref="AttackOrder"/> with
+        /// <see cref="AttackOrder.HoldBack"/> on the SUPPORT POSITION (⭐ CE-8302: <c>SupportAt</c>, where the physical base of fire stands) — a stochastic unit's support by fire never closes.</summary>
+        private static OrderKind NeutralOf(ref CompanyAttackPlan p, string behaviour, string order, JsonSerializerOptions json, out string neutral)
+        {
+            neutral = order;
+            var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
+            if (behaviour == BehaviorNames.PlatoonDefend) return OrderKind.Defend;
+            if (behaviour == BehaviorNames.PlatoonAttack)
+            {
+                neutral = JsonSerializer.Serialize(new AttackOrder { Position = o, SearchRadius = p.Radius, Speed = p.Speed }, json);
+                return OrderKind.Attack;
+            }
+            if (behaviour == BehaviorNames.PlatoonSupportByFire)
+            {
+                // ⭐ CE-8302 (R-8341) — the base of fire stands on the SUPPORT POSITION (SupportAt, 250 m short, or the covered building A-9 chose), the same
+                //   point PlatoonSupportByFire gets: a HoldBack on the posts walked it to 100 m of the enemy line (F-15)
+                neutral = JsonSerializer.Serialize(new AttackOrder { Position = p.SupportAt, Speed = p.Speed, HoldBack = true }, json);
+                return OrderKind.SupportByFire;
+            }
+            return 0;
+        }
+
         /// <summary>The order a slot of <paramref name="slot"/>'s role gets in the plan's phase (false = none: it keeps what it has).</summary>
         private static unsafe bool OrderFor(ref CompanyAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order)
         {
@@ -531,13 +558,14 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool Defend(Vector3 at, Vector3 toward, float halfArc, float range, float speed, JsonSerializerOptions json, out string behaviour, out string order)
         {
             behaviour = BehaviorNames.PlatoonDefend;
-            var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = speed };
+            // ⭐ agg-behaviors R-8300 — the NEUTRAL Defend order. ⚠ <paramref name="halfArc"/> is 0 at every caller today, so the arc (and its MaxRange,
+            //   which the neutral DTO does not hold) is never written: a non-zero arc would need MaxRange added to DefendOrder first
+            var dto = new DefendOrder { Position = at, Speed = speed };
             if (halfArc > 0f)
             {
                 float bearing = SectorSplit.Norm(MathF.Atan2(toward.X - at.X, toward.Y - at.Y) * (180f / MathF.PI));
                 dto.Left = (Bearing)SectorSplit.Norm(bearing - halfArc);
                 dto.Right = (Bearing)SectorSplit.Norm(bearing + halfArc);
-                dto.MaxRange = range;
             }
             order = JsonSerializer.Serialize(dto, json);
             return true;
@@ -886,8 +914,9 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, platoon)) continue;
                 p.Dirty[slot] = 0;
                 var at = p.Point(slot);
-                var dto = new PlatoonDefendParamsJsonDto { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f),
-                                                          ShootAndMoveSeconds = Math.Max(0f, p.ShootAndMove) };
+                // ⭐ agg-behaviors R-8300/R-8305 — the NEUTRAL Defend order (a physical PlatoonDefend reads it strictly; a stochastic platoon is routed by kind)
+                var dto = new DefendOrder { Position = at, Speed = p.Speed, FallBackTo = at - new Vector3(p.Toward * p.Depth, 0f),
+                                           ShootAndMoveSeconds = Math.Max(0f, p.ShootAndMove) };
                 if (p.Role[slot] == CompanyDefencePlan.Line || p.ReserveTo >= 0)
                 {
                     float bearing = SectorSplit.Norm(MathF.Atan2(p.Toward.X, p.Toward.Y) * (180f / MathF.PI));
@@ -898,15 +927,17 @@ namespace Hrot.AI.Behaviors.Brains
                 if (slot == p.CounterBy && p.Retaken == 0)
                 {
                     var attack = JsonSerializer.Serialize(new PlatoonAttackParamsJsonDto { Position = at, Speed = p.Speed }, json);
-                    if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonAttack, attack)) continue;
-                    CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonAttack, attack, newOrder: true);
+                    // ⭐ R-8315 — a stochastic platoon is ordered Attack by KIND (the neutral AttackOrder on the lost block's position); a physical one exactly as before
+                    var neutralAttack = JsonSerializer.Serialize(new AttackOrder { Position = at, Speed = p.Speed }, json);
+                    if (CommandOrders.StillRoutedRunning(world, self, platoon, OrderKind.Attack, neutralAttack, BehaviorNames.PlatoonAttack, attack)) continue;
+                    CommandOrders.Route(world, self, platoon, OrderKind.Attack, neutralAttack, BehaviorNames.PlatoonAttack, attack, newOrder: true);
                     CommandOrders.AskSitrep(world, platoon);
                     ws.Orders++;
                     continue;
                 }
                 var order = JsonSerializer.Serialize(dto, json);
-                if (CommandOrders.StillRunning(world, self, platoon, BehaviorNames.PlatoonDefend, order)) continue;
-                CommandOrders.Assign(world, self, platoon, BehaviorNames.PlatoonDefend, order, newOrder: true);
+                if (CommandOrders.StillRoutedRunning(world, self, platoon, OrderKind.Defend, order, BehaviorNames.PlatoonDefend, order)) continue;   // ⭐ X2-H — resolution-blind
+                CommandOrders.Route(world, self, platoon, OrderKind.Defend, BehaviorNames.PlatoonDefend, order, newOrder: true);
                 CommandOrders.AskSitrep(world, platoon);   // ⭐ CE-4615 — a block's colour: Black ⇒ LOST ⇒ the counter-attack (CE-7004)
                 ws.Orders++;
             }

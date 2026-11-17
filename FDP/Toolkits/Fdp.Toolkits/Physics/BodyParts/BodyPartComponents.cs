@@ -47,7 +47,14 @@ namespace Fdp.Toolkit.Physics.BodyParts
     }
 
     /// <summary>⭐ <c>CE-3210</c> (HL-8) — what left a mark.</summary>
-    public enum HitMarkKind : byte { Bullet = 1, Fragment = 2, Burn = 3, Penetration = 4 }
+    public enum HitMarkKind : byte
+    {
+        Bullet = 1, Fragment = 2, Burn = 3, Penetration = 4,
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-5) — an ARROW stuck in the part (the viewer draws a shaft out of it, in the part's frame, so it stays when he falls).</summary>
+        Arrow = 5,
+        /// <summary>⭐ <c>CE-4649</c> — a crossbow BOLT stuck in the part.</summary>
+        Bolt = 6,
+    }
 
     /// <summary>
     /// ⭐⭐ <c>CE-3210</c> (HL-8; 🔒 user: "Bullet holes or shrapnel fragment hit points could be published and replicated in a fixed size

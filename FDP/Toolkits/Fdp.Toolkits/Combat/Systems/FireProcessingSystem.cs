@@ -178,6 +178,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   node knows it (ReplicatedMotion). Ground targets, guided and arcing rounds are unchanged. ⭐ Here, not on the Brain: a
                 //   shot at a UNIT is aimed by this node at fire time (AimPoint.Middle above) — the Brain's aim point is not used.
                 if (!evt.AtPoint) targetPos = LedAtAircraft(repo, shooter, target, evt, origin, targetPos, weapon.MuzzleVelocity);
+                // ⭐ CE-4649 (bows BW-2) — an ARROW is aimed where its target will be: led by the ARC's own flight time
+                if (!evt.AtPoint) targetPos = LedForBow(repo, shooter, target, evt, origin, targetPos);
                 var delta     = targetPos - origin;
                 var direction = delta.LengthSquared() > 0f
                     ? Vector3.Normalize(delta)
@@ -240,6 +242,14 @@ namespace Fdp.Toolkit.Combat.Systems
                         }
                         else if (charges != null && evt.Charge <= charges.Count)
                             velocity = ArcLaunch(origin, targetPos, charges[evt.Charge - 1], high: evt.HighArc != 0);
+                        else if (firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bow)
+                        {
+                            // ⭐⭐ CE-4649 (bows BW-2) — the arrow flies the LOW arc at its own speed (60 / 90 m/s is above a throw's 40, which ThrowArc
+                            //   would lob HIGH): the muscle solves it as it solves any arc — the low solution, or a refusal with its reason
+                            var solved = FireSolution.For(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, firedMount, null, ArcPreference.Low, arcPen);
+                            if (!solved.Ok) { Refuse(repo, in evt, solved.Refusal, now); continue; }
+                            velocity = solved.Launch;
+                        }
                         else if (!ThrowArc.TryLaunch(Fdp.Toolkit.World.WorldQuery.Of(repo), origin, targetPos, muzzle, arcPen, out velocity,
                                                      (warheadBits & WarheadRound.TimeFuze) != 0 && fuze > 0f ? fuze : float.PositiveInfinity))
                         {
@@ -260,6 +270,9 @@ namespace Fdp.Toolkit.Combat.Systems
                         arcLifetime = ArcLifetimeTicks(origin, targetPos, velocity);
                     }
                 }
+
+                // ⭐ CE-4649 (bows BW-4) — a round whose look STICKS keeps its pose where it stops (BallisticsSystem)
+                if (CombatTkb.VisualOf(repo, ammo) is { Sticks: true }) warheadBits |= WarheadRound.Sticks;
 
                 // ⭐⭐ M4 (D-D; DESIGN_Missiles_And_Ammo §3) — a MISSILE flies at its own speed (⛔ the generated range × 0.5 muzzle
                 //   speed made a TOW ~7× too fast) and, guided, gets a GuidedRound below: GuidedRoundSystem steers it on this node.
@@ -557,6 +570,26 @@ namespace Fdp.Toolkit.Combat.Systems
             var shooterVelocity = Fdp.Toolkit.Motion.Locomotions.InAir(repo, body) && repo.HasComponent<SimVelocity>(body)
                 ? repo.GetComponentRO<SimVelocity>(body).Linear : Vector3.Zero;
             return TargetLead.Point(origin, shooterVelocity, speed, aim, targetVelocity);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (bows BW-2) — where to aim an ARROW at a MOVING target: its place after the arc's own flight time (the low solution at the
+        /// mount's speed, solved three times so the flight time follows the lead). The target's velocity as this node knows it
+        /// (<c>ReplicatedMotion</c>); a still target, another weapon, or no solution ⇒ <paramref name="aim"/> as it was.
+        /// </summary>
+        public static Vector3 LedForBow(EntityRepository repo, Entity shooter, Entity target, in WeaponFireIntent evt, Vector3 origin, Vector3 aim)
+        {
+            if (target.IsNull) return aim;
+            var mount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+            if (mount is not { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bow, MuzzleVelocity: > 0f }) return aim;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var velocity) || velocity.LengthSquared() < 1e-4f) return aim;
+            var led = aim;
+            for (int i = 0; i < 3; i++)
+            {
+                if (!FireSolution.TryArc(origin, led, mount.MuzzleVelocity, false, out _, out _, out float flight)) break;
+                led = aim + velocity * flight;
+            }
+            return led;
         }
 
         /// <summary>⭐ <c>CE-2436</c> AU-7 (A-10a) — pellet <paramref name="i"/>'s velocity: the aimed one turned across and pitched by its place

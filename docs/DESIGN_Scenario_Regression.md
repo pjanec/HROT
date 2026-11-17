@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT (slice 1, 2026-10-22, §8) — the ENGINE verifier (§2, §8): a Verify mode of the film director's runner, /director/verify routes, and --verify on the command line. ⛔ The Python proof of concept is SUPERSEDED (user, 2026-10-22: "not as a Python … supported by the engine")
 updated: 2026-10-27 (§10-3a / §10-4 re-run after backend's fixes — H5 and H1b green on ua-civ-melee) · 2026-10-27 (§7 the run after the 10-25/26 merges — a layout change at t = 0 hides later drift) · 2026-10-26 (§10-3a H5 built and measured live — the review shows the live run; CE-4056, CE-4057 found) · 2026-10-26 (§4 a per-run request id by meaning — CE-3334, R-4090) · 2026-10-26 (§10-2 the harness after DAR — RH-3 superseded, H1b on the sim axis after P1, H5 the review phase, H2 the wire — R-4086) · 2026-10-26 (§10-1 H1 split: H1a the recording's data now, H1b the control after CE-4051…4053 — R-4085) · 2026-10-26 (§10-0 step 0 measured: RH-3's premise false — CE-4051…CE-4054; H1 stopped pending the user) · 2026-10-26 (§10 approved, R-4084) · 2026-10-26 (§10 — the replay harness H1–H4, CE-4045: the product's replay through the master, a stepped LIVE run as the reference, leans RH-1…RH-10) · 2026-10-25 (§9 approved, R-4077: the gaps land in the shared predicate model) · 2026-10-22 (second pass — the engine owns it: Verify mode, HTTP, command line; R-4066) · 2026-10-22 (first version, coordinator, CE-4042, R-4065)
-current-answer: ⭐ §11 the two-tier suite (DESIGN, awaiting the user) · §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
+current-answer: ⭐ §11 the two-tier suite (BUILT §11.5; RT-7 partial → CE-3466) · §0 the user's rulings · §1 the picture · §2 classes · §2a one run · §3 the checks grammar · §4 the golden · §5 which scenarios get what · §6 inventory · §7 measured · §8 the build · §9 the grammar's gaps (approved) · §10 the replay harness H1–H4 (APPROVED R-4084, building) · ⭐ §10-2 the re-cut after DAR (R-4086) — read it before §10's RH rows
 stale-below: none
 known-rot: §10 RH-3 (replay seconds = sim seconds) — SUPERSEDED by R-3056 / R-4086 (the replay clock stays wall; a sim seek is atSimSeconds) · §10-1 "H1b after CE-4051…4053" — those are fixed / ruled; H1b now waits for DAR P1 (§10-2) · §10 RH-1's "EnterReplay through Idle" is no longer the only product path — a REVIEW replays the run in place (H5, §10-2)
 known-conflict: blueprints/DESIGN_Smoke_Suite.md says "do not build a DSL" — written for a different shape (one entity, one behaviour, panel checks; the JSON TestScript kept for cluster/DDS/replay). checks.json EXTENDS the film takes' anchor grammar, which is already built and read by the engine (AnchorBook); it is not a new language. Not reconciled with the Smoke Suite's author — named here so a reader sees both.
@@ -226,6 +226,8 @@ the verdict leaves the process **by its exit code** — the command line and a C
 | `do` | `{"name"?, "at": t, "set": {"who", "component", "patch"}}` — what the old live checks did by hand (17 of 81 wound a man or set an attribute); a named action's time is a name too |
 | `expect` | `{"name", <cue>, "after"?, "before"?}` holds once in the window · `{"name", "never": <cue>, …}` never holds in it · `{"name", <cue>, "atEnd": true}` holds when the run ends |
 | `later` | ⭐ `[names]` (backend, `255920b93`) — units a trigger inserts DURING the run (a QRF macro, a respawned bot). The start-of-run cast check does not refuse them (nor a `*part` one of them carries); a cue that names one resolves it when it appears (`WorldUnits` re-indexes on a miss). Rail `Later_UnitsInsertedDuringTheRun_PassTheStartCastCheck` |
+| `elements` / `where` (on a `field` cue whose `path` has ONE `*` part — `UnitSlotTable.Slots.*.Health`) | ⭐ (agg-behaviors, R-8320, `2026-11-16`) — the cue holds for a unit when at least `elements` (default 1) elements of that array satisfy the comparison; `where` (`{"CompositeSlot": [">", 0]}`, the `shot` cue's row filter) keeps only the elements it passes first — a fixed array's unused slots are all zeros. Rail `ScenarioChecksTests.R8320_AFieldPathWithAStar_CountsTheElementsThatHold` |
+| `who` = a network id (`"who": "1007"`) on a `field` cue | ⭐ (agg-behaviors, R-8335, `2026-11-16`) — as the `near` / `task` cues already read one (`WorldUnits.Resolve`): an UNNAMED entity — a stochastic unit's split children carry no name — is judged by its number. ⚠ A number follows creation order: deterministic in a fresh run (the goldens repeat), but an entity added before it renumbers it — say which ids the scenario measured. Rail `ScenarioChecksTests.R8335_AFieldCueNamesAnUnnamedEntityByItsNetworkId` (red-proved: the id branch dropped) |
 | `if` (on an `expect` row) | ⭐ `"<anchor / action / expectation name>"` (backend, `2026-11-03`) — the row is judged ONLY when that name happened in the run; else its verdict is **`skipped`** (ok, no time, printed `SKIP`). For a line about an event the run need not produce: 📌 Bridgehead's *"a civilian harmed fails the whole tree"* relied on an ACCIDENTAL harm that behaviors' fire-discipline fix (CE-2379) removed. ⛔ Not a way to silence a row the run SHOULD produce — that row keeps no `if`. Rail `If_ARowAboutAnEventThatDidNotHappen_IsSkipped_AndJudgedWhenItDid` |
 
 | cue `on` | holds when | judged by |
@@ -234,6 +236,8 @@ the verdict leaves the process **by its exit code** — the command line and a C
 | `blast` | the n-th burst `by` a unit, `where` it matches (`"warheadSource": ["contains", "M67"]`) | `CombatReport.Detonations` rows |
 | `field` | `who`'s component value at `path` (`Health.Current`, `CivilianState.Mode`) compares by `op` (`== != < <= > >= in contains`; value `"$now"` = the sim time) — for `any` (default), `all` or `atLeast:n` of the units named | the `/entities/{id}` dump |
 | `near` `task` `side` `health` `embark` `gesture` `hit` | as in a take (Film Director §4) | `AnchorBook.HoldsFor` |
+| `far` / `close` | some unit `who` names is more than / within `m` metres of the unit `from` names (3-D, the nearest) or of `point` (horizontal) — CE-10002 (air lane) | ⭐ CE-9009: one position reader for both tiers (`ConditionBook.PositionOf`) — ⛔ before, these read only a live repository and never held in the cluster tier |
+| `between` | ⭐ CE-9009 (convoy lane, cross-lane): some unit `who` names lies in the CORRIDOR from the unit `from` names to the unit `to` names — strictly between them along the line joining them (`margin` m at each end left to their own bodies, default 3) and within `m` m of it (horizontal). 📌 `"never": {"on": "between", "who": "*SUMO ", "from": "Escort 1", "to": "Escort 2", "m": 1.6}` — no traffic car in a convoy's gap; a car in the next lane (≈3.2 m aside) is outside a half-lane corridor | `ConditionBook.BetweenHolds` over `PositionOf` — the same reading in both tiers |
 
 A unit is a name or `*part` (any whose name contains it) — the take anchors' rule.
 
@@ -846,7 +850,7 @@ check_index_coverage is not available through the CLI ⇒ these totals are not p
 | **H3** | the branch phase (R1's comparator) | equal, or a work list like R1's |
 | **H4** | §10 RH-8, written then | — |
 
-## 11. ✅ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: READY-TO-BUILD — RT-1…RT-3, RT-5…RT-8 APPROVED (R-4279), RT-4 and RT-9 WITHDRAWN; dispatched to `backend`)*
+## 11. ✅ The two-tier suite — deterministic editor + nightly cluster *(coordinator, `2026-11-16`; build-state: BUILT (`backend`, `2026-11-17`; as built §11.5) — RT-3, RT-5, RT-6, RT-8 and the unchecked scenarios BUILT; ⚠ RT-7 PARTIAL — 407 conditions wait for grammar cues (CE-3466); RT-8's first manual run waits for the default branch — RT-1…RT-3, RT-5…RT-8 APPROVED (R-4279), RT-4 and RT-9 WITHDRAWN)*
 
 🔒 User, `2026-11-16`, verbatim: *"i guess the truly trustworthy and reproducible and usable for overnight regression runs is only the fully
 deterministic run; the networkless editor where everything is easier and faster (networkless) could be used for quicker tests and overnight
@@ -901,10 +905,10 @@ classDiagram
     <<existing - a recording>>
   }
   class ClusterVerifyWorld {
-    <<new - the cluster's debug HTTP, every node>>
+    <<built RT-5 - one node's debug HTTP; also the IShotWorld>>
   }
   class ConditionBook {
-    <<existing - the checks evaluator>>
+    <<existing - grows StateHolds: state cues on DUMPED components, R-3094>>
   }
   class ScenarioGolden {
     <<existing - grows a VISIBLE-state mode, RT-3>>
@@ -913,13 +917,13 @@ classDiagram
     <<existing - Verify mode, stepped>>
   }
   class ClusterVerifyRunner {
-    <<new - load, unpause, sample in sim time, stop>>
+    <<built RT-5 - boot, load live, play, sample in sim time, stop>>
   }
   class ReplicationSanity {
-    <<new - sent vs received, swallowed exceptions>>
+    <<built RT-6 - sent vs received per topic, swallowed exceptions>>
   }
   class VerifyCommand {
-    <<existing - accepts mode all, RT-5>>
+    <<existing - its JUnit and PrintItem are shared; Program routes mode all>>
   }
   IVerifyWorld <|.. EditorVerifyWorld
   IVerifyWorld <|.. RecordedRunWorld
@@ -931,6 +935,7 @@ classDiagram
   ClusterVerifyRunner ..> ReplicationSanity
   VerifyCommand ..> DirectorRunner : mode editor
   VerifyCommand ..> ClusterVerifyRunner : mode all
+  ClusterVerifyRunner ..> VerifyCommand : JUnit, PrintItem
 ```
 *What it shows that prose hid: the cluster tier needs NO second evaluator — `ConditionBook` already reads the world only through `IVerifyWorld`,
 so the cluster is one more implementation of that seam; the 81 Python conditions retire into the same `checks.json` (RT-7).*
@@ -993,7 +998,14 @@ behaviour when the repository is quiet for weeks; DDS multicast on a GitHub runn
 
 | item | as built | deviation / note |
 |---|---|---|
+| **RT-5** the cluster tier | `--verify <s> --mode all` (`Program.cs` routes it to `ClusterVerifyRunner.Run`): per scenario ONE fresh `--mode all` child (its own debug port, `FDP_STAGING_ROOT`, DDS domain `120 + i`; under `xvfb-run -a` when Linux has no `DISPLAY`) → `/status canOperate` → `POST /scenario/load/live` → `OperatingLive` → `POST /perspective Scenario` → `POST /sim/play` → a poll loop: `simTime` from `/status`, `ApplyDue` + `Observe` at that SIM time, until `runFor` (wall limit 240 s + 6 s per sim second) → `Finish` → RT-6 → kill. The checks are read from the source tree; `GoldenEvery` is nulled (no golden in this tier). `ClusterVerifyWorld`: `/entities` (the cast, re-read each sample: `later` units appear), `/entities/{id}` (components; the running behaviour's hash → its start record's name for a `task` cue), `/combat/shots` · `/combat/detonations`, `POST /entities/{id}/component` for `do`. Report: `<s>.json` (the editor tier's item shape + `tier`, `replicationNotes`), `summary.json`, `junit.xml` (`scenario-regression-cluster`) | ⭐ **found building it:** `near / task / side / health / embark / gesture` cues were judged ONLY on an `EntityRepository` — a world without one read them all false. `ConditionBook.StateHolds` now judges them on the dumped components through AnchorBook's own value comparisons (R-3094; rail `ScenarioChecksTests.RT5_StateCues_HoldOnDumpedComponents_WhenTheWorldHasNoRepository`). ⚠ `NameOfEntityIndex` is null over HTTP (only a golden's `@index` used it). 📐 First run: `farm-under-fire` 8/8 and `ua-drone-shelter` 11/11 PASS in the cluster tier (105 s / 62 s wall) |
+| ⚠ **found by the convoy lane** (`2026-11-17`): the cluster tier's OWN READS load the run | 📐 the verifier polls with a 50 ms sleep and reads `/status`, `/entities`, `/combat/shots?last=100000`, `/combat/detonations?last=100000` and each unit every sample — on `cv-offroad-join-leave` that load reproduced a follower's 40 m lag at a road kink (3 of 3 verifier runs) which a light probe (0.3 s, positions only) never saw (0 of 4). ⇒ a cluster verdict is judged under the verifier's own load; ⭐ thresholds should come from the design's tolerances, not from an editor-tier trace | `scenarios/demos/convoy/cv-offroad-join-leave/checks.json` |
+| ⚠ **found by the convoy lane** (`2026-11-17`, cross-lane note) | 📐 the cluster tier SAMPLES about once a second (`cv-offroad-join-leave`: 99 samples over 121 sim s), the editor every step — so a `near` row with a small `within` on a MOVING unit is stepped over: a tail at 8 m/s moves ~10 m between samples and missed a 3 m circle its column drove through. ⭐ The robust form, and a stricter one: two `field` rows that name when the unit passes two points (`SimTransform.Position.0 >= 300`, `>= 400`) and a `never` row on the band between them (`Position.1 < 538.3` / `> 545.3`, `after` / `before` the two names) — EVERY sample in the stretch is judged | `scenarios/demos/convoy/cv-offroad-join-leave/checks.json` |
+| **RT-6** replication sanity | `ReplicationSanity.Judge` on the cluster's `/diagnostics/architecture` (every subsystem of the `--mode all` process): a topic some `Egress` / `Bidirectional` translator SENT that an `Ingress` / `Bidirectional` translator in the cluster subscribes to, with none RECEIVED ⇒ FAIL, named with both sides; a system with `errors > 0` or a module with `failureCount > 0` ⇒ FAIL; a topic no ingress in this cluster subscribes to ⇒ a NOTE (`replicationNotes`), never a fail; no architecture at all ⇒ FAIL. A child that exits mid-run (`FDP_FAIL_FAST` makes a module exception fatal) ⇒ FAIL with the log named | rail `ReplicationSanityTests.RT6_…` (a dropped ingress, an unsubscribed topic, a swallowed exception). 📐 First run: one note (`PathResponseBatch`: 98 sent, no ingress in the cluster), no problem |
 | **RT-3** the visible golden | each snapshot keeps `visible`: `VisibleState.Paths` (`EntityInfo.ForceId`, `IsEmbarkedTag`, `NavigationStatus.Phase`, `WeaponPosture`, `CivilianState.Mode`, `Demeanour`, `Custody`, `AnimalState`, `FlockState`) + every path the scenario's checks read (`ScenarioChecks.Paths()`). The verdict's comparison is `ScenarioGolden.CompareVisible`: anchor / expectation times, rounds, bursts, and per snapshot position, health, visible state. A difference or a missing golden is a WARNING (`VerifyResult.Warnings`, exit 0, `summary.json` `warned`, junit `system-out`); ONE command re-captures (`--verify-capture`). An old golden (no `visible`) is compared on what it has and says to re-capture. `ScenarioGolden.Compare` stays the FULL comparison the replay harness (H1–H5, R1) uses, now without the `visible` map | the components are still hashed into the golden (the harness and `golden.full` need them) — only the VERDICT reads the visible part |
+| **RT-8** where it runs | `.github/workflows/scenario-regression.yml`: one `build` job (the runner's bin uploaded as an artifact) → `list` → an editor-tier and a cluster-tier matrix job per scenario (the cluster job installs xvfb + mesa); nightly cron `17 2 * * *` + `workflow_dispatch` (`scenarios`, `tiers`); each job writes `nproc` / `free` to the step summary and the junit through `scripts/junit-summary.py`; `scripts/scenario-regression.sh` gains `TIER=cluster` | ⏳ the first manual run (cores, memory, DDS on a runner) needs the workflow on the default branch |
+| **RT-7** one condition set | all 107 scenarios of `utility-demo-check.py` audited (not 81); ~270 conditions an `expect` row already states retired (6226 → 5905 lines); a condition that drives the run's timing kept as a bare evaluation | ⚠ **partial (R-106):** 407 conditions stay — the grammar has no cue for them (decision winners, time shares / counts, paths, run-spawned units, all three hosts, door states at load, an OR across effects, mid-run injections) — **CE-3466**, with the lean to extend the grammar in that order of reach |
+| **the scenarios with no checks** | 23 new `checks.json` (9 with goldens): 17 PASS, 6 FAIL on the feature (CE-3460…CE-3465); 4 left without (two perf rigs judged by budget scripts, two morale barrages that need a mid-run order); none moved to `showcases/` | the failing rows stay as the descriptions demand |
 
 ## ⛔ HISTORY
 

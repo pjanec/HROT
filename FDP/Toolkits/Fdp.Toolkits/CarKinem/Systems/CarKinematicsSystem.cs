@@ -78,6 +78,7 @@ namespace CarKinem.Systems
             _recovery = repo.IsComponentTypeRegistered<FrustrationTicks>();
             // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
             _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
+            _convoy = repo.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>();   // ⭐ CE-9001 (C-6)
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -192,6 +193,7 @@ namespace CarKinem.Systems
         private bool _clampFlags;
         private bool _recovery;
         private bool _health;
+        private bool _convoy;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity) => IsClamped(repo, entity, _clampFlags);
@@ -426,6 +428,18 @@ namespace CarKinem.Systems
                     }
                     break;
                     
+                case KinematicsMode.Column:
+                    // ⭐ CE-9001 (C-4) — a road-convoy follower: ConvoyFollowSystem put a point ON the lead's trail a lookahead ahead and the speed
+                    //   (the gap controller's, 0 at the minimum gap). Steer to the point at exactly that speed — no catch-up boost (Formation's).
+                    {
+                        var (colPos, colDir, colSpeed) = GetFormationTarget(repo, entity);
+                        targetPos = colPos;
+                        var toPoint = colPos - pos2D;
+                        targetHeading = toPoint.LengthSquared() > 0.04f ? Vector2.Normalize(toPoint) : (colDir.LengthSquared() > 1e-6f ? Vector2.Normalize(colDir) : fwd2D);
+                        targetSpeed = MathF.Min(colSpeed, @params.MaxSpeedFwd);
+                    }
+                    break;
+
                 case KinematicsMode.Direct:
                 case KinematicsMode.None:
                 default:
@@ -483,6 +497,12 @@ namespace CarKinem.Systems
             //   read): the entity brakes to a stop where it is and KEEPS its path and progress; it drives on when the flag clears.
             //   Set today only by the door passage system while a door ahead is being opened.
             if (nav.IsBlocked != 0) targetSpeed = 0f;
+            // ⭐ CE-9001 (C-6) — a road-convoy LEAD under our own driving slows while its column is stretched (ConvoyLeadSystem's cap); string stability
+            if (_convoy && nav.Mode != KinematicsMode.Column && repo.HasComponent<CarKinem.Convoy.ConvoyTrail>(entity))
+            {
+                float cap = repo.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(entity).SpeedCapFactor;
+                if (cap < 1f) targetSpeed = MathF.Min(targetSpeed, cap * @params.MaxSpeedFwd);
+            }
             if (wreck || down) targetSpeed = 0f;   // ⭐ CE-3287 / CE-2321 — it brakes and stays
             // ⭐ CE-3255 (BR-2; DESIGN_Building_Clearing CB-6) — a STUNNED person of any class stands where he is until the stun ends (his path
             //   and progress kept, as for a blocked one); before, only the civilian code read the stun.
@@ -585,12 +605,17 @@ namespace CarKinem.Systems
             else
                 finalTargetSpeed = MathF.Min(finalTargetSpeed, @params.MaxSpeedFwd);
             
+            // ⭐ CE-4622 K-3 (Checkpoint CP-3, KV-2) — a RAMMING hull whose engine is dead (a Mobility wound) or that is destroyed COASTS: nobody
+            //   brakes it, it rolls on at the rolling resistance's deceleration (a bomber does not stop for a dead engine). Any other stopped vehicle brakes.
+            bool coast = !person && RamOrder.On(repo, entity, out _)
+                         && (wreck || (_health && Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, entity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Mobility)));
+            if (coast) finalTargetSpeed = MathF.Min(finalTargetSpeed, MathF.Max(0f, state.Speed));   // never driven on
             float accel = SpeedController.CalculateAcceleration(
                 state.Speed,
                 finalTargetSpeed,
                 @params.AccelGain,
                 @params.MaxAccel,
-                person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
+                coast ? CoastDecel : person ? MathF.Max(@params.MaxDecel, HumanGait.StopDecel) : @params.MaxDecel);
             
             // Integrate: a person's gait, else the bicycle model
             Vector2 stepFrom = pos2D;
@@ -841,7 +866,9 @@ namespace CarKinem.Systems
                         || (hull.Class == VehicleClass.Quadruped && !Fdp.Toolkit.Replay.ReplayState.IsActive(repo) && Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, entity))))
                 {
                     float throttle = repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.ManualDrive>() && repo.HasComponent<Fdp.Toolkit.Navigation.ManualDrive>(entity)
-                        ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward : 0f;
+                        && nav.Mode == KinematicsMode.Manual
+                        ? repo.GetComponentRO<Fdp.Toolkit.Navigation.ManualDrive>(entity).Forward
+                        : RamOrder.On(repo, entity, out _) ? 1f : 0f;   // ⭐ CE-4622 K-2 (RM-5) — a ramming AI hull PUSHES (full throttle in contact)
                     var stepVelocity = dt > 0f ? (pos2D - here) / dt : planar;
                     if (ContactBreach.OnContact(repo, entity, _terrainWorld, in hull, in barrier, here, FacingOf(tf.Rotation), tf.Position.Z, stepVelocity, throttle, dt, out float kept))
                     {
@@ -1140,6 +1167,9 @@ namespace CarKinem.Systems
             return side <= p.Width * 0.5f + ManDownHullMarginM;
         }
 
+        /// <summary>⭐ <c>CE-4622</c> K-3 (KV-2) — a coasting hull's deceleration (m/s²): rolling resistance, no brakes.</summary>
+        public const float CoastDecel = 0.7f;
+
         private Vector2 ApplyCollisionAvoidance(Vector2 preferredVel, Vector2 selfPos, float selfZ,
             Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params, EntityRepository repo, Entity self)
         {
@@ -1152,6 +1182,10 @@ namespace CarKinem.Systems
             
             // Convert to (pos, vel) format for RVO
             Span<(Vector2 pos, Vector2 vel)> neighborData = stackalloc (Vector2, Vector2)[count];
+            // ⭐ CE-4622 K-2 (Checkpoint RM-2, KV-6) — a hull on a RAM order does not give way to its target — to no person at all when the target is a crowd
+            RamOrder ramOrder = default;
+            bool ram = @params.Class != VehicleClass.Pedestrian && RamOrder.On(repo, self, out ramOrder);
+            Entity ramTarget = ram && !ramOrder.Target.IsNone ? ramOrder.Target.Resolve(repo) : Entity.Null;
             // ⭐ CE-3110 I-2c (R-271) — an EMBARKED neighbour rides inside some hull (an exposed passenger stays in the collider hash so it
             //   can be seen and hit): avoiding the hull covers it, and avoiding it too would make a vehicle swerve around its own riders.
             int k = 0;
@@ -1159,6 +1193,8 @@ namespace CarKinem.Systems
             {
                 var (neighborEntity, pos) = neighbors[i];
                 if (!neighborEntity.IsNull && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(neighborEntity)) continue;
+                if (ram && !neighborEntity.IsNull && (neighborEntity == ramTarget
+                    || (ramOrder.Crowd != 0 && Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.IsPerson(repo, neighborEntity)))) continue;
                 // ⭐ CE-2304 — another storey is not a neighbour
                 if (!neighborEntity.IsNull && repo.HasComponent<SimTransform>(neighborEntity)
                     && MathF.Abs(repo.GetComponentRO<SimTransform>(neighborEntity).Position.Z - selfZ) > AvoidanceStoreyGapM) continue;

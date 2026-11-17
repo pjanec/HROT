@@ -1,0 +1,103 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 rules S1 (docs/DESIGN_Scenario_Rules, the scenario's Judge list): one row per objective. 'Reach the crossroads' ends Achieved (4 men within 15 m); 'Hold the crossroads' (required, 20 s) ends Achieved after it; 'Reach the far line' (deadline 60 s) ends Failed at 60 s; 'No harm to civilians' stays Active with Score 1 (judged at the end); the root 'Squad mission' stays Active (a constraint is not final) with Score 0.75 once the far line has failed. \u26a0 Left out: 'GET /objectives shows the tree' (an HTTP route, not a run state).",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Reach the crossroads ends Achieved",
+      "on": "field",
+      "who": "Reach the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved"
+    },
+    {
+      "name": "Hold the crossroads ends Achieved, after Reach",
+      "on": "field",
+      "who": "Hold the crossroads",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "after": "Reach the crossroads ends Achieved"
+    },
+    {
+      "name": "Reach the far line ends Failed at its 60 s deadline",
+      "on": "field",
+      "who": "Reach the far line",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Failed",
+      "after": 59,
+      "before": 65
+    },
+    {
+      "name": "No harm to civilians stays Active",
+      "on": "field",
+      "who": "No harm to civilians",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active",
+      "atEnd": true
+    },
+    {
+      "name": "No harm to civilians has Score 1 at the end",
+      "on": "field",
+      "who": "No harm to civilians",
+      "path": "ObjectiveStatus.Score",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "the root is not final: still Active at the end",
+      "on": "field",
+      "who": "Squad mission",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active",
+      "atEnd": true
+    },
+    {
+      "name": "the root's Score is 0.75 once the far line has failed",
+      "on": "field",
+      "who": "Squad mission",
+      "path": "ObjectiveStatus.Score",
+      "op": "==",
+      "value": 0.75,
+      "atEnd": true
+    },
+    {
+      "name": "the far line is never Achieved",
+      "never": {
+        "on": "field",
+        "who": "Reach the far line",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Achieved"
+      }
+    },
+    {
+      "name": "the root is never Failed",
+      "never": {
+        "on": "field",
+        "who": "Squad mission",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Failed"
+      }
+    },
+    {
+      "name": "no status stays Pending past the first second",
+      "never": {
+        "on": "field",
+        "who": "*the",
+        "path": "ObjectiveStatus.State",
+        "op": "==",
+        "value": "Pending"
+      },
+      "after": 1
+    }
+  ]
+}

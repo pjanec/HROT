@@ -25,6 +25,7 @@ BreakContact | hostedInput=Hrot.Map.Definitions.Behavior.BreakContactParamsJsonD
 CarryCasualty | hostedInput=Hrot.Map.Definitions.Behavior.CarryCasualtyParamsJsonDto | inputBytes=56
 CarryWeapon | hostedInput=Hrot.Map.Definitions.Behavior.CarryWeaponParamsJsonDto | inputBytes=104
 CasualtyCare | hostedInput=Hrot.Map.Definitions.Behavior.CasualtyCareParamsJsonDto | inputBytes=1264
+Checkpoint | hostedInput=Hrot.Map.Definitions.Behavior.CheckpointParamsJsonDto | inputBytes=1312
 CivilianHsm | hostedInput=Hrot.Map.Definitions.Behavior.CivilianParamsJsonDto | inputBytes=312
 CivilianReact | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 CivilianSop | hostedInput=- | inputBytes=0
@@ -38,6 +39,7 @@ CombatPosture | hostedInput=Hrot.Map.Definitions.Behavior.CombatPostureParamsJso
 CombatShowcase | hostedInput=- | inputBytes=0
 CompanyAttack | hostedInput=Hrot.Map.Definitions.Behavior.CompanyAttackParamsJsonDto | inputBytes=208
 CompanyDefend | hostedInput=Hrot.Map.Definitions.Behavior.CompanyDefendParamsJsonDto | inputBytes=140
+ComplyAtCheckpoint | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 Count | hostedInput=- | inputBytes=616
 Counter | hostedInput=- | inputBytes=184
 CrossLane | hostedInput=Hrot.Map.Definitions.Behavior.CrossLaneParamsJsonDto | inputBytes=48
@@ -102,7 +104,7 @@ MoveToLocation | hostedInput=Hrot.Map.Definitions.Behavior.MoveToLocationParamsJ
 NoHarm | hostedInput=- | inputBytes=296
 OperatorControl | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 PackUpWeapon | hostedInput=Hrot.Map.Definitions.Behavior.PackUpWeaponParamsJsonDto | inputBytes=104
-ParkedBomb | hostedInput=Hrot.Map.Definitions.Behavior.ParkedBombParamsJsonDto | inputBytes=28
+ParkedBomb | hostedInput=Hrot.Map.Definitions.Behavior.ParkedBombParamsJsonDto | inputBytes=68
 PersonAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=1544
 PersonHold | hostedInput=Hrot.AI.Behaviors.Orders.HoldOrder | inputBytes=36
 PersonMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=20
@@ -123,6 +125,7 @@ Protect | hostedInput=- | inputBytes=192
 PushThrough | hostedInput=Hrot.Map.Definitions.Behavior.PushThroughParamsJsonDto | inputBytes=40
 QuietArea | hostedInput=- | inputBytes=240
 RadarSamEngage | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
+RamTarget | hostedInput=Hrot.Map.Definitions.Behavior.RamTargetParamsJsonDto | inputBytes=40
 ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1640
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
@@ -149,6 +152,12 @@ SquadRecover | hostedInput=Hrot.Map.Definitions.Behavior.SquadRecoverParamsJsonD
 SquadRide | hostedInput=- | inputBytes=0
 SquadShelterFromAir | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 StationWeapon | hostedInput=Hrot.Map.Definitions.Behavior.StationWeaponParamsJsonDto | inputBytes=24
+StochasticUnitAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=64
+StochasticUnitBreakContact | hostedInput=Hrot.AI.Behaviors.Orders.BreakContactOrder | inputBytes=16
+StochasticUnitDefend | hostedInput=Hrot.AI.Behaviors.Orders.DefendOrder | inputBytes=32
+StochasticUnitHold | hostedInput=- | inputBytes=0
+StochasticUnitMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=16
+StochasticUnitSop | hostedInput=- | inputBytes=0
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
 SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=120

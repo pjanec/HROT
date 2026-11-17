@@ -1,0 +1,49 @@
+{
+  "$doc": "\u00a723.6 ST-0. The platoon is the company's only subordinate, so its picture row is Subordinates.0. The objective reads 'Achieved' with 'n/20 men' in its Reason once the census counts the 30 slot-table men inside the area.",
+  "runFor": 90,
+  "golden": {
+    "every": 15
+  },
+  "expect": [
+    {
+      "name": "the company runs CompanyDefend",
+      "on": "task",
+      "who": "Blue Company",
+      "is": "CompanyDefend",
+      "before": 10
+    },
+    {
+      "name": "the stochastic platoon is ordered by KIND: it runs the generic Defend play",
+      "on": "task",
+      "who": "Blue Stochastic Platoon",
+      "is": "StochasticUnitDefend",
+      "before": 30
+    },
+    {
+      "name": "the stochastic platoon is never given a physical play",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Platoon",
+        "is": "PlatoonDefend"
+      }
+    },
+    {
+      "name": "the SITREP shows the stochastic platoon Green",
+      "on": "field",
+      "who": "Blue Company",
+      "path": "CommandPicture.Subordinates.0.Strength",
+      "op": "==",
+      "value": "Green",
+      "before": 60
+    },
+    {
+      "name": "the objective's census counts the stochastic platoon's men (>= 20 inside the area)",
+      "on": "field",
+      "who": "Blue holds the line",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "before": 80
+    }
+  ]
+}

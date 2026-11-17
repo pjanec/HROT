@@ -23,6 +23,9 @@ namespace CarKinem.Road
         public float CellSize;    // Grid cell size (meters)
         public int Width;         // Grid width (cells)
         public int Height;        // Grid height (cells)
+
+        /// <summary>⭐ CE-9003 — the segments run along the carriageway centre (<see cref="RoadNetworkJson.LinesAreCentres"/>); false = they are a driving lane.</summary>
+        public bool LinesAreCentres;
         
         public void Dispose()
         {

@@ -1,0 +1,90 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4649 (bows BW-2, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) - on basic-desert an Archer (Friend, bow, 100,100) is ordered to shoot a standing Hostile 'Target' 80 m north (100,180, health 1000, holds fire). The arrow flies the LOW ARC (gravity), led by its flight time. Judge: (1) the Archer shoots (2) an arrow hits the Target before 25 s (the arc reaches 80 m) (3) the Target's health is below its maximum. Fail: no shot (refused: out of reach or masked), or every arrow falls short / long. Check: scripts/scenario-regression.sh bw-arrow-arc"
+ },
+ "entities": {
+  "4649a001-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2013
+   },
+   "EntityInfo": {
+    "Name": "Archer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "4649a001-0000-4000-8000-000000000002"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a001-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     100,
+     180,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Target",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

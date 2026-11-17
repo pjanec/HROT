@@ -306,6 +306,12 @@ namespace Fdp.Core
 
         // IDs 84â€“109 are reserved for future Vis2D toolkit components.
 
+        // 108 — reserved for the convoy lane (R-4282); ⛔ was ConvoyMember (CE-9001), withdrawn unused before any recording or save: a convoy is a Column formation (CE-9004).
+
+        /// <summary><c>ConvoyTrail</c> — ⭐ CE-9001 (C-4/C-6): the convoy lead's actual path (a 256-point ring) + the column's ranks and the lead's speed cap.
+        /// Local to the kinematic owner, recorded, never on the wire.</summary>
+        public const int ConvoyTrail = 109;
+
         // â”€â”€ IG (110â€“139) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Image Generator ECS components used for rendering and interaction.
 
@@ -359,6 +365,15 @@ namespace Fdp.Core
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
         public const int EffectAnchor            = 125;
 
+        /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
+        /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
+        /// ⚠ 126 fixed by the coordinator (127 taken by CheckpointWatch; 128 RELEASED to the air lane — MissileDefenceState, R-4285).</summary>
+        public const int RamOrder                = 126;
+
+        /// <summary><c>CheckpointWatch</c> — ⭐ CE-4622 K-4 (DESIGN_Checkpoint_And_Ramming.md CP-2, §5a held 127): a checkpoint commander's watch on its approach — the
+        /// vehicle that matters most, its verdict and seconds to the stand-off. Brain-local, unmanaged, never saved.</summary>
+        public const int CheckpointWatch         = 127;
+
         // IDs 124â€“139 are reserved for future IG components.
 
         // â”€â”€ ModuleHost Network (140â€“159) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -398,6 +413,9 @@ namespace Fdp.Core
 
         // ⚠ IDs 154–156 are taken by BehaviorApplicationComponentIds (BehaviorStartRecord, BehaviorOwnedPart,
         // BehaviorFaultLatch). 157–158 are free. Enumerate real [ComponentId] usage before taking one.
+
+        /// <summary><c>ConvoyProgress</c> — ⭐ CE-9001 (C-4): a convoy follower's place on its lead's trail. Local to the kinematic owner, recorded.</summary>
+        public const int ConvoyProgress = 157;
 
         /// <summary><c>OutgoingGrantsPending</c> — creator-local: the descriptors this node granted away at creation
         /// whose takeover it has not seen confirmed yet (the F7 window). The record recompute leaves them alone.
@@ -1371,6 +1389,25 @@ namespace Fdp.Core
         public const int UnitHoldings = 283;
         /// <summary><c>FireAllocation</c> — a firer's allocation of expected hits per target (phase A → phase B). Reserved for exp/agg-backend.</summary>
         public const int FireAllocation = 284;
+        // ⭐ CE-8000 (exp/agg-backend's own block 285–289, §23.1) — measured free 2026-11-16 (no constant, no [ComponentId]).
+        /// <summary><c>UnitDetections</c> — an observer unit's accumulating detection levels per target (N-5). Node-local, recorded.</summary>
+        public const int UnitDetections = 285;
+        /// <summary><c>RunSeed</c> — the run's seed, a recorded singleton mixed into <c>SimRng</c> (C-8).</summary>
+        public const int RunSeed = 286;
+        /// <summary><c>UnitRoute</c> — a stochastic unit's planned route (waypoints, per-segment speed factor), managed, immutable, node-local
+        /// (NoScenario | NoReplay: re-planned from the destination when missing — M-4, CE-8004).</summary>
+        public const int UnitRoute = 287;
+        /// <summary><c>AggregateChild</c> — a soldier / vehicle created by a stochastic unit's split: its unit, its slot, whether it is still HELD
+        /// until the handover (SV-6). Node-local, recorded, NoScenario (a split's children are transient, SV-4) — ST-5, CE-8012.</summary>
+        public const int AggregateChild = 288;
+        // ⭐ CE-8300 (exp/agg-behaviors' own block 119, 138, 139 — §23.1; moved 2026-11-16) — measured free 2026-11-16.
+        /// <summary><c>ResolutionPolicy</c> — the resolution manager's bands, timings and detail areas (§16b), an unmanaged World Environment
+        /// component set by <c>SetResolutionPolicy</c>; saved with the scenario, recorded. ⭐ ST-5, R-8326.</summary>
+        public const int ResolutionPolicy = 119;
+        /// <summary><c>PlannedPosts</c> — a stochastic squad's REAL posts (window, roof, cover), planned during its split's Planning stage by SquadDefend's
+        /// own plan, read by the resolution manager's Materialise (D-P3, SV-5). Unmanaged, node-local (no wire descriptor), recorded, NoScenario.
+        /// ⭐ CE-8303, R-4286 (agg-behaviors' block).</summary>
+        public const int PlannedPosts = 138;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).

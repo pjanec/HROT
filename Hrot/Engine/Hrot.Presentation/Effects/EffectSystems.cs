@@ -174,7 +174,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                         fired, mount?.DamagePerHit ?? 0f, FireStreams.IsAutomatic(mount),
                         view.HasComponent<TkbIdentity>(fire.Shooter) ? view.GetComponentRO<TkbIdentity>(fire.Shooter).TkbType : 0L));
                 // ⭐ CE-1094 (§6n N-10) — a bomb leaves its rack: no fire at the nose
-                if (mount?.Category != WeaponCategory.Bomb) Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
+                // ⭐ CE-4649 (bows BW-9) — and an arrow or a bolt leaves no muzzle flash (its soft twang is audio only, queued above)
+                if (mount?.Category != WeaponCategory.Bomb && !Fdp.Toolkit.Combat.Munitions.IsSilent(world, fire.AmmoGuid)) Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
                 // ⭐ CE-1090 (§6n N-4) — a recoilless launcher throws dust BEHIND its tube; a howitzer raises a ground blast round it
                 switch (Hrot.UI.Common.Map3D.WeaponKits.BlastOf(world, tkb, fire.Shooter, mount))
                 {

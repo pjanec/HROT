@@ -32,6 +32,10 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ <c>CE-3247</c> — a throwing star: a small flat star, spinning flat.</summary>
         Star = 8,
+
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-3 — APPENDED) — an ARROW or a crossbow BOLT: a shaft, a point and three fletching vanes (a bolt the same,
+        /// shorter and thicker), nose along the velocity, so it pitches over its arc.</summary>
+        Arrow = 9,
     }
 
     /// <summary>
@@ -64,5 +68,13 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>The tracer's glow, <c>#RRGGBB</c>.</summary>
         public string TracerColorHex { get; init; } = "#FF9A30";
+
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-4) — the round STICKS where it stops (an arrow in a wall, the ground, a post): it freezes with its
+        /// rotation = its flight direction, its point pushed a third of its length into the surface, and lies as a hand item (<c>HandItemDto.LiesSeconds</c>);
+        /// the viewer draws it along that rotation instead of flat. In a body it becomes a <c>HitMarks</c> entry of kind Arrow / Bolt (BW-5).</summary>
+        public bool Sticks { get; init; }
+
+        /// <summary>⭐ <c>CE-4649</c> (BW-5) — a sticking round that is a crossbow BOLT (its <c>HitMarks</c> kind is Bolt, not Arrow).</summary>
+        public bool Bolt { get; init; }
     }
 }

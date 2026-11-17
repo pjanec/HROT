@@ -38,17 +38,85 @@ namespace Hrot.AI.Behaviors.Orders
     }
 
     /// <summary>
+    /// ⭐ <c>CE-9004</c> (C-9, R-9008; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — the CONVOY order, given to EACH vehicle of the column: the lead
+    /// (<see cref="Rank"/> 0, no <see cref="Lead"/>) drives to <see cref="Destination"/> — in SUMO traffic (<see cref="Mode"/> <c>Traffic</c>, with its beacon when
+    /// <see cref="Priority"/>) or on our own route (<c>Route</c>, the outer lane); every other vehicle drives the lead's path at <see cref="Gap"/> behind the one
+    /// ahead of it. Flat JSON, e.g. <c>{"Destination":[600,40,0],"Lead":"@escort","Rank":2,"Mode":"Route"}</c>.
+    /// </summary>
+    [Order(nameof(OrderKind.Convoy), Gesture = OrderGesture.GroundClick)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ConvoyOrder
+    {
+        /// <summary>Where the column goes (the lead's destination; the followers stop with the lead).</summary>
+        [Required]
+        [JsonPropertyName("Destination")]
+        public Fdp.Toolkit.Replication.PointLink Destination;
+
+        /// <summary>The column's lead; none ⇒ this vehicle leads.</summary>
+        [JsonPropertyName("Lead")]
+        public Fdp.Toolkit.Replication.EntityLink Lead;
+
+        /// <summary>The place in the column: 0 = the lead, 1 = right behind it …</summary>
+        [JsonPropertyName("Rank")]
+        public int Rank;
+
+        /// <summary>Centre-to-centre spacing along the lead's path (m); 0 = 15 m.</summary>
+        [JsonPropertyName("Gap")]
+        public float Gap;
+
+        /// <summary>How the lead drives: <c>Auto</c> · <c>Traffic</c> (handed to SUMO) · <c>Route</c> (our own route).</summary>
+        [JsonPropertyName("Mode")]
+        public CarKinem.Convoy.ConvoyMode Mode;
+
+        /// <summary>The lead's beacon and siren (in SUMO traffic: a priority vehicle).</summary>
+        [JsonPropertyName("Priority")]
+        public bool Priority;
+
+        /// <summary>The lead's speed (m/s); 0 = 10 m/s.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>⭐ <c>CE-9012</c> — an authored ROUTE the lead follows (as <c>FollowRoute</c> does) instead of routing to <see cref="Destination"/> itself;
+        /// none ⇒ the lead routes. With a route the lead drives our own path (the route), whatever <see cref="Mode"/> says. A platoon's convoy sends it.</summary>
+        [JsonPropertyName("Route")]
+        [Fdp.Toolkit.Behavior.Attributes.MapPickableEntity("road_graphs")]
+        public Fdp.Toolkit.Replication.EntityLink Route;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2140</c> — the ATTACK order: close in on <see cref="Target"/> and fight it until it is out of the fight. ⚠ ROE still
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
+    /// <para>⭐ agg-behaviors R-8303 / R-8316 (ST-3): the attack may be on a <see cref="Position"/> instead — a commander's platoon attack on a point has no entity
+    /// (<c>Target OR Position</c> required, <see cref="RequiredAnyOfAttribute"/>); the map menu still asks for an entity (the EnemyClick gesture, the pick is
+    /// <see cref="Target"/>). <see cref="SearchRadius"/>, <see cref="Speed"/> and <see cref="HoldBack"/> are the optional extras a commander sends (R-8300: every
+    /// play that fulfils Attack accepts them strictly).</para>
     /// </summary>
     [Order(nameof(OrderKind.Attack), Gesture = OrderGesture.EnemyClick)]
     [StructLayout(LayoutKind.Sequential)]
     public struct AttackOrder
     {
-        /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required.</summary>
-        [Required]
+        /// <summary>The entity to attack. ⭐ <c>CE-2148</c> — required unless a <see cref="Position"/> is given (R-8316).</summary>
+        [RequiredAnyOf("Objective")]
         [JsonPropertyName("Target")]
         public Fdp.Toolkit.Replication.EntityLink Target;
+
+        /// <summary>⭐ R-8316 — the place to attack (local metres) when there is no entity; the objective is then the place itself.</summary>
+        [RequiredAnyOf("Objective")]
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>The objective is taken when no enemy stands within this distance of it (m); 0 = the play's default.</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>⭐ R-8303 — support by fire: engage from a distance and DO NOT close (the base of fire), never ending by itself. ⭐ CE-8302 (R-8341): with a
+        /// <see cref="Position"/>, that position is WHERE the unit stands (the commander's support position — the same point its physical base of fire gets), not what it fires at.</summary>
+        [JsonPropertyName("HoldBack")]
+        public bool HoldBack;
     }
 
     /// <summary>
@@ -124,6 +192,67 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>⭐ <c>CE-7025</c> (City Battle §5, IF-5) — fire SMOKE (each gun loads its smoke round): a screen, no blast.</summary>
         [JsonPropertyName("Smoke")]
         public bool Smoke;
+    }
+
+    /// <summary>
+    /// ⭐ agg-behaviors R-8300 (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5) — the DEFEND order: hold
+    /// <see cref="Position"/> (the engagement area's origin). The ONE neutral DTO of the kind — the union of what the commanders send;
+    /// ⭐ every play that fulfils Defend (<c>SquadDefend</c>, <c>PlatoonDefend</c>, <c>CompanyDefend</c>) accepts every field strictly (a
+    /// rail walks the pairs), a field its echelon does not use is accepted and documented as unused there. A zero field keeps the
+    /// fulfilling play's own default. Field names and types are the plays' own, so the JSON is the same whichever resolves it.
+    /// </summary>
+    [Order(nameof(OrderKind.Defend))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DefendOrder
+    {
+        /// <summary>The position defended (local metres).</summary>
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>Posts / the line are looked for within this distance of the position (m); 0 = the play's default.</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>Shoot and move between posts after this many seconds at one (CE-7007); 0 = the play's default.</summary>
+        [JsonPropertyName("ShootAndMoveSeconds")]
+        public float ShootAndMoveSeconds;
+
+        /// <summary>The engagement area's left compass bearing (°, 0 = north, clockwise); Left = Right = 0 ⇒ the unit's own sector.</summary>
+        [JsonPropertyName("Left")]
+        public Fdp.Core.Bearing Left;
+
+        /// <summary>The engagement area's right compass bearing (°).</summary>
+        [JsonPropertyName("Right")]
+        public Fdp.Core.Bearing Right;
+
+        /// <summary>Where to fall back to when the position fails (local metres); zero = the play's own choice.</summary>
+        [JsonPropertyName("FallBackTo")]
+        public Fdp.Toolkit.Replication.PointLink FallBackTo;
+
+        /// <summary>Where the enemy comes from (local metres); zero = the play's own choice.</summary>
+        [JsonPropertyName("Threat")]
+        public Fdp.Toolkit.Replication.PointLink Threat;
+    }
+
+    /// <summary>
+    /// ⭐ agg-behaviors R-8300 — the BREAK CONTACT order: withdraw (to <see cref="To"/>, else to a point the enemy cannot see). The neutral
+    /// DTO of the kind; <c>BreakContact</c> accepts it strictly.
+    /// </summary>
+    [Order(nameof(OrderKind.BreakContact))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BreakContactOrder
+    {
+        /// <summary>Where to fall back to (local metres); zero = ask the terrain for a point the enemy cannot see.</summary>
+        [JsonPropertyName("To")]
+        public Fdp.Toolkit.Replication.PointLink To;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 6c (W1, R-2020) — the reason a point is struck (Air Operations §7b, §9e).</summary>

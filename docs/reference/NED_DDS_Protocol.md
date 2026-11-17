@@ -416,9 +416,14 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityGroundDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Ground damage (craters, ruts) (`dtGroundDamage`; row added at CE-4623 — it was missing) |
 | `Hrot.NED.Descriptors.EntityTreeDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Felled / broken trees (`dtTreeDamage`; row added at CE-4623 — it was missing) |
 | `Hrot.NED.Descriptors.EntityRadarEmission` | descriptor | yes: entity id | S | Hrot.Network.NED | A radar's emission (`dtRadarEmission`, CE-4617; row added at CE-4623 — it was missing) |
+| `Hrot.NED.Descriptors.EntityAggregateUnit` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's state (`dtAggregateUnit` 220, CE-8001 — exp/agg-backend) |
+| `Hrot.NED.Descriptors.EntityUnitSlotTable` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's slot table, the slots in use (`dtUnitSlotTable` 221, CE-8001) |
+| `Hrot.NED.Descriptors.EntityUnitHoldings` | descriptor | yes: entity id | S | Hrot.Network.NED | A stochastic unit's holdings (`dtUnitHoldings` 222, CE-8001) |
 | `Hrot.NED.Descriptors.EntityBladeCut` | descriptor | yes: entity id | S | Hrot.Network.NED | A bulldozer's blade-cut marker (`dtBladeCut`, CE-4601; row added at CE-4623 — it was missing and the protocol rail was red) |
 | `Hrot.NED.Descriptors.EntityAnimalState` | descriptor | yes: entity id | S | Hrot.Network.NED | An animal's mode, fear band, species and flags (`dtAnimalState`, CE-4623) |
 | `Hrot.NED.Descriptors.EntityFlockState` | descriptor | yes: entity id | S | Hrot.Network.NED | A bird flock's birds left, seed and flying / landed / perched (`dtFlockState`, CE-4623) |
+| `Hrot.NED.Descriptors.EntityFormationController` | descriptor | yes: entity id | S | Hrot.Network.NED | A formation leader's controller — a road convoy's lead is a `Column` with a spacing (`dtFormationController`, CE-9007) |
+| `Hrot.NED.Descriptors.EntityFormationFollower` | descriptor | yes: entity id | S | Hrot.Network.NED | A follower's slot under an EXPLICIT leader (a road column's rank); `LeaderId 0` = it left (`dtFormationFollower`, CE-9007). Commander-led slots are not sent |
 | `Hrot.NED.Descriptors.EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
 | `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
 | `Hrot.NED.Descriptors.EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |
@@ -432,6 +437,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` | descriptor | yes: entity id | S | Hrot.Network.NED | One side's knowledge of one field: a 2-bit cell grid (unknown / suspected / known-clear / known-mined; TKB 7206; `dtMinefieldKnowledge` 193). The deciding node → every node (no group); receivers union records as a lattice maximum. `[DdsManaged]` |
 | `Hrot.NED.Descriptors.EntityMinefieldLanes` | descriptor | yes: entity id | S | Hrot.Network.NED | The lanes a node CLEARED through one field — segment, width, the clearing side (TKB 7208; `dtMinefieldLanes` 194, CE-4624 MS-T4). The clearing node → every node (no group). `[DdsManaged]` |
 | `Hrot.NED.Descriptors.EntityMineClearing` | descriptor | yes: entity id | S | Hrot.Network.NED | A mine clearer's tool marker — its plough / flail / line charge is working (`dtMineClearing` 195; the `EntityBladeCut` pattern): the brain's, read by the Muscle that clears. ⚠ Meant as the Brain group's (type and component comments), but measured 2026-11-16: `Hrot/Engine/Hrot.Core/HrotOwnershipGroups.cs` sets no Brain bit for `MineClearing` (BladeCut's is at :57), so today the creator's remainder owns it |
+| `Hrot.NED.Descriptors.EntityRamOrder` | descriptor | yes: entity id | S | Hrot.Network.NED | A hull's RAM order (CE-4622 K-2): the target it drives at, active or switched off — Brain group → the node that moves it; read by the mover's avoidance and the breach gate |
 | `Hrot.NED.Descriptors.EntityAirCombatSteer` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's air-combat ORDER — the manoeuvre, the target and the arena (network ids), throttle, the GCAS floor, the g the pilot will pull, his lapse (`dtAirCombatSteer` 216, CE-10000, AC-2): the Brain group's, read every frame by the motion node's `FixedWingModel.Fight` while `NavigationIntent.Mode` = `NAV_AIR_COMBAT` (8) |
 | `Hrot.NED.Descriptors.EntityFighterPilotState` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's REPORT from its motion node — g, throttle, GCAS (active, count, lowest height), the LIVE threat (inbound rounds, the nearest's bearing, seeker, closure, time to impact), the last-ditch time, rounds defeated, speed (`dtFighterPilotState` 217, CE-10000, AC-2 / AC-9a): the Muscle group's; sent on a change of its rounded values |
 | `Hrot.NED.Descriptors.EntityAirArena` | descriptor | yes: entity id | S | Hrot.Network.NED | The air-combat ARENA — centre, radius, floor, ceiling, the show's shot cap, the stalemate clock and the last hit (`dtAirArena` 218, CE-10000, AC-10): its creator's Brain |
@@ -694,6 +700,9 @@ or its number differs.
 | 193 | `dtMinefieldKnowledge` | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` |  |
 | 194 | `dtMinefieldLanes` | `Hrot.NED.Descriptors.EntityMinefieldLanes` |  |
 | 195 | `dtMineClearing` | `Hrot.NED.Descriptors.EntityMineClearing` |  |
+| 196 | `dtRamOrder` | `Hrot.NED.Descriptors.EntityRamOrder` |  |
+| 198 | `dtFormationController` | `Hrot.NED.Descriptors.EntityFormationController` |  |
+| 199 | `dtFormationFollower` | `Hrot.NED.Descriptors.EntityFormationFollower` |  |
 | 216 | `dtAirCombatSteer` | `Hrot.NED.Descriptors.EntityAirCombatSteer` |  |
 | 217 | `dtFighterPilotState` | `Hrot.NED.Descriptors.EntityFighterPilotState` |  |
 | 218 | `dtAirArena` | `Hrot.NED.Descriptors.EntityAirArena` |  |

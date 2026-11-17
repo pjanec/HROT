@@ -1,0 +1,125 @@
+{
+  "$doc": "\u00a723.6 ST-1. Over open ground the follower always finds a route (an infantry unit falls back to the straight leg), so the drop is injected as a do-set of AggregateUnit.Move = RouteFailed - the state the follower itself writes when the planner returns null - at 10/20/30/40 s.",
+  "runFor": 70,
+  "golden": {
+    "every": 10
+  },
+  "do": [
+    {
+      "name": "cut 1",
+      "at": 10,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Move": "RouteFailed"
+        }
+      }
+    },
+    {
+      "name": "cut 2",
+      "at": 20,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Move": "RouteFailed"
+        }
+      }
+    },
+    {
+      "name": "cut 3",
+      "at": 30,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Move": "RouteFailed"
+        }
+      }
+    },
+    {
+      "name": "cut 4",
+      "at": 40,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Move": "RouteFailed"
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "re-requested after cut 1: a fresh route (the head's distance restarts)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.PathDistanceM",
+      "op": "<",
+      "value": 6,
+      "after": 10.1,
+      "before": 14
+    },
+    {
+      "name": "re-requested after cut 2",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.PathDistanceM",
+      "op": "<",
+      "value": 6,
+      "after": 20.1,
+      "before": 24
+    },
+    {
+      "name": "re-requested after cut 3",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.PathDistanceM",
+      "op": "<",
+      "value": 6,
+      "after": 30.1,
+      "before": 34
+    },
+    {
+      "name": "it marches again after cut 3 (OnRoute)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "OnRoute",
+      "after": 31,
+      "before": 39
+    },
+    {
+      "name": "no fourth re-request: the head's distance never restarts after cut 4",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "AggregateUnit.PathDistanceM",
+        "op": "<",
+        "value": 6
+      },
+      "after": 41
+    },
+    {
+      "name": "the fourth cut ends the order: the unit stays RouteFailed",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "RouteFailed",
+      "atEnd": true
+    },
+    {
+      "name": "the company hears PROGRESS TaskFailed",
+      "on": "field",
+      "who": "Blue Company",
+      "path": "CommandReportHistory.Items.0.Report.Subtype",
+      "op": "==",
+      "value": 12,
+      "after": 40,
+      "before": 65
+    }
+  ]
+}

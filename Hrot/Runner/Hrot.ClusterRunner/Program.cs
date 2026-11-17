@@ -138,12 +138,19 @@ class Program
         //    CE-3294's reload leak is fixed — R-4065), and the exit code is the verdict. One ⇒ this process IS the editor that verifies.
         if (!string.IsNullOrWhiteSpace(config.Verify))
         {
+            var verify = Hrot.ClusterRunner.VerifyCommand.Scenarios(config.Verify);
+            // ⭐ RT-5 (R-4279) — the CLUSTER tier: --verify <s> --mode all boots a fresh --mode all cluster per scenario and judges it over HTTP
+            //   in sim time, with the same checks and no golden (docs/DESIGN_Scenario_Regression.md §11.3)
+            if (string.Equals(config.ModeString, "all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (verify.Count == 0) { Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify."); return 1; }
+                return Hrot.ClusterRunner.ClusterVerifyRunner.Run(args, verify, config.VerifyReport, config.VerifyOut, config.VerifyTimeout);
+            }
             if (!(config.RequestedSubsystems.Count == 1 && config.RequestedSubsystems.Contains("editor")))
             {
-                Console.Error.WriteLine("[Runner] --verify runs in the editor: use --mode editor (with --headless for no window).");
+                Console.Error.WriteLine("[Runner] --verify runs in the editor (--mode editor, with --headless for no window) or in a cluster (--mode all).");
                 return 1;
             }
-            var verify = Hrot.ClusterRunner.VerifyCommand.Scenarios(config.Verify);
             if (verify.Count == 0)
             {
                 Console.Error.WriteLine($"[Runner] --verify {config.Verify}: no scenario to verify (none named, or none with a checks.json).");

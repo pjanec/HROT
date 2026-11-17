@@ -1,0 +1,180 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md section 3 - feature scenario for CE-4629 / R-4280 (vehicle breaching, DESIGN_Vehicle_Breaching 7.8). Judge: (1) a car and a tank end beyond the 10 cm kerb, a car at the 1 m garden wall stays south of it; (2) after an AI dozer (TKB 112, ClearObstacle with a point on the wall) stands at a 2 m free wall that spans the range (so nothing walks round it) a rifleman ordered through the cut AND a second one ordered 2 m aside both arrive; the same on a wall made of one-metre pieces (on this flat range a LineString with a vertex per metre gives one panel per segment - the same multi-panel case as a wall stepping with a slope); the two 'Probe' men, ordered through where nothing was cut, never get there (the walls are real); the same on bt-range's own 60 m fence row; (3) a rifleman ordered into House A's west room (its three doors Locked, as bd-destruction) arrives through the dozer's cut. LEFT OUT (grammar, section 9): a breach has no cue, so every cut is approximated by POSITIONS - 'the dozer stands at its wall' stands for 'the blade cut', a man arriving beyond for 'the gap is open'; the gap's WIDTH (>= 5.3 m) is shown only by the second man 2 m aside, not measured; the possessed player's bump is covered by rails (CarKinematicsSystemTests), not here. FIXED (was KNOWN RED at d16a3a3c8): the free walls' cuts were never re-baked on a live node - TerrainResidency.DirtyRegions gave a dirty box only to a BUILDING's damage, never to a free-wall line's group (CE-4599); fixed at 86b21b214 (rail BuildingDamageBakeTests.CE4629_AFreeWallCut_IsReBaked_OnAnIncrementalNode). NO golden (section 5, measured 2026-11-16 at 86b21b214): a capture then two fresh runs - one matched, one differed from t = 50 s in the riflemen crossing the cuts (every condition passed in all three). The navmesh re-bake that opens a cut is debounced on the WALL clock and runs off the frame thread (StaticObstacleBakeSystem, CE-4596 P-0), so the tick the gap opens differs between runs. Re-try a golden once the bake commits on sim time.",
+  "runFor": 80,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the car drives over the 10 cm kerb",
+      "on": "near",
+      "who": "Kerb Car",
+      "point": [
+        20,
+        124
+      ],
+      "within": 3
+    },
+    {
+      "name": "the tank drives over the 10 cm kerb",
+      "on": "near",
+      "who": "Kerb Tank",
+      "point": [
+        45,
+        124
+      ],
+      "within": 3
+    },
+    {
+      "name": "the car at the 1 m garden wall never gets beyond it",
+      "never": {
+        "on": "near",
+        "who": "Garden Car",
+        "point": [
+          70,
+          134
+        ],
+        "within": 3
+      }
+    },
+    {
+      "name": "the garden car ends south of the wall",
+      "on": "field",
+      "who": "Garden Car",
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 128,
+      "atEnd": true
+    },
+    {
+      "name": "Dozer A stands at its wall",
+      "on": "near",
+      "who": "Dozer A",
+      "point": [
+        150,
+        145
+      ],
+      "within": 3
+    },
+    {
+      "name": "A Probe: the wall holds a man where nothing cut it",
+      "never": {
+        "on": "near",
+        "who": "A Probe",
+        "point": [
+          60,
+          153
+        ],
+        "within": 3
+      }
+    },
+    {
+      "name": "A Rifle 1 walks through the cut",
+      "on": "near",
+      "who": "A Rifle 1",
+      "point": [
+        150,
+        153
+      ],
+      "within": 1.5,
+      "after": "Dozer A stands at its wall"
+    },
+    {
+      "name": "A Rifle 2 walks through the cut 2 m aside",
+      "on": "near",
+      "who": "A Rifle 2",
+      "point": [
+        152,
+        153
+      ],
+      "within": 1.5,
+      "after": "Dozer A stands at its wall"
+    },
+    {
+      "name": "Dozer B stands at its wall",
+      "on": "near",
+      "who": "Dozer B",
+      "point": [
+        150,
+        181
+      ],
+      "within": 3
+    },
+    {
+      "name": "B Probe: the wall holds a man where nothing cut it",
+      "never": {
+        "on": "near",
+        "who": "B Probe",
+        "point": [
+          60,
+          189
+        ],
+        "within": 3
+      }
+    },
+    {
+      "name": "B Rifle 1 walks through the cut",
+      "on": "near",
+      "who": "B Rifle 1",
+      "point": [
+        150,
+        189
+      ],
+      "within": 1.5,
+      "after": "Dozer B stands at its wall"
+    },
+    {
+      "name": "B Rifle 2 walks through the cut 2 m aside",
+      "on": "near",
+      "who": "B Rifle 2",
+      "point": [
+        152,
+        189
+      ],
+      "within": 1.5,
+      "after": "Dozer B stands at its wall"
+    },
+    {
+      "name": "Dozer Fence stands at the fence row",
+      "on": "near",
+      "who": "Dozer Fence",
+      "point": [
+        40,
+        66
+      ],
+      "within": 3
+    },
+    {
+      "name": "Fence Rifle gets through the cut before he could have walked round (the row is 60 m)",
+      "on": "near",
+      "who": "Fence Rifle",
+      "point": [
+        40,
+        74
+      ],
+      "within": 1.5,
+      "after": "Dozer Fence stands at the fence row",
+      "before": 57
+    },
+    {
+      "name": "Dozer House stands at the west wall",
+      "on": "near",
+      "who": "Dozer House",
+      "point": [
+        96,
+        104
+      ],
+      "within": 3
+    },
+    {
+      "name": "House Rifle walks into the sealed west room through the cut",
+      "on": "near",
+      "who": "House Rifle",
+      "point": [
+        103,
+        104
+      ],
+      "within": 1.5,
+      "after": "Dozer House stands at the west wall"
+    }
+  ]
+}

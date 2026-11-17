@@ -1,0 +1,85 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): mode 1, the priority escort and its column cross a red; the user's rule 'the convoy ignores traffic lights'. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner). A split is a pair more than 60 m apart = one gap + the three gaps of lag at which the lead's cap stops it (C-6): past that the cap failed to hold the column. 📌 Measured in the cluster tier (real time, longer frames): a follower falls ~40 m behind its predecessor for a few seconds at the 12 m junction kink at x 300 (CE-9011) and recovers by x 400 — the cap at work, not a split.",
+  "runFor": 95,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the lead runs the convoy",
+      "on": "task",
+      "who": "Escort 1",
+      "is": "PlatformConvoy"
+    },
+    {
+      "name": "the lead is handed to SUMO",
+      "on": "field",
+      "who": "Escort 1",
+      "path": "NavigationIntent.Mode",
+      "op": "==",
+      "value": "Traffic"
+    },
+    {
+      "name": "the lead crosses the junction in the red",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        145.2,
+        870
+      ],
+      "within": 8,
+      "after": 45,
+      "before": 89
+    },
+    {
+      "name": "the tail crosses the junction in the red",
+      "on": "near",
+      "who": "Escort 4",
+      "point": [
+        145.2,
+        870
+      ],
+      "within": 8,
+      "after": 45,
+      "before": 90
+    },
+    {
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
+      "never": {
+        "on": "far",
+        "who": "Escort 2",
+        "from": "Escort 1",
+        "m": 60
+      },
+      "before": "the tail crosses the junction in the red"
+    },
+    {
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
+      "never": {
+        "on": "far",
+        "who": "Escort 3",
+        "from": "Escort 2",
+        "m": 60
+      },
+      "before": "the tail crosses the junction in the red"
+    },
+    {
+      "name": "the column never splits (Escort 4 never more than 60 m behind Escort 3)",
+      "never": {
+        "on": "far",
+        "who": "Escort 4",
+        "from": "Escort 3",
+        "m": 60
+      },
+      "before": "the tail crosses the junction in the red"
+    },
+    {
+      "name": "the lead reaches its destination",
+      "on": "near",
+      "who": "Escort 1",
+      "point": [
+        145.2,
+        735
+      ],
+      "within": 20
+    }
+  ]
+}

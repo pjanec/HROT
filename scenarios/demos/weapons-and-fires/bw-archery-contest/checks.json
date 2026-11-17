@@ -1,0 +1,30 @@
+{
+  "$doc": "CE-4649 BW-11 - the contest: 15 arrows, each in a target or the ground.",
+  "runFor": 45,
+  "golden": {
+    "every": 15
+  },
+  "expect": [
+    {
+      "name": "15 arrows are shot",
+      "on": "shot",
+      "by": "*Archer",
+      "n": 15
+    },
+    {
+      "name": "every arrow ends in a target or the ground",
+      "on": "shot",
+      "by": "*Archer",
+      "n": 15,
+      "where": {
+        "outcome": [
+          "in",
+          [
+            "Hit",
+            "StoppedByTerrain"
+          ]
+        ]
+      }
+    }
+  ]
+}

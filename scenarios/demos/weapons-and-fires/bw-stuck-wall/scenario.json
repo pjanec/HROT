@@ -1,0 +1,60 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: CE-4649 (bows BW-4) - on bt-range an Archer (Friend, 29,10) is ordered to shoot 5 arrows at a point on the brick wall (25..33, y 40) 30 m north (29,39.8, 1.2 m up). Each arrow STOPS in the wall and STICKS there: it freezes with its rotation along its flight, its point a third of its length in, and lies 600 s (the rail BallisticsSystemTests.CE4649 proves the pose; a rail proves the 257th lying round removes the oldest). Judge: at least 3 arrows end StoppedByTerrain. Fail: no arrow reaches the wall (refused or short), or they vanish. Check: scripts/scenario-regression.sh bw-stuck-wall"
+ },
+ "entities": {
+  "4649a004-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     29,
+     10,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2013
+   },
+   "EntityInfo": {
+    "Name": "Archer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtPoint",
+    "Origin": "Superior",
+    "Params": {
+     "x": 29,
+     "y": 39.8,
+     "z": 1.2,
+     "mount": 0,
+     "rounds": 5,
+     "cooldownSeconds": 1.0
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

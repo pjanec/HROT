@@ -1,0 +1,213 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a parked bomb (CE-4621 IM-2; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md \u00a75 / \u00a79). A two-up insurgent motorcycle ('Bike': 'Rider', 'Pillion', and an 8 kg 'Bike charge' in its pannier \u2014 the cargo station) rides east along the test-town road from (40, 200) at 12 m/s and parks at the market spot (230, 200) beside two shoppers ('Shopper 1', 'Shopper 2', Neutral). ParkedBomb arms the charge's 70 s timer, puts the riders out and orders them to walk clear: 80 m back the way they came (R-3090). The charge goes off on its timer. Judge: (1) the bike parks at the spot (within 8 m of (230, 200)) (2) the riders get off (3) the charge goes off, after they are off (4) both riders are 40 m or more west of the spot (x < 190) before it goes off (5) both riders are unhurt at the end (6) a shopper beside the bike is hurt. Check: scripts/scenario-regression.sh ua-moto-parked-bomb"
+  },
+  "entities": {
+    "46210d03-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 3,
+        "Passengers": [
+          "46210d03-0000-4000-8000-000000000002",
+          "46210d03-0000-4000-8000-000000000003",
+          "46210d03-0000-4000-8000-000000000004"
+        ],
+        "Seats": [
+          0,
+          1,
+          2
+        ]
+      },
+      "Behavior": {
+        "Name": "ParkedBomb",
+        "Params": {
+          "Charge": "46210d03-0000-4000-8000-000000000004",
+          "Spot": [
+            230,
+            200,
+            0
+          ],
+          "Delay": 70,
+          "Speed": 12
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46210d03-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d03-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "46210d03-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d03-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "46210d03-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "Bike charge",
+        "ForceId": "Hostile"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d03-0000-4000-8000-000000000001",
+        "Seat": 2
+      }
+    },
+    "46210d03-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          236,
+          208,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Shopper 1",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "46210d03-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          224,
+          192,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Shopper 2",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

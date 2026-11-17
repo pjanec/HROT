@@ -1,0 +1,177 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, with SUMO background traffic (600 cars, seed 1), four APCs ('Escort 1'..'Escort 4') drive south down the three-lane avenue (e_axis_n_drop_d_3_6, x 145.2) as a road convoy: 'Escort 1' handed to SUMO (ConvoyOrder, Mode Traffic, 9 m/s), the others on its path — to (215, 1240), 70 m east of the avenue, OFF the SUMO network. The lead leaves SUMO where the network ends nearest the destination (mode 1 → 2) and drives the off-road leg on our own route; the column follows it off the road. Judge: (1) the lead runs PlatformConvoy and is handed to SUMO; (2) it leaves SUMO; (3) it reaches the off-road destination; (4) the column never splits; (5) the tail ends near it. Check: scripts/scenario-regression.sh cv-mode-1-to-2"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000051": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            215,
+            1240,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 9
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000052": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1515,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            215,
+            1240,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 9,
+          "Lead": "c0900000-0000-4000-8000-000000000051"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000053": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1530,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            215,
+            1240,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 9,
+          "Lead": "c0900000-0000-4000-8000-000000000051"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000054": {
+      "SimTransform": {
+        "Position": [
+          145.2,
+          1545,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          -0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 4",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            215,
+            1240,
+            0
+          ],
+          "Rank": 3,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 9,
+          "Lead": "c0900000-0000-4000-8000-000000000051"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000059": {
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 600,
+        "Seed": 1,
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 0,
+        "CarSpawnPerStep": 40
+      }
+    }
+  }
+}

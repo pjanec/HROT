@@ -70,7 +70,7 @@ namespace Hrot.Common.Systems
                             if (!repo.IsAlive(sub)) continue;
                             if (!repo.HasComponent<UnitSubordinate>(sub)) continue;
                             repo.RemoveComponent<UnitSubordinate>(sub);
-                            if (repo.HasComponent<FormationFollower>(sub))
+                            if (repo.HasComponent<FormationFollower>(sub) && repo.GetComponentRO<FormationFollower>(sub).Leader.IsNull)   // ⭐ CE-9004 — a follower led by its own Leader keeps station; only a commander-led slot goes with the command
                                 repo.RemoveComponent<FormationFollower>(sub);
                             SmartEgressUtil.MarkDirty(repo, sub, EntityInfoDescriptorOrdinal);
                         }
@@ -82,7 +82,7 @@ namespace Hrot.Common.Systems
                 {
                     RemoveFromRoster(repo, entity);
                     repo.RemoveComponent<UnitSubordinate>(entity);
-                    if (repo.HasComponent<FormationFollower>(entity))
+                    if (repo.HasComponent<FormationFollower>(entity) && repo.GetComponentRO<FormationFollower>(entity).Leader.IsNull)   // ⭐ CE-9004 — see above
                         repo.RemoveComponent<FormationFollower>(entity);
                 }
             }
@@ -226,7 +226,7 @@ namespace Hrot.Common.Systems
             RemoveFromRoster(repo, subordinate);
 
             repo.RemoveComponent<UnitSubordinate>(subordinate);
-            if (repo.HasComponent<FormationFollower>(subordinate))
+            if (repo.HasComponent<FormationFollower>(subordinate) && repo.GetComponentRO<FormationFollower>(subordinate).Leader.IsNull)   // ⭐ CE-9004
                 repo.RemoveComponent<FormationFollower>(subordinate);
         }
 

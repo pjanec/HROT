@@ -1,0 +1,227 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-16
+current-answer: §1 (the components), §2 (enums), §3 (the routing table), §4 (ids)
+stale-below: none
+related-designs:
+  - docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md — owns the model (§14–§19), the rulings, §22 UML, §23 dispatch; this NOTE is the as-built layout of its §23.2 contract
+  - docs/blueprints/batches/HANDOFF_Coordinator_To_AggBackend.md — the dispatch this NOTE answers (CE-4616, dispatched at 3f33c0ee3)
+-->
+
+# NOTE — exp/agg-backend → exp/agg-behaviors, exp/agg-ui: the aggregate contract *(CE-4616 §23.2, CE-8000)*
+
+⭐ **Merge `exp/agg-backend` at or after this commit and build against these names.** The layouts are FIXED (SV-12: a recorded layout change
+refuses old recordings) — ⛔ a field you need that is missing is a finding to this lane, never a local addition.
+
+📄 Source: `FDP/Toolkits/Fdp.Toolkits/Aggregate/AggregateComponents.cs` (namespace `Fdp.Toolkit.Aggregate`) ·
+routing `Hrot/Engine/Hrot.Core/Tkb/ResolutionRouting.cs` · rails `AggregateContractRails` (Toolkits.Tests), `ResolutionRoutingTableTests` (Core.Tests).
+
+## 1. The components
+
+```mermaid
+classDiagram
+  class AggregateUnit {
+    <<281, dtAggregateUnit 220, recorded, saved>>
+    Resolution Echelon Splitting Pin
+    Formation Posture Activity Prepared
+    Width Depth Heading
+    Move Destination PathDistanceM SpeedMps RouteRequestedAt
+    SuppressedShare IncomingRounds[5] IncomingHead
+    LastFiredAt LastContactAt PreparedSince SplittingSince LastStepAt
+  }
+  class UnitSlotTable {
+    <<282, dtUnitSlotTable 221, recorded, saved, 968 B>>
+    Count Chunk
+    Slots[120] : UnitSlot
+    Present() Authorized() IsUp(i)
+  }
+  class UnitSlot {
+    <<8 B>>
+    Half Health
+    Half Stress
+    ushort Ammo
+    SlotRole Role
+    byte CompositeSlot
+  }
+  class UnitHoldings {
+    <<283, dtUnitHoldings 222, recorded, saved>>
+    Count
+    Items[24] : UnitHolding
+    HasWheeled() HasVehicles()
+  }
+  class UnitHolding {
+    <<24 B>>
+    TkbTypeId Type
+    Count Operational Ammo
+    Kind Mobility Sensor Immobile
+  }
+  class FireAllocation {
+    <<284, node-local, recorded, NoScenario>>
+    Step Count
+    Lines[16] : FireLine
+  }
+  class FireLine {
+    <<24 B>>
+    Entity Target
+    Hits DamagePerHit Rounds
+    VictimClass
+  }
+  class UnitDetections {
+    <<285, own, node-local, recorded, NoScenario>>
+    Pairs[32] : Target Level Reported LastSeenAt
+  }
+  class RunSeed {
+    <<286, own, singleton, recorded>>
+    uint Value
+  }
+  AggregateUnit "1" *-- "1" UnitSlotTable : same entity
+  AggregateUnit "1" *-- "1" UnitHoldings : same entity
+  UnitSlotTable *-- UnitSlot
+  UnitHoldings *-- UnitHolding
+  FireAllocation *-- FireLine
+```
+*What it shows: every table lives on the UNIT entity itself — so each per-entity phase writes only its own entity (the parallel rule), and the
+whole company fits one 968 B slot table (no chunk entities).*
+
+| field | meaning | written by |
+|---|---|---|
+| `AggregateUnit.Resolution` | 1 Physical · 2 Fusion · 3 Stochastic; `0` (unset) reads as Physical (`Effective`) | the resolution manager (ST-5), authored |
+| `Echelon` | `Fdp.Toolkit.Squad.Echelon` (0 squad, 1 platoon, 2 company) | authored |
+| `Width` / `Depth` / `Heading` | frontage (m) · depth (m; a column's length) · `Bearing` | the path follower, the plays |
+| `SuppressedShare` | 0..1, rounds per exposed man over the last 5 s (`IncomingRounds` ring, one bucket per 1 s step) | phase B (ST-3) |
+| `Prepared` / `PreparedSince` | P-5 time in position | the Defend play (behaviors) |
+| `Splitting` / `SplittingSince` | §16a stage + the deadline's clock | the resolution manager (ST-5) |
+| `UnitSlot.Health` | the soldier's scale (25 = a fit man); down below `UnitSlotTable.DownBelow` (0.5) | phase B, the area sink |
+| `UnitSlot.Stress` | 0..1, `StressModel` constants | phase B |
+| `UnitHolding.Operational` / `Immobile` | K-kills reduce Operational, M-kills raise Immobile | phase B |
+| `FireLine.Hits` | expected hits λ, ⭐ already × the FIRER's suppression; phase B multiplies by the victim's cover | phase A (ST-3) |
+
+⭐ **Readers (agg-behaviors' RV-5 branch):** `UnitSlotTable.Present()` is Present, `Authorized()` the authored strength, `IsUp(i)` per slot;
+ammo is the sum of `Slots[i].Ammo` over up slots (+ holdings' `Ammo` for crew-served systems); standing = up and `Stress` below the
+broken threshold (`StressModel`). ⛔ Never store Present (SV-11).
+
+## 2. Enums *(values fixed — they are on the wire and in recordings)*
+
+| enum | values |
+|---|---|
+| `AggregateResolution` | Unset 0 · Physical 1 · Fusion 2 · Stochastic 3 |
+| `UnitFormation` | NoFormation 0 · Column 1 · Line 2 · Assault 3 |
+| `UnitPosture` | Dismounted 0 · Mounted 1 |
+| `UnitActivity` *(flags)* | Quiet 0 · Moving 1 · Firing 2 |
+| `SplitStage` | NotSplitting 0 · Planning 1 · Materialising 2 · Handover 3 · Merging 4 |
+| `PreparedLevel` | Unprepared 0 · Hasty 1 · Prepared 2 · Fortified 3 |
+| `ResolutionPin` | NoPin 0 · PinKeep 1 · PinPhysical 2 · PinStochastic 3 |
+| `UnitMoveState` | Stopped 0 · AwaitingRoute 1 · OnRoute 2 · Arrived 3 · RouteFailed 4 |
+| `SlotRole` | Empty 0 · Rifleman 1 · Leader 2 · MachineGunner 3 · AntiTank 4 · Grenadier 5 · Marksman 6 · Medic 7 · Crew 8 · Radio 9 |
+| `HoldingKind` / `HoldingMobility` / `HoldingSensor` | NoKind 0 · Weapon 1 · Vehicle 2 · Sensor 3 / NoMobility 0 · Wheeled 1 · Tracked 2 / NoSensor 0 · Optics 1 · Thermal 2 · Radar 3 |
+
+**Slot capacity per echelon** (`UnitSlotTable.CapacityFor`): squad **13** · platoon **48** · company **120** (= `Capacity`, one table).
+
+## 3. The routing table *(SV-2, B-1, RV-7)*
+
+```csharp
+OrderResolver.Result r = ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, dis, unit.Effective, orderName, isBehaviour);
+```
+
+| | |
+|---|---|
+| Physical / unset | exactly `OrderResolver.Resolve` (`<Class><Order>`), untouched |
+| Stochastic | a ROW for the most specific class of the entity's chain; no row ⇒ `NoBehaviour` (refused ⇒ TaskFailed, B-8). ⛔ never the physical play |
+| Fusion | a row if one exists, else the physical rule (X-1) |
+| the SOP | order name `ResolutionRoutingTable.SopOrder` = `"Sop"` |
+
+**Default rows** (class `Unit`, resolution Stochastic): Move · March · Dash ⇒ `StochasticUnitMove` · Defend · Hold ⇒ `StochasticUnitDefend` ·
+Attack · ClearBuilding · Bound · FireAndMovement · SupportByFire ⇒ `StochasticUnitAttack` · BreakContact ⇒ `StochasticUnitBreakContact` ·
+Sop ⇒ `StochasticUnitSop`. ⛔ No row (refused): Strike, ObserveFire, Recover. Embark / Dismount: added with ST-3 (the posture, S-9).
+⭐ The play behaviours are agg-behaviors'; until a play is registered, `isBehaviour` is false and the order resolves to `NoBehaviour`.
+
+## 3a. Movement — what a play calls *(ST-1, CE-8004; added after the first NOTE commit)*
+
+```csharp
+ref var u = ref world.GetComponentRW<AggregateUnit>(unit);       // the play's OWN unit (safe in a per-entity phase)
+UnitMoves.Order(ref u, destination, UnitFormation.Column, UnitMoves.ColumnDepth(in u, in holdings, in slots), now);
+// then read u.Move: AwaitingRoute → OnRoute → Arrived (Set, B-2) · RouteFailed (re-order it — B-2's "a dropped route re-requested")
+UnitMoves.Stop(ref u);
+```
+⭐ The follower (`StochasticUnitMovementSystem`, in `CgfLogicPack`) owns everything after the order: the plan, the speed (`UnitSpeedModel`),
+the unit's `SimTransform`, `Heading`, `SpeedMps`, `Activity.Moving`. ⛔ A play never writes those.
+
+## 3b. Sensing — what reads it *(ST-2, CE-8006)*
+
+| reader | reads |
+|---|---|
+| the SOP, the staff's SPOT, every commander | the unit's own `SquadCognitiveState.Contacts` — unchanged readers (N-2) |
+| agg-ui's detection overlay | `UnitDetections.Pairs[i]` (`Target`, `Level` 0..2 — a contact at ≥ 1, `Reported`, `LastSeenAt`) on the observer |
+| tuning | `UnitDetection.StepChance(range, r50, transmittance)` — N-1's curve; `UnitDetection.Signature`, `SensorR50` |
+
+## 3c. Attrition — what changed in the contract, and what reads it *(ST-3, CE-8007)*
+
+| | |
+|---|---|
+| ⭐ `FireLine.Source` | the former private pad byte, now public (the layout is unchanged): `FireAllocation.PersonalSource` (0) = the slots' personal weapons, else 1 + the firer's holding index |
+| the plays (agg-behaviors) | read `AggregateUnit.SuppressedShare`, `UnitSlotTable` (health / stress / ammo — standing = up and stress < `StochasticCombat.BreakLevel`), `UnitHoldings.Operational` / `Immobile`; ⛔ never write them |
+| agg-ui | the same, plus `FireAllocation.Lines` (who fires at whom this step) |
+
+## 3d. Resolution — the seams for agg-behaviors and agg-ui *(ST-5, CE-8012)*
+
+| | |
+|---|---|
+| ⭐ the POLICY (agg-behaviors) | `new ResolutionManagerSystem(switch) { Policy = world => <your ResolutionPolicy as ResolutionBands> }` — ⚠ `ResolutionBands.Default`, never `new ResolutionBands()` (all zeros) |
+| ⭐ the posts (agg-behaviors, D-P3 / SV-5) | today the fallback posts (`UnitSplits.FallbackPosts`); a planned-posts component replaces them in Planning |
+| agg-ui | `AggregateUnit.Splitting` (the stage), `Resolution`, `Pin` (the instructor's request writes `Pin`); a split's children carry `AggregateChild { Unit, Slot, Held }` |
+| identities | `UnitSplits.ChildGuid(unitGuid, compositeSlot)` — the same children every split |
+
+## 3e. The unit form's attributes — for agg-ui *(CE-8015, the R-4278 follow-up)*
+
+⭐ `AggregateUnit`'s editable fields are in the attribute vocabulary (`AttributeVocabulary.All`), so the generic form shows them and a patch
+reaches the component AND the wire (the existing `dtAggregateUnit` ↔ `AggregateUnit` map — no new descriptor):
+
+| path | id | value |
+|---|---|---|
+| `Aggregate.Resolution` | 281 | `AggregateResolution` (0 Unset · 1 Physical · 2 Fusion · 3 Stochastic) — the AUTHORED resolution; ⚠ live, the instructor changes it through `Pin` |
+| `Aggregate.Pin` | 282 | `ResolutionPin` (0 none · 1 keep · 2 physical · 3 stochastic) |
+| `Aggregate.Echelon` | 283 | 0 squad · 1 platoon · 2 company |
+| `Aggregate.Formation` | 284 | `UnitFormation` |
+| `Aggregate.Posture` | 285 | `UnitPosture` |
+| `Aggregate.Prepared` | 286 | `PreparedLevel` |
+
+⛔ `Splitting` (the split stage) is READ-ONLY — show it from the component; the manager owns it. Values out of range are clamped.
+
+## 3f. The spawn-time fill — for agg-behaviors *(CE-8016, your F-9)*
+
+⭐ Author a stochastic unit as `AggregateUnit { Resolution = Stochastic }` + its TKB type; `StochasticUnitFillSystem` (in `CgfLogicPack`, the owner
+only, once) fills `UnitSlotTable` (one slot per man of the flattened composite: role from the designation, full health, his basic load,
+`CompositeSlot` = leaf index + 1) and `UnitHoldings` (vehicles / systems grouped by type, × count, mobility from the TKB), and the echelon if 0.
+A table you author yourself (Count > 0) is left alone. Platoon = 30 slots · company = 90 · tank platoon = one holding of 4 M1s.
+
+## 4. Ids allocated by this commit
+
+| | |
+|---|---|
+| components | 281 `AggregateUnit` · 282 `UnitSlotTable` · 283 `UnitHoldings` · 284 `FireAllocation` (contract) · 285 `UnitDetections` · 286 `RunSeed` · 287 `UnitRoute` (own, ST-1) · 288 `AggregateChild` (own, ST-5) — 289 free |
+| descriptors | 220 `dtAggregateUnit` · 221 `dtUnitSlotTable` · 222 `dtUnitHoldings` — 223–229 free |
+| tracker / rulings | `CE-8000` (the contract) · `R-8000`, `R-8001` (lane decisions, `STATUS_AggBackend.md`) |
+
+⚠ **Enumerator names are unique across the module** — the DDS code generator emits every enum of `Fdp.Toolkit.Aggregate` into one IDL
+module, where enumerators share one scope (`None` twice fails the build). ⇒ a new enum here takes unique names too.
+
+## `2026-11-16` (round 3, last) — three contract facts for both lanes
+
+| # | fact | for |
+|---|---|---|
+| **1** | ⭐ **R-8008 (user)** — the FusionSquad is NOT shown anywhere in the UI. `AggregateResolution.Fusion = 2` stays in the enum (recorded, on the wire) but is never requested and never drawn. ⇒ agg-ui's finding ② (`NOTE_AggUi_To_AggBackend.md`): drop the greyed "Make fusion now" item; no `PinFusion` will come | agg-ui |
+| **2** | ⭐ **R-8007 (for the user's review)** — a stochastic unit's POSITION is owned by its BRAIN (the unit's owner), like every unit entity (a unit template is never in the Muscle group); its route comes from the solver over the path-request topic on a split cluster. ⇒ nothing changes for the plays: `AggregateUnit.Move` stays where it is | agg-behaviors |
+| **3** | a BURST on a stochastic unit is applied by the unit's OWNER (`StochasticAreaEffectSystem`, CGF pack) from the replicated detonation; `AreaEffectSystem` no longer writes a slot table. ⇒ on the editor / single world: the same result; on a split cluster a unit now actually takes the burst once | both |
+| **4** | ⭐ CE-8022 ① — `Aggregate.Width` (287, m) · `Aggregate.Depth` (288, m) · `Aggregate.Heading` (289, deg, normalised 0..360) are attribute rows now: the Unit tab can make Frontage and Heading EDITABLE through the same patch path as the other six | agg-ui |
+
+## `2026-11-17` — R-4286's findings, built (agg-backend)
+
+| # | what | for |
+|---|---|---|
+| **F-23** | a split unit merges only beyond the split TRIGGER + 200 m (≈ 800 m today) and after 30 s unobserved with no man in contact (a child's `TargetMemory` seen within 2 perception steps). ⇒ your goldens that merge may move | agg-behaviors |
+| **F-22** | a split child is named `<unit name>/<composite slot>` (`Alpha/3`) — your checks can name them; the UI can show them | both |
+| **F-19** | a stochastic unit's z is the ground (set by the follower, placed or moving) | both |
+| **F-1** | already resolved by your ST-3 (R-8314) on CE-8014's basic load — `SquadManeuverTests.Reports` stochastic rows green | agg-behaviors |
+| **DP3-B** ⭐ | `PlannedPosts` (138, `Fdp.Toolkit.Aggregate`) is declared and registered. ⭐ **THE CONTRACT: the manager waits only for a unit that HAS a `PlannedPosts`** — your `UnitPostPlanningSystem` starts the wait by adding it when it begins planning (Count 0, Ready 0, `PlannedAt` = now), fills the posts in the order `Materialise` walks the LIVE slots, and sets `Ready = 1`; the deadline is the policy's `DeadlineSeconds` (10). A withdrawn trigger REMOVES the component. A unit with no `PlannedPosts` splits at once, as before | agg-behaviors (slice ③) |
+| **S0** | the type rails (`S0IdTypesRailTests`, `S0ComponentTypesRailTests`) name YOUR `ResolutionPolicy`: `Area0…Area7` are `EntityRef`s in a SAVED component (S9′: a GUID-keyed translator or an `EntityLink`), and `QuietSeconds` / `DeadlineSeconds` are bare floats (a `SimDuration`). Agg-backend fixed its own (`ResolutionBands` durations → `SimDuration`, `LocalNodeId` → `NodeId`) and changed ONE line of your `ResolutionPolicyRails` (a `(float)` cast on `QuietSeconds`) | agg-behaviors |
+

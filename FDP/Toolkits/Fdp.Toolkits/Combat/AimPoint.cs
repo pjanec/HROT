@@ -63,6 +63,24 @@ namespace Fdp.Toolkit.Combat
         public const float ChestTowardHead = 0.35f;
 
         /// <summary>
+        /// ⭐ <c>CE-4622</c> K-3 (Checkpoint CP-7, KV-3) — where a VEHICLE's ENGINE is, in the world: the middle of its body profile's engine region (the third
+        /// of the main hull box at the engine END, <c>VehicleBody</c> S2-4: beyond ⅙ of the length from the centre), at a third of its height. Null when its type
+        /// states no engine end (a person, a weapon, an aircraft). The disabling shots aim here.
+        /// </summary>
+        public static Vector3? Engine(EntityRepository repo, Entity vehicle)
+        {
+            if (!repo.HasComponent<SimTransform>(vehicle) || !CombatTkb.TryGetTemplate(repo, vehicle, out var template)) return null;
+            if (Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(template) is not { } shape || shape.EngineEnd == Fdp.Toolkit.Physics.BodyParts.EngineEnd.None) return null;
+            float length = shape.Size.X;
+            if (repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>() && repo.HasComponent<global::CarKinem.Core.VehicleParams>(vehicle)
+                && repo.GetComponentRO<global::CarKinem.Core.VehicleParams>(vehicle).Length > 0f)
+                length = repo.GetComponentRO<global::CarKinem.Core.VehicleParams>(vehicle).Length;
+            float along = (shape.EngineEnd == Fdp.Toolkit.Physics.BodyParts.EngineEnd.Front ? 1f : -1f) * length / 3f;
+            ref readonly var t = ref repo.GetComponentRO<SimTransform>(vehicle);
+            return t.Position + Vector3.Transform(new Vector3(along, 0f, shape.Size.Z / 3f), t.Rotation);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-2325</c> (R-2064) — the CHEST of <paramref name="pose"/>, in the body frame of the reference figure: the torso box's centre,
         /// <see cref="ChestTowardHead"/> of the way to the head's (≈ 1.23 m standing aimed, 0.89 m crouched; on the lying torso when prone).
         /// </summary>

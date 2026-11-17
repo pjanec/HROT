@@ -1,0 +1,29 @@
+{
+  "$doc": "CE-4649 BW-2 - the arc reaches.",
+  "runFor": 30,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Archer shoots",
+      "on": "shot",
+      "by": "Archer"
+    },
+    {
+      "name": "an arrow hits the Target before 25 s",
+      "on": "shot",
+      "by": "Archer",
+      "hit": "Target",
+      "before": 25
+    },
+    {
+      "name": "the Target is wounded",
+      "on": "field",
+      "who": "Target",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 1000
+    }
+  ]
+}

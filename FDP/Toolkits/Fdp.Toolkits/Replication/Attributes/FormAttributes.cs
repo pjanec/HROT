@@ -92,6 +92,28 @@ public static class FormAttributes
         }
     }
 
+    // ── ⭐ CE-8015 — a stochastic unit's AggregateUnit ────────────────────────────────────────────────────────
+
+    /// <summary>One authored field of a stochastic unit, clamped to its enum's range. ⚠ A LIVE resolution change is the Pin (SV-14).</summary>
+    public static void SetAggregate(ref Fdp.Toolkit.Aggregate.AggregateUnit c, ushort attributeId, double v)
+    {
+        int i = (int)Math.Round(v);
+        switch (attributeId)
+        {
+            case AttributeIds.AggregateResolution: c.Resolution = (Fdp.Toolkit.Aggregate.AggregateResolution)Math.Clamp(i, 0, (int)Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic); break;
+            case AttributeIds.AggregatePin:        c.Pin = (Fdp.Toolkit.Aggregate.ResolutionPin)Math.Clamp(i, 0, (int)Fdp.Toolkit.Aggregate.ResolutionPin.PinStochastic); break;
+            case AttributeIds.AggregateEchelon:    c.Echelon = (byte)Math.Clamp(i, 0, 2); break;
+            case AttributeIds.AggregateFormation:  c.Formation = (Fdp.Toolkit.Aggregate.UnitFormation)Math.Clamp(i, 0, (int)Fdp.Toolkit.Aggregate.UnitFormation.Assault); break;
+            case AttributeIds.AggregatePosture:    c.Posture = (Fdp.Toolkit.Aggregate.UnitPosture)Math.Clamp(i, 0, (int)Fdp.Toolkit.Aggregate.UnitPosture.Mounted); break;
+            case AttributeIds.AggregatePrepared:   c.Prepared = (Fdp.Toolkit.Aggregate.PreparedLevel)Math.Clamp(i, 0, (int)Fdp.Toolkit.Aggregate.PreparedLevel.Fortified); break;
+            // ⭐ CE-8022 ① — the shape: metres ≥ 0, a heading normalised to 0..360
+            case AttributeIds.AggregateWidth:      c.Width = MathF.Max(0f, (float)v); break;
+            case AttributeIds.AggregateDepth:      c.Depth = MathF.Max(0f, (float)v); break;
+            case AttributeIds.AggregateHeading:    c.Heading = new Bearing((float)v).Normalized; break;
+            default: throw new ArgumentOutOfRangeException(nameof(attributeId), attributeId, "not an aggregate attribute");
+        }
+    }
+
     // ── Character (Initial state S6) ─────────────────────────────────────────────────────────────────────
 
     /// <summary>Which <see cref="Fdp.Toolkit.Behavior.Components.CombatTemperament"/> field.</summary>

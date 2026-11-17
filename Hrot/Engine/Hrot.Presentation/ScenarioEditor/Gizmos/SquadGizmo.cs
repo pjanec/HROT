@@ -42,7 +42,7 @@ public sealed class SquadGizmo : IStatelessGizmo
 
         // ⭐ CE-4582 (§6am D-7) — the commander's line on HIS card, each member's E/R on the MEMBER's card (never free text)
         int net = EntityCardRows.CardIdOf(view, entity);
-        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand).Row(EntityCardRows.SquadPhase)
+        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand, unitCard: true).Row(EntityCardRows.SquadPhase)
                           .Text(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"SQUAD {roster.Count} ph{state.PhaseId}"), CardText, 11f);
 
         var elements = MemoryMarshal.CreateReadOnlySpan(
@@ -57,7 +57,7 @@ public sealed class SquadGizmo : IStatelessGizmo
             var color = ElementColors[elements[i] % ElementColors.Length];
             draw.DrawLine(at, m, color, 1.5f, layer: DebugTraceLayers.SquadCommand);
             int memberNet = EntityCardRows.CardIdOf(view, member);
-            if (memberNet != 0) draw.Card(memberNet, DebugTraceLayers.SquadCommand).Row(EntityCardRows.MemberRole)
+            if (memberNet != 0) draw.Card(memberNet, DebugTraceLayers.SquadCommand, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, member)).Row(EntityCardRows.MemberRole)
                                     .Text(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"E{elements[i]}R{roles[i].RoleId}"), color, 11f);
         }
 

@@ -1,0 +1,53 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-7 the routine car.",
+ "runFor": 90,
+ "golden": {
+  "every": 10
+ },
+ "expect": [
+  {
+   "name": "the Stopper signals",
+   "on": "gesture",
+   "who": "Stopper",
+   "is": "Warning"
+  },
+  {
+   "name": "the car reads routine",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Routines",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the driver is told out, hands up",
+   "on": "task",
+   "who": "Driver",
+   "is": "ComplyAtCheckpoint"
+  },
+  {
+   "name": "the car is searched and released",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Released",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "nobody fires at it",
+   "never": {
+    "on": "shot"
+   }
+  },
+  {
+   "name": "never a threat",
+   "never": {
+    "on": "field",
+    "who": "Checkpoint",
+    "path": "CheckpointWatch.Threats",
+    "op": ">=",
+    "value": 1
+   }
+  }
+ ]
+}

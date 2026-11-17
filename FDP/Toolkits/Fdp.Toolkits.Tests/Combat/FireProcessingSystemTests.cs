@@ -530,6 +530,67 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-2, BW-4, BW-6, BW-9) — a BOW (60 m/s, above a throw's 40 that <c>ThrowArc</c> would lob HIGH) shoots the LOW arc: the round leaves at the mount's speed with a
+        /// shallow elevation (< 10° at 60 m), it is an ARC round that STICKS and LINGERS (a hand item's 600 s), its munition is SILENT; and at a man walking across at 5 m/s the aim is LED by the arc's own
+        /// flight time (the round's line crosses his track ≈ 5 m × t ahead). 🔴 Red-proof: the Bow branch removed ⇒ the HIGH lob (elevation ≈ 85°) ⇒ red; the lead removed ⇒ no lateral ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_ABow_FliesTheLowArc_LedAtAWalker_TheRoundSticksLingersAndIsSilent()
+        {
+            const long Archer = 9610, Arrow = 9066;
+            using var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>(); w.RegisterComponent<SimVelocity>(); w.RegisterComponent<WeaponState>();
+            w.RegisterComponent<BallisticProjectile>(); w.RegisterComponent<PhysicsCollider>(); w.RegisterComponent<TkbIdentity>();
+            w.RegisterComponent<ShotOrdinal>();
+            w.RegisterEvent<WeaponFireIntent>(); w.RegisterEvent<WeaponFireNotification>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var archer = new Fdp.Interfaces.TkbTemplate("archer", Archer);
+            archer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bow, AmmoGuid = Arrow, InitialAmmunition = 20, DamagePerHit = 45, Penetration = 4, MuzzleVelocity = 60f,
+                  Range = 60f, Arc = Fdp.Toolkit.Tkb.Domain.IndirectArc.LowOnly, FireOnMove = true } } });
+            db.Register(archer);
+            var arrow = new Fdp.Interfaces.TkbTemplate("arrow", Arrow);
+            arrow.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Kinetic, Indirect = true, Silent = true });
+            arrow.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Arrow, Length = 0.75f, Sticks = true });
+            arrow.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.HandItemDto { LiesSeconds = 600f });
+            db.Register(arrow);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            (Vector3 V, byte Bits) Shoot(Vector3 targetAt, Vector3 targetVelocity)
+            {
+                var shooter = w.CreateEntity();
+                w.AddComponent(shooter, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                w.AddComponent(shooter, new WeaponState { MuzzleVelocity = 60f, Ammo = 20 });
+                w.AddComponent(shooter, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Archer) });
+                var target = w.CreateEntity();
+                w.AddComponent(target, new SimTransform { Position = targetAt, Rotation = Quaternion.Identity });
+                w.AddComponent(target, new SimVelocity { Linear = targetVelocity });
+                w.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, RequestId = 3 });
+                w.Bus.SwapBuffers();
+                new FireProcessingSystem().Execute(w, 0.016f);
+                Vector3 v = default; byte bits = 0;
+                foreach (var e in w.Query().With<BallisticProjectile>().Build()) { v = w.GetComponent<SimVelocity>(e).Linear; bits = w.GetComponent<BallisticProjectile>(e).Warhead; w.DestroyEntity(e); }
+                w.Bus.SwapBuffers();
+                return (v, bits);
+            }
+
+            var still = Shoot(new Vector3(60f, 0f, 0f), Vector3.Zero);
+            Assert.InRange(still.V.Length(), 59f, 61f);
+            float elevation = MathF.Atan2(still.V.Z, new Vector2(still.V.X, still.V.Y).Length()) * 180f / MathF.PI;
+            Assert.InRange(elevation, 0f, 12f);                                              // the LOW arc (the high one is ≈ 85°)
+            Assert.NotEqual(0, still.Bits & WarheadRound.Arc);
+            Assert.NotEqual(0, still.Bits & WarheadRound.Sticks);
+            Assert.NotEqual(0, still.Bits & WarheadRound.Lingers);
+            Assert.True(Fdp.Toolkit.Combat.Munitions.IsSilent(w, Arrow));
+
+            var walker = Shoot(new Vector3(60f, 0f, 0f), new Vector3(0f, 5f, 0f));
+            float flight = 60f / new Vector2(walker.V.X, walker.V.Y).Length();             // ≈ 1 s
+            float lateral = walker.V.Y * flight;                                            // where the line crosses x = 60
+            Assert.InRange(lateral, 4f, 6.5f);                                              // led ≈ 5 m ahead of a man walking 5 m/s
+            Assert.InRange(MathF.Abs(still.V.Y), 0f, 0.5f);                                 // a standing man is not led
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2183</c> (AT2, R-2021, DESIGN_Air_Operations §7c) — a rifleman's round at a helicopter crossing at 60 m/s, 300 m out, is
         /// aimed AHEAD of it by its velocity × the round's flight time (± 1 m, <see cref="TargetLead"/>); a ground vehicle at the same speed
         /// is aimed where it is (unchanged). 🔴 Red-proof: without the lead the round passes where the helicopter WAS — ~23 m behind it.

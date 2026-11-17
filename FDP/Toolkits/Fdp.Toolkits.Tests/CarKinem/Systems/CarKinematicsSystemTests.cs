@@ -1448,6 +1448,68 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4622</c> K-2 (Checkpoint RM-2, KV-6) — a hull on a RAM order does not give way to its TARGET, nor to anyone when the target is a CROWD: the tank of
+        /// CE-3287 passes a man 1 m off its line — it bends away with no order, and with the order switched off; it runs straight at him when he is its target, or when
+        /// it rams a crowd. 🔴 Red-proof: drop the target skip in the avoidance ⇒ the "target" row swerves.
+        /// </summary>
+        [Theory]
+        [InlineData(0, true)]    // no order
+        [InlineData(1, false)]   // he is the target
+        [InlineData(2, false)]   // a crowd
+        [InlineData(3, true)]    // the order switched off
+        public void CE4622_K2_ARammingHull_DoesNotSteerRoundItsTarget_NorRoundACrowd(int order, bool swerves)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 5f, startSpeed: 5f, vehicle: VehiclePresets.GetPreset(VehicleClass.Tank));
+            var man = Stander(repo, new Vector3(25f, 1f, 0f));
+            repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            repo.AddComponent(man, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 4622 });
+            repo.RegisterComponent<RamOrder>();
+            if (order != 0)
+                repo.AddComponent(e, new RamOrder
+                {
+                    Active = order == 3 ? (byte)0 : (byte)1, Crowd = order == 2 ? (byte)1 : (byte)0,
+                    Target = order == 1 ? new Fdp.Toolkit.Replication.EntityRef(4622) : default,
+                });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float swerve = 0f;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                swerve = MathF.Min(swerve, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            Assert.Equal(swerves, swerve < -0.3f);
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4622</c> K-3 (Checkpoint CP-3, KV-2) — a disabled RAMMING car COASTS: a destroyed hull at 10 m/s with an active ram order loses only the rolling
+        /// resistance (0.7 m/s² — about 9.3 m/s after 1 s), so a bomber still covers ground; the same hull with no order (any stopped vehicle) brakes. 🔴 Red-proof:
+        /// the coast dropped ⇒ the ramming hull brakes like the other ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public void CE4622_K3_ADisabledRammingCar_Coasts_AnyOtherBrakes(bool ramming)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 10f, startSpeed: 10f, vehicle: VehiclePresets.GetPreset(VehicleClass.PersonalCar));
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 300f });   // destroyed
+            repo.RegisterComponent<RamOrder>();
+            if (ramming) repo.AddComponent(e, new RamOrder { Active = 1, Crowd = 1 });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            for (int i = 0; i < 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            float v = repo.GetComponent<VehicleState>(e).Speed;
+            if (ramming) Assert.InRange(v, 10f - CarKinematicsSystem.CoastDecel - 0.15f, 10f - CarKinematicsSystem.CoastDecel + 0.15f);
+            else Assert.True(v < 10f - 2f, $"a stopped vehicle brakes: {v:F2} m/s after 1 s");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3286</c> — a box with no way out is BOUNDED: a tank sent INTO the block (its destination inside it) is held, backs out
         /// <see cref="CarKinem.Controllers.HullRecovery.MaxRecoveries"/> times and then stays the watchdog's (it never enters, never loops).
         /// </summary>
@@ -2605,6 +2667,28 @@ namespace CarKinem.Tests.Systems
             Assert.True(May());
             repo.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(e);
             Assert.False(May());                                                              // released again
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4622</c> K-2 (Checkpoint RM-5, amends Breaching B-D1) — an AI hull (an autonomous move, nobody holds it) may break a barrier ONLY while it carries an ACTIVE
+        /// <c>RamOrder</c>; switched off it may not; never in a replay. 🔴 Red-proof: drop the RamOrder test from <c>HullBreakGate.MayBreak</c> ⇒ the ramming row is false.
+        /// </summary>
+        [Fact]
+        public void CE4622_K2_ARamOrder_OpensTheBreakGate_ToAnAiHull_NeverInAReplay()
+        {
+            var (repo, e) = ManualWorld(VehicleClass.Tank, null);
+            var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);   // an autonomous move
+            repo.RegisterComponent<RamOrder>();
+            bool May() => CarKem_MayBreak(repo, e);
+            Assert.False(May());                                                              // no order
+            repo.AddComponent(e, new RamOrder { Active = 1, Crowd = 1 });
+            Assert.True(May());                                                               // ramming
+            Fdp.Toolkit.Replay.ReplayState.Enter(repo);
+            Assert.False(May());                                                              // a replay
+            Fdp.Toolkit.Replay.ReplayState.Leave(repo);
+            repo.SetComponent(e, new RamOrder { Active = 0, Crowd = 1 });
+            Assert.False(May());                                                              // the order switched off
             repo.Dispose();
         }
 

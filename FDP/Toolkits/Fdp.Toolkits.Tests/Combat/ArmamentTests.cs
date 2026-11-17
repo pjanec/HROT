@@ -149,6 +149,23 @@ namespace Fdp.Toolkit.Tests.Combat
                 Armament.Judge(_world.Repo, me, Man(PhoneCivType, new Vector3(20f, 0f, 0f), ForceId.Hostile, civilian: true), Day));
         }
 
+        /// <summary>⭐ CE-3455 (found by ua-animal-guard-dog) — an ATTACKING animal reads full danger (1): the patrol it bites may fire (AR-6); the same
+        /// animal calm reads 0, as any neutral. 🔴 Red-proof: drop the Dangerous line in <see cref="ThreatDanger.Of"/> ⇒ the attacking dog reads Unarmed (0.3).</summary>
+        [Fact]
+        public void CE3455_AnAttackingDog_IsAFullDanger_ACalmOneIsNone()
+        {
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            var me = Observer();
+            var dog = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(dog, new SimTransform { Position = new Vector3(5f, 0f, 0f), Rotation = Quaternion.Identity });
+            _world.Repo.AddComponent(dog, new Health { Current = 30, Max = 30 });
+            _world.Repo.AddComponent(dog, new EntityInfo { ForceId = ForceId.Neutral });
+            _world.Repo.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+            Assert.Equal(0f, ThreatDanger.Of(_world.Repo, me, dog));
+            _world.Repo.GetComponentRW<Fdp.Toolkit.Animals.AnimalState>(dog).Flags = Fdp.Toolkit.Animals.AnimalFlags.Dangerous;
+            Assert.Equal(1f, ThreatDanger.Of(_world.Repo, me, dog));
+        }
+
         /// <summary>⭐ AW-2 / note 2 — a Hostile-flipped civilian holding only STONES is unarmed: nothing up close, "something" far off — and
         /// to <see cref="ThreatDanger"/> both read <see cref="ThreatDanger.Unarmed"/> (A-6). A pistol at 20 m reads 1.</summary>
         [Fact]

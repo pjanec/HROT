@@ -1,0 +1,337 @@
+diff --git a/src/Sim.Core/Engine.cs b/src/Sim.Core/Engine.cs
+index e0de19e..cd89e34 100644
+--- a/src/Sim.Core/Engine.cs
++++ b/src/Sim.Core/Engine.cs
+@@ -2854,7 +2854,10 @@ public sealed partial class Engine : IEngine
+             CarFollowModel: p.CarFollowModel,
+             MaxSpeedLat: p.MaxSpeedLat, LatAlignment: p.LatAlignment, MinGapLat: p.MinGapLat,
+             // docs/HROT-INTEGRATION-DESIGN.md H9: an optional body width (null = the vClass default, unchanged).
+-            Width: p.Width);
++            Width: p.Width,
++            // H17: the junction-model privileges (null = SUMO's default, unchanged).
++            JmDriveAfterRedTime: p.JmDriveAfterRedTime, JmIgnoreFoeProb: p.JmIgnoreFoeProb,
++            JmIgnoreFoeSpeed: p.JmIgnoreFoeSpeed, JmIgnoreJunctionFoeProb: p.JmIgnoreJunctionFoeProb);
+ 
+         var existing = _vTypeIds.IndexOf(typeId);
+         _vTypesById[typeId] = raw;
+@@ -2867,6 +2870,48 @@ public sealed partial class Engine : IEngine
+         return new VTypeHandle(_vTypeIds.Count - 1);
+     }
+ 
++    // H17 (HROT road convoy): the PRIORITY TWIN of a registered vType -- the same type with SUMO's emergency-vehicle privileges, all of them
++    // features already ported here: a blue light (vehicles ahead on its edge give way, Rungs ER3-ER5), red lights ignored (jmDriveAfterRedTime,
++    // Rung A3) and approaching junction foes ignored (jmIgnoreFoeProb / jmIgnoreJunctionFoeProb). Registered once as "<id>@priority" and reused.
++    // Additive: nothing changes for a scenario that never asks for a twin.
++    public VTypeHandle PriorityTwin(VTypeHandle of)
++    {
++        if (_network is null)
++        {
++            throw new InvalidOperationException("LoadScenario/LoadNetwork must be called before PriorityTwin.");
++        }
++
++        var baseId = _vTypeIds[of.Index];
++        var twinId = baseId + "@priority";
++        var existing = _vTypeIds.IndexOf(twinId);
++        if (existing >= 0)
++        {
++            return new VTypeHandle(existing);
++        }
++
++        _vTypesById[twinId] = _vTypesById[baseId] with
++        {
++            Id = twinId, HasBluelight = true, JmDriveAfterRedTime = 1e9, JmIgnoreFoeProb = 1.0, JmIgnoreFoeSpeed = 1e9,
++            JmIgnoreJunctionFoeProb = 1.0,
++        };
++        _vTypeIds.Add(twinId);
++        return new VTypeHandle(_vTypeIds.Count - 1);
++    }
++
++    // H17 (HROT road convoy): a live vehicle's current maximum speed (its resolved vType's, or a SetVehicleParams override) -- read-only, so a
++    // host that caps it can restore exactly what was there. False when the handle is not an active vehicle.
++    public bool TryGetVehicleMaxSpeed(VehicleHandle handle, out double maxSpeed)
++    {
++        maxSpeed = 0.0;
++        if (!TryResolveActive(handle, out var v))
++        {
++            return false;
++        }
++
++        maxSpeed = v.VType.MaxSpeed;
++        return true;
++    }
++
+     // The auto-registered SUMO default passenger type (available after any load).
+     public VTypeHandle DefaultVType => new(_vTypeIds.IndexOf(DefaultVTypeId));
+ 
+diff --git a/src/Sim.Core/VTypeParams.cs b/src/Sim.Core/VTypeParams.cs
+index aacbd40..682bf90 100644
+--- a/src/Sim.Core/VTypeParams.cs
++++ b/src/Sim.Core/VTypeParams.cs
+@@ -31,6 +31,13 @@ public sealed record VTypeParams
+     public string? CarFollowModel { get; init; }
+ 
+     public bool? HasBluelight { get; init; }
++
++    // H17 (HROT road convoy): the junction-model privileges a runtime vType may carry, exactly as a rou.xml <vType> can (DemandParser).
++    // Null leaves SUMO's default (-1 / 0) in place, so every existing caller resolves exactly as before.
++    public double? JmDriveAfterRedTime { get; init; }
++    public double? JmIgnoreFoeProb { get; init; }
++    public double? JmIgnoreFoeSpeed { get; init; }
++    public double? JmIgnoreJunctionFoeProb { get; init; }
+     public bool? LcOpposite { get; init; }
+ 
+     // Sublane lateral attributes (folded in at the laneless merge -- issue #4). Each is an optional
+diff --git a/src/Sim.LiveCity/LiveCitySim.cs b/src/Sim.LiveCity/LiveCitySim.cs
+index 07fe4b8..32bf310 100644
+--- a/src/Sim.LiveCity/LiveCitySim.cs
++++ b/src/Sim.LiveCity/LiveCitySim.cs
+@@ -1503,7 +1503,12 @@ public sealed class LiveCitySim : IDisposable
+     // vehicle + lifecycle wire under its own name; car demand neither counts it toward CarTargetConcurrent nor
+     // counts its arrival in ArrivedTotal, and VehicleIdProvider is never called for it. Call between Step() calls.
+     public bool SpawnExternalVehicle(string id, double x, double y, double heading, double speed,
+-        double destX, double destY, string? vTypeId = null)
++        double destX, double destY, string? vTypeId = null) => SpawnExternalVehicle(id, x, y, heading, speed, destX, destY, vTypeId, priority: false);
++
++    // H17 (HROT road convoy): as above; `priority` spawns the vType's PRIORITY TWIN (Engine.PriorityTwin -- blue light, red ignored, junction
++    // foes ignored): a convoy's escort with its beacon and siren on. priority: false is exactly the call above.
++    public bool SpawnExternalVehicle(string id, double x, double y, double heading, double speed,
++        double destX, double destY, string? vTypeId, bool priority)
+     {
+         if (string.IsNullOrEmpty(id))
+         {
+@@ -1525,6 +1530,11 @@ public sealed class LiveCitySim : IDisposable
+             return false;
+         }
+ 
++        if (priority)
++        {
++            vtype = _engine.PriorityTwin(vtype);
++        }
++
+         var start = NearestVehicleLane(x, y, Math.Cos(heading), Math.Sin(heading), useHeading: true);
+         var dest = NearestVehicleLane(destX, destY, 0.0, 0.0, useHeading: false);
+         if (start is not { } s || dest is not { } d)
+@@ -1561,6 +1571,7 @@ public sealed class LiveCitySim : IDisposable
+         _externalVehicles[id] = handle;
+         _externalVehicleIds[handle] = id;
+         _externalArrived.Remove(id);
++        _externalOriginalMaxSpeed?.Remove(id); // H17: a re-spawned id starts uncapped (null until a cap was ever set: a no-op)
+         return true;
+     }
+ 
+@@ -1729,6 +1740,42 @@ public sealed class LiveCitySim : IDisposable
+ 
+     // H13: did shadow `id` ARRIVE at its destination (as opposed to being despawned or still driving)? Stays true
+     // until the id is spawned again.
++    // H17 (HROT road convoy): caps a live external vehicle's maximum speed (a convoy's escort slows while its column is stretched); null restores
++    // the maximum it had before the first cap, exactly. The vehicle's own drawn speed factor is never touched. False when the id is not a live
++    // external vehicle. Call between Step() calls.
++    public bool SetExternalVehicleMaxSpeed(string id, double? cap)
++    {
++        if (_externalVehicles is null || !_externalVehicles.TryGetValue(id, out var handle))
++        {
++            return false;
++        }
++
++        _externalOriginalMaxSpeed ??= new Dictionary<string, double>(StringComparer.Ordinal);
++        if (cap is double c)
++        {
++            if (!_externalOriginalMaxSpeed.ContainsKey(id))
++            {
++                if (!_engine.TryGetVehicleMaxSpeed(handle, out var original))
++                {
++                    return false;
++                }
++
++                _externalOriginalMaxSpeed[id] = original;
++            }
++
++            return _engine.SetVehicleParams(handle, new VehicleParamOverride { MaxSpeed = Math.Max(0.0, c) });
++        }
++
++        if (!_externalOriginalMaxSpeed.Remove(id, out var restore))
++        {
++            return true; // never capped: nothing to restore
++        }
++
++        return _engine.SetVehicleParams(handle, new VehicleParamOverride { MaxSpeed = restore });
++    }
++
++    private Dictionary<string, double>? _externalOriginalMaxSpeed;
++
+     public bool ExternalVehicleArrived(string id) => _externalArrived is not null && _externalArrived.Contains(id);
+ 
+     // H13: is `id` a live shadow (spawned, not yet arrived or despawned)?
+diff --git a/tests/Sim.LiveCity.Tests/HrotConvoyEscortTests.cs b/tests/Sim.LiveCity.Tests/HrotConvoyEscortTests.cs
+new file mode 100644
+index 0000000..38b6de7
+--- /dev/null
++++ b/tests/Sim.LiveCity.Tests/HrotConvoyEscortTests.cs
+@@ -0,0 +1,167 @@
++using System;
++using System.IO;
++using System.Linq;
++using Xunit;
++using Xunit.Abstractions;
++
++namespace Sim.LiveCity.Tests;
++
++// H17 (HROT road convoy) -- a convoy's ESCORT handed to SUMO with its beacon and siren on: SpawnExternalVehicle(..., priority: true) spawns the
++// vType's PRIORITY TWIN (Engine.PriorityTwin: blue light, red ignored, approaching junction foes ignored -- all features this engine already
++// ports), and SetExternalVehicleMaxSpeed caps / restores its top speed. Purely additive: nothing existing calls either; every golden is untouched.
++public class HrotConvoyEscortTests
++{
++    private readonly ITestOutputHelper _out;
++    public HrotConvoyEscortTests(ITestOutputHelper output) => _out = output;
++
++    // v1 (x 100..200) -> a traffic light at B that is ALWAYS RED -> v2 (x 200..400), all at y 100.
++    private const string RedLightNetXml = """
++        <net>
++          <edge id=":B_0" function="internal"><lane id=":B_0_0" index="0" speed="13.9" length="0.10" shape="200.00,100.00 200.10,100.00"/></edge>
++          <edge id="v1" from="A" to="B"><lane id="v1_0" index="0" speed="13.9" length="100.0" shape="100.00,100.00 200.00,100.00"/></edge>
++          <edge id="v2" from="B" to="C"><lane id="v2_0" index="0" speed="13.9" length="199.9" shape="200.10,100.00 400.00,100.00"/></edge>
++          <tlLogic id="B" type="static" programID="0" offset="0"><phase duration="99999" state="r"/></tlLogic>
++          <junction id="A" type="dead_end" x="100.00" y="100.00" incLanes="" intLanes="" shape=""/>
++          <junction id="B" type="traffic_light" x="200.00" y="100.00" incLanes="v1_0" intLanes=":B_0_0" shape=""/>
++          <junction id="C" type="dead_end" x="400.00" y="100.00" incLanes="v2_0" intLanes="" shape=""/>
++          <connection from="v1" to="v2" fromLane="0" toLane="0" via=":B_0_0" tl="B" linkIndex="0" dir="s" state="O"/>
++          <connection from=":B_0" to="v2" fromLane="0" toLane="0" dir="s" state="M"/>
++        </net>
++        """;
++
++    // one straight 1 km edge, no lights.
++    private const string LongNetXml = """
++        <net>
++          <edge id="u1" from="A" to="B"><lane id="u1_0" index="0" speed="13.9" length="1000.0" shape="100.00,100.00 1100.00,100.00"/></edge>
++        </net>
++        """;
++
++    private static void WithSim(string netXml, Action<LiveCitySim> body)
++    {
++        var dir = Path.Combine(Path.GetTempPath(), "livecity-h17-" + Guid.NewGuid().ToString("N"));
++        Directory.CreateDirectory(dir);
++        File.WriteAllText(Path.Combine(dir, "net.xml"), netXml);
++        var cfg = LiveCityConfig.ForDataset(dir);
++        cfg.X0 = 0; cfg.Y0 = 0; cfg.X1 = 1200; cfg.Y1 = 500;
++        cfg.CarTargetConcurrent = 0;
++        try
++        {
++            using var sim = new LiveCitySim(cfg);
++            body(sim);
++        }
++        finally
++        {
++            Directory.Delete(dir, recursive: true);
++        }
++    }
++
++    private static double? XOf(LiveCitySim sim, string id)
++    {
++        foreach (var car in sim.SampleCars())
++            if (car.Name == id) return car.X;
++        return null;
++    }
++
++    [Fact]
++    public void H17_AnOrdinaryShadowStopsAtTheRed_ThePriorityTwinRunsIt()
++    {
++        foreach (var priority in new[] { false, true })
++        {
++            WithSim(RedLightNetXml, sim =>
++            {
++                Assert.True(sim.SpawnExternalVehicle("hrot:1", 120.0, 100.0, 0.0, 5.0, 350.0, 100.0, vTypeId: null, priority: priority));
++                double maxX = 0.0;
++                for (var i = 0; i < 300 && !sim.ExternalVehicleArrived("hrot:1"); i++)
++                {
++                    sim.Step();
++                    if (XOf(sim, "hrot:1") is double x) maxX = Math.Max(maxX, x);
++                }
++
++                _out.WriteLine($"priority={priority}: furthest x {maxX:F1}, arrived {sim.ExternalVehicleArrived("hrot:1")}");
++                if (priority)
++                {
++                    Assert.True(sim.ExternalVehicleArrived("hrot:1"), $"the priority twin did not run the red (furthest x {maxX:F1})");
++                }
++                else
++                {
++                    Assert.False(sim.ExternalVehicleArrived("hrot:1"));
++                    Assert.True(maxX <= 200.0 + 1e-6, $"an ordinary shadow crossed a red (x {maxX:F1})");
++                }
++            });
++        }
++    }
++
++    [Fact]
++    public void H17_APriorityTwinBehindACarHeldAtTheRed_WaitsBehindIt_AndNeverPassesIt()
++    {
++        WithSim(RedLightNetXml, sim =>
++        {
++            Assert.True(sim.SpawnExternalVehicle("hrot:front", 170.0, 100.0, 0.0, 5.0, 350.0, 100.0));                        // an ordinary car, near the line
++            Assert.True(sim.SpawnExternalVehicle("hrot:escort", 120.0, 100.0, 0.0, 5.0, 350.0, 100.0, vTypeId: null, priority: true));
++            for (var i = 0; i < 200; i++)
++            {
++                sim.Step();
++                double? f = XOf(sim, "hrot:front"), e = XOf(sim, "hrot:escort");
++                if (f is double fx && e is double ex)
++                {
++                    Assert.True(ex < fx, $"step {i}: the escort ({ex:F1}) passed the car held at the red ({fx:F1}) on a single lane");
++                    Assert.True(fx <= 200.0 + 1e-6, $"step {i}: the car ahead crossed the red ({fx:F1})");
++                }
++            }
++
++            Assert.False(sim.ExternalVehicleArrived("hrot:escort"));   // it waits: the queue holds it until green
++        });
++    }
++
++    [Fact]
++    public void H17_TheMaxSpeedCap_SlowsTheShadow_AndNullRestoresItExactly()
++    {
++        WithSim(LongNetXml, sim =>
++        {
++            Assert.True(sim.SpawnExternalVehicle("hrot:9", 120.0, 100.0, 0.0, 13.0, 1000.0, 100.0, vTypeId: null, priority: true));
++            double Speed()
++            {
++                double x0 = XOf(sim, "hrot:9")!.Value, t0 = sim.Time;
++                sim.Step();
++                return (XOf(sim, "hrot:9")!.Value - x0) / (sim.Time - t0);
++            }
++
++            for (var i = 0; i < 10; i++) sim.Step();
++            double free = Speed();
++            Assert.True(free > 10.0, $"anti-vacuity: it drives at the lane's speed ({free:F2})");
++
++            Assert.True(sim.SetExternalVehicleMaxSpeed("hrot:9", 3.0));
++            for (var i = 0; i < 20; i++) sim.Step();
++            double capped = Speed();
++            Assert.True(capped <= 3.0 + 1e-6, $"capped speed {capped:F2}");
++
++            Assert.True(sim.SetExternalVehicleMaxSpeed("hrot:9", null));
++            for (var i = 0; i < 20; i++) sim.Step();
++            double restored = Speed();
++            _out.WriteLine($"free {free:F2} · capped {capped:F2} · restored {restored:F2}");
++            Assert.Equal(free, restored, 3);                                  // the speed it had before the cap (positions are floats)
++
++            Assert.True(sim.SetExternalVehicleMaxSpeed("hrot:9", null));      // never capped since: nothing to restore, still true
++            Assert.False(sim.SetExternalVehicleMaxSpeed("nope", 3.0));        // not a live external vehicle
++        });
++    }
++
++    [Fact]
++    public void H17_PriorityFalse_IsExactlyTheOldCall()
++    {
++        double[] Run(bool viaNewOverload)
++        {
++            double[] xs = new double[60];
++            WithSim(RedLightNetXml, sim =>
++            {
++                Assert.True(viaNewOverload
++                    ? sim.SpawnExternalVehicle("hrot:3", 120.0, 100.0, 0.0, 5.0, 350.0, 100.0, vTypeId: null, priority: false)
++                    : sim.SpawnExternalVehicle("hrot:3", 120.0, 100.0, 0.0, 5.0, 350.0, 100.0));
++                for (var i = 0; i < xs.Length; i++) { sim.Step(); xs[i] = XOf(sim, "hrot:3") ?? double.NaN; }
++            });
++            return xs;
++        }
++
++        Assert.Equal(Run(false), Run(true));
++    }
++}

@@ -1,0 +1,15 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — macros S3b B1 (the scenario's Judge list): a trigger inserts test/fire-team at @Drop (150,100) at ~3 s with side Hostile. Rows: the instance appears and ends Done; the 4 transient men carry ForceId Hostile and a MacroOrigin; the man stands around the Drop point; the trigger ends Done. ⚠ Left out: 'turned 90 deg' (no yaw cue) and 'nothing of it is saved' (a save-time property, not a run state).",
+  "runFor": 10,
+  "golden": {"every": 10},
+  "later": ["Leader", "Rifleman A", "Rifleman B", "Rifleman C", "test/fire-team"],
+  "expect": [
+    {"name": "no insert before 3 s", "never": {"on": "field", "who": "Leader", "path": "EntityInfo.ForceId", "op": "==", "value": "Hostile"}, "before": 2.9},
+    {"name": "the instance expands and is Done", "on": "field", "who": "test/fire-team", "path": "MacroExpansionStatus.State", "op": "==", "value": "Done", "after": 2.9, "before": 6},
+    {"name": "4 transient men carry ForceId Hostile", "on": "field", "who": "*Rifle", "path": "EntityInfo.ForceId", "op": "==", "value": "Hostile", "quantifier": "all", "after": 2.9, "before": 6},
+    {"name": "the leader is Hostile too", "on": "field", "who": "Leader", "path": "EntityInfo.ForceId", "op": "==", "value": "Hostile", "after": 2.9, "before": 6},
+    {"name": "the men carry the instance's MacroOrigin", "on": "field", "who": "*Rifle", "path": "MacroOrigin.Instance", "op": "!=", "value": null, "quantifier": "all", "after": 2.9, "before": 6},
+    {"name": "the leader stands at the Drop point (150,100)", "on": "field", "who": "Leader", "path": "SimTransform.Position.0", "op": ">", "value": 149, "after": 2.9, "before": 6},
+    {"name": "the Reinforce trigger fires once (its Message after InsertMacro)", "on": "field", "who": "Reinforce", "path": "ObjectiveStatus.FireCount", "op": ">=", "value": 1, "after": 2.9, "before": 8}
+  ]
+}

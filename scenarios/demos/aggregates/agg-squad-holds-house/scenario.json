@@ -1,0 +1,205 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "cqb-village",
+    "description": "What: on cqb-village a STOCHASTIC 'Blue Stochastic Squad' (10 men from the TKB composite) holds the village's three-storey house 'OBJ' (StochasticUnitDefend); a PHYSICAL 'Red Squad' stands 480 m north - inside the resolution manager's band, so the squad de-aggregates. Judge (D-P3, end to end): while the squad is Planning, SquadDefend's OWN plan runs over its slot table and asks the house's window / door / roof posts; the manager waits for that plan, then creates the 10 men (each with its stable key, named <squad>/<slot>) ON those posts: every man inside the house, at least 5 on the upper storey, at least 5 at the wall facing the enemy; and they still hold the house 20 s later. Fail: a man on the fallback line outside the house, the men created before the plan is Ready, or a missing / re-keyed man. Check: scripts/scenario-regression.sh agg-squad-holds-house"
+  },
+  "entities": {
+    "a9000017-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          125,
+          161,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            125,
+            161,
+            0
+          ],
+          "SearchRadius": 10
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000017-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          125,
+          641,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad",
+        "ForceId": "Hostile"
+      }
+    },
+    "a9000017-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          122,
+          639,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000017-0000-4000-8000-000000000002",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000017-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          124,
+          639,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Man 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000017-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000017-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          126,
+          639,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Man 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000017-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000017-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          128,
+          639,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Man 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000017-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

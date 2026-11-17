@@ -27,6 +27,9 @@ namespace CarKinem.Core
         /// <summary>⭐ AQ93 R-4023 (§14 G4) — SUMO drives the body: <c>TrafficShadowFollowSystem</c> writes its pose from the shadow
         /// car; <c>CarKinematicsSystem</c> integrates nothing.</summary>
         Traffic = 9,
+        /// <summary>⭐ CE-9001 (C-4, docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — a road-convoy FOLLOWER: <c>ConvoyFollowSystem</c> writes a pursuit
+        /// point on the lead's trail and the speed into <c>FormationTarget</c>; <c>CarKinematicsSystem</c> steers to the point at exactly that speed.</summary>
+        Column = 10,
     }
 
     /// <summary>

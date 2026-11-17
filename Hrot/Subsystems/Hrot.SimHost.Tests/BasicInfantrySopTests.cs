@@ -1,3 +1,4 @@
+using System;
 using Fdp.Core;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Transforms;
@@ -313,6 +314,100 @@ namespace Hrot.SimHost.Tests
             w.KeepSeeing();
             w.Run(0.5);
             Assert.Equal("FightFromCover", w.TaskName);
+        }
+
+        // ── ⭐ CE-3454 (Motorcycle PF-3) — a man in an open FIRING seat engages on his own, inside his seat's arc ─────────────────────
+
+        /// <summary>A bike at the origin facing +X; <paramref name="firing"/> = seat 1 is a firing seat whose arc is 30°…330° (both sides and the
+        /// rear, never ahead — the pillion's); the unit sits in seat 1. The enemy is remembered SEEN at <paramref name="enemyAt"/>.</summary>
+        private static unsafe World Seated(bool firing, System.Numerics.Vector3 enemyAt, bool stoppedOnly = false)
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });   // he sits at the bike (R-2136's range)
+            var bike = w.Repo.CreateEntity();
+            w.Repo.AddComponent(bike, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
+            var stations = new CarrierStations();
+            if (firing)
+            {
+                stations.FiringMask = 1 << 1;
+                if (stoppedOnly) stations.StoppedOnlyMask = 1 << 1;
+                stations.Seats[1] = new StationSeat
+                {
+                    HasArc = 1,
+                    TraverseMin = (Angle)(30f * MathF.PI / 180f), TraverseMax = (Angle)(330f * MathF.PI / 180f),
+                    ElevationMin = (Angle)(-1.4f), ElevationMax = (Angle)1.4f,
+                };
+            }
+            w.Repo.AddComponent(bike, stations);
+            w.Repo.AddComponent(w.Unit, new IsEmbarkedTag { VehicleEntity = bike, Seat = 1 });
+            // as boarding leaves it (Embarkation.StrippedOn): a firing seat keeps CanShoot, a closed seat strips it
+            w.Repo.AddComponent(w.Unit, new ActorCapabilityState { Capabilities = firing ? ActorCapabilities.CanShoot : ActorCapabilities.None });
+            w.StartSop();
+            w.Run(0.3);
+            Assert.Null(w.TaskName);                                         // aboard: the Aboard row orders nothing (CE-2322)
+            w.RememberEnemy(seen: true);
+            ref var mem = ref w.Repo.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(w.Unit);
+            mem.PositionsX[0] = enemyAt.X; mem.PositionsY[0] = enemyAt.Y; mem.PositionsZ[0] = enemyAt.Z;
+            return w;
+        }
+
+        /// <summary>⭐ CE-3454 — the pillion, idle, sees an enemy BESIDE the bike (inside his arc): he reacts <c>FireFromSeat</c> (Contact) and
+        /// his weapon is aimed at that enemy. 📐 Live: the war-horse rider held both targets for 45 s and never fired (<c>ua-animal-horse-rider</c>).
+        /// ✅ Red-proof: the row removed ⇒ the Aboard row stands him aside ⇒ no task ⇒ red.</summary>
+        [Fact]
+        public void CE3454_AFiringSeatMan_SeesAnEnemyInHisArc_FiresFromTheSeat()
+        {
+            var w = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f));   // abeam left
+            w.Tick();
+            w.KeepSeeing();
+            w.Run(0.5);
+            Assert.Equal("FireFromSeat", w.TaskName);
+            Assert.Equal(BehaviorOrigin.Reaction, w.Task.Origin);
+            Assert.Equal(ReactionUrgency.Contact, w.Task.Urgency);
+            var channel = w.Repo.GetComponent<WeaponChannel>(w.Unit);
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, channel.ActiveAction);
+        }
+
+        /// <summary>⭐ CE-3454 — the same enemy DEAD AHEAD (outside the pillion's arc, across the rider): no reaction, no task — and a
+        /// closed hull's passenger (no firing seat) gets none either with the enemy beside him. ✅ Red-proof: the arc test dropped from
+        /// <c>TargetInArc</c> ⇒ the ahead case reacts ⇒ red.</summary>
+        [Fact]
+        public void CE3454_OutsideTheArc_OrInAClosedSeat_HeDoesNotReact()
+        {
+            var ahead = Seated(firing: true, enemyAt: new System.Numerics.Vector3(40f, 0f, 0f));
+            ahead.Tick(); ahead.KeepSeeing(); ahead.Run(0.5);
+            Assert.Null(ahead.TaskName);
+
+            var closed = Seated(firing: false, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f));
+            closed.Tick(); closed.KeepSeeing(); closed.Run(0.5);
+            Assert.Null(closed.TaskName);
+
+            var far = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, FireFromSeatBehavior.OwnInitiativeRangeM + 20f, 0f));   // R-2136
+            far.Tick(); far.KeepSeeing(); far.Run(0.5);
+            Assert.Null(far.TaskName);
+
+            var rider = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f), stoppedOnly: true);   // PF-3/PF-4: the rider only drives
+            rider.Tick(); rider.KeepSeeing(); rider.Run(0.5);
+            Assert.Null(rider.TaskName);
+        }
+
+        /// <summary>⭐ CE-3454 — a TASKED firing-seat man (a drive-by's ordered fire) keeps his task: the row needs no task. And once the enemy
+        /// is no longer seen, the reaction ends after <see cref="FireFromSeatBehavior.QuietSeconds"/>. ✅ Red-proofs:
+        /// <c>NoTask</c> dropped from the row ⇒ the order is replaced ⇒ red; the quiet end removed ⇒ still FireFromSeat ⇒ red.</summary>
+        [Fact]
+        public void CE3454_ATaskedMan_KeepsHisTask_AndTheReactionEndsWhenQuiet()
+        {
+            var tasked = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f));
+            tasked.Order("HoldStance");
+            tasked.Run(0.2);
+            for (int i = 0; i < 40; i++) { tasked.KeepSeeing(); tasked.Tick(); }
+            Assert.Equal("HoldStance", tasked.TaskName);
+
+            var w = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f));
+            for (int i = 0; i < 40; i++) { w.KeepSeeing(); w.Tick(); }
+            Assert.Equal("FireFromSeat", w.TaskName);
+            w.Run(FireFromSeatBehavior.QuietSeconds + 1.5);                   // no longer seen (nobody re-stamps the sighting)
+            Assert.Null(w.TaskName);                                         // the reaction ended; aboard, nothing else is ordered
         }
 
         // ── ⭐ CE-2331 / CE-2332 / CE-2333 (AQ98, R-2070) — the cover reaction fights back and ends; an idle man engages what he sees ────

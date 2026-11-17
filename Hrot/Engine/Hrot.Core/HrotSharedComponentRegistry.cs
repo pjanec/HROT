@@ -93,6 +93,18 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();          // ⭐ CE-4617 (RS-10) — is a radar radiating (dtRadarEmission)
+        // ⭐ CE-8001 (CE-4616 ST-0 ③) — the stochastic unit (dtAggregateUnit / dtUnitSlotTable / dtUnitHoldings) on every host; the node-local
+        //   attrition / sensor state and the run seed too, so a recording carries them wherever it is played (SV-12).
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitHoldings>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.FireAllocation>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitDetections>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.RunSeed>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateChild>();     // ⭐ CE-8012 — a split's children (SV-4 / SV-6)
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.PlannedPosts>();       // ⭐ DP3-C (R-4286) — a split's planned posts (agg-behaviors' planner writes, the manager reads)
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.ResolutionPolicy>();   // ⭐ CE-8300 (ST-5, §16b) — the resolution manager's policy, on the World Environment (saved, recorded)
+        world.RegisterManagedComponent<Fdp.Toolkit.Aggregate.UnitRoute>();   // ⭐ CE-8004 — the follower's route (node-local, NoScenario | NoReplay)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
@@ -164,6 +176,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
+        world.RegisterComponent<CarKinem.Core.RamOrder>();   // ⭐ CE-4622 K-2 — a hull's ram order (Brain group, dtRamOrder): read by the mover's avoidance and breach gate
+        world.RegisterComponent<Fdp.Toolkit.Combat.CheckpointWatch>();   // ⭐ CE-4622 K-4 — a checkpoint commander's watch on its approach (brain-local; read by the ladder and the checks)
         world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();
@@ -222,6 +236,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
+        //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in
+        //   production (its rails register it by hand), so a parked bomb never went off.
+        world.RegisterComponent<Fdp.Toolkit.Combat.ChargeTimer>();
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node

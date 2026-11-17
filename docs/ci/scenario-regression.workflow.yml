@@ -1,3 +1,4 @@
+# ⛔ SUPERSEDED by .github/workflows/scenario-regression.yml (RT-8, R-4279) — kept for the history; the live workflow has both tiers.
 # ⭐ CE-4042 — the nightly scenario regression as a GitHub Actions workflow. A TEMPLATE: it does nothing here.
 # To switch it on, copy it to .github/workflows/scenario-regression.yml (a decision for the user: it spends runner minutes).
 #

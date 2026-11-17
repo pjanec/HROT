@@ -301,6 +301,17 @@ public static class AttributeReaders
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherFogTopM, static c => c.FogTopM);
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherFogVisibilityM, static c => c.FogVisibilityM);
         I<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherPrecipitation, static c => c.Precipitation);
+
+        // ── ⭐ CE-8015 — a stochastic unit's AggregateUnit (the enums' bytes) ──
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateResolution, static c => (int)c.Resolution);
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregatePin, static c => (int)c.Pin);
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateEchelon, static c => c.Echelon);
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateFormation, static c => (int)c.Formation);
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregatePosture, static c => (int)c.Posture);
+        I<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregatePrepared, static c => (int)c.Prepared);
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateWidth, static c => c.Width);       // ⭐ CE-8022 ①
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateDepth, static c => c.Depth);
+        D<Fdp.Toolkit.Aggregate.AggregateUnit>(AttributeIds.AggregateHeading, static c => c.Heading.Degrees);
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherPrecipitationMmPerHour, static c => c.PrecipitationMmPerHour);
         D<Fdp.Toolkit.Weather.WeatherConditions>(AttributeIds.WeatherFeatherM, static c => c.FeatherM);
 

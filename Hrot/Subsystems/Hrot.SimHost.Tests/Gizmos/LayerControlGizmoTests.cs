@@ -177,6 +177,20 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.True(all.IsSet(DebugTraceLayers.Labels));
             Assert.False(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.Labels));
             Assert.True(DebugTraceLayers.Labels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-8605 (DESIGN_Unit_Symbols O-1) — the UNITS' cards have their own toggle, ON by default, independent of the men's
+            Assert.True(all.IsSet(DebugTraceLayers.UnitCards));
+            Assert.False(new LayerControlDto { Units = { UnitCards = false } }.ToMask().IsSet(DebugTraceLayers.UnitCards));
+            Assert.True(new LayerControlDto { Units = { Labels = false } }.ToMask().IsSet(DebugTraceLayers.UnitCards));
+            Assert.True(DebugTraceLayers.UnitCards < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-8610 (DESIGN_Unit_Symbols P-2) — the NATO unit symbols: one row, ON by default, independent of the cards
+            Assert.True(all.IsSet(DebugTraceLayers.UnitSymbols));
+            Assert.False(new LayerControlDto { Units = { UnitSymbols = false } }.ToMask().IsSet(DebugTraceLayers.UnitSymbols));
+            Assert.True(new LayerControlDto { Units = { UnitCards = false } }.ToMask().IsSet(DebugTraceLayers.UnitSymbols));
+            Assert.True(DebugTraceLayers.UnitSymbols < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-8613 (UI-8) — the detection levels: an AI row, OFF by default
+            Assert.False(all.IsSet(DebugTraceLayers.DetectionLevels), "the detection overlay defaults off");
+            Assert.True(new LayerControlDto { Ai = { DetectionLevels = true } }.ToMask().IsSet(DebugTraceLayers.DetectionLevels));
+            Assert.True(DebugTraceLayers.DetectionLevels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
             foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid, DebugTraceLayers.Concealed })   // ⭐ CE-1169 — the ExCon layer too
             {

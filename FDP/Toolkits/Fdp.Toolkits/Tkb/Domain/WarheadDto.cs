@@ -139,6 +139,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("How long the cloud lasts (it thins over its last third).")]
         public float CloudSeconds { get; init; }
 
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-9, R-3100) — this round's SHOT is silent: no report to the AI's hearing ring, no muzzle flash, no barrel heat (an
+        /// arrow, a bolt). Per MUNITION, so a man with a bow AND a rifle stays loud with the rifle. Readers ask <c>Munitions.IsSilent</c>.</summary>
+        [Description("The shot makes no sound the AI hears and no muzzle flash (an arrow or a bolt).")]
+        public bool Silent { get; init; }
+
         [JsonIgnore]
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;
 

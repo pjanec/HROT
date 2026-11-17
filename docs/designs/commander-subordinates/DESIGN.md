@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-13
+updated: 2026-11-17
 owns-beyond-its-title: ⭐ §7.2 "Composite-Spawning Update" is one of only three places child/composite
   ENTITY GENESIS is described — TkbCompositionDef's subordinate slots, InitialUnitSubordinateIntent on
   each spawned child, and GenesisMaterializationSystem resolving it once both ends are alive.
   ⚠ A topical search for "child entity" does not reach it.
 related-designs:
+  - ../vehicle-tactics/DESIGN_Road_Convoy.md — a road convoy is a `Column` formation with an EXPLICIT leader (§2.2 amendment): it owns the column-follower and its trail
   - docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md — §6 measures the FormationController/Follower engine and why infantry squads march by orders instead
   - ../../DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE for entity genesis; its §6 routes
     child/composite questions here and to ../cgf-scn/DESIGN.md.
@@ -203,6 +204,13 @@ public struct FormationFollower
 ```
 
 `GlobalComponentIds.FormationMember` is renamed to `GlobalComponentIds.FormationFollower`.
+
+> ⭐ **AMENDED `2026-11-17` (convoy lane, R-9012 / CE-9004):** `FormationFollower` gains **`Entity Leader`** — a generation-safe
+> `Entity`, NOT the removed raw `int`. `Entity.Null` (the default) keeps everything above: the leader is `UnitSubordinate.Commander`.
+> A non-null `Leader` is a slot led by someone who is NOT the commander — a road convoy's column (`docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md`
+> §3 C-4), whose vehicles keep their unit commander (📐 measured: 21 vehicles in 7 scenarios have one). `FormationTargetSystem.LeaderOf` resolves
+> either; `UnitHierarchySystem` removes only commander-led slots (`Leader.IsNull`), so a hierarchy change never drops a convoy slot. `FormationTargetSystem` leaves a slot with an explicit leader to the convoy's `ConvoyFollowSystem` only when that leader's type is `Column`;
+> a commander-led `Column` keeps its slot solver unchanged (rails `FormationTargetSystemTests`).
 
 ### 2.3 VehicleCommandSystem Update
 

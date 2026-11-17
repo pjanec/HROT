@@ -1,0 +1,76 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a stochastic 'Blue Stochastic Platoon' (30 men) marches 800 m east under the generic Move play. The check CUTS its route four times - at 10, 20, 30 and 40 s the follower's state is set to RouteFailed (the planner dropped the route). Judge: the play re-requests the route after each of the first three cuts (the unit is OnRoute again) and, at the fourth (more than the 3 re-requests R-8308 allows), gives up: the unit stays RouteFailed and the company hears PROGRESS TaskFailed. Fail: a fourth re-request, or no TaskFailed. Check: scripts/scenario-regression.sh agg-route-dropped"
+  },
+  "entities": {
+    "a9000006-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          60,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      }
+    },
+    "a9000006-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          100,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000006-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitMove",
+        "Params": {
+          "Location": [
+            900,
+            300,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

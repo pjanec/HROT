@@ -96,6 +96,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
             yield return new EntityMineClearingIngressTranslator(participant, entityMap);
+            yield return new EntityRamOrderEgressTranslator(participant);                        // ⭐ CE-4622 K-2 — the hull's ram order (Brain group, the MineClearing pair)
+            yield return new EntityRamOrderIngressTranslator(participant, entityMap);
             // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.
             yield return new EntityBladeCutEgressTranslator(participant);
             yield return new EntityBladeCutIngressTranslator(participant, entityMap);
@@ -162,6 +164,13 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (Brain → every node): the radar sensor, the warning receiver, the direction finding read it.
             yield return new EntityRadarEmissionEgressTranslator(participant);
             yield return new EntityRadarEmissionIngressTranslator(participant, entityMap);
+            // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10) — a stochastic unit's state, slot table and holdings, the brain owner → every node
+            yield return new EntityAggregateUnitEgressTranslator(participant);
+            yield return new EntityAggregateUnitIngressTranslator(participant, entityMap);
+            yield return new EntityUnitSlotTableEgressTranslator(participant);
+            yield return new EntityUnitSlotTableIngressTranslator(participant, entityMap);
+            yield return new EntityUnitHoldingsEgressTranslator(participant);
+            yield return new EntityUnitHoldingsIngressTranslator(participant, entityMap);
             // ⭐ CE-10000 (air lane, AC-2 / AC-9a / AC-10) — a fighter's order (Brain → its motion node), its report (Muscle → every node), the arena.
             yield return new EntityAirCombatSteerEgressTranslator(participant);
             yield return new EntityAirCombatSteerIngressTranslator(participant, entityMap);
@@ -197,6 +206,11 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Map.Common.Replication.Ingress.EntityAnimalStateIngressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Egress.EntityFlockStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityFlockStateIngressTranslator(participant, entityMap);
+            // ⭐ CE-9007 (DESIGN_Road_Convoy C-8) — a road column: the brain node's formation components out, every other node (the kinematic owner, the traffic node) in.
+            yield return new Hrot.Map.Common.Replication.Egress.EntityFormationControllerEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityFormationControllerIngressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Egress.EntityFormationFollowerEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityFormationFollowerIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this

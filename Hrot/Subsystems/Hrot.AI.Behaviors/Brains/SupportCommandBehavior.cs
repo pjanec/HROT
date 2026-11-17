@@ -138,7 +138,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (!unit.IsNull)
                 {
                     var (behaviour, order) = ReinforceOrder(world, self, unit, request.At, now);   // ⭐ CE-4589 HQ-12 — the play matches the echelon
-                    CommandOrders.Assign(world, self, unit, behaviour, order, newOrder: true);
+                    CommandOrders.Route(world, self, unit, OrderKind.Defend, behaviour, order, newOrder: true);   // ⭐ agg-behaviors R-8305 — every echelon's play is a Defend
                     CommandPictureOps.Answered(world, self, help);
                     ws.Answered++;
                 }
@@ -289,13 +289,13 @@ namespace Hrot.AI.Behaviors.Brains
             int depth = Fdp.Toolkit.Squad.Echelon.DepthOf(world, unit);
             if (depth >= Fdp.Toolkit.Squad.Echelon.Company)
             {
-                var dto = new CompanyDefendParamsJsonDto { Position = at };
+                var dto = new DefendOrder { Position = at };   // ⭐ R-8300 — the neutral Defend order (every echelon's play reads it)
                 if (NearestThreat(world, self, at, now, out var t)) dto.Threat = t;   // none ⇒ zero = north of the line
                 return (BehaviorNames.CompanyDefend, JsonSerializer.Serialize(dto, json));
             }
             return depth == Fdp.Toolkit.Squad.Echelon.Platoon
-                ? (BehaviorNames.PlatoonDefend, JsonSerializer.Serialize(new PlatoonDefendParamsJsonDto { Position = at, SearchRadius = PlatoonDefendMetres }, json))
-                : (BehaviorNames.SquadDefend, JsonSerializer.Serialize(new SquadDefendParamsJsonDto { Position = at, SearchRadius = SquadDefendMetres }, json));
+                ? (BehaviorNames.PlatoonDefend, JsonSerializer.Serialize(new DefendOrder { Position = at, SearchRadius = PlatoonDefendMetres }, json))
+                : (BehaviorNames.SquadDefend, JsonSerializer.Serialize(new DefendOrder { Position = at, SearchRadius = SquadDefendMetres }, json));
         }
 
         /// <summary>The HQ picture's nearest fresh (≤ <see cref="ThreatFreshSeconds"/>) enemy element to <paramref name="point"/>.</summary>

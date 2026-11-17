@@ -30,6 +30,9 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CV-13a (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a man showing HANDS UP is held like a neutral, whatever his
             //   side: no danger while his hands are up, the full danger the moment they come down (a feint is read live). Not disarmed (AW-5).
             if (ShowsHandsUp(view, target)) return 0f;
+            // ⭐ CE-3455 (found by ua-animal-guard-dog) — an ATTACKING animal (the guard dog biting, Dangerous) is a full danger: its teeth are
+            //   not a weapon the armament judge knows, so it read Unarmed ("never fire on this alone") and the bitten patrol never fired (AR-6).
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(view, target)) return 1f;
             // ⭐⭐ CE-3229 (B-7; DESIGN_Civilians_And_Crowd_Control §7.8) — THE armed rule: a combatant on STATUS (today's test — a weapon
             //   not only a dispenser, CE-2188, or a working controlled weapon, WS-4), a civilian by what THIS observer can identify (AW-15).
             //   ⭐ A-6: Unidentified reads unarmed — "never fire on this alone", and danger feeds the Sentry's fire threshold.
@@ -216,7 +219,10 @@ namespace Fdp.Toolkit.Perception
         /// ⭐ <c>CE-2155</c> (R-2011 I4), INCAPACITATED: down and bleeding, no longer a threat or a target. A unit with no Health, or one
         /// this node does not hold, is still in the fight (renamed from <c>IsDead</c>).</summary>
         public static bool IsOutOfTheFight(ISimulationView view, Entity target)
-            => Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated
+            // ⭐ agg-behaviors ST-3 (B-7) — a STOCHASTIC unit has no body to be injured: it is out of the fight when too few of its slots are up (the roster rule) — else a wiped-out
+            //   stochastic enemy would stay in its observer's SPOT for ever
+            => (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, target) && !Fdp.Toolkit.Aggregate.AggregateUnits.InTheFight(view, target, standing: false))
+               || Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated
                // ⭐ CE-2241 ① (AW-21, R-2027; DESIGN_Civilians_And_Crowd_Control §5h.5) — or he SURRENDERED: every weapon laid down (B-10) AND
                //    his hands up; hands up alone (a feint, a weapon still up) is CV-13a's hold, not out of the fight
                || (Fdp.Toolkit.Combat.WeaponLaying.AllLaidDown(view, target) && ShowsHandsUp(view, target))

@@ -1,0 +1,30 @@
+{
+  "$doc": "CE-4649 BW-1 - the crossbow spans 6 s per bolt.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "three bolts are fired",
+      "on": "shot",
+      "by": "Crossbowman",
+      "n": 3
+    },
+    {
+      "name": "the third bolt is not before 12 s",
+      "never": {
+        "on": "shot",
+        "by": "Crossbowman",
+        "n": 3
+      },
+      "before": 12
+    },
+    {
+      "name": "a bolt hits",
+      "on": "shot",
+      "by": "Crossbowman",
+      "hit": "Target"
+    }
+  ]
+}

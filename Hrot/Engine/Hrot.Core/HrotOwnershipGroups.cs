@@ -55,6 +55,9 @@ public static class HrotOwnershipGroups
         // Animation intents (dormant: no production host composes animation replication — design §1.5).
         brain.SetBit(GlobalComponentIds.StanceIntent);
         brain.SetBit(GlobalComponentIds.BladeCut);   // ⭐ CE-4601 (B-4) — the dozer's brain marks where its blade cuts (dtBladeCut); the Muscle reads it
+        brain.SetBit(GlobalComponentIds.MineClearing);   // ⭐ CE-4624 MS-T4 — the clearer's tool marker (dtMineClearing), written by its brain's ClearLane (behaviors, cross-lane: it was in no group, so on a
+                                                         //   split cluster the brain's write never reached the Muscle that clears)
+        brain.SetBit(GlobalComponentIds.RamOrder);   // ⭐ CE-4622 K-2 — the hull's ram order (dtRamOrder), written by its brain's RamTarget; the mover reads it
         brain.SetBit(GlobalComponentIds.AnimationMontageQueue);
         // ⭐ CE-513 / R-180 — an animation channel crosses nodes, so it is split: the Brain owns the REQUEST.
         brain.SetBit(GlobalComponentIds.AnimationChannel);
@@ -107,6 +110,14 @@ public static class HrotOwnershipGroups
         // ⭐ CE-4623 AB-3 — an animal's state and a flock's: written by its brain (the fear system, the animal HSM) on the node running it (dtAnimalState, dtFlockState).
         brain.SetBit(GlobalComponentIds.AnimalState);
         brain.SetBit(GlobalComponentIds.FlockState);
+        // ⭐ CE-9007 (R-9012) — a road column: the convoy behaviour writes the lead's controller and each follower's explicit-leader slot (dtFormationController, dtFormationFollower).
+        brain.SetBit(GlobalComponentIds.FormationController);
+        brain.SetBit(GlobalComponentIds.FormationFollower);
+        // ⭐ CE-8001 (CE-4616 ST-0 ③) — a stochastic unit's state, slot table and holdings: written by its own steps (the path follower, the
+        //   attrition, the sensor step) and the resolution manager, on the node running its brain (dtAggregateUnit, dtUnitSlotTable, dtUnitHoldings).
+        brain.SetBit(GlobalComponentIds.AggregateUnit);
+        brain.SetBit(GlobalComponentIds.UnitSlotTable);
+        brain.SetBit(GlobalComponentIds.UnitHoldings);
         // ⭐ CE-10000 (air lane, AC-2 / AC-9 / AC-10) — the fighter's order to its motion node (dtAirCombatSteer), the air-combat behaviour's and the
         //   missile defence's working state, and the arena (dtAirArena; its creator's brain owns it, AirArenaSystem writes LastHitAt).
         brain.SetBit(GlobalComponentIds.AirCombatSteer);
