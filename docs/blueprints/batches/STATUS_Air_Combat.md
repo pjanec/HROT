@@ -104,7 +104,7 @@ related-designs:
 |---|---|---|---|
 | **R-10026** | `ac-stalemate-lapse` authors a 10 s stalemate | 📐 with the merge and R-10019 two Aces decide inside ~45 s; a 30 s quiet left the 2 %/s draws too little time (the row failed) | the user preferring Veterans there |
 | **R-10027** | ⭐ the SERIAL brains run the same pre-pass (`BrainPhase.Prepare`) — cross-lane into `BrainTickSystem` | 📐 the `--mode all` cluster run (serial): the arena index was never built — no merge, both fired at 6 km at 4.6 s; after: merge, pass at 16 s, a kill at ~40 s | — |
-| **R-10028** | the fight's FIRST decision waits until both motions are known (straight on, weapons safe); after a KILL the steer is cleared to straight and level | 📐 cluster: no replicated velocity on the first ticks ⇒ the head-on test failed; the winner kept chasing the falling wreck at 9 g into GCAS | — |
+| **R-10028** | the fight's FIRST decision waits until both motions are known (straight on, weapons safe); after a KILL the steer HOLDS over the arena (`ReturnToArena`; no arena ⇒ straight and level) | 📐 cluster: no replicated velocity on the first ticks ⇒ the head-on test failed; the winner kept chasing the falling wreck at 9 g into GCAS; straight and level, the 1v1's winner left 10 km (its row went red) | — |
 
 ## Gates — CE-10005 *(`2026-11-17`; base = `air-wip` `96d39cf1a` merged with `ui`)*
 

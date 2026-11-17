@@ -120,8 +120,20 @@ namespace Hrot.AI.Behaviors.Brains
                 cs.Target = Entity.Null;
                 // ⭐ CE-10005 — the order down is cleared to straight and level: 📐 on the cluster run the motion node kept flying the last steer
                 //   (a lead pursuit of the falling wreck) and GCAS pulled the winner out of a 9 g dive at the ground again and again
+                //   — and in an arena it HOLDS over it (AC-13: "else … Hold over the arena"; 📐 flown straight, the 1v1's winner left 10 km)
                 if (world.HasComponent<AirCombatSteer>(self))
-                    WriteSteer(world, self, new AirCombatSteer { Manoeuvre = Manoeuvre.None, Throttle = 0.85f, FloorAgl = world.GetComponentRO<AirCombatSteer>(self).FloorAgl });
+                {
+                    // the arena it fought in (its steer names it — a winner far out after a drag is still that arena's), else the one around it
+                    var hold = world.GetComponentRO<AirCombatSteer>(self).Arena;
+                    bool held = !hold.IsNull && world.IsAlive(hold) && world.HasComponent<AirArena>(hold);
+                    var holdArena = held ? world.GetComponentRO<AirArena>(hold) : default;
+                    if (!held && Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out var at, out _)) held = AirArenaSystem.Containing(world, at, out hold, out holdArena);
+                    WriteSteer(world, self, new AirCombatSteer
+                    {
+                        Manoeuvre = held ? Manoeuvre.ReturnToArena : Manoeuvre.None, Point = held ? holdArena.Centre : Vector3.Zero, Arena = held ? hold : Entity.Null,
+                        Throttle = 0.85f, FloorAgl = world.GetComponentRO<AirCombatSteer>(self).FloorAgl,
+                    });
+                }
                 return NodeStatus.Success;
             }
             cs.Target = p.Target;
