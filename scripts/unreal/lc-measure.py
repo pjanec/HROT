@@ -25,12 +25,51 @@ def hrot_sample(z, x0, y0, cell, x, y):
     return float(z00 + u * (z10 - z00) + v * (z11 - z10)) if u >= v else float(z00 + v * (z01 - z00) + u * (z11 - z01))
 
 
+def compare_buildings(res, folder, name, frame, z, x0, y0, cell):
+    """Each Unreal building (its bounds, HROT metres) against our footprint whose bounding box overlaps it most: the footprint's box
+    (x, y) and the height above the ground (top − HROT's lowest ground under the footprint)."""
+    de, dn = frame["localToProjected"]
+    ours = []
+    for f in json.load(open(os.path.join(folder, f"{name}.vectors.geojson"), encoding="utf-8"))["features"]:   # projected (the per-kind file is lon / lat)
+        if f["properties"].get("hrot_kind") != "building": continue
+        ring = np.array(f["geometry"]["coordinates"][0], dtype=float) - [de, dn]
+        ground = min(hrot_sample(z, x0, y0, cell, x, y) for x, y in ring)
+        ours.append({"name": f["properties"].get("name"), "min": ring.min(0), "max": ring.max(0), "height": f["properties"]["height"],
+                     "levels": f["properties"].get("building_levels"), "ground": ground})
+    rows, unmatched = [], 0
+    for b in res.get("buildings") or []:
+        if "min" not in b: continue
+        bmin, bmax = np.array(b["min"][:2]), np.array(b["max"][:2])
+        best, best_iou = None, 0.0
+        for o in ours:
+            lo, hi = np.maximum(bmin, o["min"]), np.minimum(bmax, o["max"])
+            inter = np.prod(np.clip(hi - lo, 0, None)); union = np.prod(bmax - bmin) + np.prod(o["max"] - o["min"]) - inter
+            iou = inter / union if union > 0 else 0
+            if iou > best_iou: best, best_iou = o, iou
+        if best is None: unmatched += 1; continue
+        rows.append({"iou": best_iou, "dxy": float(np.abs(np.concatenate([bmin - best["min"], bmax - best["max"]])).max()),
+                     "top_above_ground": b["max"][2] - best["ground"], "base_minus_ground": b["min"][2] - best["ground"],
+                     "our_height": best["height"], "levels": best["levels"]})
+    if not rows: return {"unreal": len(res.get("buildings") or []), "ours": len(ours), "matched": 0}
+    iou = np.array([r["iou"] for r in rows]); dxy = np.array([r["dxy"] for r in rows])
+    dh = np.array([r["top_above_ground"] - r["our_height"] for r in rows])
+    by_levels = {}
+    for r in rows: by_levels.setdefault(r["levels"], []).append(r["top_above_ground"] - r["our_height"])
+    return {"unreal": len(res.get("buildings") or []), "ours": len(ours), "matched": len(rows), "unmatched": unmatched,
+            "footprintIoU": {"mean": round(float(iou.mean()), 3), "min": round(float(iou.min()), 3)},
+            "footprintBoxEdge_m": {"mean": round(float(dxy.mean()), 3), "max": round(float(dxy.max()), 3)},
+            "topAboveGroundMinusOurHeight_m": {"mean": round(float(dh.mean()), 3), "min": round(float(dh.min()), 3), "max": round(float(dh.max()), 3)},
+            "byLevels": {str(k): round(float(np.mean(v)), 3) for k, v in sorted(by_levels.items(), key=lambda kv: kv[0] or 0)},
+            "baseMinusGround_m": {"mean": round(float(np.mean([r["base_minus_ground"] for r in rows])), 3)}}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("export"); ap.add_argument("--project", required=True)
     ap.add_argument("--engine", default=r"C:\UE_5.8\UE_5.8"); ap.add_argument("--components", default="Auto")
     ap.add_argument("--max-points", type=int, default=4000); ap.add_argument("--keep-open", action="store_true")
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--buildings", action="store_true", help="also build the buildings from <name>.buildings.geojson and measure them")
     a = ap.parse_args()
     folder = os.path.abspath(a.export); name = os.path.basename(folder)
     frame = json.load(open(os.path.join(folder, f"{name}.frame.json"), encoding="utf-8"))
@@ -68,6 +107,8 @@ def main():
            "origin": frame["localToProjected"], "components": a.components, "points": points,
            "out": os.path.join(folder, "lc-trace.json").replace("\\", "/"), "level": "/Game/Maps/" + name.replace("-", "_"), "timeout": a.timeout,
            "editorLog": os.path.join(folder, "lc-editor.log").replace("\\", "/")}
+    if a.buildings:
+        job["buildings"] = os.path.join(folder, f"{name}.buildings.geojson").replace("\\", "/")
     job_path = os.path.join(folder, "lc-job.json"); json.dump(job, open(job_path, "w"), indent=1)
     if os.path.exists(job["out"]): os.remove(job["out"])
     # a rerun starts from a fresh level: the previous map is deleted on disk while the editor is not running (its in-editor delete
@@ -102,6 +143,10 @@ def main():
         if len(d): v.update(n=int(len(d)), mean=round(float(d.mean()), 4), meanAbs=round(float(np.abs(d).mean()), 4), maxAbs=round(float(np.abs(d).max()), 4))
     diffs_all.sort(reverse=True)
     out["worst"] = [{"x": round(x, 2), "y": round(y, 2), "diff": round(d, 4), "kind": k} for _, x, y, d, k in diffs_all[:10]]
+    if a.buildings:
+        out["buildings"] = compare_buildings(res, folder, name, frame, z, x0, y0, cell)
+    out["generatorSeconds"] = res.get("generatorSeconds"); out["buildingConfig"] = res.get("buildingConfig")
+    out["pluginErrors"] = (res.get("pluginErrors") or [])[:20]
     json.dump(out, open(os.path.join(folder, "lc-result.json"), "w"), indent=1)
     print(json.dumps(out, indent=1))
 

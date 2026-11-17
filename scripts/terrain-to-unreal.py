@@ -13,6 +13,8 @@ Writes into <out-folder>:
     <name>.vectors.geojson  buildings (Polygon: height, building_levels, base_z, template), walls (LineString: material, height,
                             thickness), surfaces (Polygon: class open / forest / water), prisms (Polygon: clutter, height),
                             lone trees (Point), roads (LineString, sampled from roads.json's Hermite segments: lanes, lane_width)
+    <name>.<kind>s.geojson  the same features, one file per kind (buildings, walls, surfaces, prisms, trees, roads), in WGS84
+                            lon / lat (UL-5: Landscape Combinator's spline importer reads every vector file as EPSG:4326)
     <name>.frame.json       the frame used: CRS, the local → projected offset, the grid size — what the import / the checks read
 
 The frame (local x east, y north, metres):
@@ -214,6 +216,24 @@ def main():
         vec["crs"] = {"type": "name", "properties": {"name": f"urn:ogc:def:crs:EPSG::{epsg}" if epsg else crs.to_wkt()}}
     with open(os.path.join(a.out, f"{name}.vectors.geojson"), "w", encoding="utf-8") as f:
         json.dump(vec, f)
+    # one file per kind as well: Landscape Combinator's spline importer turns EVERY feature of a file into a spline, so each of its
+    # importers (buildings, roads, walls, forests) is pointed at its own kind
+    # ⭐ UL-5 (measured): its spline importer reads EVERY vector file as WGS84 lon / lat (EPSG:4326 — SplineImporter.cpp:231), whatever
+    # CRS the file declares ⇒ these per-kind files are in lon / lat (RFC 7946's own CRS); the plugin projects them into the level's CRS
+    to_ll = None
+    if crs is not None:
+        from pyproj import Transformer
+        to_ll = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+    def ll(c):
+        if isinstance(c[0], (int, float)):
+            lon, lat = to_ll.transform(c[0], c[1]); return [round(lon, 9), round(lat, 9)]
+        return [ll(x) for x in c]
+    for kind in sorted({f["properties"]["hrot_kind"] for f in feats}):
+        sub = [x for x in feats if x["properties"]["hrot_kind"] == kind]
+        if to_ll is not None:
+            sub = [{**x, "geometry": {"type": x["geometry"]["type"], "coordinates": ll(x["geometry"]["coordinates"])}} for x in sub]
+        with open(os.path.join(a.out, f"{name}.{kind}s.geojson"), "w", encoding="utf-8") as f:
+            json.dump({"type": "FeatureCollection", "name": f"{name}.{kind}s", "features": sub}, f)
 
     # ⭐ the SHORT form Landscape Combinator needs (UL-3): it names a working folder after the CRS (only ':' replaced), so a WKT string
     # (quotes, brackets) is an invalid path and its Reproject phase fails ⇒ "EPSG:n", or the PROJ string for the transverse Mercator
