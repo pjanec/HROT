@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>⭐ RM-2 / RM-3 — the order on the hull, the car Lethal and its driver too, the pursuit at the target's LEAD point (ahead of him along his walk), and on his
-        /// death the end with the order OFF. ✅ Red-proofs: the lead dropped (aim at where he is) ⇒ red; the act on the car dropped ⇒ red; the order left on ⇒ red.</summary>
+        /// death the end with the order OFF. ✅ Red-proofs: the lead dropped (aim at where he is) ⇒ red; the act on the car dropped ⇒ red; the act committed at the start (R-2134) ⇒ red; the order left on ⇒ red.</summary>
         [Fact]
         public void CE4622_K2_RamTarget_MarksTheHull_CommitsALethalAct_AndLeadsTheTarget()
         {
@@ -61,8 +61,12 @@ namespace Hrot.SimHost.Tests
             Assert.True(RamOrder.On(repo, w.Man, out var order));
             Assert.Equal(TargetNet, order.Target.NetworkId);
             Assert.Equal(0, order.Crowd);
+            Assert.NotEqual(HostileActKind.Lethal, HostileActs.Of(repo, w.Man));   // ⭐ R-2134 — 60 m out: not yet an act
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(15f, 0f, 0f);   // inside the 50 m run-in
+            for (int i = 0; i < 3; i++) w.Tick();
             Assert.Equal(HostileActKind.Lethal, HostileActs.Of(repo, w.Man));      // the CAR is the act's actor (KV-5)
             Assert.Equal(HostileActKind.Lethal, HostileActs.Of(repo, driver));     // and its driver
+            repo.GetComponentRW<SimTransform>(w.Man).Position = Vector3.Zero;
             var to = Move(repo, w.Man).Destination;
             Assert.Equal(16f, Move(repo, w.Man).Speed, 2);
             Assert.True(to.Y > 1f, $"it drives at where he WILL be (lead), not where he is: aim {to}");

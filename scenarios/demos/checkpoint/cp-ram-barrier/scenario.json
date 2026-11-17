@@ -7,7 +7,7 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "basic-desert",
-  "description": "What: a car RAMS through a weak barrier (CE-4622 K-1/K-2; DESIGN_Checkpoint_And_Ramming RM-2, RM-5, K-8): the squad 'Checkpoint' as in cp-routine-car but held to WARN (it may only signal \u2014 no shot, so the ram runs its course); a row of four barrels across the road at x 395; a 'Rammer' car with a Hostile 'Driver' rams the 'Gunner' (RamTarget, 14 m/s). Judge: (1) the car is a threat and is signalled, never shot at (Warn) (2) it goes THROUGH the barrels (past x 400) \u2014 it does not path round (3) it strikes the Gunner (hurt by the impact). Fail: it stops at or paths round the barrels; the Gunner unhurt; a shot fired."
+  "description": "What: a car RAMS through a weak barrier (CE-4622 K-1/K-2; DESIGN_Checkpoint_And_Ramming RM-2, RM-5, K-8): the squad 'Checkpoint' as in cp-routine-car but held to WARN (it may only signal \u2014 no shot, so the ram runs its course); a row of four barrels across the road at x 395; a 'Rammer' car with a Hostile 'Driver' rams the 'Gunner' (RamTarget, 14 m/s). Judge: (1) the car is a threat and is signalled \u2014 the ladder never fires (Warn); inside 50 m the ram is a lethal act and the men may fire in self-defence (2) it goes THROUGH the barrels (past x 400) \u2014 it does not path round (3) it strikes the Gunner (hurt by the impact). Fail: it stops at or paths round the barrels; the Gunner unhurt; the ladder fires."
  },
  "entities": {
   "c4622005-0000-4000-8000-000000000001": {

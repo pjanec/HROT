@@ -24,6 +24,9 @@ namespace Hrot.AI.Behaviors.Brains
     public static class RamTargetBehavior
     {
         public const float DefaultSpeed = 16f, ReissueSeconds = 0.5f, CrowdReachedM = 3f;
+        /// <summary>⭐ K-7 (R-2134) — the ram BECOMES a lethal act this close to its target (m): the run-in RM-2 speaks of. 📐 Committed at the order's start
+        /// (370 m out on cp-vbied) every soldier fired in self-defence at once and the checkpoint's watch and ladder never had a vehicle to judge.</summary>
+        public const float CommitMetres = 50f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RamTargetParams
@@ -38,6 +41,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public byte Started;
             public SimInstant NextIssue;
+            /// <summary>1 once the ram's lethal act is committed (inside <see cref="CommitMetres"/>).</summary>
+            public byte Committed;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -80,10 +85,6 @@ namespace Hrot.AI.Behaviors.Brains
                 var order = new RamOrder { Active = 1, Crowd = crowd ? (byte)1 : (byte)0, Target = new Fdp.Toolkit.Replication.EntityRef(p.Target) };
                 if (world.HasComponent<RamOrder>(self)) world.GetComponentRW<RamOrder>(self) = order;
                 else world.AddComponent(self, order);   // added WITH its final value (the parallel rule)
-                // RM-3 (KV-5) — the CAR commits the Lethal act (soldiers shoot the car), its driver too; after the phase (marking witnesses touches others)
-                Acts.Commit(world, self);
-                var driver = DriverOf(world, self);
-                if (!driver.IsNull) Acts.Commit(world, driver);
                 s.Started = 1;
             }
 
@@ -100,6 +101,16 @@ namespace Hrot.AI.Behaviors.Brains
                 var sv = world.IsComponentTypeRegistered<SimVelocity>() && world.HasComponent<SimVelocity>(self) ? world.GetComponentRO<SimVelocity>(self).Linear : Vector3.Zero;
                 aim = TargetLead.Point(here, Vector3.Zero, System.MathF.Max(1f, System.MathF.Max(p.Speed, sv.Length())), at, tv);
             }
+            // RM-3 (KV-5, R-2134) — inside the run-in the CAR commits the Lethal act (soldiers shoot the car), its driver too; after the phase (marking
+            //   witnesses touches others)
+            Vector3 goal = crowd ? p.At : (Vector3)world.GetComponentRO<SimTransform>(target).Position;
+            if (s.Committed == 0 && Vector2.Distance(new Vector2(here.X, here.Y), new Vector2(goal.X, goal.Y)) <= CommitMetres)
+            {
+                Acts.Commit(world, self);
+                var driver = DriverOf(world, self);
+                if (!driver.IsNull) Acts.Commit(world, driver);
+                s.Committed = 1;
+            }
             if (now >= (double)s.NextIssue)
             {
                 if (!LocomotionMoveTo.Issue(world, self, aim, p.Speed, 0.5f, MoveGait.Keep, source: LocomotionMoveTo.OrderSource(world, self))) return Done(self, world, NodeStatus.Failure);
@@ -113,6 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             Off(self, world);
             s.Started = 0;
+            s.Committed = 0;
         }
 
         private static NodeStatus Done(Entity self, EntityRepository world, NodeStatus status)
