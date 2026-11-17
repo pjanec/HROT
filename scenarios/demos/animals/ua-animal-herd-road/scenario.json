@@ -1,0 +1,141 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "farm",
+    "description": "What: a herd on the road (CE-4623 AB-2 / AB-3 / AB-4; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain a 'Herd' area (30 x 10 m on the lane at (150, 10)) holds six cattle. A two-APC convoy ('Convoy APC 1', 'Convoy APC 2') drives east along the lane (y = 10) at 6 m/s into them. The armoured vehicles' approach frightens the cattle (their flight zone), the herd flees off the lane, and the convoy drives on through the cleared lane without running a cow over. \u26a0 As built a vehicle does not stop or yield for animals \u2014 the fear clears the road first (CE-3457); and the farm terrain has no road network, so no SUMO traffic here (R-3091). Judge: (1) the herd is on the lane (2) the convoy's approach panics it (3) the herd flees (4) the cattle leave the lane (5) the convoy goes on past the herd's spot (6) no cow is run over. Check: scripts/scenario-regression.sh ua-animal-herd-road"
+  },
+  "entities": {
+    "46230b04-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          150,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 712
+      },
+      "EntityInfo": {
+        "Name": "Herd",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -15,
+            "Y": -5
+          },
+          {
+            "X": 15,
+            "Y": -5
+          },
+          {
+            "X": 15,
+            "Y": 5
+          },
+          {
+            "X": -15,
+            "Y": 5
+          }
+        ],
+        "Version": 0
+      },
+      "AnimalArea": {
+        "Species": "Cattle",
+        "Enclosed": 0,
+        "Count": 6,
+        "Seed": 4641
+      }
+    },
+    "46230b04-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          25,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy APC 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            300,
+            10,
+            0
+          ],
+          "speed": 6,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b04-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          0,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Convoy APC 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            280,
+            10,
+            0
+          ],
+          "speed": 6,
+          "arrivalRadius": 3
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

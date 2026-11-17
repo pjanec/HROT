@@ -175,6 +175,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
+        world.RegisterComponent<CarKinem.Core.RamOrder>();   // ⭐ CE-4622 K-2 — a hull's ram order (Brain group, dtRamOrder): read by the mover's avoidance and breach gate
+        world.RegisterComponent<Fdp.Toolkit.Combat.CheckpointWatch>();   // ⭐ CE-4622 K-4 — a checkpoint commander's watch on its approach (brain-local; read by the ladder and the checks)
         world.RegisterEvent<Fdp.Toolkit.Terrain.MineStruck>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldCellsSwept>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.MinefieldMarked>();
@@ -185,6 +187,13 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
         // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
+        // ⭐ CE-10000 (air lane, DESIGN_Air_Combat §4a) — air combat: the brain's order (dtAirCombatSteer), the motion node's report (dtFighterPilotState),
+        //   the behaviour's and the missile defence's working state (brain, recorded), the authored arena (dtAirArena)
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirCombatSteer>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FighterPilotState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirCombatState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.MissileDefenceState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.AirArena>();
         // ⭐ CE-3136 P-7a — static obstacles (a parked car, a sandbag wall …): terrain every node bakes. Shared: every node derives the
         //   marker from the TKB and receives the box (EntityObstacleShape). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
@@ -226,6 +235,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
+        //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in
+        //   production (its rails register it by hand), so a parked bomb never went off.
+        world.RegisterComponent<Fdp.Toolkit.Combat.ChargeTimer>();
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node

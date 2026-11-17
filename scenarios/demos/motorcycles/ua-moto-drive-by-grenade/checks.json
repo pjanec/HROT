@@ -1,0 +1,57 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4621 IM-1 drive-by, one row per Judge line. Position.0 is x (the dump writes a vector as [x, y, z]).",
+  "runFor": 80,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the pillion throws: a burst at the post",
+      "on": "blast",
+      "by": "Pillion"
+    },
+    {
+      "name": "a sentry is hurt",
+      "on": "field",
+      "who": "*Sentry",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the pillion throws: a burst at the post"
+    },
+    {
+      "name": "the bike passes the post",
+      "on": "near",
+      "who": "Bike",
+      "point": [
+        200,
+        200
+      ],
+      "within": 20
+    },
+    {
+      "name": "the bike escapes past x = 340 by 70 s",
+      "on": "field",
+      "who": "Bike",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 340,
+      "before": 70,
+      "after": "the bike passes the post"
+    },
+    {
+      "name": "the rider is still aboard at the end",
+      "on": "embark",
+      "who": "Rider",
+      "is": true,
+      "atEnd": true
+    },
+    {
+      "name": "the pillion is still aboard at the end",
+      "on": "embark",
+      "who": "Pillion",
+      "is": true,
+      "atEnd": true
+    }
+  ]
+}

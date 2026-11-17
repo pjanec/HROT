@@ -281,5 +281,92 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.False(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_world, a));
             Assert.True(Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(_world, b));
         }
+    
+        // ── ⭐ CE-4622 K-3 (DESIGN_Checkpoint_And_Ramming.md CP-6, KV-1) — the soft-skin rule and the stated driver ─────────────────────────────
+
+        private static (EntityRepository W, Entity Car, Entity Driver, Entity Rider) Car(float sideArmourMm)
+        {
+            var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>(); w.RegisterComponent<ActorCapabilityState>(); w.RegisterComponent<PassengerBuffer>(); w.RegisterComponent<IsEmbarkedTag>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>(); w.RegisterComponent<TkbIdentity>();
+            w.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("car", 9902);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { ArmorFront = sideArmourMm, ArmorSide = sideArmourMm, ArmorRear = sideArmourMm, ArmorTop = sideArmourMm });
+            db.Register(t);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var car = w.CreateEntity();
+            w.AddComponent(car, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(car, new TkbIdentity { TkbType = (TkbTypeId)9902 });
+            w.AddComponent(car, new Fdp.Toolkit.Combat.Components.Health { Current = 300f, Max = 300f });
+            w.AddComponent(car, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+            Entity Man(int seat)
+            {
+                var m = w.CreateEntity();
+                w.AddComponent(m, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                w.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+                w.AddComponent(m, new IsEmbarkedTag { VehicleEntity = car, Seat = (byte)seat });
+                return m;
+            }
+            var driver = Man(0); var rider = Man(1);
+            var b = new PassengerBuffer { Count = 2 };
+            b.Passengers[0] = driver; b.Passengers[1] = rider;
+            w.AddComponent(car, b);
+            return (w, car, driver, rider);
+        }
+
+        private static int OccupantHitsOf(float sideArmourMm, Fdp.Toolkit.Combat.HitEffect effect, out int onDriver, out int onRider)
+        {
+            var (w, car, driver, rider) = Car(sideArmourMm);
+            var sys = new EmbarkedStateSystem();
+            onDriver = onRider = 0;
+            for (int f = 1; f <= 200; f++)
+            {
+                w.SetSingleton(new GlobalTime { FrameNumber = f });
+                w.Bus.Publish(new Fdp.Toolkit.Combat.Events.DamageAssessedEvent { HitEntity = car, TotalDamage = 0.01f, Effect = effect });
+                w.Bus.SwapBuffers();
+                sys.Execute(w, 0.1f);
+                w.Bus.SwapBuffers();
+                foreach (var e in w.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+                {
+                    if (e.HitEntity == driver) onDriver++;
+                    if (e.HitEntity == rider) onRider++;
+                }
+            }
+            int n = sys.OccupantHits;
+            w.Dispose();
+            return n;
+        }
+
+        /// <summary>⭐⭐ CP-6 — a PENETRATING round on a SOFT SKIN (side ≤ 10 mm) goes on into the cabin about 30 % of the time, ONE occupant at a time (both seats
+        /// get some), the same count every run (seeded); an ARMOURED car's (30 mm) never, a BLUNT hit (a baton round) never. ✅ Red-proof: the armour test dropped
+        /// ⇒ the armoured row gets hits ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K3_APenetratingHitOnASoftSkin_MayHitAnOccupant_NeverThroughArmour()
+        {
+            int soft = OccupantHitsOf(5f, Fdp.Toolkit.Combat.HitEffect.Kinetic, out int d, out int r);
+            Assert.InRange(soft, 40, 80);                                    // ≈ 30 % of 200
+            Assert.True(d > 0 && r > 0, $"both seats can be hit: driver {d}, rider {r}");
+            Assert.Equal(soft, d + r);
+            Assert.Equal(soft, OccupantHitsOf(5f, Fdp.Toolkit.Combat.HitEffect.Kinetic, out _, out _));   // seeded: the same again
+            Assert.Equal(0, OccupantHitsOf(30f, Fdp.Toolkit.Combat.HitEffect.Kinetic, out _, out _));
+            Assert.Equal(0, OccupantHitsOf(5f, Fdp.Toolkit.Combat.HitEffect.Blunt, out _, out _));
+        }
+
+        /// <summary>⭐⭐ KV-1 — WHO DRIVES IS STATED: the car's seat-0 man; once he is out of the fight the car's move ends (CanMove cleared); a rider down does not
+        /// stop it. ✅ Red-proof: the driver rule dropped ⇒ the car keeps CanMove ⇒ red.</summary>
+        [Fact]
+        public void CE4622_K3_TheDriverDown_EndsTheCarsMove_ARiderDownDoesNot()
+        {
+            var (w, car, driver, rider) = Car(5f);
+            var sys = new EmbarkedStateSystem();
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(rider).Current = 0f;
+            sys.Execute(w, 0.1f);
+            Assert.True((w.GetComponent<ActorCapabilityState>(car).Capabilities & ActorCapabilities.CanMove) != 0, "a rider down does not stop the car");
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(driver).Current = 0f;
+            sys.Execute(w, 0.1f);
+            Assert.True((w.GetComponent<ActorCapabilityState>(car).Capabilities & ActorCapabilities.CanMove) == 0, "the driver down ends the move");
+            w.Dispose();
+        }
     }
 }

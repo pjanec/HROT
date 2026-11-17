@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -181,6 +181,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
+  ⚠ scenario `tt-dozer-breach` (R-4277): a house wall opens, but a FREE wall (a garden wall, a fence row) is not yet opened for infantry by the ordered cut in a live run — red, engine defect filed in its `$doc`
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;
@@ -211,7 +212,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   the saddle.
 - **Animal areas:** draw an area, say what lives there and how many, and the animals are placed when the run starts.
 - **Sounds that carry:** calls, alarm calls and barks are heard at their own ranges, and the soldiers' hearing picks them up.
-- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · ⏳ a cat jumping onto a sill
+- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · feature scenarios (R-4277, `scripts/scenario-regression.sh <name>`): `ua-animal-guard-dog` ✅ 5/5 · `ua-animal-horse-rider` ✅ (⚠ the rider is ordered to fire — a firing-seat man never engages alone, CE-3454) · `ua-animal-flock-flush` ✅ 6/6 · `ua-animal-herd-road` ✅ 6/6 (⚠ the herd clears the road by fear; vehicles never yield to animals, CE-3457) · `ua-animal-village-fight` ✅ 5/5 · ⏳ a cat jumping onto a sill
 
 ## 4. Armed people, riots and police
 
@@ -251,7 +252,8 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
-  fire stops. ▶ `uf-alone-under-fire` ✅
+  fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
+- ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅
 - **Reflexes without orders:** a soldier with no task still reacts to fire by his type's standing orders (SOP); one stamped inert does
   not. A civilian ordered to stand still is frightened all the same. ▶ `df-lone-soldier-reflex` · `df-civilian-ordered`
 - **Grenade or rifle:** against a man behind sandbags, the grenadier closes in and lobs a grenade while the rifleman fires.
@@ -347,8 +349,16 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   fires while riding, and run three plays — a drive-by, a parked bomb on a timer, and a swarm raid from all sides. A **grey-zone dash** past
   drones: riders listen for them (riding dulls their hearing), break hard when one dives, and dismount at the edge.
   ⏳ no live demo yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
-- 📐 **Checkpoints and ramming:** a vehicle checkpoint with its drill, and vehicles that ram through a barrier or another vehicle.
+  ▶ feature scenarios (R-4277): `ua-moto-drive-by` ✅ 6/6 · `ua-moto-drive-by-grenade` ✅ 6/6 · `ua-moto-parked-bomb` ✅ 9/9 (⚠ a road start can stall, CE-3452 — the play retries) · `ua-moto-swarm-raid` ⚠ 10/11 (the pillions never fire on their own, CE-3454) · ⏳ the grey-zone dash, no scenario yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
+- *(added `2026-11-17`)* **A vehicle checkpoint:** a squad mans it on an approach road — a stopper at the stop line, two searchers, a machine gun
+  and the rest behind at a stand-off worked out from the expected bomb. It judges each vehicle by its TIME to the stand-off: a car that slows on the
+  signal is routine; one that ignores it is a threat and is laddered — a warning shot, disabling fire at the engine, then lethal fire, skipping a rung
+  when time is short. A stopped car's people are told out, hands up, and they and the car (its boot) are searched, then let go — or held if something
+  is found. ▶ `cp-routine-car` ✅ · `cp-vbied` ✅ (a car bomb that will not stop is hit and stopped short) · `cp-compliant-bomber` ✅ (a bomber
+  who stops and sets it off as the searchers come — the price of a search) · `cp-moto-attack` ✅ (two men on one bike: a threat, no engine rung)
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
+- *(added `2026-11-17`)* **Vehicles hurt the people they hit,** by speed and weight; a ramming car does not swerve for its target, and its ram is a
+  lethal act once it is in its last 50 m. ▶ `cp-ram-barrier` ⚠ the car paths ROUND a weak barrier instead of through it (CE-2445, backend's direct move)
 
 ## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
 
@@ -494,7 +504,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | what you can do | Edit | Live | Review | status |
 |---|:-:|:-:|:-:|---|
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
-| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ · ⚠ a weighted-mean root objective never aggregates its children (`sr-objectives-march`, CE-3460) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
 | Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |

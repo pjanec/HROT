@@ -49,6 +49,36 @@ namespace Fdp.Toolkit.Terrain
             public bool Trees { get; init; }
             /// <summary>⭐ CE-4623 AB-7 (Animals AR-5) — a row for a PANICKED animal only; no vehicle takes it, and an animal takes no other.</summary>
             public bool Animal { get; init; }
+            /// <summary>⭐ CE-4629 — the row is taken only by a vehicle whose DIS type matches this pattern (<c>kind.domain.country.category.subcategory</c>, <c>*</c> any) — the
+            /// bulldozer's own row (1.1.*.9.1). Null: any vehicle.</summary>
+            public string? Dis { get => _dis; init { _dis = value; _disParts = ParseDis(value); } }
+            private readonly string? _dis;
+            private readonly int[]? _disParts;   // parsed once (−1 = any): the contact rule runs every frame a hull is held — never a Split per call (R-2084)
+
+            private static int[]? ParseDis(string? pattern)
+            {
+                if (string.IsNullOrEmpty(pattern)) return null;
+                var parts = pattern.Split('.');
+                var r = new int[parts.Length];
+                for (int i = 0; i < parts.Length; i++)
+                    r[i] = parts[i] == "*" ? -1
+                        : int.TryParse(parts[i], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int v) ? v
+                        : throw new FormatException($"contact-breach.json: '{pattern}' is not a DIS pattern (kind.domain.country.category.subcategory, * any).");
+                return r;
+            }
+            /// <summary>⭐ CE-4629 — a BLADE: a building wall it bumps opens a passage of the blade's width (hull width + the cut margin each side) and the wall's full height,
+            /// centred on the hull (never door-sized); the hull is still held outside (B-D4, R-3025).</summary>
+            public bool Blade { get; init; }
+
+            /// <summary>True when <paramref name="dis"/> matches <see cref="Dis"/> (always when the row names none).</summary>
+            public bool MatchesDis(Fdp.Core.DISEntityType dis)
+            {
+                if (_disParts == null) return true;
+                Span<int> have = stackalloc int[] { dis.Kind, dis.Domain, dis.Country, dis.Category, dis.Subcategory, dis.Specific, dis.Extra };
+                for (int i = 0; i < _disParts.Length && i < have.Length; i++)
+                    if (_disParts[i] >= 0 && _disParts[i] != have[i]) return false;
+                return true;
+            }
         }
 
         public IReadOnlyList<Row> Rows { get; init; } = Array.Empty<Row>();
@@ -76,7 +106,8 @@ namespace Fdp.Toolkit.Terrain
                 rows.Add(new Row(r.GetProperty("name").GetString() ?? "", r.GetProperty("tracked").GetBoolean(), r.GetProperty("minMassKg").GetSingle(),
                     r.GetProperty("smallMaxStrength").GetSingle(), r.GetProperty("building").GetBoolean(), r.GetProperty("minRamSpeedMs").GetSingle(),
                     r.GetProperty("pushSeconds").GetSingle(), r.GetProperty("speedKept").GetSingle(), r.GetProperty("costHealth").GetSingle())
-                    { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean(), Animal = r.TryGetProperty("animal", out var a) && a.GetBoolean() });
+                    { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean(), Animal = r.TryGetProperty("animal", out var a) && a.GetBoolean(),
+                      Dis = r.TryGetProperty("dis", out var d) ? d.GetString() : null, Blade = r.TryGetProperty("blade", out var bl) && bl.GetBoolean() });
             return new ContactBreachTable
             {
                 Rows = rows, CutMarginM = root.GetProperty("cutMarginM").GetSingle(), MinDriveThroughM = root.GetProperty("minDriveThroughM").GetSingle(),
@@ -85,9 +116,14 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>The first row a vehicle qualifies for, or null (it breaks nothing).</summary>
-        public Row? For(bool tracked, float massKg, bool animal = false)
+        public Row? For(bool tracked, float massKg, bool animal = false) => For(tracked, massKg, animal, default);
+
+        /// <summary>⭐ CE-4629 — the first row the vehicle qualifies for, its DIS type matched against a row's <see cref="Row.Dis"/> (the bulldozer's row).</summary>
+        public Row? For(bool tracked, float massKg, bool animal, Fdp.Core.DISEntityType dis)
         {
-            foreach (var r in Rows) if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg) return r;
+            // ⭐ R-2084 — an INDEX loop: called every frame a possessed hull is held at a barrier; a foreach over the IReadOnlyList interface boxed an enumerator (40 B a frame, measured)
+            var rows = Rows;
+            for (int i = 0; i < rows.Count; i++) { var r = rows[i]; if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg && r.MatchesDis(dis)) return r; }
             return null;
         }
     }
@@ -161,7 +197,8 @@ namespace CarKinem.Controllers
                 && template.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>() is { } dto) massKg = dto.Mass;
             tracked = Fdp.Toolkit.Motion.Locomotions.Of(repo, vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked;
             bool animal = Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, vehicle);   // ⭐ CE-4623 AB-7 — the panic breach: the animal row only
-            var row = table.For(tracked, massKg, animal);
+            var dis = repo.GetDisType(vehicle);   // ⭐ CE-4629 — the bulldozer's row is matched by its DIS type
+            var row = table.For(tracked, massKg, animal, dis);
             bool building = panel >= 0 && world.Panels[panel].Building >= 0;
             float into = MathF.Max(0f, -Vector2.Dot(velocity, hit.Normal));   // ⭐ B-D2 — only the speed INTO it
 
@@ -177,9 +214,16 @@ namespace CarKinem.Controllers
                 if (s_bumped.TryGetValue(me, out var bumped) && bumped.Key == key && bumped.Seconds > 0f) { s_bumped[me] = bumped with { Seconds = bumped.Seconds - dt }; return false; }
                 if (into < row.MinRamSpeedMs) return false;   // ⭐ D-3 — a building's bump is a RAM only
                 var p = world.Panels[panel];
-                float along = Along(p, hit.At), w = MathF.Min(table.BumpWidthM, hull.Width);
+                // ⭐ CE-4629 — centred on the HULL (where its centreline meets the wall), not on the contact point: a hull square to a wall touches it first at a corner
+                float along = CentreAlong(p, here, fwd, hit.At);
                 var pending = NewPending(vehicle);
-                pending.Breaches.Add(Event(world, panel, along - w * 0.5f, along + w * 0.5f, p.BaseZ, MathF.Min(p.TopZ, p.BaseZ + table.BumpHeightM), vehicle));
+                if (row.Blade)   // ⭐ CE-4629 — a blade: the blade's width, the wall's full height, on every panel of the wall it spans (a stepped wall's pieces)
+                    CutAlong(world, panel, along, hull.Width + 2f * table.CutMarginM, vehicle, pending.Breaches, buildings: true);
+                else
+                {
+                    float w = MathF.Min(table.BumpWidthM, hull.Width);
+                    pending.Breaches.Add(Event(world, panel, along - w * 0.5f, along + w * 0.5f, p.BaseZ, MathF.Min(p.TopZ, p.BaseZ + table.BumpHeightM), vehicle));
+                }
                 pending.Cue = Make(vehicle, ContactBreachKind.Bumped, hit.At, hereZ, 1f); pending.HasCue = true;
                 s_bumped[me] = new Contact(key, GraceSeconds);   // one bump, not one per tick of contact (the hull stays held)
                 Play(repo, vehicle, pending);
@@ -263,7 +307,20 @@ namespace CarKinem.Controllers
             var side = new Vector2(-fwd.Y, fwd.X);
             float extent = MathF.Abs(hull.Length * Vector2.Dot(fwd, dir)) + MathF.Abs(hull.Width * Vector2.Dot(side, dir));
             float width = MathF.Max(extent + 2f * table.CutMarginM, table.MinDriveThroughM);
-            float along = Along(p, at);
+            CutAlong(world, panel, Along(p, at), width, by, into, buildings: false);   // a drive-through cut opens free walls; a building is the bump's
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4629 (V-12, R-5008) — THE ONE MULTI-PANEL CUT: a full-height Passage <paramref name="width"/> wide centred <paramref name="along"/> metres along
+        /// <paramref name="panel"/>, on that panel AND every panel of the same line it overlaps (a joint, a corner, a stepped wall's ≤ 2 m pieces — CE-5015). Used by the
+        /// player's drive-through (<paramref name="buildings"/> false: free walls only), a bulldozer's bump and the AI dozer's ordered cut (<c>DozerCutSystem</c>).
+        /// </summary>
+        public static void CutAlong(TerrainWorld world, int panel, float along, float width, Entity by, List<BuildingDamageEvent> into, bool buildings)
+        {
+            var p = world.Panels[panel];
+            float len = p.Length;
+            if (len <= 1e-3f) return;
+            var dir = (p.B - p.A) / len;
             var e1 = p.A + dir * (along - width * 0.5f); var e2 = p.A + dir * (along + width * 0.5f);
             var near = new List<int>();
             world.BuildingPanels.Near((e1 + e2) * 0.5f, width * 0.5f + 1f, near);
@@ -271,7 +328,8 @@ namespace CarKinem.Controllers
             foreach (int qi in near)
             {
                 var q = world.Panels[qi];
-                if (q.Building >= 0) continue;   // a drive-through cut opens free walls; a building is the bump's
+                if (!buildings && q.Building >= 0) continue;
+                if (q.Building != p.Building) continue;   // one wall: a building's own panels, or the free walls
                 float ql = q.Length;
                 if (ql <= 1e-3f) continue;
                 var qd = (q.B - q.A) / ql; var qn = new Vector2(-qd.Y, qd.X);
@@ -282,6 +340,19 @@ namespace CarKinem.Controllers
                 if (to - from < 0.05f) continue;
                 into.Add(Event(world, qi, from, to, q.BaseZ, q.TopZ, by));
             }
+        }
+
+        /// <summary>⭐ CE-4629 — where the hull's centreline (<paramref name="here"/> along <paramref name="fwd"/>) meets the panel's line, metres along it; the contact
+        /// point's when the hull meets the wall too obliquely (under ~12°).</summary>
+        private static float CentreAlong(TerrainWallPanel p, Vector2 here, Vector2 fwd, Vector2 contact)
+        {
+            var d = p.B - p.A; float len = d.Length();
+            if (len <= 1e-6f) return 0f;
+            var dir = d / len; var n = new Vector2(-dir.Y, dir.X);
+            float facing = Vector2.Dot(fwd, n);
+            if (MathF.Abs(facing) < 0.2f) return Along(p, contact);
+            float t = Vector2.Dot(p.A - here, n) / facing;
+            return Along(p, here + fwd * t);
         }
 
         private static float Along(TerrainWallPanel p, Vector2 at)

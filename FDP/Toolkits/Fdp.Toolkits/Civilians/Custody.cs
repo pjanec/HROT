@@ -76,8 +76,10 @@ namespace Fdp.Toolkit.Civilians
         public static bool Owns(EntityRepository world, Entity man)
             => world.IsAlive(man) && Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(world, man, CustodyKey);
 
-        /// <summary>CU-3 — how close the soldier must be (m).</summary>
-        public const float Reach = 1.5f;
+        /// <summary>CU-3 — how close the soldier must be (m). ⭐ <c>CE-4622</c> K-7 (R-2135, cross-lane — behaviors): 2 m, was 1.5 — 📐 measured on
+        /// <c>cp-routine-car</c>: the crowd keeps two walking men ~1.2–1.8 m apart (separation at 1.5 × their combined radius), so a searcher closing to
+        /// 1.5 m PUSHED the man away at ~0.5 m/s and every search aborted; 2 m is an arm's length and a step.</summary>
+        public const float Reach = 2f;
         /// <summary>CU-3 — how long a search takes (s).</summary>
         public const double SearchSeconds = 3.0;
 
@@ -100,12 +102,21 @@ namespace Fdp.Toolkit.Civilians
 
         /// <summary>CU-4 — does <paramref name="man"/> comply (hands up / on head — <c>ThreatDanger.ShowsHandsUp</c>) or is he restrained?</summary>
         public static bool Complies(ISimulationView view, Entity man)
-            => Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(view, man) || IsRestrained(view, man);
+            => Fdp.Toolkit.Perception.ThreatDanger.ShowsHandsUp(view, man) || IsRestrained(view, man) || IsStoppedVehicle(view, man);
+
+        /// <summary>⭐ <c>CE-4622</c> K-6 (Checkpoint CP-4) — a VEHICLE is searched like a man: it "complies" while it stands still, and the search reveals
+        /// what its CONCEALED stations hide (a boot's charge) the same way a man's hidden weapons are put down.</summary>
+        public static bool IsStoppedVehicle(ISimulationView view, Entity thing)
+            => Fdp.Toolkit.Motion.Locomotions.IsVehicle(view, thing) && Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsStanding(view, thing);
+
+        /// <summary>⭐ <c>CE-4622</c> K-6 — the reach to a vehicle's centre (m): a man at its side or its boot.</summary>
+        public const float VehicleReach = 4f;
 
         /// <summary>CU-3 — is <paramref name="by"/> alive and within <see cref="Reach"/> of <paramref name="man"/>?</summary>
         public static bool InReach(EntityRepository world, Entity man, Entity by)
             => !by.IsNull && world.IsAlive(by) && world.IsAlive(man) && world.HasComponent<SimTransform>(by) && world.HasComponent<SimTransform>(man)
-               && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(by).Position, world.GetComponentRO<SimTransform>(man).Position) <= Reach * Reach;
+               && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(by).Position, world.GetComponentRO<SimTransform>(man).Position)
+                  <= (Fdp.Toolkit.Motion.Locomotions.IsVehicle(world, man) ? VehicleReach * VehicleReach : Reach * Reach);
 
         private static bool Read(ISimulationView view, Entity man, out Custody c)
         {

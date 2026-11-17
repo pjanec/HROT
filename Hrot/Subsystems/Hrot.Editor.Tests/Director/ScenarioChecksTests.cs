@@ -108,6 +108,44 @@ public sealed class ScenarioChecksTests
 
     // ── a world the book reads ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐ RT-5 (R-3094) — a world with NO repository (the cluster tier reads a node over HTTP) judges the state cues on the unit's DUMPED components,
+    /// through AnchorBook's own value comparisons: near (a position as [x, y, z]), embark, task (the hash, named by the start record), side,
+    /// health. 🔴 Red-proof: the old <c>World is null ⇒ null</c> ⇒ every row fails.
+    /// </summary>
+    [Fact]
+    public void RT5_StateCues_HoldOnDumpedComponents_WhenTheWorldHasNoRepository()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"near","on":"near","who":"Bike","point":[200,200],"within":20},
+              {"name":"aboard","on":"embark","who":"Rider","is":true},
+              {"name":"off","on":"embark","who":"Bike","is":false},
+              {"name":"task","on":"task","who":"Bike","is":"DriveBy"},
+              {"name":"side","on":"side","who":"Bike","is":"Hostile"},
+              {"name":"health","on":"health","who":"Rider","below":0.5}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        w.U.Ids["Bike"] = 1; w.U.Ids["Rider"] = 2;
+        w.Comps[1] = new JsonObject
+        {
+            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(195, 205, 0) },
+            ["BehaviorState"] = new JsonObject { ["ActiveBehaviorHash"] = 420206978 },
+            ["BehaviorStartRecord"] = new JsonObject { ["BehaviorName"] = "DriveBy" },
+            ["EntityInfo"] = new JsonObject { ["ForceId"] = "Hostile" },
+        };
+        w.Comps[2] = new JsonObject
+        {
+            ["IsEmbarkedTag"] = new JsonObject { ["Vehicle"] = "[0, v1]", ["Seat"] = 0 },
+            ["Health"] = new JsonObject { ["Current"] = 30, ["Max"] = 100 },
+        };
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        foreach (var v in book.Verdicts()) Assert.True(v.Ok, v.Name + " should hold on the dumped components");
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);

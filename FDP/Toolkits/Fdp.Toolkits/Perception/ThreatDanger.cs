@@ -30,6 +30,9 @@ namespace Fdp.Toolkit.Perception
             // ⭐ CV-13a (R-2024; DESIGN_Civilians_And_Crowd_Control §4, §5h.2) — a man showing HANDS UP is held like a neutral, whatever his
             //   side: no danger while his hands are up, the full danger the moment they come down (a feint is read live). Not disarmed (AW-5).
             if (ShowsHandsUp(view, target)) return 0f;
+            // ⭐ CE-3455 (found by ua-animal-guard-dog) — an ATTACKING animal (the guard dog biting, Dangerous) is a full danger: its teeth are
+            //   not a weapon the armament judge knows, so it read Unarmed ("never fire on this alone") and the bitten patrol never fired (AR-6).
+            if (Fdp.Toolkit.Animals.Animals.IsDangerous(view, target)) return 1f;
             // ⭐⭐ CE-3229 (B-7; DESIGN_Civilians_And_Crowd_Control §7.8) — THE armed rule: a combatant on STATUS (today's test — a weapon
             //   not only a dispenser, CE-2188, or a working controlled weapon, WS-4), a civilian by what THIS observer can identify (AW-15).
             //   ⭐ A-6: Unidentified reads unarmed — "never fire on this alone", and danger feeds the Sentry's fire threshold.

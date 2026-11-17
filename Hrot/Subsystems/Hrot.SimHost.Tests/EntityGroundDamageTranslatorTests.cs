@@ -174,5 +174,23 @@ namespace Hrot.SimHost.Tests
             Assert.True(EntityMineClearingEgressTranslator.Same(in cs, in mc));
             Assert.True(SameBytes(in mc, EntityMineClearingIngressTranslator.FromSample(in cs)));
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4622</c> K-2 (Checkpoint RM-2, §5a) — a hull's <c>RamOrder</c> (on, the target's network id, the crowd flag) crosses the wire byte for byte on <c>dtRamOrder</c>
+        /// = 196 (fixed by the coordinator); an unchanged order matches its last sample (no resend); switched off, it differs (the off is sent).
+        /// 🔴 Red-proof: drop the <c>Crowd</c> copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// </summary>
+        [Fact]
+        public void CE4622_TheRamOrder_RoundTripsByteForByte_OnOrdinal196()
+        {
+            Assert.Equal(196L, (long)Hrot.NED.Descriptors.EDescriptorType.dtRamOrder);
+            Assert.Equal(126, GlobalComponentIds.RamOrder);
+            var ro = new CarKinem.Core.RamOrder { Active = 1, Crowd = 1, Target = new Fdp.Toolkit.Replication.EntityRef(4622) };
+            var s = EntityRamOrderEgressTranslator.ToSample(7106, in ro);
+            Assert.True(EntityRamOrderEgressTranslator.Same(in s, in ro));
+            Assert.True(SameBytes(in ro, EntityRamOrderIngressTranslator.FromSample(in s)));
+            var off = ro; off.Active = 0;
+            Assert.False(EntityRamOrderEgressTranslator.Same(in s, in off));
+        }
     }
 }

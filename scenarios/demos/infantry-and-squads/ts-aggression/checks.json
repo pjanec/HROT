@@ -1,0 +1,38 @@
+{
+  "$doc": "docs/DESIGN_Temperament_And_Stress.md \u00a76 (CE-2271) \u2014 ts-aggression, the scenario's Judge list. (3) the bold man ends nearer his enemy than the cautious man: the two duels mirror each other 300 m apart (Bold at (200,300) facing Bold Enemy 100 m north, Cautious likewise), so 'nearer' is read as Bold's y at the end > Cautious's y at the end. \u26a0 Left out: (1)/(2) the time shares of AdvanceAndAttack / TakeCover (a share of time is not a cue) and (4) the printed damping modifiers.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(3) the bold man advances",
+      "on": "near",
+      "who": "Bold",
+      "point": [
+        200,
+        400
+      ],
+      "within": 60,
+      "before": 90
+    },
+    {
+      "name": "(3) the bold man ends well north of where he started",
+      "on": "field",
+      "who": "Bold",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 340,
+      "atEnd": true
+    },
+    {
+      "name": "(3) the cautious man ends short of the bold man's line",
+      "on": "field",
+      "who": "Cautious",
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 340,
+      "atEnd": true
+    }
+  ]
+}

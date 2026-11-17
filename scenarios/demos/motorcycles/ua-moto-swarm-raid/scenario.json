@@ -1,0 +1,743 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a swarm raid (CE-4621 IM-5; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md \u00a75 / \u00a79). 'Raid Leader' commands six two-up motorcycles ('Bike 1'..'Bike 6', each a 'Rider n' and a 'Pillion n') assembled at the west edge of test-town. SwarmRaid sends each bike to its OWN approach point on a 120 m ring round the post at the road junction (200, 200) (bearings 60\u00b0 apart), then all converge to 20 m of the post, hold 30 s and fight the two 'Post Guard's (Friend, return fire only), ride OUT on divergent bearings (180 m out) and on to the rally point (40, 360). Each phase waits for every live bike (or 180 s). Judge: (1) a bike reaches each of the six approach points (2) all live bikes close to within 30 m of the post together (3) the pillions fire at the post (4) the bikes ride out on divergent bearings (a bike reaches the east and the west out-points) (5) at least four bikes reach the rally point. Check: scripts/scenario-regression.sh ua-moto-swarm-raid"
+  },
+  "entities": {
+    "46210d04-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          30,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Raid Leader",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SwarmRaid",
+        "Params": {
+          "Objective": [
+            200,
+            200,
+            0
+          ],
+          "Rally": [
+            40,
+            360,
+            0
+          ],
+          "ApproachMetres": 120,
+          "Fight": 30,
+          "Speed": 12
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          30,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 1",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-000000000011",
+          "46210d04-0000-4000-8000-000000000012"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          30,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000010",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          30,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000010",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          30,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 2",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-000000000014",
+          "46210d04-0000-4000-8000-000000000015"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          30,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000013",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          30,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000013",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          30,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 3",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-000000000017",
+          "46210d04-0000-4000-8000-000000000018"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          30,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000016",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-000000000018": {
+      "SimTransform": {
+        "Position": [
+          30,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000016",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-000000000019": {
+      "SimTransform": {
+        "Position": [
+          30,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 4",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-00000000001a",
+          "46210d04-0000-4000-8000-00000000001b"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001a": {
+      "SimTransform": {
+        "Position": [
+          30,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000019",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001b": {
+      "SimTransform": {
+        "Position": [
+          30,
+          100,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-000000000019",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001c": {
+      "SimTransform": {
+        "Position": [
+          30,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 5",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-00000000001d",
+          "46210d04-0000-4000-8000-00000000001e"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001d": {
+      "SimTransform": {
+        "Position": [
+          30,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 5",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-00000000001c",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001e": {
+      "SimTransform": {
+        "Position": [
+          30,
+          120,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 5",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-00000000001c",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-00000000001f": {
+      "SimTransform": {
+        "Position": [
+          30,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike 6",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d04-0000-4000-8000-000000000020",
+          "46210d04-0000-4000-8000-000000000021"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "46210d04-0000-4000-8000-000000000001",
+        "Designation": "Rifleman"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          30,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider 6",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-00000000001f",
+        "Seat": 0
+      }
+    },
+    "46210d04-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          30,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Pillion 6",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d04-0000-4000-8000-00000000001f",
+        "Seat": 1
+      }
+    },
+    "46210d04-0000-4000-8000-000000000040": {
+      "SimTransform": {
+        "Position": [
+          204,
+          206,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Post Guard 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "React",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "46210d04-0000-4000-8000-000000000041": {
+      "SimTransform": {
+        "Position": [
+          196,
+          194,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Post Guard 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "React",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    }
+  }
+}
