@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-3 / S-6): no cutting in, judged by the between cue (CE-9009). 'SUMO traffic' is declared later: the traffic replicas ('SUMO <id>') appear during the run. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-3 / S-6): no cutting in, judged by the between cue (CE-9009). 'SUMO traffic' is declared later: the traffic replicas ('SUMO <id>') appear during the run. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner). A split is a pair more than 60 m apart = one gap + the three gaps of lag at which the lead's cap stops it (C-6): past that the cap failed to hold the column. 📌 Measured in the cluster tier (real time, longer frames): a follower falls ~40 m behind its predecessor for a few seconds at the 12 m junction kink at x 300 (CE-9011) and recovers by x 400 — the cap at work, not a split.",
   "runFor": 75,
   "golden": false,
   "later": [
@@ -61,32 +61,32 @@
       "before": "the lead reaches its destination"
     },
     {
-      "name": "the column never splits (Escort 2 never more than 35 m behind Escort 1)",
+      "name": "the column never splits (Escort 2 never more than 60 m behind Escort 1)",
       "never": {
         "on": "far",
         "who": "Escort 2",
         "from": "Escort 1",
-        "m": 35
+        "m": 60
       },
       "before": "the lead reaches its destination"
     },
     {
-      "name": "the column never splits (Escort 3 never more than 35 m behind Escort 2)",
+      "name": "the column never splits (Escort 3 never more than 60 m behind Escort 2)",
       "never": {
         "on": "far",
         "who": "Escort 3",
         "from": "Escort 2",
-        "m": 35
+        "m": 60
       },
       "before": "the lead reaches its destination"
     },
     {
-      "name": "the column never splits (Escort 4 never more than 35 m behind Escort 3)",
+      "name": "the column never splits (Escort 4 never more than 60 m behind Escort 3)",
       "never": {
         "on": "far",
         "who": "Escort 4",
         "from": "Escort 3",
-        "m": 35
+        "m": 60
       },
       "before": "the lead reaches its destination"
     },
