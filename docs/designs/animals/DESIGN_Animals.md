@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none — AN-7 amends Breaching B-D1 (a panicked big animal breaks a SMALL fence), approved R-4266
 related-designs:
+  - ../weapons/DESIGN_Bows_And_Crossbows.md — the bow AR-10's mounted archers use, fired from the horse's seats (BW-8, CE-4649)
   - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the fear model (`CivilianFearSystem`, §5d), the HSM Routine ⇄ Alarmed ⇄ flee / shelter, the crowd — the animal brain generalises it
   - ../../DESIGN_Vehicle_Breaching.md — OWNS `ContactBreach` and B-D1 (who may break a fence)
   - ../vehicle-tactics/DESIGN_Motorcycle.md — OWNS the firing seat and the Drive / Board possession the riding horse reuses
