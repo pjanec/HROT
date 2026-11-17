@@ -395,6 +395,42 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.Repo.AddComponent(aiming, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = stranger });
             Assert.True(ForceLevels.ConductPermits(_world.Repo, stranger, aiming, lethal: true));           // he aims at me
         }
+        /// <summary>⭐⭐ <c>CE-4649</c> PART C ① (R-3101) — an EXPLICIT ORDER lifts the conduct hold for THAT target: a man whose running behaviour was given by a Superior / Operator and
+        /// designated the civilian (or a bird) may fire a lethal round at him; the same man on his OWN (SOP origin), or ordered at a DIFFERENT entity, is still held; the unit's force cap still
+        /// applies (a NonLethal unit ordered to attack fires nothing lethal). ✅ Red-proof: <c>IsOrdered</c> returning false ⇒ the ordered rows are held ⇒ red.</summary>
+        [Fact]
+        public void CE4649_AnExplicitOrder_LiftsTheConductHold_ForThatTargetOnly_AndTheForceCapStays()
+        {
+            for (int i = 0; i < 100; i++) _world.Repo.Tick();
+            if (!_world.Repo.IsComponentTypeRegistered<WeaponPosture>()) _world.Repo.RegisterComponent<WeaponPosture>();
+            if (!_world.Repo.IsComponentTypeRegistered<BehaviorState>()) _world.Repo.RegisterComponent<BehaviorState>();
+            if (!_world.Repo.IsComponentTypeRegistered<Roe>()) _world.Repo.RegisterComponent<Roe>();
+            var civ = Man(PistolCivType, new Vector3(150f, 0f, 0f), ForceId.Hostile, civilian: true);   // 150 m: his pistol unidentified ⇒ held on the unit's own
+            var other = Man(PistolCivType, new Vector3(150f, 20f, 0f), ForceId.Hostile, civilian: true);
+            var bird = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(bird, new SimTransform { Position = new Vector3(40f, 0f, 20f), Rotation = Quaternion.Identity });
+            _world.Repo.AddComponent(bird, new EntityInfo { ForceId = ForceId.Neutral });
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            _world.Repo.AddComponent(bird, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Bird });
+            var own = Observer(); var ordered = Observer(); var cop = Observer();
+            foreach (var u in new[] { own, ordered, cop }) _world.Repo.AddComponent(u, new BehaviorState { InstanceId = 7, Origin = BehaviorOrigin.Superior });
+            _world.Repo.GetComponentRW<BehaviorState>(own).Origin = BehaviorOrigin.Sop;
+            _world.Repo.AddComponent(cop, new Roe { ForceLevel = RoeForceLevel.NonLethal });
+            foreach (var u in new[] { own, ordered, cop }) DesignatedTarget.Set(_world.Repo, u, civ);
+
+            Assert.True(ForceLevels.ConductPermits(_world.Repo, ordered, civ, lethal: true));    // told to attack him
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, own, civ, lethal: true));       // the same civilian on his own initiative
+            Assert.False(ForceLevels.ConductPermits(_world.Repo, ordered, other, lethal: true)); // ordered at someone else
+            Assert.True(ForceLevels.IsOrdered(_world.Repo, ordered, civ));
+            Assert.True(ForceLevels.Permits(_world.Repo, ordered, civ, BulletAmmo));
+            Assert.False(ForceLevels.Permits(_world.Repo, cop, civ, BulletAmmo));               // ordered, but a NonLethal unit stays non-lethal
+            Assert.True(ForceLevels.Permits(_world.Repo, cop, civ, StoneAmmo));                  // …and its non-lethal round is fine
+
+            DesignatedTarget.Set(_world.Repo, ordered, bird);
+            Assert.True(ForceLevels.IsOrdered(_world.Repo, ordered, bird));                      // ordered at a bird
+            Assert.False(ForceLevels.IsOrdered(_world.Repo, own, bird));                         // on his own: no
+        }
+
         private static readonly DISEntityType PoliceDis = new() { Kind = 3, Domain = 1, Category = Armament.SecurityForceCategory };
 
         private Entity Police(Vector3 at)
