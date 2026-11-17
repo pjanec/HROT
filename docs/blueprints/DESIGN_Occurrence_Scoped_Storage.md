@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-09 (§34 U-0 built, as-built §34.6)
+updated: 2026-11-17 (§34.7 growth inside the parallel phase — DESIGN, awaiting the user) · 2026-10-09 (§34 U-0 built, as-built §34.6)
 build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
   one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
   ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path) · §34 (U-0).
@@ -9,7 +9,7 @@ build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is 
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
+current-answer: ⭐⭐ §34.7 (2026-11-17, DESIGN) — a block appended INSIDE the parallel brain phase: an addressable pending block, played at the merge (CE-9013 / CE-3467). ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -122,6 +122,7 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — it LIVES in this store as a new slot kind, and its room is reserved at assign exactly like hosted demand (O7b-3)
 related-designs:
+  - ../DESIGN_Parallel_Simulation.md — OWNS the per-entity rule and the merge (§18.5 D-31, §18.9 own adds read back); §34.7 here is how the store grows inside its phase
   - ../DESIGN_Entity_Brain_View.md — §9 BV-22 pins the §32.22 debug pump to one unit (the deferred pinning)
   - DESIGN_Behavior_Action_Binding.md — §5.7 (CE-3163): every HSM action reads ITS OWN block through HsmKernelBridge.Block (the generated thunks read the entity's root block, so a hosted HSM child read its host's)
   - docs/blueprints/Variables_Designer_Quickstart.md — the designer-facing account of node memory, shared memory and unit memory
@@ -10473,3 +10474,142 @@ the only new types are two plain value carriers.*
 **Residual:** the world-singleton silent drop on a full tier (`BlueprintTickSystem.EnsureAndTickSingleton`, outside U-0) · §3b ④ search
 order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
 the cost difference is one ~14 ns scan).
+
+### 34.7 ⭐⭐ `CE-9013` / `CE-3467` — **GROWTH INSIDE THE PARALLEL PHASE: an addressable pending block** *(`2026-11-17`, `build-state: DESIGN` — awaiting the user's approval)*
+
+> 🔒 **User, `2026-11-17`:** *"The first block is not big … for sure we want it to grow by adding a new bigger component, and the only
+> question is how … or whether we provide a temporary storage for the component so that the code can access it from the middle of the
+> parallel phase, and this temporary storage is then turned into a new component after the parallel."* · *"the same situation happens if the
+> 4 kilobytes component is full and we need to allocate the next one."*
+
+**The problem.** §34.3 appends a block mid-tick, and that was safe while brains were serial (Q87 §3a, measured then). Under parallel brains
+([`DESIGN_Parallel_Simulation.md`](../DESIGN_Parallel_Simulation.md) §18.5 D-31) every add inside the phase — on the job's own entity too — is
+deferred to the merge. So `AddBlock`'s component add goes to the batch's command buffer, and its very next line (`spec.Memory`) finds no
+component. That breaks every growth step (256 → 1024 → 4096 → 16384), not one tier. 📌 Found twice the same day: `uc-urban-battle` (convoy,
+CE-9013) and `ua-rpg-window` (backend, CE-3467).
+
+#### 34.7.1 INVENTORY — measured `2026-11-17`
+
+Graph (`scripts/cbm.sh search_graph`, name patterns `.*OccurrenceStore.*`, `.*TierSpec.*`, `.*TickView.*`, `.*BatchContext.*`,
+`.*ParallelEntities.*`, `.*CommandBuffer.*`, `.*StandardLadder.*`, `.*Pending.*`; `search_code "AddBlock("`) + grep. ⚠ The graph has NO node for
+`BatchContext`, `ParallelEntities` or `EnsureStandardLadder` (0 results each) ⇒ the engine rows below are grep only; index coverage could not be
+checked (no `check_index_coverage` in the CLI). `search_code "AddBlock("` (25 hits): production callers are `BlueprintInstanceService.AttachToEntity`,
+`BlueprintMaterializationSystem`, `EnsureRoom` / `AppendBlockFor` (all serial) and `TryAttachSlot` — the one reached in a phase.
+
+| question | answer, measured | where |
+|---|---|---|
+| who appends a block INSIDE a phase | only code reached from `BrainTickSystem.TickInPhase`: `UnitMemory`, `OccurrenceWorkingState` (BTree / scenario working state), `RootStateAccess` / `RootHsmAccess` lazy roots, `HostedSubtree`, `HsmOccurrence` — all through `TryAttachSlot` | `BrainTickSystem.cs:364-390` |
+| the other parallel phases (weapon dispatch, staff, squad, threat, car kinematics, callouts, stress) | **0** store calls | grep of each job's file |
+| `RootParamsAccess.RequireRootBytes` (executors) | read only — throws if missing, never attaches | `RootParamsAccess.cs:160-185` |
+| `StepRunner` (scenario actions) | driven by the scenario-rules `ActionList`, not a parallel job | `ActionList.cs` |
+| views per unit per phase | **one**, opened in `TickInPhase` (`:374`); `:337` is the serial pre-pass; the SOP pass (`:538`) is serial and runs AFTER the merge | `BrainTickSystem.cs:142-280, 497-545` |
+| what the view does NOT cover | `TryAttachSlot` picks blocks from the component mask (`PresentTiers`), never the view — so a pending tier would be appended twice | `OccurrenceStoreAccess.cs:509` |
+| a pointer to a block held past a tick | none in production: `BlueprintStateView` is built only by tests; `HsmKernelBridge.Block` is set per run | `BlueprintStateView.cs:15` + its 3 test callers |
+| how the merge adds an unmanaged component | `EntityCommandBuffer.Playback` → `repo.AddComponentRaw(entity, typeId, ptr, size)`: `IsAlive` guard, no size cap, sets the mask, stamps, `BumpType` | `EntityCommandBuffer.cs:395-410`, `EntityRepository.cs:2219-2241` |
+| merge order | per batch in order: `Commands.Playback`, then `PlayLater`, then `ApplyDeferred` (the brains' `AfterPhase`, which may read the store); batches are contiguous index ranges ⇒ entity order at any thread count | `ParallelEntities.cs:364-390` |
+| "inside a phase, on this thread, over this world" | `ParallelReadCheck.Defers(world)` (public) + `CurrentBatch` | `ParallelReadCheck.cs:75-88` |
+| what is on `coordinator` now (CE-3467, R-3103, backend lane decision for the user's review) | the command buffer cap 1024 → 32 KiB; `EnsureStandardLadder` gives EVERY brain unit 256 + 1024 + 4096 in the serial pre-pass (~5.4 KB each); `TryAttachSlot` THROWS when a 16384 is needed inside the phase | `f83070611`, `aee2f88cb`; `BrainPhase.cs:97` |
+| R-3103's premise "what a spawned soldier already carries" | ⛔ not what the spawn path does: the first block is sized to the scenario's demand, a shortfall appends | `BlueprintMaterializationSystem.cs:125-136` |
+
+#### 34.7.2 Classes — grey = exists
+
+```mermaid
+classDiagram
+  class BatchContext { <<existing, grows>> Commands; RememberOwnUnmanaged; +AllocateOwnRaw(entity, typeId, size) byte*; +OwnRaw(entityIndex, typeId) byte*; Reset }
+  class OwnRawBlocks { <<new, inside BatchContext>> list of (entity, typeId, ptr, size); native arena, 64 KB pages, reused, never moved within a tick }
+  class ParallelEntities { <<existing, grows>> merge: per batch PlayOwnRaw then Commands.Playback then PlayLater then ApplyDeferred }
+  class EntityRepository { <<existing, unchanged>> AddComponentRaw(entity, typeId, ptr, size) }
+  class OccurrenceStoreAccess { <<existing, grows>> AddBlock: in a phase allocate pending; TryAttachSlot and Measure walk the VIEW when open }
+  class TickViewState { <<existing, grows>> Memory[4], Tier[4]; +Pending bits }
+  class BlueprintTierSpec { <<existing, unchanged>> ComponentId; TotalSize }
+  class BrainPhase { <<existing, shrinks>> EnsureStandardLadder RETIRED }
+  BatchContext *-- OwnRawBlocks
+  ParallelEntities --> BatchContext : plays each batch in order
+  ParallelEntities ..> EntityRepository : AddComponentRaw at the merge
+  OccurrenceStoreAccess ..> BatchContext : AllocateOwnRaw when Defers(world)
+  OccurrenceStoreAccess --> TickViewState : appends the pending block
+  OccurrenceStoreAccess ..> BlueprintTierSpec
+```
+
+*What the picture shows that prose hid: the engine part is generic (`BatchContext` gains addressable own-entity raw adds, for any unmanaged
+component); everything specific to tiers stays in `OccurrenceStoreAccess`. The repository's read paths do not change — only the store,
+through its view, knows a pending block is there.*
+
+#### 34.7.3 Sequence — one unit's tick in the phase with a chained growth (1024 full → 4096 → full → 16384)
+
+```mermaid
+sequenceDiagram
+  participant J as BrainJob (batch b thread)
+  participant V as TickViewState
+  participant OSA as OccurrenceStoreAccess
+  participant B as BatchContext b
+  participant M as merge (main thread)
+  participant W as EntityRepository
+  J->>V: BeginTickView(unit): blocks 256 + 1024 from the mask
+  J->>OSA: UnitMemory.Ref of T (no slot, 1024 full)
+  OSA->>V: tiers present = view tiers (256, 1024)
+  OSA->>B: AllocateOwnRaw(unit, 4096 id, 4096): zeroed, stable
+  OSA->>V: Append(4096, ptr, stamped, pending)
+  OSA-->>J: slot in the pending 4096
+  J->>OSA: a second attach, 4096 now full
+  OSA->>B: AllocateOwnRaw(unit, 16384 id, 16384)
+  OSA->>V: Append(16384, ptr, pending)
+  J->>V: Dispose: no stamp for pending blocks
+  M->>W: batch b: AddComponentRaw(unit, 4096 id, ptr) then (16384)
+  M->>W: batch b: Commands.Playback, then PlayLater
+  M->>W: AfterPhase reads the REAL blocks
+```
+
+*What it shows: the job never touches the world's storage for the new tier, and every slot keeps its block-relative offset through the byte
+copy at the merge — the same "nothing moves" guarantee §34 rests on, carried across one copy that happens while nobody holds a pointer.*
+
+#### 34.7.4 Modules — who allocates, who plays back
+
+```mermaid
+graph TD
+  subgraph Phase["brain phase (parallel, per batch)"]
+    TIP["BrainTickSystem.TickInPhase"] --> View["TickViewState (one per unit tick)"]
+    TIP --> Runners["BTree / HSM / Blueprint runners"]
+    Runners --> OSA["OccurrenceStoreAccess"]
+    OSA -->|"Defers(world): pending"| BC["BatchContext.OwnRawBlocks"]
+    OSA -->|"append"| View
+  end
+  subgraph Merge["merge (serial, batch order)"]
+    PE["ParallelEntities.Runner"] -->|"1 PlayOwnRaw"| Raw["EntityRepository.AddComponentRaw"]
+    PE -->|"2 Commands.Playback"| Raw
+    PE -->|"3 PlayLater, 4 ApplyDeferred"| After["BrainTickSystem.AfterPhase"]
+  end
+  BC --> PE
+  Pre["BrainPhase.Prepare (serial pre-pass)"] -.->|"EnsureStandardLadder RETIRED"| OSA
+  style Pre stroke:#c00,color:#c00
+```
+
+*What it shows: the pending block reaches the world by exactly one road — the merge, in batch order, before the batch's own commands and
+before `AfterPhase`, which may read the store. The red edge is R-3103's eager ladder, which this retires.*
+
+#### 34.7.5 The decision, and why each piece
+
+| piece | reason |
+|---|---|
+| ⭐⭐ the block is allocated in batch-owned native memory, appended to the unit's view, and becomes the component at the merge via `AddComponentRaw` | D-31's objection is the ORDER of the shared add counters and the per-type add log (`EntityRepository.BumpType`), never atomicity ⇒ the add must be played serially in batch order. `AddComponentRaw` is the path every deferred add already takes |
+| ⭐ played FIRST in its batch (before `Commands.Playback`) | the unit used the block during its tick, before any command it then issued; a destroy in the same batch is guarded by `IsAlive` |
+| ⭐ only the job's OWN unit, only through the open view | ⛔ an attach into another entity's store inside the phase is a cross-entity write ⇒ it throws, as today's per-entity rule |
+| ⭐ `TryAttachSlot` / `Measure` read the view when it is open (tiers present = view tiers) | measured gap: `TryAttachSlot` reads the mask (`:509`), so a pending tier would be appended twice |
+| ⭐ the pending block is appended `stamped: true` | `StampChanged` must never call `spec.Memory` on a tier with no component; its first real version comes from `AddComponentRaw` |
+| ⭐ the arena is native, paged, reused (grown, never shrunk) | the hot-path rule: 0 B allocated on a steady tick; growth itself is rare and may allocate on first use |
+| ⭐ serial callers unchanged | `Defers(world)` is false outside a phase and with `HROT_SERIAL_BRAINS=1` ⇒ `AddBlock` adds the component at once, as now |
+| ⭐ `EnsureStandardLadder` (R-3103) retired | it pre-sizes every brain unit to ~5.4 KB (against the user's "first block small, grow on need" and R-237 C, fully lazy) and still throws for 16384. The 32 KiB command-buffer cap stays — harmless, and right for any other large deferred component |
+| the proven solution for this problem class | per-thread command buffers with a temporary handle resolved at playback (Unity DOTS `EntityCommandBuffer`, Bevy `Commands`). We ADAPT it: the job also needs to WRITE the new component before playback, so the temporary is an addressable byte block, and playback copies it |
+
+**Rejected:** a lock around the add — keeps thread order in the add log (D-31) · pre-size at ingress (convoy note's lean) / R-3103's ladder —
+breaks R-237 C, costs ~5.4 KB a unit, and 16384 still fails · raise the command-buffer cap only — the block is still unreadable until the merge ·
+refuse in phase, retry next tick — `UnitMemory.Ref<T>` must return a `ref` now · by-reference own-pending reads inside
+`EntityRepository.GetComponentRW` — every `Has`/`Get` in every phase would pay for a lookup only the store needs.
+
+#### 34.7.6 Build steps and rails
+
+| step | content | rails (each red-proved) |
+|---|---|---|
+| **G-1** engine | `BatchContext.AllocateOwnRaw` / `OwnRaw` + arena + `Reset`; `ParallelEntities` plays them first per batch | `Fdp.Core.Tests`: a raw own add is readable by address in its job, lands at the merge with its final bytes, in batch order at 1 / 2 / 4 / 8 threads (the add log identical); a destroyed entity's pending add is dropped; 0 B on a steady run |
+| **G-2** store | `AddBlock` in a phase → pending; `TryAttachSlot` / `Measure` through the view; cross-entity in-phase attach throws; retire `EnsureStandardLadder` + its call in `BrainPhase` + `SuspendStandardLadder` in the nine fixtures (backend's code — cross-lane edit, said) | `UnitMemoryTests`: under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`, in-phase growth at each step 256 → 1024, 1024 → 4096, 4096 → 16384; a chain 1024 → 4096 → 16384 in ONE tick; the slot reads the same bytes on the next tick; a unit that needs nothing keeps one block (red against the ladder) |
+| **G-3** proof | T-1 suites (`OccurrenceStoreAccessTests`, `UnitMemoryTests`, `BTreeHostsBTreeTests.U0_R5`, `PerEntityRuleTests`); `stepped-hash.py --threads 1,4,8` on `uc-urban-battle`, `ua-rpg-window`; CE-9012 put back and `uc-urban-battle` passes | — |
