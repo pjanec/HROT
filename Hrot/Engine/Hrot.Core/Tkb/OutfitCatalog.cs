@@ -105,6 +105,9 @@ namespace Hrot.Core.Tkb
             Khaki = C(160, 148, 110), Olive = C(96, 104, 72), FieldGrey = C(110, 110, 112), FieldBlack = C(30, 30, 34), FieldGreen = C(92, 100, 64),
             Drab = C(84, 80, 64), ClothGrey = C(140, 140, 142), ClothBlack = C(80, 80, 84), CapOlive = C(84, 90, 64);
 
+        /// <summary>⭐ CE-4648 — the colour a Shemagh option uses to say "red-and-white check" (the presentation draws the check; any other colour is a plain cloth).</summary>
+        public static string CheckShemagh => RedWhiteCheck;
+
         private static OutfitOption O(string kind, float weight, params string[] colours) => new() { Kind = kind, Weight = weight, Colours = [.. colours] };
         private static OutfitSlot S(params OutfitOption[] options) => new() { Options = [.. options] };
 
@@ -212,7 +215,7 @@ namespace Hrot.Core.Tkb
             Over = S(O(nameof(OutfitOver.ChestRig), 60f, Drab), O(nameof(OutfitOver.None), 40f)),
             Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(106, 100, 76), C(70, 72, 56), C(48, 48, 50), C(120, 112, 88))),
             Head = S(O(nameof(OutfitHead.Shemagh), 20f, RedWhiteCheck), O(nameof(OutfitHead.Shemagh), 12f, CapWhite), O(nameof(OutfitHead.Shemagh), 8f, ClothBlack),
-                     O(nameof(OutfitHead.ShemaghFaceWrap), 10f, CapWhite), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, ClothGrey), O(nameof(OutfitHead.ShemaghFaceWrap), 7f, FieldBlack),
+                     O(nameof(OutfitHead.ShemaghFaceWrap), 10f, Khaki), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, Drab), O(nameof(OutfitHead.ShemaghFaceWrap), 7f, RedWhiteCheck),
                      O(nameof(OutfitHead.Cap), 8f, CapOlive), O(nameof(OutfitHead.Cap), 7f, FieldBlack), O(nameof(OutfitHead.None), 20f)),
             Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
             Beard = S(Dark(nameof(OutfitBeard.Beard), 70f), Dark(nameof(OutfitBeard.Moustache), 15f), Dark(nameof(OutfitBeard.None), 15f)),

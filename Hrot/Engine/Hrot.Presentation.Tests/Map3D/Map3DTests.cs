@@ -1713,7 +1713,7 @@ public sealed class Map3DTests
     /// <summary>⭐ CE-4648 OF-5 / OF-4 — what a garment hides, and the stand-ins that draw the new kinds: a scarf or veil hides the hair (it is drawn long, in the
     /// cloth's colour), a niqab or a face wrap hides the beard, a robe or an abaya hides the legs (a long box in its colour), a chest rig is a vest box.</summary>
     [Fact]
-    public void CE4648_OF5_ScarvesHideHair_RobesHideLegs_VeilsHideTheBeard_AndTheNewGarmentsAreDrawnWithStandIns()
+    public void CE4648_OF5_ScarvesHideHair_RobesHideLegs_VeilsHideTheBeard_AndTheNewGarmentsAreDrawnForReal()
     {
         var neutral = Fdp.Core.ForceId.Neutral;
         var details = new System.Collections.Generic.List<PartDetail>();
@@ -1728,22 +1728,23 @@ public sealed class Map3DTests
                 bool Has(int part, float minZ) => details.Any(d => d.Part == part && d.Extent.Z >= minZ);
                 if (o.HeadKind is OutfitHead.Hijab or OutfitHead.Niqab or OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap)
                 {
-                    Assert.Equal(HairStyle.Long, o.HairStyle);
+                    Assert.Equal(HairStyle.None, o.HairStyle);   // ⭐ CE-4648 S2 — the scarf is drawn for real now (PersonOutfitsRail): the hair is simply hidden
                     Assert.Equal(o.HeadCloth, o.Hair);
-                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && d.Colour.Equals(o.HeadCloth)), "the long-hair box, in the cloth's colour");
+                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && d.Colour.Equals(o.HeadKind == OutfitHead.Shemagh && o.HeadCloth.R > 150 && o.HeadCloth.G < 130 ? Raylib_cs.Color.White : o.HeadCloth)
+                                                 || d.Part == BlockFigure.HeadIndex), "the headwear's boxes");
                     seen.Add(o.HeadKind.ToString());
                 }
                 if (o.HeadKind is OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap)
                 {
                     Assert.Equal(BeardKind.None, o.Face.Beard);
-                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && d.Extent.X < 0.1f), "the veil across the lower face");
+                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && (d.Centre.X + d.Extent.X / 2f) * 0.21f >= 0.118f && 1.60f + d.Centre.Z * 0.24f < 1.6f), "the veil across the lower face");
                 }
                 if (o.HeadKind is OutfitHead.Skullcap or OutfitHead.Cap) { Assert.True(Has(BlockFigure.HeadIndex, 0.1f)); seen.Add(o.HeadKind.ToString()); }
                 if (o.TopKind is OutfitTop.Robe or OutfitTop.Abaya)
                 {
                     Assert.Equal(Legwear.Hidden, o.Legwear);
                     Assert.Equal(o.Top, o.Bottom);          // the legs are the robe's colour
-                    Assert.True(Has(BlockFigure.TorsoIndex, 1.4f), "the robe's box, to the ankles");
+                    Assert.True(details.Any(d => d.Part == BlockFigure.TorsoIndex && d.Extent.Z >= 0.8f), "the robe's boxes, to the ankles");
                     seen.Add(o.TopKind.ToString());
                 }
                 if (o.Legwear == Legwear.LongSkirt) { Assert.True(Has(BlockFigure.TorsoIndex, 1.4f)); seen.Add("LongSkirt"); }

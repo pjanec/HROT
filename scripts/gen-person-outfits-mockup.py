@@ -76,7 +76,7 @@ def headband():   # the feathers rise from the BACK of the band, stepped backwar
 
 def braids():
     b = [Bx(0, 0, 1.745, 0.23, 0.22, 0.05, BLACK), Bx(-0.13, 0, 1.52, 0.05, 0.24, 0.40, BLACK)]
-    for s in (1, -1): b += [Bx(0.07, 0.115 * s, 1.30, 0.05, 0.05, 0.36, BLACK), Bx(0.07, 0.115 * s, 1.10, 0.05, 0.05, 0.03, DKRED)]
+    for s in (1, -1): b += [Bx(0.145, 0.115 * s, 1.30, 0.05, 0.05, 0.36, BLACK), Bx(0.145, 0.115 * s, 1.10, 0.05, 0.05, 0.03, DKRED)]
     return b
 def facepaint():
     return [Bx(0.108, 0, 1.63, 0.012, 0.20, 0.04, BLACK), Bx(0.108, 0.07, 1.56, 0.012, 0.05, 0.10, RED), Bx(0.108, -0.07, 1.56, 0.012, 0.05, 0.10, WHITE)]
