@@ -16,10 +16,10 @@
       "is": "PlatoonConvoy"
     },
     {
-      "name": "the vehicles drive the route (FollowRoute)",
+      "name": "the vehicles drive the route as one road column (PlatformConvoy, CE-9012)",
       "on": "task",
       "who": "Convoy APC",
-      "is": "FollowRoute"
+      "is": "PlatformConvoy"
     },
     {
       "name": "a convoy vehicle is at the charge",
@@ -132,10 +132,10 @@
       "after": "after the contact a squad secures (SquadDefend)"
     },
     {
-      "name": "and the convoy moves on (a vehicle on FollowRoute again)",
+      "name": "and the convoy moves on (a vehicle in the road column again, PlatformConvoy)",
       "on": "task",
       "who": "*Convoy",
-      "is": "FollowRoute",
+      "is": "PlatformConvoy",
       "after": "then a squad remounts (SquadEmbark)"
     }
   ]
