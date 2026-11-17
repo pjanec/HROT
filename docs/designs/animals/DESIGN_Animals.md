@@ -112,7 +112,7 @@ man's 12-gauge, 12 pellets over 15 mils, spent past 60 m — `NedTkbCatalog.cs:5
 | **AN-20d** | the scenario **`an-duck-hunt`**: a hunter with the shotgun shoots a lone duck and into a duck flock over a field — a lone duck `health == 0` and lying · the flock's count drops ≥ 1, a dead duck lies · the flock flees | R-4277 | — |
 | **AN-20e** | the bird-shooting GAME (scores, rounds) stays the fun pack's (CE-4633) | engine shared, content separate (R-4281) | — |
 
-### 4c. The rabbit, the hunting dog and the hunt — AN-21 *(coordinator, `2026-11-17`; ⛔ NOT approved)*
+### 4c. The rabbit, the hunting dog and the hunt — AN-21 *(coordinator, `2026-11-17`; ✅ APPROVED `2026-11-17` (R-4290))*
 
 🔒 User, `2026-11-17`: *"could we include also a rabbit which lives in the woods and when frightened it runs away in zigzag pattern?"*
 

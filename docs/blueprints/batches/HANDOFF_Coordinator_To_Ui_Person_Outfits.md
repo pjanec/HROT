@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — dispatched, not started — ⭐ UNATTENDED
+state: LIVE — ⚠ NARROWED `2026-11-17` (R-4290): the BACKEND lane builds S1 (the data path) and the catalogue content of S3 / S4 — ui keeps the DRAWING (S2 garments + the stand-ins backend leaves) — not started — ⭐ UNATTENDED
 updated: 2026-11-17
 current-answer: the whole file
 related-designs:
@@ -16,6 +16,10 @@ STOP that step, do the rest (R-106).
 
 🔒 User, `2026-11-17`: *"I think the TKB should say what 3D model properties are, including the clothes"* · *"seeded variety within the lists"* ·
 *"I would like to have also Arabian combatants, meaning that they can have weapons"* · *"approved, insurgent takes the new look, write the handoff"*.
+
+## ⚠ NARROWED `2026-11-17` (R-4290) — read first
+
+🔒 User: *"the backend lane is idle. So I suggest giving the handoff to the backend lane. With whatever non-UI stuff we need"*. ⇒ **backend builds**: S1 entirely (`OutfitDto`, the sex fix, today's wardrobes to data, the fixed draw order, the flattening, the pixel-identical proof) and the CATALOGUE rows of S3 / S4 (types 1105–1110, 2010–2012, the Insurgent's wardrobe, the Native American warrior) with their wardrobes — new garment kinds are declared and drawn with the nearest existing look. ⇒ **ui builds (when free, after merging `backend`)**: S2 — mockups, then the real drawing of every new garment kind (robe, abaya, shemagh + agal, skullcap, hijab, niqab, chest rig, face wrap, ⭐ and the Native American ones: buckskin with fringe, breechcloth, headband with feathers, braids, face paint), replacing backend's stand-ins; and the thumbnails once the figures are drawn. Read `HANDOFF_Coordinator_To_Backend_Bows_Birds_Outfits.md` for what backend left.
 
 ## ⭐⭐⭐ UNATTENDED
 Never ask, never wait. Decide by measurement and the claim table; record `R-1xxx` lane decisions for the user's review with what would change them.
