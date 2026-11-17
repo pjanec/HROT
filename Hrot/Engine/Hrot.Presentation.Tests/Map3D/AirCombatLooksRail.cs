@@ -104,15 +104,17 @@ public sealed class AirCombatLooksRail
     internal static void ArmMig(TkbDatabase db)
     {
         var t = db.GetByType(Mig);
-        if (t.GetDescriptor<WeaponSuiteDto>() != null) return;   // S3 has armed it: use its suite
-        t.AddDescriptor(new WeaponSuiteDto
+        var suite = t.GetDescriptor<WeaponSuiteDto>();
+        if (suite != null)
+            foreach (var m in suite.Mounts) if (m.Category == WeaponCategory.AirToAir) return;   // S3 has armed it: use its suite
+        // ⭐ S1 already gives the jets a suite holding only the decoy dispenser (BS-1 §5.4c: the dispenser is the LAST mount) — the missiles and the gun go IN FRONT
+        //   of it, at the indices the rails read (0 IR, 1 radar, 2 gun)
+        if (suite == null) { suite = new WeaponSuiteDto(); t.AddDescriptor(suite); }
+        suite.Mounts.InsertRange(0, new[]
         {
-            Mounts =
-            {
-                new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim9x, InitialAmmunition = 2 },
-                new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim120, InitialAmmunition = 2 },
-                new WeaponMountDto { Category = WeaponCategory.Autocannon, MuzzleVelocity = 1050f, InitialAmmunition = 150 },   // the GSh-30-1 (the HUD rail's gun mount, index 2)
-            },
+            new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim9x, InitialAmmunition = 2 },
+            new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim120, InitialAmmunition = 2 },
+            new WeaponMountDto { Category = WeaponCategory.Autocannon, MuzzleVelocity = 1050f, InitialAmmunition = 150 },   // the GSh-30-1 (the HUD rail's gun mount, index 2)
         });
     }
 
