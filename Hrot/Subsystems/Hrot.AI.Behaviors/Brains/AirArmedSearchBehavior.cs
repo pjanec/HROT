@@ -79,6 +79,18 @@ namespace Hrot.AI.Behaviors.Brains
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
             if (ws.Stage == 1)
             {
+                // ⭐ CE-10005 (R-10022) — two CAP pilots on one bandit: the higher-ranked one yields it when another bandit is free
+                if (AirCombatNodes.IsFighter(world, self) && world.HasComponent<EntityInfo>(self)
+                    && Fdp.Toolkit.Motion.AirArenaSystem.TakenByLowerRank(world, self, world.GetComponentRO<EntityInfo>(self).ForceId, ws.Attack.Target))
+                {
+                    var other = DroneTargets.Pick(world, self, p.Centre, p.RadiusM);
+                    if (!other.IsNull && other != ws.Attack.Target
+                        && !Fdp.Toolkit.Motion.AirArenaSystem.TakenByAnother(world, self, world.GetComponentRO<EntityInfo>(self).ForceId, other))
+                    {
+                        ws.Attack = new AirAttackParams { Target = other, Point = world.GetComponentRO<SimTransform>(other).Position };
+                        ws.AttackState = default;
+                    }
+                }
                 var status = AirAttackNodes.Run(ref ws.Attack, ref ws.AttackState, self, world);
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 if (status == NodeStatus.Failure) return NodeStatus.Failure;
@@ -88,6 +100,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.QuietSince = (SimInstant)(Math.Max(now, 1e-6));
                 return NodeStatus.Running;
             }
+            // ⭐ CE-10005 (AC-13, R-10022) — a FIGHTER on this search is on CAP: its radar searches (it is how it sees bandits beyond its eyes)
+            if (AirCombatNodes.IsFighter(world, self)) AirCombatNodes.Radar(world, self, Entity.Null, now);
             var pick = DroneTargets.Pick(world, self, p.Centre, p.RadiusM);
             if (!pick.IsNull)
             {
