@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: DESIGN — OF-1…OF-9 carry leans, ⛔ NOT approved; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
+build-state: DESIGN — OF-1…OF-12 carry leans, ⛔ NOT approved; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the catalogue content · §6 acceptance · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -25,6 +25,7 @@ already?"* · *"seeded variety within the lists, write the design"* (R-4287).
 | A | the TKB type states what its people wear — garments, headwear, hair, colours; ⛔ no automatic choice by region or scenario |
 | B | variety inside a type is SEEDED from the type's own lists (a crowd is not identical, never outside what was authored) |
 | C | Middle-East civilians: men, women and children in their everyday dress |
+| D | Middle-East COMBATANTS — armed, in local dress (🔒 user, `2026-11-17`: *"I would like to have also Arabian combatants, meaning that they can have weapons"*) |
 
 ## 1. INVENTORY *(measured `2026-11-17`)*
 
@@ -43,6 +44,8 @@ descriptor**; `search_code "(?i)thobe|dishdasha|keffiyeh|kufiya|shemagh|abaya|hi
 | `Outfit` | the per-man result: part colours + legwear, hair, suit, tie, camo, child, soldier, face, police, riot | `Outfits.cs:21-23` |
 | `Outfits.Details` | the boxes drawn on parts (skirt, long hair, tie, police cap, vest…) — "turned" details follow the face | `Outfits.cs:199` |
 | call sites | per person, per FRAME, in the near and far draws and the crowd paths (struct result, no cache) | `EntityBodyLayer3D.cs:230, 516, 606, 635` |
+| `Insurgent` (TKB **2003**) | the armed irregular: rifle + RPG, no helmet or vest (`BodyZonesDto` override), insurgent temperament, the soldier SOP and brain — ⚠ DIS `3.1.*.1` ⇒ class `Infantry` ⇒ `PersonKit.Soldier` ⇒ **drawn in a uniform with the hostile desert camouflage** | `UrbanCombatTkbCatalog.cs:352-382`, `VisualFamilies.PersonKitOf` |
+| the armed-people path | a civilian who picks up a weapon becomes a combatant (R-2028) and keeps his own type's look | Civilians / armed people AW-21…AW-23 |
 | `MapVisualDef.ModelPath` | a model path field — ⛔ read by nothing in the presentation | `MapVisualDef.cs:16` |
 
 ## 2. The claim table
@@ -62,12 +65,15 @@ descriptor**; `search_code "(?i)thobe|dishdasha|keffiyeh|kufiya|shemagh|abaya|hi
 | **OF-1** | **ONE TKB descriptor `OutfitDto`** on a person type: slots `Top`, `Legs`, `Head`, `Hair`, `Beard`, `Skin`, each a list of **weighted options** `{ kind, colours[], weight }`; the seed picks an option, then a colour from it | the user's rule; one shape for every slot | a field per garment (grows with every new garment) · a scenario / region switch (automatic — refused by the user) |
 | **OF-2** | **the sex and age come from `PersonDto`** — `Female` ⇒ always a woman, `Male` ⇒ always a man, `Unspecified` ⇒ the seed picks (today's behaviour); `Child` from the age band, not the height. An `OutfitDto` may also give per-sex slot lists (`Men` / `Women`) for an `Unspecified` type | fixes the defect (§2 row 2); a type says who it is | keep the 50 % draw (the "adult female" type is a man half the time) |
 | **OF-3** | **today's looks become catalogue data**: the everyday civilian, the child, the elderly, the police and the soldier wardrobes move from `Outfits.cs` palettes into `OutfitDto`s (`OutfitCatalog.Western…` constants used by the existing types); a type WITHOUT an `OutfitDto` gets the everyday set. ⭐ The soldier's side camouflage and cloth (R-1020, O-4a) stay a RULE (`Camo = BySide`), not data per side | ONE path in the code; nothing hard-coded left; the existing frames do not change | two paths (code palettes + TKB) — a second implementation |
-| **OF-4** | **garment kinds** (the block figure's drawable set): Top — `Shirt`, `TShirt`, `Suit`, `Robe` (to the ankles, long sleeves; legs drawn in its colour), `Abaya` (a robe, wider, to the ground), `Uniform`; Legs — `Trousers`, `Shorts`, `Skirt`, `LongSkirt`, `Hidden` (under a robe); Head — `None`, `Cap`, `PoliceCap`, `RiotHelmet`, `Helmet`, `Shemagh` (a head cloth to the shoulders + the black agal ring), `Skullcap`, `Hijab` (covers hair and neck, face open), `Niqab` (a hijab + a face veil, the eyes open) | the dress the user asked for, drawable as boxes on today's parts | real meshes (no human model pipeline exists — the Stride mannequin is the only one) |
+| **OF-4** | **garment kinds** (the block figure's drawable set): Top — `Shirt`, `TShirt`, `Suit`, `Robe` (to the ankles, long sleeves; legs drawn in its colour), `Abaya` (a robe, wider, to the ground), `Uniform`; Legs — `Trousers`, `Shorts`, `Skirt`, `LongSkirt`, `Hidden` (under a robe); Over — `None`, `ChestRig`; Head — `None`, `Cap`, `PoliceCap`, `RiotHelmet`, `Helmet`, `Shemagh` (a head cloth to the shoulders + the black agal ring), `Skullcap`, `Hijab` (covers hair and neck, face open), `Niqab` (a hijab + a face veil, the eyes open), `ShemaghFaceWrap` (the shemagh drawn across nose and mouth) | the dress the user asked for, drawable as boxes on today's parts | real meshes (no human model pipeline exists — the Stride mannequin is the only one) |
 | **OF-5** | **headwear hides hair** (`Hijab`, `Niqab`, `Shemagh`) and a `Niqab` hides the face paint below the eyes; a `Robe` / `Abaya` hides legwear | what the eye sees | drawing hair through a scarf |
 | **OF-6** | **seeded, deterministic**: the same `Draw(seed, type)` stream, slots drawn in a FIXED order (skin, sex, top, legs, head, hair, beard), one draw per slot even when a slot has one option — adding an option to one type changes only that type's people | the same person on every node and every frame (§6q O-5) | an order that depends on the options (one new option reshuffles every slot) |
 | **OF-7** | ⛔ **no allocation per frame**: the `OutfitDto`'s options are flattened ONCE per type into the `TypeLook` (arrays of colours and cumulative weights); `Outfits.For` reads them by index | the hot-path rule (R-2084) | reading the DTO's lists in the draw |
 | **OF-8** | **new catalogue types** (same body, behaviour and `PersonDto` as today's civilians — the one `Civilian(...)` helper): **1105** Middle-East man · **1106** Middle-East woman · **1107** Middle-East boy · **1108** Middle-East girl · **1109** Middle-East elderly man · **1110** Middle-East elderly woman — content §5; each with an entity-picker thumbnail | the user's ask; a scenario places them like any civilian | one "Middle-East civilian" type with `Unspecified` sex (then the author cannot place "a woman") |
 | **OF-9** | **who builds**: ui (outfit code, garment drawing, the catalogue rows, thumbnails) — ⛔ **mockups first** (R-4143) of every new garment on the figure | ui owns `Outfits` / the block figure | — |
+| **OF-10** | **a combatant is a TYPE too**: the `Insurgent` template (rifle + RPG, no armour, insurgent temperament, soldier brain) with a Middle-East FIGHTER wardrobe — **2010** Middle-East fighter (rifle) · **2011** Middle-East fighter (RPG + rifle) · **2012** Middle-East machine gunner (when a machine-gun mount for a man exists; else held). One helper builds all three from the insurgent template — ⛔ no copy of its descriptors | weapons, behaviour and looks each come from the TKB, the same rule as the civilians | arming a civilian type (it would get a civilian brain) · a scenario switch "armed" (automatic) |
+| **OF-11** | **the wardrobe wins over the class**: a type WITH an `OutfitDto` wears it whatever its class; the side camouflage (R-1020) applies only to a `Uniform` top whose `Camo` is `BySide`; the rifle in the hands still follows the class / weapons (`IsSoldier`) | today an `Infantry` class forces a uniform and camouflage (`PersonKitOf`) — that is why the insurgent looks like a soldier | a new person kit per look |
+| **OF-12** | **the existing `Insurgent` (2003) gets the fighter wardrobe too** — ⚠ a VISUAL change in the scenarios that place him (5 scenario files; behaviour unchanged, goldens hash components not pixels) | an insurgent in a desert-camo uniform reads as a soldier of the hostile side | leave 2003 as a uniformed man |
 
 ## 4. UML
 
@@ -135,13 +141,16 @@ sequenceDiagram
 | 1109 elderly man | Robe 85 (white, grey, brown) · Shirt 15 | Hidden / Trousers | Shemagh 60 · Skullcap 25 · None 15 | grey · beard 80 |
 | 1110 elderly woman | Abaya 95 (black, dark) | Hidden | Hijab 75 · Niqab 25 | hidden |
 
-Skin tones for all six: the four middle tones of today's five (light olive to brown), ⛔ not the palest.
+| **2010–2012 fighter** (+ 2003) | Shirt + Trousers 40 (drab: khaki, olive, grey, black) · military Jacket + Trousers 30 (olive, khaki, woodland) · Robe 30 (white, grey, brown) — **+ ChestRig 60** (an ammunition vest over the top) | Trousers / Hidden | Shemagh 40 · **ShemaghFaceWrap 25** (the cloth over nose and mouth) · Cap 15 · None 20 | short · beard 85 |
+
+Skin tones for all nine: the four middle tones of today's five (light olive to brown), ⛔ not the palest.
 
 ## 6. Acceptance *(R-4277; a visual feature is proved by frames and a scenario)*
 
 | proof | what |
 |---|---|
 | ⭐ the existing frames UNCHANGED | the everyday, child, elderly, police and soldier figures render pixel-identical before and after OF-3 (the frame rails that already cover them) — the move to data changes nothing |
+| OF-11 rail | a type with an `OutfitDto` and class `Infantry` wears its wardrobe, no camouflage; a `Uniform` + `BySide` type keeps R-1020's side cloth |
 | OF-2 rail | 200 seeds of type 1102 ⇒ 200 women; 1101 ⇒ 200 men; an `Unspecified` type ⇒ both |
 | OF-6 rail | the same seed ⇒ the same outfit on two `TypeLook`s built separately; adding an option to 1105 leaves 1101's people unchanged |
 | OF-7 rail | `GC.GetAllocatedBytesForCurrentThread()` over a steady frame of 500 dressed people == 0 |
@@ -152,6 +161,7 @@ Skin tones for all six: the four middle tones of today's five (light olive to br
 
 | what | id |
 |---|---|
+| TKB types (fighters) | **2010–2012** (the urban-combat range; 2000–2009 in use — measured in `Hrot.Core` Tkb / MapDefinitions on every lane; the builder re-checks the whole tree) |
 | TKB types | **1105–1110** (free on every lane branch, measured `2026-11-17`; 1101–1104 civilians, 1201–1203 security) |
 | `OutfitDto` | a TKB descriptor — no component id, no wire (the TKB is built the same on every node) |
 | tracker / ruling | `CE-4648` (programme row) · decisions to be recorded on approval |
@@ -163,3 +173,4 @@ Skin tones for all six: the four middle tones of today's five (light olive to br
 | **S1 the data path** | OF-1, OF-2 (the sex defect), OF-3 (today's wardrobes to data), OF-6, OF-7 | every existing person frame identical; the OF-2 / OF-6 / OF-7 rails |
 | **S2 the garments** | mockups first; OF-4, OF-5 — the new boxes in `Outfits.Details` | frames vs mockups |
 | **S3 the types** | OF-8 + §5 content, thumbnails (`scripts/thumbnails.py --pack`), `civ-middle-east-market` | the scenario passes; frames vs mockups |
+| **S4 the fighters** | OF-10, OF-11, OF-12 — the chest rig and face wrap boxes; thumbnails; scenario `me-fighters-ambush`: a fighter group ambushes a patrol in a Middle-East street with civilians around | it passes (the fighters fire rifles and an RPG; the civilians flee — the existing reactions); the five scenarios placing 2003 still pass |
