@@ -52,17 +52,23 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
             foreach (var car in frame.Cars)
                 if (car.Id is { } id && id.StartsWith(ShadowPrefix, StringComparison.Ordinal)) _shadows[id] = car;
 
+        bool intents = world.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationIntent>();
         foreach (var e in world.Query().With<NavState>().With<SimTransform>().WithOwned<SimTransform>().With<NetworkIdentity>().Build())
         {
             var nav = world.GetComponent<NavState>(e);
             if (nav.Mode != KinematicsMode.Traffic) continue;
             int id = world.GetComponentRO<NetworkIdentity>(e).Value;
-            var f = world.HasComponent<TrafficShadowFollow>(e) ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
+            uint intentId = intents && world.HasComponent<Fdp.Toolkit.Navigation.NavigationIntent>(e)
+                ? world.GetComponentRO<Fdp.Toolkit.Navigation.NavigationIntent>(e).IntentId : 0u;
+            bool had = world.HasComponent<TrafficShadowFollow>(e);
+            var f = had ? world.GetComponentRO<TrafficShadowFollow>(e) : default;
+            // ⭐ CE-9019 — a follow of ANOTHER intent: the shadow is being replaced (taken back, the new one spawns a step later) — start over
+            if (had && f.IntentId != intentId) { f = default; had = false; }
 
             if (_shadows.TryGetValue(ShadowIdOf(id), out var shadow))
             {
                 Follow(world, e, shadow, f, now);
-                world.AddComponent(e, new TrafficShadowFollow { Seen = 1, LastX = shadow.X, LastY = shadow.Y, At = now });
+                world.AddComponent(e, new TrafficShadowFollow { Seen = 1, LastX = shadow.X, LastY = shadow.Y, At = now, IntentId = intentId });
                 if (nav.IsBlocked != 0) { nav.IsBlocked = 0; world.SetComponent(e, nav); }
                 continue;
             }
@@ -73,8 +79,8 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
             if (f.Seen == 0)
             {
                 // Waiting for SUMO to spawn the shadow: a deliberate hold, not "stuck" — the hold's start kept on the follow (At).
-                bool holding = world.HasComponent<TrafficShadowFollow>(e);
-                if (!holding) world.AddComponent(e, new TrafficShadowFollow { Seen = 0, At = now });
+                bool holding = had;
+                if (!holding) world.AddComponent(e, new TrafficShadowFollow { Seen = 0, At = now, IntentId = intentId });
                 if (!holding || now - f.At < RefusedHoldSeconds)
                 {
                     if (nav.IsBlocked == 0) { nav.IsBlocked = 1; world.SetComponent(e, nav); }

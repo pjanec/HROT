@@ -137,6 +137,32 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.Equal(new Vector2(400, 305), road);
     }
 
+    /// <summary>⭐ <c>CE-9019</c> — a NEW Traffic intent replaces the shadow (the traffic node takes the old one back; the new one spawns a step later):
+    /// that gap is a HOLD for the new intent, never "the shadow is gone" — while the SAME intent's shadow gone is still taken back.
+    /// 🔴 Red-proof: the follow not keyed on the intent ⇒ mode None in the gap (📌 cv-blocked-road: every re-issue behind the breakdown lost its shadow).</summary>
+    [Fact]
+    public void CE9019_ANewIntentsShadowGap_IsAHold_NotALoss()
+    {
+        using var world = World(out var e);
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        world.AddComponent(e, new Fdp.Toolkit.Navigation.NavigationIntent { Mode = Fdp.Toolkit.Navigation.NavigationMode.Traffic, IntentId = 1 });
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, new[] { Shadow(100, 50, 0f) }, now: 1.0);
+        follow.Execute(world, 0.05f);
+
+        world.GetComponentRW<Fdp.Toolkit.Navigation.NavigationIntent>(e).IntentId = 2;          // asked again: a new shadow
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.5);
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.Traffic, world.GetComponent<NavState>(e).Mode);           // waiting for it
+        Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);
+
+        Frame(world, new[] { Shadow(101, 50, 0f) }, now: 2.0);                                 // the new shadow
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 2.5);                                 // and it is gone, same intent: taken back
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.None, world.GetComponent<NavState>(e).Mode);
+    }
+
     [Fact]
     public void G4_ABodyThisNodeDoesNotMove_IsLeftAlone()
     {

@@ -421,6 +421,31 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(1, repo.GetComponent<FrustrationTicks>(entity).Ticks);
         }
         /// <summary>
+        /// ⭐ <c>CE-9019</c> — a body SUMO DRIVES (<see cref="KinematicsMode.Traffic"/>) standing in SUMO's queue (a red light, a breakdown ahead) is not
+        /// stuck: however long it stands it neither fails the move nor counts; once our own kinematics drive it again, standing counts.
+        /// 🔴 Red-proof: drop the Traffic skip ⇒ FailedBlocked (📌 cv-blocked-road: 6 s behind a broken truck, the shadow still driving).
+        /// </summary>
+        [Fact]
+        public void CE9019_ABodySumoDrives_StandingInItsQueue_IsNotStuck()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 10f);
+            repo.SetComponent(entity, new SimVelocity { Linear = Vector3.Zero });
+            var nav = repo.GetComponent<NavState>(entity); nav.Mode = KinematicsMode.Traffic; repo.SetComponent(entity, nav);
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 3; i++) system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(entity).Result);
+            Assert.Equal(0, repo.GetComponent<FrustrationTicks>(entity).Ticks);
+
+            nav.Mode = KinematicsMode.Direct; repo.SetComponent(entity, nav);              // ours again, still standing: counts
+            system.Execute(repo, 0.016f);
+            Assert.Equal(1, repo.GetComponent<FrustrationTicks>(entity).Ticks);
+        }
+        /// <summary>
         /// ⭐ <c>CE-3286</c> (R-3025; Motion Domains §5f) — a hull BACKING OUT of a wall (<see cref="FrustrationTicks.RecoverDir"/> ≠ 0) is not stuck:
         /// standing still well past <see cref="NavigationExecutionSystem.FrustrationTickLimit"/>, it stays <c>InProgress</c> — no replan, no
         /// <c>FailedBlocked</c> — and its counts stay clear. 🔴 Red-proof: drop the <c>RecoverDir</c> skip ⇒ <c>FailedBlocked</c>.
