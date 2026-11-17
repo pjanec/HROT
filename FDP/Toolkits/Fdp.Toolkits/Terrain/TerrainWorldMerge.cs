@@ -41,6 +41,25 @@ namespace Fdp.Toolkit.Terrain
             return list;
         }
 
+        /// <summary>⭐ CE-1963 — the grid a flat terrain's ground shapes are carved into: the world's bounds at <see cref="TerrainWorld.GroundZ"/>, 1 m cells (coarser on a world
+        /// wider than 2 km, ≤ 2049 posts a side); with no bounds, the shapes' box + 50 m. Outside it the ground is <c>GroundZ</c> as before (the grid's untouched edge).</summary>
+        public static TerrainHeightGrid FlatGrid(TerrainWorld @base, IReadOnlyList<GroundShape> shapes)
+        {
+            Vector2 min = @base.BoundsMin, max = @base.BoundsMax;
+            if (!(max.X > min.X && max.Y > min.Y))
+            {
+                min = new Vector2(float.MaxValue); max = new Vector2(float.MinValue);
+                foreach (var s in shapes) foreach (var v in s.Polygon) { min = Vector2.Min(min, v); max = Vector2.Max(max, v); }
+                min -= new Vector2(50f); max += new Vector2(50f);
+            }
+            float extent = MathF.Max(max.X - min.X, max.Y - min.Y);
+            float cell = MathF.Max(1f, MathF.Ceiling(extent / 2048f));
+            int cols = (int)MathF.Ceiling((max.X - min.X) / cell) + 1, rows = (int)MathF.Ceiling((max.Y - min.Y) / cell) + 1;
+            var z = new float[cols * rows];
+            if (@base.GroundZ != 0f) Array.Fill(z, @base.GroundZ);
+            return new TerrainHeightGrid(min, cell, cols, rows, z);
+        }
+
         private static IReadOnlyList<GroundShape> Concat(IReadOnlyList<GroundShape> a, IReadOnlyList<GroundShape> b)
         {
             if (b.Count == 0) return a;
@@ -130,7 +149,9 @@ namespace Fdp.Toolkit.Terrain
                 BoundsMin = overlayHasParts ? Vector2.Min(@base.BoundsMin, overlay.BoundsMin) : @base.BoundsMin,
                 BoundsMax = overlayHasParts ? Vector2.Max(@base.BoundsMax, overlay.BoundsMax) : @base.BoundsMax,
                 GroundZ = @base.GroundZ,
-                Height = RoadCorridors.Relevel(PadHeights(GroundShapes.Apply(@base.Height, shapes, islands), overlay), overlay.RoadCorridors, islands),   // ⭐ CE-4592 (G-18, G-24) — shapes, pads on the shaped ground, then the touched road corridors re-levelled
+                // ⭐ CE-1963 / CE-1964 — a FLAT terrain (no height grid, only GroundZ: bt-range, the test ranges) gets a flat grid the shapes can carve: ⛔ was
+                //   GroundShapes.Apply(null, …) ⇒ null, so every ditch, raise, lower and level vanished there silently (R-248: never count on the ground being flat)
+                Height = RoadCorridors.Relevel(PadHeights(GroundShapes.Apply(@base.Height ?? (shapes.Count > 0 ? FlatGrid(@base, shapes) : null), shapes, islands), overlay), overlay.RoadCorridors, islands),   // ⭐ CE-4592 (G-18, G-24) — shapes, pads on the shaped ground, then the touched road corridors re-levelled
                 Warnings = warnings,
                 Prisms = prisms,
                 Walkables = walkables,
