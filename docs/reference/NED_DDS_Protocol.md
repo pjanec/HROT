@@ -372,7 +372,7 @@ All **144** production wire types carry a bare `[DdsTopic]` — the topic name o
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
 §Excluded roots. Family counts are informational; `--check` compares the full names only (and fails on an explicit topic name anywhere in HROT-owned code).
 
-### A. Entity descriptors (keyed state of an entity) — 57
+### A. Entity descriptors (keyed state of an entity) — 60
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -432,6 +432,9 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` | descriptor | yes: entity id | S | Hrot.Network.NED | One side's knowledge of one field: a 2-bit cell grid (unknown / suspected / known-clear / known-mined; TKB 7206; `dtMinefieldKnowledge` 193). The deciding node → every node (no group); receivers union records as a lattice maximum. `[DdsManaged]` |
 | `Hrot.NED.Descriptors.EntityMinefieldLanes` | descriptor | yes: entity id | S | Hrot.Network.NED | The lanes a node CLEARED through one field — segment, width, the clearing side (TKB 7208; `dtMinefieldLanes` 194, CE-4624 MS-T4). The clearing node → every node (no group). `[DdsManaged]` |
 | `Hrot.NED.Descriptors.EntityMineClearing` | descriptor | yes: entity id | S | Hrot.Network.NED | A mine clearer's tool marker — its plough / flail / line charge is working (`dtMineClearing` 195; the `EntityBladeCut` pattern): the brain's, read by the Muscle that clears. ⚠ Meant as the Brain group's (type and component comments), but measured 2026-11-16: `Hrot/Engine/Hrot.Core/HrotOwnershipGroups.cs` sets no Brain bit for `MineClearing` (BladeCut's is at :57), so today the creator's remainder owns it |
+| `Hrot.NED.Descriptors.EntityAirCombatSteer` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's air-combat ORDER — the manoeuvre, the target and the arena (network ids), throttle, the GCAS floor, the g the pilot will pull, his lapse (`dtAirCombatSteer` 216, CE-10000, AC-2): the Brain group's, read every frame by the motion node's `FixedWingModel.Fight` while `NavigationIntent.Mode` = `NAV_AIR_COMBAT` (8) |
+| `Hrot.NED.Descriptors.EntityFighterPilotState` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's REPORT from its motion node — g, throttle, GCAS (active, count, lowest height), the LIVE threat (inbound rounds, the nearest's bearing, seeker, closure, time to impact), the last-ditch time, rounds defeated, speed (`dtFighterPilotState` 217, CE-10000, AC-2 / AC-9a): the Muscle group's; sent on a change of its rounded values |
+| `Hrot.NED.Descriptors.EntityAirArena` | descriptor | yes: entity id | S | Hrot.Network.NED | The air-combat ARENA — centre, radius, floor, ceiling, the show's shot cap, the stalemate clock and the last hit (`dtAirArena` 218, CE-10000, AC-10): its creator's Brain |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 13
@@ -457,7 +460,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
 | `Hrot.NED.Descriptors.EntityMission` | descriptor | yes: entity id | S | Hrot.Network.NED | Active mission plan of an entity |
-| `Hrot.NED.Descriptors.NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side) |
+| `Hrot.NED.Descriptors.NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side). `Mode` (`ENavigationMode`): NONE 0 · DIRECT_POINT 1 · FOLLOW_ROUTE 2 · JOIN_FORMATION 3 · ROAD_GRAPH 4 · PATH_TO_POINT 5 · MANUAL 6 · TRAFFIC 7 · ⭐ AIR_COMBAT 8 (CE-10000, AC-2 — the motion node flies the `EntityAirCombatSteer`; both sides map it, RV-6) |
 | `Hrot.NED.Descriptors.NavigationStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Muscle's navigation feedback (CQRS status side) |
 | `Hrot.NED.Descriptors.PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver; each request's layer mask also carries modifier bits and the mover's SIDE (§Concepts 16) |
 | `Hrot.NED.Descriptors.PathResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched path answers |
@@ -691,6 +694,9 @@ or its number differs.
 | 193 | `dtMinefieldKnowledge` | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` |  |
 | 194 | `dtMinefieldLanes` | `Hrot.NED.Descriptors.EntityMinefieldLanes` |  |
 | 195 | `dtMineClearing` | `Hrot.NED.Descriptors.EntityMineClearing` |  |
+| 216 | `dtAirCombatSteer` | `Hrot.NED.Descriptors.EntityAirCombatSteer` |  |
+| 217 | `dtFighterPilotState` | `Hrot.NED.Descriptors.EntityFighterPilotState` |  |
+| 218 | `dtAirArena` | `Hrot.NED.Descriptors.EntityAirArena` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 

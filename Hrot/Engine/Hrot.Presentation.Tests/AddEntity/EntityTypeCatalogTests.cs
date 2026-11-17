@@ -640,6 +640,7 @@ public sealed class EntityTypeCatalogTests
         406 AH-64 Apache (attack helicopter) | dis 1.2.225.20.0.0.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         407 Recon drone | dis 1.2.0.50.2.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         408 Bomber drone | dis 1.2.0.50.3.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
+        409 MiG-29 Fulcrum | dis 1.2.222.1.200.0.0 | family Jet | folder Platform/Air/Russia/Fighter/Air Defense | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -

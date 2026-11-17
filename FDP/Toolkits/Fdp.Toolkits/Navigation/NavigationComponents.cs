@@ -48,6 +48,11 @@ namespace Fdp.Toolkit.Navigation
         /// <see cref="NavigationIntent.FinalDestination"/> on SUMO's roads and the body FOLLOWS it; ownership never moves. Ends
         /// <c>Arrived</c> when the shadow arrives near the destination.</summary>
         Traffic = 7,
+
+        /// <summary>⭐ CE-10000 (air lane, AC-2; docs/designs/air-attack/DESIGN_Air_Combat.md §3) — a FIGHTER flies its brain's
+        /// <c>AirCombatSteer</c> every frame (<c>FixedWingModel.Fight</c>): a 3-D manoeuvre at its own position, against the target's live
+        /// one. Entered once (an IntentId bump); the steer then flows. Wire <c>NAV_AIR_COMBAT</c> = 8 (both <c>MapMode</c>s).</summary>
+        AirCombat = 8,
     }
 
     /// <summary>

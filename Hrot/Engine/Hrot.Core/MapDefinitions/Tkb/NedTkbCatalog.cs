@@ -1297,6 +1297,23 @@ namespace Hrot.Map.Definitions.Tkb
                         Wheel("main right", -0.6f, -1.18f, -1.90f, 0.36f, 1.0f, retractable: true),
                     },
                 });
+            // ⭐ CE-10000 (air lane, AC-7; DESIGN_Air_Combat §5a) — the MiG-29 class (409): the body (public figures, rounded: 17.3 m long, 11.4 m
+            //   span, 4.7 m high, a tricycle gear), the hostile symbol; DIS 1.2.222.1.200 (R-10002). Flight, weapons, radar and brain arrive in S3.
+            DefineAircraft(builder, TkbEntityTypes.Jet_MiG29, "MiG-29 Fulcrum", "SHAPMFF-------", "#7C8A96",
+                new DISEntityType { Kind = 1, Domain = 2, Country = Russia, Category = 1, Subcategory = 200 },
+                new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
+                {
+                    ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
+                    Length = 17.32f, Width = 11.36f, Height = 4.73f,
+                    BodyCentreX = 0.50f, BodyCentreZ = 0.46f,          // box bottom = the tyres (−1.90)
+                    GroundContacts =
+                    {
+                        Wheel("nose",        3.9f,  0f,    -1.90f, 0.26f, 1.2f, retractable: true),
+                        Wheel("main left",  -0.7f,  1.55f, -1.90f, 0.38f, 1.0f, retractable: true),
+                        Wheel("main right", -0.7f, -1.55f, -1.90f, 0.38f, 1.0f, retractable: true),
+                    },
+                });
+            builder.WithFaction(TkbEntityTypes.Jet_MiG29, 2);
             DefineAircraft(builder, TkbEntityTypes.Cargo_C130, "C-130H Hercules", "SFAPMFC-------", "#7A8076",
                 new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 4 },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
@@ -1323,6 +1340,7 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
+                   .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
             // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
@@ -1331,6 +1349,7 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
                    .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
