@@ -1,5 +1,5 @@
 {
-  "$doc": "\u00a723.6 ST-4. 'A side broken' is the measured end: the Blue BASE OF FIRE (Blue Company 2, roster slot 1 - CompanyAttack's roles are slot 0 assault, 1 base of fire, 2 reserve; relabelled 2026-11-17, CE-8302) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), its HQ hears TaskFailed and reads it Black. It dies at ~290 m (335 s), on its way to its 250 m support position (CE-8302 moved that position from 100 m of the posts; this run is unchanged, golden SAME), so it never reports Set and the assault (Blue Company 1, Subordinates.0) is never committed; the reserve (3) waits at its 400 m stand-off, out of reach, for the 900 s deadline. After agg-backend's calibration (CE-8009 R-8005: focused hits, broken men still firing at 0.6) the assault costs Red companies 1 and 2 ten or more men each (Amber), company 3 under ten (Green) - measured 2026-11-16; reverting 5d8a30150 alone restores the old all-Green outcome (R-8332). The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
+  "$doc": "\u00a723.6 ST-4. 'A side broken' is the measured end: the Blue BASE OF FIRE (Blue Company 2, roster slot 1 - CompanyAttack's roles are slot 0 assault, 1 base of fire, 2 reserve; relabelled 2026-11-17, CE-8302) is destroyed within seconds of contact (all 90 slots down by 335 s at GAP 1500 / 335 s at 600), its HQ hears TaskFailed and reads it Black. It dies at ~290 m (335 s), on its way to its 250 m support position (CE-8302 moved that position from 100 m of the posts; this run is unchanged, golden SAME), so it never reports Set and the assault (Blue Company 1, Subordinates.0) is never committed; the reserve (3) waits at its 400 m stand-off, out of reach, for the 900 s deadline. After agg-backend's CE-8009 round of 2026-11-17 (personal weapons at the measured 0.4 rounds a man a second, hits through the body's zones, R-8005 re-fitted) the base of fire costs Red companies 1 and 2 five to nine men each (Green; it was ten or more - Amber - on 2026-11-16, R-8332), company 3 none (R-8345). The base of fire is down 5 at 329 s, all 90 at 346 s; it never reports Set, so the assault is still never ordered. The census is the HoldArea objective of ObjectiveCensus (a stochastic unit under a physical subject's roster counts its Present). ROWS",
   "runFor": 450,
   "golden": {
     "every": 50
@@ -130,25 +130,25 @@
       }
     },
     {
-      "name": "Red's SITREP colours: company 2, in the base of fire's path, reads Amber",
+      "name": "Red's SITREP colours: company 2, in the base of fire's path, reads Green",
       "on": "field",
       "who": "Red Battalion HQ",
       "path": "CommandPicture.Subordinates.1.Strength",
       "op": "==",
-      "value": "Amber",
+      "value": "Green",
       "atEnd": true
     },
     {
-      "name": "Red's SITREP colours: company 1 reads Amber",
+      "name": "Red's SITREP colours: company 1 reads Green",
       "on": "field",
       "who": "Red Battalion HQ",
       "path": "CommandPicture.Subordinates.2.Strength",
       "op": "==",
-      "value": "Amber",
+      "value": "Green",
       "atEnd": true
     },
     {
-      "name": "... and company 2's slot table agrees (at least 10 down)",
+      "name": "... and the fire told on company 2 (at least 5 down)",
       "on": "field",
       "who": "Red Company 2",
       "path": "UnitSlotTable.Slots.*.Health",
@@ -161,10 +161,10 @@
           0
         ]
       },
-      "elements": 10
+      "elements": 5
     },
     {
-      "name": "... and company 1's slot table agrees (at least 10 down)",
+      "name": "... and on company 1 (at least 5 down)",
       "on": "field",
       "who": "Red Company 1",
       "path": "UnitSlotTable.Slots.*.Health",
@@ -177,10 +177,10 @@
           0
         ]
       },
-      "elements": 10
+      "elements": 5
     },
     {
-      "name": "... neither falls below Amber (28 down: < 70 % present) - company 1",
+      "name": "... and the slot table agrees with Green (fewer than 10 of 90 down) - company 1",
       "never": {
         "on": "field",
         "who": "Red Company 1",
@@ -193,11 +193,11 @@
             0
           ]
         },
-        "elements": 28
+        "elements": 10
       }
     },
     {
-      "name": "... neither falls below Amber - company 2",
+      "name": "... and with Green - company 2",
       "never": {
         "on": "field",
         "who": "Red Company 2",
@@ -210,7 +210,7 @@
             0
           ]
         },
-        "elements": 28
+        "elements": 10
       }
     },
     {

@@ -4575,7 +4575,7 @@
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "5956f3cac1bde3e7",
+            "AggregateUnit": "5db0847db2a9302b",
             "BehaviorStartRecord": "a98ec6513cc74fe8",
             "BehaviorState": "b2f74739bf7e58f5",
             "BlueprintAssignments": "390633fb115c5404",
@@ -4612,7 +4612,7 @@
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "d0fbcec9201d44f8",
-            "UnitSlotTable": "10f9148a48239e41",
+            "UnitSlotTable": "e071224e34e7b8c3",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "dc9a7f4cfb3152e8",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -6348,7 +6348,7 @@
         "Red Platoon In The Open": {
           "position": [
             340,
-            245.197,
+            245.433,
             0
           ],
           "health": null,
@@ -6371,7 +6371,7 @@
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "8a466cda857ce7e0",
+            "AggregateUnit": "f01ed2747d941f8a",
             "BehaviorStartRecord": "a98ec6513cc74fe8",
             "BehaviorState": "b2f74739bf7e58f5",
             "BlueprintAssignments": "390633fb115c5404",
@@ -6398,7 +6398,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "ee7d8dcf45a02d90",
+            "SimTransform": "dd31ef4ef7f43f40",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "fbf1f858d2eb70f8",
@@ -6408,7 +6408,7 @@
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "d0fbcec9201d44f8",
-            "UnitSlotTable": "6cb89906efa33266",
+            "UnitSlotTable": "65739d4f7a42be86",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "dc9a7f4cfb3152e8",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -8144,7 +8144,7 @@
         "Red Platoon In The Open": {
           "position": [
             340,
-            211.449,
+            211.685,
             0
           ],
           "health": null,
@@ -8167,7 +8167,7 @@
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "dd298f85dda56cac",
+            "AggregateUnit": "a8d02ea3a64f2d48",
             "BehaviorStartRecord": "a98ec6513cc74fe8",
             "BehaviorState": "b2f74739bf7e58f5",
             "BlueprintAssignments": "390633fb115c5404",
@@ -8194,7 +8194,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "f671fe84f8c312e0",
+            "SimTransform": "5b1d699b478fb6fd",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "f098c93f7be3462a",
@@ -8204,7 +8204,7 @@
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "d0fbcec9201d44f8",
-            "UnitSlotTable": "6cb89906efa33266",
+            "UnitSlotTable": "65739d4f7a42be86",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "dc9a7f4cfb3152e8",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -9940,7 +9940,7 @@
         "Red Platoon In The Open": {
           "position": [
             340,
-            177.7,
+            177.936,
             0
           ],
           "health": null,
@@ -9963,7 +9963,7 @@
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "a4c3e7b5e2e0e0b9",
+            "AggregateUnit": "21483840658ad3b0",
             "BehaviorStartRecord": "a98ec6513cc74fe8",
             "BehaviorState": "b2f74739bf7e58f5",
             "BlueprintAssignments": "390633fb115c5404",
@@ -9990,7 +9990,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "b9f6b5b594e4f281",
+            "SimTransform": "3a3a70f2a923318f",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "6dbedf620faee14c",
@@ -10000,7 +10000,7 @@
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "d0fbcec9201d44f8",
-            "UnitSlotTable": "6cb89906efa33266",
+            "UnitSlotTable": "65739d4f7a42be86",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "dc9a7f4cfb3152e8",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -11736,7 +11736,7 @@
         "Red Platoon In The Open": {
           "position": [
             340,
-            143.942,
+            144.178,
             0
           ],
           "health": null,
@@ -11759,7 +11759,7 @@
           "components": {
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "AggregateUnit": "c91b132cdfd30bd5",
+            "AggregateUnit": "0bfa48abc5a44493",
             "BehaviorStartRecord": "a98ec6513cc74fe8",
             "BehaviorState": "b2f74739bf7e58f5",
             "BlueprintAssignments": "390633fb115c5404",
@@ -11786,7 +11786,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "8f3048b62a77f84f",
+            "SimTransform": "415654f3f58f69f4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "addd07720090753a",
             "SopState": "6270a1b5df3d1c5b",
@@ -11796,7 +11796,7 @@
             "UnitEntity": "e2edc70959f27784",
             "UnitHoldings": "825ee614d41a2d18",
             "UnitRoute": "d0fbcec9201d44f8",
-            "UnitSlotTable": "6cb89906efa33266",
+            "UnitSlotTable": "65739d4f7a42be86",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "dc9a7f4cfb3152e8",
             "WeaponChannel": "c36eb62a5ca3f850",

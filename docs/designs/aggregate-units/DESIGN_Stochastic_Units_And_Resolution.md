@@ -1001,6 +1001,26 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 |---|---|---|---|
 | `agg-defend-fires` | berlin | ✅ 8 / 8 (+ golden) — a physical company `CompanyDefend` over one FILLED stochastic squad on its position; a stochastic Red squad attacks from 500 m. Blue reports it at 2.25 s; Red crosses y 500 (300 m) at 211.75 s; Blue's first fire line 212.25 s, a Red slot down 212.25 s; Blue never fires before, never moves, never breaks contact | the anchor `in reach` is the attacker's centre 300 m off (the M4's `MaxRange`), so the scenario reads both halves of R-8338: no fire beyond reach, fire within 5 s inside it |
 
+#### 23.6f Re-run after agg-backend's CE-8009 / CE-8008 / CE-8005 round *(`2026-11-17`, merge `b0a82eeda`; R-8342 … R-8345; ⭐ supersedes the matching rows of §23.6b / §23.6c)*
+
+⭐ All 20 re-run in fresh processes. **17 green as they stood; 3 red, every one a row tied to the OLD loss numbers** — agg-backend's `834ccc854` (personal weapons at the measured 0.4 rounds a man a second, was 1.25) and `0f387280a` (a hit through the body's zones and armour; incapacitated = out). ⛔ No engine regression found, so no new finding; no bisect needed (the three moved exactly where the slower, zone-drawn fire predicts).
+
+| scenario | what moved | as re-authored | why it still tests the Judge line |
+|---|---|---|---|
+| `agg-prepared-defence` | the ORDER-LESS defenders' SOP broke contact at the first fire (our `StochasticUnitSop`, CE-8021 pool) before a man was down — no loss on either defender in 300 s | ⭐ both defenders DEFEND in place; ⭐ **R-8342 (behaviour change):** `StochasticUnitDefend` occupying WHERE IT STANDS keeps an already better prepared level (an authored Prepared / Fortified position) — before, occupation stamped Hasty and erased it. Rows: the Prepared defender has lost half its men (15) by 70 s (measured 65.25 s); the Fortified one has not (73.25 s); the Fortified keeps its level | the cover factor separates them at the half-strength line; the first men fall within a second on both, so a small count cannot (**R-8343**) |
+| `agg-platoon-duel` | the 30-man platoon loses NO man in 180 s now (hit at 3.25 s, never down); Red's 10 are down by 14.25 s | row 1 = "a Blue man is HIT" (health < 24.9) instead of "a slot is down" | the fire still reaches both sides, the weaker side still breaks first (**R-8344**) |
+| `agg-battalion-fight` | Red companies 1 and 2 lose 5–9 each (Green), not ≥ 10 (Amber) | Red 1 / 2 rows = Green at the HQ, at least 5 down, never 10 (the Green band); company 3 unchanged | the SITREP-agrees-with-the-slot-table pair stays a BAND pair (R-8332) (**R-8345**). ⭐ The base of fire still never reports Set (down 5 at 329 s, all 90 at 346 s, on its way to its 250 m position), so the assault is still never ordered |
+| `agg-out-of-ammo` | ✅ green; every slot empty at 12.25 s (was 6.25 s — the slower rate) | `$doc` times updated | — |
+
+Goldens: re-captured where they moved and every row passed (each SAME on a second fresh process) — see STATUS for the list.
+
+| # | lane decision (for the user's review) | would change it |
+|---|---|---|
+| **R-8342** | an in-place Defend keeps an authored prepared level; a unit that moves into a new position starts Hasty (⚠ a unit LEAVING a prepared position keeps its old level until it arrives — as before, not changed here) | the user wanting a level to reset on any new Defend order |
+| **R-8343** | prepared-defence judged at the half-strength line by 70 s | a loss band from the C-8 ladder |
+| **R-8344** | the duel's Blue row is "hit", not "down" | — |
+| **R-8345** | the battalion's Red 1 / 2 rows read Green with 5–9 down | agg-backend's balance moving again |
+
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 
 **INVENTORY** *(graph: `search_graph name_pattern ".*(UnitStrength|CombatEffective|ObjectiveCensus|AmmoOf).*"` + grep — the four readers RV-5 names, each a roster walk)*

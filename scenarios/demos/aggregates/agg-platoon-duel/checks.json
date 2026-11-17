@@ -1,17 +1,17 @@
 {
-  "$doc": "\u00a723.6 ST-3. The C-8 band row (the stochastic loss rate vs the physical Monte Carlo) waits for CE-8009; what is checkable without it is encoded: losses on both sides, suppression, and who breaks first. Slot health is 25 when whole (UnitSplits.SlotFullHealth); 'down' = Health < 0.5 (UnitSlotTable.DownBelow); 'broken' = Stress >= 0.75 (AggregateUnits.BrokenAt). A Red squad is 10 slots; measured: by 3.25 s eight of its slots are down and four have broken, while the platoon loses one or two slots and never breaks.",
+  "$doc": "\u00a723.6 ST-3. The C-8 band row (the stochastic loss rate vs the physical Monte Carlo) waits for CE-8009; what is checkable without it is encoded: losses on both sides, suppression, and who breaks first. Slot health is 25 when whole (UnitSplits.SlotFullHealth); 'down' = Health < 0.5 (UnitSlotTable.DownBelow); 'broken' = Stress >= 0.75 (AggregateUnits.BrokenAt). A Red squad is 10 slots; measured (re-authored 2026-11-17, R-8344, after CE-8009's measured rifle rate and body zones): a Blue man is hit at 3.25 s but none goes down in 180 s; Red has 8 down at 11.25 s, all 10 at 14.25 s, four broken at 7.25 s; Blue never breaks.",
   "runFor": 60,
   "golden": {
     "every": 10
   },
   "expect": [
     {
-      "name": "the fight reaches the Blue platoon (a slot is down)",
+      "name": "the fight reaches the Blue platoon (a man is hit)",
       "on": "field",
       "who": "Blue Stochastic Platoon",
       "path": "UnitSlotTable.Slots.*.Health",
       "op": "<",
-      "value": 0.5,
+      "value": 24.9,
       "before": 30,
       "where": {
         "CompositeSlot": [
