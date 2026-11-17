@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: DESIGN — BW-1…BW-13 carry leans, ⛔ NOT approved
+build-state: DESIGN — BW-1…BW-14 carry leans, ⛔ NOT approved
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -81,10 +81,11 @@ F-1 / F-2 / F-8, AR-10, CE-4625 only. ⚠ Index coverage cannot be checked throu
 | **BW-6** | **damage**: low penetration (≈ 4 mm RHA bow, 6 mm crossbow — a soft vest and a helmet stop it), damage high enough that a torso hit wounds and two incapacitate; `WarheadKind.Kinetic`; the existing injury and bleed-out | an arrow kills by bleeding, not by speed | velocity-dependent damage (the engine has none) |
 | **BW-7** | **the weapon brain treats a bow as direct fire** with its own short range (§5); it leads the target by the ARC's flight time | the existing brain; only the time of flight differs | a special archer brain |
 | **BW-8** | **from horseback**: a bow fires from the riding horse's seats as any held weapon (R-4269); moving fire doubles the spread (as built); a crossbow may too, its 6 s span makes it rare | requirement D with no new rule | a stopped-only bow (cavalry archers shot at the gallop) |
-| **BW-9** | **sounds**: a bow's twang and a crossbow's clack (short `SoundSet`s), ⭐ heard only ~30 m by the AI (`SoundFamily` quiet) and no muzzle flash — an archer is hard to locate | what makes a bow tactically different | a gun's report |
+| **BW-9** | **SILENT to the AI**: a bow or crossbow shot emits NO sound the AI hears (no `SoundFamily`, no hearing range) and no muzzle flash — 🔒 user, `2026-11-17`: *"the shot from the bow or crossbow is so silent that we do not need an AI to hear anything at all, 30 meters is way too far"*. A person NEAR the shooter in the 3-D view still hears a faint twang / clack (audio only, never a sensor) | an archer can be found only by being SEEN, or by his arrows arriving | a short hearing range (✗ user) |
 | **BW-10** | **the looks** (ui): the held bow (a curved stave + string, the string drawn back while aiming), the crossbow, a quiver on the back, the archer's draw pose, the arrow shape, the stuck arrow on a part — ⛔ mockups first (R-4143) | requirement A–C on screen | — |
 | **BW-11** | **the archery target**: a TKB prop type (a straw boss on a stand, a scoring face); an arrow that sticks in it writes its `HitMarks` (BW-5) and the ring = the distance of the mark from the face centre (10 rings); a `ScoreArcheryHit` rule adds it to the built game score | requirement E; the score from the mark already written | a separate hit test for targets |
 | **BW-12** | **the catalogue**: munitions **arrow** and **crossbow bolt**; mounts **Bow** (self / hunting bow) and **Crossbow**; person types **Archer** and **Crossbowman** (a civilian-look body with the weapon, a soldier brain) — ⭐ the Western content (Native American riders, cowboys) is the FUN PACK's (CE-4633), built on these rows | engine pieces shared, content separate (R-4281) | putting the Western riders here |
+| **BW-14** | **hunting birds** — the engine half (the bird-shooting GAME is the fun pack's, CE-4633): ① a lone bird (708) is a target an arrow can hit and kill — it falls (the dead-flyer fall, AT3) and lies; ② a FLOCK (707) is one entity drawn as N birds (AN-4), so an arrow that passes through the flock's volume has a chance per bird it passes to hit ONE: the flock's count drops by one and a lone DEAD bird is spawned there and falls; ③ a new species **Duck** (a bigger bird, ~0.5 m, flies in a loose V low over water and fields, quacks) as a lone bird and a flock type | 🔒 user: *"Do we have some birds like flying ducks that can be hunted via bow?"*; a flock bird cannot be hit today because it exists only as a drawing | a brain per flock bird (AN-4: 200 birds must not be 200 brains) |
 | **BW-13** | **who builds**: **backend** (BW-1, -2, -4, -5, -6, -7, -9, -11, -12: combat, catalogue, the cap), **ui** (BW-3, -10, the stuck draws), **behaviors** only if the weapon brain needs more than numbers (step 0 decides) | the usual split | one lane for all (the looks belong to ui) |
 
 ## 4. UML
@@ -180,10 +181,12 @@ sequenceDiagram
 | scenario | what happens | expect rows |
 |---|---|---|
 | **`bw-arrow-arc`** | an archer shoots at a man 80 m away across open ground | `shot by Archer` with `hit` before 20 s (the arc reaches) · `health Target < max` |
+| **`bw-unheard`** | an archer shoots at a man from behind; two soldiers stand 15 m from the archer, facing away | the soldiers never react to the archer before seeing him (`never field Soldier*` threat on the archer before he is in their view) — the shot is silent to the AI |
 | **`bw-stuck-wall`** | an archer shoots 5 arrows at a wall and the ground around a target behind cover | ≥ 3 `shot by Archer` with outcome `StoppedByTerrain` · golden captures the stuck rounds' poses (a rail checks they are not flat) |
 | **`bw-stuck-body`** | an archer kills a man in the open | `health Target == 0` · `field Target HitMarks.NextSeq >= 2` (the rail checks the kind is `Arrow` and the mark is drawn after the fall) |
 | **`bw-crossbow`** | a crossbowman fires three bolts | 3 `shot by Crossbowman` · the gaps between them ≥ 6 s |
 | **`bw-mounted-archers`** | four mounted archers circle a guarded wagon at a gallop and shoot | ≥ 6 `shot by *Rider` while moving · ≥ 1 hit on a guard · no rider stops to shoot |
+| **`bw-duck-hunt`** | an archer shoots at a lone duck and at a duck flock flying over a field | a lone duck hit ⇒ `health == 0` and it lies on the ground · the flock's count drops by ≥ 1 and a dead duck lies · the rest of the flock flees |
 | **`bw-archery-contest`** | three archers shoot five arrows each at three targets | 15 shots · every arrow stuck in a target or the ground · a score per archer · the best archer named in the score (`field` on the game score) |
 
 Rails (not scenarios): the stuck pose (not flat, a third in); the cap (257th removes the oldest); the arrow mark drawn after the dead pose blend; the
@@ -197,6 +200,7 @@ ring score from a mark; the held bow drawn while aiming (frame vs mockup).
 | `MunitionShape.Arrow` | **9** (8 = Star) |
 | `HitMarkKind.Arrow`, `.Bolt` | **5, 6** |
 | munitions: arrow, crossbow bolt | **6066, 6067** (6060–6065 are the air lane's) |
+| the duck (a lone bird + a flock type) | measured at step 0 (the animals are 700–708) |
 | person types Archer, Crossbowman · the archery target prop | measured at step 0 (the urban-combat 2010–2012 are the Middle-East fighters) |
 | tracker | `CE-4649` (programme row) |
 
@@ -204,8 +208,8 @@ ring score from a mark; the held bow drawn while aiming (frame vs mockup).
 
 | slice | items | done when |
 |---|---|---|
-| **S0 measure** — STOP rule (R-106) | horses / animals have `HitMarks` parts? · `WorldPos` rotation reaches a viewer's lying round? · the type and prop ids · whether the weapon brain needs more than the numbers | answers + ids in §1 / §7 |
+| **S0 measure** — STOP rule (R-106) | can a lone bird be HIT today (its collider and layer — birds are `LocomotionClass.Bird`, not aircraft) and does it fall when killed? · horses / animals have `HitMarks` parts? · `WorldPos` rotation reaches a viewer's lying round? · the type and prop ids · whether the weapon brain needs more than the numbers | answers + ids in §1 / §7 |
 | **S1 the arrow flies** (backend) | BW-1, BW-2, BW-6, BW-7, BW-9, BW-12 (munitions, mounts, Archer / Crossbowman) | `bw-arrow-arc`, `bw-crossbow` |
 | **S2 it sticks** (backend) | BW-4 (the stuck pose, the cap), BW-5 (the `Arrow` / `Bolt` marks) | `bw-stuck-wall`, `bw-stuck-body` (rails for the kind) |
 | **S3 the looks** (ui, from S1) | BW-3, BW-10, the stuck draws — mockups first | the frame rails vs mockups |
-| **S4 riders and the contest** | BW-8 (+ the scenario), BW-11 (target prop + scoring) | `bw-mounted-archers`, `bw-archery-contest` |
+| **S4 riders, birds and the contest** | BW-8 (+ the scenario), BW-14 (shootable birds, flock hits, the duck), BW-11 (target prop + scoring) | `bw-mounted-archers`, `bw-duck-hunt`, `bw-archery-contest` |
