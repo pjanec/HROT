@@ -138,7 +138,7 @@ namespace Hrot.CGF
             Fdp.Core.FdpEventBus?                nodeBus = null,
             Func<Fdp.Toolkit.Lifecycle.EntityLifecycleModule?>? lifecycle = null,
             Func<CarKinem.Trajectory.TrajectoryPoolManager?>? remoteRoutes = null,
-            int                                  localNodeId = 0)
+            Fdp.Core.NodeId                      localNodeId = default)
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
