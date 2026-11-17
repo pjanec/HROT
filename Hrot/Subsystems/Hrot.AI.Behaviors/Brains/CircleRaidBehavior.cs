@@ -10,6 +10,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Replication;
 using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains

@@ -520,3 +520,98 @@ namespace Hrot.SimHost.Tests
         }
     }
 }
+
+namespace Hrot.SimHost.Tests
+{
+    /// <summary>
+    /// ⭐⭐ <c>CE-4650</c> (NA-4; docs/designs/weapons/DESIGN_Bows_And_Crossbows.md §9) — the SHIPPED <c>CircleRaid</c> on a commander of three mounts:
+    /// each is ordered to its OWN ring point (40-80 m of the objective), the group then re-orders them along the ring so they run counter-clockwise,
+    /// and after the circle they ride to the rally, Success. 🔴 Red-proof: every mount sent to one shared ring point ⇒ the ring test red.
+    /// </summary>
+    public sealed class CircleRaidBehaviorTests
+    {
+        private static Hrot.AI.Behaviors.Brains.CircleRaidBehavior.CircleRaidParams P() => new()
+        {
+            Objective = new Vector3(100f, 100f, 0f), Rally = new Vector3(100f, -300f, 0f),
+            RadiusMin = 40f, RadiusMax = 80f, Speed = 12f, Circle = (SimDuration)20f, Breakoff = (SimDuration)12f,
+        };
+
+        [Fact]
+        public void CE4650_TheRings_AreBetween40And80Metres_AndTheBearingAdvancesCounterClockwise()
+        {
+            var p = P();
+            for (int i = 0; i < 6; i++)
+            {
+                var pt = Hrot.AI.Behaviors.Brains.CircleRaidBehavior.RingPoint(in p, i, 0f);
+                float r = Vector2.Distance(new Vector2(pt.X, pt.Y), new Vector2(p.Objective.X, p.Objective.Y));
+                Assert.InRange(r, 39.9f, 80.1f);
+                Assert.True(Hrot.AI.Behaviors.Brains.CircleRaidBehavior.BearingOf(in p, i, 6, 5f) > Hrot.AI.Behaviors.Brains.CircleRaidBehavior.BearingOf(in p, i, 6, 0f));
+            }
+            Assert.NotEqual(Hrot.AI.Behaviors.Brains.CircleRaidBehavior.RadiusOf(in p, 0), Hrot.AI.Behaviors.Brains.CircleRaidBehavior.RadiusOf(in p, 1));
+        }
+
+        [Fact]
+        public void CE4650_CircleRaid_SendsEachMountToItsOwnRingPoint_KeepsThemMoving_ThenRidesToTheRally()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitRoster>()) repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster { Count = 3 };
+            var mounts = new Entity[3];
+            for (int i = 0; i < 3; i++)
+            {
+                mounts[i] = repo.CreateEntity();
+                repo.AddComponent(mounts[i], new SimTransform { Position = new Vector3(-1000f, 0f, 0f), Rotation = Quaternion.Identity });
+                roster.SubordinateEntities[i] = mounts[i];
+            }
+            repo.AddComponent(w.Man, roster);
+            var p = P();
+            var last = new System.Collections.Generic.Dictionary<Entity, string>();
+            int orders = 0;
+            void Tick(int k = 1)
+            {
+                for (int t = 0; t < k; t++)
+                {
+                    w.Tick();
+                    foreach (var e in repo.ReadManagedEvents<AssignTacticalIntentEvent>())
+                        if (e != null && e.IntentId == BehaviorNames.MoveToLocation) { last[e.Entity] = e.JsonParams; orders++; }
+                }
+            }
+            Vector3 Ordered(int i)
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(last[mounts[i]]);
+                var a = doc.RootElement.GetProperty("target");
+                return new Vector3(a[0].GetSingle(), a[1].GetSingle(), a[2].GetSingle());
+            }
+            void Arrive(System.Func<int, Vector3> at) { for (int i = 0; i < 3; i++) repo.GetComponentRW<SimTransform>(mounts[i]).Position = at(i); }
+
+            w.Start(BehaviorNames.CircleRaid, "{\"Objective\":[100,100,0],\"Rally\":[100,-300,0],\"Circle\":20}");
+            Tick(3);
+            Assert.Equal(3, last.Count);
+            for (int i = 0; i < 3; i++)
+            {
+                var o = Ordered(i);
+                float r = Vector2.Distance(new Vector2(o.X, o.Y), new Vector2(100f, 100f));
+                Assert.InRange(r, 39.9f, 80.1f);
+            }
+            Assert.True(Vector3.Distance(Ordered(0), Ordered(1)) > 20f && Vector3.Distance(Ordered(1), Ordered(2)) > 20f);   // each its own point
+            Tick(5);
+            Assert.Equal(3, last.Count);
+
+            Arrive(i => Hrot.AI.Behaviors.Brains.CircleRaidBehavior.RingPoint(in p, i, Hrot.AI.Behaviors.Brains.CircleRaidBehavior.BearingOf(in p, i, 3, 0f)));
+            Tick(3);
+            int before = orders;
+            Tick(60);   // 6 s of the circle: re-ordered along the ring (a leg is 2.5 s)
+            Assert.True(orders >= before + 3, $"the circle re-orders each mount every leg ({orders - before} orders in 6 s)");
+            for (int i = 0; i < 3; i++)
+            {
+                var o = Ordered(i);
+                Assert.InRange(Vector2.Distance(new Vector2(o.X, o.Y), new Vector2(100f, 100f)), 39.9f, 80.1f);
+            }
+            Tick(200);  // the circle is over: the rally
+            for (int i = 0; i < 3; i++) Assert.True(Vector3.Distance(Ordered(i), p.Rally) < 1f);
+            Arrive(_ => p.Rally); Tick(3);
+            Assert.Equal(NodeStatus.Success, w.Finished);
+        }
+    }
+}

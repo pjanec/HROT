@@ -212,6 +212,7 @@ namespace Hrot.Core.Tkb
             Over = S(O(nameof(OutfitOver.Breechcloth), 100f, C(96, 70, 46), C(70, 52, 36), C(52, 40, 30))),
             Head = S(O(nameof(OutfitHead.Headband), 60f, C(170, 30, 30), C(30, 30, 34), C(230, 228, 220)), O(nameof(OutfitHead.Feather), 25f, C(236, 232, 224), C(60, 44, 30)), O(nameof(OutfitHead.None), 15f)),
             Hair = S(O(nameof(OutfitHair.Braids), 60f, HairColours[0]), O(nameof(OutfitHair.Long), 40f, HairColours[0])),
+            Beard = S(O(nameof(OutfitBeard.None), 100f, HairColours[0])),
             FacePaint = S(O(nameof(OutfitFacePaint.Stripes), 30f, C(170, 30, 30), C(236, 232, 224), C(24, 24, 26)), O(nameof(OutfitFacePaint.None), 70f)),
         };
 

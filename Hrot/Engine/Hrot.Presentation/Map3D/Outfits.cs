@@ -11,7 +11,7 @@ namespace Hrot.UI.Common.Map3D;
 public enum Legwear : byte { Trousers, Shorts, Skirt, LongSkirt, Hidden }
 
 /// <summary>⭐ CE-1099 (§6q O-2) — a civilian's hair: short, long (down his back) or none.</summary>
-public enum HairStyle : byte { Short, Long, None }
+public enum HairStyle : byte { Short, Long, None, Braids }
 
 /// <summary>⭐ CE-1099 (§6q O-4) — a soldier's camouflage, by his side: Friend woodland, Neutral none. ⭐ CE-1235 (O-4a, R-1020) — Hostile
 /// desert (was fleck, which stays a pattern a look may name).</summary>
@@ -280,7 +280,7 @@ public static class Outfits
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.42f), new(1.10f, 1.08f, 0.10f), PoliceBelt, Turned: true));
         }
-        if (o.HairStyle == HairStyle.Long && !o.Police)   // down the back of the head to the shoulders
+        if (o.HairStyle is HairStyle.Long or HairStyle.Braids && !o.Police)   // ⭐ CE-4650 NA-2 — Braids is drawn as the long-hair box (stand-in)   // down the back of the head to the shoulders
             into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
         // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
 
@@ -302,8 +302,14 @@ public static class Outfits
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, 0.22f, 0.02f), new(0.10f, 0.20f, 0.22f), Scale(o.OverColour, 0.7f), Turned: true));
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, 0.02f), new(0.10f, 0.20f, 0.22f), Scale(o.OverColour, 0.7f), Turned: true));
         }
+        // ⭐ CE-4650 NA-2 — the warrior's STAND-INS: breechcloth = the short-skirt box in its cloth; Buckskin is a shirt in tan (no extra box), Feather and face paint are not drawn
+        if (o.OverKind == OutfitOver.Breechcloth)
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.86f), new(1.25f, 1.08f, 0.76f), o.OverColour, Turned: true));
         switch (o.HeadKind)
         {
+            case OutfitHead.Headband:   // the police cap's band, in the band's colour
+                into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.02f, 0f, 0.30f), new(1.12f, 1.12f, 0.10f), o.HeadCloth, Turned: true));
+                break;
             case OutfitHead.Cap:
                 into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.02f, 0f, 0.45f), new(1.10f, 1.10f, 0.20f), o.HeadCloth, Turned: true));
                 into.Add(new PartDetail(BlockFigure.HeadIndex, new(0.56f, 0f, 0.31f), new(0.26f, 0.92f, 0.04f), o.HeadCloth, Turned: true));
