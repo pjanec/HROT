@@ -1455,6 +1455,10 @@ namespace Hrot.UI.Common.Map3D
         public bool HullLocked { get; private set; }
         public bool IsVehicle => Scheme == ControlScheme.Vehicle;
 
+        /// <summary>⭐ <c>CE-1973</c> — the possessed body is an ANIMAL on legs (<c>LocomotionClass.Quadruped</c>): it walks like a person for the camera and the look, but its
+        /// body is steered like a vehicle (DESIGN_Animals AB-2), so A/D go out as <c>Steer</c>. 🔒 User, 2026-11-17: "The animals can be possessed, but they cannot turn left and right".</summary>
+        public bool IsAnimal => _world() is { } w && Fdp.Toolkit.Motion.Locomotions.Of(w, Unit) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Quadruped;
+
         /// <summary>⭐ <c>CE-1204</c> (§8l LK-4, R-1017) — how fast A/D turn a person's body while his look is free (rad/s, 120°/s).</summary>
         public static readonly float FreeLookTurnRate = 120f * MathF.PI / 180f;
 
@@ -2054,8 +2058,8 @@ namespace Hrot.UI.Common.Map3D
             {
                 Seq = ++_seq,
                 Forward = forward,
-                Lateral = vehicle ? 0f : side,
-                Steer = vehicle ? side : 0f,   // ⭐ CE-1351 — A/D steer, hull-locked or not
+                Lateral = vehicle || IsAnimal ? 0f : side,
+                Steer = vehicle || IsAnimal ? side : 0f,   // ⭐ CE-1351 — A/D steer, hull-locked or not; ⭐ CE-1973 — an ANIMAL too (a legged CarKinematics body that steers while it moves, AB-2: it reads Steer, never Lateral or Yaw)
                 Yaw = IsFlyer ? flyerHeading : BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked); ⭐ CE-1351 a flyer's from A/D
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,

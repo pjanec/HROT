@@ -551,6 +551,13 @@ public sealed class AnimalModelRail
         for (int i = 0; i < 6; i++) { Clock(0.1); Render(); }
         var riding = Screen("animals-6-rider-riding.png");
         Assert.Equal(3, bodies.BodiesDrawn);   // the horse, the rider, the target
+        // ⭐ CE-1974 — the station drives the horse once the possessed soldier mounts (the horse is its FirstPerson): the horse is still drawn —
+        //   an animal has no cab, so no crew eye. 🔒 User, 2026-11-17: "it is rendered as sitting on the horse, but the horse is not rendered at all".
+        //   ✅ Red-proof: without EntityBodyLayer3D.OpenCarrier ⇒ 2 bodies (the horse dropped).
+        bodies.FirstPerson = horse;
+        Render();
+        Assert.Equal(3, bodies.BodiesDrawn);
+        bodies.FirstPerson = Entity.Null;
         world.SetComponent(rider, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = target });
         for (int i = 0; i < 8; i++) { Clock(0.1); Render(); }
         var firing = Screen("animals-6b-rider-fires.png");

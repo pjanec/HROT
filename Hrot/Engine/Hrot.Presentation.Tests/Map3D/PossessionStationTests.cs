@@ -1468,6 +1468,25 @@ public sealed partial class PossessionStationTests
             Assert.Equal(MathF.PI / 2f, driver.Yaw, 3);                               // the locked view turned with the hull
         }
 
+        // ⭐ CE-1973 — an ANIMAL (a legged body steered like a vehicle, DESIGN_Animals AB-2): A/D go out as Steer, never as a sidestep.
+        //   🔒 User, 2026-11-17: "The animals can be possessed, but they cannot turn left and right then."
+        (w, unit, _) = World();
+        using (w)
+        {
+            w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Quadruped });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w) { OverShoulder = false };
+            station.Update(0.016f);
+            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            Assert.True(driver.IsAnimal);
+            var left = Frame(w, station, sw, Raylib_cs.KeyboardKey.A);
+            Assert.Equal(1f, left.Steer);
+            Assert.Equal(0f, left.Lateral);
+            Assert.Equal(-1f, Frame(w, station, sw, Raylib_cs.KeyboardKey.D).Steer);
+        }
+
         // a helicopter
         (w, unit, _) = World();
         using (w)
