@@ -98,6 +98,35 @@ FPS player's input — the role the 3-D map has in HROT today. ⇒ **the terrain
 | U-7 | dynamic terrain in Unreal: a breach, a crater, a felled tree, a collapsed building — which become mesh swaps, decals or a landscape patch |
 | U-8 | option B's tagged-actor vocabulary and the exporter (an Unreal editor plugin) |
 
+## Where the terrain starts — OSM straight into Unreal, or OSM into HROT then amended in Unreal? *(`2026-11-17`; lean, not decided)*
+
+🔒 User: *"or we import from open street maps directly to unreal using some existing importer that does it nice? or we import to our terrain and ammend
+it in unreal?"*
+
+**Existing OSM → Unreal importers** (web search `2026-11-17`; vendor claims, not verified): **City Generator** and **Road Generator (OSM to Unreal)** on Fab
+— roads on landscape splines, buildings and driveways from OSM through PCG graphs (a 4 × 4 km Miami recreation is shown); **Landscape Combinator** — real
+DEM landscapes, OSM ways as splines, buildings from OSM; **TopoFetch** — elevation, satellite texture, buildings and roads, UE 5.8+; the old
+**StreetMap** plugin (UE4, flat — no heights); **Cesium for Unreal** — streamed OSM buildings or Google photorealistic tiles, georeferenced, with only
+approximate collision. ⚠ DEM support and what each exposes as data is unconfirmed.
+
+| option | what | ⭐ verdict |
+|---|---|---|
+| **1** OSM → Unreal directly (one of the importers) | the nicest look fastest | ⛔ as the SOURCE: it is a SECOND interpretation of the same OSM — its building heights, road geometry and ground resampling will not match HROT's, and HROT needs its own data anyway (SUMO's network for traffic, the navmesh, line of sight, breaching). Two importers of one source drift ("one implementation per concept") — and the simulation and the picture would disagree on where a wall is |
+| **2** OSM → **HROT** (our pipeline, built: DEM heights, buildings, walls, surfaces, the SUMO network by `netconvert`) → export to Unreal → **amend in Unreal** → the sim-relevant amendments exported back (tagged actors, option B above) | one interpretation of OSM; the simulation and the picture agree by construction; Unreal adds the beauty and the hand edits | ⭐ **the lean** |
+| **2 + 1's generators** | in step "export to Unreal", feed the importers' PCG building / road generators OUR footprints, heights and lanes instead of raw OSM — their nice facades and road meshes on our geometry | ⭐ worth measuring (U-9): do their PCG graphs accept generic polygons / splines as input? |
+| Cesium | the real world BEYOND the play area (a horizon), never inside it | ✅ as a backdrop |
+
+| # | open |
+|---|---|
+| U-9 | which of City Generator / Road Generator / Landscape Combinator can be driven from OUR data (polygons with heights, lane splines) rather than an `.osm` file — their PCG input nodes |
+| U-10 | what an Unreal amendment may change and still export (a moved building, a new wall, a sculpted ditch) — the tag vocabulary of option B |
+
+Sources: [StreetMap](https://github.com/MikeFricker/StreetMap) · [OSM importer forum](https://forums.unrealengine.com/t/plugin-openstreetmap-importer/81775) ·
+[Landscape Combinator](https://forums.unrealengine.com/t/plugin-landscape-combinator-a-plugin-to-create-real-world-landscapes-free-for-personal-use/772305) ·
+[Road Generator (OSM to Unreal), Fab](https://www.fab.com/listings/f205fd21-1428-4a4b-b067-a46d1a2fe86f) · [City Generator thread](https://forums.unrealengine.com/t/yazan-hanna-city-generator/2719107) ·
+[Miami City Environment](https://forums.unrealengine.com/t/miami-city-environment/2856143) · [Cesium photorealistic tiles](https://cesium.com/learn/unreal/unreal-photorealistic-3d-tiles/) ·
+[Cesium collision](https://community.cesium.com/t/enabling-collision-sun-shadows/27862)
+
 ## ⛔ HISTORY — the first open list
 
 | # | question |
