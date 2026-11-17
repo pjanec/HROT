@@ -266,5 +266,37 @@ namespace Hrot.SimHost.Tests
             repo.SetManagedComponent(m, new BehaviorStartRecord { BehaviorName = "SquadDefend", JsonParams = neutral, InstanceId = 41, RequestId = Guid.NewGuid() });
             Assert.False(Hrot.AI.Behaviors.Brains.CommandOrders.StillRoutedRunning(repo, s.Commander, m, OrderKind.Defend, neutral, "SquadDefend", physical));
         }
+
+        /// <summary>⭐⭐ X-2 S4 (X2-F, R-8359, R-8365; DP3-D ②) — a split squad whose plan posted every man re-issues its Defend as <c>SquadDefend</c> WITH those
+        /// posts (D-2f <c>Posts</c>, all 10 — over the old cap of 8), the men standing on them: the play never asks the terrain for windows, and reports
+        /// PROGRESS Set. ✅ Red-proof: the posts not carried ⇒ the window ask is issued ⇒ red.</summary>
+        [Fact]
+        public void X2F_ASplitSquadsSquadDefend_StartsFromItsPlannedPosts_NoAsk_AndReportsSet()
+        {
+            var (s, fit, hier, repo, u) = X2Squad();
+            var men = X2Split(s, u, assign: false);
+            var plan = new PlannedPosts { Count = 10, Ready = 1, Stage = PlannedPosts.StageReady };
+            for (int k = 0; k < 10; k++)
+            {
+                var post = X2Post + new Vector3(-9f + 2f * k, 6f, 0f);
+                plan.Set(k, post, Vector3.Zero, (byte)(PlannedPosts.PostedFlag | PlannedPosts.WindowFlag));
+                repo.GetComponentRW<SimTransform>(men[k]).Position = post;     // DP3-D ①: Materialise placed each man on his post
+            }
+            if (!repo.IsComponentTypeRegistered<PlannedPosts>()) repo.RegisterComponent<PlannedPosts>();
+            repo.AddComponent(u, plan);
+            X2Assign(s, u, men);
+            bool asked = false;
+            for (int i = 0; i < 40; i++)
+            {
+                X2Frame(s, fit, hier);
+                asked |= !Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(repo, u, Hrot.AI.Behaviors.Brains.SquadDefendPlay.WindowSite).IsNull;
+            }
+            Assert.Equal("SquadDefend", s.TaskName);
+            var json = X2Record(repo, u)!.JsonParams;
+            var dto = System.Text.Json.JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.SquadDefendParamsJsonDto>(json, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+            Assert.Equal(10, dto.Posts!.Length);                               // every man's post, past the old cap of 8
+            Assert.False(asked, "a man standing on a planned post is never surveyed for windows");
+            Assert.True(Reports(repo, u, Fdp.Toolkit.Squad.Command.ProgressKind.Set) >= 1, "PROGRESS Set: every man on his post");
+        }
     }
 }

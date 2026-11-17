@@ -63,7 +63,10 @@ namespace Hrot.Map.Definitions.Behavior
     /// <summary>⭐ <c>CE-2275</c> D-2f (DA-46) — one authored fighting position of a <c>SquadDefend</c> order.</summary>
     public struct SquadDefendPostJsonDto
     {
-        public const int MaxPosts = 8;
+        /// <summary>⭐ <c>X-2</c> X2-F (R-8359, R-8365) — 13 (= <c>PlannedPosts.Capacity</c>, a squad's men): a split squad's re-issued Defend carries a planned
+        /// post for EVERY man (DP3-D ②). ⛔ SUPERSEDED: 8. 🔒 User, <c>2026-11-17</c>: "Breaking replay is no issue." — the recorded blackboard block grows
+        /// (<c>SquadDefendParams.Authored</c>); an OLD recording replayed mid-<c>SquadDefend</c> may mis-read it, ACCEPTED (R-8365).</summary>
+        public const int MaxPosts = 13;
 
         /// <summary>Where he stands (sim metres; the storey's floor height in Z).</summary>
         [JsonPropertyName("point")]

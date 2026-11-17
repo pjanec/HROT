@@ -159,6 +159,9 @@ namespace Hrot.CGF.Systems
             if (!stochastic && !RosterComplete(repo, unit)) return;   // X2-A — the men first (the hierarchy's assigns land a frame after the handover)
             string json = OrderJson(repo, unit, order.Paused);
             json = OrderReissue.ParamsFor(want, json, stochastic);
+            // ⭐ X2-F (R-8359; DP3-D ②) — a split squad's SquadDefend starts from its PLANNED POSTS (D-2f Posts): every man already stands on one ⇒ Set at once, no ask
+            if (!stochastic && want == SquadDefendPlayName && repo.IsComponentTypeRegistered<PlannedPosts>() && repo.HasComponent<PlannedPosts>(unit))
+                json = OrderReissue.WithPlannedPosts(json, in repo.GetComponentRO<PlannedPosts>(unit));
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
                 Entity = unit, BehaviorName = want, JsonParams = json, Origin = order.Origin, RequestId = order.RequestId, IsResume = true,
