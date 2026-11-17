@@ -31,12 +31,14 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>An ABSTRACT order to <paramref name="member"/>. Its release is an unnamed clear (the commander cannot know what it
-        /// resolved to). <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
+        /// resolved to). ⭐ agg-behaviors R-8301 — the entry RECORDS the order's intent (<c>Order.&lt;name&gt;</c>) and its json, so
+        /// <see cref="Gave"/> / <see cref="StillRunning"/> / <see cref="Stands"/> recognise an unchanged re-send of a routed order
+        /// (CE-2304); <see cref="SubordinateOrders.Release"/> turns such an entry back into the unnamed clear. <paramref name="newOrder"/> = a fresh order from a play (not the runner's re-send): the picture forgets the
         /// member's progress on the last one (<see cref="CommandPictureOps.OrderGiven"/>).</summary>
         public static void Order(EntityRepository world, Entity commander, Entity member, string orderName, string json, bool newOrder = false)
         {
             var id = IdFor(world, commander, member);
-            SubordinateOrders.Record(world, commander, member, string.Empty, BehaviorOrigin.Superior, requestId: id);
+            SubordinateOrders.Record(world, commander, member, OrderAttribute.IntentFor(orderName), BehaviorOrigin.Superior, json, id);
             if (newOrder) CommandPictureOps.OrderGiven(world, commander, member);
             world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
@@ -44,6 +46,40 @@ namespace Hrot.AI.Behaviors.Brains
             });
             Journal(world, commander, member, OrderAttribute.IntentFor(orderName));
         }
+
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>R-8305</c> (docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §23.5) — the ONE place a commander CHOOSES how
+        /// to order a subordinate whose resolution it does not know: a STOCHASTIC member (<see cref="Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic"/>) is ordered by
+        /// KIND (<see cref="Order"/> — <c>Order.&lt;kind&gt;</c>, which the routing table resolves to its generic play, recorded as such, R-8301); any other is
+        /// <see cref="Assign"/>ed <paramref name="physicalPlay"/> with the SAME <paramref name="neutralJson"/> (the neutral DTO — R-8300's rail proves every physical
+        /// play reads it strictly). <paramref name="kind"/> 0 = this order has no neutral DTO yet ⇒ always <see cref="Assign"/>.
+        /// </summary>
+        public static void Route(EntityRepository world, Entity commander, Entity member, OrderKind kind, string physicalPlay, string neutralJson, bool newOrder = false)
+        {
+            if (kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member))
+                Order(world, commander, member, kind.ToString(), neutralJson, newOrder);
+            else
+                Assign(world, commander, member, physicalPlay, neutralJson, newOrder);
+        }
+
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>R-8315</c> (ST-3; revises R-8305) — <c>Route</c> with TWO payloads: a STOCHASTIC member gets <c>Order(kind, <paramref name="neutralJson"/>)</c>,
+        /// anyone else exactly what it got before — <c>Assign(<paramref name="physicalPlay"/>, <paramref name="physicalJson"/>)</c>, byte for byte. A site whose physical play's JSON
+        /// differs from the neutral DTO's (a squad's <c>SquadMarch</c> carries its own shape; <c>PlatoonSupportByFire</c> its own fields) keeps its physical payload untouched
+        /// instead of being forced onto the neutral one. A site whose two payloads are the same keeps the one-payload form.
+        /// </summary>
+        public static void Route(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson, bool newOrder = false)
+        {
+            if (kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member))
+                Order(world, commander, member, kind.ToString(), neutralJson, newOrder);
+            else
+                Assign(world, commander, member, physicalPlay, physicalJson, newOrder);
+        }
+
+        /// <summary>⭐ <c>R-8305</c> — the key <c>Route</c> records for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> for a stochastic one, else the play), for the
+        /// sites' <see cref="StillRunning"/> / <see cref="Gave"/> calls: an unchanged re-send is recognised whichever way it was routed.</summary>
+        public static string KeyFor(EntityRepository world, Entity member, OrderKind kind, string physicalPlay)
+            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member) ? OrderAttribute.IntentFor(kind.ToString()) : physicalPlay;
 
         /// <summary>⭐ <c>CE-1250</c> (Brain View BV-10) — the commander's brain journal records the order: A = the member's network id (0
         /// when it has none), B = the behaviour (or order) hash. Every command node gives its orders through here, so every commander writes it.</summary>
@@ -120,6 +156,12 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
+        /// <summary>⭐ <c>R-8315</c> — <see cref="Gave"/> for a site that sends through the TWO-payload <c>Route</c> (the key and json the route would record for <paramref name="member"/>).</summary>
+        public static bool GaveRouted(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
+            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member)
+                ? Gave(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson)
+                : Gave(world, commander, member, physicalPlay, physicalJson);
+
         /// <summary>⭐ <c>CE-2304</c> — the commander's ticking run already gave <paramref name="member"/> exactly this order
         /// (<paramref name="behaviour"/> with <paramref name="json"/>) and he still runs it from his superior: sending it again would only
         /// restart him — measured live, every re-send stopped a posted defender and started him again. False whenever anything differs, or
@@ -135,6 +177,13 @@ namespace Hrot.AI.Behaviors.Brains
             if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
             return false;
         }
+
+        /// <summary>⭐ <c>R-8315</c> — <see cref="StillRunning"/> for a site that sends through the TWO-payload <c>Route</c>: asks for the key and the json the route WOULD
+        /// record for <paramref name="member"/> (<c>Order.&lt;kind&gt;</c> + the neutral json for a stochastic one, else the physical play + its json).</summary>
+        public static bool StillRoutedRunning(EntityRepository world, Entity commander, Entity member, OrderKind kind, string neutralJson, string physicalPlay, string physicalJson)
+            => kind != 0 && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(world, member)
+                ? StillRunning(world, commander, member, OrderAttribute.IntentFor(kind.ToString()), neutralJson)
+                : StillRunning(world, commander, member, physicalPlay, physicalJson);
 
         /// <summary>⭐ <c>CE-4612</c> (R-2090) — the request id of the order <paramref name="commander"/>'s ticking run gives <paramref name="member"/> now.</summary>
         internal static System.Guid IdFor(EntityRepository world, Entity commander, Entity member)

@@ -1,0 +1,74 @@
+{
+  "$doc": "\u00a723.6 ST-3. The squad's slot table is AUTHORED (8 riflemen, Ammo 12: 96 rounds) because a TKB basic load lasts too long to spend in a scenario; a spare, filled stochastic squad far away is what teaches the engine each role's personal weapon (KillerVictimTkb.PersonalSoldiers is filled by the first spawn fill). The Red platoon is authored with 0 rounds, so it cannot fire back, and DEFENDS in place (R-8333: an order-less one breaks contact under fire now that it has a contact pool, CE-8021); the company attacks it (CompanyAttack asks the squad for SITREPs). Measured (2026-11-17, after CE-8009's measured rate 0.4 rounds a man a second): the first round goes at 1.25 s, every slot is empty at 12.25 s, the SITREP ammunition reads Black at 18.25 s (the report's delay).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "it fires: rounds leave the slots",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitSlotTable.Slots.*.Ammo",
+      "op": "<",
+      "value": 12,
+      "before": 5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    },
+    {
+      "name": "it fires until the rounds are spent: every slot is empty",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitSlotTable.Slots.*.Ammo",
+      "op": "==",
+      "value": 0,
+      "before": 30,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 8
+    },
+    {
+      "name": "and then it fires no more: no firing line at the end",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "FireAllocation.Count",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the SITREP ammunition reads Black at its commander",
+      "on": "field",
+      "who": "Blue Company",
+      "path": "CommandPicture.Subordinates.0.Ammo",
+      "op": "==",
+      "value": "Black",
+      "before": 40
+    },
+    {
+      "name": "the squad is not destroyed (the Red platoon has no ammunition)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Squad",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        }
+      }
+    }
+  ]
+}

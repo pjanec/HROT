@@ -160,6 +160,9 @@ namespace Hrot.CGF
             IntentClears = new IntentClearRegistry();
             IntentClears.Register(_missionExecutionSystem);
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
+            // ⭐ agg-behaviors ST-2 (R-8311, the silent-default rule) — the ingress starts a stochastic unit's template-default SOP through the SAME routing table that
+            //   resolves its orders; Fdp.Toolkits cannot see that table, so the host that holds it hands the ingress the resolver. Every brain host builds this pack.
+            Fdp.Toolkit.Behavior.StochasticSopRouting.Resolver = TacticalIntentResolutionSystem.SopFor;
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
@@ -293,7 +296,10 @@ namespace Hrot.CGF
                         ? Hrot.Core.Tkb.StochasticUnitFill.ChildType(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType, slot)
                         : default,
                 Lifecycle = lifecycle,
-            }, gateOnAuthority));
+            }, gateOnAuthority) { Policy = Fdp.Toolkit.Aggregate.ResolutionPolicies.BandsOf });   // ⭐ CE-8300 (agg-behaviors, cross-lane one-liner) — the bands from the World Environment's ResolutionPolicy
+            // ⭐ CE-8301 (agg-behaviors ST-5, F-5, R-8327) — a unit whose resolution changed (a merge, a split) re-resolves its template-default SOP: the
+            //   routing table's Sop row when stochastic, the template's own when physical. Stateless, 1 Hz, after the manager that flips the resolution.
+            simList.Add(new Hrot.CGF.Systems.UnitSopResolutionSystem(behaviorRegistry, gateOnAuthority));
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));

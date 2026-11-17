@@ -1,0 +1,66 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: on test-town (two crossing streets, a forest 'North Wood' at x 40-160, y 300-380) a MOUNTED stochastic 'Blue Mounted Platoon' (30 men, 8 wheeled HMMWV holdings) is ordered from (10,200) to (200,390) by the generic Move play - the straight line would cross the wood. Judge: it keeps to the roads (the route's backend is the road graph's / the hybrid planner, not a straight leg), never enters the wood, and arrives. Its tail arrives within +-10 % of M-2's predicted time: (381 m route + 350 m column) / 16.67 m/s = 44 s, so between 39 s and 48 s. Fail: the route crosses the wood, or the arrival is out of the window. Check: scripts/scenario-regression.sh agg-march-mounted"
+  },
+  "entities": {
+    "a9000005-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          10,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Mounted Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic",
+        "Posture": "Mounted"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitMove",
+        "Params": {
+          "Location": [
+            200,
+            390,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      },
+      "UnitHoldings": {
+        "Count": 1,
+        "Items": [
+          {
+            "Type": 102,
+            "Count": 8,
+            "Operational": 8,
+            "Ammo": 0,
+            "Kind": "Vehicle",
+            "Mobility": "Wheeled",
+            "Sensor": "NoSensor",
+            "Immobile": 0
+          }
+        ]
+      }
+    }
+  }
+}

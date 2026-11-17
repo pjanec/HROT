@@ -190,6 +190,17 @@ namespace Hrot.CGF.Systems
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>ST-2</c> (RV-7, R-8311) — the SOP of a unit at its RESOLUTION, from the same table that resolves its orders: the <c>"Sop"</c> row
+        /// of <see cref="ResolutionRoutingTable.Default"/> for the unit's most specific class (<c>StochasticUnitSop</c> for a stochastic one); null = the table has no
+        /// row, so the template's own SOP stands. ⭐ This is what <c>CgfLogicPack</c> hands the ingress as <c>StochasticSopRouting.Resolver</c>.
+        /// </summary>
+        public static string? SopFor(EntityRepository repo, Entity e, Func<string, bool> isBehaviour)
+        {
+            var r = ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, repo.GetDisType(e), ResolutionOf(repo, e), ResolutionRoutingTable.SopOrder, isBehaviour);
+            return r.Outcome == OrderResolution.Resolved ? r.Behaviour : null;
+        }
+
         /// <summary>⭐ <c>CE-8000</c> — the resolution an order is resolved at: the unit's <c>AggregateUnit</c>, else physical.</summary>
         internal static Fdp.Toolkit.Aggregate.AggregateResolution ResolutionOf(EntityRepository repo, Entity e)
             => repo.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>() && repo.HasComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(e)

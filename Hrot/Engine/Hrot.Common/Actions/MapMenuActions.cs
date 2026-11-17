@@ -227,6 +227,8 @@ namespace Hrot.Common.Actions
         public static readonly IReadOnlyDictionary<string, string> OrderShortcuts = new Dictionary<string, string>
         {
             ["Move"] = "M", ["Attack"] = "A", ["Hold"] = "H", ["Strike"] = "S", ["ObserveFire"] = "O",
+            // ⭐ agg-behaviors R-8300 — declared with the neutral DTOs; the unit menu offers them only once the routing table resolves them (OrderMenu.OfferedFor)
+            ["Defend"] = "D", ["BreakContact"] = "B",
         };
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────

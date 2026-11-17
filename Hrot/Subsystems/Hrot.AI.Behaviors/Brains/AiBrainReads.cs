@@ -47,7 +47,13 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.HostileAct>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.Custody>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.ResolutionPolicy>();                // SetResolutionPolicy — the verb's read of the live policy
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan
+            // ⭐ agg-behaviors ST-0 (design §23.7) — a commander's strength / fight readers (UnitStrength, CombatEffective, the census) read a STOCHASTIC member's
+            //   resolution and slots; measured by the acceptance rail under HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1. Written only by ST-3's phase B, never in the brain phase
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.AggregateUnit>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.UnitSlotTable>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Aggregate.UnitHoldings>();               // ⭐ ST-3 — a stochastic member's ammunition share (UnitAmmunition.TryShare)
         }
     }
 }

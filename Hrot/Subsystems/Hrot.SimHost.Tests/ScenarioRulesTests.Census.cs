@@ -71,5 +71,31 @@ namespace Hrot.SimHost.Tests
             foreach (var area in areas) total += ObjectiveCensus.MenOfSideInside(w, ForceId.Friend, in area);
             Assert.True(total > 20, $"the premise: men inside the areas ({total})");
         }
+
+        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.7) — the census counts a STOCHASTIC unit's Present men (its live slots) when its position is inside
+        /// the area, 0 outside, whether it is the subject or sits under a physical company's roster; bodies keep counting as before. ✅ Red-proof:
+        /// <c>StochasticMenInside</c> not added in <c>MenInside</c> ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void ST0_TheCensus_CountsAStochasticUnitsMen_WhenItsPositionIsInside()
+        {
+            var w = new ObjWorld();
+            var area = AreaLink.Circle(new WorldPoint(0f, 0f, 0f), 10f);
+            var inside = w.Man(Inside, ForceId.Friend);
+            var platoon = w.Repo.CreateEntity();                                                      // a body-less unit with NO roster: its men are its slots
+            w.Repo.AddComponent(platoon, new Fdp.Core.CommandHierarchy.UnitEntity());
+            w.Repo.AddComponent(platoon, new EntityInfo { ForceId = ForceId.Friend });
+            w.Repo.AddComponent(platoon, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 5000 });
+            w.Repo.AddComponent(platoon, new SimTransform { Position = Inside, Rotation = Quaternion.Identity });
+            AggregateTestUnits.Make(w.Repo, platoon, slots: 48, up: 37);
+            Assert.Equal(37, ObjectiveCensus.MenInside(w.Repo, new EntityRef(w.Net(platoon)), in area));
+            w.Move(platoon, Outside);
+            Assert.Equal(0, ObjectiveCensus.MenInside(w.Repo, new EntityRef(w.Net(platoon)), in area));
+            w.Move(platoon, Inside);
+
+            var company = w.Squad(ForceId.Friend, platoon, inside);                                   // a physical company: the platoon and a man
+            Assert.Equal(37 + 1, ObjectiveCensus.MenInside(w.Repo, new EntityRef(w.Net(company)), in area));
+            AggregateTestUnits.Make(w.Repo, platoon, slots: 48, up: 12);
+            Assert.Equal(12 + 1, ObjectiveCensus.MenInside(w.Repo, new EntityRef(w.Net(company)), in area));
+        }
     }
 }

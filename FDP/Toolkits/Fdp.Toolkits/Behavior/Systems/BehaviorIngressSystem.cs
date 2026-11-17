@@ -946,6 +946,14 @@ namespace Fdp.Toolkit.Behavior.Systems
                         "[BehaviorIngress] refused SOP '{0}' for entity #{1}: no such behaviour on this node.", evt.BehaviorName, evt.Entity.Index);
                     continue;
                 }
+                // ⭐ agg-behaviors ST-2 (RV-7, R-8311) — a TEMPLATE-DEFAULT SOP on a STOCHASTIC unit is the routing table's Sop row (the physical SOP's plays need a roster)
+                if (evt.Origin == BehaviorOrigin.Sop && StochasticSopRouting.Resolver is { } route && Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(repo, evt.Entity)
+                    && route(repo, evt.Entity, n => _registry.TryGetId(n, out _)) is { Length: > 0 } routed && routed != evt.BehaviorName
+                    && _registry.TryGetId(routed, out int rid) && _registry.TryGetDefinition(rid, out var rdef))
+                {
+                    StartSop(repo, evt.Entity, routed, rid, rdef, "{}", evt.Origin);
+                    continue;
+                }
                 StartSop(repo, evt.Entity, evt.BehaviorName, id, def, evt.JsonParams ?? "{}", evt.Origin);
             }
 

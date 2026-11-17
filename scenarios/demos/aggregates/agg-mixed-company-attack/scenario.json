@@ -1,0 +1,826 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: on demo-city a physical 'Blue Company' (CompanyAttack at 10 s: Objective 1 (425,425), then Objective 2 (645,445)) with THREE platoons: one STOCHASTIC (30 men from the TKB composite, no bodies; first on the roster, so the company gives it the assault) and two PHYSICAL (two squads of four men each: a base of fire and a reserve). No enemy: the routing is what is tested. Judge: every order reaches the right KIND of unit - the stochastic platoon runs the generic StochasticUnitAttack, the physical ones their physical plays (PlatoonSupportByFire, PlatoonDefend), never the other way round - and the attack completes: the stochastic platoon reaches Objective 1, and the HoldArea objective there (80 m, 25 men - only the stochastic platoon's 30 slot-table men can meet it) reads Achieved. Fail: a platoon given the wrong kind of play, or the objective never held. Check: scripts/scenario-regression.sh agg-mixed-company-attack"
+  },
+  "entities": {
+    "a9000015-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          240,
+          405,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          260,
+          405,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          240,
+          360,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          240,
+          346,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          237,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 1 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000004",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          239,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 1 Man 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000004",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000007": {
+      "SimTransform": {
+        "Position": [
+          241,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 1 Man 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000004",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000008": {
+      "SimTransform": {
+        "Position": [
+          243,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 1 Man 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000004",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000009": {
+      "SimTransform": {
+        "Position": [
+          254,
+          346,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          251,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 2 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000009",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          253,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 2 Man 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          255,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 2 Man 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          257,
+          344,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 1st Platoon Squad 2 Man 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000009",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          210,
+          450,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000015": {
+      "SimTransform": {
+        "Position": [
+          210,
+          436,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000014",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000016": {
+      "SimTransform": {
+        "Position": [
+          207,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 1 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000015",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000017": {
+      "SimTransform": {
+        "Position": [
+          209,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 1 Man 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000015",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000018": {
+      "SimTransform": {
+        "Position": [
+          211,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 1 Man 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000015",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000019": {
+      "SimTransform": {
+        "Position": [
+          213,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 1 Man 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000015",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          224,
+          436,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000014",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          221,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 2 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000020",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          223,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 2 Man 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000023": {
+      "SimTransform": {
+        "Position": [
+          225,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 2 Man 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000024": {
+      "SimTransform": {
+        "Position": [
+          227,
+          434,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue 2nd Platoon Squad 2 Man 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000015-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000025": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Blue holds Objective 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": {
+          "common": {
+            "title": "Blue holds Objective 1",
+            "subject": "a9000015-0000-4000-8000-000000000001"
+          },
+          "area": {
+            "circle": {
+              "center": [
+                425,
+                425,
+                0
+              ],
+              "radius": 80
+            }
+          },
+          "minMen": 25,
+          "maxEnemy": 0,
+          "holdSeconds": 10
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000015-0000-4000-8000-000000000026": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Blue Company attacks",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {
+          "common": {
+            "title": "Blue Company attacks"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 10
+          },
+          "do": [
+            {
+              "act": "Order",
+              "args": {
+                "target": "a9000015-0000-4000-8000-000000000001",
+                "behavior": "CompanyAttack",
+                "params": {
+                  "Objective1": [
+                    425,
+                    425,
+                    0
+                  ],
+                  "Objective2": [
+                    645,
+                    445,
+                    0
+                  ],
+                  "DeadlineSeconds": 300.0,
+                  "Radius": 35
+                }
+              }
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

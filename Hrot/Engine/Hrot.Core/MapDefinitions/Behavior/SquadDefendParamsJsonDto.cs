@@ -27,6 +27,22 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Speed")]
         public float Speed;
 
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("Left")]
+        public Fdp.Core.Bearing Left;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("Right")]
+        public Fdp.Core.Bearing Right;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("FallBackTo")]
+        public PointLink FallBackTo;
+
+        /// <summary>Accepted — unused at this echelon (agg-behaviors R-8300: the Defend order's neutral DTO).</summary>
+        [JsonPropertyName("Threat")]
+        public PointLink Threat;
+
         /// <summary>⭐ <c>CE-2275</c> D-2f (DA-5, DA-46) — AUTHORED fighting positions: preferred over the ones the terrain finds (the first
         /// <see cref="SquadDefendPostJsonDto.MaxPosts"/> are used). Each goes to the nearest man; the terrain is asked only for the men left.</summary>
         [JsonPropertyName("Posts")]

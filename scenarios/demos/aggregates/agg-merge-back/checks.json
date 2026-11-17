@@ -1,0 +1,631 @@
+{
+  "$doc": "\u00a723.6 ST-5. Merge (\u00a716b, D-P7): out of the band + margin and quiet for the quiet time (and UNOBSERVED); then BusResolutionSwitch.Merge sums each child back (X-4) - a slot with no child is down. The margin is raised to 250 m by the author's policy so the merge lies beyond the split trigger (with the default 100 m it does not: finding F-23). The second split is the instructor's pin, a do-set of AggregateUnit.Pin = PinPhysical (SV-14). Children by network id (F-22, R-8335). \u26a0 Measured: at the end only 20-22 slots read exactly 25 - a few whole men come back slightly hurt (>= 13 of 25) from their time as soldiers; the source is not traced (the patrol walks away beyond rifle reach), so the rows judge the losses (3 down, never a 4th, 27 up, the 2 hurt still hurt), not exact health.",
+  "runFor": 280,
+  "golden": {
+    "every": 40
+  },
+  "do": [
+    {
+      "name": "the instructor pins it Physical",
+      "at": 250,
+      "set": {
+        "who": "Blue Stochastic Platoon",
+        "component": "AggregateUnit",
+        "patch": {
+          "Pin": "PinPhysical"
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "contact: the platoon splits (the patrol 450 m off)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 15
+    },
+    {
+      "name": "contact ends (the patrol walks away past the band + margin, 650 m, and 20 s pass): the men merge back",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Stochastic",
+      "after": 20,
+      "before": 240
+    },
+    {
+      "name": "the merge kept every loss (the table at the end is the merged one - a split never writes it): the 3 dead slots are down",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 3,
+      "atEnd": true
+    },
+    {
+      "name": "... never a 4th (no man lost or invented by the round trip)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": "<",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 4
+      }
+    },
+    {
+      "name": "... and the 2 hurt men come back hurt (health 12.5 of 25)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "==",
+      "value": 12.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 2,
+      "atEnd": true
+    },
+    {
+      "name": "... and 27 men up: none lost, none invented by the round trip",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 27,
+      "atEnd": true
+    },
+    {
+      "name": "... never 28 up (a dead man is never re-created)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "UnitSlotTable.Slots.*.Health",
+        "op": ">=",
+        "value": 0.5,
+        "where": {
+          "CompositeSlot": [
+            ">",
+            0
+          ]
+        },
+        "elements": 28
+      }
+    },
+    {
+      "name": "the instructor pins it Physical (t = 250 s): it splits AGAIN at once",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "after": 250,
+      "before": 255
+    },
+    {
+      "name": "no second split before the pin: the merge lies past the split trigger (the author's 250 m margin)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Platoon",
+        "path": "AggregateUnit.Splitting",
+        "op": "==",
+        "value": "Materialising"
+      },
+      "after": 30,
+      "before": 250
+    },
+    {
+      "name": "first split: child 0 (slot 1) carries the stable key uuid5(unit, child:1)",
+      "on": "field",
+      "who": "1009",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "34c98ac7-285a-5e72-9057-2528e5cd4951",
+      "after": 0
+    },
+    {
+      "name": "first split: child 1 (slot 2) carries the stable key uuid5(unit, child:2)",
+      "on": "field",
+      "who": "1010",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "4da4fb7c-06ce-57e0-99cd-fd97923a82ef",
+      "after": 0
+    },
+    {
+      "name": "first split: child 2 (slot 3) carries the stable key uuid5(unit, child:3)",
+      "on": "field",
+      "who": "1011",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5d32b5b5-bb61-5deb-81fd-67b97d95225d",
+      "after": 0
+    },
+    {
+      "name": "first split: child 3 (slot 7) carries the stable key uuid5(unit, child:7)",
+      "on": "field",
+      "who": "1012",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "6b089908-28ae-5188-bbd2-23f70029e13f",
+      "after": 0
+    },
+    {
+      "name": "first split: child 4 (slot 8) carries the stable key uuid5(unit, child:8)",
+      "on": "field",
+      "who": "1013",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "ca9f5e65-2da5-5cad-b76b-3772a5f73af4",
+      "after": 0
+    },
+    {
+      "name": "first split: child 5 (slot 9) carries the stable key uuid5(unit, child:9)",
+      "on": "field",
+      "who": "1014",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "c1f742f9-bb89-5d95-b534-0386957d6f89",
+      "after": 0
+    },
+    {
+      "name": "first split: child 6 (slot 10) carries the stable key uuid5(unit, child:10)",
+      "on": "field",
+      "who": "1015",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8f63ab32-8ff5-5eca-a61a-cd2d1138acd0",
+      "after": 0
+    },
+    {
+      "name": "first split: child 7 (slot 11) carries the stable key uuid5(unit, child:11)",
+      "on": "field",
+      "who": "1016",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "42ef240a-a189-50d2-837c-5b5c811a10fe",
+      "after": 0
+    },
+    {
+      "name": "first split: child 8 (slot 12) carries the stable key uuid5(unit, child:12)",
+      "on": "field",
+      "who": "1017",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "80752642-1afd-5422-a501-ba4384a042c9",
+      "after": 0
+    },
+    {
+      "name": "first split: child 9 (slot 13) carries the stable key uuid5(unit, child:13)",
+      "on": "field",
+      "who": "1018",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "501a025c-496b-562f-ac4f-c49b535aaa7c",
+      "after": 0
+    },
+    {
+      "name": "first split: child 10 (slot 14) carries the stable key uuid5(unit, child:14)",
+      "on": "field",
+      "who": "1019",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "25f0bd1c-d91c-52b8-bfe5-f91d00f29197",
+      "after": 0
+    },
+    {
+      "name": "first split: child 11 (slot 15) carries the stable key uuid5(unit, child:15)",
+      "on": "field",
+      "who": "1020",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "dd97b041-e782-53b6-b681-c60f83ccd8f6",
+      "after": 0
+    },
+    {
+      "name": "first split: child 12 (slot 16) carries the stable key uuid5(unit, child:16)",
+      "on": "field",
+      "who": "1021",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a1e178ba-5273-571f-94b8-b86a3f3ccc04",
+      "after": 0
+    },
+    {
+      "name": "first split: child 13 (slot 17) carries the stable key uuid5(unit, child:17)",
+      "on": "field",
+      "who": "1022",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "7275c69c-6945-5a7a-aac6-fd0db69ff6eb",
+      "after": 0
+    },
+    {
+      "name": "first split: child 14 (slot 18) carries the stable key uuid5(unit, child:18)",
+      "on": "field",
+      "who": "1023",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "94d01396-b44a-5c42-b115-ea6696ac004c",
+      "after": 0
+    },
+    {
+      "name": "first split: child 15 (slot 19) carries the stable key uuid5(unit, child:19)",
+      "on": "field",
+      "who": "1024",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "da61e30e-0f85-59e9-b813-53668c7bdea0",
+      "after": 0
+    },
+    {
+      "name": "first split: child 16 (slot 20) carries the stable key uuid5(unit, child:20)",
+      "on": "field",
+      "who": "1025",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "ba09b852-87d8-5772-8116-039511b72d67",
+      "after": 0
+    },
+    {
+      "name": "first split: child 17 (slot 21) carries the stable key uuid5(unit, child:21)",
+      "on": "field",
+      "who": "1026",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "64d9a07b-3823-5368-b940-03178a96ca7b",
+      "after": 0
+    },
+    {
+      "name": "first split: child 18 (slot 22) carries the stable key uuid5(unit, child:22)",
+      "on": "field",
+      "who": "1027",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "b304e7e7-bf7a-56b0-acbc-1e35d2fafeff",
+      "after": 0
+    },
+    {
+      "name": "first split: child 19 (slot 23) carries the stable key uuid5(unit, child:23)",
+      "on": "field",
+      "who": "1028",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5e989b17-2b3f-5933-82e8-0a909e435832",
+      "after": 0
+    },
+    {
+      "name": "first split: child 20 (slot 24) carries the stable key uuid5(unit, child:24)",
+      "on": "field",
+      "who": "1029",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "56f3ce9c-1f7a-53b6-a0af-a8699f9baae5",
+      "after": 0
+    },
+    {
+      "name": "first split: child 21 (slot 25) carries the stable key uuid5(unit, child:25)",
+      "on": "field",
+      "who": "1030",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "1091b3a4-93f2-56af-a483-bdc10426a78c",
+      "after": 0
+    },
+    {
+      "name": "first split: child 22 (slot 26) carries the stable key uuid5(unit, child:26)",
+      "on": "field",
+      "who": "1031",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8f078149-d946-578e-a73e-0d2111503e7e",
+      "after": 0
+    },
+    {
+      "name": "first split: child 23 (slot 27) carries the stable key uuid5(unit, child:27)",
+      "on": "field",
+      "who": "1032",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "33a93847-c863-5f2a-9e75-fa38dd5ff92b",
+      "after": 0
+    },
+    {
+      "name": "first split: child 24 (slot 28) carries the stable key uuid5(unit, child:28)",
+      "on": "field",
+      "who": "1033",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "47099504-2b03-5cc2-abf0-230191e1fd61",
+      "after": 0
+    },
+    {
+      "name": "first split: child 25 (slot 29) carries the stable key uuid5(unit, child:29)",
+      "on": "field",
+      "who": "1034",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "fa01d010-0b9c-525c-8f4e-8b2ab9e21f62",
+      "after": 0
+    },
+    {
+      "name": "first split: child 26 (slot 30) carries the stable key uuid5(unit, child:30)",
+      "on": "field",
+      "who": "1035",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "cdc9171a-6235-5607-bdeb-67534a00b76a",
+      "after": 0
+    },
+    {
+      "name": "the pin's split: the SAME key: child 0 (slot 1) carries the stable key uuid5(unit, child:1)",
+      "on": "field",
+      "who": "1036",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "34c98ac7-285a-5e72-9057-2528e5cd4951",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 1 (slot 2) carries the stable key uuid5(unit, child:2)",
+      "on": "field",
+      "who": "1037",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "4da4fb7c-06ce-57e0-99cd-fd97923a82ef",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 2 (slot 3) carries the stable key uuid5(unit, child:3)",
+      "on": "field",
+      "who": "1038",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5d32b5b5-bb61-5deb-81fd-67b97d95225d",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 3 (slot 7) carries the stable key uuid5(unit, child:7)",
+      "on": "field",
+      "who": "1039",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "6b089908-28ae-5188-bbd2-23f70029e13f",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 4 (slot 8) carries the stable key uuid5(unit, child:8)",
+      "on": "field",
+      "who": "1040",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "ca9f5e65-2da5-5cad-b76b-3772a5f73af4",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 5 (slot 9) carries the stable key uuid5(unit, child:9)",
+      "on": "field",
+      "who": "1041",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "c1f742f9-bb89-5d95-b534-0386957d6f89",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 6 (slot 10) carries the stable key uuid5(unit, child:10)",
+      "on": "field",
+      "who": "1042",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8f63ab32-8ff5-5eca-a61a-cd2d1138acd0",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 7 (slot 11) carries the stable key uuid5(unit, child:11)",
+      "on": "field",
+      "who": "1043",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "42ef240a-a189-50d2-837c-5b5c811a10fe",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 8 (slot 12) carries the stable key uuid5(unit, child:12)",
+      "on": "field",
+      "who": "1044",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "80752642-1afd-5422-a501-ba4384a042c9",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 9 (slot 13) carries the stable key uuid5(unit, child:13)",
+      "on": "field",
+      "who": "1045",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "501a025c-496b-562f-ac4f-c49b535aaa7c",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 10 (slot 14) carries the stable key uuid5(unit, child:14)",
+      "on": "field",
+      "who": "1046",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "25f0bd1c-d91c-52b8-bfe5-f91d00f29197",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 11 (slot 15) carries the stable key uuid5(unit, child:15)",
+      "on": "field",
+      "who": "1047",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "dd97b041-e782-53b6-b681-c60f83ccd8f6",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 12 (slot 16) carries the stable key uuid5(unit, child:16)",
+      "on": "field",
+      "who": "1048",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a1e178ba-5273-571f-94b8-b86a3f3ccc04",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 13 (slot 17) carries the stable key uuid5(unit, child:17)",
+      "on": "field",
+      "who": "1049",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "7275c69c-6945-5a7a-aac6-fd0db69ff6eb",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 14 (slot 18) carries the stable key uuid5(unit, child:18)",
+      "on": "field",
+      "who": "1050",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "94d01396-b44a-5c42-b115-ea6696ac004c",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 15 (slot 19) carries the stable key uuid5(unit, child:19)",
+      "on": "field",
+      "who": "1051",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "da61e30e-0f85-59e9-b813-53668c7bdea0",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 16 (slot 20) carries the stable key uuid5(unit, child:20)",
+      "on": "field",
+      "who": "1052",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "ba09b852-87d8-5772-8116-039511b72d67",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 17 (slot 21) carries the stable key uuid5(unit, child:21)",
+      "on": "field",
+      "who": "1053",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "64d9a07b-3823-5368-b940-03178a96ca7b",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 18 (slot 22) carries the stable key uuid5(unit, child:22)",
+      "on": "field",
+      "who": "1054",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "b304e7e7-bf7a-56b0-acbc-1e35d2fafeff",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 19 (slot 23) carries the stable key uuid5(unit, child:23)",
+      "on": "field",
+      "who": "1055",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5e989b17-2b3f-5933-82e8-0a909e435832",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 20 (slot 24) carries the stable key uuid5(unit, child:24)",
+      "on": "field",
+      "who": "1056",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "56f3ce9c-1f7a-53b6-a0af-a8699f9baae5",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 21 (slot 25) carries the stable key uuid5(unit, child:25)",
+      "on": "field",
+      "who": "1057",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "1091b3a4-93f2-56af-a483-bdc10426a78c",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 22 (slot 26) carries the stable key uuid5(unit, child:26)",
+      "on": "field",
+      "who": "1058",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8f078149-d946-578e-a73e-0d2111503e7e",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 23 (slot 27) carries the stable key uuid5(unit, child:27)",
+      "on": "field",
+      "who": "1059",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "33a93847-c863-5f2a-9e75-fa38dd5ff92b",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 24 (slot 28) carries the stable key uuid5(unit, child:28)",
+      "on": "field",
+      "who": "1060",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "47099504-2b03-5cc2-abf0-230191e1fd61",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 25 (slot 29) carries the stable key uuid5(unit, child:29)",
+      "on": "field",
+      "who": "1061",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "fa01d010-0b9c-525c-8f4e-8b2ab9e21f62",
+      "after": 250
+    },
+    {
+      "name": "the pin's split: the SAME key: child 26 (slot 30) carries the stable key uuid5(unit, child:30)",
+      "on": "field",
+      "who": "1062",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "cdc9171a-6235-5607-bdeb-67534a00b76a",
+      "after": 250
+    }
+  ]
+}
