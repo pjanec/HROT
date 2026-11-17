@@ -32,27 +32,43 @@ public sealed class PersonOutfitsRail
     private const long First = 9100;
     private static string Hex(int r, int g, int b) => OutfitCatalog.C(r, g, b);
     private static readonly string White = Hex(244, 243, 238), Black = Hex(24, 24, 26), Khaki = Hex(165, 154, 114), Olive = Hex(94, 96, 64), Buck = Hex(201, 160, 106),
-        BuckD = Hex(156, 118, 70), Red = Hex(140, 42, 36), HairBlack = Hex(20, 18, 18), Skin = OutfitCatalog.SkinTones[2], Grey = Hex(96, 100, 106);
+        BuckD = Hex(156, 118, 70), Red = Hex(140, 42, 36), HairBlack = Hex(20, 18, 18), Skin = OutfitCatalog.SkinTones[2], Grey = Hex(96, 100, 106), BuckT = Hex(201, 160, 106),
+        PaleBlue = Hex(169, 184, 200), PakolB = Hex(185, 165, 127), VestB = Hex(30, 30, 32), PatuB = Hex(107, 91, 69), ChadariB = Hex(111, 160, 218), OliveP = Hex(110, 112, 78);
 
     private static OutfitOption O(string kind, params string[] colours) => new() { Kind = kind, Weight = 1f, Colours = [.. colours] };
     private static OutfitSlot S(OutfitOption o) => new() { Options = [o] };
 
     /// <summary>(name, top, legs, over, head, hair, beard) — the garment under test and the plainest everything else.</summary>
-    private static readonly (string Name, OutfitOption Top, OutfitOption Legs, OutfitOption Over, OutfitOption Head, OutfitOption Hair, OutfitOption Beard)[] Garments =
+    private static readonly (string Name, OutfitOption Top, OutfitOption Legs, OutfitOption Over, OutfitOption Head, OutfitOption Hair, OutfitOption Beard, OutfitOption Extra)[] Garments =
     [
-        ("thobe",       O("Robe", White),       O("Hidden"),   O("None"),     O("None"),                           O("Short", HairBlack), O("None")),
-        ("abaya",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("None"),                           O("Short", HairBlack), O("None")),
-        ("shemagh",     O("Robe", White),       O("Hidden"),   O("None"),     O("Shemagh", OutfitCatalog.CheckShemagh), O("Short", HairBlack), O("None")),
-        ("skullcap",    O("Shirt", White),      O("Trousers", Grey), O("None"), O("Skullcap", White),              O("Short", HairBlack), O("None")),
-        ("hijab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Hijab", Black),                   O("Short", HairBlack), O("None")),
-        ("niqab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Niqab", Black),                   O("Short", HairBlack), O("None")),
-        ("chestrig",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("None"),              O("Short", HairBlack), O("None")),
-        ("facewrap",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("ShemaghFaceWrap", Khaki), O("Short", HairBlack), O("None")),
-        ("buckskin",    O("Buckskin", Buck),    O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("None")),
-        ("breechcloth", O("TShirt", Skin),      O("Breechcloth", BuckD), O("None"), O("None"),                     O("Short", HairBlack), O("None")),
-        ("headband",    O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("Headband", Red),                  O("Short", HairBlack), O("None")),
-        ("braids",      O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("None"),                           O("Braids", HairBlack), O("None")),
-        ("facepaint",   O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("Paint")),
+        ("thobe",       O("Robe", White),       O("Hidden"),   O("None"),     O("None"),                           O("Short", HairBlack), O("None"), O("None")),
+        ("abaya",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("None"),                           O("Short", HairBlack), O("None"), O("None")),
+        ("shemagh",     O("Robe", White),       O("Hidden"),   O("None"),     O("Shemagh", OutfitCatalog.CheckShemagh), O("Short", HairBlack), O("None"), O("None")),
+        ("skullcap",    O("Shirt", White),      O("Trousers", Grey), O("None"), O("Skullcap", White),              O("Short", HairBlack), O("None"), O("None")),
+        ("hijab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Hijab", Black),                   O("Short", HairBlack), O("None"), O("None")),
+        ("niqab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Niqab", Black),                   O("Short", HairBlack), O("None"), O("None")),
+        ("chestrig",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("None"),              O("Short", HairBlack), O("None"), O("None")),
+        ("facewrap",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("ShemaghFaceWrap", Khaki), O("Short", HairBlack), O("None"), O("None")),
+        ("buckskin",    O("Buckskin", Buck),    O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("None"), O("None")),
+        ("breechcloth", O("TShirt", Skin),      O("Breechcloth", BuckD), O("None"), O("None"),                     O("Short", HairBlack), O("None"), O("None")),
+        ("headband",    O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("Headband", Red),                  O("Short", HairBlack), O("None"), O("None")),
+        ("braids",      O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("None"),                           O("Braids", HairBlack), O("None"), O("None")),
+        ("facepaint",   O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("Paint"), O("None")),
+        // ── the Native American warrior and the Afghan dress (R-1064 … R-1066): one garment per row, as the mockups draw them ──
+        ("warrior",        O("Buckskin", BuckT),  O("Breechcloth", BuckD), O("YokeHairPipe"), O("Headband", Red),   O("Braids", HairBlack), O("Paint"), O("ArmbandsNecklace")),
+        ("na-yoke",        O("Buckskin", BuckT),  O("Breechcloth", BuckD), O("BeadedYoke"),   O("None"),           O("Braids", HairBlack), O("None"), O("None")),
+        ("na-breastplate", O("Buckskin", BuckT),  O("Breechcloth", BuckD), O("HairPipe"),     O("None"),           O("Braids", HairBlack), O("None"), O("None")),
+        ("na-armbands",    O("Buckskin", BuckT),  O("Breechcloth", BuckD), O("None"),         O("None"),           O("Braids", HairBlack), O("None"), O("Armbands")),
+        ("na-necklace",    O("Buckskin", BuckT),  O("Breechcloth", BuckD), O("None"),         O("None"),           O("Braids", HairBlack), O("None"), O("Necklace")),
+        ("af-man",         O("Perahan", PaleBlue), O("Tunban"), O("None"),     O("Pakol", PakolB),  O("Short", HairBlack), O("None"), O("Waistcoat", VestB)),
+        ("af-perahan",     O("Perahan", White),    O("Tunban"), O("None"),     O("None"),           O("Short", HairBlack), O("None"), O("None")),
+        ("af-waistcoat",   O("Perahan", White),    O("Tunban"), O("None"),     O("None"),           O("Short", HairBlack), O("None"), O("Waistcoat", VestB)),
+        ("af-pakol",       O("Perahan", White),    O("Tunban"), O("None"),     O("Pakol", PakolB),  O("Short", HairBlack), O("None"), O("None")),
+        ("af-lungee",      O("Perahan", White),    O("Tunban"), O("None"),     O("Turban", White),  O("Short", HairBlack), O("None"), O("None")),
+        ("af-patu",        O("Perahan", White),    O("Tunban"), O("None"),     O("None"),           O("Short", HairBlack), O("None"), O("Patu", PatuB)),
+        ("af-chadari",     O("Chadari", ChadariB), O("Tunban"), O("None"),     O("None"),           O("Long", HairBlack),  O("None"), O("None")),
+        ("af-elder",       O("Perahan", White),    O("Tunban"), O("None"),     O("Turban", White),  O("Short", Grey),      O("Beard"), O("Patu", PatuB)),
+        ("af-fighter",     O("Perahan", OliveP),   O("Tunban"), O("ChestRig", Olive), O("Turban", Black), O("Short", HairBlack), O("Beard"), O("Patu", PatuB)),
     ];
 
     private static long TypeOf(int i) => First + i;
@@ -62,7 +78,7 @@ public sealed class PersonOutfitsRail
     private static OutfitDto DtoOf(int i)
     {
         var g = Garments[i];
-        return new OutfitDto { Skin = S(O("Skin", Skin)), Top = S(g.Top), Legs = S(g.Legs), Over = S(g.Over), Head = S(g.Head), Hair = S(g.Hair), Beard = S(g.Beard) };
+        return new OutfitDto { Skin = S(O("Skin", Skin)), Top = S(g.Top), Legs = S(g.Legs), Over = S(g.Over), Head = S(g.Head), Hair = S(g.Hair), Beard = S(g.Beard), Extra = S(g.Extra) };
     }
 
     /// <summary>A copy of the adult-male civilian (1101) with <paramref name="outfit"/> as its wardrobe.</summary>

@@ -87,6 +87,8 @@ namespace Hrot.Core.Tkb
         public const int TkbMiddleEastFighterRpg = 2011;
         /// <summary>⭐ <c>CE-4648</c> — a Middle-East machine gunner: a man-portable machine gun (the PKM class) as his mount 0.</summary>
         public const int TkbMiddleEastMachineGunner = 2012;
+        /// <summary>⭐ <c>CE-4648</c> (R-1066) — the Afghan fighters (the insurgent template in <see cref="OutfitCatalog.AfghanFighter"/>): a rifleman, an RPG + rifle, a machine gunner (PKM class).</summary>
+        public const int TkbAfghanFighter = 2016, TkbAfghanFighterRpg = 2017, TkbAfghanMachineGunner = 2018;
         /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
         /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
         public const int TkbArcher = 2013, TkbCrossbowman = 2014;
@@ -368,6 +370,10 @@ namespace Hrot.Core.Tkb
             Insurgent(tkb, "MiddleEastFighter", TkbMiddleEastFighter, OutfitCatalog.MiddleEastFighter, Rifle());
             Insurgent(tkb, "MiddleEastFighterRpg", TkbMiddleEastFighterRpg, OutfitCatalog.MiddleEastFighter, RpgLauncher(), Rifle());
             Insurgent(tkb, "MiddleEastMachineGunner", TkbMiddleEastMachineGunner, OutfitCatalog.MiddleEastFighter, MachineGun());
+            // ⭐ CE-4648 (R-1066) — the Afghan fighters: the SAME helper, the Afghan wardrobe
+            Insurgent(tkb, "AfghanFighter", TkbAfghanFighter, OutfitCatalog.AfghanFighter, Rifle());
+            Insurgent(tkb, "AfghanFighterRpg", TkbAfghanFighterRpg, OutfitCatalog.AfghanFighter, RpgLauncher(), Rifle());
+            Insurgent(tkb, "AfghanMachineGunner", TkbAfghanMachineGunner, OutfitCatalog.AfghanFighter, MachineGun());
             // ⭐ CE-4649 (BW-12) — the Archer and the Crossbowman: the same template, everyday clothes (OutfitCatalog.Archer), their silent weapon
             Insurgent(tkb, "Archer", TkbArcher, OutfitCatalog.Archer, Bow());
             Insurgent(tkb, "Crossbowman", TkbCrossbowman, OutfitCatalog.Archer, Crossbow());

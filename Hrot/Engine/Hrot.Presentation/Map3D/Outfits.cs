@@ -8,7 +8,7 @@ namespace Hrot.UI.Common.Map3D;
 
 /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-2) — what a civilian wears on his legs. ⭐ CE-4648 (OF-4) — <c>LongSkirt</c> (to the
 /// ankles) and <c>Hidden</c> (under a robe) are new; the member NAMES are what an <c>OutfitDto</c> option's Kind says.</summary>
-public enum Legwear : byte { Trousers, Shorts, Skirt, LongSkirt, Hidden, Breechcloth }
+public enum Legwear : byte { Trousers, Shorts, Skirt, LongSkirt, Hidden, Breechcloth, Tunban }
 
 /// <summary>⭐ CE-1099 (§6q O-2) — a civilian's hair: short, long (down his back) or none.</summary>
 public enum HairStyle : byte { Short, Long, None, Braids }
@@ -27,7 +27,7 @@ public readonly record struct Outfit(
     Color Top, Color Sleeve, Color Bottom, Color Shin, Color Skin, Color Hair, HairStyle HairStyle, Legwear Legwear,
     bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false,
     bool Woman = false, bool Dressed = false, OutfitTop TopKind = OutfitTop.Shirt, OutfitHead HeadKind = OutfitHead.None,
-    OutfitOver OverKind = OutfitOver.None, Color HeadCloth = default, Color OverColour = default, bool FacePaint = false);
+    OutfitOver OverKind = OutfitOver.None, Color HeadCloth = default, Color OverColour = default, bool FacePaint = false, OutfitExtra ExtraKind = OutfitExtra.None, Color ExtraColour = default);
 
 /// <summary>⭐ CE-1101 (§6r S-3) — a moustache or a beard, or none.</summary>
 public enum BeardKind : byte { None, Moustache, Beard, Paint }
@@ -210,6 +210,10 @@ public static class Outfits
         var hair = Colour(set.Hair, ci, ref r);
         int bi = Option(set.Beard, ref r);
         var beardKind = (BeardKind)set.Beard.Kind[bi];
+        // ⭐ R-1064 — the LAST slot: drawn after everything else, so no existing person's draws move
+        int xi = Option(set.Extra, ref r);
+        var extraKind = (OutfitExtra)set.Extra.Kind[xi];
+        var extraCloth = Colour(set.Extra, xi, ref r);
 
         // the top: an entity's / type's own colour wins; a Uniform with no colour of its own wears his side's cloth
         var camo = CamoPattern.None;
@@ -222,7 +226,7 @@ public static class Outfits
         else if (top.A == 0) top = OutfitPalettes.Tops[0];
 
         // the legs
-        bool longGarment = topKind is OutfitTop.Robe or OutfitTop.Abaya;
+        bool longGarment = topKind is OutfitTop.Robe or OutfitTop.Abaya or OutfitTop.Chadari;
         if (longGarment) legKind = Legwear.Hidden;                    // OF-5 — a robe hides the legs
         else if (legKind == Legwear.Hidden) legKind = Legwear.Trousers;
         Color bottom;
@@ -235,6 +239,7 @@ public static class Outfits
         bool covered = headKind is OutfitHead.Shemagh or OutfitHead.Hijab or OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap;
         if (covered) { hairStyle = HairStyle.None; if (headCloth.A != 0) hair = headCloth; }
         if (headKind is OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap) beardKind = BeardKind.None;   // the face below the eyes is covered
+        if (topKind == OutfitTop.Chadari) { hairStyle = HairStyle.None; beardKind = BeardKind.None; headKind = OutfitHead.None; }   // ⭐ the chadari covers the whole head: the face is fully covered
         bool paint = beardKind == BeardKind.Paint && !covered;   // ⭐ R-1063 — face paint: drawn as boxes (Details), never given to the shader as a beard
         if (beardKind == BeardKind.Paint) beardKind = BeardKind.None;
 
@@ -243,7 +248,7 @@ public static class Outfits
         var face = FaceOf(seed, type, woman, child) with { Beard = child ? BeardKind.None : beardKind };
         return new Outfit(top, sleeve, bottom, shin, skin, hair, hairStyle, legKind, suit, suit ? OutfitPalettes.Ties[(int)((ulong)(seed ^ type) % (ulong)OutfitPalettes.Ties.Length)] : default,
                           camo, child, topKind == OutfitTop.Uniform, face, Police: false, Riot: headKind == OutfitHead.RiotHelmet, Woman: woman, Dressed: true,
-                          TopKind: topKind, HeadKind: headKind, OverKind: overKind, HeadCloth: headCloth, OverColour: overColour, FacePaint: paint);
+                          TopKind: topKind, HeadKind: headKind, OverKind: overKind, HeadCloth: headCloth, OverColour: overColour, FacePaint: paint, ExtraKind: extraKind, ExtraColour: extraCloth);
     }
 
     /// <summary>
@@ -333,6 +338,7 @@ public static class Outfits
             W(into, T, 0f, 0f, 0.93f, 0.27f, 0.43f, 0.05f, Scale(o.Bottom, 0.7f));  // the belt
             W(into, T, 0.135f, 0f, 0.74f, 0.02f, 0.16f, 0.38f, Lighten(o.Bottom, 0.15f));    // the flaps, front and back
             W(into, T, -0.135f, 0f, 0.74f, 0.02f, 0.16f, 0.38f, Lighten(o.Bottom, 0.15f));
+            for (int k = 0; k < 7; k++) W(into, T, 0.142f, -0.15f + 0.05f * k, 0.93f, 0.012f, 0.03f, 0.03f, Bead(k));   // the beaded belt
         }
         if (o.TopKind == OutfitTop.Buckskin)
         {
@@ -386,6 +392,109 @@ public static class Outfits
             W(into, H, 0.108f, 0f, 1.63f, 0.012f, 0.20f, 0.04f, PaintBlack);
             W(into, H, 0.108f, 0.07f, 1.56f, 0.012f, 0.05f, 0.10f, swap ? PaintWhite : Red);
             W(into, H, 0.108f, -0.07f, 1.56f, 0.012f, 0.05f, 0.10f, swap ? Red : PaintWhite);
+        }
+        Ornaments(o, into);
+        Afghan(o, into);
+    }
+
+    // ── ⭐ CE-4648 (R-1064) — the Native American ornaments ──────────────────────────────────────────────────────────────────────────
+
+    private static readonly Color BeadBlue = new(47, 95, 176, 255), BeadRed = new(194, 59, 50, 255), BeadWhite = new(241, 238, 228, 255), BeadYellow = new(227, 184, 49, 255),
+                                  PipeBone = new(239, 233, 216, 255), PipeLeather = new(122, 82, 48, 255);
+    /// <summary>Bead <paramref name="i"/> of a row: blue, red, white, yellow in turn.</summary>
+    private static Color Bead(int i) => (i & 3) switch { 0 => BeadBlue, 1 => BeadRed, 2 => BeadWhite, _ => BeadYellow };
+
+    private static void BeadRow(List<PartDetail> into, float x, float z, int n, float y0, float step, int offset)
+    {
+        for (int i = 0; i < n; i++) W(into, BlockFigure.TorsoIndex, x, y0 + i * step, z, 0.012f, 0.03f, 0.03f, Bead(i + offset));
+    }
+
+    private static void Ornaments(in Outfit o, List<PartDetail> into)
+    {
+        const int T = BlockFigure.TorsoIndex;
+        if (o.OverKind is OutfitOver.BeadedYoke or OutfitOver.YokeHairPipe)   // a band of small coloured squares across the chest and over the shoulders
+        {
+            BeadRow(into, 0.134f, 1.405f, 9, -0.16f, 0.04f, 1); BeadRow(into, 0.134f, 1.365f, 9, -0.16f, 0.04f, 0); BeadRow(into, -0.134f, 1.405f, 9, -0.16f, 0.04f, 1);
+            W(into, T, 0f, 0.15f, 1.468f, 0.20f, 0.03f, 0.012f, BeadBlue); W(into, T, 0f, -0.15f, 1.468f, 0.20f, 0.03f, 0.012f, BeadRed);
+        }
+        if (o.OverKind is OutfitOver.HairPipe or OutfitOver.YokeHairPipe)     // a bone hair-pipe breastplate: six vertical tubes between two leather bars
+        {
+            for (int i = 0; i < 6; i++) W(into, T, 0.142f, -0.15f + 0.06f * i, 1.25f, 0.025f, 0.032f, 0.30f, PipeBone);
+            W(into, T, 0.142f, 0f, 1.405f, 0.03f, 0.34f, 0.025f, PipeLeather); W(into, T, 0.142f, 0f, 1.10f, 0.03f, 0.34f, 0.025f, PipeLeather);
+        }
+        if (o.ExtraKind is OutfitExtra.Armbands or OutfitExtra.ArmbandsNecklace)   // a red band with a blue stripe round each upper arm (on the arm parts, so they swing with them)
+        {
+            into.Add(new PartDetail(6, new(0f, 0f, 0.30f), new(1.30f, 1.30f, 0.16f), BeadRed));
+            into.Add(new PartDetail(8, new(0f, 0f, 0.30f), new(1.30f, 1.30f, 0.16f), BeadRed));
+            into.Add(new PartDetail(6, new(0f, 0f, 0.30f), new(1.34f, 1.34f, 0.05f), BeadBlue));
+            into.Add(new PartDetail(8, new(0f, 0f, 0.30f), new(1.34f, 1.34f, 0.05f), BeadBlue));
+        }
+        if (o.ExtraKind is OutfitExtra.Necklace or OutfitExtra.ArmbandsNecklace)   // a white bead collar, a strand on the chest, a yellow pendant
+        {
+            W(into, T, 0f, 0f, 1.46f, 0.19f, 0.23f, 0.035f, BeadWhite);
+            for (int s = -2; s <= 2; s++) W(into, T, 0.138f, 0.06f * s, 1.40f - 0.02f * Math.Abs(s), 0.02f, 0.025f, 0.07f, Bead(1 + Math.Abs(s)));
+            W(into, T, 0.145f, 0f, 1.30f, 0.03f, 0.04f, 0.05f, BeadYellow);
+        }
+    }
+
+    // ── ⭐ CE-4648 (R-1066) — Afghan dress ───────────────────────────────────────────────────────────────────────────────────────────
+
+    private static readonly Color VestDark = new(38, 38, 41, 255), GrilleDark = new(51, 65, 90, 255);
+
+    private static void Afghan(in Outfit o, List<PartDetail> into)
+    {
+        const int T = BlockFigure.TorsoIndex, H = BlockFigure.HeadIndex;
+        if (o.TopKind == OutfitTop.Perahan)   // a knee-length tunic: the sides LEFT OPEN (slits) between a front and a back panel
+        {
+            var top = o.Top;
+            W(into, T, 0f, 0f, 1.20f, 0.27f, 0.43f, 0.50f, top);
+            W(into, T, 0f, 0f, 1.455f, 0.22f, 0.30f, 0.045f, Scale(top, 0.8f));
+            W(into, T, 0.145f, 0f, 0.72f, 0.03f, 0.42f, 0.46f, top); W(into, T, -0.145f, 0f, 0.72f, 0.03f, 0.42f, 0.46f, top);
+            W(into, T, 0.15f, 0f, 0.93f, 0.03f, 0.43f, 0.025f, Scale(top, 0.85f)); W(into, T, -0.15f, 0f, 0.93f, 0.03f, 0.43f, 0.025f, Scale(top, 0.85f));
+        }
+        if (o.Legwear == Legwear.Tunban)      // very loose trousers: a baggy sleeve round each leg part (they swing with it), a narrow cuff at the ankle
+        {
+            var c = o.Bottom;
+            for (int part = 0; part < 4; part++)
+            {
+                bool shin = (part & 1) == 1;
+                into.Add(new PartDetail(part, new(0f, 0f, 0f), new(1.95f, 1.80f, shin ? 0.92f : 1.0f), c));
+                if (shin) into.Add(new PartDetail(part, new(0f, 0f, -0.46f), new(1.15f, 1.05f, 0.12f), Scale(c, 0.6f)));
+            }
+        }
+        if (o.TopKind == OutfitTop.Chadari)   // the full-body pleated cover: the head wholly covered but a dark mesh grille over the eyes; crown to ankle
+        {
+            var c = o.Top;
+            W(into, H, 0f, 0f, 1.715f, 0.27f, 0.265f, 0.13f, c); W(into, H, 0f, 0f, 1.54f, 0.27f, 0.265f, 0.17f, c);
+            W(into, H, 0f, 0.135f, 1.625f, 0.21f, 0.04f, 0.06f, c); W(into, H, 0f, -0.135f, 1.625f, 0.21f, 0.04f, 0.06f, c); W(into, H, -0.135f, 0f, 1.625f, 0.05f, 0.265f, 0.06f, c);
+            W(into, H, 0.137f, 0f, 1.625f, 0.012f, 0.21f, 0.06f, GrilleDark);
+            W(into, T, 0f, 0f, 1.38f, 0.33f, 0.50f, 0.14f, c); W(into, T, 0f, 0f, 0.62f, 0.34f, 0.52f, 0.62f, c); W(into, T, 0f, 0f, 0.17f, 0.38f, 0.58f, 0.32f, c);
+            var pleat = Scale(c, 0.78f);
+            for (int i = 0; i < 7; i++) W(into, T, 0.19f, -0.18f + 0.06f * i, 0.60f, 0.012f, 0.012f, 1.05f, pleat);
+        }
+        if (o.HeadKind == OutfitHead.Pakol)   // the flat round wool cap: a thick rolled rim and a flat top, a little wider than the head
+        {
+            var c = o.HeadCloth;
+            W(into, H, 0f, 0f, 1.69f, 0.235f, 0.225f, 0.085f, c); W(into, H, 0f, 0f, 1.745f, 0.25f, 0.24f, 0.04f, Scale(c, 0.9f)); W(into, H, 0f, 0f, 1.665f, 0.24f, 0.23f, 0.02f, Scale(c, 0.7f));
+        }
+        if (o.HeadKind == OutfitHead.Turban)  // a large wrapped lungee: layer on layer, wider and taller than the head, a loose tail down the back
+        {
+            var c = o.HeadCloth; var tail = c.R + c.G + c.B < 200 ? new Color(154, 154, 162, 255) : new Color(43, 43, 48, 255);
+            W(into, H, 0f, 0f, 1.71f, 0.27f, 0.27f, 0.09f, c); W(into, H, 0f, 0f, 1.79f, 0.26f, 0.28f, 0.08f, Scale(c, 0.93f)); W(into, H, 0f, 0f, 1.865f, 0.235f, 0.25f, 0.07f, c);
+            W(into, H, 0.136f, 0f, 1.75f, 0.012f, 0.26f, 0.03f, tail);
+            W(into, T, -0.165f, 0.05f, 1.45f, 0.05f, 0.11f, 0.50f, c); W(into, T, -0.168f, 0.05f, 1.22f, 0.052f, 0.112f, 0.03f, tail);
+        }
+        if (o.ExtraKind is OutfitExtra.Waistcoat or OutfitExtra.WaistcoatPatu)   // a dark vest: two front panels (open between), a back panel, two straps
+        {
+            var v = o.ExtraKind == OutfitExtra.Waistcoat ? o.ExtraColour : VestDark;
+            W(into, T, 0.145f, 0.115f, 1.22f, 0.03f, 0.17f, 0.42f, v); W(into, T, 0.145f, -0.115f, 1.22f, 0.03f, 0.17f, 0.42f, v); W(into, T, -0.145f, 0f, 1.22f, 0.03f, 0.42f, 0.42f, v);
+            W(into, T, 0f, 0.15f, 1.45f, 0.25f, 0.05f, 0.05f, v); W(into, T, 0f, -0.15f, 1.45f, 0.25f, 0.05f, 0.05f, v);
+        }
+        if (o.ExtraKind is OutfitExtra.Patu or OutfitExtra.WaistcoatPatu)       // a wool shawl over the shoulders, down the back and over one shoulder to the front
+        {
+            var c = o.ExtraColour; var hem = Scale(c, 0.6f);
+            W(into, T, 0f, 0f, 1.40f, 0.31f, 0.47f, 0.10f, c); W(into, T, -0.15f, 0f, 1.12f, 0.04f, 0.42f, 0.62f, c); W(into, T, 0.15f, 0.13f, 1.18f, 0.04f, 0.17f, 0.52f, c);
+            W(into, T, -0.153f, 0f, 0.84f, 0.042f, 0.43f, 0.04f, hem); W(into, T, 0.153f, 0.13f, 0.95f, 0.042f, 0.17f, 0.04f, hem);
         }
     }
 

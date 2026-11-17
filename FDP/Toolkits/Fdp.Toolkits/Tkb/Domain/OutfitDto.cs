@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Tkb.Domain
     /// </summary>
     public record OutfitOption
     {
-        [Description("The kind, by name: a member of the slot's garment enum — Top: Shirt, TShirt, Suit, Robe, Abaya, Uniform, Jacket, Buckskin; Legs: Trousers, Shorts, Skirt, LongSkirt, Hidden, Breechcloth; Over: None, ChestRig; Head: None, Cap, PoliceCap, RiotHelmet, Helmet, Shemagh, Skullcap, Hijab, Niqab, ShemaghFaceWrap, Headband; Hair: Short, Long, None, Braids; Beard: None, Moustache, Beard, Paint (face paint) (the Skin slot ignores it).")]
+        [Description("The kind, by name: a member of the slot's garment enum — Top: Shirt, TShirt, Suit, Robe, Abaya, Uniform, Jacket, Buckskin, Perahan, Chadari; Legs: Trousers, Shorts, Skirt, LongSkirt, Hidden, Breechcloth, Tunban; Over: None, ChestRig, BeadedYoke, HairPipe, YokeHairPipe; Head: None, Cap, PoliceCap, RiotHelmet, Helmet, Shemagh, Skullcap, Hijab, Niqab, ShemaghFaceWrap, Headband, Pakol, Turban; Hair: Short, Long, None, Braids; Beard: None, Moustache, Beard, Paint (face paint) (the Skin slot ignores it).")]
         public string Kind { get; init; } = "";
 
         [Description("The colours this option comes in, #RRGGBB; one is picked per person.")]
@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         public OutfitSlot Head { get; init; } = new();
         public OutfitSlot Hair { get; init; } = new();
         public OutfitSlot Beard { get; init; } = new();
+        public OutfitSlot Extra { get; init; } = new();   // ⭐ R-1064
     }
 
     /// <summary>
@@ -64,6 +65,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         public OutfitSlot Head { get; init; } = new();
         public OutfitSlot Hair { get; init; } = new();
         public OutfitSlot Beard { get; init; } = new();
+
+        [Description("Extra garments and ornaments, drawn LAST (R-1064): Extra: None, Armbands, Necklace, ArmbandsNecklace, Waistcoat, Patu, WaistcoatPatu.")]
+        public OutfitSlot Extra { get; init; } = new();
 
         [Description("Slots used for a man of an Unspecified-sex type (empty slots fall back to the ones above).")]
         public OutfitSet? Men { get; init; }
