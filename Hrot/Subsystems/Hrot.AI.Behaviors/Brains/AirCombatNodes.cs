@@ -118,6 +118,10 @@ namespace Hrot.AI.Behaviors.Brains
                 StopGun(world, self, ref ws);
                 if (cs.Target == p.Target && cs.Kills < 255) cs.Kills++;
                 cs.Target = Entity.Null;
+                // ⭐ CE-10005 — the order down is cleared to straight and level: 📐 on the cluster run the motion node kept flying the last steer
+                //   (a lead pursuit of the falling wreck) and GCAS pulled the winner out of a 9 g dive at the ground again and again
+                if (world.HasComponent<AirCombatSteer>(self))
+                    WriteSteer(world, self, new AirCombatSteer { Manoeuvre = Manoeuvre.None, Throttle = 0.85f, FloorAgl = world.GetComponentRO<AirCombatSteer>(self).FloorAgl });
                 return NodeStatus.Success;
             }
             cs.Target = p.Target;
@@ -153,7 +157,7 @@ namespace Hrot.AI.Behaviors.Brains
             var m = cs.Manoeuvre;
             float throttle = 0.85f;
             var point = Vector3.Zero;
-            bool steerAtPoint = false;
+            bool steerAtPoint = false, waiting = false;
             if (defending)
             {
                 if (started) StopGun(world, self, ref ws);
@@ -190,10 +194,14 @@ namespace Hrot.AI.Behaviors.Brains
                 point = arena.Centre;
                 throttle = 1f;
             }
+            else if (cs.Manoeuvre == Manoeuvre.None && (!hasTarget || myVel.LengthSquared() < 1f || tv.LengthSquared() < 1f))
+                waiting = true;   // straight on, weapons safe, until both motions are known
             else if (now >= (double)cs.NextDecision && hasTarget)
             {
+                // ⭐ CE-10005 (R-10020) — the FIRST decision waits for both motions to be known: 📐 on a cluster the brain node's first ticks
+                //   read no replicated velocity yet, the head-on test failed and both jets fired at 6 km (the merge never started)
                 m = cs.Lapse == PilotLapse.Fixation ? Manoeuvre.LeadPursuit                       // AC-12 — holds the gun track
-                  : inArena && (cs.Manoeuvre == Manoeuvre.Merge || (cs.Manoeuvre == Manoeuvre.None && Vector3.Distance(me, tp) > 4000f)) ? Manoeuvre.Merge   // the start: through the centre, until the pass
+                  : inArena && (cs.Manoeuvre == Manoeuvre.Merge || (cs.Manoeuvre == Manoeuvre.None && Vector3.Distance(me, tp) > 4000f && HeadOn(me, myVel, tp, tv))) ? Manoeuvre.Merge   // the start: through the centre, until the pass
                   : Pick(skill, me, myVel, tp, tv, SpeedOf(world, self, myVel), CornerOf(world, self));
                 if (m == Manoeuvre.Merge) point = arena.Centre;
                 cs.NextDecision = (SimInstant)(now + DecisionPeriodS + (cs.Manoeuvre == Manoeuvre.None ? reaction : 0f));
@@ -238,10 +246,10 @@ namespace Hrot.AI.Behaviors.Brains
                 var off = TargetLead.PointAccelerating(me, myVel, AirAttackNodes.RoundSpeedOf(world, self, cs.GunMount), tp, tv, cs.TargetAccel) - tp;
                 point = new Vector3(MathF.Round(off.X), MathF.Round(off.Y), MathF.Round(off.Z));
             }
-            cs.Manoeuvre = m;
+            cs.Manoeuvre = waiting ? Manoeuvre.None : m;
 
             // ── the weapons: never while defending, leaving or merging ──
-            if (!defending && m != Manoeuvre.Disengage && m != Manoeuvre.Merge && hasTarget)
+            if (!defending && m != Manoeuvre.Disengage && m != Manoeuvre.Merge && hasTarget && !waiting)
             {
                 Missile(ref cs, world, self, me, myVel, tp, tv, now, shotCap);
                 Gun(ref ws, ref cs, world, self, me, myVel, tp, tv);
@@ -269,6 +277,18 @@ namespace Hrot.AI.Behaviors.Brains
             var right = new Vector2(d.Y, -d.X);
             return arena.Centre + new Vector3(right * MergeOffsetM, 0f);
         }
+
+        /// <summary>⭐ CE-10005 (R-10020) — a merge is a HEAD-ON start: the two close faster than <see cref="MergeClosingMps"/> (📐 a tail chase
+        /// "merging" never passes: ac-radar-chaff-beam's MiG, 5.5 km behind, held its fire for ever).</summary>
+        public static bool HeadOn(Vector3 me, Vector3 myVel, Vector3 tp, Vector3 tv)
+        {
+            var los = tp - me;
+            float r = los.Length();
+            return r > 1e-3f && -Vector3.Dot(tv - myVel, los / r) > MergeClosingMps;
+        }
+
+        /// <summary>The closing speed (m/s) above which the start is a merge.</summary>
+        public const float MergeClosingMps = 250f;
 
         /// <summary>The pass: the bandit is behind <paramref name="me"/>'s wing line, or inside <see cref="MergeEndsM"/>.</summary>
         public static bool Passed(Vector3 me, Vector3 myVel, Vector3 tp)

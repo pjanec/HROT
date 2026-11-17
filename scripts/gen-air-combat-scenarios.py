@@ -513,10 +513,10 @@ def s4():
     # ── ac-stalemate-lapse — two Aces, a 30 s stalemate: a lapse breaks it ───────────────────────────────────────────────────────────
     v, m, a = gid(33, 1), gid(33, 2), gid(33, 3)
     write("ac-stalemate-lapse",
-          "What: two Aces in an arena whose stalemate is 30 s (CE-10004, AC-12). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, "
+          "What: two Aces in an arena whose stalemate is 10 s (CE-10004, AC-12; authored short — 📐 after the merge two Aces now decide the fight inside ~45 s, so a 30 s quiet left the lapses no time, R-10026). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, "
           "EnergyBleed or G-LOC) inside 120 s, and someone is shot down or crashes inside 240 s.",
           {v: fighter("Viper", 401, (-5000, 300), 0, 220, "Friend", m, skill="Ace"), m: fighter("Fulcrum", 409, (5000, -300), 180, 220, "Hostile", v, skill="Ace"),
-           a: arena(stalemate=30)},
+           a: arena(stalemate=10)},
           {"$doc": "DESIGN_Air_Combat §6 S4 — feature (expect rows).", "runFor": 240, "golden": False,
            "expect": [{"name": "a pilot lapses", **field("*", "AirCombatState.Lapse", "in", ["Fixation", "LateWarning", "EnergyBleed", "GLoc", 1, 2, 3, 4]), "before": 120},
                       {"name": "someone is down", **field("*", "Health.Current", "<=", 0), "before": 240}]})
