@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: DESIGN — BW-1…BW-13 carry leans (BW-14 withdrawn → Animals AN-20), ⛔ NOT approved
+build-state: READY-TO-BUILD — BW-1…BW-13 ✅ APPROVED `2026-11-17` (R-4289); BW-14 withdrawn → Animals AN-20, ⛔ NOT approved
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -69,7 +69,7 @@ F-1 / F-2 / F-8, AR-10, CE-4625 only. ⚠ Index coverage cannot be checked throu
 | ⛔ a horse / animal has body parts for `HitMarks` | ⚠ not measured — step 0 | — |
 | the proven solution | games and sims fly arrows as gravity projectiles (light drag), turn them into a **static prop with the impact pose** on a surface (a pool, oldest removed), and **attach** them to the hit bone with a local offset on a character | adopted: arc = the existing arc round; prop = the round itself frozen with its pose; attachment = a `HitMarks` kind (the bone = the part). ⛔ Drag rejected for v1: at ≤ 100 m it moves the impact by centimetres and adds a second flight model |
 
-## 3. Decisions — ⭐ leans, NOT approved
+## 3. Decisions — ✅ approved `2026-11-17` (R-4289)
 
 | # | decision — ⭐ lean | why | rejected — one line |
 |---|---|---|---|
