@@ -197,7 +197,7 @@ invariant number output (R-4221).
 
 | what | the value | note |
 |---|---|---|
-| `RamOrder` (unmanaged, replicated, on the hull) | component id **126** | 127, 128 held for this feature (e.g. the squad's vehicle-ladder rung if it must be a component) |
+| `RamOrder` (unmanaged, replicated, on the hull) | component id **126** | 127 = `CheckpointWatch` (K-4); ~~128 held~~ RELEASED `2026-11-17` to the air lane (`MissileDefenceState`, R-4285) (e.g. the squad's vehicle-ladder rung if it must be a component) |
 | its descriptor | **`dtRamOrder` = 196** | 197 held; 194 / 195 are terrain's minefield ordinals |
 | tracker / rulings | the building lane's own block | — |
 | the scenarios (K-8) | `scenarios/demos/checkpoint/cp-routine-car` · `cp-vbied` · `cp-compliant-bomber` · `cp-moto-attack` · `cp-ram-barrier` | each a What / Judge `description` + `checks.json` + golden (R-4277) |

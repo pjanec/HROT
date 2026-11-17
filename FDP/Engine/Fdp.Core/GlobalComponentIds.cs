@@ -361,7 +361,7 @@ namespace Fdp.Core
 
         /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
         /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
-        /// ⚠ 126 fixed by the coordinator (127, 128 held for this feature).</summary>
+        /// ⚠ 126 fixed by the coordinator (127 taken by CheckpointWatch; 128 RELEASED to the air lane — MissileDefenceState, R-4285).</summary>
         public const int RamOrder                = 126;
 
         /// <summary><c>CheckpointWatch</c> — ⭐ CE-4622 K-4 (DESIGN_Checkpoint_And_Ramming.md CP-2, §5a held 127): a checkpoint commander's watch on its approach — the
