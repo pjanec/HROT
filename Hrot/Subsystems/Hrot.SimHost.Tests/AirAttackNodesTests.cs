@@ -1783,6 +1783,48 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-10005 (AC-12, R-10019) — skill on the DEFENCE: a radar missile 6 s out is BEAMED by a Veteran (AC-9), DRAGGED by an Ace (a far
+        /// shot runs out of energy behind him); a Rookie never drags (an IR missile 6 s out is beamed). Red-proven: the Ace's reading forced
+        /// back to the Veteran's ⇒ the Ace beams ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10005_SkillOnTheDefence_TheAceDragsARadarShot_TheRookieNeverDrags()
+        {
+            Fdp.Toolkit.Motion.MissileDefencePhase PhaseFor(MissileDefence.Reading read, Fdp.Toolkit.Tkb.Domain.GuidanceKind seeker)
+            {
+                var jet = Fighter(new Vector3(0f, 0f, 2000f), new Vector3(220f, 0f, 0f));
+                ref var live = ref _w.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(jet);
+                live.Inbound = 1; live.ThreatSeeker = seeker; live.ThreatTtiS = 6f; live.ThreatBearingDeg = 270f;
+                Warn(jet, new Vector3(-3000f, 0f, 2000f), seeker, 30f, 10.0);
+                var ds = default(Fdp.Toolkit.Motion.MissileDefenceState);
+                var flight = new MissileDefence.Flight { Fighter = true, ReactionS = 0.3f, Read = read };
+                Assert.True(MissileDefence.Run(_w, jet, ref ds, 10.5, in flight, out _, out _));
+                return ds.Phase;
+            }
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Beam, PhaseFor(MissileDefence.Reading.Veteran, Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Drag, PhaseFor(MissileDefence.Reading.Ace, Fdp.Toolkit.Tkb.Domain.GuidanceKind.Radar));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Beam, PhaseFor(MissileDefence.Reading.Rookie, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed));
+            Assert.Equal(Fdp.Toolkit.Motion.MissileDefencePhase.Drag, PhaseFor(MissileDefence.Reading.Veteran, Fdp.Toolkit.Tkb.Domain.GuidanceKind.InfraRed));
+        }
+
+        /// <summary>
+        /// ⭐ CE-10005 (AC-10, R-10020) — the MERGE: the aim point passes the arena's centre 300 m to the pilot's RIGHT (two pilots from opposite
+        /// sides pass left-to-left, 600 m apart); the merge ends at the pass (the bandit behind the wing line) or inside 1 km.
+        /// </summary>
+        [Fact]
+        public void CE10005_TheMerge_PassesLeftToLeft_AndEndsAtThePass()
+        {
+            var arena = new Fdp.Toolkit.Motion.AirArena { Centre = new Vector3(0f, 0f, 100f), RadiusM = 4000f };
+            var west = AirCombatNodes.MergePoint(new Vector3(-4000f, 0f, 2000f), in arena);
+            var east = AirCombatNodes.MergePoint(new Vector3(4000f, 0f, 2000f), in arena);
+            Assert.Equal(-AirCombatNodes.MergeOffsetM, west.Y, 1);   // heading east, its right is south
+            Assert.Equal(AirCombatNodes.MergeOffsetM, east.Y, 1);
+            Assert.False(AirCombatNodes.Passed(new Vector3(-2000f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(2000f, 300f, 2000f)));
+            Assert.True(AirCombatNodes.Passed(new Vector3(500f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(-500f, 300f, 2000f)) );
+            Assert.True(AirCombatNodes.Passed(new Vector3(-350f, -300f, 2000f), new Vector3(220f, 0f, 0f), new Vector3(350f, 300f, 2000f)));   // inside 1 km
+        }
+
+        /// <summary>
         /// ⭐ CE-10003 (air combat RV-3) — a radar carried by an AIRCRAFT (a fighter's own) tracking a jet does not trigger RS-6's escape;
         /// a ground radar does. (the mutant that reddens it, not run:) the exemption removed ⇒ the aircraft emitter counts ⇒ red.
         /// </summary>

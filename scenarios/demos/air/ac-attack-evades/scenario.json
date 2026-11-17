@@ -1,0 +1,110 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an A-10 ('A-10') ordered to attack a truck ('Truck') 350 m from a Stinger team ('Stinger Gunner', default SOP) (CE-10005, AC-9 / Air Operations \u00a77e: the attack's evade through the one MissileDefence). Judge: the Stinger fires; the A-10 BEAMS it (its defence phase) with a salvo of four flares; then it COMES ROUND and its gun destroys the truck."
+  },
+  "entities": {
+    "ac000010-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -7000,
+          -700,
+          386.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 405
+      },
+      "EntityInfo": {
+        "Name": "A-10",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 1500,
+        "Max": 1500
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000010-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "ac000010-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -700,
+          -700,
+          112.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Truck",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "ac000010-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -400,
+          -500,
+          94.5
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

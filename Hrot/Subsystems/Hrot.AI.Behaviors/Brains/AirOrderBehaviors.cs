@@ -49,6 +49,9 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus FlyTo(ref FlyToParams p, Entity self, EntityRepository world)
         {
+            // ⭐⭐ CE-10005 (AC-9, RV-14) — a TRANSIT's missile defence, through THE ONE MissileDefence (a MoveTo flight: the beam break, a helicopter
+            //   drops to its evade height); while it runs the move waits, and when it ends the move is issued again from where the aircraft is
+            if (Defend(ref p, self, world)) return NodeStatus.Running;
             if (p.Issued == 0)
             {
                 if (!LocomotionMoveTo.Issue(world, self, PointOf(in p, world), p.Speed, p.ArrivalRadius > 0f ? p.ArrivalRadius : DefaultArrivalRadius, source: LocomotionMoveTo.OrderSource(world, self)))
@@ -57,6 +60,34 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Running;
             }
             return LocomotionMoveTo.Status(world, self);
+        }
+
+        /// <summary>⭐ CE-10005 (AC-9) — the transit's defence: true while it runs (its beam break is on the locomotion channel); the move is
+        /// re-issued (<see cref="FlyToParams.Issued"/> cleared) so it resumes when the defence ends. Only an aircraft with a defence state type
+        /// and a missile warning ever enters it.</summary>
+        private static bool Defend(ref FlyToParams p, Entity self, EntityRepository world)
+        {
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.MissileWarning>()
+                || !world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.MissileDefenceState>()
+                || (!world.HasComponent<Fdp.Toolkit.Combat.Components.MissileWarning>(self) && !world.HasComponent<Fdp.Toolkit.Motion.MissileDefenceState>(self)))
+                return false;
+            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            var before = MissileDefence.Load(world, self);
+            var ds = before;
+            Vector3 at = world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
+            bool rotor = Fdp.Toolkit.Motion.Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+            var to = PointOf(in p, world);
+            var dir = new Vector2(to.X - at.X, to.Y - at.Y);
+            var flight = new MissileDefence.Flight
+            {
+                Fighter = false, MoveZ = rotor ? to.Z - (p.HeightAgl > 0f ? p.HeightAgl : DefaultCruiseHeightAgl) + AirAttackNodes.EvadeHeightAglRotor
+                    : MathF.Max(at.Z, (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f) + AirAttackNodes.EvadeHeightAglPlane),
+                Speed = p.Speed, FallbackDir = dir.LengthSquared() > 1f ? Vector2.Normalize(dir) : Vector2.UnitY,
+            };
+            bool defending = MissileDefence.Run(world, self, ref ds, now, in flight, out _, out _);
+            if (!AirAttackNodes.Same(in before, in ds)) MissileDefence.Store(world, self, in ds);
+            if (defending) p.Issued = 0;   // the move resumes from here when the defence ends
+            return defending;
         }
     }
 
