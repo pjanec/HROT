@@ -1389,6 +1389,25 @@ namespace Fdp.Core
         public const int UnitHoldings = 283;
         /// <summary><c>FireAllocation</c> — a firer's allocation of expected hits per target (phase A → phase B). Reserved for exp/agg-backend.</summary>
         public const int FireAllocation = 284;
+        // ⭐ CE-8000 (exp/agg-backend's own block 285–289, §23.1) — measured free 2026-11-16 (no constant, no [ComponentId]).
+        /// <summary><c>UnitDetections</c> — an observer unit's accumulating detection levels per target (N-5). Node-local, recorded.</summary>
+        public const int UnitDetections = 285;
+        /// <summary><c>RunSeed</c> — the run's seed, a recorded singleton mixed into <c>SimRng</c> (C-8).</summary>
+        public const int RunSeed = 286;
+        /// <summary><c>UnitRoute</c> — a stochastic unit's planned route (waypoints, per-segment speed factor), managed, immutable, node-local
+        /// (NoScenario | NoReplay: re-planned from the destination when missing — M-4, CE-8004).</summary>
+        public const int UnitRoute = 287;
+        /// <summary><c>AggregateChild</c> — a soldier / vehicle created by a stochastic unit's split: its unit, its slot, whether it is still HELD
+        /// until the handover (SV-6). Node-local, recorded, NoScenario (a split's children are transient, SV-4) — ST-5, CE-8012.</summary>
+        public const int AggregateChild = 288;
+        // ⭐ CE-8300 (exp/agg-behaviors' own block 119, 138, 139 — §23.1; moved 2026-11-16) — measured free 2026-11-16.
+        /// <summary><c>ResolutionPolicy</c> — the resolution manager's bands, timings and detail areas (§16b), an unmanaged World Environment
+        /// component set by <c>SetResolutionPolicy</c>; saved with the scenario, recorded. ⭐ ST-5, R-8326.</summary>
+        public const int ResolutionPolicy = 119;
+        /// <summary><c>PlannedPosts</c> — a stochastic squad's REAL posts (window, roof, cover), planned during its split's Planning stage by SquadDefend's
+        /// own plan, read by the resolution manager's Materialise (D-P3, SV-5). Unmanaged, node-local (no wire descriptor), recorded, NoScenario.
+        /// ⭐ CE-8303, R-4286 (agg-behaviors' block).</summary>
+        public const int PlannedPosts = 138;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).

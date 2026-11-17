@@ -781,5 +781,308 @@ public sealed class TheUnitFormDrawsTests
         Assert.Equal("he cannot command himself", decl.Add!(world, man, man));
         Assert.Equal("only a unit commands (a platoon, a squad, an HQ)", decl.Add!(world, man, other));   // a man is not a commander
     }
+
+    /// <summary>
+    /// ⭐ CE-8615 (DESIGN_Stochastic_Unit_UI UI-9, mockup ⑤'s Details rows) — while an aggregate unit SPLITS, its Unit tab shows the change: stochastic → physical
+    /// (the instructor's pin), the stage strip with Planning and Materialising done (blue) and Handover not, and the men created so far; settled, nothing.
+    /// 🔴 Red-proof (compiles): <c>MenCreated</c> counting every child (not this unit's) ⇒ 4 ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8615_ASplittingUnitsUnitTab_ShowsTheStagesAndTheMenCreated()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateChild>();
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit
+        {
+            Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, Splitting = Fdp.Toolkit.Aggregate.SplitStage.Materialising,
+            Pin = Fdp.Toolkit.Aggregate.ResolutionPin.PinPhysical, SplittingSince = new SimInstant(96.0),
+        });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 5 };
+        for (int i = 0; i < 5; i++) t.Slots[i] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)Fdp.Toolkit.Aggregate.UnitSplits.SlotFullHealth };
+        world.AddComponent(unit, t);
+        for (int i = 0; i < 3; i++) { var c = world.CreateEntity(); world.AddComponent(c, new Fdp.Toolkit.Aggregate.AggregateChild { Unit = unit, Slot = (byte)(i + 1), Held = (byte)(i < 2 ? 1 : 0) }); }
+        var stranger = world.CreateEntity(); world.AddComponent(stranger, new Fdp.Toolkit.Aggregate.AggregateChild { Unit = stranger, Slot = 1, Held = 1 });   // another unit's child
+        Assert.Equal(3, SplitProgress.MenCreated(world, unit));
+        Assert.Equal(Fdp.Toolkit.Aggregate.AggregateResolution.Physical, SplitProgress.TargetOf(world.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(unit)));
+
+        HrotForms.EnsureRegistered();
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 520);
+        void Draw() => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(600, 480));
+            ImGui.Begin("Details##split");
+            view.View.Draw(HrotForms.Unit, world, new[] { unit }, editable: false);
+            ImGui.End();
+        });
+        int Blue()
+        {
+            var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+            try
+            {
+                var b = NodeEditor.Core.Widgets.IconPalette.Blue; int n = 0;
+                for (int y = 0; y < shot.Height; y++)
+                    for (int x = 0; x < shot.Width; x++)
+                    {
+                        var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                        if (Math.Abs(c.R - b.X * 255f) < 25 && Math.Abs(c.G - b.Y * 255f) < 25 && Math.Abs(c.B - b.Z * 255f) < 25) n++;
+                    }
+                return n;
+            }
+            finally { Raylib_cs.Raylib.UnloadImage(shot); }
+        }
+        view.View.CaptureLayout = true;
+        Draw();
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-split.png"));
+        var rows = view.View.Rows.ToList();
+        Assert.Contains("Changing = Stochastic  \uf061  Physical  ·  pinned by the instructor", rows);
+        Assert.Contains("Stage = Materialising  (2 of 3)", rows);
+        Assert.Contains("Progress = 3 of 5 men created  ·  deadline 6 s", rows);
+        int splitting = Blue();
+        world.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
+        Draw();
+        int settled = Blue();
+        Assert.True(splitting - settled > 1500, $"the Stage gauge two thirds blue while splitting ({splitting} blue px, settled {settled})");
+    }
+
+    /// <summary>
+    /// ⭐ CE-8614 (DESIGN_Stochastic_Unit_UI UI-1, mockup ①; the attribute rows are agg-backend's CE-8015) — a unit carrying AggregateUnit gets the RESOLUTION
+    /// section on its Unit tab, between Identity and State: the resolution as three glyph toggles (the dice violet when stochastic) + the word, the echelon
+    /// (read-only), the formation, frontage × depth and heading (read-only), the prepared level; a toggle click writes the AUTHORED resolution through the
+    /// one attribute path. A unit without AggregateUnit has no such rows. 🔴 Red-proof (compiles): <c>IsAggregate</c> answering false ⇒ no Resolution rows ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8614_AnAggregateUnitsUnitTab_HasTheResolutionSection()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit
+        {
+            Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, Formation = Fdp.Toolkit.Aggregate.UnitFormation.Line,
+            Width = 200f, Depth = 80f, Heading = new Bearing(45f), Prepared = Fdp.Toolkit.Aggregate.PreparedLevel.Hasty,
+        });
+        HrotForms.EnsureRegistered();
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        view.View.CaptureLayout = true;
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(560, 380));
+            ImGui.Begin("Details##resolution");
+            view.View.Draw(HrotForms.Unit, world, new[] { unit }, editable: true);
+            ImGui.End();
+        });
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-resolution.png"));
+        var rows = view.View.Rows.ToList();
+        foreach (var want in new[] { "Resolution = Stochastic", "Echelon = Platoon", "Formation = Line", "Frontage = 200 m  ×  80 m", "Heading = 045°", "Prepared = Hasty" })
+            Assert.Contains(want, rows);
+        int res = rows.FindIndex(r => r.StartsWith("Resolution", StringComparison.Ordinal)), strength = rows.FindIndex(r => r.StartsWith("Strength", StringComparison.Ordinal));
+        Assert.True(strength < 0 || res < strength, "the Resolution section comes before State");
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            var violet = NodeEditor.Core.Widgets.IconPalette.Violet;
+            int n = 0;
+            for (int y = 0; y < shot.Height; y++)
+                for (int x = 0; x < shot.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                    if (Math.Abs(c.R - violet.X * 255f) < 30 && Math.Abs(c.G - violet.Y * 255f) < 30 && Math.Abs(c.B - violet.Z * 255f) < 30) n++;
+                }
+            Assert.True(n > 15, $"the stochastic toggle's dice is drawn in violet ({n} px)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
+
+        var other = world.CreateEntity();
+        world.AddComponent(other, new EntityInfo { Name = new FixedString64("1 Sqn"), ForceId = ForceId.Friend });
+        world.AddComponent(other, new Fdp.Core.CommandHierarchy.UnitEntity()); world.AddComponent(other, new Fdp.Core.CommandHierarchy.UnitRoster());
+        Assert.False(UnitFacts.IsAggregate(world, other));   // no AggregateUnit: no Resolution rows
+    }
+
+    /// <summary>
+    /// ⭐ CE-8612 (DESIGN_Stochastic_Unit_UI UI-7, mockup ②) — a STOCHASTIC unit gets the SLOTS tab (a physical one does not): the suppressed share, the morale
+    /// (the standing men, "1 slot broken") and the prepared level as gauges, then one table row per slot with its health / ammo / stress bars and its flag —
+    /// measured in a real frame: the leader's full health bar is green, the down man's row carries the red skull flag. 🔴 Red-proof (compiles): <c>FlagOf</c>
+    /// never answering Down ⇒ no red flag in the down row ⇒ red. Render: <c>slots-tab.png</c> under <c>HROT_RAIL_SHOTS</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE8612_AStochasticUnit_HasTheSlotsTab_GaugesThenOneRowPerSlot()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitHoldings>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt"), ForceId = ForceId.Friend });
+        world.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, SuppressedShare = 0.35f, Prepared = Fdp.Toolkit.Aggregate.PreparedLevel.Hasty });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 5 };
+        float full = Fdp.Toolkit.Aggregate.UnitSplits.SlotFullHealth, brk = Fdp.Toolkit.Aggregate.StochasticCombat.BreakLevel;
+        t.Slots[0] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Leader, Health = (Half)full, Stress = (Half)0f, Ammo = 100 };
+        t.Slots[1] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.MachineGunner, Health = (Half)(full * 0.8f), Stress = (Half)(brk * 0.6f), Ammo = 100 };
+        t.Slots[2] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.AntiTank, Health = (Half)full, Stress = (Half)0f, Ammo = 3 };
+        t.Slots[3] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)0f, Stress = (Half)0f, Ammo = 0 };
+        t.Slots[4] = new() { Role = Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Health = (Half)(full * 0.4f), Stress = (Half)(brk * 1.2f), Ammo = 50 };
+        world.AddComponent(unit, t);
+        HrotForms.EnsureRegistered();
+        Assert.True(SlotsForm.Decl.OffersFor(world, unit));
+        Assert.Equal("35 % of the men under fire", SlotsForm.SuppressedGauge(world, unit).Text.ToString());
+        Assert.Equal("1 slot broken", SlotsForm.MoraleGauge(world, unit).Text.ToString());
+        Assert.Equal("Hasty", SlotsForm.PreparedGauge(world, unit).Text.ToString());
+        Assert.Equal(new[] { SlotsForm.SlotFlag.None, SlotsForm.SlotFlag.Suppressed, SlotsForm.SlotFlag.None, SlotsForm.SlotFlag.Down, SlotsForm.SlotFlag.Broken },
+            Enumerable.Range(0, 5).Select(i => SlotsForm.FlagOf(world.GetComponentRO<Fdp.Toolkit.Aggregate.UnitSlotTable>(unit), i)).ToArray());
+
+        var view = new FormDetailsView(SlotsForm.Decl, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(640, 360));
+            ImGui.Begin("Details##slots");
+            view.View.Draw(SlotsForm.Decl, world, new[] { unit }, editable: false);
+            ImGui.End();
+        });
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "slots-tab.png"));
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            int red = 0, green = 0;
+            for (int y = 0; y < shot.Height; y++)
+                for (int x = 0; x < shot.Width; x++)
+                {
+                    var c = Raylib_cs.Raylib.GetImageColor(shot, x, y);
+                    if (Math.Abs(c.R - 230) < 30 && Math.Abs(c.G - 85) < 30 && Math.Abs(c.B - 85) < 30) red++;
+                    if (Math.Abs(c.R - 91) < 30 && Math.Abs(c.G - 208) < 30 && Math.Abs(c.B - 106) < 30) green++;
+                }
+            Assert.True(green > 300, $"the full-health bars are green ({green} px)");
+            Assert.True(red > 40, $"the down and broken rows carry their red flags ({red} px)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
+
+        world.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Physical, Echelon = 1 });
+        Assert.False(SlotsForm.Decl.OffersFor(world, unit));   // a physical unit: no Slots tab
+    }
+
+    /// <summary>
+    /// ⭐ CE-8601 (exp/agg-ui, docs/designs/aggregate-units/DESIGN_Stochastic_Unit_UI.md §4 UI-3) — a UNIT's Unit tab shows its STRENGTH in men and its AMMUNITION,
+    /// read through the SITREP's own seams (UnitStrength, the staff's RoundsOf / AmmoOf) — so the form and the report agree; a man keeps his Health row and gets
+    /// no unit rows; a steady frame allocates nothing. 🔴 Red-proof (compiles): <c>UnitFacts.IsUnit</c> answering false ⇒ no Strength / Ammunition rows ⇒ red.
+    /// </summary>
+    [SkippableFact]
+    public void CE8601_AUnitsUnitTab_ShowsItsMenAndAmmunition_AsTheSitrepReadsThem()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        world.RegisterComponent<InjuryThresholds>(); world.RegisterComponent<WeaponAmmo>();
+        var squad = world.CreateEntity();
+        world.AddComponent(squad, new EntityInfo { Name = new FixedString64("1 Sqn"), ForceId = ForceId.Friend });
+        world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitEntity());
+        world.AddComponent(squad, new Fdp.Core.CommandHierarchy.UnitRoster());
+        Entity man = default;
+        for (int i = 0; i < 4; i++)
+        {
+            var m = world.CreateEntity();
+            world.AddComponent(m, new EntityInfo { Name = new FixedString64("man"), ForceId = ForceId.Friend });
+            world.AddComponent(m, new Health { Current = i == 3 ? 0f : 100f, Max = 100f });          // one man down
+            world.AddComponent(m, new WeaponAmmo { Count = 1, Ammo0 = 60, Max0 = 120 });              // half their rounds left
+            Fdp.Core.CommandHierarchy.UnitRoster.Add(ref world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(squad), m);
+            man = m;
+        }
+        HrotForms.EnsureRegistered();
+        // the texts are the SITREP's: 3 of 4 men (75 % — Amber, CB-37), the three fighting men's rounds 180 / 360 = 50 % — Green (≥ 50 %, CE-4610)
+        Assert.Equal("3 / 4 men  ·  Amber", UnitFacts.StrengthText(world, squad).ToString());
+        Assert.Equal("50 %  ·  Green", UnitFacts.AmmoText(world, squad).ToString());
+        Assert.Equal(Fdp.Toolkit.Squad.Command.StatusColour.Amber, Fdp.Toolkit.Squad.Command.StaffComposerSystem.StrengthOf(world, squad));
+        Assert.False(UnitFacts.IsUnit(world, man));
+
+        var view = new FormDetailsView(HrotForms.Unit, () => world);
+        using var frame = UiFrameHarness.Begin(700, 420);
+        void Draw(Entity e) => frame.StepN(3, () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10));
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 300));
+            ImGui.Begin("Details##unit-strength");
+            view.View.Draw(HrotForms.Unit, world, new[] { e }, editable: true);
+            ImGui.End();
+        });
+        view.View.CaptureLayout = true;
+        Draw(squad);
+        Assert.Contains("Strength = 3 / 4 men  ·  Amber", view.View.Rows);
+        Assert.Contains("Ammunition = 50 %  ·  Green", view.View.Rows);
+        // ⭐ CE-8606 (UI-10, mockup ①) — MEASURED, not eyeballed: the Strength row is a BAR in the SITREP colour (amber, 75 % full), the Ammunition bar green
+        int strength = -1, ammo = -1;
+        for (int k = 0; k < HrotForms.Unit.Fields.Count; k++)
+        {
+            if (HrotForms.Unit.Fields[k].Kind != FieldKind.Gauge) continue;
+            if (HrotForms.Unit.Fields[k].Label == "Strength") strength = k; else if (HrotForms.Unit.Fields[k].Label == "Ammunition") ammo = k;
+        }
+        Assert.True(strength >= 0 && ammo >= 0, "the Strength and Ammunition rows are gauges");
+        var shot = Raylib_cs.Raylib.LoadImageFromScreen();
+        try
+        {
+            static bool Near(Raylib_cs.Color c, int r, int g, int b) => Math.Abs(c.R - r) < 30 && Math.Abs(c.G - g) < 30 && Math.Abs(c.B - b) < 30;
+            Raylib_cs.Color At(int field, float along, float down = 0.85f)
+            {
+                var (_, min, max) = view.View.ItemRects.First(r => r.Field == field);
+                return Raylib_cs.Raylib.GetImageColor(shot, (int)(min.X + (max.X - min.X) * along), (int)(min.Y + (max.Y - min.Y) * down));
+            }
+            var a = At(strength, 0.05f); Assert.True(Near(a, 242, 192, 51), $"strength bar at 5 %: {a.R},{a.G},{a.B} (amber)");
+            var e2 = At(strength, 0.66f); Assert.False(Near(e2, 242, 192, 51), $"strength bar past 75 %: {e2.R},{e2.G},{e2.B} is not filled");
+            var g = At(ammo, 0.05f); Assert.True(Near(g, 91, 208, 106), $"ammunition bar: {g.R},{g.G},{g.B} (green)");
+        }
+        finally { Raylib_cs.Raylib.UnloadImage(shot); }
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-strength.png"));
+        Draw(man);
+        Assert.DoesNotContain(view.View.Rows, r => r.StartsWith("Ammunition", StringComparison.Ordinal));
+        Assert.Contains("Strength = 0 / 100", view.View.Rows);   // a man: his Health, as before
+
+        // a steady read allocates nothing (the texts are cached until the numbers change)
+        UnitFacts.StrengthText(world, squad); UnitFacts.AmmoText(world, squad);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int k = 0; k < 10; k++) { UnitFacts.StrengthText(world, squad); UnitFacts.AmmoText(world, squad); }
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>⭐ CE-8606 (UI-10, mockup ①) — the Vehicles gauge of a unit that HOLDS vehicles (a stochastic unit's <c>UnitHoldings</c>): one icon per vehicle,
+    /// the operational ones counted, the row's text "3 / 4 operational"; none for a unit without vehicles. 🔴 Red-proof (compiles): <c>VehicleCount</c> summing
+    /// Count for both ⇒ "4 / 4" ⇒ red.</summary>
+    [Fact]
+    public void CE8606_AUnitWithVehicles_ShowsThemAsIcons_TheLostOnesCounted()
+    {
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.UnitHoldings>();
+        var plt = world.CreateEntity();
+        var h = new Fdp.Toolkit.Aggregate.UnitHoldings { Count = 2 };
+        h.Items[0] = new Fdp.Toolkit.Aggregate.UnitHolding { Kind = Fdp.Toolkit.Aggregate.HoldingKind.Vehicle, Count = 4, Operational = 3 };
+        h.Items[1] = new Fdp.Toolkit.Aggregate.UnitHolding { Kind = Fdp.Toolkit.Aggregate.HoldingKind.Weapon, Count = 2, Operational = 2 };
+        world.AddComponent(plt, h);
+        var none = world.CreateEntity();
+        world.AddComponent(none, new Fdp.Toolkit.Aggregate.UnitHoldings());
+        Assert.True(UnitFacts.HasVehicles(world, plt));
+        Assert.False(UnitFacts.HasVehicles(world, none));
+        Assert.Equal("3 / 4 operational", UnitFacts.VehiclesText(world, plt).ToString());
+        var g = UnitFacts.VehiclesGauge(world, plt);
+        Assert.Equal(4, g.Icons); Assert.Equal(3, g.IconsOk);
+    }
 }
 

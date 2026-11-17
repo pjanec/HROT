@@ -258,7 +258,7 @@ public sealed class FormView
             {
                 var e = sel[i];
                 if (!world.IsAlive(e) || (field.Has != null && !field.Has(world, e))) { has = false; break; }   // a row common to ALL the selection only
-                if (field.Kind is FieldKind.Text or FieldKind.Pick)
+                if (field.Kind is FieldKind.Text or FieldKind.Pick or FieldKind.Gauge)
                 {
                     if (!field.TryReadText(world, e, out var t)) { has = false; break; }   // ⭐ R-2: the explicit delegate, else the vocabulary's reader (false = the entity has no such value)
                     if (!has) text = t; else if (!t.Equals(text)) mixed = true;
@@ -274,7 +274,7 @@ public sealed class FormView
             if (!s.Has) continue;
             if (field.TypeValue != null) RefreshType(field, s, world, sel);
             double max = field.MaxOf != null && sel.Count == 1 && !mixed ? field.MaxOf(world, sel[0]) : double.NaN;
-            if (s.Known && s.Mixed == mixed && (field.Kind is FieldKind.Text or FieldKind.Pick ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
+            if (s.Known && s.Mixed == mixed && (field.Kind is FieldKind.Text or FieldKind.Pick or FieldKind.Gauge ? s.Text.Equals(text) : s.Number == num) && (s.Max == max || (double.IsNaN(s.Max) && double.IsNaN(max)))) continue;
             s.Known = true; s.Mixed = mixed; s.Number = num; s.Text = text; s.Max = max;
             s.NumberFormat = double.IsNaN(max) ? null : NumberInput.FormatFor(field.Unit) + " / " + max.ToString("0.##", CultureInfo.InvariantCulture).Replace("%", "%%");
             s.Shown = mixed ? "mixed" : Format(field, num, text) + (double.IsNaN(max) ? "" : " / " + max.ToString("0.##", CultureInfo.InvariantCulture));
@@ -296,7 +296,7 @@ public sealed class FormView
     /// <summary>The value as people read it: <c>60 s</c> · <c>62 %</c> · the choice's word · <c>yes / no</c> · the text.</summary>
     public static string Format(FormField field, double number, in FixedString64 text) => field.Kind switch
     {
-        FieldKind.Text or FieldKind.Pick => text.ToString(),
+        FieldKind.Text or FieldKind.Pick or FieldKind.Gauge => text.ToString(),
         FieldKind.Choice => field.Choices != null && (int)number >= 0 && (int)number < field.Choices.Count ? field.Choices[(int)number] : number.ToString(CultureInfo.InvariantCulture),
         FieldKind.Toggle => number != 0 ? "yes" : "no",
         _ => number.ToString("0.##", CultureInfo.InvariantCulture) + (field.Unit == null ? "" : " " + field.Unit),
@@ -370,13 +370,26 @@ public sealed class FormView
     private void DrawControl(int i, EntityRepository world, IReadOnlyList<Entity> sel, bool editable)
     {
         var field = _decl!.Fields[i]; var s = _state[i];
-        bool ro = field.ReadOnly || !editable;
+        bool ro = (field.ReadOnly || !editable) && field.Kind != FieldKind.Gauge;   // ⭐ CE-8606 — a gauge is never interactive: drawn in its colours, never greyed
         if (ro) ImGui.BeginDisabled();
         ImGui.PushID(i);
         switch (field.Kind)
         {
             case FieldKind.Number: DrawNumber(i, field, s, world, sel); break;
             case FieldKind.Text: DrawText(i, field, s, world, sel); break;
+            case FieldKind.Choice when field.ChoiceIcons is { } icons:
+            {
+                // ⭐ CE-8614 (UI-1, mockup ①) — the glyph toggles (neutral background, the glyph in its colour — Colour Icons §3), then the chosen word and a note
+                var choices = field.Choices ?? Array.Empty<string>();
+                for (int c = 0; c < icons.Count && c < choices.Count; c++)
+                {
+                    if (c > 0) ImGui.SameLine(0f, 4f);
+                    if (NodeEditor.Core.Widgets.GlyphWidgets.GlyphToggle(choices[c], icons[c], !s.Mixed && (int)s.Number == c, choices[c])) Commit(i, world, sel, c, null);
+                }
+                ImGui.SameLine(); ImGui.AlignTextToFramePadding(); ImGui.TextUnformatted(s.Shown);
+                if (sel.Count == 1 && field.ChoiceNote?.Invoke(world, sel[0]) is { } note) { ImGui.SameLine(); ImGui.TextDisabled(note); }
+                break;
+            }
             case FieldKind.Choice:
                 if (ImGui.BeginCombo("##c", s.Shown))
                 {
@@ -391,10 +404,67 @@ public sealed class FormView
                 if (ImGui.Checkbox("##b", ref b)) Commit(i, world, sel, b ? 1 : 0, null);
                 break;
             case FieldKind.Pick: DrawPick(i, field, s, world, sel, editable); break;
+            case FieldKind.Gauge: ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 1f); DrawGauge(field, s, world, sel); ImGui.PopStyleVar(); break;   // ⭐ CE-8612 — a gauge is a reading: never faded by a read-only (live) form
         }
         if (CaptureLayout) _itemRects.Add((i, ImGui.GetItemRectMin(), ImGui.GetItemRectMax()));
         ImGui.PopID();
         if (ro) ImGui.EndDisabled();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-8606</c> (UI-10; mockup ① of docs/designs/aggregate-units/agg-ui-visuals.svg) — a GAUGE row: the bar in the status colour with its text ON it and
+    /// the threshold ticks, then the status chip (glyph + word, outlined in its colour); or a row of icons, lost ones red and crossed. Drawn on the window's
+    /// draw list (one item of the frame's height, so the grid keeps its rows), 0 B.
+    /// </summary>
+    private static void DrawGauge(FormField field, FieldState s, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        if (sel.Count != 1 || field.ReadGauge == null) { ImGui.AlignTextToFramePadding(); ImGui.TextDisabled(s.Mixed ? "mixed" : s.Shown.Length > 0 ? s.Shown : "-"); return; }
+        var g = field.ReadGauge(world, sel[0]);
+        var dl = ImGui.GetWindowDrawList();
+        var p0 = ImGui.GetCursorScreenPos();
+        float h = ImGui.GetFrameHeight(), avail = ImGui.GetContentRegionAvail().X;
+        uint text = ImGui.GetColorU32(new System.Numerics.Vector4(0.06f, 0.06f, 0.06f, 1f)), light = ImGui.GetColorU32(ImGuiCol.Text);
+        if (g.Icons > 0)
+        {
+            float x = p0.X;
+            for (int k = 0; k < g.Icons; k++)
+            {
+                bool ok = k < g.IconsOk;
+                var col = ok ? g.Fill : new System.Numerics.Vector4(0.90f, 0.33f, 0.33f, 0.85f);
+                dl.AddText(new System.Numerics.Vector2(x, p0.Y + (h - ImGui.GetTextLineHeight()) * 0.5f), ImGui.GetColorU32(col), g.IconGlyph ?? "?");
+                if (!ok) dl.AddText(new System.Numerics.Vector2(x + 9f, p0.Y + 1f), ImGui.GetColorU32(col), Fdp.Presentation.Fonts.IconsFontAwesome6.Xmark);
+                x += 22f;
+            }
+            dl.AddText(new System.Numerics.Vector2(x + 6f, p0.Y + (h - ImGui.GetTextLineHeight()) * 0.5f), light, g.Text.ToString());
+            ImGui.Dummy(new System.Numerics.Vector2(avail, h));
+            return;
+        }
+        string chip = g.Chip.ToString();
+        float chipW = chip.Length == 0 ? 0f : ImGui.CalcTextSize(chip).X + 34f;
+        float barW = System.MathF.Max(40f, avail - chipW - 8f);
+        var a = p0; var b = new System.Numerics.Vector2(p0.X + barW, p0.Y + h);
+        dl.AddRectFilled(a, b, ImGui.GetColorU32(ImGuiCol.FrameBg), 2f);
+        float f = System.Math.Clamp(g.Fraction, 0f, 1f);
+        if (f > 0f) dl.AddRectFilled(a, new System.Numerics.Vector2(p0.X + barW * f, p0.Y + h), ImGui.GetColorU32(g.Fill), 2f);
+        foreach (float t in stackalloc float[] { g.TickA, g.TickB })
+            if (!float.IsNaN(t)) dl.AddLine(new System.Numerics.Vector2(p0.X + barW * t, p0.Y - 2f), new System.Numerics.Vector2(p0.X + barW * t, p0.Y + h + 2f), ImGui.GetColorU32(new System.Numerics.Vector4(0.91f, 0.91f, 0.93f, 1f)), 1f);
+        // the text DARK over the fill and LIGHT past it (clipped at the fill's edge), so it reads whatever the fraction
+        var tp = new System.Numerics.Vector2(p0.X + 6f, p0.Y + (h - ImGui.GetTextLineHeight()) * 0.5f);
+        float edge = p0.X + barW * f;
+        string label = g.Text.ToString();
+        dl.PushClipRect(a, new System.Numerics.Vector2(edge, b.Y), true); dl.AddText(tp, text, label); dl.PopClipRect();
+        dl.PushClipRect(new System.Numerics.Vector2(edge, a.Y), b, true); dl.AddText(tp, light, label); dl.PopClipRect();
+        if (chipW > 0f)
+        {
+            var c0 = new System.Numerics.Vector2(b.X + 8f, p0.Y + 1f); var c1 = new System.Numerics.Vector2(c0.X + chipW, p0.Y + h - 1f);
+            uint cc = ImGui.GetColorU32(g.ChipColour);
+            dl.AddRectFilled(c0, c1, ImGui.GetColorU32(new System.Numerics.Vector4(0.11f, 0.11f, 0.13f, 1f)), (h - 2f) * 0.5f);
+            dl.AddRect(c0, c1, cc, (h - 2f) * 0.5f, ImDrawFlags.None, 1.2f);
+            float ty = p0.Y + (h - ImGui.GetTextLineHeight()) * 0.5f;
+            if (g.ChipGlyph != null) dl.AddText(new System.Numerics.Vector2(c0.X + 7f, ty), cc, g.ChipGlyph);
+            dl.AddText(new System.Numerics.Vector2(c0.X + 24f, ty), cc, chip);
+        }
+        ImGui.Dummy(new System.Numerics.Vector2(avail, h));
     }
 
     /// <summary>⭐ U-24 / S5 — a picked entity as ONE button: its name (or <i>Pick on map…</i>), a pick through the form's one context, <i>List…</i> where the context offers a list, <i>Clear</i> while one is set.</summary>

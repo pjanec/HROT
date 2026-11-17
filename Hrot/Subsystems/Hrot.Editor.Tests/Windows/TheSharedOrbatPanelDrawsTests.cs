@@ -360,6 +360,114 @@ public sealed class TheSharedOrbatPanelDrawsTests : IDisposable
         finally { Raylib.UnloadImage(image); }
     }
 
+    /// <summary>⭐ CE-8611 (UI-13, agg-ui-visuals.svg ⑨) — a STOCHASTIC unit has no child entities, so its SLOTS are its rows: expanded, one read-only row per
+    /// slot (<c>slot 2 · MG</c>) with the role's icon, a down man named so with the skull and the row dimmed; collapsed, none; the rows carry negative ids
+    /// (no entity — selecting one selects nothing). A PHYSICAL unit lists no slot rows. 🔴 Red-proof (compiles): <c>SlotCountOf</c> answering 0 ⇒ no slot rows ⇒ red.</summary>
+    [Fact]
+    public void CE8611_AStochasticUnitsSlots_AreItsReadOnlyRows()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityInfo>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        w.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(); w.RegisterComponent<Fdp.Toolkit.Aggregate.UnitSlotTable>(); w.RegisterComponent<NetworkIdentity>();
+        w.CreateEntity();
+        var unit = w.CreateEntity();
+        w.AddComponent(unit, new EntityInfo { Name = new FixedString64("2 Plt") });
+        w.AddComponent(unit, new Fdp.Core.CommandHierarchy.UnitRoster());
+        w.AddComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
+        var t = new Fdp.Toolkit.Aggregate.UnitSlotTable { Count = 4 };
+        var roles = new[] { Fdp.Toolkit.Aggregate.SlotRole.Leader, Fdp.Toolkit.Aggregate.SlotRole.MachineGunner, Fdp.Toolkit.Aggregate.SlotRole.Rifleman, Fdp.Toolkit.Aggregate.SlotRole.Medic };
+        for (int i = 0; i < 4; i++) t.Slots[i] = new Fdp.Toolkit.Aggregate.UnitSlot { Role = roles[i], Health = (Half)(i == 2 ? 0f : 25f) };
+        w.AddComponent(unit, t);
+        var adapter = new ScenarioOrbatAdapter(w, w.Bus, _spawn.Object);
+
+        var collapsed = adapter.GetVisibleNodes("", new HashSet<int>());
+        var unitRow = Assert.Single(collapsed);
+        Assert.True(unitRow.HasChildren, "a stochastic unit can be opened: it has slots");
+
+        var rows = adapter.GetVisibleNodes("", new HashSet<int> { unit.Index });
+        Assert.Equal(new[] { "2 Plt", "slot 1 · Leader", "slot 2 · MG", "slot 3 · Rifleman (down)", "slot 4 · Medic" }, rows.Select(r => r.Name).ToArray());
+        Assert.Equal(new[] { "orbat/leader", "orbat/soldier", "orbat/down", "orbat/medic" }, rows.Skip(1).Select(r => r.IconKey).ToArray());
+        Assert.All(rows.Skip(1), r => { Assert.True(r.IsGroup, "read-only: no entity behind it"); Assert.True(r.EntityId < -2); Assert.Equal(1, r.Depth); });
+        Assert.True(rows[3].IsDestroyed, "the down slot is dimmed");
+        adapter.SelectEntity(rows[2].EntityId);   // nothing to select, nothing thrown
+
+        w.SetComponent(unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Physical, Echelon = 1 });
+        Assert.Single(adapter.GetVisibleNodes("", new HashSet<int> { unit.Index }));   // a physical unit: its men are entities, no slot rows
+    }
+
+    /// <summary>⭐ CE-8611 (DESIGN_Stochastic_Unit_UI UI-13, agg-ui-visuals.svg ⑨) — the ORBAT row's icon by WHAT the entity is: a UNIT its derived NATO symbol
+    /// (<c>symbol/SFGPUCI----D---</c> for a friend infantry platoon), a MAN his role (leader crown, rifleman), a VEHICLE its class (a tank, a truck); and the
+    /// real panel paints the unit's symbol as an IMAGE wider than a glyph, in the 2525 friend fill. 🔴 Red-proof (compiles): the adapter's unit branch
+    /// answering <c>orbat/unit</c> ⇒ no symbol key ⇒ red. Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>orbat-symbols.png</c>.</summary>
+    [SkippableFact]
+    public void CE8611_TheOrbatShowsAUnitsNatoSymbol_AManByHisRole_AVehicleByItsClass()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityInfo>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(); w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>(); w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); w.RegisterComponent<NetworkIdentity>();
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterAll(db);
+        w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        w.CreateEntity();   // index 0 is no entity
+        Entity Make(string name, ForceId side = ForceId.Friend) { var e = w.CreateEntity(); w.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = side }); return e; }
+        var plt = Make("2 Plt");
+        w.AddComponent(plt, new Fdp.Core.CommandHierarchy.UnitRoster()); w.AddComponent(plt, new Fdp.Core.CommandHierarchy.UnitEntity());
+        w.AddComponent(plt, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)Hrot.Map.Common.TkbEntityTypes.Unit_InfantryPlatoon });
+        Entity Member(string name, DISEntityType dis, Fdp.Core.CommandHierarchy.TacticalDesignation role)
+        {
+            var e = Make(name);
+            w.SetDisType(e, dis);
+            w.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = plt, Designation = role });
+            return e;
+        }
+        Member("Sgt Dvorak", new DISEntityType { Kind = 3, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader);
+        Member("Pvt Svoboda", new DISEntityType { Kind = 3, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+        Member("M1 #1", new DISEntityType { Kind = 1, Domain = 1, Category = 1 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+        Member("HMMWV", new DISEntityType { Kind = 1, Domain = 1, Category = 6 }, Fdp.Core.CommandHierarchy.TacticalDesignation.Wingman);
+
+        var adapter = new ScenarioOrbatAdapter(w, w.Bus, _spawn.Object);
+        var panel = new SharedOrbatPanel();
+        panel.Expand(plt.Index);
+        using var frame = UiFrameHarness.Begin(480, 240);
+        new Fdp.Presentation.Fonts.EditorFontService().Initialize(1f, 1f);
+        panel.Relation = EntityTreeRelation.Command;
+        for (int i = 0; i < 6; i++)
+            frame.Step(() =>
+            {
+                ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiNET.ImGuiCond.Always);
+                ImGui.SetNextWindowSize(new Vector2(420, 200), ImGuiNET.ImGuiCond.Always);
+                ImGui.Begin("ORBAT##ce8611");
+                panel.DrawContent(adapter, adapter);
+                ImGui.End();
+            });
+        var expect = new Dictionary<string, string>
+        {
+            ["2 Plt"] = "symbol/SFGPUCI----D---", ["Sgt Dvorak"] = "orbat/leader", ["Pvt Svoboda"] = "orbat/soldier", ["M1 #1"] = "orbat/vehicle", ["HMMWV"] = "orbat/truck",
+        };
+        Assert.Equal(expect.Count, panel.DrawnRows.Count);
+        foreach (var row in panel.DrawnRows) Assert.Equal(expect[row.Text], row.IconKey);
+
+        string path = Shot("orbat-symbols.png");
+        frame.Screenshot(path);
+        var image = Raylib.LoadImage(path);
+        try
+        {
+            var unitRow = panel.DrawnRows.First(r => r.Text == "2 Plt");
+            float slot = ImGui.GetTreeNodeToLabelSpacing(), size = ImGui.GetFontSize();
+            int friend = 0, maxX = 0;
+            for (int x = (int)(unitRow.Min.X + slot - 1); x < (int)(unitRow.Min.X + slot + 3f * size); x++)
+                for (int y = (int)unitRow.Min.Y; y < (int)unitRow.Max.Y; y++)
+                {
+                    var c = Raylib.GetImageColor(image, x, y);
+                    if (Math.Abs(c.R - 128) < 30 && Math.Abs(c.G - 224) < 30 && Math.Abs(c.B - 255) < 30) { friend++; maxX = Math.Max(maxX, x); }
+                }
+            Assert.True(friend >= 20, $"the platoon's row shows its symbol in the friend fill ({friend} px)");
+            Assert.True(maxX > unitRow.Min.X + slot + size, $"the symbol is wider than a glyph's square (fill to x {maxX}, the square ends at {unitRow.Min.X + slot + size})");
+        }
+        finally { Raylib.UnloadImage(image); }
+    }
+
     /// <summary>⭐ U-4 (CE-4334, docs/UX/DESIGN_UI_Conventions.md §2 — CHEVRON · ICON · LABEL; the user's report: "the ORBAT tree draws no icons") — the REAL panel over the REAL adapter in all three relations: EVERY row it drew carries an icon, the
     /// glyph the adapter named (a unit that takes subordinates, a vehicle's part, a macro instance, a Scenario-view group, any other entity), painted in that glyph's own colour between the chevron's slot and the label. Read off a real frame (real fonts).
     /// 🔴 Red-proof (compiles): the adapter returning <c>""</c> from <c>IconKeyOf</c> ⇒ no row has an icon ⇒ red. Render (never in git): <c>HROT_FRAME_SCREENSHOTS</c> ⇒ <c>orbat-icons-{command,structure,scenario}.png</c>.</summary>

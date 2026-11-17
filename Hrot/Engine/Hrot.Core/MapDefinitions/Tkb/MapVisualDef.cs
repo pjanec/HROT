@@ -6,6 +6,12 @@ namespace Hrot.Map.Definitions.Tkb
     public class MapVisualDef
     {
         /// <summary>
+        /// ⭐ CE-8609 (DESIGN_Stochastic_Unit_UI §6 S-1) — what this type IS for a unit's NATO symbol (infantry, armour, mortar …): the override when
+        /// <c>UnitSymbolDeriver</c>'s reading of the type's own data (its DIS type, weapons, seats) is wrong. Unset (the norm) ⇒ derived.
+        /// </summary>
+        public GizmoMap.Contracts.Symbology.SymbolRole? SymbolRole { get; set; }
+
+        /// <summary>
         /// MIL-STD-2525 symbol code (e.g., "SFGPUCIZ-------" for friendly ground tank).
         /// </summary>
         public string SymbolCode { get; set; } = "SFGPUCIZ-------";

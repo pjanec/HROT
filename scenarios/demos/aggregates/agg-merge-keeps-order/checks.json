@@ -1,0 +1,85 @@
+{
+  "$doc": "DESIGN_X2_Order_Reresolution.md \u00a78 (X2-B / X2-C, R-8354 / R-8355): BusResolutionSwitch.Merge removes UnitRoster; the reconciler re-issues the order projected onto StochasticUnitDefend's DTO (OrderReissue.Project). New rather than re-judging agg-merge-back (a PLATOON: X-2 is squad-only, X2-I).",
+  "runFor": 229.25,
+  "golden": {
+    "every": 40
+  },
+  "later": [
+    "Blue Stochastic Squad/1",
+    "Blue Stochastic Squad/2",
+    "Blue Stochastic Squad/3",
+    "Blue Stochastic Squad/4",
+    "Blue Stochastic Squad/5",
+    "Blue Stochastic Squad/6",
+    "Blue Stochastic Squad/7",
+    "Blue Stochastic Squad/8",
+    "Blue Stochastic Squad/9",
+    "Blue Stochastic Squad/10"
+  ],
+  "expect": [
+    {
+      "name": "contact: the squad splits (the patrol 550 m off)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 15
+    },
+    {
+      "name": "... and runs its Defend as SquadDefend",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "SquadDefend",
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "the patrol walks past the merge line (800 m) and 30 s pass quiet: the squad merges back",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Stochastic",
+      "after": "split+5",
+      "before": 210.25
+    },
+    {
+      "name": "X-2: after the merge it runs its Defend as the stochastic StochasticUnitDefend (the params projected onto the neutral DTO)",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "StochasticUnitDefend",
+      "after": 209.25,
+      "before": 212.25
+    },
+    {
+      "name": "... and never SquadDefend again",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Squad",
+        "is": "SquadDefend"
+      },
+      "after": 212.25
+    },
+    {
+      "name": "X2-B: the merge leaves no roster on the squad (F-X2-4: a kept roster drops it out of the staff's stochastic arm)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Squad",
+        "path": "UnitRoster.Count",
+        "op": ">=",
+        "value": 0
+      },
+      "after": 210.25
+    }
+  ],
+  "anchors": {
+    "split": {
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  }
+}

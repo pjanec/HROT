@@ -1,0 +1,1020 @@
+{
+  "$doc": "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify agg-recorded --verify-capture (or POST /director/verify {scenario, capture: true})",
+  "scenario": "agg-recorded",
+  "meaning": 2,
+  "steps": 3601,
+  "times": {
+    "the fight reaches the Red platoon (a slot is down)": 2.25,
+    "the fight reaches the Blue platoon (a slot is down)": 4.25
+  },
+  "shots": [],
+  "blasts": [],
+  "snapshots": [
+    {
+      "t": 0,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "5ed8bdf80e3e650c",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "c87f182391735c97",
+            "BrainDiagnostics": "7de33b06ac5bd215",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "80fece73ca3b078c",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitEntity": "e2edc70959f27784",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "5ed8bdf80e3e650c",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "2589ef3772a85293",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "6d34080e51cde988",
+            "BrainDiagnostics": "92bf1fb2686188fb",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "b25773ebd23276c7",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitEntity": "e2edc70959f27784",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 10,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "814c8d0dd78aa701",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "b7b2f9e67dce3c32",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "439b52a3d0f4628b",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "d41539893ecd1f8b",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "506edf02a3a9c635",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "2520689b3e42666e",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "2589ef3772a85293",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "e6bb898d570f702f",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "03a937f214a60e9a",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "e495a46738e02b62",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "18a8a328615b18bd",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "e72a289345fa57a6",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 20,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "3999adb8b1e142d8",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "13f4207537ec8079",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "8523beba18a9a861",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "76c095254c9b5ce2",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "8210df7cc45742e1",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "03e97bea1c686f2b",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "2589ef3772a85293",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "e6bb898d570f702f",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "5a8044d665c9f033",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "bbf672f603c158ce",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "745b68a74f264de8",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "6ee11f554715f1c4",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 30,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "cdba0a91598f1199",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "1a65db755fae8db8",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "39789cf6e5e1f140",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "cc771a7ab7b24a7e",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "5c2471673fdd55a0",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "ed927a0802116a8b",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "2589ef3772a85293",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "e6bb898d570f702f",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "261406ea2f692536",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "7b35ba5d5a7319e8",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "f9a0f41ff67452a8",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "415af578f55274eb",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 40,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "28299e2868afa26d",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "092dcdcbb4dfddb5",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "dcf58cfbf74da283",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "d256548855121237",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "8f7b1c905c4faf73",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "57ce35d6f5ad50a4",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "7282b4bdb8a45e91",
+            "BehaviorState": "855ad1621792ab2f",
+            "BlueprintAssignments": "38482a5e82f101f9",
+            "BlueprintBlackboard1024": "44e07da55535ea48",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "2ecb33202630ee7c",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "077d0f9018f915c6",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "f764c324bb5774c3",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PausedTask": "96c66859bf2b8a43",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "4b1c2b20f6b0394f",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "1ce1861a405d399d",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "8a44a9a301715780",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 50,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "b66181e4629ecc05",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "1c4dedd0911acdba",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "713699a8cf5a8f09",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "f4346297c715bca8",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "3f076b6e9eb3637b",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "7a4819e9ce7964ba",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "7282b4bdb8a45e91",
+            "BehaviorState": "855ad1621792ab2f",
+            "BlueprintAssignments": "38482a5e82f101f9",
+            "BlueprintBlackboard1024": "44e07da55535ea48",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "2ecb33202630ee7c",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "077d0f9018f915c6",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "729e9691d2728a44",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PausedTask": "96c66859bf2b8a43",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "2359efb88b0b8d5a",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "3463478594c6b7c2",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "85f56bc0f1c4299c",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    },
+    {
+      "t": 60,
+      "units": {
+        "Blue Stochastic Platoon": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "021c6e0218b03881",
+            "Behavior": "eb6abfc2f9fc9564",
+            "BehaviorStartRecord": "cfd8533a64a2bdae",
+            "BehaviorState": "e0c864e1b0922eee",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "a330a4b6aa6cc693",
+            "BrainDiagnostics": "63e5ac5d2ada0021",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "acc9c8498993d449",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "3c9fea55a017694c",
+            "EntityInfo": "36243882e2497254",
+            "FireAllocation": "9f3f895fcb96e8a8",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "6abf825c7304c076",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "a7a72179fe93c6d1",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "74ebb786cde5806d",
+            "SopState": "a1bcda4c5e1a4464",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "f4346297c715bca8",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "23926b7e4589ccbf",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Red Stochastic Platoon": {
+          "position": [
+            300,
+            500,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AggregateUnit": "af09ce96819a996b",
+            "Behavior": "149b60a7f0ad7432",
+            "BehaviorStartRecord": "2589ef3772a85293",
+            "BehaviorState": "fbbcaf349733f513",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard1024": "21a7a3489ba6ac08",
+            "BlueprintBlackboard256": "fcd42471bb8805d8",
+            "BrainDiagnostics": "e6bb898d570f702f",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "64d7fcdaef0e59c4",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e724b9c35e7d365f",
+            "EntityAppearance": "8ccdf5982a42d55e",
+            "EntityGuid": "21ca735590a77259",
+            "EntityInfo": "2b07735dfc66cb8f",
+            "FireAllocation": "f6355ab5ef83d78a",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "ReportOutbox": "5341c6fb20d9525c",
+            "ResolvedStyle": "0a7d0a472076a226",
+            "Roe": "14f610fa7e9d2d7b",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "31ead187de10c60f",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "SopStartRecord": "0764cf4c3942e58e",
+            "SopState": "64922138c6ac4fb2",
+            "SquadCognitiveState": "ca6d004855436541",
+            "TkbIdentity": "c0ac06f315a46b74",
+            "UnitDetections": "3463478594c6b7c2",
+            "UnitEntity": "e2edc70959f27784",
+            "UnitHoldings": "825ee614d41a2d18",
+            "UnitSlotTable": "85f56bc0f1c4299c",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VisualData": "dc9a7f4cfb3152e8",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "the fight reaches the Blue platoon (a slot is down)": 4.25,
+    "the fight reaches the Red platoon (a slot is down)": 2.25
+  }
+}

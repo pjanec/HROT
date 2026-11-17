@@ -111,6 +111,16 @@ public static class AttributeVocabulary
         new("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
         new("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
         new("Weather.Precipitation",          AttributeIds.WeatherPrecipitation,          AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Weather.WeatherConditions)),
+        // ⭐ CE-8015 (exp/agg-backend) — a stochastic unit's resolution and shape (AggregateUnit; wire dtAggregateUnit 220) — the unit form's Resolution section
+        new("Aggregate.Resolution",           AttributeIds.AggregateResolution,           AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Pin",                  AttributeIds.AggregatePin,                  AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Echelon",              AttributeIds.AggregateEchelon,              AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Formation",            AttributeIds.AggregateFormation,            AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Posture",              AttributeIds.AggregatePosture,              AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Prepared",             AttributeIds.AggregatePrepared,             AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.Aggregate.AggregateUnit)),
+        new("Aggregate.Width",                AttributeIds.AggregateWidth,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Aggregate.AggregateUnit), Unit: "m"),     // ⭐ CE-8022 ①
+        new("Aggregate.Depth",                AttributeIds.AggregateDepth,                AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Aggregate.AggregateUnit), Unit: "m"),
+        new("Aggregate.Heading",              AttributeIds.AggregateHeading,              AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Aggregate.AggregateUnit), Unit: "deg"),
         new("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "mm/h"),
         new("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Weather.WeatherConditions), Unit: "m"),
     };

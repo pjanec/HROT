@@ -135,7 +135,10 @@ namespace Hrot.CGF
             BlueprintRegistry                    blueprintRegistry,
             VehicleAPI?                          vehicleApi = null,
             bool                                 gateOnAuthority = false,
-            Fdp.Core.FdpEventBus?                nodeBus = null)
+            Fdp.Core.FdpEventBus?                nodeBus = null,
+            Func<Fdp.Toolkit.Lifecycle.EntityLifecycleModule?>? lifecycle = null,
+            Func<CarKinem.Trajectory.TrajectoryPoolManager?>? remoteRoutes = null,
+            Fdp.Core.NodeId                      localNodeId = default)
         {
             if (behaviorRegistry  == null) throw new ArgumentNullException(nameof(behaviorRegistry));
             if (entityMap         == null) throw new ArgumentNullException(nameof(entityMap));
@@ -157,6 +160,9 @@ namespace Hrot.CGF
             IntentClears = new IntentClearRegistry();
             IntentClears.Register(_missionExecutionSystem);
             _tacticalIntentResolutionSystem      = new TacticalIntentResolutionSystem(mapperRegistry, behaviorRegistry, IntentClears);
+            // ⭐ agg-behaviors ST-2 (R-8311, the silent-default rule) — the ingress starts a stochastic unit's template-default SOP through the SAME routing table that
+            //   resolves its orders; Fdp.Toolkits cannot see that table, so the host that holds it hands the ingress the resolver. Every brain host builds this pack.
+            Fdp.Toolkit.Behavior.StochasticSopRouting.Resolver = TacticalIntentResolutionSystem.SopFor;
             _actionDispatchModule   = new ActionDispatchModule(
                 locoExecutors: new (ushort, IActionExecutor<LocomotionChannel>)[]
                 {
@@ -267,6 +273,50 @@ namespace Hrot.CGF
             // ⭐ CE-2270 (TS-B, docs/DESIGN_Temperament_And_Stress.md §3) — a combatant's stress from last frame's edges (near miss, hit, a
             //   friend down) and the continuous terms — after perception and the squad merge, before the brain tick reads it.
             simList.Add(new Hrot.AI.Behaviors.Brains.StressSystem(gateOnAuthority));
+            // ⭐ CE-8016 (agg-behaviors' F-9; SV-3) — an authored stochastic unit's slots and holdings from its TKB composite, once, before the
+            //   unit's steps read them (serial; the owner only)
+            simList.Add(new Hrot.Core.Tkb.StochasticUnitFillSystem(gateOnAuthority));
+            // ⭐ CE-8004 (ST-1, M-4; DESIGN_Stochastic_Units_And_Resolution §14) — the stochastic units' path follower, beside the stress phase
+            //   (§22's module diagram): every CGF node runs it by construction; it moves only the units this node owns.
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitMovementSystem(gateOnAuthority) { RemoteRoutes = remoteRoutes, LocalNodeId = localNodeId });   // ⭐ CE-8005
+            // ⭐ CE-8006 (ST-2, N-1 … N-5) — the stochastic units' sensing, a per-entity phase; writes each observer's own detections and pool
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticUnitSensorSystem(gateOnAuthority));
+            // ⭐ CE-8007 (ST-3, C-2) — the attrition step: phase A (each firer's allocation) then phase B (each victim's draw), per-entity phases
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticFirePhase(gateOnAuthority));
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticLossPhase(gateOnAuthority));
+            simList.Add(new Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem(gateOnAuthority));   // ⭐ CE-8005 (R-171) — a burst on a unit, applied by its owner
+            // ⭐ CE-8013 (ST-5 production wiring; §16b) — the resolution manager: a split's children are the TKB composite's slots
+            //   (StochasticUnitFill.ChildType, the same leaves the fill keyed), held until the handover (EntityCreation's HeldChildParticipant),
+            //   and leave through the node's lifecycle (lazy: the creation pack is built after this pack). The policy is agg-behaviors' seam.
+            // ⭐ CE-8303 (agg-behaviors D-P3 DP3-B, R-4286) — a splitting stochastic squad holding a Defend plans REAL posts (SquadDefend's own plan over
+            //   its slot table) into PlannedPosts, serially, BEFORE the manager, so the manager sees Ready in the same frame (DESIGN_DP3_Planned_Posts §5)
+            simList.Add(new Hrot.CGF.Systems.UnitPostPlanningSystem(gateOnAuthority));
+            // ⭐ X-2 (agg-behaviors, R-8353 / R-8357) — the resolution-fit reconciler (F-5's system, renamed): built first, so the manager's SwitchBlocked
+            //   seam asks the SAME registry it re-resolves with (an automatic switch waits while the unit's order has no play at the target)
+            var resolutionFit = new Hrot.CGF.Systems.UnitResolutionFitSystem(behaviorRegistry, gateOnAuthority);
+            simList.Add(new Fdp.Toolkit.Aggregate.ResolutionManagerSystem(new Fdp.Toolkit.Aggregate.BusResolutionSwitch
+            {
+                ChildType = static (repo, unit, slot) =>
+                    repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
+                        ? Hrot.Core.Tkb.StochasticUnitFill.ChildType(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType, slot)
+                        : default,
+                // ⭐ X-2 X2-B (R-8354, agg-behaviors, cross-lane) — a released man joins the squad's roster under his leaf's designation
+                ChildDesignation = static (repo, unit, slot) =>
+                    repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db
+                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
+                        ? Hrot.Core.Tkb.StochasticUnitFill.ChildDesignation(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType, slot)
+                        : Fdp.Core.CommandHierarchy.TacticalDesignation.Undefined,
+                Lifecycle = lifecycle,
+            }, gateOnAuthority)
+            {
+                Policy = Fdp.Toolkit.Aggregate.ResolutionPolicies.BandsOf,
+                SwitchBlocked = (repo, unit, target) => Hrot.AI.Behaviors.Orders.OrderReissue.BlockReason(repo, unit, target, resolutionFit.IsBehaviour),   // ⭐ X2-D (cross-lane)
+            });   // ⭐ CE-8300 (agg-behaviors, cross-lane one-liner) — the bands from the World Environment's ResolutionPolicy
+            // ⭐ CE-8301 (agg-behaviors ST-5, F-5, R-8327) — a unit whose resolution changed (a merge, a split) re-resolves its template-default SOP: the
+            //   routing table's Sop row when stochastic, the template's own when physical. Stateless, 1 Hz, after the manager that flips the resolution.
+            // ⭐ X-2 — and every frame it re-issues a unit's ORDER whose play no longer fits its resolution (DESIGN_X2_Order_Reresolution.md)
+            simList.Add(resolutionFit);
             // ⭐ rules ② (§00.11a, R2) — a live edit of a rule's params, applied BEFORE the brain tick (the edited rule ticks with its new params this frame); the module's one ingress does the work.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleWakeSystem());   // ⭐ CE-2383 — operator requests / the exercise closing wake cadenced rules, before the brain tick
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));

@@ -878,6 +878,86 @@ namespace Hrot.NED.Descriptors
         public double OnSince;
     }
 
+    // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) — a stochastic unit's state,
+    //   the unit's brain owner → every node (a display node draws the footprint, the staff reads strength). Reliable + TransientLocal +
+    //   KeepLast 1, like EntityRadarEmission: a late joiner must know every unit. Sent on change. Instants as doubles (SimInstant's memory).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAggregateUnit
+    {
+        [DdsKey] public int EntityId;
+        public byte Resolution;
+        public byte Echelon;
+        public byte Splitting;
+        public byte Pin;
+        public byte Formation;
+        public byte Posture;
+        public byte Activity;
+        public byte Prepared;
+        public byte Move;
+        public float Width;
+        public float Depth;
+        public float HeadingDeg;
+        public float DestX;
+        public float DestY;
+        public float DestZ;
+        public float PathDistanceM;
+        public float SpeedMps;
+        public float SuppressedShare;
+        public double RouteRequestedAt;
+        public double LastFiredAt;
+        public double LastContactAt;
+        public double PreparedSince;
+        public double SplittingSince;
+    }
+
+    /// <summary>⭐ CE-8001 — one slot of <see cref="EntityUnitSlotTable"/> (Health and Stress as the Half bits).</summary>
+    [DdsStruct]
+    public partial struct DdsUnitSlot
+    {
+        public ushort HealthBits;
+        public ushort StressBits;
+        public ushort Ammo;
+        public byte Role;
+        public byte CompositeSlot;
+    }
+
+    // ⭐ CE-8001 — a stochastic unit's slot table (SV-1), the brain owner → every node; the slots in use only. Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityUnitSlotTable
+    {
+        [DdsKey] public int EntityId;
+        public byte Chunk;
+        [DdsManaged] public List<DdsUnitSlot> Slots;
+    }
+
+    /// <summary>⭐ CE-8001 — one holding of <see cref="EntityUnitHoldings"/>.</summary>
+    [DdsStruct]
+    public partial struct DdsUnitHolding
+    {
+        public long Type;
+        public ushort Count;
+        public ushort Operational;
+        public uint Ammo;
+        public byte Kind;
+        public byte Mobility;
+        public byte Sensor;
+        public byte Immobile;
+    }
+
+    // ⭐ CE-8001 — the systems a stochastic unit holds (S-7), the brain owner → every node. Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityUnitHoldings
+    {
+        [DdsKey] public int EntityId;
+        [DdsManaged] public List<DdsUnitHolding> Items;
+    }
+
     // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, the brain owner → every node. Reliable + TransientLocal + KeepLast 1, like
     //   EntityGesture: a late joiner must know who has acted, and how gravely.
     // ⭐ CE-3252 (LD-1 / LD-2) — where a person looks, the Muscle → every node (vision on a Perception node, the map's cone, HTTP).

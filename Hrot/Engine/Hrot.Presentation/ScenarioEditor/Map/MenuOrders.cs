@@ -94,6 +94,19 @@ namespace Hrot.ScenarioEditor.Map
             });
             // ⭐ CE-1230 (canvas context menu §11 OM-2, OM-3, R-1019) — Disembark at once; Embark… picks the VEHICLE on the map (the pick
             //   Engage uses), then the one embark path. LOCAL, and only where a pick exists, like the orders.
+            // ⭐ CE-8615 (UI-9) — the Resolution › request rows: each writes the unit's pin (the selection's units when the clicked one is selected)
+            foreach (int id in new[] { GlobalActionIds.ResolutionPhysical, GlobalActionIds.ResolutionAggregate, GlobalActionIds.ResolutionPinKeep, GlobalActionIds.ResolutionUnpin })
+            {
+                int actionId = id;
+                actions.RegisterLocal(actionId, (_, unit) =>
+                {
+                    if (Hrot.Common.Actions.ResolutionRequests.PinFor(actionId) is not { } pin) return;
+                    var selected = Selected?.Invoke();
+                    if (selected != null && System.Linq.Enumerable.Contains(selected, unit))
+                        foreach (var u in selected) { if (Hrot.Common.Actions.ResolutionRequests.Pack(_world, u) != 0) Hrot.Common.Actions.ResolutionRequests.Request(_world, u, pin); }
+                    else Hrot.Common.Actions.ResolutionRequests.Request(_world, unit, pin);
+                });
+            }
             actions.RegisterLocal(GlobalActionIds.Disembark, (_, unit) =>
             {
                 if (PickService?.Invoke() is null) return;

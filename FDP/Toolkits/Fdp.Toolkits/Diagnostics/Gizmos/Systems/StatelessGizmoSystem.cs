@@ -307,7 +307,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             int skippedForZoom = 0;
             if (mpp > 0f)
                 for (int r = 0; r < ruleCount && r < _globalVisibilityCache.Length; r++)
-                    if (_globalVisibilityCache[r] && rules[r].MaxMetresPerPixel > 0f && mpp > rules[r].MaxMetresPerPixel) { _globalVisibilityCache[r] = false; skippedForZoom++; }
+                    if (_globalVisibilityCache[r] && ((rules[r].MaxMetresPerPixel > 0f && mpp > rules[r].MaxMetresPerPixel)
+                                                      || (rules[r].MinMetresPerPixel > 0f && mpp < rules[r].MinMetresPerPixel))) { _globalVisibilityCache[r] = false; skippedForZoom++; }   // ⭐ CE-8610 — a zoom BAND
             RulesSkippedForZoom = skippedForZoom;
             int outOfView = 0;
 

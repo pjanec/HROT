@@ -1,0 +1,178 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "indirect-fire-range",
+    "description": "What: on indirect-fire-range a physical 'Blue Battery' (three M109s, 3.8 km back) is ordered ArtilleryUnitStrike, 6 rounds on (340,300), TimeOnTarget. A STOCHASTIC 'Red Platoon In The Open' (30 men) stands on the aim point; a second stochastic 'Red Platoon Clear' stands 600 m north of it, clear of the sheaf. Judge: (1) the guns fire and bursts land on the aim point; (2) the area sink hits the platoon in the open - a slot is down - and suppresses it; (3) the platoon 600 m away is never hit: not one slot of it loses health, it is never suppressed. Fail: no hit on the target, or a hit (health, suppression) on the platoon the rounds missed. Check: scripts/scenario-regression.sh agg-shelled-unit"
+  },
+  "entities": {
+    "a9000011-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -3800,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 304
+      },
+      "EntityInfo": {
+        "Name": "Blue Battery",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "ArtilleryUnitStrike",
+        "Params": {
+          "Location": [
+            340,
+            300,
+            0
+          ],
+          "Control": "TimeOnTarget",
+          "Sheaf": "Parallel",
+          "Rounds": 6
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000011-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          -40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000011-0000-4000-8000-000000000001",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000011-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000011-0000-4000-8000-000000000001",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000011-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "M109 3",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000011-0000-4000-8000-000000000001",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000011-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          340,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Platoon In The Open",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    },
+    "a9000011-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          340,
+          900,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Platoon Clear",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      }
+    }
+  }
+}

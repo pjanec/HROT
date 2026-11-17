@@ -31,6 +31,8 @@ namespace GizmoMap.Presentation
             public Vector2 Anchor { get; internal set; }
             public List<Item> Items { get; } = new();
             public Color LeaderColour { get; internal set; }
+            /// <summary>⭐ CE-8610 — the width of the card's left SYMBOL cell (0 = none): the rows start right of it.</summary>
+            public float CellWidth { get; internal set; }
         }
 
         /// <summary>Cards drawn in the last <see cref="Draw"/>.</summary>
@@ -116,6 +118,14 @@ namespace GizmoMap.Presentation
                 // the rows: runs of one ZIndex after the card-wide ones
                 int rowsStart = lo;
                 while (rowsStart < hi && _prims[_order[rowsStart]].ZIndex == 0) rowsStart++;
+                // ⭐ CE-8610 (DESIGN_Unit_Symbols P-2) — a card-wide symbol is the LEFT CELL: it takes its width from the rows' and spans their height
+                float cellW = 0f, cellH = 0f;
+                for (int i = lo; i < rowsStart; i++)
+                    if (_prims[_order[i]].Shape == DebugPrimitiveShape.Icon && GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in _prims[_order[i]].TextContent, out var cellSymbol))
+                    {
+                        var box = SymbolRenderer.Measure(cellSymbol, SymbolRenderer.HeightOf(_prims[_order[i]]));
+                        cellW = box.Width + Padding; cellH = box.Height;
+                    }
                 float width = MinWidth - 2f * Padding, height = 0f;
                 int rowCount = 0;
                 for (int i = rowsStart; i < hi;)
@@ -132,20 +142,20 @@ namespace GizmoMap.Presentation
                     height += h;
                 }
                 height += Math.Max(0, rowCount - 1) * RowGap;
-                float cardW = width + 2f * Padding, cardH = MathF.Max(height + 2f * Padding, 2f * Padding + 4f);
+                float cardW = width + cellW + 2f * Padding, cardH = MathF.Max(MathF.Max(height, cellH) + 2f * Padding, 2f * Padding + 4f);
                 var rect = new Rectangle(anchor.X - cardW / 2f, anchor.Y - Leader - cardH, cardW, cardH);
 
                 var card = NextCard();
                 var items = card.Items;
                 items.Clear();
                 for (int i = lo; i < rowsStart; i++) items.Add(new Item(_prims[_order[i]], new Vector2(rect.X, rect.Y), cardH, true));
-                float y = rect.Y + Padding;
+                float y = rect.Y + Padding + MathF.Max(0f, (cardH - 2f * Padding - height) * 0.5f);   // ⭐ CE-8610 — rows centred beside a taller symbol
                 int ri = 0;
                 for (int i = rowsStart; i < hi;)
                 {
                     byte z = _prims[_order[i]].ZIndex;
                     for (; i < hi && _prims[_order[i]].ZIndex == z; i++)
-                        items.Add(new Item(_prims[_order[i]], new Vector2(rect.X + Padding, y), _rowHeight[ri], false));
+                        items.Add(new Item(_prims[_order[i]], new Vector2(rect.X + Padding + cellW, y), _rowHeight[ri], false));
                     y += _rowHeight[ri] + RowGap;
                     ri++;
                 }
@@ -157,7 +167,7 @@ namespace GizmoMap.Presentation
                     if (p.Shape == DebugPrimitiveShape.Box2D && p.ThicknessU16 > 0 && p.Color.A > 0)
                         leader = new Color(p.Color.R, p.Color.G, p.Color.B, p.Color.A);
                 }
-                card.NetworkId = id; card.Rect = rect; card.Anchor = anchor; card.LeaderColour = leader;
+                card.NetworkId = id; card.Rect = rect; card.Anchor = anchor; card.LeaderColour = leader; card.CellWidth = cellW;
             }
             if (_cards.Count > _cardCount) _cards.RemoveRange(_cardCount, _cards.Count - _cardCount);   // a shrink keeps the pooled objects in _cardPool
             return _cards;
@@ -292,7 +302,7 @@ namespace GizmoMap.Presentation
             var p = it.Primitive;
             var o = it.RowOrigin;
             var colour = new Color(p.Color.R, p.Color.G, p.Color.B, p.Color.A);
-            float innerW = card.Rect.Width - 2f * Padding;
+            float innerW = card.Rect.Width - 2f * Padding - (it.CardWide ? 0f : card.CellWidth);   // ⭐ CE-8610 — a row's bars stop at the symbol cell
             switch (p.Shape)
             {
                 case DebugPrimitiveShape.Text:
@@ -320,8 +330,21 @@ namespace GizmoMap.Presentation
                 case DebugPrimitiveShape.Line:
                     Raylib.DrawLineEx(o + new Vector2(p.LineStart.X, p.LineStart.Y), o + new Vector2(p.LineEnd.X, p.LineEnd.Y), 1f, colour);
                     break;
+                case DebugPrimitiveShape.Icon when it.CardWide:
+                    // ⭐ CE-8610 — the left cell: the symbol's box centred in the cell's height, at the card's left padding
+                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in p.TextContent, out var cell))
+                    {
+                        float h = SymbolRenderer.HeightOf(p);
+                        var box = SymbolRenderer.Measure(cell, h);
+                        SymbolRenderer.DrawInBox(cell, new Vector2(card.Rect.X + Padding, card.Rect.Y + (card.Rect.Height - box.Height) * 0.5f), h);
+                    }
+                    break;
                 case DebugPrimitiveShape.Icon:
-                    Raylib.DrawCircleV(o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), 4f, colour);
+                    // ⭐ CE-8608 — a unit's NATO symbol in its card cell (DESIGN_Unit_Symbols P-2): a symbol code draws the symbol, anything else a dot.
+                    if (GizmoMap.Contracts.Symbology.SymbolCode.TryParse(in p.TextContent, out var symbol))
+                        SymbolRenderer.DrawScreen(symbol, o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), SymbolRenderer.HeightOf(p));
+                    else
+                        Raylib.DrawCircleV(o + new Vector2(p.IconWorldPosX, p.IconWorldPosY), 4f, colour);
                     break;
                 case DebugPrimitiveShape.EntityBadge:
                 {

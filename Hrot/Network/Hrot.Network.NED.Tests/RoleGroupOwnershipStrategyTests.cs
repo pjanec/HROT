@@ -54,6 +54,11 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtFlockState),       // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
         D(EDescriptorType.dtFormationController),   // ⭐ CE-9007 — a road column's lead (the convoy behaviour, its brain)
         D(EDescriptorType.dtFormationFollower),   // ⭐ CE-9007 — a road column's explicit-leader slot (its brain)
+        D(EDescriptorType.dtRamOrder),          // ⭐ CE-4622 K-2 — a hull's ram order (its brain) — added by agg-backend at the R-4286 merge: bound, never listed
+        D(EDescriptorType.dtMineClearing),      // ⭐ CE-4624 MS-T4 — a clearer's tool marker (its brain) — the same
+        D(EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state (its brain)
+        D(EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
+        D(EDescriptorType.dtUnitHoldings),    // ⭐ CE-8001 — its holdings
         D(EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order (its brain)
         D(EDescriptorType.dtAirArena) };        // ⭐ CE-10000 (AC-10) — the arena (its creator's brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),

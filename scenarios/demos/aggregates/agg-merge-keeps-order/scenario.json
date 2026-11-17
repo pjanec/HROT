@@ -1,0 +1,218 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Squad' (10 men) holds (300,300) under a Defend order; a PHYSICAL 'Red Patrol' 550 m north marches away north. Judge (X-2): (1) the squad splits while the patrol is near and runs SquadDefend; (2) once the patrol is past the 800 m merge line and 30 s are quiet the men merge back; (3) within 3 s it runs the stochastic StochasticUnitDefend - the same order - and never SquadDefend again; (4) no roster is left on it. Fail: SquadDefend on a memberless unit, no order after the merge, or a roster left behind. Check: scripts/scenario-regression.sh agg-merge-keeps-order"
+  },
+  "entities": {
+    "a9000022-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            300,
+            300,
+            0
+          ],
+          "SearchRadius": 30
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000022-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          850,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            300,
+            1700,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000022-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          297,
+          848,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000022-0000-4000-8000-000000000002",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a9000022-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          299,
+          848,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 207
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000022-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000022-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          301,
+          848,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 212
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000022-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000022-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          303,
+          848,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Patrol Man 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000022-0000-4000-8000-000000000002",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

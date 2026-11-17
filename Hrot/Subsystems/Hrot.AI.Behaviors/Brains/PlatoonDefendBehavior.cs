@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -410,21 +411,21 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Withdrawing[slot] != 0 && p.Falling == 0)   // ⭐ CE-7032 (City Battle §3a) — the OP withdraws under cover, not a walk
                 {
                     p.Withdrawing[slot] = 2;
-                    CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
-                                         JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.Point(slot), Speed = p.Speed }, json), newOrder: true);
+                    CommandOrders.Route(world, self, squad, OrderKind.BreakContact, BehaviorNames.BreakContact,
+                                        JsonSerializer.Serialize(new BreakContactOrder { To = p.Point(slot), Speed = p.Speed }, json), newOrder: true);   // ⭐ R-8305
                     Sector(ref p, slot, world, squad);
                     ws.Orders++;
                     continue;
                 }
                 if (p.Falling != 0 && p.Role[slot] == PlatoonDefencePlan.Line)   // ⭐ E-3a (DA-68) — the line bounds back
-                    CommandOrders.Assign(world, self, squad, BehaviorNames.BreakContact,
-                                         JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.FallBackTo, Speed = p.Speed }, json), newOrder: true);
+                    CommandOrders.Route(world, self, squad, OrderKind.BreakContact, BehaviorNames.BreakContact,
+                                        JsonSerializer.Serialize(new BreakContactOrder { To = p.FallBackTo, Speed = p.Speed }, json), newOrder: true);   // ⭐ R-8305
                 else
                 {
                     var order = p.Falling != 0   // ⭐ E-3a (DA-69) — the reserve (and an OP) covers at the fall-back point
-                        ? new SquadDefendParamsJsonDto { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove }
-                        : new SquadDefendParamsJsonDto { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove };
-                    CommandOrders.Assign(world, self, squad, BehaviorNames.SquadDefend, JsonSerializer.Serialize(order, json), newOrder: true);
+                        ? new DefendOrder { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove }
+                        : new DefendOrder { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove };
+                    CommandOrders.Route(world, self, squad, OrderKind.Defend, BehaviorNames.SquadDefend, JsonSerializer.Serialize(order, json), newOrder: true);   // ⭐ R-8305
                 }
                 Sector(ref p, slot, world, squad);
                 AskSitrep(world, squad);

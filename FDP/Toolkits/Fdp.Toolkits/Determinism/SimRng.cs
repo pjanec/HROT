@@ -63,12 +63,37 @@ namespace Fdp.Toolkit.Determinism
         /// tick return the same number, which reads as a correlation bug in the behaviour rather than as
         /// a seeding mistake.
         /// </remarks>
-        public static SimRng FromSim(int entityIndex, int salt, float simTime)
+        public static SimRng FromSim(int entityIndex, int salt, float simTime) => FromSim(entityIndex, salt, simTime, RunSeed);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8003</c> (C-8, RV-3; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §18) — THE RUN SEED, mixed into
+        /// every draw: two runs of one scenario differ by seed (Monte-Carlo repeats, the calibration ladder's ≥ 30 seeds per rung), one seed
+        /// replays its own run. ⭐ <c>0</c> = no mix — the numbers are exactly the historical ones (every run the same run).
+        /// <para>Set at boot from <c>HROT_RUN_SEED</c>, and by <see cref="RunSeeds.Sync"/> from the world's recorded
+        /// <c>Fdp.Toolkit.Aggregate.RunSeed</c> singleton (a recording replays with the seed it ran with). ⚠ A process-wide static like
+        /// <see cref="Deterministic"/>: every world of one process (the <c>--mode all</c> nodes) shares one scenario, so one seed. Written only
+        /// serially, never inside a parallel phase (which only reads it).</para>
+        /// </summary>
+        public static uint RunSeed = ParseSeed(Environment.GetEnvironmentVariable("HROT_RUN_SEED"));
+
+        /// <summary>A seed from text (decimal or <c>0x</c> hex); 0 when absent or unreadable.</summary>
+        public static uint ParseSeed(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return 0;
+            text = text.Trim();
+            if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                && uint.TryParse(text.AsSpan(2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var h)) return h;
+            return uint.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+        }
+
+        /// <summary>⭐ <c>CE-8003</c> — <see cref="FromSim(int,int,float)"/> under an explicit <paramref name="runSeed"/> (the pure form; 0 = no mix).</summary>
+        public static SimRng FromSim(int entityIndex, int salt, float simTime, uint runSeed)
         {
             // ⭐ CE-3158 G7 (R-257) — MIX the three inputs (splitmix64's finaliser over each in turn) instead of XOR-ing them.
             //   ⛔ SUPERSEDED: `entityIndex ^ salt ^ (int)simTime` — symmetric, so (unit 5, t 6) and (unit 6, t 5) drew the same
             //   number, and every whole second of one unit repeated a neighbour's: two riflemen behind one wall came up together.
             ulong z = Mix(Mix(Mix(0x9E3779B97F4A7C15ul ^ (uint)entityIndex) ^ (uint)salt) ^ (uint)(int)simTime);
+            if (runSeed != 0) z = Mix(z ^ ((ulong)runSeed << 17));
             uint seed = (uint)(z ^ (z >> 32));
             if (seed == 0) seed = 0x9E3779B9u;
             return new SimRng { _state = seed };

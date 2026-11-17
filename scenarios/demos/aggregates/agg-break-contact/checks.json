@@ -1,0 +1,65 @@
+{
+  "runFor": 400,
+  "golden": {
+    "every": 50
+  },
+  "expect": [
+    {
+      "name": "the SOP orders BreakContact",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "StochasticUnitBreakContact",
+      "before": 60
+    },
+    {
+      "name": "it withdraws about 300 m south - x stays within 30 m of its own (300)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Destination.0",
+      "op": ">",
+      "value": 270,
+      "after": 2,
+      "before": 60
+    },
+    {
+      "name": "  ... and x within 30 m",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Destination.0",
+      "op": "<",
+      "value": 330,
+      "after": 2,
+      "before": 60
+    },
+    {
+      "name": "  ... y within 30 m of 0 (300 m south of where it stood, away from the contact at y = 500)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Destination.1",
+      "op": "<",
+      "value": 30,
+      "after": 2,
+      "before": 60
+    },
+    {
+      "name": "  ... y not past -30 m",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Destination.1",
+      "op": ">",
+      "value": -30,
+      "after": 2,
+      "before": 60
+    },
+    {
+      "name": "it arrives",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "Arrived",
+      "after": 60,
+      "before": 390
+    }
+  ]
+}

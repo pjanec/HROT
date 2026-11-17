@@ -13,6 +13,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     public static class EntityCardRows
     {
         /// <summary>Squad command: the commander's <c>SQUAD n phN</c> (<c>SquadGizmo</c>).</summary>
+        /// <summary>⭐ <c>CE-8607</c> (UI-11) — a UNIT's strength bar: row 10, where a man's health bar is (a unit has no Health) (<c>UnitCardGizmo</c>).</summary>
+        public const byte UnitStrengthBar = 10;
+        /// <summary>⭐ <c>CE-8607</c> — a unit's thin ammunition bar, under its strength bar (a man's mind-state rows 11–12 are never on a unit's card).</summary>
+        public const byte UnitAmmoBar = 13;
+        /// <summary>⭐ <c>CE-8607</c> — a unit's ONE info line: present/authorized · what it does · the worst alarm — the behaviour row (40) of its card,
+        /// written by <c>EntityEditorLabelGizmo</c> through <c>UnitCardFacts.InfoRow</c> (one writer per row).</summary>
+        public const byte UnitInfo = 40;
         public const byte SquadPhase = 60;
         /// <summary>Squad command: a member's element and role <c>E#R#</c>, on the MEMBER's card (<c>SquadGizmo</c>).</summary>
         public const byte MemberRole = 61;

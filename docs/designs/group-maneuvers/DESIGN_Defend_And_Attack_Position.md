@@ -8,6 +8,7 @@ known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.
 known-conflict: none — the Building Clearing platoon play is RESOLVED as the ClearBuilding preset (§10, R-2035).
 related-designs:
   - ../vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy's column; §11a's PlatoonConvoy now assigns its vehicles a ConvoyOrder (C-9)
+  - ../aggregate-units/DESIGN_DP3_Planned_Posts.md — (agg-behaviors) runs §8c's plan for a MEMBERLESS stochastic squad about to split (a crew over its slot table); the physical play unchanged but for an extract-method
   - DESIGN_Assault_Under_Fire.md — OWNS the attack's APPROACH under fire (CE-2436): support by fire on reported posts, the SHIFT that replaces AT-6's lift, vehicles at covered stand-off, drones and sustained fires — revises AT-4 / AT-5 / AT-6
   - ../../UX/DESIGN_Initial_State.md — §3a: Skill as a Character row, on a man or on a unit (the existing Unit layer)
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) H: ONE hunter inside a defended house, his bound widened to the building, against a known enemy under the windows (answers D-2b's dead ground for him)
