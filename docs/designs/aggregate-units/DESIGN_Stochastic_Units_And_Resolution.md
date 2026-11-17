@@ -9,6 +9,7 @@ known-conflict: none
 related-designs:
   - DESIGN_Aggregate_Squad.md — OWNS the FusionSquad (one FusionSoldier carries the squad) — the resolution built first, and the unit state, order routing and child keys this design's "binds now" items put there
   - DESIGN_DP3_Planned_Posts.md — OWNS D-P3 / SV-5 for the squad leaf (R-8330's follow-up): SquadDefend's plan over a slot-table crew, PlannedPosts (138), the manager's Planning wait
+  - DESIGN_X2_Order_Reresolution.md — OWNS X-2 as designed (agg-behaviors, R-8353…R-8363): the order re-issued on a switch by the F-5 reconciler, the split squad's roster (Handover / Merge), SV-10's switch gate, DP3-D ② (the posts as D-2f Posts); files F-X2-1 (the split flattens a platoon to men, against X-5 / D-P7)
   - MEASURED_Aggregate_Squad_Seams.md — OWNS the measurements (the no-member squad's weak points W-1…W-11 are this design's checklist; the calibration numbers S-5 uses)
   - ../group-maneuvers/DESIGN_Defend_And_Attack_Position.md — OWNS SquadDefend's plan (D-2f authored posts) that §16a D-P3 splits into plan-for-count + assign
   - ../group-maneuvers/DESIGN_City_Battle_Showcase.md — §4b the World Environment settings precedent §16b's policy follows
@@ -814,13 +815,14 @@ stochastic squad, which is the whole point of step ⑥.*
 | AmmoOf for a stochastic unit | `StaffSystems.cs` `StaffComposerSystem.Rounds` (+ `UnitHoldings` a declared stable read) | — |
 | SPOT of a wiped-out stochastic enemy | `Perception/ThreatDanger.cs` `IsOutOfTheFight` stochastic arm | found by building the rail |
 | F-8 | agg-backend's phase A fires every live system at every reported contact in range, moving or not: no base-of-fire share input, so "fires while approaching" is automatic and HoldBack changes only the movement | — |
-| acceptance | `SquadManeuverTests.AggregateAttack.cs`: a DIRECT order (not company-routed) from the commander over a stochastic defender; routing rails use the Company / Platoon fixtures | the company-routed acceptance is not built |
+| acceptance | `SquadManeuverTests.AggregateAttack.cs`: a DIRECT order (not company-routed) from the commander over a stochastic defender; routing rails use the Company / Platoon fixtures | ⛔ HISTORY: "the company-routed acceptance is not built" — ✅ built `2026-11-17` (CE-8305), next row |
+| acceptance, company-routed *(CE-8305, `2026-11-17`)* | `ST3_Acceptance_APhysicalCompanyAttack_OverAStochasticAndAPhysicalPlatoon_EachRunsItsOwnPlay_NoneCrossed` (same file): a physical `CompanyAttack` over one stochastic and one physical platoon, each member's orders through its OWN receiver's `TacticalIntentResolutionSystem`, both role layouts — ① stochastic BASE OF FIRE: `Order.SupportByFire` HoldBack on the 250 m support point (R-8341), runs `StochasticUnitAttack`, walks onto it, its own Set orders the physical assault, which runs `PlatoonAttack`; ② stochastic ASSAULT: the physical base of fire runs `PlatoonSupportByFire`, its Set orders the stochastic `Order.Attack` (no HoldBack, on the objective), which runs `StochasticUnitAttack`. None crossed: neither the orders nor the running behaviour (`BehaviorState.ActiveBehaviorHash`, every frame) | — |
 
 ### 23.5c agg-behaviors — ST-5 as built: the policy (§16b), F-5, and D-P3 STOPPED *(`2026-11-16`; lane decisions R-8326…R-8330 "for the user's review")*
 
 | what | where | deviation |
 |---|---|---|
-| `ResolutionPolicy` (id **119**, unmanaged, default data policy = saved + recorded, 56 B + 8 `EntityRef`) on the World Environment: the six `ResolutionBands` numbers, `FrameBudgetMs` (SV-8, dormant), up to 8 detail areas (SV-15) | `Fdp.Toolkits/Aggregate/ResolutionPolicy.cs`, registered in `HrotSharedComponentRegistry` | — |
+| `ResolutionPolicy` (id **119**, unmanaged, default data policy = saved + recorded, 32 B + 8 `EntityLink` — ⭐ CE-8304 / R-8380 below; ⛔ was 8 `EntityRef` and two `float` seconds) on the World Environment: the six `ResolutionBands` numbers, `FrameBudgetMs` (SV-8, dormant), up to 8 detail areas (SV-15) | `Fdp.Toolkits/Aggregate/ResolutionPolicy.cs`, registered in `HrotSharedComponentRegistry` | — |
 | `ResolutionPolicies.BandsOf(repo)` = the component's bands, else `ResolutionBands.Default` | same file | — |
 | `SetResolutionPolicy` verb (`[SharedAiAction]`, partial: a number left 0 keeps the rest; `area` adds, `clearAreas` forgets; serial write on the LIVE component via `RuleAfterPhase`) | `Brains/Objectives/Verbs/ResolutionVerbs.cs` | — |
 | the manager's `Policy = ResolutionPolicies.BandsOf` | `CgfLogicPack.cs` (⭐ cross-lane one-liner, agg-backend's constructor site) | said in the commit |
@@ -834,6 +836,20 @@ stochastic squad, which is the whole point of step ⑥.*
 | **R-8328** | `ResolutionPolicies.BandsOf` allocates one query per manager step (1 Hz), not per frame | a per-frame caller |
 | **R-8329** | component id **138** (`PlannedPosts`) stays reserved, unused; 139 free | — |
 | **R-8330** | D-P3 NOT built: `SquadDefendBehavior.Plan` is an async state machine over a commander's child EQS sensors (`SquadManeuverRunner.AskTerrainAll` hangs the ask on `ctx.Commander`, measured FROM `FirstLive` man) with the roster-driven `AnyWithoutPost` / `PickAll` interleaved after each ask (windows, frames, roof, cover, fan, coverage — 1137 lines). A memberless stochastic unit has no roster, no commander cognitive state and no body to measure from, and the manager's Planning stage is one synchronous step with no wait. A split without changing the physical defence needs the asks re-parameterised over (count, origin, area) AND a manager wait for the plan — a design of its own | a design for the asks over a unit entity + a manager Planning wait; then PlannedPosts (138) and `UnitSplits.FallbackPosts` preference |
+
+**✅ CE-8304 — the S0 type rails on `ResolutionPolicy`** *(`2026-11-17`, user-approved item; lane decision R-8380 "for the user's review")*
+
+| what | where | why |
+|---|---|---|
+| `QuietSeconds` / `DeadlineSeconds` are `SimDuration` (component AND the verb's params) | `ResolutionPolicy.cs` · `ResolutionVerbs.cs` | S0 `S0_EverySecondsTimeoutCooldownMember_IsNotABareFloat`; the `ResolutionBands` precedent (agg-backend `b0d53162e`). Memory and JSON are a float's, so a file / a trigger's JSON reads the same |
+| `Area0…7` are `EntityLink` (`LinkAt(i)` as authored, `AreaAt(i)` = its `.Ref`); `AddArea(EntityLink)` dedupes by the live entity, else the authored form | `ResolutionPolicy.cs` | S0 `S9Prime_NoSavedComponentHoldsAnEntityId…` failed on 8 `EntityRef`s: a saved file would hold network ids (S9′) |
+| the verb keeps the area AS AUTHORED; a bare id is stored as the target's `EntityGuid` (`ResolutionVerbs.Authored`, read in the serial after-phase) | `ResolutionVerbs.cs` | so a policy set live and then saved names its village by GUID, which the loader's `RefResolve` walk resolves |
+| the component rail's decision list `AuthoredInAComponent` (`ResolutionPolicy.Area0…7`, each with its author) + a staleness rail | `S0ComponentTypesRailTests.cs` (⭐ cross-lane: the S0 rail's file) | SR-140 as amended by S9′ allows a person-authored `EntityLink` in a component (`RoutePlan…HoldUnit`), but the member walk still flagged one at the top level; a per-member decision, never a silencer |
+| no version bump | — | no scenario / recipe authors `ResolutionPolicy` (grep: 0 files); the recorder fingerprints each layout (`ComponentLayoutHasher`); not on the wire |
+
+| # | lane decision *(for the user's review)* | would change it |
+|---|---|---|
+| **R-8380** | the detail areas are AUTHORED references (`EntityLink`, SR-140 / S9′ (a)) — a person names a village (SV-15) — not code-written ones behind a GUID-keyed translator; a bare id given to the verb is stored as the target's GUID | the manager (agg-backend) writing areas itself — then `EntityRef` + a translator |
 
 ### 23.5d agg-behaviors — F-14 and F-15 measured: a defender fires at what is in REACH; the stochastic base of fire closes too far *(`2026-11-16`; lane decisions R-8338…R-8341 "for the user's review"; CE-8302 BUILT `2026-11-17`)*
 
@@ -914,7 +930,7 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 | ST-2 | `agg-detect-by-range` ✅ BUILT | an observer and a target at 3 ranges: a contact appears inside N-1's window at the near ranges, never beyond the sensors' reach |
 | ST-2 | `agg-sees-physical` ✅ BUILT (§23.6c: optics at 700 m) | a stochastic observer reports a PHYSICAL squad (SPOT up the chain); the physical squad never contacts the stochastic unit |
 | ST-2 | `agg-break-contact` ✅ BUILT | fired on while not defending: the unit breaks contact ~300 m away from the nearest contact |
-| ST-3 | `agg-platoon-duel` ✅ BUILT (band row waits for CE-8009) | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
+| ST-3 | `agg-platoon-duel` ✅ BUILT (no C-8 band applies — §23.6h, R-8381) | two stochastic platoons fight: losses on both sides inside the C-8 band; suppression rises; the weaker side breaks |
 | ST-3 | `agg-shelled-unit` ✅ BUILT | a mortar mission on a stochastic unit: the area sink gives hits and suppression; the unit is never hit by a round that missed its footprint |
 | ST-3 | `agg-prepared-defence` ✅ BUILT | an attacker against a defender in position 10 min (Prepared) and 60 min (Fortified): the defender's losses fall in that order |
 | ST-3 | `agg-out-of-ammo` ✅ BUILT | a unit fires until its derived ammunition is spent, then stops firing and reports it |
@@ -1047,6 +1063,20 @@ Goldens: re-captured where they moved and every row passed (each SAME on a secon
 | **R-8352** | duel / recorded moved off basic-desert's ridge to flat ground | the user wanting the ridge (then: the rows say Red cannot see Blue) |
 
 ⚠ Observation for agg-backend (NOTE, F-24): `UnitSensing.Footprint` (`UnitSensing.cs:321-327`) puts the side samples at the CENTRE's z — on a slope a sample floats or is buried (Blue's east sample on the ridge: z 9.05 where the ground is ~5). Not what failed here.
+
+#### 23.6h `agg-platoon-duel`'s "losses inside the C-8 band" row — NO band applies *(`2026-11-17`, R-8381; closes R-8321's wait)*
+
+| claim | source | verdict |
+|---|---|---|
+| CE-8009's rung 1 passes and bands 9 v 9 standard riflemen in the open at 100 / 200 / 275 m (total down, loss-exchange ratio, time to 50 %) | `STATUS_AggBackend.md` §5 (round 4) · R-8005 · R-8009 · R-8011 | ✅ the only band the ladder has |
+| the duel is Blue 30 slots v Red 10 slots at **300 m** | `scripts/gen-agg-scenarios.py` `agg_platoon_duel` | another force ratio (3 : 1), and 300 m is the M4's exact reach, which R-8009 keeps OUT of the rung |
+| rung 2 (the MG) and above | `STATUS_AggBackend.md` R-8005 "would change it" | ⛔ not built |
+
+| # | lane decision *(for the user's review)* | would change it |
+|---|---|---|
+| **R-8381** | ⭐ no C-8 band row in `agg-platoon-duel`: no rung measures this geometry, and a band is never invented; the `$doc` and the description say so. The duel's six rows stand | a ladder rung at an unequal force ratio or at 300 m — then add its band; or the user wanting the duel re-shaped to rung 1's 9 v 9 at 275 m (a different scenario) |
+
+Re-run `2026-11-17` (fresh process): 6 / 6, the same times, golden SAME — not re-captured (only the description / `$doc` text moved).
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

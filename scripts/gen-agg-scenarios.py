@@ -346,9 +346,9 @@ def agg_platoon_duel():
     s.unit("Red Stochastic Squad", RED, (300, 600), SQUAD, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt((300, 600)), "SearchRadius": 30}))
     desc = ("What: on basic-desert a BLUE stochastic platoon (30 men) and a RED stochastic squad (4 men - the weaker side) face each other 300 m apart on flat ground, both defending; they fire on each other "
             "(agg-backend's phase A). Judge: (1) the fire reaches BOTH sides (a Blue man is hit; most of the Red squad is down); (2) suppression rises on both (AggregateUnit.SuppressedShare > 0); (3) the weaker side breaks first - a Red slot's "
-            "stress reaches the break level before any Blue slot's does. NOT judged: 'losses inside the C-8 band' - the band needs the physical runs (agg-backend CE-8009, not built), so that row waits; "
-            "no band is invented. Check: scripts/scenario-regression.sh agg-platoon-duel")
-    checks = {"$doc": "§23.6 ST-3. The C-8 band row (the stochastic loss rate vs the physical Monte Carlo) waits for CE-8009; what is checkable without it is encoded: losses on both sides, suppression, and who breaks first. "
+            "stress reaches the break level before any Blue slot's does. NOT judged: 'losses inside the C-8 band' - no C-8 band applies to this fight (R-8381): agg-backend's ladder (CE-8009, rung 1 PASS) "
+            "measures 9 v 9 riflemen at 100 / 200 / 275 m, and this duel is a 3-to-1 fight at 300 m, the rifle's exact reach that R-8009 keeps out of the rung; no band is invented. Check: scripts/scenario-regression.sh agg-platoon-duel")
+    checks = {"$doc": "§23.6 ST-3. No C-8 band row (R-8381, §23.6h): CE-8009's rung 1 (STATUS_AggBackend.md §5) bands 9 v 9 standard riflemen at 100 / 200 / 275 m; this duel is 30 v 10 slots at 300 m - another force ratio, and the range R-8009 excludes as the M4's exact reach - so no band of the ladder applies and none is invented. What is encoded: losses on both sides, suppression, and who breaks first. "
                       "Slot health is 25 when whole (UnitSplits.SlotFullHealth); 'down' = Health < 0.5 (UnitSlotTable.DownBelow); 'broken' = Stress >= 0.75 (AggregateUnits.BrokenAt). A Red squad is 10 slots; "
                       "measured (re-authored 2026-11-17, R-8344, after CE-8009's measured rifle rate and body zones): a Blue man is hit at 3.25 s but none goes down in 180 s; Red has 8 down at 11.25 s, all 10 at 14.25 s, four broken at 7.25 s; Blue never breaks.",
               "runFor": 60, "golden": {"every": 10}, "expect": [
