@@ -480,6 +480,37 @@ deconfliction adds no cross-entity read to the parallel phase; and the one `Miss
 **Prior state superseded:** §8c's "the brain … switches its own radar On" was claimed by AC-13 and §4a but NOT built (now built); R-10014's "no
 next-target pick" holds only for a directly ordered Attack.
 
+### 8e. As built — the gun pass, a route transit's defence *(the `air` lane, `2026-11-17`, CE-10006; verdicts in `STATUS_Air_Combat.md`)*
+
+```mermaid
+graph TD
+  subgraph SIM["Motion / combat node"]
+    SHS["SpatialHashSystem (collider grid = the terrain's, W9)"] -->|"in the grid"| GRID["SpatialHashGrid cells"]
+    SHS -->|"★ an AIRCRAFT beyond it"| OUT["SpatialGridData.AirOutside (≤ 64)"]
+    RS["RaycastSolverSystem (every round)"] --> GRID
+    RS -->|"★ also tests"| OUT
+    RS -->|"★ a PLANE's band centred on its body"| HIT["hit"]
+    AMS["AirMotionSystem.EnsurePath"] -->|"★ same route, mid-way ⇒ AirRoute.ResumeIndex / ResumeAt"| PATH["AirPath from the waypoint not yet passed"]
+  end
+  subgraph CGF["Brain node"]
+    FR["CgfNodes.Action_WriteFollowRouteChannel (FollowRoute, shared)"] -->|"★ an aircraft: AirOrderNodes.DefendRoute"| MD["MissileDefence.Run (MoveTo flight)"]
+    FLY["AirOrderNodes.FlyTo (Move)"] --> MD
+    AC["AirCombatNodes.Fight"] -->|"★ close to guns · soft edge yields to a hot pursuit · head-on break by time"| STEER["AirCombatSteer"]
+  end
+```
+
+*What the picture shows that prose hid: the gun never had a target to hit — the collider grid follows the 2 km terrain, the fight was outside it; and the
+route's defence needs BOTH halves — the brain breaks off, the motion node must resume the same route mid-way rather than fly it again.*
+
+| item | as built | deviation — argued |
+|---|---|---|
+| AC-8 the gun HIT (R-10029) | ⭐ the root cause was not the pilot: `ac-dogfight-2v2`'s 233 gun rounds passed a median 2.6 m (0.3–5 m) from the bandit's centre and every one Expired — the fight was outside the collider grid (±1 050 m, the air-range's bounds). `SpatialHashSystem` keeps AIRCRAFT beyond the grid aside (`SpatialGridData.AirOutside`) and `RaycastSolverSystem` tests them; a PLANE's hit band is centred on its body (it ran from the centre up) | W9 says an entity off its terrain is an authoring error — true for ground units, not for aircraft (an arena is 4 km in radius over a 2 km range, R-10009). Rejected: a larger terrain (the navmesh bake / prefill, R-10009, CE-3428) |
+| AC-8 the pilot at the gun (R-10029) | between `GunRangeM + 200` and 1.5 km (`CloseToGunsMaxM`) with the bandit holding or opening the range (closing < 50 m/s) the pursuit goes to full power (close to guns — a GUN manoeuvre: applied at 2–3 km it re-shaped the 1v1's missile exchange and the 1v1 lost its kill); the soft edge yields to a hot pursuit (bandit < 2 km, < 30° off the nose) while < 1 km outside (AC-10: the pull grows with the distance); nose to nose (each within 30° of the other) the pilot breaks RIGHT 2 s before the two would meet, held while they close (AC-13a) | 📐 probe: an Ace sat 650–1 150 m astern of a dragging bandit at 0.85 throttle and the range opened; with close-to-guns the Aces collided head-on twice (262–380 m/s closing, the 250 m lag-off < 1 s) |
+| AC-9 a ROUTE transit's defence (R-10030) | `FollowRoute` (the shared route action) calls `AirOrderNodes.DefendRoute` first — an AIRCRAFT runs the one `MissileDefence` with a MoveTo flight (the beam break; a plane ≥ 150 m AGL, a helicopter at its evade height); the route re-activates when it ends and `AirMotionSystem.EnsurePath` RESUMES the same route at the first waypoint not yet passed (`AirRoute.ResumeIndex` / `ResumeAt`; a loop is rotated; stops keep their route numbering) | a re-issued route used to compile from the body through EVERY waypoint — it would fly back to the first. ⚠ The resume keys on "same route entity + version, follower mid-way": an aircraft re-ordered onto the route it is flying also resumes (it does not restart) |
+
+**Prior state superseded:** §8d's "a route (FollowRoute) transit is NOT wired" (R-10023) — wired now; R-10025's "⚠ still 0 gun HITS" — the cause was the
+collider grid, not the shot cap or the pilots. ⚠ With rounds able to hit beyond the range, `ac-ir-defeated`'s "no MiG round hits the F-16 in 30 s" went red on the MiG's GUN (11 of 147 at 16–18 s, closing to 410 m while the F-16 beams): the row now names the MISSILE (its intent).
+
 
 
 

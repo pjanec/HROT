@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-15
+updated: 2026-11-17
 build-state: BUILT (2026-11-15; B-1…B-6 — §7 as-built; sam-site 3/3, deterministic at 1/4/8 threads) — was READY-TO-BUILD — RS-1…RS-9 (R-4258) amended by the §6 review RV-1…RV-17 and the user's two changes (R-4259: aircraft beyond the terrain, radiation published — RS-2a, RS-10); backend builds §5 B-1…B-6 (CE-4617), ui U-1…U-3 (CE-4618); CE-7020 is the programme row
 current-answer: §1 inventory · §2 decisions (as amended) · §3 UML · §4 the engagement in time · §5 slices and acceptance · §6 the review · ⭐ §7 AS-BUILT (where the build deviated, §7 wins)
 stale-below: § HISTORY at the bottom (§2–§5 as first approved)
@@ -343,6 +343,7 @@ waits for it (`ChaffTooEarly`).*
 | RS-4 salvo 2 / 1 / 0 by target type | drone = SISO DIS air category **50** (unmanned) ⇒ 1, else 2; 0 = refused by the gate | the standard's own field |
 | RS-5 *"200–500 m to cover"* | **350 m straight away from the last aircraft** at 8 m/s, given up after 90 s; ⏸ no cover search | the EQS cover query is a separate cost; filed with the B-6 report |
 | RS-3 chaff only in the end-game | the round's gate **and** the aircraft holding its chaff for it (`ChaffTooEarly`, from the warning's time to go) | a cloud dropped at the launch (where the aircraft dropped it) would always be wasted — the defeat rate would be ~0, not 20–40 % |
+| ⭐ RV-7's band, re-measured `2026-11-17` (air lane CE-10006, R-10031) | the seeded rail `CountermeasureSystemTests.CE4617_FourChaffInTheEndGame_*`: **105 of 300 = 35 %** defeated by four end-game chaff (band 20–40 %, analytic 1 − 0.9⁴ = 34 %) — unchanged by the air lane's R-10018 (chaff rejection 0.9 kept; only `MaxG` 30 → 38 and the lead on the round's current speed). ⚠ The SCENARIO cannot state a band: `sam-site`'s preview variants do not reseed (variants 1 and 2 identical) and its checks carry no hit rate ("a hit or a miss may vary"). 📐 Its radar-SAM rounds: 2 on a first load, 4 on a reload — **0 hit**, 5 ended `Defeated` (coasted below the minimum speed: the stand-off A-10 and the beam), 1 burst on the ground | the band belongs to the seeded rail (the design's own "seeded rail" wording); the scenario's rows stand unchanged |
 | RS-4 `AirSense.FireAt` | `FireControlSight.SeesForAnyMount` (eyes, or the radar when ANY own mount fires a radar-guided round); the executor still asks per mount | the node runs before the weapon brain picks the mount |
 | RS-6 / RV-8 the warning | `RadarWarningReceiverSystem` writes the aircraft's own `RadarWarning` (499, derived, not replicated) on its brain node from the replicated emissions — searched AND tracked (RV-8's event form REJECTED by R-4259's RS-10, as §2 says) | — |
 | RS-6 the escape | `AirAttackNodes`: tracked ⇒ off the bearing (half beam, half away), 10 m AGL for every attack profile, clears 8 s after the track, the pass not counted — the missile break's come-round shared (`ComeRound(countPass)`) | one come-round for both escapes |
