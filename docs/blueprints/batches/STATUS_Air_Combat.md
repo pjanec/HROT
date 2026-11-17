@@ -113,5 +113,5 @@ related-designs:
 | scenarios | `scripts/scenario-regression.sh` (artifacts `sr-hard`, `sr-cap`) | S1 5/5 (pre-R-10018 run) · S2/S3 feature 7/7 with goldens · demos as tabled above · `ua-air-attack` 9/9 golden SAME · `sam-site` 7/7 · `ua-air-strike` 11/11 | `ua-air-defence` 2/3 PRE-EXISTING (red on the base, S1 gates); `ua-air-strike`'s golden diff is "the golden predates the visible-state comparison (RT-3)" — every diff is `golden null` — PRE-EXISTING format staleness, NOT re-recorded here |
 | `sam-site` chaff band | — | ⏳ not re-measured: its checks carry no hit rate, and one seeded run cannot give a band | — |
 | rails NOT red-proven | the four new rails name the mutant that would redden them; it was not run | — | — |
-| `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` | see below | (filled when run) | — |
+| `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` | `python3 scripts/stepped-hash.py --threads 1,4,8 --scenario ac-dogfight-2v2` (Release runner) | ✅ **STATE EQUAL** at 1 / 4 / 8 threads (31 entities, 0 types differ) — ⚠ the script's default 6 × 20 steps cover only the first 2 s (before any shot); a longer `--chunk` run is the next session's | new |
 | ⛔ not run | the `--mode all` cluster run of `ac-dogfight-1v1`; `scripts/protocol-doc-check.py` (no wire change since S0) | — | — |
