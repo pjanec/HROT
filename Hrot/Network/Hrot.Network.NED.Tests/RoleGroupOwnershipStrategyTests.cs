@@ -56,7 +56,7 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtMineClearing),      // ⭐ CE-4624 MS-T4 — a clearer's tool marker (its brain) — the same
         D(EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state (its brain)
         D(EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
-        D(EDescriptorType.dtUnitHoldings),      // ⭐ CE-8001 — its holdings
+        D(EDescriptorType.dtUnitHoldings),    // ⭐ CE-8001 — its holdings
         D(EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order (its brain)
         D(EDescriptorType.dtAirArena) };        // ⭐ CE-10000 (AC-10) — the arena (its creator's brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),

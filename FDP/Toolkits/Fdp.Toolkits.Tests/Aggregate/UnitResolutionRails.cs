@@ -260,7 +260,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 h.MoveEnemy(500f);
                 for (int s = 0; s < 3; s++) { h.Step(); Assert.Equal(SplitStage.Planning, h.U.Splitting); }
                 ref var p = ref h.W.GetComponentRW<PlannedPosts>(h.Unit);
-                p.Posts[0].Point = new Vector3(11, 22, 3); p.Posts[1].Point = new Vector3(44, 55, 6); p.Count = 2; p.Ready = 1;
+                p.Set(0, new Vector3(11, 22, 3), default, PlannedPosts.PostedFlag); p.Set(1, new Vector3(44, 55, 6), default, PlannedPosts.PostedFlag); p.Count = 2; p.Ready = 1;
                 h.Step(); h.Step();
                 var at = new List<Vector3>();
                 foreach (var c in h.Children()) at.Add((Vector3)h.W.GetComponentRO<SimTransform>(c).Position);

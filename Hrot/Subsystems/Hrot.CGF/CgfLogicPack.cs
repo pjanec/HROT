@@ -288,6 +288,9 @@ namespace Hrot.CGF
             // ⭐ CE-8013 (ST-5 production wiring; §16b) — the resolution manager: a split's children are the TKB composite's slots
             //   (StochasticUnitFill.ChildType, the same leaves the fill keyed), held until the handover (EntityCreation's HeldChildParticipant),
             //   and leave through the node's lifecycle (lazy: the creation pack is built after this pack). The policy is agg-behaviors' seam.
+            // ⭐ CE-8303 (agg-behaviors D-P3 DP3-B, R-4286) — a splitting stochastic squad holding a Defend plans REAL posts (SquadDefend's own plan over
+            //   its slot table) into PlannedPosts, serially, BEFORE the manager, so the manager sees Ready in the same frame (DESIGN_DP3_Planned_Posts §5)
+            simList.Add(new Hrot.CGF.Systems.UnitPostPlanningSystem(gateOnAuthority));
             simList.Add(new Fdp.Toolkit.Aggregate.ResolutionManagerSystem(new Fdp.Toolkit.Aggregate.BusResolutionSwitch
             {
                 ChildType = static (repo, unit, slot) =>

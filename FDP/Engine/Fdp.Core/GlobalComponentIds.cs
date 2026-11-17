@@ -1395,9 +1395,9 @@ namespace Fdp.Core
         /// <summary><c>ResolutionPolicy</c> — the resolution manager's bands, timings and detail areas (§16b), an unmanaged World Environment
         /// component set by <c>SetResolutionPolicy</c>; saved with the scenario, recorded. ⭐ ST-5, R-8326.</summary>
         public const int ResolutionPolicy = 119;
-        /// <summary><c>PlannedPosts</c> — the posts a stochastic unit's planner chose for its split (13 × point, watch, flags; Count, Ready, Stage,
-        /// PlannedAt). Recorded, NoScenario, no wire descriptor (only the owning AI node writes and reads it) — DP3-C, R-4286 (agg-behaviors' id,
-        /// declared by agg-backend with the manager's wait, DESIGN_DP3_Planned_Posts §8 ②).</summary>
+        /// <summary><c>PlannedPosts</c> — a stochastic squad's REAL posts (window, roof, cover), planned during its split's Planning stage by SquadDefend's
+        /// own plan, read by the resolution manager's Materialise (D-P3, SV-5). Unmanaged, node-local (no wire descriptor), recorded, NoScenario.
+        /// ⭐ CE-8303, R-4286 (agg-behaviors' block).</summary>
         public const int PlannedPosts = 138;
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505

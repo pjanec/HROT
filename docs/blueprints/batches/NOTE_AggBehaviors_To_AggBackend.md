@@ -81,3 +81,48 @@ related-designs:
 | **F-23** | ⛔ the merge distance is INSIDE the split trigger with the default bands: trigger `d < PhysicalBand + LeadMetres` = 600 m (`UnitResolution.cs:227`), merge-eligible `d > PhysicalBand + MergeMargin` = 500 m (`:275`). An enemy standing anywhere between 500 and 600 m makes the unit split, merge after the quiet time, split again — forever | `zz`-probe (not committed): a physical squad standing 550 m off a stochastic platoon on berlin, default policy — Physical at 2.25 s, Stochastic 62.25 s, Physical 65.25 s, Stochastic 125.25 s, …, Stochastic 188.25 s (every ~63 s). Also seen in the first `agg-merge-back` draft (merged at 119 s, re-split at 122 s while the patrol walked through 500–600 m) | the merge test against band + lead + margin (the split's own trigger + the hysteresis), as the Planning cancel already does (`withdrawn`, `:229`) — ⭐ our scenarios set `mergeMargin: 250` by policy meanwhile (R-8336) |
 
 ⭐ Also measured (ours, not yours): a `ScenarioTime` trigger with `fromSeconds: 0` is armed at 0.27 s and never fires — the policy trigger of `agg-merge-back` uses 1 s.
+
+## `2026-11-17` — D-P3 approved (R-4286): what agg-behaviors needs from your manager (DP3-B)
+
+📄 The design: [`DESIGN_DP3_Planned_Posts.md`](../../designs/aggregate-units/DESIGN_DP3_Planned_Posts.md) §3–§5 (classes, sequence, modules), now READY-TO-BUILD;
+the coordinator's note `NOTE_Coordinator_To_AggBackend_Findings_Approved.md` assigns DP3-B to you.
+
+| we build (agg-behaviors) | you build (agg-backend, `UnitResolution.cs`) |
+|---|---|
+| `PlannedPosts` component **138** (unmanaged, recorded, `NoScenario`, no wire descriptor), declared in `Fdp.Toolkit.Aggregate` beside the slot table + registered in `HrotSharedComponentRegistry` — ⚠ we declare it, so your wait compiles against it once you merge us | `Planning` waits for `PlannedPosts.Ready` **or** `DeadlineSeconds` (10 s, already declared), then `Materialise` with the planned post per live slot first and `UnitSplits.FallbackPosts` for any slot without one |
+| `UnitPostPlanningSystem` (behaviors): steps SquadDefend's plan for a squad-sized unit in `Planning` holding a Defend order, writes `PlannedPosts` | forced splits (C-7) skip the wait, as today; a withdrawn trigger (back to Stochastic) clears `PlannedPosts` |
+| the slot order is the order `Materialise` walks the live slots (design §3, DP3-C) — ⚠ keep that walk stable, or tell us | a rail in `UnitResolutionRails`: posts Ready ⇒ men at the posts; no posts ⇒ the deadline ⇒ the fallback line; forced ⇒ no wait |
+
+⚠ Until your wait lands, our planner's posts are written but not consumed — the men still materialise on the fallback line. Expected goldens to move when
+it lands: `agg-split-on-contact`, `agg-squad-holds-house` (the split lands later; the house's men stand at windows/doors — we will re-judge that one).
+
+## `2026-11-17` — D-P3 our half BUILT (CE-8303): what your wait compiles against
+
+📄 [`DESIGN_DP3_Planned_Posts.md`](../../designs/aggregate-units/DESIGN_DP3_Planned_Posts.md) §9 (as built).
+
+| we built | for your wait (DP3-B) and `Materialise` (DP3-D ①) |
+|---|---|
+| `Fdp.Toolkit.Aggregate.PlannedPosts` (138; `Fdp.Toolkits/Aggregate/PlannedPosts.cs`, registered in `HrotSharedComponentRegistry`) — unmanaged, recorded, `NoScenario`, no descriptor | ⭐ wait in `Planning` until `repo.HasComponent<PlannedPosts>(unit) && GetComponentRO<PlannedPosts>(unit).Ready != 0`, or `now − SplittingSince ≥ DeadlineSeconds` |
+| entry `k` = the k-th LIVE slot (`UnitSlotTable.IsUp`, table order) — the walk `BusResolutionSwitch.Materialise` already does | ⭐ per live slot `k`: `planned.TryGet(k, out var post) ? post.Point : fallback[k]` (`TryGet` is false before Ready, past `Count`, or for a slot left without a post) ⚠ `TryGet` is not `readonly` (fixed buffers): copy the component to a local first |
+| `UnitPostPlanningSystem` (Hrot.CGF), registered in `CgfLogicPack` right BEFORE your manager, steps the plan every frame for a squad (`Echelon == 0`) in `Planning` whose current order is a Defend | nothing to wire. ⭐ It also CLEARS `PlannedPosts` when the unit is Stochastic and not splitting (your withdrawal, a merge) — your manager needs no clear |
+| ⚠ until your wait lands, Planning lasts one manager step (≤ 1 s): the plan rarely reaches Ready before `Materialise`, and nothing reads it — the posts are written but not consumed | the window ask + frame survey + coverage fan take 2–3 answers; each stage times out at 5 s, so a silent muscle gives Ready (no posts ⇒ fallback) in ~5 s, inside your 10 s deadline |
+| slice ① measured: in `--mode all` the unit (1000, `agg-squad-holds-house`) stands at its CGF position on SimHost-1 (the Perception node) — the asks have an origin | — |
+
+## `2026-11-17` (merging your R-4286 round `b0d53162e`) — ⚠ `PlannedPosts` was declared TWICE; unified on ours
+
+Both lanes declared `PlannedPosts` (138) at `FDP/Toolkits/Fdp.Toolkits/Aggregate/PlannedPosts.cs` (yours from `13f498aae`, which predates ours in
+`94ba2a698`). ⭐ Unified at our merge `6e4e3f1c0` on **agg-behaviors' struct** — our planner and rails write it:
+
+| | the one shape |
+|---|---|
+| layout | fixed `X/Y/Z`, `WatchX/Y/Z`, `Flags` × 13 + `Count`, `Ready`, `Stage`, `PlannedAt` — ⛔ your `PlannedPostArray` / `PlannedPostFlags` are gone |
+| read | `plan.TryGet(k, out PlannedPost post)` — false when not Ready, out of range, or the entry has no `PostedFlag` (that man keeps his fallback point) |
+| write | `plan.Set(k, point, watch, flags)` — `PlannedPosts.PostedFlag` must be set for a post to count |
+
+⭐ **Edited in your files (cross-lane, said):** `UnitResolution.cs` — the DP3-D ① loop reads `TryGet` (an unposted entry keeps the fallback, not `(0,0,0)`);
+`UnitResolutionRails.cs` — the DP3-B rail writes through `Set` with `PostedFlag`. The duplicate `RegisterComponent<PlannedPosts>` in
+`HrotSharedComponentRegistry` is dropped. ⇒ ⭐ merge `exp/agg-behaviors` at or after `6e4e3f1c0` before touching `PlannedPosts` again.
+
+⚠ **Two owners clear it on a withdrawal** — your manager removes the component; our planner sets it to default when a unit is back to
+`NotSplitting` with a stale stage (covers the MERGE path too, which your manager does not). Harmless together; if you would rather own both, say so and
+we drop ours.

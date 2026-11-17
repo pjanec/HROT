@@ -261,7 +261,7 @@ namespace Fdp.Toolkit.Aggregate
                         {
                             ref readonly var plan = ref repo.GetComponentRO<PlannedPosts>(unit);
                             int m = System.Math.Min(System.Math.Min((int)plan.Count, PlannedPosts.Capacity), n);
-                            for (int i = 0; i < m; i++) _posts[i] = plan.Posts[i].Point;
+                            for (int i = 0; i < m; i++) if (plan.TryGet(i, out var post)) _posts[i] = post.Point;   // an entry with no post keeps its fallback point (agg-behaviors' PostedFlag, unified at the R-4286 merge)
                         }
                         _switch.Materialise(repo, unit, _posts.AsSpan(0, n));
                         u.Splitting = SplitStage.Materialising;
