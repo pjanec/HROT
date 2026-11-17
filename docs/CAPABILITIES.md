@@ -212,7 +212,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   the saddle.
 - **Animal areas:** draw an area, say what lives there and how many, and the animals are placed when the run starts.
 - **Sounds that carry:** calls, alarm calls and barks are heard at their own ranges, and the soldiers' hearing picks them up.
-- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · ⏳ a cat jumping onto a sill
+- ▶ `farm-under-fire` ✅ (8 of 8 checks: a tank panics the herd, it flees, a cow breaks through the fence…) · feature scenarios (R-4277, `scripts/scenario-regression.sh <name>`): `ua-animal-guard-dog` ✅ 5/5 · `ua-animal-horse-rider` ✅ (⚠ the rider is ordered to fire — a firing-seat man never engages alone, CE-3454) · `ua-animal-flock-flush` ✅ 6/6 · `ua-animal-herd-road` ✅ 6/6 (⚠ the herd clears the road by fear; vehicles never yield to animals, CE-3457) · `ua-animal-village-fight` ✅ 5/5 · ⏳ a cat jumping onto a sill
 
 ## 4. Armed people, riots and police
 
@@ -252,7 +252,8 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
-  fire stops. ▶ `uf-alone-under-fire` ✅
+  fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
+- ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅
 - **Reflexes without orders:** a soldier with no task still reacts to fire by his type's standing orders (SOP); one stamped inert does
   not. A civilian ordered to stand still is frightened all the same. ▶ `df-lone-soldier-reflex` · `df-civilian-ordered`
 - **Grenade or rifle:** against a man behind sandbags, the grenadier closes in and lobs a grenade while the rifleman fires.
@@ -348,6 +349,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   fires while riding, and run three plays — a drive-by, a parked bomb on a timer, and a swarm raid from all sides. A **grey-zone dash** past
   drones: riders listen for them (riding dulls their hearing), break hard when one dives, and dismount at the edge.
   ⏳ no live demo yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
+  ▶ feature scenarios (R-4277): `ua-moto-drive-by` ✅ 6/6 · `ua-moto-drive-by-grenade` ✅ 6/6 · `ua-moto-parked-bomb` ✅ 9/9 (⚠ a road start can stall, CE-3452 — the play retries) · `ua-moto-swarm-raid` ⚠ 10/11 (the pillions never fire on their own, CE-3454) · ⏳ the grey-zone dash, no scenario yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
 - *(added `2026-11-17`)* **A vehicle checkpoint:** a squad mans it on an approach road — a stopper at the stop line, two searchers, a machine gun
   and the rest behind at a stand-off worked out from the expected bomb. It judges each vehicle by its TIME to the stand-off: a car that slows on the
   signal is routine; one that ignores it is a threat and is laddered — a warning shot, disabling fire at the engine, then lethal fire, skipping a rung
@@ -502,7 +504,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | what you can do | Edit | Live | Review | status |
 |---|:-:|:-:|:-:|---|
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
-| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ · ⚠ a weighted-mean root objective never aggregates its children (`sr-objectives-march`, CE-3460) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
 | Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |

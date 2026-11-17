@@ -401,17 +401,25 @@ namespace Fdp.Toolkit.Behavior
             ref var buffer = ref repo.GetComponentRW<PassengerBuffer>(vehicle);
             int left = 0;
             int aboardCount = buffer.Count;
+            // ⭐ CE-3459 (feature scenario ua-moto-parked-bomb; DESIGN_Motorcycle §9 IM-2 "ride → park → leave") — "everyone out" is the PEOPLE:
+            //   a STOWED cargo station's load (the charge in the pannier, a car's boot, CE-3233 ST-9) stays aboard. ⛔ Before, the charge was set
+            //   down beside the bike with the bike's velocity and drifted ~270 m before it burst.
+            bool stations = Has<CarrierStations>(repo, vehicle);
+            var st = stations ? repo.GetComponentRO<CarrierStations>(vehicle) : default;
+            int kept = 0;
+            uint keptModes = 0;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)   // ⭐ CE-2151 B-b — every seat (seats may be empty mid-list)
             {
                 var passenger = buffer.Passengers[i];
                 if (passenger.IsNull) continue;
+                if (stations && st.IsStowed(i) && repo.IsAlive(passenger)) { kept++; keptModes |= buffer.Modes & (0b11u << (2 * i)); continue; }
                 buffer.Passengers[i] = Entity.Null;
                 if (!repo.IsAlive(passenger)) continue;   // killed aboard — skipped, not an error
                 Leave(repo, passenger, LeavePoint(repo, vehicle, passenger, i, aboardCount));
                 left++;
             }
-            buffer.Count = 0;
-            buffer.Modes = 0;
+            buffer.Count = kept;
+            buffer.Modes = keptModes;
             DropAssistant(repo, vehicle);   // ⭐ T-a (T6) — the load put down, the link dropped
             ReleaseCarrier(repo, vehicle);
             return left;
@@ -610,7 +618,13 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public static void Leave(EntityRepository repo, Entity passenger, Vector3 at)
         {
-            if (Has<SimTransform>(repo, passenger) && OwnsPosition(repo, passenger)) repo.GetComponentRW<SimTransform>(passenger).Position = at;
+            if (Has<SimTransform>(repo, passenger) && OwnsPosition(repo, passenger))
+            {
+                repo.GetComponentRW<SimTransform>(passenger).Position = at;
+                // ⭐ CE-3459 — aboard, EmbarkedStateSystem copied the CARRIER's velocity in; set down, it stands. ⛔ Before, a thing with no mover
+                //   of its own (a charge) kept the bike's 4 m/s and LinearKinematicsSystem integrated it for good (measured: ~270 m in 70 s).
+                if (Has<SimVelocity>(repo, passenger)) repo.GetComponentRW<SimVelocity>(passenger) = default;
+            }
             if (Has<ActorCapabilityState>(repo, passenger) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, passenger))
                 repo.GetComponentRW<ActorCapabilityState>(passenger).Capabilities |= StrippedAboard;
             if (Has<IsEmbarkedTag>(repo, passenger)) repo.RemoveComponent<IsEmbarkedTag>(passenger);

@@ -1,0 +1,136 @@
+# ⭐ RT-8 (R-4279; docs/DESIGN_Scenario_Regression.md §11) — the two-tier scenario regression on GitHub's runners.
+#
+#   build           ONE build of the runner; its output shared with every job as an artifact
+#   list            the scenarios that carry a checks.json (or the ones named on a manual run)
+#   editor-tier     one job per scenario: the deterministic editor run (checks + the visible golden as a WARNING)
+#   cluster-tier    one job per scenario: a fresh --mode all cluster, judged over HTTP in sim time, + replication sanity
+#
+# Each job is its own red / green in the Actions view, with junit.xml and the logs as its artifact. Nightly and manual.
+# scripts/scenario-regression.sh runs exactly the same locally (TIER=cluster for the cluster tier).
+name: scenario-regression
+
+on:
+  schedule:
+    - cron: "17 2 * * *"          # nightly, 02:17 UTC
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: "scenarios to verify (a,b,c or all)"
+        default: "all"
+      tiers:
+        description: "editor, cluster or both"
+        default: "both"
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  RUNNER_BIN: Hrot/Runner/Hrot.ClusterRunner/bin/Debug/net8.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: the runner this machine has (RT-8 measure)
+        run: |
+          { echo "### build runner"; echo '```'; nproc; free -m; df -h . | tail -1; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: build the ClusterRunner (restore first — a merge may add a package)
+        run: |
+          dotnet restore Hrot/Runner/Hrot.ClusterRunner
+          dotnet build Hrot/Runner/Hrot.ClusterRunner --no-restore -c Debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runner-bin
+          path: ${{ env.RUNNER_BIN }}
+          retention-days: 3
+
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      scenarios: ${{ steps.list.outputs.scenarios }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          want="${{ github.event.inputs.scenarios || 'all' }}"
+          if [ "$want" = "all" ]; then
+            # CE-4360 — scenarios are filed in category sub-folders: the leaf folder is the scenario's name
+            names=$(find scenarios -name checks.json -not -path '*/.*' | xargs -n1 dirname | xargs -n1 basename | sort)
+          else
+            names=$(echo "$want" | tr ',' '\n')
+          fi
+          echo "scenarios=$(echo "$names" | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+
+  editor-tier:
+    needs: [build, list]
+    if: ${{ github.event.inputs.tiers != 'cluster' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75           # above the runner's --verify-timeout default (60 min)
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        scenario: ${{ fromJson(needs.list.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/download-artifact@v4
+        with:
+          name: runner-bin
+          path: ${{ env.RUNNER_BIN }}
+      - name: verify ${{ matrix.scenario }} (editor tier)
+        run: NO_BUILD=1 OUT=out scripts/scenario-regression.sh "${{ matrix.scenario }}"
+      - if: always()
+        name: junit to the summary
+        run: python3 scripts/junit-summary.py out/junit.xml >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editor-${{ matrix.scenario }}
+          path: out/
+
+  cluster-tier:
+    needs: [build, list]
+    if: ${{ github.event.inputs.tiers != 'editor' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        scenario: ${{ fromJson(needs.list.outputs.scenarios) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Xvfb and a software GL driver (a --mode all cluster opens its windows' contexts)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libglx-mesa0 libglu1-mesa
+      - name: the runner this machine has (RT-8 measure)
+        run: |
+          { echo "### cluster runner"; echo '```'; nproc; free -m; ip -br addr | head -5; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/download-artifact@v4
+        with:
+          name: runner-bin
+          path: ${{ env.RUNNER_BIN }}
+      - name: verify ${{ matrix.scenario }} (cluster tier)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          GALLIUM_DRIVER: llvmpipe
+        run: TIER=cluster NO_BUILD=1 OUT=out scripts/scenario-regression.sh "${{ matrix.scenario }}"
+      - if: always()
+        name: junit to the summary
+        run: python3 scripts/junit-summary.py out/junit.xml >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-${{ matrix.scenario }}
+          path: out/

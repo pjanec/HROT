@@ -1,0 +1,44 @@
+{
+  "$doc": "docs/designs/group-maneuvers/DESIGN_Command_Chain_Battalion_Test.md (CE-4615) \u2014 cc-battalion-stall: Blue's tempo against a stronger line. A DEMO of many systems (\u00a75): conditions only, no golden. Rows: Blue Company's trigger fires and orders CompanyAttack at 30 s; Red Company defends; both sides fire. \u26a0 Left out \u2014 the Judge itself: 'each arrow found in /squad/reports and the order journal IN ORDER and CAUSED by the one before' (fires asked, a block LOST, Red goes RED, a REQUEST Reinforce, the battalion's reserve, the tempo marks): squad reports and the order journal are not in the entity dump (\u00a79 'a squad's report log'), so the chain is still judged by scripts/utility-demo-check.py --launch cc-battalion-stall. A run of 90 s of the 15-minute scenario (a 300 s run took 30+ min of wall time). 'The outpost withdraws' trigger is NOT asserted: it fires at 1 s (before any contact), which reads as a defect in its OnEntity predicate (State Equals 2 on the PL objectives), left to triage.",
+  "runFor": 90,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Blue Company's attack trigger fires at 30 s",
+      "on": "field",
+      "who": "Blue Company attacks",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": 29,
+      "before": 36
+    },
+    {
+      "name": "Blue Company runs CompanyAttack",
+      "on": "task",
+      "who": "Blue Company",
+      "is": "CompanyAttack",
+      "after": 29,
+      "before": 60
+    },
+    {
+      "name": "Red Company holds CompanyDefend",
+      "on": "task",
+      "who": "Red Company",
+      "is": "CompanyDefend",
+      "before": 60
+    },
+    {
+      "name": "Blue fires on Red",
+      "on": "shot",
+      "by": "*Blue ",
+      "before": 90
+    },
+    {
+      "name": "Red fires on Blue",
+      "on": "shot",
+      "by": "*Red ",
+      "before": 90
+    }
+  ]
+}

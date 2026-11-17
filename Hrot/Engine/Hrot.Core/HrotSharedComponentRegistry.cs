@@ -217,6 +217,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
+        // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
+        //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in
+        //   production (its rails register it by hand), so a parked bomb never went off.
+        world.RegisterComponent<Fdp.Toolkit.Combat.ChargeTimer>();
         world.RegisterComponent<Fdp.Toolkit.Weather.ScenarioClock>();   // ⭐ CE-3216 S1-0 — the World Environment's clock, on every node
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();   // ⭐ rules S1-a — an objective's status, on every node (dtObjectiveStatus)
         world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();    // ⭐ rules S1-a — an objective's subject / parent, on every node

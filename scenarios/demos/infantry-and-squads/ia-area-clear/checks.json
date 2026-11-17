@@ -1,0 +1,47 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_104_Area_And_Building_Combat.md \u00a74 K (CE-2371) \u2014 ia-area-clear, the scenario's Judge list: (1) both houses are entered (within 7 m of House A (105.75,104.25) / House B (155.75,105.5)); (2) both defenders are down at the end. \u26a0 Left out: '\u2026 or the team is still clearing' (not a state) and (3) 'no house left once entered with a live known enemy in it' (not a cue).",
+  "runFor": 420,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) House A is entered",
+      "on": "near",
+      "who": "*Blue ",
+      "point": [
+        105.75,
+        104.25
+      ],
+      "within": 7
+    },
+    {
+      "name": "(1) House B is entered",
+      "on": "near",
+      "who": "*Blue ",
+      "point": [
+        155.75,
+        105.5
+      ],
+      "within": 7
+    },
+    {
+      "name": "(2) Red 1 is down at the end",
+      "on": "field",
+      "who": "Red 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "(2) Red 2 is down at the end",
+      "on": "field",
+      "who": "Red 2",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

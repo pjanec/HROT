@@ -1,0 +1,55 @@
+{
+  "$doc": "docs/DESIGN_Temperament_And_Stress.md \u00a76 (CE-2272) \u2014 ts-house-defenders, the scenario's Judge list: (1) the Coward breaks (to ground or away); (2) the Waverer, once broken with a rifle on him, surrenders; (3) the Fanatic never breaks or surrenders and fires on the squad. \u26a0 Left out: (4) the printed figures.",
+  "runFor": 240,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) the Coward breaks",
+      "on": "field",
+      "who": "Coward",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(2) the Waverer breaks",
+      "on": "field",
+      "who": "Waverer",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(2) the Waverer surrenders",
+      "on": "task",
+      "who": "Waverer",
+      "is": "Surrender",
+      "after": "(2) the Waverer breaks"
+    },
+    {
+      "name": "(3) the Fanatic never breaks",
+      "never": {
+        "on": "field",
+        "who": "Fanatic",
+        "path": "Stress.Broken",
+        "op": "==",
+        "value": 1
+      }
+    },
+    {
+      "name": "(3) the Fanatic never surrenders",
+      "never": {
+        "on": "task",
+        "who": "Fanatic",
+        "is": "Surrender"
+      }
+    },
+    {
+      "name": "(3) the Fanatic fires on the squad",
+      "on": "shot",
+      "by": "Fanatic"
+    }
+  ]
+}

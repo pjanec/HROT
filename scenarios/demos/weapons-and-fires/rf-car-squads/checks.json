@@ -1,0 +1,42 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2355 S2) \u2014 rf-car-squads, the scenario's Judge list. (1) a base of fire holds while others move: a mover (Blue 3, who starts at x 277) leaves the line to x > 310 while Blue 1 holds his post (within 4 m of (249,358)) at the same time; both sides fire. \u26a0 Left out: (2) '70 % of the movers' sampled path out of every enemy's sight' and (3) 'the moving side ends within 15 m of an enemy flank, or the other side breaks off' (a sampled path / a moving flank are not cues). The squads carry no SquadDrillTrace here (the default SOP, no drill component), so the drill cue cannot say 'base of fire'.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) a mover (Blue 3) leaves the line to the east flank",
+      "on": "field",
+      "who": "Blue 3",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 310,
+      "before": 90
+    },
+    {
+      "name": "(1) the base of fire holds its post while the mover is away",
+      "on": "near",
+      "who": "Blue 1",
+      "point": [
+        249,
+        358
+      ],
+      "within": 4,
+      "after": 40,
+      "before": 90
+    },
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "*Blue ",
+      "before": 120
+    },
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "*Red ",
+      "before": 120
+    }
+  ]
+}
