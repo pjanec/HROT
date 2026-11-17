@@ -1,0 +1,37 @@
+{
+  "$doc": "CE-4650 NA-5 - the archer ambush, one row per Judge line.",
+  "runFor": 60,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "an arrow hits the patrol",
+      "on": "shot",
+      "by": "*Ambusher",
+      "hit": "*Patrol"
+    },
+    {
+      "name": "the ambushers shoot at least three arrows",
+      "on": "shot",
+      "by": "*Ambusher",
+      "n": 3
+    },
+    {
+      "name": "at least two patrol soldiers are killed",
+      "on": "field",
+      "who": "*Patrol",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 0,
+      "quantifier": "atLeast:2"
+    },
+    {
+      "name": "the patrol never fires - no gunshot was made, no archer was seen",
+      "never": {
+        "on": "shot",
+        "by": "*Patrol"
+      }
+    }
+  ]
+}

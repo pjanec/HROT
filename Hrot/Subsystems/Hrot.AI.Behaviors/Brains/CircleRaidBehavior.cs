@@ -45,7 +45,7 @@ namespace Hrot.AI.Behaviors.Brains
         [StructLayout(LayoutKind.Sequential)]
         public unsafe struct CircleRaidState
         {
-            public byte Phase, Ordered, Shooting;
+            public byte Phase, Ordered, Shooting, Count;
             public SimInstant Since, NextLeg;
             /// <summary>Per mount: the rider's health when last seen, and the sim second a break-off ends (0 = on the circle).</summary>
             public fixed float Hp[MaxMounts];
@@ -98,6 +98,7 @@ namespace Hrot.AI.Behaviors.Brains
             int n = Math.Min(roster.Count, MaxMounts);
             if (n == 0) return NodeStatus.Failure;
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : world.SimulationTime;
+            if (s.Ordered != 0 && s.Phase == Approach && n != s.Count) s.Ordered = 0;   // the roster is still filling as the mounts register: order the late ones too
             if (s.Ordered == 0)
             {
                 for (int i = 0; i < n; i++)
@@ -107,7 +108,7 @@ namespace Hrot.AI.Behaviors.Brains
                     var to = s.Phase == Approach ? RingPoint(in p, i, BearingOf(in p, i, n, 0f)) : p.Rally;
                     CommandOrders.Assign(world, self, mount, BehaviorNames.MoveToLocation, MoveJson(to, p.Speed), newOrder: true);
                 }
-                s.Ordered = 1; s.Since = (SimInstant)now; s.NextLeg = (SimInstant)(now + LegSeconds);
+                s.Ordered = 1; s.Count = (byte)n; s.Since = (SimInstant)now; s.NextLeg = (SimInstant)(now + LegSeconds);
                 return NodeStatus.Running;
             }
             double held = now - (double)s.Since;
@@ -126,9 +127,9 @@ namespace Hrot.AI.Behaviors.Brains
                         if (hp >= 0f && hp < s.Hp[i] - 0.5f) { s.BreakUntil[i] = (float)(now + (double)p.Breakoff); }   // hit: he breaks off
                         if (hp >= 0f) s.Hp[i] = hp;
                         if (s.BreakUntil[i] > now)
-                            CommandOrders.Assign(world, self, mount, BehaviorNames.MoveToLocation, MoveJson(p.Rally, p.Speed));
+                            CommandOrders.Assign(world, self, mount, BehaviorNames.MoveToLocation, MoveJson(p.Rally, p.Speed), newOrder: true);
                         else
-                            CommandOrders.Assign(world, self, mount, BehaviorNames.MoveToLocation, MoveJson(RingPoint(in p, i, BearingOf(in p, i, n, t + LegSeconds)), p.Speed));
+                            CommandOrders.Assign(world, self, mount, BehaviorNames.MoveToLocation, MoveJson(RingPoint(in p, i, BearingOf(in p, i, n, t + LegSeconds)), p.Speed), newOrder: true);
                     }
                 }
                 if (held < (double)p.Circle) return NodeStatus.Running;
