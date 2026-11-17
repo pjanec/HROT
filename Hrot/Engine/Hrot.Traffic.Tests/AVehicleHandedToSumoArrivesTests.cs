@@ -15,15 +15,19 @@ public sealed class AVehicleHandedToSumoArrivesTests
 {
     private const int Body = 9001;
 
-    [Fact]
-    public void TheShadow_DrivesToTheDestination_AndVanishesThere()
+    /// <summary>⭐ <c>CE-9000</c> — the convoy's escort (priority: the blue-light twin, SumoSharp H17) is driven to its destination exactly like an
+    /// ordinary shadow. 🔴 Red-proof: a priority spawn refused (e.g. the twin's type unknown) ⇒ "never drove" ⇒ red.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheShadow_DrivesToTheDestination_AndVanishesThere(bool priority)
     {
         var cache = Load(out var world);
         using var _ = world;
         using var session = Session(cache);
         var (start, heading, dest) = ARouteACarDrove(session, cache);
 
-        session.SetHandovers(new[] { Handover(cache, start, heading, dest, intent: 1) });
+        session.SetHandovers(new[] { Handover(cache, start, heading, dest, intent: 1) with { Priority = priority } });
         bool seen = false;
         Vector2 last = default;
         double end = session.Time + 200.0;
@@ -38,6 +42,36 @@ public sealed class AVehicleHandedToSumoArrivesTests
         Assert.True(Vector2.Distance(last, dest) < TrafficShadowFollowSystem.ArrivalSlackMetres,
             $"the shadow was last seen {Vector2.Distance(last, dest):0.0} m from the destination");
         Assert.Contains(Body, session.Shadows);   // arrived for this intent: not respawned while the intent stands
+    }
+
+    /// <summary>⭐ <c>CE-9000</c> (C-6) — a stretched convoy's escort is slowed through its shadow's top speed (H17 <c>SetExternalVehicleMaxSpeed</c>) and
+    /// freed again when the cap goes. 🔴 Red-proof: the session never applying <c>MaxSpeed</c> ⇒ the capped window drives at full speed ⇒ red.</summary>
+    [Fact]
+    public void AStretchedConvoysEscort_IsCappedThroughItsShadow_AndFreedAgain()
+    {
+        var cache = Load(out var world);
+        using var _ = world;
+        using var session = Session(cache);
+        var (start, heading, dest) = ARouteACarDrove(session, cache);
+        var h = Handover(cache, start, heading, dest, intent: 1) with { Priority = true };
+
+        session.SetHandovers(new[] { h });
+        session.StepTo(session.Time + 4.0);
+        session.SetHandovers(new[] { h with { MaxSpeed = 1.5 } });
+        session.StepTo(session.Time + 4.0);   // braking down to the cap
+        var a = Shadow(session, cache); Assert.NotNull(a);
+        session.StepTo(session.Time + 4.0);
+        var b = Shadow(session, cache); Assert.NotNull(b);
+        float capped = Vector2.Distance(new(a!.Value.X, a.Value.Y), new(b!.Value.X, b.Value.Y)) / 4f;
+
+        session.SetHandovers(new[] { h with { MaxSpeed = null } });
+        session.StepTo(session.Time + 8.0);
+        var c = Shadow(session, cache);
+        session.StepTo(session.Time + 4.0);
+        var d = Shadow(session, cache);
+        float freed = c is { } cc && d is { } dd ? Vector2.Distance(new(cc.X, cc.Y), new(dd.X, dd.Y)) / 4f : float.MaxValue;   // arrived ⇒ it drove on
+        Assert.True(capped <= 1.5f + 0.2f, $"capped at 1.5 m/s, it drove {capped:0.00} m/s");
+        Assert.True(freed > capped + 1f, $"freed, it still drove {freed:0.00} m/s");
     }
 
     [Fact]

@@ -146,6 +146,44 @@ public sealed class ScenarioChecksTests
         foreach (var v in book.Verdicts()) Assert.True(v.Ok, v.Name + " should hold on the dumped components");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-9009</c> (the convoy's "no cutting in", R-4277) — <c>between</c>: a unit IN the corridor between two others holds (a car in the convoy's
+    /// gap); a unit beside it — the next lane — does not, nor one past either end; it needs who, from, to and m. And <c>far</c> / <c>close</c> now hold on
+    /// DUMPED positions too (the cluster tier) — before, they read only a live repository and never held there. 🔴 Red-proofs: <c>BetweenHolds</c> ignoring
+    /// the lateral limit ⇒ the next-lane row holds ⇒ red; <c>DistanceHolds</c> back on a live repository only ⇒ the close row fails ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE9009_Between_HoldsForAUnitInTheGap_NotBesideIt_AndCloseHoldsOnDumpedPositions()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"a car cut in","on":"between","who":"*SUMO ","from":"Escort 1","to":"Escort 2","m":1.6},
+              {"name":"a car in the next lane is not in the gap","never":{"on":"between","who":"SUMO beside","from":"Escort 1","to":"Escort 2","m":1.6}},
+              {"name":"a car past the column is not in the gap","never":{"on":"between","who":"SUMO ahead","from":"Escort 1","to":"Escort 2","m":1.6}},
+              {"name":"close on dumped positions","on":"close","who":"Escort 2","from":"Escort 1","m":16}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        void At(string name, int id, double x, double y)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject { ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) } };
+        }
+        At("Escort 1", 1, 100, 0); At("Escort 2", 2, 85, 0);   // a 15 m gap on y 0
+        At("SUMO in gap", 3, 92.5, 0.4);                      // in the gap
+        At("SUMO beside", 4, 92.5, 3.2);                      // the next lane
+        At("SUMO ahead", 5, 120, 0);                          // past the lead
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        foreach (var v in book.Verdicts()) Assert.True(v.Ok, v.Name + " should hold");
+
+        Parse("""{"runFor":5,"expect":[{"name":"x","on":"between","who":"*SUMO ","from":"Escort 1","m":1.6}]}""", out var noTo);
+        Assert.Contains(noTo, p => p.Contains("needs from and to"));
+        Parse("""{"runFor":5,"expect":[{"name":"x","on":"near","who":"Escort 1","point":[0,0],"to":"Escort 2"}]}""", out var stray);
+        Assert.Contains(stray, p => p.Contains("belong to a between cue"));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);

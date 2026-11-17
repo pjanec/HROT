@@ -199,6 +199,11 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Map.Common.Replication.Ingress.EntityAnimalStateIngressTranslator(participant, entityMap);
             yield return new Hrot.Map.Common.Replication.Egress.EntityFlockStateEgressTranslator(participant);
             yield return new Hrot.Map.Common.Replication.Ingress.EntityFlockStateIngressTranslator(participant, entityMap);
+            // ⭐ CE-9007 (DESIGN_Road_Convoy C-8) — a road column: the brain node's formation components out, every other node (the kinematic owner, the traffic node) in.
+            yield return new Hrot.Map.Common.Replication.Egress.EntityFormationControllerEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityFormationControllerIngressTranslator(participant, entityMap);
+            yield return new Hrot.Map.Common.Replication.Egress.EntityFormationFollowerEgressTranslator(participant);
+            yield return new Hrot.Map.Common.Replication.Ingress.EntityFormationFollowerIngressTranslator(participant, entityMap);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.MeleeStrikeIngressTranslator(participant, entityMap, localNodeId);
             // ⭐⭐ CE-3246 (BS-1 §6.4a, R-3015) — a hit reaches the victim's Health owner from ANY node: the egress sends only the hits this

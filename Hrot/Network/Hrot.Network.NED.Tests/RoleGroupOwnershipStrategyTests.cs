@@ -51,7 +51,9 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtBladeCut),          // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker (pinned here at CE-4623: it was missing, the rail was red)
         D(EDescriptorType.dtRadarEmission),     // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (pinned here at CE-4623: it was missing)
         D(EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state (its brain)
-        D(EDescriptorType.dtFlockState),        // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
+        D(EDescriptorType.dtFlockState),       // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
+        D(EDescriptorType.dtFormationController),   // ⭐ CE-9007 — a road column's lead (the convoy behaviour, its brain)
+        D(EDescriptorType.dtFormationFollower),   // ⭐ CE-9007 — a road column's explicit-leader slot (its brain)
         D(EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order (its brain)
         D(EDescriptorType.dtAirArena) };        // ⭐ CE-10000 (AC-10) — the arena (its creator's brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),

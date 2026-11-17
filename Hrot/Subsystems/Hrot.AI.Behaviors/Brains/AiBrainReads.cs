@@ -48,6 +48,7 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.HostileAct>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.Custody>();
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ CE-9010 — a convoy lead asks whether SUMO traffic runs (nobody writes it in the phase)
         }
     }
 }

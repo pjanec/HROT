@@ -226,6 +226,11 @@ namespace Hrot.NED.Descriptors
         dtFighterPilotState           = 217,
         dtAirArena                    = 218,
         // ⭐ R-4282 / CE-4631 — the `convoy` lane's block: 198–200 + three from 207 up (⛔ 201–206 are the TIME translators', NOTE_Coordinator_To_Convoy_Ordinals; 216–219 air); 196 dtRamOrder and 197 are the checkpoint's.
+        // ⭐ CE-9007 (R-9007 / R-9012; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md C-8) — a road column's formation, the Brain group (the convoy behaviour
+        //   writes both) → every node: the lead's FormationController, a follower's EXPLICIT-leader slot (a commander-led slot is derived on every node by
+        //   UnitHierarchySystem from the replicated assign events, so it is not sent). 198–199 measured free on every lane 2026-11-17.
+        dtFormationController         = 198,
+        dtFormationFollower           = 199,
         // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
         //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
         // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).

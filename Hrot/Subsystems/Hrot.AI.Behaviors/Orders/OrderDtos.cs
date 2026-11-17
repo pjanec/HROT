@@ -38,6 +38,52 @@ namespace Hrot.AI.Behaviors.Orders
     }
 
     /// <summary>
+    /// ⭐ <c>CE-9004</c> (C-9, R-9008; 📄 docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — the CONVOY order, given to EACH vehicle of the column: the lead
+    /// (<see cref="Rank"/> 0, no <see cref="Lead"/>) drives to <see cref="Destination"/> — in SUMO traffic (<see cref="Mode"/> <c>Traffic</c>, with its beacon when
+    /// <see cref="Priority"/>) or on our own route (<c>Route</c>, the outer lane); every other vehicle drives the lead's path at <see cref="Gap"/> behind the one
+    /// ahead of it. Flat JSON, e.g. <c>{"Destination":[600,40,0],"Lead":"@escort","Rank":2,"Mode":"Route"}</c>.
+    /// </summary>
+    [Order(nameof(OrderKind.Convoy), Gesture = OrderGesture.GroundClick)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ConvoyOrder
+    {
+        /// <summary>Where the column goes (the lead's destination; the followers stop with the lead).</summary>
+        [Required]
+        [JsonPropertyName("Destination")]
+        public Fdp.Toolkit.Replication.PointLink Destination;
+
+        /// <summary>The column's lead; none ⇒ this vehicle leads.</summary>
+        [JsonPropertyName("Lead")]
+        public Fdp.Toolkit.Replication.EntityLink Lead;
+
+        /// <summary>The place in the column: 0 = the lead, 1 = right behind it …</summary>
+        [JsonPropertyName("Rank")]
+        public int Rank;
+
+        /// <summary>Centre-to-centre spacing along the lead's path (m); 0 = 15 m.</summary>
+        [JsonPropertyName("Gap")]
+        public float Gap;
+
+        /// <summary>How the lead drives: <c>Auto</c> · <c>Traffic</c> (handed to SUMO) · <c>Route</c> (our own route).</summary>
+        [JsonPropertyName("Mode")]
+        public CarKinem.Convoy.ConvoyMode Mode;
+
+        /// <summary>The lead's beacon and siren (in SUMO traffic: a priority vehicle).</summary>
+        [JsonPropertyName("Priority")]
+        public bool Priority;
+
+        /// <summary>The lead's speed (m/s); 0 = 10 m/s.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+
+        /// <summary>⭐ <c>CE-9012</c> — an authored ROUTE the lead follows (as <c>FollowRoute</c> does) instead of routing to <see cref="Destination"/> itself;
+        /// none ⇒ the lead routes. With a route the lead drives our own path (the route), whatever <see cref="Mode"/> says. A platoon's convoy sends it.</summary>
+        [JsonPropertyName("Route")]
+        [Fdp.Toolkit.Behavior.Attributes.MapPickableEntity("road_graphs")]
+        public Fdp.Toolkit.Replication.EntityLink Route;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2140</c> — the ATTACK order: close in on <see cref="Target"/> and fight it until it is out of the fight. ⚠ ROE still
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
     /// </summary>

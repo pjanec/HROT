@@ -153,6 +153,7 @@ namespace Fdp.Toolkit.Navigation
             // ⭐ CE-1034 H5c (TH-J, TH-L) — every road point at the road's own height, by the rule the car drives by; no navmesh
             var world = World;
             var roadsCopy = roads;
+            _router.KeepLane = q.RoadUse == RoadUse.StronglyPrefer;   // ⭐ CE-9003 (C-7) — a convoy drives its lane
             _router.EmitLeg(roads, _points, (seg, along, p) => RoadHeights.At(roadsCopy, seg, along, p, world));
             PadTraversals();
             // egress leg

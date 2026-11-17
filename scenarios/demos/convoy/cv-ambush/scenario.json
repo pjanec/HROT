@@ -1,0 +1,206 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, three IFVs ('Escort 1'..'Escort 3', TKB 101 — a type with sensors: an APC 2001 has no TargetMemory, so it never feels a hit, CE-1056; each with the BasicVehicleSop) drive north up Avenue E (x 652) as a road convoy (ConvoyOrder, Mode Route, 8 m/s, 15 m gaps) from (652, 90) toward (652, 420). An 'IED' lies at (652, 200); the 'Trigger man' (Neutral, covert, TriggerIed) at (641, 170) fires it when a vehicle is within 10 m. Nothing faked. The user's rule: the convoy ACTS when attacked — the same vehicles, nothing re-created. Judge: (1) the lead runs PlatformConvoy; (2) the charge goes off only with the lead at it; (3) it hits the lead; (4) the hit lead reacts by its SOP (VehicleFightFromCover — nothing to fight, so it ends) and drives on under its order; (5) the whole column leaves the kill zone together (the tail 100 m past the charge), never split; (6) the lead arrives. Fail: the column parks in the kill zone, splits, or a vehicle is re-created. Check: scripts/scenario-regression.sh cv-ambush"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000031": {
+      "SimTransform": {
+        "Position": [
+          652,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Escort 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            652,
+            420,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000032": {
+      "SimTransform": {
+        "Position": [
+          652,
+          75,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Escort 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            652,
+            420,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000031"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000033": {
+      "SimTransform": {
+        "Position": [
+          652,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.70710678,
+          0.70710678
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Escort 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            652,
+            420,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Route",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000031"
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000038": {
+      "SimTransform": {
+        "Position": [
+          652,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 618
+      },
+      "EntityInfo": {
+        "Name": "IED",
+        "ForceId": "Neutral"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000039": {
+      "SimTransform": {
+        "Position": [
+          641,
+          170,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Trigger man",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "TriggerIed",
+        "Params": {
+          "Charge": "c0900000-0000-4000-8000-000000000038",
+          "KillZoneMetres": 10
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

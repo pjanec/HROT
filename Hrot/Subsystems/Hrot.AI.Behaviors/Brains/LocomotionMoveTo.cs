@@ -91,7 +91,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// command instance (the dispatcher's <c>MoveStarted</c> entry reads it). ⚠ Not on <c>MoveToParams</c> — that struct is full.</remarks>
         public static unsafe bool Issue(EntityRepository world, Entity self, Vector3 destination, float speed, float arrivalRadius,
                                         MoveGait gait = MoveGait.Tactical, bool reverseAllowed = false, bool onSurface = false,
-                                        MoveSource source = MoveSource.SourceUnknown)
+                                        MoveSource source = MoveSource.SourceUnknown, RoadUse roadUse = RoadUse.Unspecified)
         {
             if (!world.HasComponent<LocomotionChannel>(self)) return false;
             if (TacticalGait.StanceFor(world, self, gait) is StanceId stance)
@@ -113,7 +113,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ArrivalRadius  = arrivalRadius,
                 Speed          = speed,
                 ReverseAllowed = reverseAllowed ? (byte)1 : (byte)0,
-                Flags          = onSurface ? NavigationConstants.FlagDestinationOnSurface : (byte)0,
+                // ⭐ CE-9004 — the road use rides the flag bits (a convoy's lead: StronglyPrefer on our route, InTraffic(Priority) to SUMO)
+                Flags          = NavigationConstants.WithRoadUse(onSurface ? NavigationConstants.FlagDestinationOnSurface : (byte)0, roadUse),
             };
             fixed (byte* dst = channel.Params)
             {

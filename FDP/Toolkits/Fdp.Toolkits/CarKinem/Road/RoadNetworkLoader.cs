@@ -98,7 +98,9 @@ namespace CarKinem.Road
                 height = 100;
             }
             
-            return builder.Build(cellSize, width, height);
+            var blob = builder.Build(cellSize, width, height);
+            blob.LinesAreCentres = roadData.LinesAreCentres;   // ⭐ CE-9003 (C-7)
+            return blob;
         }
     }
 }

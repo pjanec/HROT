@@ -360,6 +360,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - *(added `2026-11-17`)* **Vehicles hurt the people they hit,** by speed and weight; a ramming car does not swerve for its target, and its ram is a
   lethal act once it is in its last 50 m, where it drives the straight line — through a weak barrier, not round it. ▶ `cp-ram-barrier` ✅ (through four barrels, then fired on)
 
+- 🚧 *(added `2026-11-17`)* **Road convoys:** a column of vehicles that never splits — every follower drives the LEAD's actual path at a spacing
+  measured along it, never passes the vehicle ahead, stops with it, and the lead slows when the tail falls back. Off the road net it drives our own
+  route (off-road → the road in its lane → off-road); SUMO's cars treat the whole column as one obstacle, so none cuts in. An attack or a new order
+  breaks the column at once and each vehicle's own drill takes over. ▶ `cv-offroad-join-leave` ✅ · ⏳ `cv-red-lights`, `cv-no-cut-in`,
+  `cv-blocked-road`, `cv-ambush`, `cv-mode-1-to-2` · ✅ in SUMO traffic the escort has its beacon and siren (red lights ignored at the front; a queue at a red holds it until green)
+  ([DESIGN_Road_Convoy](designs/vehicle-tactics/DESIGN_Road_Convoy.md), CE-4631)
+
 ## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
 
 - 🚧 **A minefield is one object:** an outline, a mine type (anti-personnel, anti-tank or mixed), a spacing and a row direction. Thousands of
