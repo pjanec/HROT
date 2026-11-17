@@ -36,5 +36,23 @@ Started `4fa79837f` (merged `coordinator@369177d6d+`). Engine half (`air-wip`) N
 
 Ids R-1056 … R-1059 (the ledger's ui line names R-1056 next free; a parallel ui session on another machine takes R-1060+).
 
-## Gates
-none yet.
+## Gates (rule 8) — `7e890eb56` + this commit
+
+| command | result | `--no-build` |
+|---|---|---|
+| `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests/Hrot.Presentation.Tests.csproj --no-build --filter "FullyQualifiedName~AirCombatLooksRail\|FullyQualifiedName~FighterHudRail\|FullyQualifiedName~AirArenaGizmoRail"` | **26 / 0 / 0** (none skipped: the frame rails ran under Xvfb), run twice | built first (`dotnet build <tests.csproj> --no-restore`) |
+| the same + `PlayerHudFrameRail\|PlayerMessagesFrameRail\|ScoreHudFrameRail` (the HUD-text rails my station edit sits beside) | 29 / 0 / 0 | |
+| `… --filter "Hrot.Presentation.Tests.Effects\|EntityTypeCatalog\|Hrot.Presentation.Tests.Map2D\|VehicleBodyParity\|Map3DTests\|ModelRail"` | 413 / 5 / 0 | |
+| `… --filter "Map3DFrameRail"` | 51 / 2 / 0 | |
+| reds, classified | `CE1309_TheMindStateBar…` and `CE1086_TheFpvDrone…` — pre-existing, CE-1955 (the minefields status). `S1_TheIconFallback…` (expected `null`, got `_tank` — the mine clearer's icon) and `CE4388_TheCachedWireSphere…` — ⭐ **red at the base `4fa79837f` in a clean worktree**. `E2b_V_ARandomTerrain_TheRoadsStandOnTheHills` (1.13 m road vertex off the ground) — terrain-geometry, no jet in it; ⚠ it SKIPPED in the base worktree, so NOT proven pre-existing. `MinefieldGizmoRail.TheCache…` and `TheBuildingDamagePlanTests…` failed only inside the 418-test run and PASS alone (state / memory pressure: the first wide run was OOM-killed) | |
+
+**Red-proofs** (one compiling mutation per rail, each reverted; `scratchpad/redproof.sh`): the fin cant removed ⇒ the body rail RED · the ammunition mirror ignored ⇒ the stores rails (2) RED · `TrailFactor` never fading ⇒ the burn + trail rails (2) RED · `BurnerFrom` 9 ⇒ the afterburner rail RED · the floor ring not emitted ⇒ the arena drawing rail RED · the pipper not led ⇒ the pipper rail RED.
+
+**Frames** (never committed): scratchpad `/tmp/claude-0/-home-user-HROT/1bf325a1-da7f-51ac-b2db-4ed0c6f53d2b/scratchpad/aircombat/frames/` — `aircombat-mig-{side,top,rear}.png`, `aircombat-f16-and-mig.png`, `aircombat-mig-stores-{4,2,0}.png`, `aircombat-aam-{burning,coasting}.png`, `aircombat-launch.png`, `aircombat-{afterburner,vortex,dead-jet-falling}.png`, `aircombat-hud-{missile,gun}.png`, `airarena-{2d,2d-selected,3d}.png`; the mockups' PNGs one folder up.
+
+**Fidelity (R-4146), side by side:** the MiG matches the mockup's silhouette (two canted fins, two nozzles, the intakes under the wings, the blended body); deviations: the kit's gear hangs in the air as the F-16's does (the mockup omits it) · the missiles are visible from below the wing (the mockup draws them through it) · the 3-D arena has no floor DISC (a 2-D fill only; spokes in 3-D) · the HUD text is the HUD font's size (14 / 20 px), a little smaller than the mockup's.
+
+Ids allocated: R-1056 … R-1059 (lane decisions above); no tracker row filed (CE-4647's row is the coordinator's).
+
+## Waiting on the contract merge (`air-wip@183af725e`, not in `ui` yet)
+the re-bind checklist above; the four AAM look rows (6060–6065 placeholders) · `VehicleBody` hit tables for the MiG (add `TwinEngineJet` to `VehicleBodyParityTests.Families` + `AircraftIds` and regenerate once type 409 is real) · the arena projector / edit command / Details form · the HUD's zone from the air lane.
