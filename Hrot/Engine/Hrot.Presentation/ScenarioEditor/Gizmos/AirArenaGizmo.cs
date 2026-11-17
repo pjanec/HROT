@@ -93,17 +93,20 @@ public static class AirArenaGizmo
             return best;
         }
 
-        /// <summary>The arena after dragging <paramref name="h"/> to the map point <paramref name="to"/>: the centre moves there; the radius becomes its distance from the centre; the floor or the ceiling follows the point's distance along the vertical of the drag
-        /// (the SOUTH-WEST handle is the floor: dragging it OUT lowers the floor's value to 0 … the ceiling's in: both are "metres = the distance travelled from the centre × <paramref name="metresPerMetre"/>") — see <see cref="Clamp"/>.</summary>
-        public static ArenaShape Drag(in ArenaShape a, ArenaHandle h, Vector2 to, float metresPerMetre = 0.25f)
+        /// <summary>
+        /// The arena after dragging <paramref name="h"/> from the map point <paramref name="grab"/> (where the press landed) to <paramref name="to"/> — RELATIVE to <paramref name="start"/>, so a press that moves nothing changes nothing:
+        /// the centre moves by the pointer's travel; the radius changes by the change in the pointer's distance from the centre; the floor and the ceiling change by that same radial travel × <paramref name="metresPerMetre"/> (out = higher). Clamped by <see cref="Clamp"/>.
+        /// </summary>
+        public static ArenaShape Drag(in ArenaShape start, ArenaHandle h, Vector2 grab, Vector2 to, float metresPerMetre = 0.25f)
         {
+            float radial = Vector2.Distance(start.Centre, to) - Vector2.Distance(start.Centre, grab);
             switch (h)
             {
-                case ArenaHandle.Centre: return Clamp(a with { Centre = to });
-                case ArenaHandle.Radius: return Clamp(a with { Radius = Vector2.Distance(a.Centre, to) });
-                case ArenaHandle.Floor: return Clamp(a with { FloorM = Vector2.Distance(a.Centre, to) * metresPerMetre });
-                case ArenaHandle.Ceiling: return Clamp(a with { CeilingM = Vector2.Distance(a.Centre, to) * metresPerMetre });
-                default: return a;
+                case ArenaHandle.Centre: return Clamp(start with { Centre = start.Centre + (to - grab) });
+                case ArenaHandle.Radius: return Clamp(start with { Radius = start.Radius + radial });
+                case ArenaHandle.Floor: return Clamp(start with { FloorM = start.FloorM + radial * metresPerMetre });
+                case ArenaHandle.Ceiling: return Clamp(start with { CeilingM = start.CeilingM + radial * metresPerMetre });
+                default: return start;
             }
         }
     }

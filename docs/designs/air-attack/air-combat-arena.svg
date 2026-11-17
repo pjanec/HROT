@@ -74,7 +74,7 @@
 <line x1='107.6' y1='516' x2='600' y2='516' stroke='#4A4A55' stroke-width='1'/>
 <text x='48' y='544' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Centre</text>
 <rect x='188' y='530' width='200' height='19' fill='#1D2F48' rx='0' opacity='1'/>
-<text x='193' y='544' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>x 4200   y 3100</text>
+<text x='193' y='544' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>4200   3100</text>
 <text x='48' y='570' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Radius</text>
 <rect x='188' y='556' width='200' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='193' y='570' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>6000 m</text>
@@ -92,10 +92,13 @@
 <text x='48' y='702' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Stalemate</text>
 <rect x='188' y='688' width='200' height='19' fill='#1D2F48' rx='0' opacity='1'/>
 <text x='193' y='702' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>90 s</text>
+<text x='48' y='728' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Lapses off</text>
+<rect x='188' y='714' width='19' height='19' fill='#1D2F48' rx='0' opacity='1'/>
+<text x='214' y='728' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a feature test where skill alone decides</text>
 <path d='M260 539 L464 560' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='470' y='564' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the same four numbers the gizmo drags</text>
-<path d='M260 669 L464 680' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
-<text x='470' y='684' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>authored; read by the air brains</text>
+<path d='M260 669 L464 600' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='470' y='604' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>authored; read by the air brains</text>
 <rect x='640' y='440' width='580' height='350' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='640' y='440' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
 <text x='648' y='454' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the authoring gizmo - four handles</text>

@@ -85,11 +85,14 @@ public sealed class AirArenaGizmoRail
         Assert.Equal(ArenaHandle.Floor, AirArenaGizmo.Handles.HitTest(Arena, new Vector2(floor.X + 5f, floor.Y), 40f));
         Assert.Equal(ArenaHandle.Ceiling, AirArenaGizmo.Handles.HitTest(Arena, new Vector2(ceiling.X, ceiling.Y - 5f), 40f));
         Assert.Equal(ArenaHandle.None, AirArenaGizmo.Handles.HitTest(Arena, new Vector2(3000f, 3000f), 40f));
-        Assert.Equal(new Vector2(500f, 600f), AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Centre, new Vector2(500f, 600f)).Centre);
-        Assert.Equal(3000f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Radius, new Vector2(4000f, 2000f)).Radius);
-        Assert.Equal(1000f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Floor, new Vector2(1000f + 4000f, 2000f)).FloorM);        // 4000 m out × 0.25
-        Assert.Equal(1500f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Ceiling, new Vector2(1000f + 6000f, 2000f)).CeilingM);
-        Assert.Equal(Arena, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.None, new Vector2(9f, 9f)));
+        // the drag is RELATIVE to the grab: a press that moves nothing changes nothing
+        var c0 = new Vector2(1000f, 2000f);
+        Assert.Equal(Arena, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Radius, new Vector2(7000f, 2000f), new Vector2(7000f, 2000f)));
+        Assert.Equal(new Vector2(1300f, 1800f), AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Centre, c0, new Vector2(1300f, 1800f)).Centre);        // by the pointer's travel
+        Assert.Equal(6500f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Radius, new Vector2(7000f, 2000f), new Vector2(7500f, 2000f)).Radius);       // +500 m out
+        Assert.Equal(250f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Floor, new Vector2(7000f, 2000f), new Vector2(7400f, 2000f)).FloorM);        // 400 m out × 0.25 = +100
+        Assert.Equal(4100f, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.Ceiling, new Vector2(7000f, 2000f), new Vector2(7400f, 2000f)).CeilingM);
+        Assert.Equal(Arena, AirArenaGizmo.Handles.Drag(Arena, ArenaHandle.None, c0, new Vector2(9f, 9f)));
     }
 
     [Fact]
@@ -136,7 +139,7 @@ public sealed class AirArenaGizmoRail
     }
 
     [Fact]
-    public void TheProjector_DrawsTheRealComponent_TheHandlesOnlyWhenSelected_AndTheArenaIsNoUnit()
+    public void TheProjector_DrawsTheRealComponent_NoHandlesOfItsOwn_AndTheArenaIsNoUnit()
     {
         var (w, e, _) = ArenaWorld();
         var b = new DebugPrimitiveBuffer(capacity: 1 << 14);
@@ -144,7 +147,7 @@ public sealed class AirArenaGizmoRail
         Assert.Equal(2 * AirArenaGizmo.Segments, Lines(b, AirArenaGizmo.RingColour)); Assert.Equal(0, Any(b, AirArenaGizmo.HandleColour));
         var (w2, e2, _) = ArenaWorld(selected: true);
         b.Clear(); new AirArenaProjector().Draw(w2, e2, b);
-        Assert.Equal(4, Any(b, AirArenaGizmo.HandleColour));
+        Assert.Equal(0, Any(b, AirArenaGizmo.HandleColour));   // the handles are the armed Edit Shape tool's (AirArenaHandleGizmo), as a polygon's vertices are
         Assert.True(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, e));   // drawn by its projector, never as a generic box
         var attr = (Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)Attribute.GetCustomAttribute(typeof(AirArenaProjector), typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!;
         Assert.Contains(typeof(Fdp.Toolkit.Motion.AirArena), attr.RequiredComponents);
@@ -174,6 +177,80 @@ public sealed class AirArenaGizmoRail
         Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetLapsesOff(w, e, true)); Assert.Equal((byte)1, w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e).LapsesOff);
         Assert.False(Hrot.UI.Common.AddEntity.AirArenaOps.SetCentre(w, Entity.Null, Vector2.Zero));                                 // not an arena
         Assert.False(Hrot.UI.Common.AddEntity.AirArenaOps.SetRadius(w, e, float.NaN));
+    }
+
+    // ── the handles' mouse drag: AirArenaHandleGizmo (armed by Edit Shape on a selected arena) ─────────────────────────────────────
+
+    private static AirArenaHandleGizmo Armed(EntityRepository w, Entity e, out bool removed)
+    {
+        bool gone = false;
+        var g = new AirArenaHandleGizmo(w, e, 7, () => gone = true); g.SetFocus(true);
+        removed = gone; return g;
+    }
+
+    private static Fdp.Toolkit.Motion.AirArena Comp(EntityRepository w, Entity e) => w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e);
+
+    private static void Press(AirArenaHandleGizmo g, ArenaHandle h, Vector2 at) => g.OnInteractionStarted(new GizmoPickToken { AnchorId = 7, SubElementId = (uint)h }, new Vector3(at, 0f));
+
+    [Fact]
+    public void ADragOfEachHandle_ChangesExactlyItsField_ByTheDraggedAmount_PreviewedLocally_AndIsOneUndoStepOnRelease()
+    {
+        var cases = new (ArenaHandle H, Vector2 Grab, Vector2 To, Func<Fdp.Toolkit.Motion.AirArena, (float, float, float, float, float)> Read, (float, float, float, float, float) Want)[]
+        {
+            (ArenaHandle.Centre, new Vector2(1000f, 2000f), new Vector2(1300f, 1800f), a => (a.Centre.X, a.Centre.Y, a.RadiusM, a.FloorAglM, a.CeilingAglM), (1300f, 1800f, 6000f, 150f, 4000f)),
+            (ArenaHandle.Radius, new Vector2(7000f, 2000f), new Vector2(7500f, 2000f), a => (a.Centre.X, a.Centre.Y, a.RadiusM, a.FloorAglM, a.CeilingAglM), (1000f, 2000f, 6500f, 150f, 4000f)),
+            (ArenaHandle.Floor, new Vector2(7000f, 2000f), new Vector2(7400f, 2000f), a => (a.Centre.X, a.Centre.Y, a.RadiusM, a.FloorAglM, a.CeilingAglM), (1000f, 2000f, 6000f, 250f, 4000f)),
+            (ArenaHandle.Ceiling, new Vector2(7000f, 2000f), new Vector2(7400f, 2000f), a => (a.Centre.X, a.Centre.Y, a.RadiusM, a.FloorAglM, a.CeilingAglM), (1000f, 2000f, 6000f, 150f, 4100f)),
+        };
+        foreach (var c in cases)
+        {
+            var (w, e, rec) = ArenaWorld();
+            var g = Armed(w, e, out _); var before = c.Read(Comp(w, e));
+            Press(g, c.H, c.Grab);
+            Assert.Equal(c.H, g.Active);
+            g.OnDragUpdate(new Vector3(c.Grab + (c.To - c.Grab) * 0.5f, 0f)); g.OnDragUpdate(new Vector3(c.To, 0f));
+            Assert.Equal(before, c.Read(Comp(w, e)));                 // the preview is LOCAL: the component is untouched while dragging
+            Assert.Empty(rec.Log);
+            Assert.NotNull(g.Preview);
+            g.OnCommit(new Vector3(c.To, 0f));
+            Assert.Equal(c.Want, c.Read(Comp(w, e)));                 // exactly its field, by the dragged amount
+            Assert.Equal(new[] { "begin Edit air arena", "end" }, rec.Log);   // ONE undo step
+            Assert.Equal(ArenaHandle.None, g.Active);
+        }
+    }
+
+    [Fact]
+    public void APressThatMovesNothingOrIsCancelled_IsNoEdit_AndAnUnknownHandleIsIgnored()
+    {
+        var (w, e, rec) = ArenaWorld();
+        var g = Armed(w, e, out _);
+        Press(g, ArenaHandle.Radius, new Vector2(7000f, 2000f)); g.OnCommit(new Vector3(7000f, 2000f, 0f));
+        Assert.Empty(rec.Log);                                        // moved nothing: no step
+        Press(g, ArenaHandle.Radius, new Vector2(7000f, 2000f)); g.OnDragUpdate(new Vector3(9000f, 2000f, 0f)); g.OnCancel();
+        Assert.Empty(rec.Log); Assert.Equal(6000f, Comp(w, e).RadiusM); Assert.Null(g.Preview);
+        Press(g, ArenaHandle.None, Vector2.Zero); Assert.Equal(ArenaHandle.None, g.Active);
+        g.OnDragUpdate(new Vector3(1f, 1f, 0f)); g.OnCommit(new Vector3(1f, 1f, 0f)); Assert.Empty(rec.Log);   // no press: nothing
+        var floor = AirArenaGizmo.Handles.Position(Hrot.UI.Common.AddEntity.AirArenaOps.ShapeOf(Comp(w, e)), ArenaHandle.Floor, 0f);
+        Press(g, ArenaHandle.Floor, new Vector2(floor.X, floor.Y)); g.OnDragUpdate(new Vector3(floor.X - 4000f, floor.Y - 4000f, 0f)); g.OnCommit(new Vector3(floor.X - 4000f, floor.Y - 4000f, 0f));
+        var a = Comp(w, e); Assert.True(a.CeilingAglM >= a.FloorAglM + AirArenaGizmo.MinBand);       // a violent drag is clamped
+    }
+
+    [Fact]
+    public void TheArmedGizmo_DrawsFourPickBoxesOnlyWhileFocused_ThePreviewRingWhileDragging_AndAllocatesNothing()
+    {
+        var (w, e, _) = ArenaWorld();
+        var g = new AirArenaHandleGizmo(w, e, 7, () => { });
+        var b = new DebugPrimitiveBuffer(capacity: 1 << 14);
+        g.UpdateAndDraw(w, 0.016f, b); int unfocused = b.GetFrame().Length;
+        g.SetFocus(true); b.Clear(); g.UpdateAndDraw(w, 0.016f, b); int focused = b.GetFrame().Length;
+        Assert.Equal(0, unfocused); Assert.True(focused >= 8, $"four handles, each a pick box + a drawn mark: {focused}");   // an idle armed tool draws only its handles (the projector draws the ring)
+        Press(g, ArenaHandle.Radius, new Vector2(7000f, 2000f)); g.OnDragUpdate(new Vector3(7500f, 2000f, 0f));
+        b.Clear(); g.UpdateAndDraw(w, 0.016f, b);
+        Assert.True(Lines(b, AirArenaGizmo.RingColour) >= 2 * AirArenaGizmo.Segments, "the preview ring is drawn beside the old one");
+        for (int i = 0; i < 20; i++) { b.Clear(); g.UpdateAndDraw(w, 0.016f, b); }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 50; i++) { b.Clear(); g.UpdateAndDraw(w, 0.016f, b); }
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // ⭐ HOT PATH — 0 B
     }
 
     // ── the real frames ─────────────────────────────────────────────────────────────────────────────────────────────────────────

@@ -146,7 +146,7 @@ public sealed class FighterHudRail
         s.Jet(TkbEntityTypes.Jet_F16, new Vector3(3000f, 0f, 0f), new Vector3(-200f, 0f, 0f), ForceId.Hostile);
         s.World.AddComponent(s.Me, new MissileWarning { At = (SimInstant)(Now - 0.8), BearingDeg = 270f, Seeker = GuidanceKind.InfraRed, TimeToImpactS = 5f });
         s.World.AddComponent(s.Me, new FighterPilotState { Throttle = 1f, GLoad = 7f });
-        for (int i = 0; i < 20; i++) s.Build(hud, Ir);
+        for (int i = 0; i < 300; i++) s.Build(hud, Ir);   // warm: the texts cached, the JIT tiered up
         long before = GC.GetAllocatedBytesForCurrentThread(); int n = 0;
         for (int i = 0; i < 1000; i++) n += s.Build(hud, Ir).HasTarget ? 1 : 0;
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // ⭐ HOT PATH — 0 B

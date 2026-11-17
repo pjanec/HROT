@@ -320,12 +320,13 @@ def arena_svg():
     # Details form
     panel(s, 20, 440, 600, 350, "Details - Air Arena (the form; window frame unchanged)")
     s.rect(28, 466, 584, 316, C.BG); s.glyph(FA.PLANE, 40, 474, C.BLUE, 15); s.text(62, 490, "Air Arena 1", C.TXT, 14)
-    rows = (("Centre", "x 4200   y 3100", None), ("Radius", "6000 m", None), ("Floor", "150 m", None), ("Ceiling", "4000 m", None), ("Max shot range", "6000 m", None), ("Stalemate", "90 s", None))
+    rows = (("Centre", "4200   3100", None), ("Radius", "6000 m", None), ("Floor", "150 m", None), ("Ceiling", "4000 m", None), ("Max shot range", "6000 m", None), ("Stalemate", "90 s", None))
     s.separator_text(40, 508, "Geometry", 600)
     for i, (lab, val, _) in enumerate(rows[:4]): s.form_row(48, 530 + i * 26, lab, 140, "field", 200, val)
     s.separator_text(40, 640, "Show rules", 600)
     for i, (lab, val, _) in enumerate(rows[4:]): s.form_row(48, 662 + i * 26, lab, 140, "field", 200, val)
-    s.callout(260, 539, 470, 560, ["the same four numbers the gizmo drags"]); s.callout(260, 669, 470, 680, ["authored; read by the air brains"])
+    s.form_row(48, 662 + 2 * 26, "Lapses off", 140, "checkbox", False); s.text(48 + 140 + 26, 662 + 2 * 26 + 14, "a feature test where skill alone decides", C.NOTE, 11)
+    s.callout(260, 539, 470, 560, ["the same four numbers the gizmo drags"]); s.callout(260, 669, 470, 600, ["authored; read by the air brains"])
     # the gizmo legend
     panel(s, 640, 440, 580, 350, "the authoring gizmo - four handles")
     for i, (sh, lab, sub) in enumerate((("sq", "centre", "drag on the map: moves the arena (the ring, the floor and the ceiling follow)"), ("ci", "radius", "on the ring, east: drag outward / inward (R 500 m ... 30 km)"),

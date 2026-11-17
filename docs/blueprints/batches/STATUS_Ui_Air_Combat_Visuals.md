@@ -34,9 +34,10 @@ Every stand-in is gone but the HUD's zone: `VisualFamilies.FamilyOfClass["TwinEn
 | R-1058 | the missile trail's AGE is the round's first-seen time on THIS host (`RoundPath.FirstSeen`); a round first seen mid-flight (a late joiner) shows its trail from then — accepted, no wire | a replicated launch time |
 | R-1059 | the wingtip vortex is a straight stateless tube 40 m behind each tip (0 B), not the curved vapour of the flown path | a path-memory trail (like `RoundPath`) for aircraft |
 
+| R-1061 | the arena's handles are armed by the existing **Edit Shape** tool on a selected arena (`ScenarioToolRegistrations` Edit: an `AirArena` ⇒ `AirArenaHandleGizmo`, else the polyline editor) — no new tool id; the handles show only while it is armed (the projector draws none), as a polygon's vertices do. A drag is RELATIVE to the press (centre by the pointer's travel, radius by the change in distance from the centre, floor / ceiling by that radial travel × 0.25), previewed locally, ONE undo step on release (`AirArenaOps.SetShape`); Esc drops it and ends the tool | a different tool, or handles always on |
 | R-1060 | ⭐ the picker does NOT place an arena: no TKB type exists for it (the contract declares the component, not a template), so a scenario authors the `AirArena` entity (S1–S4 scenarios do) and the gizmo + form EDIT it. The handles' mouse drag (a pointer hook into the map's input chain) and a frame measure of the form's layout are the follow-up | the air lane (or ui) adds a TKB type for the arena ⇒ a picker row + the area tool's birth like the minefield's |
 
-Ids R-1056 … R-1060 (the ledger's ui line names R-1056 next free; a parallel ui session on another machine takes R-1060+).
+Ids R-1056 … R-1061 (the ledger's ui line names R-1056 next free; a parallel ui session on another machine takes R-1060+).
 
 ## Gates (rule 8) — `7e890eb56` + this commit
 
@@ -56,5 +57,10 @@ Ids R-1056 … R-1060 (the ledger's ui line names R-1056 next free; a parallel u
 
 Ids allocated: R-1056 … R-1059 (lane decisions above); no tracker row filed (CE-4647's row is the coordinator's).
 
+## ✅ Follow-ups done `2026-11-17` (the coordinator's two items)
+1. **Handle drag** — `AirArenaHandleGizmo` (R-1061): rail `AirArenaGizmoRail` — each handle's drag changes exactly its field by the dragged amount (centre +300 / −200 · radius +500 · floor +100 · ceiling +100), the component untouched while previewing, exactly `begin Edit air arena · end` on release; a press that moves nothing, a cancel and an unknown handle are no edit; 0 B in `UpdateAndDraw`.
+2. **Form frame measure** — `AirArenaDetailsViewTests` (R-4138): seven rows in the mockup's order, ONE value column, one frame height and width, the groups apart, a steady frame under the ImGui floor (a per-frame `"##" + key` string it caught is fixed), a checkbox click = one step; the form matches the mockup's panel (deviation: Centre is two boxes, not one; Lapses off is a row the mockup now carries).
+Red-proofs: the drag's commit removed ⇒ the drag rail RED · the lapses write removed ⇒ the form rail RED. Gate: Presentation filter (air rails, EntityTypeCatalog, CE2138, Minefield gizmo + frame, ToolControllerTests) 110 / 0 / 0; AiShared (`AirArenaDetailsViewTests|MinefieldDetailsView`) 5 / 0 / 0, under `xvfb-run -a`.
+
 ## Still waiting (after the re-bind)
-S3: the air lane's employment zone (the HUD's band) and the real weapon suite on the MiG / F-16 (the rails arm a fixture suite today — then ⭐ the stores and the HUD appear with no ui change) · S3 hit tables: `VehicleBody` for the MiG (add `TwinEngineJet` to `VehicleBodyParityTests.Families` + `AircraftIds`, regenerate) · the arena's handle DRAG input and a TKB type for placing one (R-1060) · the form's frame measure.
+S3: the air lane's employment zone (the HUD's band) and the real weapon suite on the MiG / F-16 (the rails arm a fixture suite today — then ⭐ the stores and the HUD appear with no ui change) · S3 hit tables: `VehicleBody` for the MiG (add `TwinEngineJet` to `VehicleBodyParityTests.Families` + `AircraftIds`, regenerate) · a TKB type for placing an arena (R-1060).
