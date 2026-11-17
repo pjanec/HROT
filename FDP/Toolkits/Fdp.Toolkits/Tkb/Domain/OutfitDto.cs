@@ -65,6 +65,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         public OutfitSlot Hair { get; init; } = new();
         public OutfitSlot Beard { get; init; } = new();
 
+        [Description("⭐ CE-4650 NA-2 — paint on the face, by kind: None, Stripes (the option's colours: red, white, black). Not drawn yet — the figure has no face-paint surface.")]
+        public OutfitSlot FacePaint { get; init; } = new();
+
         [Description("Slots used for a man of an Unspecified-sex type (empty slots fall back to the ones above).")]
         public OutfitSet? Men { get; init; }
 
