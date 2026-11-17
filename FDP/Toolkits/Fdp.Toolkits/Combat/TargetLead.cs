@@ -24,6 +24,16 @@ namespace Fdp.Toolkit.Combat
             return t > 0f ? target + (targetVelocity - shooterVelocity) * t : target;
         }
 
+        /// <summary>
+        /// ⭐ CE-10003 (air combat AC-8, RV-10) — <see cref="Point"/> for a target that ACCELERATES (a turning fighter): the straight lead plus
+        /// ½·a·t² over the round's flight time (9 g at 800 m is ~28 m the straight lead misses). <paramref name="targetAccel"/> zero ⇒ <see cref="Point"/>.
+        /// </summary>
+        public static Vector3 PointAccelerating(Vector3 shooter, Vector3 shooterVelocity, float roundSpeed, Vector3 target, Vector3 targetVelocity, Vector3 targetAccel)
+        {
+            float t = FlightTime(shooter, shooterVelocity, roundSpeed, target, targetVelocity);
+            return t > 0f ? target + (targetVelocity - shooterVelocity) * t + 0.5f * t * t * targetAccel : target;
+        }
+
         /// <summary>The round's flight time to the intercept (s): the smallest positive root of |D + W·t| = s·t with D the offset to the
         /// target and W its velocity relative to the shooter; 0 when the round can never catch it (or has no speed).</summary>
         public static float FlightTime(Vector3 shooter, Vector3 shooterVelocity, float roundSpeed, Vector3 target, Vector3 targetVelocity)

@@ -170,6 +170,8 @@ namespace Fdp.Toolkit.Motion
         public SimInstant LastDecoyAt;
         /// <summary>How many defences ran on this aircraft (a scenario reads it).</summary>
         public ushort Count;
+        /// <summary>⭐ R-10011 — decoys released by every defence so far (a scenario reads it: a decoy writes no shot row).</summary>
+        public ushort DecoysTotal;
     }
 
     /// <summary>
