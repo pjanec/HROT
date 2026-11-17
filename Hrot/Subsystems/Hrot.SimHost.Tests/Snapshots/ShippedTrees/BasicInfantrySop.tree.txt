@@ -22,6 +22,12 @@ parse {} -> ok
 parse {"bogus":1} -> refused InvalidOperationException
 Selector c2080000-0000-0000-0000-000000000002 "Rows — first true wins"
   # A reaction table: each row is condition(s) → React; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).
+  Sequence c3454000-0000-0000-0000-000000000001 "Firing seat + enemy in its arc, no task → fire from the seat"
+    # CE-3454 (Motorcycle PF-3): a man in an open firing seat (a pillion, a mounted archer, a pickup-bed rifleman) engages on his own — above 'under command' and 'aboard', because neither his unit's plays nor the vehicle fire HIS weapon. An order (a drive-by's FireAtTarget) is a task, so it keeps the fire.
+    Condition c3454000-0000-0000-0000-000000000002 call Hrot.AI.Behaviors.Brains.FireFromSeatBehavior.EnemyInArc "On a firing seat, enemy in its arc"
+    Condition c3454000-0000-0000-0000-000000000003 call Hrot.AI.Behaviors.Brains.CoverFightConditions.NoTask "No task"
+    Condition c3454000-0000-0000-0000-000000000004 call Hrot.AI.Behaviors.Brains.CoverFightConditions.MayFire "May fire (ROE)"
+    Action c3454000-0000-0000-0000-000000000005 sop React:FireFromSeat:Contact "React: FireFromSeat"
   Condition c2080000-0000-0000-0000-0000000000c1 call Fdp.Toolkit.Behavior.SopConditions.UnderCommand "Under command → his unit reacts for him"
     # CE-2322 (AQ97 A, R-2062): true = the row wins and nothing is ordered — a man under a live commander gets his reactions from his unit (its SOP, its plays); with no commander (or his commander out of the fight) the rows below are his.
   Condition c2080000-0000-0000-0000-0000000000c2 call Fdp.Toolkit.Behavior.SopConditions.Aboard "Aboard a vehicle → the vehicle decides"
