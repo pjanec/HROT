@@ -481,6 +481,41 @@ namespace Hrot.SimHost.Tests
             Assert.True(field.X > -100f, $"in the open it runs its distance: {field}");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1958</c> (pigs stuck in their pen's wall) — a HERD member's grazing spot (the herd's spot plus its spread — up to 11 m for a loose herd)
+        /// stays inside its HOME: two penned cows with a 6.5 m home, the herd's spot near its edge, walk to spot after spot and every one is inside.
+        /// 🔴 Red-proof: no KeepHome on the member's spot ⇒ spots up to ~20 m out, past the pen's walls.
+        /// </summary>
+        [Fact]
+        public void CE1958_AHerdMembersGrazingSpot_StaysInItsHome()
+        {
+            var w = new World();
+            var home = new AnimalHome { Centre = new Vector3(0, 0, 0), Radius = 6.5f, Enclosed = 1 };
+            w.Repo.GetComponentRW<AnimalHome>(w.Herd) = home;
+            foreach (var cow in new[] { w.A, w.B })
+            {
+                w.Repo.AddComponent(cow, home);
+                w.Repo.GetComponentRW<SimTransform>(cow).Position = new Vector3(cow == w.A ? -2f : 2f, 0f, 0f);
+                w.Start(cow);
+            }
+            float farthest = 0f;
+            int spots = 0;
+            for (int leg = 0; leg < 150; leg++)   // 150 s: grazing pauses 5–20 s a spot
+            {
+                w.Run(1.0);
+                foreach (var cow in new[] { w.A, w.B })
+                {
+                    var (to, _, moving) = w.Move(cow);
+                    if (!moving) continue;
+                    spots++;
+                    farthest = MathF.Max(farthest, new Vector2(to.X, to.Y).Length());
+                    w.Arrive(cow);
+                }
+            }
+            Assert.True(spots >= 4, $"they grazed ({spots} spots)");
+            Assert.True(farthest <= home.Radius + 0.01f, $"a grazing spot {farthest:F1} m from the pen's centre (its home {home.Radius} m)");
+        }
+
         [Fact]
         public void CE4623_AtNight_TheHerdRests_AndAFrightStillWakesIt()
         {
