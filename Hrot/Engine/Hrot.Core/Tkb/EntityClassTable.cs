@@ -202,6 +202,9 @@ namespace Hrot.Core.Tkb
             yield return C("CargoPlane", "Cargo Plane", "1.2.*.3,4,5,8,57");
             yield return C("Fighter", "Fighter/Air Defense", "1.2.*.1");
             yield return C("AttackAircraft", "Attack/Strike", "1.2.*.2");
+            // ⭐ CE-10000 (air lane, AC-7, R-10002) — the MiG-29 class (409): a HROT subcategory under Fighter (the LandAnimal 200+ precedent), so its
+            //   twin-fin body is keyed by a class, never a country (DESIGN_Air_Combat §4d; the look is ui's, AC-15)
+            yield return C("TwinEngineFighter", "Twin-Engine Fighter (HROT)", "1.2.*.1.200");
             yield return C("Bomber", "Bomber", "1.2.*.3");
             yield return C("CargoTanker", "Cargo/Tanker", "1.2.*.4");
             yield return C("PatrolAircraft", "ASW/Patrol/Observation", "1.2.*.5");

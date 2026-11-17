@@ -116,5 +116,34 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("m²")]
         [Description("Smallest radar cross-section the seeker locks on, m² (0 = any).")]
         public float MinTargetRcsM2 { get; init; }
+
+        // ⭐⭐ CE-10000 (air lane, AC-6, RV-1; docs/designs/air-attack/DESIGN_Air_Combat.md §3, §5b) — a MOTOR and a g limit, so a missile can be
+        //   beaten by geometry and energy. All 0 ⇒ the round flies as before (constant SpeedMps, TurnRateDegPerSec — ATGMs unchanged). Appended.
+
+        /// <summary>⭐ AC-6 — the motor's burn: the round goes from the launcher's speed to <see cref="SpeedMps"/> over this; 0 ⇒ no motor model.</summary>
+        [EditUnit("s")]
+        [Description("Motor burn time: the round accelerates to its speed over this, then coasts (0 = constant speed).")]
+        public float BurnSeconds { get; init; }
+
+        /// <summary>⭐ AC-6 — the most g the round can pull AT <see cref="SpeedMps"/>; it falls with speed² (<c>MaxG·(v/SpeedMps)²</c>). 0 ⇒ the turn
+        /// rate (<see cref="TurnRateDegPerSec"/>, CE-2222).</summary>
+        [EditUnit("g")]
+        [Description("Most g at full speed; falls with speed squared (0 = the turn rate instead).")]
+        public float MaxG { get; init; }
+
+        /// <summary>⭐ AC-6 — the speed lost per second after burn-out (m/s per s), more while turning.</summary>
+        [EditUnit("m/s per s")]
+        [Description("Speed lost per second after the burn (more while turning).")]
+        public float DragPerS { get; init; }
+
+        /// <summary>⭐ AC-6 — below this speed the round is DEFEATED: it expires and its shot row says <c>Defeated</c>.</summary>
+        [EditUnit("m/s")]
+        [Description("Below this speed the round is defeated and expires (0 = never).")]
+        public float MinSpeedMps { get; init; }
+
+        /// <summary>⭐ AC-6 — the steering's first-order lag (s): the round turns onto the lead through it.</summary>
+        [EditUnit("s")]
+        [Description("Steering lag: how slowly the round follows its lead (0 = instant).")]
+        public float SteerLagS { get; init; }
     }
 }

@@ -318,6 +318,68 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<int> Trunks;
     }
 
+    // ⭐ CE-10000 (air lane, AC-2; DESIGN_Air_Combat §4b) — a fighter's air-combat ORDER (AirCombatSteer), its brain → the motion node; the target, the
+    //   arena as network ids (0 = none). Reliable + TransientLocal + KeepLast 1, keyed by entity, sent on change (the BladeCut shape).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAirCombatSteer
+    {
+        [DdsKey] public int EntityId;
+        public byte Manoeuvre;
+        public byte Lapse;
+        public int Target;
+        public int Arena;
+        public float PointX;
+        public float PointY;
+        public float PointZ;
+        public float Throttle;
+        public float FloorAgl;
+        public float MaxG;
+    }
+
+    // ⭐ CE-10000 (air lane, AC-2 / AC-9a) — a fighter's REPORT (FighterPilotState), the motion node → every node (the brain's missile defence, the
+    //   looks' afterburner and vortex trails). Sent on a change of its rounded values (0.1 g, 1 m, 1°, 0.1 s) — a few samples a second in a turn.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityFighterPilotState
+    {
+        [DdsKey] public int EntityId;
+        public float GLoad;
+        public float Throttle;
+        public byte GcasActive;
+        public ushort GcasCount;
+        public float MinAgl;
+        public byte Inbound;
+        public float ThreatBearingDeg;
+        public byte ThreatSeeker;
+        public float ThreatClosureMps;
+        public float ThreatTtiS;
+        public double LastDitchAt;
+        public byte Defeated;
+        public float SpeedMps;
+    }
+
+    // ⭐ CE-10000 (air lane, AC-10) — the air-combat ARENA (AirArena), its creator's brain → every node. Reliable + TransientLocal + KeepLast 1.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityAirArena
+    {
+        [DdsKey] public int EntityId;
+        public float CentreX;
+        public float CentreY;
+        public float CentreZ;
+        public float RadiusM;
+        public float FloorAglM;
+        public float CeilingAglM;
+        public float MaxShotRangeM;
+        public float StalemateSeconds;
+        public byte LapsesOff;
+        public double LastHitAt;
+    }
+
     // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (BladeCut), published by the owner of dtBladeCut (the Brain group) on change, applied on every other node.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
@@ -1239,6 +1301,7 @@ namespace Hrot.NED.Descriptors
         NAV_PATH_TO_POINT   = 5,   // CE-3026 — find a path, then follow it (R-42: permanent)
         NAV_MANUAL          = 6,   // ⭐ CE-3173 — the operator drives the body (ManualDrive); entered once
         NAV_TRAFFIC         = 7,   // ⭐ AQ93 R-4023 — SUMO drives the body (a shadow car); the owner follows it
+        NAV_AIR_COMBAT      = 8,   // ⭐ CE-10000 (AC-2, RV-6) — a fighter flies its brain's AirCombatSteer (the motion node's Fight)
     }
 
     /// <summary>

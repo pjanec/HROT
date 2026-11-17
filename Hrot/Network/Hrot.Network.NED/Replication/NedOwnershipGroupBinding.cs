@@ -159,6 +159,9 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtSpawnLevel, GlobalComponentIds.SpawnLevelRequest);          // ⭐ CE-3271 — birth level
         map.RegisterMapping((long)EDescriptorType.dtAnimalState, GlobalComponentIds.AnimalState);               // ⭐ CE-4623 AB-3 — an animal's state (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtFlockState, GlobalComponentIds.FlockState);                 // ⭐ CE-4623 AB-3 — a bird flock's state (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtAirCombatSteer, GlobalComponentIds.AirCombatSteer);         // ⭐ CE-10000 (AC-2) — a fighter's order (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFighterPilotState, GlobalComponentIds.FighterPilotState);   // ⭐ CE-10000 (AC-2) — its motion node's report (Muscle group)
+        map.RegisterMapping((long)EDescriptorType.dtAirArena, GlobalComponentIds.AirArena);                     // ⭐ CE-10000 (AC-10) — the arena (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtUnderFire, GlobalComponentIds.UnderFire);                   // ⭐ CE-1223 — when a man was last under fire
         // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);

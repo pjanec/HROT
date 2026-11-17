@@ -1,0 +1,128 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1240' height='800' viewBox='0 0 1240 800'>
+<rect x='0' y='0' width='1240' height='800' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Air combat - the MiG-29 body beside the F-16 (CE-4647 AC-15, step 2)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Grey annotations are not drawn by the app. Scope: the NEW MiG-29 body (class TwinEngineFighter, type 409). The F-16 (ShapeKits.Jet) is drawn from its real numbers and is UNCHANGED.</text>
+<rect x='20' y='60' width='580' height='230' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='60' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F-16C (type 401) - existing, unchanged - side</text>
+<polygon points='203.6,210.1 351.6,210.1 351.6,213.4 203.6,213.4' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='104.0,207.8 183.9,207.8 183.9,210.4 104.0,210.4' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='135.8,190.6 459.9,190.6 459.9,227.6 135.8,227.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='111.5,194.5 135.8,194.5 135.8,223.6 111.5,223.6' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='472.0,190.6 512.5,208.8 512.5,209.3 472.0,227.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='370.8,181.3 443.6,181.3 443.6,194.5 370.8,194.5' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='119.9,175.0 179.6,133.2 208.5,174.4 148.8,216.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='104.0,207.8 183.9,207.8 183.9,210.4 104.0,210.4' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='203.6,210.1 351.6,210.1 351.6,213.4 203.6,213.4' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<line x1='40' y1='262' x2='580' y2='262' stroke='#33333B' stroke-width='1'/>
+<rect x='20' y='300' width='580' height='250' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='300' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='314' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F-16C (type 401) - existing, unchanged - top</text>
+<polygon points='239.1,364.1 302.7,334.4 337.7,409.5 274.1,439.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='239.1,495.9 274.1,420.8 337.7,450.5 302.7,525.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='193.9,417.7 409.9,417.7 409.9,442.3 193.9,442.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='172.7,389.3 200.7,373.1 225.9,416.7 197.9,432.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='172.7,470.7 197.9,427.1 225.9,443.3 200.7,486.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='418.0,417.7 445.0,429.8 445.0,430.2 418.0,442.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='177.7,420.3 193.9,420.3 193.9,439.7 177.7,439.7' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='350.5,422.8 399.1,422.8 399.1,437.2 350.5,437.2' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='183.3,428.9 242.3,428.9 242.3,431.1 183.3,431.1' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<rect x='20' y='560' width='580' height='230' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='560' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='28' y='574' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F-16C (type 401) - existing, unchanged - rear (what the cant shows)</text>
+<polygon points='292.9,711.0 295.1,702.4 301.4,696.1 310.0,693.9 318.6,696.1 324.9,702.4 327.1,711.0 324.9,719.6 318.6,725.9 310.0,728.1 301.4,725.9 295.1,719.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='300.0,685.3 320.0,685.3 320.0,697.5 300.0,697.5' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='292.9,711.0 295.1,702.4 301.4,696.1 310.0,693.9 318.6,696.1 324.9,702.4 327.1,711.0 324.9,719.6 318.6,725.9 310.0,728.1 301.4,725.9 295.1,719.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='177.3,711.9 322.7,711.9 322.7,715.0 177.3,715.0' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='297.3,711.9 442.7,711.9 442.7,715.0 297.3,715.0' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='308.5,640.7 311.5,640.7 311.5,717.6 308.5,717.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='230.9,709.8 314.1,709.8 314.1,712.2 230.9,712.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='305.9,709.8 389.1,709.8 389.1,712.2 305.9,712.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='296.5,711.0 298.3,704.3 303.3,699.3 310.0,697.5 316.7,699.3 321.7,704.3 323.5,711.0 321.7,717.7 316.7,722.7 310.0,724.5 303.3,722.7 298.3,717.7' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<line x1='40' y1='760' x2='580' y2='760' stroke='#33333B' stroke-width='1'/>
+<text x='32' y='282' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>15 x 10 x 4.9 m - the family's box</text>
+<line x1='460' y1='280' x2='487.0' y2='280' stroke='#8A8A96' stroke-width='1.4'/>
+<line x1='460' y1='277' x2='460' y2='283' stroke='#8A8A96' stroke-width='1.4'/>
+<line x1='487.0' y1='277' x2='487.0' y2='283' stroke='#8A8A96' stroke-width='1.4'/>
+<text x='473.5' y='274' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>5 m</text>
+<rect x='640' y='60' width='580' height='230' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='60' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='74' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>MiG-29 (type 409) - NEW, VisualFamily.TwinEngineJet - side</text>
+<polygon points='788.2,213.5 978.4,213.5 978.4,216.6 788.2,216.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='684.9,215.0 773.4,215.0 773.4,217.6 684.9,217.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='710.2,171.9 780.3,134.6 804.0,179.1 804.2,179.5 734.0,216.8 710.4,172.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='705.8,201.7 738.5,201.7 738.5,225.8 705.8,225.8' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='729.1,199.8 944.0,199.8 944.0,227.7 729.1,227.7' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='906.6,222.0 1009.4,222.0 1009.4,238.5 906.6,238.5' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='775.9,189.0 1065.5,189.0 1065.5,223.3 775.9,223.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='1065.5,189.7 1149.5,204.6 1149.5,205.2 1065.5,220.1' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='972.0,180.1 1046.8,180.1 1046.8,191.6 972.0,191.6' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='822.6,214.7 1037.4,214.7 1037.4,217.9 822.6,217.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='906.6,222.0 1009.4,222.0 1009.4,238.5 906.6,238.5' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='729.1,199.8 944.0,199.8 944.0,227.7 729.1,227.7' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='705.8,201.7 738.5,201.7 738.5,225.8 705.8,225.8' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='710.2,171.9 780.3,134.6 804.0,179.1 804.2,179.5 734.0,216.8 710.4,172.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='684.9,215.0 773.4,215.0 773.4,217.6 684.9,217.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='788.2,213.5 978.4,213.5 978.4,216.6 788.2,216.6' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<line x1='660' y1='262' x2='1200' y2='262' stroke='#33333B' stroke-width='1'/>
+<rect x='640' y='300' width='580' height='250' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='300' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='314' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>MiG-29 (type 409) - NEW, VisualFamily.TwinEngineJet - top</text>
+<polygon points='914.4,407.4 982.9,407.4 982.9,421.8 914.4,421.8' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='914.4,438.2 982.9,438.2 982.9,452.6 914.4,452.6' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='858.4,409.5 1001.6,409.5 1001.6,450.5 858.4,450.5' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='766.6,385.5 798.9,366.8 825.6,413.0 793.3,431.7' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='766.6,474.5 793.3,428.3 825.6,447.0 798.9,493.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='835.5,359.0 917.9,315.1 962.3,398.4 879.8,442.3' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='835.5,501.0 879.8,417.7 962.3,461.6 917.9,544.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='796.1,405.3 939.3,405.3 939.3,423.9 796.1,423.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='796.1,436.1 939.3,436.1 939.3,454.7 796.1,454.7' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='780.5,406.6 802.3,406.6 802.3,422.6 780.5,422.6' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='780.5,437.4 802.3,437.4 802.3,453.4 780.5,453.4' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='827.2,418.6 1020.3,418.6 1020.3,441.4 827.2,441.4' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='1020.3,419.8 1076.4,429.8 1076.4,430.2 1020.3,440.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='958.0,424.9 1007.9,424.9 1007.9,435.1 958.0,435.1' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='783.5,405.6 783.6,403.1 830.3,403.1 846.1,407.2 846.0,409.7 799.2,409.7' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='783.5,454.4 799.2,450.3 846.0,450.3 846.1,452.8 830.3,456.9 783.6,456.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<rect x='640' y='560' width='580' height='230' fill='#15151A' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='640' y='560' width='580' height='20' fill='#294A7A' rx='0' opacity='1'/>
+<text x='648' y='574' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>MiG-29 (type 409) - NEW, VisualFamily.TwinEngineJet - rear (what the cant shows)</text>
+<polygon points='915.9,707.1 917.8,700.1 923.0,694.9 930.0,693.0 937.0,694.9 942.2,700.1 944.1,707.1 942.2,714.2 937.0,719.3 930.0,721.2 923.0,719.3 917.8,714.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='922.9,684.2 937.1,684.2 937.1,694.8 922.9,694.8' fill='#6FA0C8' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='898.6,723.0 918.6,723.0 918.6,738.3 898.6,738.3' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='941.4,723.0 961.4,723.0 961.4,738.3 941.4,738.3' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='901.5,716.2 958.5,716.2 958.5,719.2 901.5,719.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='914.1,708.3 916.3,700.4 922.1,694.6 930.0,692.4 937.9,694.6 943.7,700.4 945.9,708.3 943.7,716.2 937.9,722.0 930.0,724.2 922.1,722.0 916.3,716.2' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='770.4,715.1 947.1,715.1 947.1,718.0 770.4,718.0' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='912.9,715.1 1089.6,715.1 1089.6,718.0 912.9,718.0' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='895.7,715.4 897.4,708.9 902.2,704.2 908.6,702.4 915.1,704.2 919.8,708.9 921.5,715.4 919.8,721.8 915.1,726.5 908.6,728.3 902.2,726.5 897.4,721.8' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='938.5,715.4 940.2,708.9 944.9,704.2 951.4,702.4 957.8,704.2 962.6,708.9 964.3,715.4 962.6,721.8 957.8,726.5 951.4,728.3 944.9,726.5 940.2,721.8' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='892.7,642.4 896.1,642.1 901.8,683.3 901.8,717.8 898.4,718.1 892.7,676.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='958.2,683.3 963.9,642.1 967.3,642.4 967.3,676.9 961.6,718.1 958.2,717.8' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='842.2,716.5 932.3,716.5 932.3,718.9 842.2,718.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='927.7,716.5 1017.8,716.5 1017.8,718.9 927.7,718.9' fill='#808892' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='897.5,715.4 899.0,709.8 903.0,705.7 908.6,704.2 914.2,705.7 918.3,709.8 919.8,715.4 918.3,720.9 914.2,725.0 908.6,726.5 903.0,725.0 899.0,720.9' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<polygon points='940.2,715.4 941.7,709.8 945.8,705.7 951.4,704.2 957.0,705.7 961.0,709.8 962.5,715.4 961.0,720.9 957.0,725.0 951.4,726.5 945.8,725.0 941.7,720.9' fill='#3B4048' stroke='#1B2027' stroke-width='1' stroke-linejoin='round'/>
+<line x1='660' y1='760' x2='1200' y2='760' stroke='#33333B' stroke-width='1'/>
+<text x='652' y='282' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>17.3 x 11.4 x 4.7 m - the family's box</text>
+<line x1='1080' y1='280' x2='1107.0' y2='280' stroke='#8A8A96' stroke-width='1.4'/>
+<line x1='1080' y1='277' x2='1080' y2='283' stroke='#8A8A96' stroke-width='1.4'/>
+<line x1='1107.0' y1='277' x2='1107.0' y2='283' stroke='#8A8A96' stroke-width='1.4'/>
+<text x='1093.5' y='274' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>5 m</text>
+<path d='M757.173 175.708 L994 84' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='1000' y='88' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TWO fins, swept 28 deg,</text>
+<text x='1000' y='102' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>canted outward 7 deg</text>
+<path d='M722.1405 213.778 L654 118' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='660' y='122' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TWO nozzles, side by side</text>
+<path d='M958.026 238.275 L994 250' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='1000' y='254' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>intakes UNDER the wing roots</text>
+<path d='M164.20000000000002 174.682 L324 84' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='330' y='88' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ONE swept fin, ONE nozzle</text>
+<path d='M1009.407 185.86 L864 84' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='870' y='88' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>canopy</text>
+<text x='36' y='540' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F-16: drawn from ShapeKit.cs:401 as built (the nose cone sits a hair ahead of the fuselage, as built)</text>
+<text x='656' y='540' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>MiG: a wider blended body between two engine bays, flat underbody, wings swept 28 deg, tailplanes on the booms</text>
+<text x='36' y='782' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F-16 rear: one fin, one nozzle</text>
+<text x='656' y='782' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>MiG rear: fins canted outward, two nozzles</text>
+<text x='20' y='797' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Out of scope (unchanged): gear, colours (the jet family tint), the picker row, the 2-D symbol.</text>
+</svg>

@@ -28,6 +28,11 @@ namespace Fdp.Core
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
+    /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
+    /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
+    /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
+    /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months; the
+    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line).</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -1394,5 +1399,18 @@ namespace Fdp.Core
         public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
         public const int AnimalAreaPopulated = 137;
+
+        // ⭐ CE-10000 (R-10000, the `air` lane — docs/designs/air-attack/DESIGN_Air_Combat.md §4a, §7) — the air-combat contract. The five ids
+        //   measured free on every lane branch 2026-11-17 (see the header). ⛔ Permanent: recorded and (three of them) on the wire.
+        /// <summary><c>AirCombatSteer</c> — the brain's air-combat order to its motion node (Brain group, <c>dtAirCombatSteer</c> 216).</summary>
+        public const int AirCombatSteer = 277;
+        /// <summary><c>FighterPilotState</c> — the motion node's g, GCAS and live threat report (Muscle group, <c>dtFighterPilotState</c> 217).</summary>
+        public const int FighterPilotState = 278;
+        /// <summary><c>AirCombatState</c> — the air-combat behaviour's working state (brain, recorded; skill authored).</summary>
+        public const int AirCombatState = 279;
+        /// <summary><c>MissileDefenceState</c> — the one missile defence's state (brain, recorded).</summary>
+        public const int MissileDefenceState = 128;
+        /// <summary><c>AirArena</c> — the show's stage, an authored entity (Brain group, <c>dtAirArena</c> 218).</summary>
+        public const int AirArena = 160;
     }
 }

@@ -110,6 +110,12 @@ public static class HrotOwnershipGroups
         // ⭐ CE-4623 AB-3 — an animal's state and a flock's: written by its brain (the fear system, the animal HSM) on the node running it (dtAnimalState, dtFlockState).
         brain.SetBit(GlobalComponentIds.AnimalState);
         brain.SetBit(GlobalComponentIds.FlockState);
+        // ⭐ CE-10000 (air lane, AC-2 / AC-9 / AC-10) — the fighter's order to its motion node (dtAirCombatSteer), the air-combat behaviour's and the
+        //   missile defence's working state, and the arena (dtAirArena; its creator's brain owns it, AirArenaSystem writes LastHitAt).
+        brain.SetBit(GlobalComponentIds.AirCombatSteer);
+        brain.SetBit(GlobalComponentIds.AirCombatState);
+        brain.SetBit(GlobalComponentIds.MissileDefenceState);
+        brain.SetBit(GlobalComponentIds.AirArena);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);
@@ -140,6 +146,7 @@ public static class HrotOwnershipGroups
         //   parameters sit here beside VehicleState / VehicleParams (docs/designs/motion-models/DESIGN_Motion_Domains.md §5a).
         muscle.SetBit(GlobalComponentIds.FlightParams);
         muscle.SetBit(GlobalComponentIds.FlightState);
+        muscle.SetBit(GlobalComponentIds.FighterPilotState);   // ⭐ CE-10000 (AC-2, AC-9a) — the motion node's g / GCAS / live threat report (dtFighterPilotState)
         // ⭐ CE-3271 (Q94 D, R-3018) — a spawn's birth level travels with the position it sets (dtSpawnLevel).
         muscle.SetBit(GlobalComponentIds.SpawnLevelRequest);
         // ⭐ CE-1223 (Entity Control §8k S-2, R-1010) — when a man was last under fire: stamped on the Muscle (near miss / hit), read by every node's

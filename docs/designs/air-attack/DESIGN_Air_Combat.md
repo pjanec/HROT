@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-16
-build-state: READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
+updated: 2026-11-17
+build-state: BUILDING (S0 + S1 built, §8a) — READY-TO-BUILD — AC-1…AC-15 ✅ APPROVED (R-4283), amended by the review §9 RV-1…RV-21 ✅ APPROVED and FOLDED into §3–§8 (R-4284) `2026-11-16`; handoffs: HANDOFF_Coordinator_To_Air_Combat.md (air lane), HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md (ui)
 current-answer: §0 the ask · §1 inventory · §2 the proven pattern · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the review (its fixes are folded; kept as the record)
 stale-below: none
 known-rot: none (the review's corrections are folded)
@@ -64,6 +64,15 @@ the CLI.
 | F-16C (401) | ⚠ a body, signatures, RCS 3 m² — **no flight, no weapons, no brain** | `NedTkbCatalog.cs:1286,1325,1333` |
 | A-10C (405) | the one flying plane: cruise 150 / stall 60 / top 200 m/s, 60° bank, GAU-8 | `NedTkbCatalog.cs:1620` |
 | air-to-air missiles · fighter cannon · a second fighter type | ⛔ none (munitions: GAU-8 6023/6024, Stinger 6030, Igla 6031, radar SAM 6050) | `MunitionTkbCatalog.cs` |
+
+### 1a. Step 0 — the four measurements *(`air` lane, `2026-11-17`; graph + grep; ⚠ index coverage cannot be checked through the CLI)*
+
+| # | question | answer | basis |
+|---|---|---|---|
+| ① | the ids | **components 128 · 160 · 277 · 278 · 279** (R-10000 — the ONLY five ids no lane declares or uses: a full scan of every `[ComponentId]`, every `*Ids` constant of type int / ushort / byte and every literal on coordinator, behaviors, backend, ui, terrain, convoy and the three `exp/agg-*`; the 0–511 space is otherwise FULL) · **ordinals 216 · 217 · 218 (+ 219 spare)** (R-10001 — every `EDescriptorType`, `DescriptorOrdinal` literal and `TimeDescriptorType` on the same branches: in use … 196, 201–203, 205–206, 220–222; the convoy lane takes 198–200 + 207 upwards) · **MiG DIS 1.2.222.1.200**, class `TwinEngineFighter` = `1.2.*.1.200` (R-10002; the `LandAnimal` 200+ precedent for a HROT subcategory) · **`WeaponCategory.AirToAir` = 13** (12 was the last, on every branch) | `GlobalComponentIds.cs` header; `AllDescriptors.cs`; `TimeDescriptorType.cs:5-9`; `EntityClassTable.cs:233`; `TurretSuiteDto.cs:49-75` |
+| ② | `Ground(x, y)` beyond the map edge | **continuous and finite**: the height at the nearest edge point + low procedural hills (≤ 25 m, faded in over 300 m) — GCAS needs nothing special there; `ac-map-edge` is the rail | `TerrainWorld.cs:147-156` (`GroundHeightOf`), `BeyondGround.cs:19-21` |
+| ③ | the vision range at which a unit sees a jet | **the OBSERVER's own range, not the target's size**: `VisualPerception.Optics` reads the observer's `SensorCapability.Visual.Range` (= its TKB `SensorRange`), × binoculars / scope, × light and fog — the A-10 and a MANPADS 5 km, the AH-64 6 km. ⇒ the jets get `SensorRange` 8 km (≥ the 6 km shot cap, AC-11) | `VisualPerception.cs:61-101`; `NedTkbBuilder.cs:356-362`; `NedTkbCatalog.cs:330` |
+| ④ | does the radar sensor (RS-2) run on an AIRCRAFT emitter? | **yes, unchanged**: it runs on any carrier whose TKB lists a radar (`RadarRange > 0`) while its `RadarEmission` is On; the candidates exclude only its own force and itself — nothing ground-specific. ⚠ the clutter floor (15 m) applies to the TARGET, so a jet looking down never sees a target below 15 m AGL | `RadarPerception.cs:66-120`; `NedTkbBuilder.cs:365` |
 
 ## 2. The proven pattern, and what we take
 
@@ -222,7 +231,42 @@ sequenceDiagram
 
 ⛔ **Mockups first** (R-4143): the MiG, the jet with stores, the HUD, the arena — house style over `scripts/mockup_kit.py`, committed beside this design.
 
+⭐ **The mockups (ui, `2026-11-17`, `scripts/gen-air-combat-mockup.py`):** [the MiG beside the F-16](air-combat-body.svg) · [the missiles on the rails, full and after two shots](air-combat-stores.svg) · [the fighter HUD](air-combat-hud.svg) · [the arena, its gizmo and form](air-combat-arena.svg). Each names its scope; context is drawn unchanged (R-4151).
+
 *Why ui and not the air lane: the body is chosen by the class chain, so the air lane's only visual act is naming the class — exactly the radar SAM's split (§2a there).*
+
+
+### 4e. ⭐ AS-BUILT — the looks (ui, `2026-11-17`; the mockups of §4d are the acceptance, the rails below measure them)
+
+```mermaid
+graph TD
+  subgraph Presentation["every map host — presentation only, no wire"]
+    FAM["VisualFamilies.Of(type) — class TwinEngineFighter ⇒ TwinEngineJet (FamilyOfClass)"] --> KIT["ShapeKits.TwinEngineJet (the MiG)"]
+    EBL["EntityBodyLayer3D.Draw"] --> JS["JetStores.Left — the missiles left, from the WeaponAmmo mirror"]
+    EBL --> FS["FighterState.Read — FighterPilotState: Throttle, GLoad"]
+    JS --> LOAD["JetStores.Load — rails + missiles + flames + vortex (cached per type, size, load: 0 B)"]
+    FS --> LOAD
+    PL["ProjectileLayer.Draw3D"] --> TRAIL["TrailFactor(MissileDto.BurnSeconds, now − path.FirstSeen)"]
+    ESS["EffectSpawnSystem + WeaponKits.BlastOf"] --> LAUNCH["flash (MissileLaunchFlash) + puff at the rail"]
+    WSS["WreckSpawnSystem (existing)"] --> FALL["Fire + Smoke anchored to the dead jet's body"]
+    PS["PossessionStation.DrawOverlay (FixedWing)"] --> HUD["FighterHud.Build / Draw"]
+    HUD --> FS
+    AG["AirArenaProjector ⇒ AirArenaGizmo.Draw / Handles / Clamp; AirArenaOps (one undo step each); AirArenaDetailsView"]
+  end
+```
+
+*What the picture shows that prose hid: nothing here crosses the wire — every look is derived on each host from state that already replicates (the ammunition mirror, the round's age, the health crossing, `FighterPilotState`, `AirArena`). ✅ Re-bound `2026-11-17` to the air lane's merged contract: no stand-in remains but the HUD's zone.*
+
+| piece | as built | deviation from the §4d mockup / what waits |
+|---|---|---|
+| the MiG body | `VisualFamily.TwinEngineJet` (appended), `ShapeKits.TwinEngineJet`, box 17.3 × 11.4 × 4.7 m, `KitPart.RollDegrees` (new, last parameter) for the canted fins; class bound in `VisualFamilies.FamilyOfClass["TwinEngineFighter"]`; the real type 409 (box 17.32 × 11.36 × 4.73 m from its `BodyGeometryDto`, gear hidden in the air by the TKB's contact points) | the kit's gear is drawn in the air as the F-16's is (existing kit behaviour; the mockup omits gear) |
+| stores | `JetStores`: pylons always, one missile per round left of the mount whose AMMUNITION is an air-to-air missile (IR AIM-9X / R-73, radar AIM-120 / R-77 — `MunitionTkbCatalog` constants), the left rail first | the F-16 draws none until the air lane gives it missile mounts |
+| AAM in flight | the smoke trail from the round's AGE (`RoundPath.FirstSeen`, first seen on this host) against the round's `MissileDto.BurnSeconds` (IR 5 s, radar 8 s; `ProjectileLayer.BurnOf`), a 0.8 s linger, then NONE; the launch: `EffectTkbCatalog.ApplyAirMissileEffects` + `WeaponKits.BlastOf` ⇒ `Launch` for a jet's missile mount | the four AAM look rows and the two guns' tracer rows are tuned (`MunitionTkbCatalog.BuiltInLooks`); a round first seen mid-flight (a late joiner) shows its trail from then |
+| afterburner · vortex · fall | flames (amber cones, one per nozzle) from `FighterPilotState.Throttle ≥ 0.9` (the contract's); wingtip tubes 40 m back from `GLoad ≥ 6`; a dead jet burns by the EXISTING W3 wreck fire + smoke anchored to its body (rail: they follow it down), its afterburner out | the vortex is a straight stateless tube, not the curved vapour of the path; a curved smoke trail behind a falling jet is a follow-up |
+| the arena | `AirArenaGizmo.Draw` (2-D: dashed ring + 6 % fill; 3-D: floor ring, ceiling ring, ticks, spokes), `Handles` (centre, radius, floor, ceiling: position, hit test, drag), `Clamp` (the ONE validation the form shares), through `AirArenaProjector` over the real `AirArena` (`NotAUnit` keeps it from drawing as a box), `AirArenaOps` (one undo step each), `AirArenaDetailsView` (registered beside the minefield's) | no TKB type exists for an arena, so the picker cannot place one — scenarios author it (decision R-1060); the handles' mouse DRAG (a pointer hook into the map's input chain) is not wired; the form's pixel layout is not frame-measured |
+| the fighter HUD | `FighterHud.Build` (pure) / `Draw`: the pipper = `TargetLead.Point`, SEARCH / IN ZONE / LOCK, the warning from the existing `RadarWarning` and `MissileWarning`, g from `FighterPilotState`; anchors measured in the frame rail | the zone is a range band (500 m … `AirArena.DefaultMaxShotRangeM`) and the lock a 15° cone (`ZoneStandIn`) — the air lane has no employment zone yet (S3) |
+
+**Prior state superseded:** §4d's table said "nothing for the body" of a MiG would be a new F-16 — now `TwinEngineJet`; the "gun only needs its effect-set and tracer rows" line stands (nothing built here).
 
 
 ## 5. The numbers *(public figures, rounded; the builder tunes and records each as a lane decision)*
@@ -312,6 +356,37 @@ Machine checks on every behaviour slice: `HROT_PARALLEL_SIM=1` + `HROT_READ_CHEC
 declared in `BrainReads.Declare`), the world guard, and `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` (parallel safety, not the
 verdict). The motion node is serial (`AirMotionSystem`), so the fight reads the target's and the rounds' TICK-START state, never this
 frame's half-moved one. ⛔ No allocation and no LINQ in `Fight`, `Steer3D`, `Gcas`, `ScanInbound` (a rail: 0 bytes in a steady frame).
+
+### 8a. ✅ As built — S0 and S1 *(the `air` lane, `2026-11-17`; `STATUS_Air_Combat.md`)*
+
+| item | as built | deviation — argued |
+|---|---|---|
+| ids (§7) | components 128 · 160 · 277 · 278 · 279; ordinals 216–218; MiG DIS 1.2.222.1.200; `AirToAir` 13 (§1a) | — |
+| §4a `FighterPilotState` | + `SpeedMps` (the brain's energy), `GcasTurn`, `GcasHeadingDeg` (the recovery GCAS chose — motion-node local, not on the wire) | R-10003 |
+| §4a `AirCombatSteer` | + `Lapse` (the motion node flies a G-LOC wings level and a fixation's lowered floor) · ⭐ SAVED with a scenario | R-10003 · R-10004: an authored steer is the motion node's feature-test seam — S1's GCAS scenarios dive before the behaviour (S3) exists |
+| AC-1 | `AirRoute.Compile(…, climbSlope)` — a leg whose ends are both ordered ≥ 100 m flies ONE altitude (the highest of its samples = the highest ground + the order); then every point is raised to the next point's height less the climb over the gap (climbs start EARLY) and to the previous point's less the descent (descents start LATE). The fixed-wing route passes slope = climb rate ÷ cruise; helicopters pass 0 (unchanged) | ⚠ R-10005: AC-1 said "the climb OR DESCENT starts early" — an early descent would leave the previous leg's clearance over its highest ground |
+| AC-3 `Steer3D` | `Motion/AirCombat/Steer3D.cs` — velocity + quaternion; roll at the type's rate onto the wanted lift; ⭐ GRAVITY FIRST: past the g limit the turn gets what is left once the lift holds the aircraft up (so a max-g level turn banks acos(1/n) and does not spiral down); speed = thrust·throttle − thrust·(v/top)² − DragK·(n²−1) − g·sin(climb), floored at stall. The F-16 sustains 6.5 g at 220 m/s, the MiG 5.5 g (`FlightParamsDto.MaxG / CornerSpeedMps / DragK / RollRateDeg`, §5a) | R-10006: "gravity first" is the coordinated-turn convention the AC-3 text implies (bank = acos(1/n)) but did not state |
+| AC-4 GCAS | `Gcas` (same file): 0.3 s holding the line, then wings level and the type's `MaxG` into a 30° climb, stepped at 0.1 s for 10 s through `Steer3D` over `Ground(x, y)`; below the floor ⇒ it takes the stick; it lets go after ≥ 1.5 s, climbing, above the floor, with a recovery clearing the floor by 100 m (R-10008 — measured on `ac-gcas-ridge`: released at the floor, the kinematic point order dived straight back at the ridge and the second recovery came too late); a route plane then REJOINS its path (it flies at a point 1 km ahead of the nearest path point until within 30 m — ⛔ never the old snap, measured as a 7 km/s velocity spike); a straight recovery that fails ⇒ the better of the ±120° climbing turns. Floor `Gcas.FloorFor(ordered)` = clamp(ordered − 20, 8, 150); route = the leg's height, point = the point's, mode 8 = `AirCombatSteer.FloorAgl` (÷3 under a fixation), none = 150. A body higher than 10 s of its own speed + 500 m skips the simulation. In route mode the route's place advances while GCAS holds | — |
+| mode 8 | `FixedWingModel.Fight` flies every `Manoeuvre` (pursuits with the lead / lag seconds 0.8 / 1.5, break, extend, climb, merge / return / disengage at the point, rejoin 200 m behind and 150 m beside the leader, drag / beam / last-ditch off `FighterPilotState`'s threat bearing). ⚠ The target is read at its CURRENT position — the tick-start cache (RV-6) lands with the behaviour (S3) | the cache is S3's: no mode-8 target is another fighter before S3 |
+| the jets | F-16 / MiG: flight (§5a), health 400 / 450, armour 4·4·2·2 / 5·5·2·2, eyes 8 km (§1a ③), a brain, a 30 + 30 dispenser, an ejection seat | weapons and radar are S3's |
+| rails | `FixedWingModelTests`: `AC3_TheF16_Sustains6p5gAt220…`, `AC3_ALoop_PassesTheVertical…`, `AC4_GCAS_RecoversAnInverted60DegreeDive`, `AC4_GCAS_TurnsAwayFromARidgeTooSteepToClimb`, `AC4_AGunRunAt50m_DoesNotTripGcas`, `AC1_ACruiseLeg_HoldsOneAltitude…`, `AC3_ASteadyFightFrame_AllocatesNothing` (0 B) | — |
+| scenarios | the `air-range` terrain and the five S1 scenarios, written by `scripts/gen-air-combat-scenarios.py` from ONE height function (the engine's grid sample and `BeyondGround` ported exactly), so a check's altitude cannot drift from its ground. The grid is 2 × 2 km at 100 m (hills, a 200 m ridge along x 500 south of y 400, a 1:1.8 wall to a 720 m plateau north of y 600) — beyond its edge the engine continues the edge height + low hills, so the ridge and the plateau run on | R-10009: 2 km, not 24 or 8 — measured, a larger grid's first load (its navmesh bake) does not finish inside the regression's 30 s |
+| ⭐ a point order is watched by its OWN flight first (R-10010) | `ToPoint` is kinematic and levels at its height by itself, so GCAS runs its recovery check only when the order's own flight (on along its heading, its height moving to the point's at the climb rate, 10 s) would pass below the floor; a point ON the ground leaves the 8 m floor | measured: the 150 m default for a ground point, then the recovery check on a 50 m pass, stopped `ua-air-attack`'s A-10 gun run (the column lead lived; it passes on the base) |
+| ⚠ GCAS is a STRAIGHT-AHEAD predictor | measured on `ac-map-edge`'s first layout: a route's U-turn 100 m short of the plateau's wall tripped GCAS — the recovery straight ahead would have met the wall the turn was avoiding. ⭐ This is how Auto-GCAS works (it predicts from the present flight path); the scenario's route moved 1 km south of the wall | a finding, not a defect |
+
+### 8b. 🟡 As built — S2, the first half *(the `air` lane, `2026-11-17`)*
+
+| item | as built | deviation — argued |
+|---|---|---|
+| AC-6 the motor | `GuidedRound` + `SpeedNow`, `BurnLeftS`, `BoostMps2`, `MaxG`, `DragPerS`, `MinSpeedMps`, `SteerLagS`, `SteerDir`, `LoadG`; `GuidedRoundSystem.Motor` — boost from the LAUNCHER's speed (≥ a tube's 30 m/s) to `SpeedMps` over the burn, then coast losing `DragPerS·(1 + n/MaxG)`; g = `MaxG·(v/SpeedMps)²`; the steering follows the lead (still on `SpeedMps`, as AC-6 says) through a first-order lag; coasting below `MinSpeedMps` ⇒ the round expires and its shot row ends `ShotOutcome.Defeated` (appended). `MaxG` 0 ⇒ the old constant-speed round (ATGMs unchanged) | — |
+| §5b numbers | the four AAMs (contract) + the SAMs: Stinger 2 s / 20 g / −60 / 250, Igla 2 s / 18 g / −60 / 250, radar SAM 4 s / 30 g / −40 / 300, all a 0.4 s lag | — |
+| ⭐ the acceptance (RV-1) | `GuidedRoundSystemTests.AC6_MonteCarlo_…`: 300 seeded IR shots, 1.2–3 km, ANY aspect, at an F-16 that drags (> 4 s to go), beams (inside) and breaks (inside 2.5 s): 📐 measured **timely (0.7 s, a Veteran) 16 / 300 = 5 % · LateWarning (2.7 s) 38 = 13 % · no defence 150 = 50 %**; stated bands 6…30 · 25…60 · 120…180 | ⚠ R-10007: the design's EXAMPLE band ("30–60 % against a Veteran") is NOT what the §5b round gives — with its 0.4 s lag and the lead on the burn-out speed it is beaten ~19 times in 20 by a timely defence. The numbers were kept (the handoff: no guidance tuning beyond the design); the user decides whether the missile should be harder (a shorter lag, the lead on the current speed) |
+| AC-9a the live threat | `Motion/AirCombat/ThreatScan.cs` — once per tick the motion node gathers the homing rounds (tick-start positions, per-thread buffers, no steady allocation); each fixed-wing writes the rounds aimed at it into `FighterPilotState` (`Inbound`, the nearest-in-time's compass bearing, seeker, closure, live time to impact); `GuidedRoundSystem` counts a defeated round into its target's `Defeated` | — |
+| AC-9 the reflex | `FixedWingModel.Autonomous`, before any mode: inside `ThreatScan.LastDitchS` (2.5 s) the jet breaks level ACROSS the missile's line at its full g, whatever the brain asked; GCAS already holding keeps the stick; a G-LOC'd pilot does nothing; `LastDitchAt` stamped on entry | — |
+| AC-8 the suites (S3's catalogue half) | F-16 / MiG: mount 0 the gun (M61 500 rds 6 000/min · GSh-30-1 150 rds 1 800/min, fixed 2° cone), mount 1 the IR rail pair (AIM-9X / R-73, `AirToAir`), mount 2 the radar pair (AIM-120 / R-77), the dispenser last; a 40 km radar | the order ui's `JetStores` draws (IR outboard, radar inboard) |
+| not yet | `MissileDefence` (the brain's drag / beam / flares — AC-9's brain half), the grammar items, the six S2 scenarios, `sam-site`'s chaff band; S3's behaviour; S4 | ⏳ (STATUS_Air_Combat.md) |
+
+
 
 ## 9. ⛔ The review — `2026-11-16` *(🔒 user: "Approved. Please do an independent review and find gaps and flaws."; three independent reviewers: engine fit (EF), realism and AI (RL), corpus / catalogue / handoff (CP); ✔ = re-measured by the coordinator)* — ✅ APPROVED and FOLDED into §3–§8 `2026-11-16` (R-4284; 🔒 user: *"approved, fold it in and write the handoffs"*)
 

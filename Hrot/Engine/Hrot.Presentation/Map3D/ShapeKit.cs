@@ -146,7 +146,7 @@ public readonly record struct KitPivots(Vector2 Turret, Vector2 GunTrunnionXZ);
 public readonly record struct KitPart(
     PartShape Shape, Vector3 Centre, Vector3 Extent, ColourRole Colour, PartAxis Axis = PartAxis.Z, float PitchDegrees = 0f,
     float YawDegrees = 0f, PartRole Role = PartRole.Hull, bool Upper = false, Vector3? SwingPivot = null, Vector3? KneePivot = null,
-    FaceOn Face = FaceOn.None, int Round = -1)
+    FaceOn Face = FaceOn.None, int Round = -1, float RollDegrees = 0f)
 {
     /// <summary>The part's transform in BODY space (metres, before the entity's own rotation and position), unarticulated.</summary>
     public Matrix4x4 BodyTransform(Vector3 size) => BodyTransform(size, default, ArticulationPose.Neutral);
@@ -176,6 +176,7 @@ public readonly record struct KitPart(
             }
             local = Matrix4x4.CreateTranslation(0, 0, -0.5f) * Matrix4x4.CreateScale(diameter, diameter, length) * lay;
         }
+        if (RollDegrees != 0f) local *= Matrix4x4.CreateRotationX(RollDegrees * MathF.PI / 180f);   // ⭐ CE-4647 — a fin canted outward (applied FIRST: about the part's own long axis)
         if (PitchDegrees != 0f) local *= Matrix4x4.CreateRotationY(PitchDegrees * MathF.PI / 180f);
         if (YawDegrees != 0f) local *= Matrix4x4.CreateRotationZ(YawDegrees * MathF.PI / 180f);
         var m = local * Matrix4x4.CreateTranslation(centre);
@@ -306,8 +307,8 @@ public sealed record ShapeKit(KitPart[] Parts, KitPivots Pivots)
 public static class ShapeKits
 {
     internal static KitPart Box(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, float pitch = 0f,
-                               float yaw = 0f, PartRole role = PartRole.Hull)
-        => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, PartAxis.Z, pitch, yaw, role);
+                               float yaw = 0f, PartRole role = PartRole.Hull, float roll = 0f)
+        => new(PartShape.Box, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, PartAxis.Z, pitch, yaw, role, RollDegrees: roll);
 
     internal static KitPart Cyl(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c,
                                PartRole role = PartRole.Hull)
@@ -324,7 +325,7 @@ public static class ShapeKits
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
     public const float WheelRadiusOfHeight = 0.21f;
 
-    private static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
+    internal static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
 
     public static readonly ShapeKit Tank = new(new[]
@@ -412,6 +413,34 @@ public static class ShapeKits
         Box(0.30f, 0f, 0.13f, 0.02f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
         Box(-0.10f, 0.10f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),                     // main gear
         Box(-0.10f, -0.10f, 0.13f, 0.03f, 0.02f, 0.26f, ColourRole.Dark, role: PartRole.Gear),
+    }, default);
+
+    /// <summary>
+    /// ⭐ CE-4647 (docs/designs/air-attack/DESIGN_Air_Combat.md §4d, AC-15; mockup <c>air-combat-body.svg</c>) — a twin-engine fighter (MiG-29-like; y = span): a wide blended body
+    /// between TWO engine bays, a flat underbody, wings swept 28°, TWO fins swept 28° and canted 7° outward, TWO nozzles, the intakes UNDER the wing roots, tailplanes on the booms.
+    /// ⛔ The table is the mockup's (<c>scripts/gen-air-combat-mockup.py</c> MIG): change one, change both. Its missiles: <c>JetStores</c>.
+    /// </summary>
+    public static readonly ShapeKit TwinEngineJet = new(new[]
+    {
+        Cyl(PartAxis.X, -0.02f, 0f, 0.44f, 0.62f, 0f, 0.27f, ColourRole.Body),               // the blended centre body
+        Cone(PartAxis.X, 0.38f, 0f, 0.45f, 0.18f, 0f, 0.24f, ColourRole.Body),               // nose
+        Box(0.17f, 0f, 0.60f, 0.16f, 0.05f, 0.09f, ColourRole.Glass),                        // canopy
+        Box(0.00f, 0f, 0.36f, 0.46f, 0.20f, 0.025f, ColourRole.Body),                        // the flat underbody between the bays
+        Box(-0.10f, 0.25f, 0.37f, 0.30f, 0.46f, 0.025f, ColourRole.Body, yaw: 28f),          // wing, left
+        Box(-0.10f, -0.25f, 0.37f, 0.30f, 0.46f, 0.025f, ColourRole.Body, yaw: -28f),        // wing, right
+        Cyl(PartAxis.X, -0.20f, 0.075f, 0.38f, 0.46f, 0f, 0.22f, ColourRole.Body),           // the two engine bays
+        Cyl(PartAxis.X, -0.20f, -0.075f, 0.38f, 0.46f, 0f, 0.22f, ColourRole.Body),
+        Cyl(PartAxis.X, -0.445f, 0.075f, 0.38f, 0.07f, 0f, 0.19f, ColourRole.Dark),          // TWO nozzles
+        Cyl(PartAxis.X, -0.445f, -0.075f, 0.38f, 0.07f, 0f, 0.19f, ColourRole.Dark),
+        Box(0.06f, 0.075f, 0.25f, 0.22f, 0.07f, 0.13f, ColourRole.Dark),                     // the intakes, under the wing roots
+        Box(0.06f, -0.075f, 0.25f, 0.22f, 0.07f, 0.13f, ColourRole.Dark),
+        Box(-0.43f, 0.15f, 0.36f, 0.12f, 0.26f, 0.02f, ColourRole.Body, yaw: 30f),           // tailplane, left
+        Box(-0.43f, -0.15f, 0.36f, 0.12f, 0.26f, 0.02f, ColourRole.Body, yaw: -30f),         // tailplane, right
+        Box(-0.37f, 0.115f, 0.68f, 0.17f, 0.012f, 0.40f, ColourRole.Body, -28f, roll: -7f),  // TWO fins, canted outward
+        Box(-0.37f, -0.115f, 0.68f, 0.17f, 0.012f, 0.40f, ColourRole.Body, -28f, roll: 7f),
+        Box(0.27f, 0f, 0.12f, 0.02f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),                         // nose gear
+        Box(-0.06f, 0.08f, 0.12f, 0.03f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),                     // main gear
+        Box(-0.06f, -0.08f, 0.12f, 0.03f, 0.02f, 0.24f, ColourRole.Dark, role: PartRole.Gear),
     }, default);
 
     /// <summary>A transport (C-130-like proportions; y = wingspan): round fuselage, nose, cockpit glass, a straight high wing with
@@ -839,6 +868,7 @@ public static class ShapeKits
         VisualFamily.Drone => Drone,
         VisualFamily.SpArtillery => SpArtillery,
         VisualFamily.AttackJet => AttackJet,
+        VisualFamily.TwinEngineJet => TwinEngineJet,   // ⭐ CE-4647
         VisualFamily.AttackHelicopter => AttackHelicopter,   // ⭐ CE-1103
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
@@ -864,6 +894,7 @@ public static class ShapeKits
         VisualFamily.Drone => new Vector3(0.6f, 0.6f, 0.3f),
         VisualFamily.SpArtillery => new Vector3(9.7f, 3.6f, 3.3f),
         VisualFamily.AttackJet => new Vector3(16.3f, 17.5f, 4.5f),
+        VisualFamily.TwinEngineJet => new Vector3(17.3f, 11.4f, 4.7f),   // ⭐ CE-4647 — a MiG-29's length, span, height (the TKB's own wins)
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)

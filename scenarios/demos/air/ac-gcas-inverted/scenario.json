@@ -1,0 +1,60 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an F-16 INVERTED, 60\u00b0 nose-down at 400 m/s from 3 000 m over the hills, its steer still pressing at the ground (CE-10001, AC-4). Judge: GCAS rolls it upright and pulls it out (GcasCount \u2265 1); it is never lost."
+  },
+  "entities": {
+    "ac000003-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -2000.0,
+          -3000.0,
+          3094.9
+        ],
+        "Rotation": [
+          0.866025,
+          0.0,
+          -0.5,
+          -0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          200.0,
+          0,
+          -346.41
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "NavigationIntent": {
+        "Mode": "AirCombat",
+        "IntentId": 1
+      },
+      "AirCombatSteer": {
+        "Manoeuvre": "PurePursuit",
+        "Point": [
+          -268,
+          -3000,
+          123
+        ],
+        "Throttle": 1
+      }
+    }
+  }
+}

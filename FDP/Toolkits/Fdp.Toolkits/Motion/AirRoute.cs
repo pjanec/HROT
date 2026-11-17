@@ -118,7 +118,7 @@ namespace Fdp.Toolkit.Motion
         /// when the body is not at the first waypoint). <paramref name="ground"/> null ⇒ flat ground at 0.
         /// </summary>
         public static AirPath Compile(Vector3 from, IReadOnlyList<NavRouteWaypoint> waypoints, bool loop, float turnRadius, float hoverAgl,
-                                      Func<float, float, float>? ground)
+                                      Func<float, float, float>? ground, float climbSlope = 0f)
         {
             ground ??= static (_, _) => 0f;
             int n = waypoints.Count;
@@ -181,6 +181,7 @@ namespace Fdp.Toolkit.Motion
             var curvature = new float[m];
             for (int j = 1; j < m; j++) sAlong[j] = sAlong[j - 1] + Vector2.Distance(dense[j - 1], dense[j]);
             int leg = 0;
+            var legOf = new int[m];
             for (int j = 0; j < m; j++)
             {
                 float s = sAlong[j];
@@ -190,9 +191,12 @@ namespace Fdp.Toolkit.Motion
                 var p = dense[j];
                 float z = heightAt[leg](p.X, p.Y) + (heightAt[leg + 1](p.X, p.Y) - heightAt[leg](p.X, p.Y)) * t;
                 points[j] = new Vector3(p, z);
+                legOf[j] = leg;
                 int w = idx[leg] >= 0 ? idx[leg] : (idx[leg + 1] >= 0 ? idx[leg + 1] : 0);
                 speed[j] = waypoints[w].TargetSpeed;
             }
+            if (climbSlope > 0f) CruiseAltitudes(points, sAlong, legOf, pts, heightAt, ground, climbSlope);
+
             // the circle through each point and its neighbours: exact on an arc, gentler where an arc meets a straight leg
             for (int j = 1; j < m - 1; j++)
             {
@@ -224,6 +228,38 @@ namespace Fdp.Toolkit.Motion
                 Curvature = ImmutableCollectionsMarshal.AsImmutableArray(curvature),
                 Stops = stops.ToImmutableArray(),
             };
+        }
+
+        /// <summary>⭐ CE-10001 (AC-1) — an ordered height at or above this is a CRUISE leg (a fixed altitude); below it the leg follows the
+        /// terrain (attack run-ins, helicopters, drones).</summary>
+        public const float LowFlightAglM = 100f;
+
+        /// <summary>
+        /// ⭐⭐ CE-10001 (AC-1; docs/designs/air-attack/DESIGN_Air_Combat.md §3) — the user: <i>"the aircraft now follow the terrain height instead
+        /// of keeping absolute height"</i>. A cruise leg (both ends ordered ≥ <see cref="LowFlightAglM"/>) flies at ONE altitude: the highest
+        /// of its per-sample heights (= the highest ground under the leg + the ordered height). Then a climb STARTS EARLY — every point is raised
+        /// to the next point's height less what the aircraft climbs over the gap (<paramref name="slope"/> = climb rate / speed) — and a descent
+        /// starts LATE (the same, forward), so the aircraft is at a leg's altitude before the leg and leaves it only after. ⚠ Deviation from
+        /// "the climb or descent starts early" (R-10005): an early DESCENT would leave the previous leg's clearance.
+        /// </summary>
+        private static void CruiseAltitudes(Vector3[] points, float[] s, int[] legOf, List<Vector3> pts, List<Func<float, float, float>> heightAt,
+                                            Func<float, float, float> ground, float slope)
+        {
+            int m = points.Length;
+            int legs = pts.Count - 1;
+            for (int L = 0; L < legs; L++)
+            {
+                float aglA = heightAt[L](pts[L].X, pts[L].Y) - ground(pts[L].X, pts[L].Y);
+                float aglB = heightAt[L + 1](pts[L + 1].X, pts[L + 1].Y) - ground(pts[L + 1].X, pts[L + 1].Y);
+                if (aglA < LowFlightAglM || aglB < LowFlightAglM) continue;
+                float top = float.MinValue;
+                for (int j = 0; j < m; j++) if (legOf[j] == L) top = MathF.Max(top, points[j].Z);
+                for (int j = 0; j < m; j++) if (legOf[j] == L) points[j].Z = top;
+            }
+            for (int j = m - 2; j >= 0; j--)   // climbs early
+                points[j].Z = MathF.Max(points[j].Z, points[j + 1].Z - slope * (s[j + 1] - s[j]));
+            for (int j = 1; j < m; j++)        // descents late
+                points[j].Z = MathF.Max(points[j].Z, points[j - 1].Z - slope * (s[j] - s[j - 1]));
         }
 
         /// <summary>The path at <paramref name="s"/>: the point, the XY heading (unit), the signed curvature and the route speed.</summary>

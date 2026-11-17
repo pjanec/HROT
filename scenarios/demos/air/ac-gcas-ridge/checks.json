@@ -1,0 +1,63 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S1 \u2014 feature (golden).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "GCAS saves Viper Low",
+      "on": "field",
+      "who": "Viper Low",
+      "path": "FighterPilotState.GcasCount",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "GCAS saves Viper Dive",
+      "on": "field",
+      "who": "Viper Dive",
+      "path": "FighterPilotState.GcasCount",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "Viper Low is never lost",
+      "never": {
+        "on": "field",
+        "who": "Viper Low",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "Viper Dive is never lost",
+      "never": {
+        "on": "field",
+        "who": "Viper Dive",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "Viper Low never below 8 m",
+      "on": "field",
+      "who": "Viper Low",
+      "path": "FighterPilotState.MinAgl",
+      "op": ">=",
+      "value": 8,
+      "atEnd": true
+    },
+    {
+      "name": "Viper Dive never below 8 m",
+      "on": "field",
+      "who": "Viper Dive",
+      "path": "FighterPilotState.MinAgl",
+      "op": ">=",
+      "value": 8,
+      "atEnd": true
+    }
+  ]
+}
