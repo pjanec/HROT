@@ -10475,7 +10475,7 @@ the only new types are two plain value carriers.*
 order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
 the cost difference is one ~14 ns scan).
 
-### 34.7 ⭐⭐ `CE-9013` / `CE-3467` — **GROWTH INSIDE THE PARALLEL PHASE: an addressable pending block** *(`2026-11-17`, approved by the user — *"Approved and retire backends wrong fix"*; `build-state: BUILDING` — §34.7.7 is the as-built)*
+### 34.7 ⭐⭐ `CE-9013` / `CE-3467` — **GROWTH INSIDE THE PARALLEL PHASE: an addressable pending block** *(`2026-11-17`, approved by the user — *"Approved and retire backends wrong fix"* (R-2137); `build-state: BUILT` — §34.7.7 is the as-built)*
 
 > 🔒 **User, `2026-11-17`:** *"The first block is not big … for sure we want it to grow by adding a new bigger component, and the only
 > question is how … or whether we provide a temporary storage for the component so that the code can access it from the middle of the
@@ -10624,4 +10624,13 @@ refuse in phase, retry next tick — `UnitMemory.Ref<T>` must return a `ref` now
 | `AddBlock` in a phase → pending | as designed; outside the unit's own view it throws, naming §34.7 | — |
 | — | `BeginTickView` inside a phase also appends the batch's pending blocks for its unit | robustness: today one view per unit tick (measured), so it is a no-op cost (`OwnRawCount` 0) unless a second view opens in the same phase |
 | retire R-3103 | `EnsureStandardLadder`, `SuspendStandardLadder`, the `BrainPhase` call and the throw removed; the seven test files backend changed for it restored to their pre-CE-3467 state; the 32 KiB command-buffer cap kept | — |
+
+**Gates** (`2026-11-17`, `--no-build` after one build of each test project):
+
+| gate | result |
+|---|---|
+| T-1 — the store's and the brains' own suites (`UnitMemory`, `OccurrenceStoreAccess`, `RunActionsBrainTick`, `BrainTickSystemMerge`, `BrainTickSystemHsmArm`, `HostingMatrix`, `HsmOccurrenceKey`, `SopSlot`, `BTreeHostsBTree`) | **196 / 0** serial · **196 / 0** with `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` |
+| `Fdp.Core.Tests` `PerEntityRuleTests` + `EntityCommandBufferTests` | **25 / 0** (1 skip, existing) · `PerEntityRuleTests` with `HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` **14 / 0** |
+| mutants (each applied alone, rebuilt, restored with `git checkout`) | M1 the merge never plays own raw ⇒ R1–R3 red · M2 `TryAttachSlot` ignores the view ⇒ R2 red (after R2 gained the two-300 B case — the first R2 stayed green: every attach needed a bigger tier) · M3 `AddBlock` adds the component in the phase ⇒ R1–R3 red |
+| feature scenarios (deterministic editor run) | ✅ `ua-rpg-window` (CE-3467's crash, now with no pre-sizing) · ✅ `uc-urban-battle` 20 / 20 |
 
