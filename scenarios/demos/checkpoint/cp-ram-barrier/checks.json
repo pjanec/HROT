@@ -5,12 +5,12 @@
   "every": 10
  },
  "anchors": {
-  "act": {
+  "runIn": {
    "on": "field",
    "who": "Rammer",
-   "path": "HostileAct.Kind",
-   "op": "==",
-   "value": "Lethal"
+   "path": "SimTransform.Position.0",
+   "op": ">",
+   "value": 352
   }
  },
  "expect": [
@@ -28,18 +28,18 @@
    "who": "Rammer",
    "path": "SimTransform.Position.0",
    "op": ">",
-   "value": 400
+   "value": 368
   },
   {
-   "name": "the Gunner is struck",
+   "name": "once it rams (a lethal act) it is fired on",
    "on": "field",
-   "who": "Gunner",
+   "who": "Rammer",
    "path": "Health.Current",
    "op": "<",
-   "value": 100
+   "value": 300
   },
   {
-   "name": "the ladder never fires before the ram's lethal act (the ROE is Warn)",
+   "name": "the ladder never fires before the car enters its run-in (the ROE is Warn)",
    "never": {
     "on": "field",
     "who": "Checkpoint",
@@ -47,7 +47,7 @@
     "op": ">=",
     "value": 2
    },
-   "before": "act"
+   "before": "runIn"
   }
  ]
 }

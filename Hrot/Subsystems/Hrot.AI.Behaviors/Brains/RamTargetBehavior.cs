@@ -26,7 +26,7 @@ namespace Hrot.AI.Behaviors.Brains
         public const float DefaultSpeed = 16f, ReissueSeconds = 0.5f, CrowdReachedM = 3f;
         /// <summary>⭐ K-7 (R-2134) — the ram BECOMES a lethal act this close to its target (m): the run-in RM-2 speaks of. 📐 Committed at the order's start
         /// (370 m out on cp-vbied) every soldier fired in self-defence at once and the checkpoint's watch and ladder never had a vehicle to judge.</summary>
-        public const float CommitMetres = 50f;
+        public const float CommitMetres = RamOrder.RunInMetres;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RamTargetParams

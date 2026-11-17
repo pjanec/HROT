@@ -235,6 +235,13 @@ namespace Fdp.Toolkit.Navigation.Systems
                 // 2. Fine-grained filter using the full Entity struct
                 if (AppliedIntent(repo, entity) == intent.IntentId) continue;
 
+                // ⭐ CE-2445 (RM-2, R-2129) — a RAMMING hull inside its run-in drives the STRAIGHT line to the move's end: no path round a weak
+                //   barrier (the break gate decides when it meets one). 📐 cp-ram-barrier: planned, the car steered round four barrels and stopped
+                //   beside them. Local to this pass — the stored intent is untouched (its brain re-sends every 0.5 s).
+                if (intent.Mode == NavigationMode.PathToPoint && repo.HasComponent<NavState>(entity) && repo.IsComponentTypeRegistered<global::CarKinem.Core.RamOrder>()
+                    && global::CarKinem.Core.RamOrder.InRunIn(repo, entity, (System.Numerics.Vector3)intent.FinalDestination))
+                    intent.Mode = NavigationMode.DirectPoint;
+
                 bool hasNav = repo.HasComponent<NavState>(entity);
                 if (!hasNav && intent.Mode != NavigationMode.PathToPoint) continue;   // nothing to drive (as before)
                 var nav = hasNav ? repo.GetComponent<NavState>(entity) : default;
