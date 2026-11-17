@@ -34,7 +34,7 @@ public readonly record struct FighterHudModel(bool Active, bool GunSelected, boo
 /// ⭐ CE-4647 (AC-15 step 7; docs/designs/air-attack/DESIGN_Air_Combat.md §4d; mockup <c>air-combat-hud.svg</c>) — the FIGHTER HUD of a possessed F-16 / MiG (the manual mouse-aim pilot: mode 8 is AI only), over the existing flyer HUD
 /// (<c>PossessionStation.Hud</c>, Entity Control §8f — unchanged): a gun PIPPER at the led point, the missile cue (SEARCH / IN ZONE / LOCK), the radar warning (a tick at the emitter's bearing, the text on a LAUNCH) and the g.
 /// <para>📐 The pipper is <see cref="TargetLead.Point"/> — the ONE predictor of rounds, missiles and gun runs; the warning reads the EXISTING <see cref="RadarWarning"/> and <see cref="MissileWarning"/>.
-/// 🔧 Stand-ins until the air lane's contract is merged: <see cref="FighterStateStandIn"/> (g) and <c>ZoneStandIn</c> — the employment zone is a plain range band (<see cref="MissileMinRangeM"/> … <see cref="MissileMaxRangeM"/>, the show rule AC-11's 6 km), not
+/// 🔧 <c>ZoneStandIn</c> — the air lane has no employment zone yet (S3): the zone is a plain range band (<see cref="MissileMinRangeM"/> … <see cref="MissileMaxRangeM"/>, the show rule AC-11's 6 km), not
 /// the air lane's speed-and-aspect zone (AC-8); ⭐ re-bind: ask its zone.</para>
 /// ⭐ HOT PATH: the target scan is one cached query; every text is a cached string per value — a steady frame allocates nothing.
 /// </summary>
@@ -43,7 +43,7 @@ public sealed class FighterHud
     /// <summary>The gun's reach for the pipper (m, DESIGN §AC-8: "fires ≤ 500 m"), its default muzzle speed (m/s) where the mount says none.</summary>
     public const float GunRangeM = 500f, DefaultMuzzleSpeed = 1050f;
     /// <summary>🔧 ZoneStandIn — a missile shot is worth taking between these ranges (m); the seeker locks inside <see cref="LockConeDeg"/> of the look; a target is "found" inside <see cref="SearchConeDeg"/>.</summary>
-    public const float MissileMinRangeM = 500f, MissileMaxRangeM = 6000f, LockConeDeg = 15f, SearchConeDeg = 30f, MaxSearchRangeM = 9000f;
+    public const float MissileMinRangeM = 500f, MissileMaxRangeM = Fdp.Toolkit.Motion.AirArena.DefaultMaxShotRangeM, LockConeDeg = 15f, SearchConeDeg = 30f, MaxSearchRangeM = 9000f;
     /// <summary>g from which the read-out turns amber (also the vortex trails' threshold) and red.</summary>
     public const float HighG = 6f, LimitG = 8f;
 
@@ -138,7 +138,7 @@ public sealed class FighterHud
         }
 
         // ── g and the warnings
-        float gLoad = FighterStateStandIn.Read(world, unit) is { } st ? st.GLoad : 1f;
+        float gLoad = FighterState.Read(world, unit) is { } st ? st.GLoad : 1f;
         var gc = gLoad >= LimitG ? GColour.Limit : gLoad >= HighG ? GColour.High : GColour.Normal;
         var warning = WarningCue.None; float bearing = 0f; string wtext = "";
         float heading = 90f - Fdp.Toolkit.Motion.RotorcraftModel.YawOf(tf.Rotation) * 180f / MathF.PI;

@@ -13,9 +13,7 @@ public enum ArenaHandle : byte { None = 0, Centre, Radius, Floor, Ceiling }
 /// <summary>
 /// ⭐ CE-4647 (AC-15 step 6; docs/designs/air-attack/DESIGN_Air_Combat.md §3 AC-10, §4d; mockup <c>air-combat-arena.svg</c>) — the arena's LOOK and its AUTHORING: <see cref="Draw"/> is the ONE drawing of an arena (2-D: a faint dashed ring and a 6 % fill, a label,
 /// the four handles while selected; 3-D: the floor ring and the ceiling ring, dashed, joined by four ticks, spokes on the floor), <see cref="Handles"/> the pure maths of the four handles (where each is, which one a point hits, what dragging it does — clamped).
-/// <para>🔧 <c>ArenaSeam</c> (the minefield's R-1055 precedent): the arena is the air lane's replicated <c>AirArena</c> component (AC-10; not merged yet — ⛔ a stand-in component would need a component id, ui's block is exhausted), so the drawing and the handle maths work on the
-/// <see cref="ArenaShape"/> a projector fills; ⭐ re-bind = a <c>[GizmoProjector(typeof(SimTransform), typeof(AirArena))]</c> class that reads the component into an <see cref="ArenaShape"/>, calls <see cref="Draw"/>, and applies a drag by the one edit path (undo / redo),
-/// plus the Details form's four fields (<see cref="Clamp"/> is its validation). Floor and ceiling are heights ABOVE THE GROUND at the centre (a stand-in reading of "floor 150 m"; the air lane's `AirArenaSystem` fixes it).</para>
+/// <para>The projector over the air lane's <see cref="Fdp.Toolkit.Motion.AirArena"/> is <see cref="AirArenaProjector"/>; the writes are <c>AirArenaOps</c> (one undoable edit each) and the Details form is <c>AirArenaDetailsView</c>. The drawing and the handle maths work on the <see cref="ArenaShape"/> they fill. Floor and ceiling are heights ABOVE THE GROUND at the centre (the contract's <c>FloorAglM</c> / <c>CeilingAglM</c>).</para>
 /// ⭐ HOT PATH: no allocation in <see cref="Draw"/> (a ring is a fixed 72-segment loop, no lists).
 /// </summary>
 public static class AirArenaGizmo

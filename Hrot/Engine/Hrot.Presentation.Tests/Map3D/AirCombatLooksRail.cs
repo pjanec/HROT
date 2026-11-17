@@ -3,6 +3,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.UI.Common.Effects;
 using Fdp.Toolkit.Tkb;
@@ -23,17 +24,16 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// <summary>
 /// ⭐⭐ <c>CE-4647</c> (AC-15, <c>docs/designs/air-attack/DESIGN_Air_Combat.md</c> §4d; mockups <c>air-combat-{body,stores,hud,arena}.svg</c>; handoff <c>HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md</c>) — the air combat LOOKS:
 /// the MiG's twin-fin body (step 2), the missiles on the rails with rounds left (step 3) and — in this file as they land — the AAM look / burn trail / launch flash (4), the afterburner, the vortex and the dead jet's smoke (5).
-/// <para>🔧 Built against stand-ins until the air lane's contract is merged (<c>NOTE_Air_To_Ui_Air_Combat_Contract.md</c>): the MiG is a TKB template <see cref="MigStandIn"/> (type 409, the class the table does not have yet pinned by
-/// <see cref="EntityBodyLayer3D.PinLook"/>) with the mounts of §5a (munitions 6060 / 6061); ⭐ re-bind = delete the template and the pin, draw the real type 409.</para>
+/// <para>⭐ Re-bound (the air lane's contract is merged): the MiG is the REAL type 409 (class <c>TwinEngineFighter</c>), the missiles the real munitions 6060…; the rails arm the MiG with the weapon suite S3 will give it (<see cref="ArmMig"/>) and write the real <c>FighterPilotState</c>.</para>
 /// ⛔ The frame tests SKIP without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~AirCombatLooksRail</c>. 🔴 Red-proofs: see each test.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class AirCombatLooksRail
 {
-    /// <summary>🔧 MigStandIn — the MiG-29's type id (DESIGN_Air_Combat §7).</summary>
-    internal const long MigStandIn = 409;
+    /// <summary>The MiG-29's type id (the contract: <see cref="TkbEntityTypes.Jet_MiG29"/>).</summary>
+    internal const long Mig = TkbEntityTypes.Jet_MiG29;
     private static readonly Vector3 MigSize = new(17.3f, 11.4f, 4.7f);
-    private const ulong Aim9x = 6060, Aim120 = 6061;   // 🔧 AirMunitionStandIn
+    private static readonly ulong Aim9x = (ulong)MunitionTkbCatalog.TkbAim9x, Aim120 = (ulong)MunitionTkbCatalog.TkbAim120;
 
     // ── the scene ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -51,9 +51,9 @@ public sealed class AirCombatLooksRail
             World = Map3DTests.WorldWith(terrain);
             HrotSharedComponentRegistry.RegisterAll(World);
             PresentationComponentRegistry.RegisterEffects(World);
-            World.RegisterComponent<SimTransform>(); World.RegisterComponent<TkbIdentity>(); World.RegisterComponent<SimVelocity>();
+            World.RegisterComponent<SimTransform>(); World.RegisterComponent<TkbIdentity>(); World.RegisterComponent<SimVelocity>(); World.RegisterComponent<FighterPilotState>();
             Tkb = HrotEnvironment.CreateTkb();
-            RegisterMigStandIn(Tkb);
+            ArmMig(Tkb);
             World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Tkb);
             World.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
             var query = WorldQuery.Of(World)!;
@@ -66,7 +66,6 @@ public sealed class AirCombatLooksRail
             Canvas.Camera = two;
             var poses = new TurretPoseSource();
             Bodies = new EntityBodyLayer3D(() => World, () => Tkb, (w, e) => poses.PoseOf(w, e));
-            Bodies.PinLook(MigStandIn, new EntityBodyLayer3D.TypeLook(VisualFamily.TwinEngineJet, MigSize, EntityBodyLayer3D.DefaultColour(VisualFamily.TwinEngineJet), false));
             Effects = new Hrot.UI.Common.Effects.EffectLayer(() => World, () => Tkb, Bodies) { GroundHeight = query.GroundHeightAt };
             Projectiles = new Hrot.UI.Common.Effects.ProjectileLayer(() => World, () => Tkb) { GroundHeight = query.GroundHeightAt };
             Switch = new MapViewSwitch(Canvas, two);
@@ -98,24 +97,23 @@ public sealed class AirCombatLooksRail
         public Vector3 Where(Entity e) => World.GetComponentRO<SimTransform>(e).Position;
         public void Render() { Frame.Step(Canvas.Draw); Frame.Step(Canvas.Draw); }
         public string Shot(string dir, string name) { Render(); var path = Path.Combine(dir, name); Frame.Screenshot(path); return path; }
-        public void Dispose() { FighterStateStandIn.Source = null; Frame.Dispose(); }
+        public void Dispose() => Frame.Dispose();
     }
 
-    /// <summary>🔧 MigStandIn — a TKB template for type 409 with the weapon suite of §5a: mount 0 the IR pair (6060), mount 1 the radar pair (6061).</summary>
-    internal static void RegisterMigStandIn(TkbDatabase db)
+    /// <summary>The real MiG-29 (409) armed with the weapon suite of §5a that S3 will give it (the air lane's catalogue row has no weapons yet): mount 0 the IR pair, mount 1 the radar pair, mount 2 the gun.</summary>
+    internal static void ArmMig(TkbDatabase db)
     {
-        if (db.TryGetByType(MigStandIn, out _)) return;   // the real type, once merged
-        var t = new TkbTemplate("MiG-29 (stand-in)", MigStandIn) { DisType = Dis("1.2.0.1.1.9.0") };
+        var t = db.GetByType(Mig);
+        if (t.GetDescriptor<WeaponSuiteDto>() != null) return;   // S3 has armed it: use its suite
         t.AddDescriptor(new WeaponSuiteDto
         {
             Mounts =
             {
-                new WeaponMountDto { Category = WeaponCategory.Unknown, AmmoGuid = Aim9x, InitialAmmunition = 2 },
-                new WeaponMountDto { Category = WeaponCategory.Unknown, AmmoGuid = Aim120, InitialAmmunition = 2 },
+                new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim9x, InitialAmmunition = 2 },
+                new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim120, InitialAmmunition = 2 },
                 new WeaponMountDto { Category = WeaponCategory.Autocannon, MuzzleVelocity = 1050f, InitialAmmunition = 150 },   // the GSh-30-1 (the HUD rail's gun mount, index 2)
             },
         });
-        db.Register(t);
     }
 
     private static DISEntityType Dis(string text) { Assert.True(DISEntityType.TryParse(text, out var t)); return t; }
@@ -151,17 +149,20 @@ public sealed class AirCombatLooksRail
         var intakes = ShapeKits.TwinEngineJet.Parts.Where(p => p.Shape == PartShape.Box && p.Colour == ColourRole.Dark && p.Role == PartRole.Hull).ToArray();
         var wing = ShapeKits.TwinEngineJet.Parts.First(p => p.Shape == PartShape.Box && p.YawDegrees > 20f && p.Centre.Y > 0.2f);
         Assert.All(intakes, i => Assert.True(i.Centre.Z < wing.Centre.Z, "under the wings"));
-        Assert.Equal(VisualFamily.Jet, VisualFamilies.Of(Dis("1.2.0.1.0.0.0")));   // the class chain still says Fighter ⇒ Jet until the air lane adds the class
     }
 
-    /// <summary>🔧 AirClassStandIn — the class name maps to the family (the re-bind moves the line into <c>FamilyOfClass</c>, which CE2138's rail then checks against the table).</summary>
+    /// <summary>The contract's class name maps to the family, and the REAL type 409 resolves to it (and is not the F-16's <c>Jet</c>).</summary>
     [Fact]
-    public void TheClassName_TwinEngineFighter_IsBoundToTheFamily_AndTheStandInDisappearsAtTheReBind()
+    public void TheClass_TwinEngineFighter_MapsToTheFamily_AndTheRealType409IsTheMig()
     {
-        Assert.Equal(VisualFamily.TwinEngineJet, VisualFamilies.AirClassStandIn["TwinEngineFighter"]);
-        // the contract's class exists in the table ⇒ the line belongs in FamilyOfClass (this fails only if one is done without the other)
-        if (EntityClassTable.Default.Find("TwinEngineFighter") is not null)
-            Assert.Equal(VisualFamily.TwinEngineJet, VisualFamilies.FamilyOfClass["TwinEngineFighter"]);
+        Assert.Equal(VisualFamily.TwinEngineJet, VisualFamilies.FamilyOfClass["TwinEngineFighter"]);
+        Assert.NotNull(EntityClassTable.Default.Find("TwinEngineFighter"));
+        var tkb = HrotEnvironment.CreateTkb();
+        Assert.Equal(VisualFamily.TwinEngineJet, VisualFamilies.Of(tkb.GetByType(Mig)));
+        Assert.Equal(VisualFamily.Jet, VisualFamilies.Of(tkb.GetByType(TkbEntityTypes.Jet_F16)));
+        var look = EntityBodyLayer3D.Resolve(tkb.GetByType(Mig));
+        Assert.Equal(VisualFamily.TwinEngineJet, look.Family);
+        Assert.InRange(look.Size.X, 17.2f, 17.4f);   // the TKB's own box (17.32 m) wins; the kit's fractions scale to it
     }
 
     [SkippableFact]
@@ -178,7 +179,7 @@ public sealed class AirCombatLooksRail
         var alone = ScreenOf(scene);
         scene.Shot(shots, "aircombat-f16.png");
         // the MiG beside it (a bit further back, the same height)
-        var mig = scene.Jet(MigStandIn, 0f, 120f, 22f);
+        var mig = scene.Jet(Mig, 0f, 120f, 22f);
         scene.Look(at + new Vector3(0f, 11f, 0f), 46f, 0.45f, -0.12f); scene.Render();
         int p2 = scene.Bodies.PartsDrawn;
         scene.Shot(shots, "aircombat-f16-and-mig.png");
@@ -204,9 +205,9 @@ public sealed class AirCombatLooksRail
     {
         var world = new EntityRepository();
         world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>(); world.RegisterComponent<WeaponAmmo>();
-        tkb = HrotEnvironment.CreateTkb(); RegisterMigStandIn(tkb);
+        tkb = HrotEnvironment.CreateTkb(); ArmMig(tkb);
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
-        mig = world.CreateEntity(); world.AddComponent(mig, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(mig, new TkbIdentity { TkbType = (TkbTypeId)MigStandIn });
+        mig = world.CreateEntity(); world.AddComponent(mig, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(mig, new TkbIdentity { TkbType = (TkbTypeId)Mig });
         f16 = world.CreateEntity(); world.AddComponent(f16, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(f16, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Jet_F16 });
         return world;
     }
@@ -254,7 +255,7 @@ public sealed class AirCombatLooksRail
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = ShotsDir();
         using var scene = new JetScene();
-        var mig = scene.Jet(MigStandIn, 0f, 90f); var at = scene.Where(mig);
+        var mig = scene.Jet(Mig, 0f, 90f); var at = scene.Where(mig);
         int Parts(int ir, int rd, string? shot = null)
         {
             scene.Mirror(mig, ir, rd);
@@ -275,37 +276,26 @@ public sealed class AirCombatLooksRail
     [Fact]
     public void TheBurn_IsTheMotorsSeconds_TheTrailIsFullWhileItBurns_FadesAfterIt_AndIsNoneWhileTheMissileCoasts()
     {
-        Assert.Equal(5f, Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(null, 6060)); Assert.Equal(5f, Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(null, 6062));   // IR 5 s
-        Assert.Equal(8f, Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(null, 6061)); Assert.Equal(8f, Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(null, 6063));   // radar 8 s
-        Assert.Equal(0f, Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(null, MunitionTkbCatalog.TkbStingerMissile));                                              // a row that says nothing: unchanged
-        Assert.Equal(1f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(5f, 0.0));
-        Assert.Equal(1f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(5f, 5.0));
-        Assert.InRange(Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(5f, 5.4), 0.45f, 0.55f);
-        Assert.Equal(0f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(5f, 6.0));
-        Assert.Equal(1f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(0f, 99.0));              // no motor data: always (as before)
-        Assert.Equal(1f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(5f, double.NaN));         // a round with no path yet
-    }
-
-    /// <summary>🔧 The AAM's stand-in munition template (the air lane's ids, a missile look with a smoke trail), carrying the catalogue's own air-missile effect set.</summary>
-    internal static void RegisterAamStandIn(TkbDatabase db, long id = 6060)
-    {
-        if (!db.TryGetByType(id, out _))
-        {
-            var t = new TkbTemplate("AIM-9X (stand-in)", id) { DisType = Dis("2.1.0.0.0.0.0") };
-            t.AddDescriptor(new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.17f, ColorHex = "#C4C8B8", SmokeTrail = true });
-            db.Register(t);
-        }
-        EffectTkbCatalog.ApplyAirMissileEffects(db);
+        var tkb = HrotEnvironment.CreateTkb();
+        Assert.Equal(5f, ProjectileLayer.BurnOf(tkb, MunitionTkbCatalog.TkbAim9x)); Assert.Equal(5f, ProjectileLayer.BurnOf(tkb, MunitionTkbCatalog.TkbR73));        // IR 5 s: the round's own MissileDto.BurnSeconds
+        Assert.Equal(8f, ProjectileLayer.BurnOf(tkb, MunitionTkbCatalog.TkbAim120)); Assert.Equal(8f, ProjectileLayer.BurnOf(tkb, MunitionTkbCatalog.TkbR77));      // radar 8 s
+        Assert.Equal(0f, ProjectileLayer.BurnOf(tkb, MunitionTkbCatalog.TkbM61Hei)); Assert.Equal(0f, ProjectileLayer.BurnOf(null, MunitionTkbCatalog.TkbAim9x));   // a gun round, no TKB: no limit
+        Assert.Equal(1f, ProjectileLayer.TrailFactor(5f, 0.0));
+        Assert.Equal(1f, ProjectileLayer.TrailFactor(5f, 5.0));
+        Assert.InRange(ProjectileLayer.TrailFactor(5f, 5.4), 0.45f, 0.55f);
+        Assert.Equal(0f, ProjectileLayer.TrailFactor(5f, 6.0));
+        Assert.Equal(1f, ProjectileLayer.TrailFactor(0f, 99.0));              // no motor data: always (as before)
+        Assert.Equal(1f, ProjectileLayer.TrailFactor(5f, double.NaN));         // a round with no path yet
     }
 
     [Fact]
     public void TheAirMissiles_GetTheBoosterFlash_FromTheCatalog_AndAJetsShotIsALaunch()
     {
-        var db = HrotEnvironment.CreateTkb(); RegisterAamStandIn(db); RegisterMigStandIn(db);
-        var set = EffectTkbCatalog.EffectsFor(db, 6060, 0f);
+        var db = HrotEnvironment.CreateTkb(); ArmMig(db);
+        var set = EffectTkbCatalog.EffectsFor(db, MunitionTkbCatalog.TkbAim9x, 0f);
         Assert.Equal(EffectTkbCatalog.MissileLaunchFlash, set.MuzzleFlash);
         using var world = StoresWorld(out var mig, out var f16, out _);
-        var mount = ((WeaponSuiteDto)db.GetByType(MigStandIn)!.GetDescriptor<WeaponSuiteDto>()!).Mounts[0];
+        var mount = ((WeaponSuiteDto)db.GetByType(Mig)!.GetDescriptor<WeaponSuiteDto>()!).Mounts[0];
         Assert.Equal(FiringBlast.Launch, WeaponKits.BlastOf(world, db, mig, mount));          // the puff left at the rail
         Assert.Equal(FiringBlast.None, WeaponKits.BlastOf(world, db, f16, new WeaponMountDto { Category = WeaponCategory.Autocannon }));   // the cannon: none, as before
     }
@@ -316,22 +306,21 @@ public sealed class AirCombatLooksRail
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = ShotsDir();
         using var scene = new JetScene();
-        RegisterAamStandIn(scene.Tkb);
         scene.World.RegisterComponent<BallisticProjectile>();
         var at = new Vector3(scene.Spot.X, scene.Spot.Y, scene.Ground + 120f);
         var round = scene.World.CreateEntity();
         scene.World.AddComponent(round, new SimTransform { Position = at, Rotation = Quaternion.Identity });
         scene.World.AddComponent(round, new SimVelocity { Linear = new Vector3(300f, 0f, 0f) });
-        scene.World.AddComponent(round, new BallisticProjectile { Ammo = 6060, PreviousPosition = at - new Vector3(3f, 0f, 0f), Muzzle = at - new Vector3(45f, 0f, 0f) });
+        scene.World.AddComponent(round, new BallisticProjectile { Ammo = MunitionTkbCatalog.TkbAim9x, PreviousPosition = at - new Vector3(3f, 0f, 0f), Muzzle = at - new Vector3(45f, 0f, 0f) });
         void Clock(double t) { scene.Now = t; scene.World.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); }
         scene.Look(at - new Vector3(20f, 0f, 0f), 60f, MathF.PI * 0.5f + 0.2f, -0.1f);
         Clock(50.0); scene.Render();                                           // the first frame it is seen: its launch
         var path = scene.Projectiles.PathOf(round)!;
         Assert.Equal(50.0, path.FirstSeen);
         Clock(53.0); var burning = ScreenOf(scene); scene.Shot(shots, "aircombat-aam-burning.png");
-        Assert.Equal(1f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(scene.Tkb, 6060), 53.0 - path.FirstSeen));
+        Assert.Equal(1f, ProjectileLayer.TrailFactor(ProjectileLayer.BurnOf(scene.Tkb, MunitionTkbCatalog.TkbAim9x), 53.0 - path.FirstSeen));
         Clock(56.5); var coasting = ScreenOf(scene); scene.Shot(shots, "aircombat-aam-coasting.png");
-        Assert.Equal(0f, Hrot.UI.Common.Effects.ProjectileLayer.TrailFactor(Hrot.UI.Common.Effects.ProjectileLayer.BurnOf(scene.Tkb, 6060), 56.5 - path.FirstSeen));
+        Assert.Equal(0f, ProjectileLayer.TrailFactor(ProjectileLayer.BurnOf(scene.Tkb, MunitionTkbCatalog.TkbAim9x), 56.5 - path.FirstSeen));
         Assert.True(Diff(burning, coasting) > 400, $"the smoke is there during the burn and gone while it coasts: {Diff(burning, coasting)} px");
         Assert.Single(scene.Projectiles.Resolve());                            // the missile itself is drawn in both
     }
@@ -342,9 +331,8 @@ public sealed class AirCombatLooksRail
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = ShotsDir();
         using var scene = new JetScene();
-        RegisterAamStandIn(scene.Tkb);
         scene.World.RegisterEvent<Fdp.Toolkit.Combat.Events.WeaponFireNotification>();
-        var mig = scene.Jet(MigStandIn, 0f, 90f); var at = scene.Where(mig);
+        var mig = scene.Jet(Mig, 0f, 90f); var at = scene.Where(mig);
         scene.Mirror(mig, 2, 2);
         scene.Look(at, 26f, MathF.PI * 0.5f + 0.9f, -0.35f); scene.Render();
         var before = ScreenOf(scene);
@@ -352,7 +340,7 @@ public sealed class AirCombatLooksRail
         var rail = at + new Vector3(-1.4f, 4.1f, -0.9f);                      // under the left wing, the outboard IR rail (the shot's origin)
         scene.World.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification
         {
-            Shooter = mig, WeaponIndex = 0, AmmoGuid = 6060, Quantity = 1, FiredAt = (SimInstant)scene.Now, Origin = rail, Velocity = new Vector3(250f, 0f, 0f),
+            Shooter = mig, WeaponIndex = 0, AmmoGuid = MunitionTkbCatalog.TkbAim9x, Quantity = 1, FiredAt = (SimInstant)scene.Now, Origin = rail, Velocity = new Vector3(250f, 0f, 0f),
         });
         scene.World.Bus.SwapBuffers();
         new Hrot.UI.Common.Effects.EffectSpawnSystem().Execute(scene.World, 0.016f);
@@ -402,22 +390,30 @@ public sealed class AirCombatLooksRail
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = ShotsDir();
         using var scene = new JetScene();
-        var mig = scene.Jet(MigStandIn, 0f, 120f); var f16 = scene.Jet(TkbEntityTypes.Jet_F16, 0f, 120f, 40f);
-        var state = (Throttle: 0.5f, G: 1f);
-        FighterStateStandIn.Source = (w, e) => (state.Throttle, state.G);
+        var mig = scene.Jet(Mig, 0f, 120f); var f16 = scene.Jet(TkbEntityTypes.Jet_F16, 0f, 120f, 40f);
+        void Set(float throttle, float g)
+        {
+            foreach (var j in new[] { mig, f16 })
+            {
+                var s = new FighterPilotState { Throttle = throttle, GLoad = g };
+                if (scene.World.HasComponent<FighterPilotState>(j)) scene.World.SetComponent(j, s); else scene.World.AddComponent(j, s);
+            }
+        }
+        Set(0.5f, 1f);
+        
         var at = scene.Where(mig);
         int Parts(string? shot = null) { scene.Look(at + new Vector3(-6f, 20f, 0f), 62f, MathF.PI * 0.5f + 0.6f, 0.05f); scene.Render(); if (shot != null) scene.Shot(shots, shot); return scene.Bodies.PartsDrawn; }
         int cruise = Parts("aircombat-cruise.png"); var cruiseShot = ScreenOf(scene);
-        state = (0.89f, 1f); Assert.Equal(cruise, Parts());                                        // just under the threshold: nothing
-        state = (1.0f, 1f); int burner = Parts("aircombat-afterburner.png"); var burnerShot = ScreenOf(scene);
+        Set(0.89f, 1f); Assert.Equal(cruise, Parts());                                        // just under the threshold: nothing
+        Set(1.0f, 1f); int burner = Parts("aircombat-afterburner.png"); var burnerShot = ScreenOf(scene);
         Assert.Equal(2 + 1, burner - cruise);                                                      // ⭐ the MiG's TWO flames + the F-16's ONE
-        state = (0.5f, 5.9f); Assert.Equal(cruise, Parts());                                       // just under 6 g: nothing
-        state = (0.5f, 7.2f); int vortex = Parts("aircombat-vortex.png"); var vortexShot = ScreenOf(scene);
+        Set(0.5f, 5.9f); Assert.Equal(cruise, Parts());                                       // just under 6 g: nothing
+        Set(0.5f, 7.2f); int vortex = Parts("aircombat-vortex.png"); var vortexShot = ScreenOf(scene);
         Assert.Equal(2 * 2, vortex - cruise);                                                      // two wingtip trails on each of the two jets
         Assert.True(Diff(cruiseShot, burnerShot) > 200 && Diff(cruiseShot, vortexShot) > 400, $"burner {Diff(cruiseShot, burnerShot)} px, vortex {Diff(cruiseShot, vortexShot)} px");
-        state = (1.0f, 7.2f); int both = Parts("aircombat-burner-and-vortex.png");
+        Set(1.0f, 7.2f); int both = Parts("aircombat-burner-and-vortex.png");
         Assert.Equal(cruise + 3 + 4, both);
-        FighterStateStandIn.Source = null; Assert.Equal(cruise, Parts());                      // no state source: the plain jets
+        scene.World.RemoveComponent<FighterPilotState>(mig); scene.World.RemoveComponent<FighterPilotState>(f16); Assert.Equal(cruise, Parts());                      // no state source: the plain jets
     }
 
     /// <summary>⭐ The dead jet FALLS in flames: the W3 wreck fire and smoke (<c>WreckSpawnSystem</c>, the crossing health ≤ 0) are anchored to its BODY, so they follow it down; the jet itself is the black wreck and carries no afterburner.</summary>
@@ -430,7 +426,7 @@ public sealed class AirCombatLooksRail
         scene.World.RegisterComponent<Health>(); scene.World.RegisterComponent<Fdp.Toolkit.Time.Lifespan>();
         var jet = scene.Jet(TkbEntityTypes.Jet_F16, 0f, 400f);
         scene.World.AddComponent(jet, new Health { Current = 400f, Max = 400f });
-        FighterStateStandIn.Source = (w, e) => (1.0f, 2f);                                   // its engine was at full throttle when it was hit
+        scene.World.AddComponent(jet, new FighterPilotState { Throttle = 1f, GLoad = 2f });                                   // its engine was at full throttle when it was hit
         var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
         void Tick() { var cmd = ((Fdp.ModuleHost.Abstractions.ISimulationView)scene.World).GetCommandBuffer(); wrecks.Execute(scene.World, 0.016f); ((Fdp.Core.EntityCommandBuffer)cmd).Playback(scene.World); }
         Tick();                                                                                    // alive: the crossing is not yet

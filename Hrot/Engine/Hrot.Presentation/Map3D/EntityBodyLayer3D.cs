@@ -486,7 +486,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 {
                     bool carries = JetStores.Left(world, e, tkb, out int irLeft, out int radarLeft);
                     bool burner = false, vortex = false;
-                    if (FighterStateStandIn.Read(world, e) is { } flight) { burner = flight.Throttle >= JetStores.BurnerFrom; vortex = flight.GLoad >= JetStores.VortexFromG; }
+                    if (FighterState.Read(world, e) is { } flight) { burner = flight.Throttle >= JetStores.BurnerFrom; vortex = flight.GLoad >= JetStores.VortexFromG; }
                     if (carries || burner || vortex) parts = StoresOf(look.Family, type, size, parts, carries ? irLeft : -1, radarLeft, burner, vortex);
                 }
             }

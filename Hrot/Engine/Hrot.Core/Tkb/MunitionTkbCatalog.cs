@@ -563,14 +563,15 @@ namespace Hrot.Core.Tkb
                 // ⭐ CE-4617 (B-2, RV-15) → CE-4618 (ui U-2) — the radar SAM's missile: a slim 3 m body (a Tor-class 9M330: ~2.9 m × 0.23 m, drawn 0.17 for a slimmer read),
                 //   nose, mid wings and tail fins (the Missile shape), light grey-green so it shows against sky and ground, smoke trail on
                 [TkbRadarSamMissile] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.17f, ColorHex = "#C4C8B8", SmokeTrail = true },
-                // ⭐ CE-10000 (AC-15) — PLACEHOLDER looks for the air-to-air rounds (the real rows are ui's, HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals §1):
-                //   the public lengths and diameters, a plain missile with a smoke trail; the guns' rounds trace
-                [TkbAim9x] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.127f, ColorHex = "#D0D2CC", SmokeTrail = true },
-                [TkbAim120] = new() { Shape = MunitionShape.Missile, Length = 3.66f, Diameter = 0.178f, ColorHex = "#D0D2CC", SmokeTrail = true },
-                [TkbR73] = new() { Shape = MunitionShape.Missile, Length = 2.9f, Diameter = 0.17f, ColorHex = "#B8BCB0", SmokeTrail = true },
-                [TkbR77] = new() { Shape = MunitionShape.Missile, Length = 3.6f, Diameter = 0.2f, ColorHex = "#B8BCB0", SmokeTrail = true },
-                [TkbM61Hei] = new() { Shape = MunitionShape.Shell, Length = 0.17f, Diameter = 0.02f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
-                [TkbGsh30Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
+                // ⭐ CE-4647 (AC-15 step 4, ui) — the air-to-air rounds' looks (replacing the air lane's placeholders; mockup air-combat-stores.svg): the public lengths, a slightly stout body so it reads at a few hundred metres
+                //   (the layer also draws every round at least 10 px long), IR missiles grey (the rail's metal), radar missiles near-white (the stores' light colour); each trails smoke only while its motor burns (BurnSeconds, ProjectileLayer.TrailFactor).
+                //   The guns' rounds trace: the M61's a yellow-orange streak, the GSh-30's a hotter red-orange one — so two jets' bursts are told apart.
+                [TkbAim9x] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.16f, ColorHex = "#9AA3AE", SmokeTrail = true },
+                [TkbAim120] = new() { Shape = MunitionShape.Missile, Length = 3.66f, Diameter = 0.2f, ColorHex = "#E6E8E2", SmokeTrail = true },
+                [TkbR73] = new() { Shape = MunitionShape.Missile, Length = 2.9f, Diameter = 0.17f, ColorHex = "#8E968F", SmokeTrail = true },
+                [TkbR77] = new() { Shape = MunitionShape.Missile, Length = 3.6f, Diameter = 0.22f, ColorHex = "#D8DAD2", SmokeTrail = true },
+                [TkbM61Hei] = new() { Shape = MunitionShape.Shell, Length = 0.17f, Diameter = 0.02f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFC040" },
+                [TkbGsh30Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF5A30" },
                 [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
                 // ⭐ CE-3235 (B-13, §7.10 PU-3) — the hand items are SEEN (so a lying one replicates and a brain can pick it up): the grenade

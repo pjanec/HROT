@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Interfaces;
 
@@ -13,18 +14,16 @@ namespace Hrot.UI.Common.Map3D;
 /// (<c>EntityBodyLayer3D.BombsLeft</c>, CE-1092) for a second kind of round. Two IR missiles OUTBOARD (grey, 3.0 m) and two radar missiles INBOARD (light, 3.7 m) per jet — the F-16 on the wingtips and under the wings,
 /// the MiG on two pairs of underwing rails — one missile per round left on the mount that carries them, the LEFT rail first (a pair that has fired once keeps its left missile).
 /// <para>⛔ The numbers are the mockup's (<c>scripts/gen-air-combat-mockup.py</c> F16_STORES / MIG_STORES): change one, change both. ⭐ HOT PATH: the part arrays are built once per (type, size, load) and cached; a frame allocates nothing.</para>
-/// <para>🔧 <c>AirMunitionStandIn</c>: which mount holds which missile is told by its AMMUNITION type — the air lane's contract ids 6060 (AIM-9X) 6062 (R-73) = IR, 6061 (AIM-120) 6063 (R-77) = radar
-/// (<c>DESIGN_Air_Combat.md</c> §7). ⭐ Re-bind: read the air lane's constants instead of these four literals.</para>
-/// </summary>
+/// /// </summary>
 public static class JetStores
 {
     /// <summary>The rails of a jet: how many missiles of each kind it carries at most.</summary>
     public const int PerKind = 2;
 
-    /// <summary>🔧 AirMunitionStandIn — an AMMUNITION TKB id is an IR missile (AIM-9X 6060, R-73 6062).</summary>
-    public static bool IsIr(ulong ammo) => ammo is 6060UL or 6062UL;
-    /// <summary>🔧 AirMunitionStandIn — … a radar missile (AIM-120 6061, R-77 6063).</summary>
-    public static bool IsRadar(ulong ammo) => ammo is 6061UL or 6063UL;
+    /// <summary>An AMMUNITION TKB id is an IR missile (AIM-9X, R-73 — the air lane's contract constants).</summary>
+    public static bool IsIr(ulong ammo) => ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim9x || ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbR73;
+    /// <summary>… a radar missile (AIM-120, R-77).</summary>
+    public static bool IsRadar(ulong ammo) => ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim120 || ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbR77;
 
     /// <summary>Whether <paramref name="family"/> carries air-to-air missiles on rails at all.</summary>
     public static bool Carries(VisualFamily family) => family is VisualFamily.Jet or VisualFamily.TwinEngineJet;
@@ -125,12 +124,15 @@ public static class JetStores
 }
 
 /// <summary>
-/// 🔧 <c>FighterStateStandIn</c> (CE-4647) — a fighter's replicated <c>FighterPilotState</c> (<c>Throttle</c> 0…1, <c>GLoad</c>) is the air lane's component (DESIGN_Air_Combat §3 AC-2, §4d); until its contract is merged this ONE seam says what
-/// it would say: the afterburner, the wingtip vortex and the fighter HUD's g read it here. <c>null</c> source = no state (a plain jet). ⭐ Re-bind: read the component in <see cref="Read"/>, delete <see cref="Source"/> (rails set it; they run serially).
+/// ⭐ CE-4647 — what a fighter's replicated <see cref="FighterPilotState"/> (the air lane's contract, component 278: <c>Throttle</c> 0…1, <c>GLoad</c>) says: the afterburner, the wingtip vortex and the fighter HUD's g read it HERE, once. No allocation.
 /// </summary>
-public static class FighterStateStandIn
+public static class FighterState
 {
-    public static Func<EntityRepository, Entity, (float Throttle, float GLoad)?>? Source { get; set; }
-
-    public static (float Throttle, float GLoad)? Read(EntityRepository world, Entity e) => Source?.Invoke(world, e);
+    /// <summary>The throttle and the g of <paramref name="e"/>; null when it has no state (a plain jet, or a world that never registered it).</summary>
+    public static (float Throttle, float GLoad)? Read(EntityRepository world, Entity e)
+    {
+        if (!world.IsComponentTypeRegistered<FighterPilotState>() || !world.HasComponent<FighterPilotState>(e)) return null;
+        ref readonly var s = ref world.GetComponentRO<FighterPilotState>(e);
+        return (s.Throttle, s.GLoad);
+    }
 }

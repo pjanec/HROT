@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Motion;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Radar;
 using Fdp.Toolkit.Replication.Components;
@@ -18,7 +19,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// ⭐⭐ <c>CE-4647</c> (AC-15 step 7; docs/designs/air-attack/DESIGN_Air_Combat.md §4d; mockup <c>air-combat-hud.svg</c>) — the FIGHTER HUD of a possessed F-16 / MiG: the gun pipper at the led point (<see cref="TargetLead.Point"/>), the missile cue
 /// (SEARCH / IN ZONE / LOCK), the radar warning (the existing <see cref="RadarWarning"/> / <see cref="MissileWarning"/>), the g. The MODEL rails run anywhere; the FRAME rail measures the mockup's anchors on the real frame (R-4146) and SKIPS without a display:
 /// <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~FighterHudRail</c> (PNGs to <c>HROT_RAIL_SHOTS</c> as <c>aircombat-hud-*.png</c>). 🔴 Red-proof: the pipper's lead removed (<c>PipperAt = target</c>) fails the lead rail.
-/// 🔧 Stand-ins: <see cref="FighterStateStandIn"/> (g) and the zone as a range band (<see cref="FighterHud"/>); the jet is the MiG stand-in of <see cref="AirCombatLooksRail"/>.
+/// 🔧 The zone is a range band (<see cref="FighterHud"/>) until the air lane's S3; the jet is the real MiG-29 armed by <see cref="AirCombatLooksRail.ArmMig"/>.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class FighterHudRail
@@ -32,10 +33,10 @@ public sealed class FighterHudRail
         {
             World = new EntityRepository();
             World.RegisterComponent<SimTransform>(); World.RegisterComponent<TkbIdentity>(); World.RegisterComponent<SimVelocity>(); World.RegisterComponent<EntityInfo>();
-            World.RegisterComponent<WeaponAmmo>(); World.RegisterComponent<MissileWarning>(); World.RegisterComponent<RadarWarning>(); World.RegisterComponent<Health>();
-            Tkb = HrotEnvironment.CreateTkb(); AirCombatLooksRail.RegisterMigStandIn(Tkb);
+            World.RegisterComponent<WeaponAmmo>(); World.RegisterComponent<MissileWarning>(); World.RegisterComponent<RadarWarning>(); World.RegisterComponent<Health>(); World.RegisterComponent<FighterPilotState>();
+            Tkb = HrotEnvironment.CreateTkb(); AirCombatLooksRail.ArmMig(Tkb);
             World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Tkb);
-            Me = Jet(AirCombatLooksRail.MigStandIn, Vector3.Zero, Vector3.Zero, ForceId.Friend);
+            Me = Jet(AirCombatLooksRail.Mig, Vector3.Zero, Vector3.Zero, ForceId.Friend);
         }
 
         public Entity Jet(long type, Vector3 at, Vector3 velocity, ForceId side)
@@ -50,7 +51,7 @@ public sealed class FighterHudRail
         }
 
         public FighterHudModel Build(FighterHud hud, int mount, Vector3? look = null) => hud.Build(World, Me, look ?? Vector3.UnitX, mount, Tkb, Now);
-        public void Dispose() { FighterStateStandIn.Source = null; World.Dispose(); }
+        public void Dispose() => World.Dispose();
     }
 
     private const int Ir = 0, Radar = 1, Gun = 2;   // the stand-in's mounts
@@ -117,15 +118,17 @@ public sealed class FighterHudRail
     public void TheG_IsReadFromTheFighterState_WhiteBelowSix_AmberFromSix_RedWithinOneOfTheLimit_AndNeverADecimalComma()
     {
         using var s = new Scene(); var hud = new FighterHud();
-        float g = 3.1f; FighterStateStandIn.Source = (w, e) => (1f, g);
+        float g = 3.1f; void SetG(float v) { if (s.World.HasComponent<FighterPilotState>(s.Me)) s.World.SetComponent(s.Me, new FighterPilotState { Throttle = 1f, GLoad = v }); else s.World.AddComponent(s.Me, new FighterPilotState { Throttle = 1f, GLoad = v }); }
+        SetG(g);
         var m = s.Build(hud, Ir); Assert.Equal(GColour.Normal, m.G); Assert.Equal("G  3.1", m.GText);
-        g = 6.8f; m = s.Build(hud, Ir); Assert.Equal(GColour.High, m.G);
-        g = 8.7f; m = s.Build(hud, Ir); Assert.Equal(GColour.Limit, m.G);
+        SetG(6.8f); m = s.Build(hud, Ir); Assert.Equal(GColour.High, m.G);
+        SetG(8.7f); m = s.Build(hud, Ir); Assert.Equal(GColour.Limit, m.G);
         var old = CultureInfo.CurrentCulture;
         try
         {
             CultureInfo.CurrentCulture = new CultureInfo("cs-CZ");
             using var s2 = new Scene(); var hud2 = new FighterHud();
+            s2.World.AddComponent(s2.Me, new FighterPilotState { Throttle = 1f, GLoad = 8.7f });
             s2.Jet(TkbEntityTypes.Jet_F16, new Vector3(3100f, 0f, 0f), new Vector3(-210f, 0f, 0f), ForceId.Hostile);
             var cz = s2.Build(hud2, Ir);
             Assert.Equal("G  8.7", cz.GText); Assert.Equal("3.1 km  210 m/s", cz.RangeText);   // 🔒 language neutral (R-4221)
@@ -142,7 +145,7 @@ public sealed class FighterHudRail
         Assert.False(FighterHud.Applies(s.World, f16, s.Tkb)); Assert.True(FighterHud.Applies(s.World, s.Me, s.Tkb));
         s.Jet(TkbEntityTypes.Jet_F16, new Vector3(3000f, 0f, 0f), new Vector3(-200f, 0f, 0f), ForceId.Hostile);
         s.World.AddComponent(s.Me, new MissileWarning { At = (SimInstant)(Now - 0.8), BearingDeg = 270f, Seeker = GuidanceKind.InfraRed, TimeToImpactS = 5f });
-        FighterStateStandIn.Source = (w, e) => (1f, 7f);
+        s.World.AddComponent(s.Me, new FighterPilotState { Throttle = 1f, GLoad = 7f });
         for (int i = 0; i < 20; i++) s.Build(hud, Ir);
         long before = GC.GetAllocatedBytesForCurrentThread(); int n = 0;
         for (int i = 0; i < 1000; i++) n += s.Build(hud, Ir).HasTarget ? 1 : 0;
@@ -169,7 +172,7 @@ public sealed class FighterHudRail
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = AirCombatLooksRail.ShotsDir();
         using var scene = new AirCombatLooksRail.JetScene();
-        var me = scene.Jet(AirCombatLooksRail.MigStandIn, 0f, 300f); var eye = scene.Where(me);
+        var me = scene.Jet(AirCombatLooksRail.Mig, 0f, 300f); var eye = scene.Where(me);
         scene.World.RegisterComponent<EntityInfo>(); scene.World.RegisterComponent<MissileWarning>(); scene.World.RegisterComponent<Health>();
         scene.World.AddComponent(me, new EntityInfo { ForceId = ForceId.Friend }); scene.World.AddComponent(me, new Health { Current = 100f, Max = 100f });
         var foe = scene.Jet(TkbEntityTypes.Jet_F16, 700f, 300f, 25f);
@@ -177,7 +180,7 @@ public sealed class FighterHudRail
         scene.World.AddComponent(foe, new SimVelocity { Linear = new Vector3(-100f, 60f, 0f) });
         scene.World.AddComponent(me, new SimVelocity { Linear = new Vector3(200f, 0f, 0f) });
         scene.World.AddComponent(me, new MissileWarning { At = (SimInstant)scene.Now, BearingDeg = 200f, Seeker = GuidanceKind.InfraRed, TimeToImpactS = 4.2f });
-        FighterStateStandIn.Source = (w, e) => (1f, 6.2f);
+        scene.World.RegisterComponent<FighterPilotState>(); scene.World.AddComponent(me, new FighterPilotState { Throttle = 1f, GLoad = 6.2f });
         var hud = new FighterHud();
         scene.Look(eye, 1f, MathF.PI * 0.5f - 0.03f, 0.0f);   // the eye on the jet, looking along +x… (Yaw from east: set below)
         scene.Switch.Camera3D.Pose = new Fdp.Toolkit.Vis3D.CameraPose(eye + new Vector3(16f, 0f, 1.5f), 0.01f, 0f, 0f);

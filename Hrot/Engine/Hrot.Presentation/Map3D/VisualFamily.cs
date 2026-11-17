@@ -109,6 +109,7 @@ public static class VisualFamilies
         ["SelfPropelledArtillery"] = VisualFamily.SpArtillery,   // ⭐ CE-1089 — its own kit (supersedes IF-1 I8's interim tank kit, merged 2026-10-15)
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
+        ["TwinEngineFighter"] = VisualFamily.TwinEngineJet,   // ⭐ CE-4647 — the MiG-29 (DIS 1.2.*.1.200, type 409): more specific than Fighter / Jet, so it is not an F-16
         ["MineClearer"] = VisualFamily.MineClearer,     // ⭐ CE-4624 — the mine-clearing vehicle (1.1.*.9.2, TKB 116): bound to terrain's class
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
         ["Motorcycle"] = VisualFamily.Motorcycle,       // ⭐ CE-4621 — the motorcycle (DIS 1.1.*.80, type 115)
@@ -116,13 +117,6 @@ public static class VisualFamilies
         // ⭐ CE-4623 (AU-2, AR-19) — the animals: each class is more specific than `Person` (Kind 3), so a cow is never drawn as a man (rail)
         ["Cattle"] = VisualFamily.Cattle, ["Sheep"] = VisualFamily.Sheep, ["Horse"] = VisualFamily.Horse, ["Dog"] = VisualFamily.Dog, ["Cat"] = VisualFamily.Cat,
         ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat,
-    };
-
-    /// <summary>⭐ CE-4647 — <c>AirClassStandIn</c>: the air lane's class <c>TwinEngineFighter</c> is declared in ITS contract (<c>NOTE_Air_To_Ui_Air_Combat_Contract.md</c>); until it is merged the table has no such class, so
-    /// the name is bound HERE, by name, and costs nothing (a chain that never names it never asks). ⭐ Re-bind: move the entry into <see cref="FamilyOfClass"/>, delete this.</summary>
-    public static IReadOnlyDictionary<string, VisualFamily> AirClassStandIn { get; } = new Dictionary<string, VisualFamily>
-    {
-        ["TwinEngineFighter"] = VisualFamily.TwinEngineJet,
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
@@ -150,7 +144,7 @@ public static class VisualFamilies
     {
         var chain = EntityClassTable.Default.Chain(dis);
         for (int i = chain.Count - 1; i >= 0; i--)
-            if (FamilyOfClass.TryGetValue(chain[i].Name, out var family) || AirClassStandIn.TryGetValue(chain[i].Name, out family)) return family;
+            if (FamilyOfClass.TryGetValue(chain[i].Name, out var family)) return family;
         return VisualFamily.Unknown;
     }
 

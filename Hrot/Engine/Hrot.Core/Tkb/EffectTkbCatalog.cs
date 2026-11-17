@@ -186,11 +186,11 @@ namespace Hrot.Core.Tkb
             Set(tkb, MunitionTkbCatalog.TkbLineCharge, new MunitionEffectsDto { Explosion = ExplosionHuge, Decal = DecalLarge });
         }
 
-        /// <summary>🔧 AirMunitionStandIn — the air lane's AAM ids (DESIGN_Air_Combat §7): 6060 AIM-9X · 6061 AIM-120 · 6062 R-73 · 6063 R-77.</summary>
-        public static readonly long[] AirMissileIds = { 6060, 6061, 6062, 6063 };
+        /// <summary>The air-to-air missiles (the air lane's contract ids): AIM-9X · AIM-120 · R-73 · R-77.</summary>
+        public static readonly long[] AirMissileIds = { MunitionTkbCatalog.TkbAim9x, MunitionTkbCatalog.TkbAim120, MunitionTkbCatalog.TkbR73, MunitionTkbCatalog.TkbR77 };
 
         /// <summary>⭐ CE-4647 (air combat AC-15 step 4) — an air-to-air missile leaves its rail like the radar SAM leaves its tube: the booster's flash and the puff of smoke; it bursts as a medium fragmentation burst.
-        /// <c>Set</c> skips an id the TKB does not hold, so this costs nothing until the air lane's munitions are merged. ⭐ Re-bind: the ids come from the air lane's constants.</summary>
+        /// <c>Set</c> skips an id the TKB does not hold.</summary>
         public static void ApplyAirMissileEffects(ITkbDatabase tkb)
         {
             foreach (long aam in AirMissileIds)

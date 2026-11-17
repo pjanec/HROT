@@ -22,19 +22,21 @@ Started `4fa79837f` (merged `coordinator@369177d6d+`). Engine half (`air-wip`) N
 | 6 arena | ✅ drawing + handles + validation · ⏳ the projector / edit / form | `AirArenaGizmo` over the seam `ArenaShape`; `AirArenaGizmoRail` 7 (2-D and 3-D real frames) |
 | 7 fighter HUD | ✅ | `FighterHud` (pure `Build`, `Draw`) wired into `PossessionStation.DrawOverlay` for the FixedWing scheme; `FighterHudRail` 6 (the real frame measures the mockup's anchors) |
 
-## Contract read (not merged into `ui` yet)
-`air-wip@183af725e` ("air: the contract") carries `NOTE_Air_To_Ui_Air_Combat_Contract.md`. Read from git (the worktree untouched): the names and numbers my stand-ins use match it — `TwinEngineFighter` (`1.2.*.1.200`), type 409, munitions 6060–6065, `FighterPilotState.{Throttle, GLoad}` (component 278), `AirArena{Centre, RadiusM, FloorAglM, CeilingAglM, MaxShotRangeM}` (160), `MissileDto.BurnSeconds`, `WeaponCategory.AirToAir = 13`. **Re-bind checklist (mechanical):** `VisualFamilies.AirClassStandIn` → `FamilyOfClass` · `JetStores.IsIr/IsRadar` → the munition constants (or `WeaponCategory.AirToAir`) · `ProjectileLayer.BurnOf` → the round's `MissileDto.BurnSeconds` · `FighterStateStandIn.Read` → `FighterPilotState` · `AirArenaGizmo` → a `[GizmoProjector(SimTransform, AirArena)]` class + the edit command + the Details form · `FighterHud`'s zone → the air lane's · replace the placeholder look rows 6060–6065 · the stand-in templates in the rails (`MigStandIn`, `RegisterAamStandIn`) → the real type 409 / munitions.
+## ✅ RE-BOUND `2026-11-17` to the merged contract (`183af725e`)
+Every stand-in is gone but the HUD's zone: `VisualFamilies.FamilyOfClass["TwinEngineFighter"]` · the real type `TkbEntityTypes.Jet_MiG29` (its `BodyGeometryDto`: gear hidden in the air) · `JetStores` classifies mounts by `MunitionTkbCatalog.TkbAim9x/R73/Aim120/R77` · `FighterState.Read` reads the real `FighterPilotState` (afterburner, vortex, HUD g) · `ProjectileLayer.BurnOf` reads `MissileDto.BurnSeconds` · `EffectTkbCatalog.AirMissileIds` = the catalogue constants · the four AAM and the two guns' look rows tuned in `MunitionTkbCatalog.BuiltInLooks` (cross-lane, said) · the arena: `AirArenaProjector` over the real `AirArena` (+ `NotAUnit`), `AirArenaOps` (one undo step each, no caches / statics), `AirArenaDetailsView` registered in `EditorSubsystem` next to the minefield's · the rails fixture-arm the real MiG with the §5a weapon suite (the air lane's row has none until S3) and write the real components · the `EntityTypeCatalog` golden line for 409 now says `family TwinEngineJet` (captured, not typed).
 
 ## Lane decisions (for the user's review)
 
 | id | decision | would change it |
 |---|---|---|
-| R-1056 | the MiG's class is bound BY NAME in `VisualFamilies.AirClassStandIn`, not in `FamilyOfClass`: CE-2138's rail demands every `FamilyOfClass` name exist in the class table, and the class is the air lane's | the contract is merged ⇒ move the line |
-| R-1057 | no stand-in COMPONENTS (ui's id block is exhausted, and the ids are the air lane's): the afterburner / vortex / HUD g read ONE seam `FighterStateStandIn`, the arena is drawn from `ArenaShape`; ⭐ and the HUD's employment zone is a plain range band (500 m … 6 km) with a 15° lock cone until the air lane's zone exists | the contract is merged ⇒ read the components |
+| R-1056 ✅ done | the MiG's class was bound by name in a stand-in until the contract merged; now `FamilyOfClass` | — |
+| R-1057 | the HUD's employment zone is a plain range band (500 m … `AirArena.DefaultMaxShotRangeM`) with a 15° lock cone: the merged tree has no `InZone` / `EmploymentZone` (grep) — it arrives with S3 | S3 exposes the zone ⇒ ask it |
 | R-1058 | the missile trail's AGE is the round's first-seen time on THIS host (`RoundPath.FirstSeen`); a round first seen mid-flight (a late joiner) shows its trail from then — accepted, no wire | a replicated launch time |
 | R-1059 | the wingtip vortex is a straight stateless tube 40 m behind each tip (0 B), not the curved vapour of the flown path | a path-memory trail (like `RoundPath`) for aircraft |
 
-Ids R-1056 … R-1059 (the ledger's ui line names R-1056 next free; a parallel ui session on another machine takes R-1060+).
+| R-1060 | ⭐ the picker does NOT place an arena: no TKB type exists for it (the contract declares the component, not a template), so a scenario authors the `AirArena` entity (S1–S4 scenarios do) and the gizmo + form EDIT it. The handles' mouse drag (a pointer hook into the map's input chain) and a frame measure of the form's layout are the follow-up | the air lane (or ui) adds a TKB type for the arena ⇒ a picker row + the area tool's birth like the minefield's |
+
+Ids R-1056 … R-1060 (the ledger's ui line names R-1056 next free; a parallel ui session on another machine takes R-1060+).
 
 ## Gates (rule 8) — `7e890eb56` + this commit
 
@@ -54,5 +56,5 @@ Ids R-1056 … R-1059 (the ledger's ui line names R-1056 next free; a parallel u
 
 Ids allocated: R-1056 … R-1059 (lane decisions above); no tracker row filed (CE-4647's row is the coordinator's).
 
-## Waiting on the contract merge (`air-wip@183af725e`, not in `ui` yet)
-the re-bind checklist above; the four AAM look rows (6060–6065 placeholders) · `VehicleBody` hit tables for the MiG (add `TwinEngineJet` to `VehicleBodyParityTests.Families` + `AircraftIds` and regenerate once type 409 is real) · the arena projector / edit command / Details form · the HUD's zone from the air lane.
+## Still waiting (after the re-bind)
+S3: the air lane's employment zone (the HUD's band) and the real weapon suite on the MiG / F-16 (the rails arm a fixture suite today — then ⭐ the stores and the HUD appear with no ui change) · S3 hit tables: `VehicleBody` for the MiG (add `TwinEngineJet` to `VehicleBodyParityTests.Families` + `AircraftIds`, regenerate) · the arena's handle DRAG input and a TKB type for placing one (R-1060) · the form's frame measure.

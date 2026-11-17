@@ -284,10 +284,9 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
         return solids;
     }
 
-    /// <summary>⭐ CE-4647 (AC-15 step 4) — how long a missile's motor burns, seconds (0 = no limit: a rocket or a missile whose row says nothing trails smoke all its flight, as before).
-    /// 🔧 <c>BurnStandIn</c>: the air-to-air rows of DESIGN_Air_Combat §5b — IR (6060 AIM-9X, 6062 R-73) 5 s, radar (6061 AIM-120, 6063 R-77) 8 s — until the air lane's <c>MissileDto.BurnSeconds</c>
-    /// (the same numbers) is merged. ⭐ Re-bind: read the round's <c>MissileDto</c> from its TKB template instead of this table.</summary>
-    public static float BurnOf(ITkbDatabase? tkb, long ammo) => ammo switch { 6060 or 6062 => 5f, 6061 or 6063 => 8f, _ => 0f };
+    /// <summary>⭐ CE-4647 (AC-15 step 4) — how long a missile's motor burns, seconds: its TKB template's <see cref="Fdp.Toolkit.Tkb.Domain.MissileDto.BurnSeconds"/> (the air lane's contract: IR 5 s, radar 8 s); 0 = no limit (a rocket or a missile whose row says nothing trails smoke all its flight, as before).</summary>
+    public static float BurnOf(ITkbDatabase? tkb, long ammo)
+        => tkb != null && ammo != 0 && tkb.TryGetByType(ammo, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MissileDto>() is { BurnSeconds: > 0f } m ? m.BurnSeconds : 0f;
 
     /// <summary>⭐ CE-4647 — how long the smoke already laid lingers after burn-out (the coasting missile is seen to coast).</summary>
     public const float TrailLingerSeconds = 0.8f;

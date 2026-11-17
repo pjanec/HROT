@@ -112,6 +112,70 @@ public sealed class AirArenaGizmoRail
         finally { CultureInfo.CurrentCulture = old; }
     }
 
+    // ── the real component: the projector, the ops, the one undo step each ──────────────────────────────────────────────────────
+
+    private sealed class Recorder : Fdp.Toolkit.Replication.Edits.IEditStepRecorder
+    {
+        public readonly System.Collections.Generic.List<string> Log = new();
+        public void Begin(EntityRepository repo, string label) => Log.Add("begin " + label);
+        public void End(EntityRepository repo) => Log.Add("end");
+        public void Cancel(EntityRepository repo) => Log.Add("cancel");
+    }
+
+    private static (EntityRepository W, Entity E, Recorder Rec) ArenaWorld(bool selected = false)
+    {
+        var w = new EntityRepository();
+        w.RegisterComponent<SimTransform>(); w.RegisterComponent<Fdp.Toolkit.Motion.AirArena>(); w.RegisterComponent<Hrot.Map.Common.Components.SelectionState>();
+        var e = w.CreateEntity();
+        w.AddComponent(e, new SimTransform { Position = new Vector3(1000f, 2000f, 0f), Rotation = Quaternion.Identity });
+        var a = Hrot.UI.Common.AddEntity.AirArenaOps.Default(); a.Centre = new Vector3(1000f, 2000f, 0f); a.RadiusM = 6000f; a.FloorAglM = 150f; a.CeilingAglM = 4000f;
+        w.AddComponent(e, a);
+        if (selected) w.AddComponent(e, new Hrot.Map.Common.Components.SelectionState { IsSelected = true });
+        var rec = new Recorder(); Fdp.Toolkit.Replication.Edits.EditSteps.Install(w, rec);
+        return (w, e, rec);
+    }
+
+    [Fact]
+    public void TheProjector_DrawsTheRealComponent_TheHandlesOnlyWhenSelected_AndTheArenaIsNoUnit()
+    {
+        var (w, e, _) = ArenaWorld();
+        var b = new DebugPrimitiveBuffer(capacity: 1 << 14);
+        new AirArenaProjector().Draw(w, e, b);
+        Assert.Equal(2 * AirArenaGizmo.Segments, Lines(b, AirArenaGizmo.RingColour)); Assert.Equal(0, Any(b, AirArenaGizmo.HandleColour));
+        var (w2, e2, _) = ArenaWorld(selected: true);
+        b.Clear(); new AirArenaProjector().Draw(w2, e2, b);
+        Assert.Equal(4, Any(b, AirArenaGizmo.HandleColour));
+        Assert.True(Hrot.Common.Diagnostics.Gizmos.NotAUnit.Is(w, e));   // drawn by its projector, never as a generic box
+        var attr = (Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute)Attribute.GetCustomAttribute(typeof(AirArenaProjector), typeof(Fdp.Toolkit.Diagnostics.Gizmos.GizmoProjectorAttribute))!;
+        Assert.Contains(typeof(Fdp.Toolkit.Motion.AirArena), attr.RequiredComponents);
+    }
+
+    [Fact]
+    public void EveryArenaEdit_IsOneUndoStep_AndNothingChangedIsNoStep_ClampedByTheOneValidation()
+    {
+        var (w, e, rec) = ArenaWorld();
+        var ops = typeof(Hrot.UI.Common.AddEntity.AirArenaOps);
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetRadius(w, e, 3000f));
+        Assert.Equal(new[] { "begin Set arena radius", "end" }, rec.Log);
+        rec.Log.Clear();
+        Assert.False(Hrot.UI.Common.AddEntity.AirArenaOps.SetRadius(w, e, 3000f)); Assert.Empty(rec.Log);                         // nothing changed: no step
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetRadius(w, e, 5f));
+        Assert.Equal(AirArenaGizmo.MinRadius, w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e).RadiusM);                            // clamped
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetFloor(w, e, 9000f));
+        var a = w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e);
+        Assert.True(a.CeilingAglM >= a.FloorAglM + AirArenaGizmo.MinBand, $"floor {a.FloorAglM} ceiling {a.CeilingAglM}");           // the floor and the ceiling never cross
+        rec.Log.Clear();
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetShape(w, e, new ArenaShape(new Vector2(5f, 6f), 8000f, 200f, 5000f)));
+        Assert.Equal(2, rec.Log.Count);                                                                                              // a gizmo drag's end: ONE step for four numbers
+        a = w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e);
+        Assert.Equal((5f, 6f, 8000f, 200f, 5000f), (a.Centre.X, a.Centre.Y, a.RadiusM, a.FloorAglM, a.CeilingAglM));
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetMaxShotRange(w, e, 1f)); Assert.Equal(Hrot.UI.Common.AddEntity.AirArenaOps.MinShotRange, w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e).MaxShotRangeM);
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetStalemate(w, e, 30f)); Assert.Equal(30f, w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e).StalemateSeconds);
+        Assert.True(Hrot.UI.Common.AddEntity.AirArenaOps.SetLapsesOff(w, e, true)); Assert.Equal((byte)1, w.GetComponentRO<Fdp.Toolkit.Motion.AirArena>(e).LapsesOff);
+        Assert.False(Hrot.UI.Common.AddEntity.AirArenaOps.SetCentre(w, Entity.Null, Vector2.Zero));                                 // not an arena
+        Assert.False(Hrot.UI.Common.AddEntity.AirArenaOps.SetRadius(w, e, float.NaN));
+    }
+
     // ── the real frames ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
     private static string ShotsDir()
