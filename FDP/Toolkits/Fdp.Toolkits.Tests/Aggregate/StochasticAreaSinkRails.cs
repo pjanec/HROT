@@ -66,5 +66,33 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 Assert.Equal(StochasticAreaSink.Apply(a, new Vector3(5f, 0f, 0f), 15f, 7u, (SimInstant)3.0),
                              StochasticAreaSink.Apply(b, new Vector3(5f, 0f, 0f), 15f, 7u, (SimInstant)3.0));      // the same detonation, the same casualties
         }
+            /// <summary>
+        /// ⭐ CE-8005 (R-171) — a burst on a unit is applied by the unit's OWNER, exactly once: <c>ownedOnly</c> skips a unit this node does not own
+        /// (its owner applies it from the same replicated detonation), and the seed is the BURST's own (point + munition), so two nodes would
+        /// draw the same. ✅ Red-proof: the owner gate removed ⇒ the unowned unit takes casualties ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8005_OnlyTheUnitsOwnerAppliesABurst_SeededByTheBurstItself()
+        {
+            int owned = 0, unowned = 0;
+            for (uint seq = 1; seq <= 20; seq++)
+            {
+                var (w, u) = World();
+                using (w)
+                {
+                    w.SetAuthority<AggregateUnit>(u, false);
+                    unowned += StochasticAreaSink.Apply(w, new Vector3(5f, 0f, 0f), 15f, seq, (SimInstant)10.0, ownedOnly: true);
+                    w.SetAuthority<AggregateUnit>(u, true);
+                    owned += StochasticAreaSink.Apply(w, new Vector3(5f, 0f, 0f), 15f, seq, (SimInstant)10.0, ownedOnly: true);
+                }
+            }
+            Assert.Equal(0, unowned);
+            Assert.True(owned > 0);
+            var a = new Fdp.Toolkit.Combat.Contracts.DetonationNotification { HitX = 5f, HitY = 1f, HitZ = 0f, Ammo = 42, Shooter = new Entity(3, 1) };
+            var b = a; b.Shooter = new Entity(9, 4); b.IsRemote = true;      // another node's view of the same burst
+            Assert.Equal(StochasticAreaEffectSystem.Seed(in a), StochasticAreaEffectSystem.Seed(in b));
+            var c = a; c.HitX = 6f;
+            Assert.NotEqual(StochasticAreaEffectSystem.Seed(in a), StochasticAreaEffectSystem.Seed(in c));
+        }
     }
 }

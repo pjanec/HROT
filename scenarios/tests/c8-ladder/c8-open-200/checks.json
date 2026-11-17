@@ -9,7 +9,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:1"
     },
     {
@@ -18,7 +18,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:2"
     },
     {
@@ -27,7 +27,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:3"
     },
     {
@@ -36,7 +36,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:4"
     },
     {
@@ -45,7 +45,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:5"
     },
     {
@@ -54,7 +54,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:6"
     },
     {
@@ -63,7 +63,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:7"
     },
     {
@@ -72,7 +72,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:8"
     },
     {
@@ -81,7 +81,7 @@
       "who": "*Blue ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:9"
     },
     {
@@ -90,7 +90,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:1"
     },
     {
@@ -99,7 +99,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:2"
     },
     {
@@ -108,7 +108,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:3"
     },
     {
@@ -117,7 +117,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:4"
     },
     {
@@ -126,7 +126,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:5"
     },
     {
@@ -135,7 +135,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:6"
     },
     {
@@ -144,7 +144,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:7"
     },
     {
@@ -153,7 +153,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:8"
     },
     {
@@ -162,7 +162,7 @@
       "who": "*Red ",
       "path": "Health.Current",
       "op": "<",
-      "value": 2.0,
+      "value": 7.5,
       "quantifier": "atLeast:9"
     }
   ]

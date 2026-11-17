@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -37,10 +38,10 @@ namespace Fdp.Toolkit.Aggregate
         /// everybody falls (measured: no loss for 10 s, then a side at once).</summary>
         public const float FocusShare = 0.3f;
         /// <summary>CALIBRATED (CE-8009) — a broken man (stress at the break level) goes to ground: this share of a standing man's exposure.</summary>
-        public const float BrokenExposure = 0.5f;
+        public const float BrokenExposure = 1f;   // ⭐ re-fitted `2026-11-16` against the INCAPACITATION curve: rung 1 shows no going to ground (0.5 was fitted to bleed-out times); rung 2 (the MG) is where suppression must show
         /// <summary>CALIBRATED (CE-8009) — a broken man still fires from the ground at this share (the physical loser keeps hitting the winner
         /// for a minute after its men break; a broken side that falls silent loses ~1 man where the physical one costs the winner ~3).</summary>
-        public const float BrokenFireShare = 0.6f;
+        public const float BrokenFireShare = 1f;   // ⭐ re-fitted `2026-11-16`: rung 1 shows no slowing of a broken man's fire (0.6 was fitted to bleed-out times)
 
         /// <summary>Is the step due at <paramref name="now"/> after <paramref name="last"/>?</summary>
         internal static bool Due(SimInstant now, SimInstant last) => (double)now - (double)last >= StepSeconds - 1e-6;
@@ -62,7 +63,11 @@ namespace Fdp.Toolkit.Aggregate
         private EntityRepository? _queriesFor;
         private Entity[] _firers = new Entity[32];
         private SimInstant _last = (SimInstant)(-1.0);
-        private bool _loadTried;
+        // ⭐ CE-8008 — the table THIS phase built, the held types and the soldier map it was built over (a table someone else installed is left alone)
+        private KillerVictimTable? _mine;
+        private readonly HashSet<TkbTypeId> _builtOver = new();
+        private object? _personalAt;
+        private bool _tried;
 
         public StochasticFirePhase(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
@@ -70,10 +75,6 @@ namespace Fdp.Toolkit.Aggregate
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
                 || !repo.IsComponentTypeRegistered<FireAllocation>() || !repo.IsComponentTypeRegistered<UnitDetections>()) return;
-            // ⭐ CE-8008 — no table in force ⇒ build it ONCE from this world's TKB over the held types (KillerVictimTkb.LoadFor)
-            if (KillerVictimTable.Current == null && !_loadTried) { _loadTried = true; KillerVictimTable.Current = KillerVictimTkb.LoadFor(repo); }
-            var table = KillerVictimTable.Current;
-            if (table == null) return;
             SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
             if (!StochasticCombat.Due(now, _last)) return;
             _last = now;
@@ -83,6 +84,9 @@ namespace Fdp.Toolkit.Aggregate
                     .WithOwnedWhen<AggregateUnit>(_gateOnAuthority).Build();
                 _queriesFor = repo;
             }
+            // ⭐ CE-8008 — the table from this world's TKB over the held types (KillerVictimTkb.LoadFor): built when there is none, and REBUILT
+            //   when a unit holds a type it was not built over or the soldier map changed. ⛔ Before: tried ONCE, on the first frame — an empty
+            //   world at boot (the scenario arrives later) ⇒ no table, never retried ⇒ stochastic combat silently never fired.
             int n = 0;
             foreach (var e in _units!)
             {
@@ -91,7 +95,17 @@ namespace Fdp.Toolkit.Aggregate
                 if (n == _firers.Length) Array.Resize(ref _firers, n * 2);
                 _firers[n++] = e;
             }
-            if (n == 0) return;
+            if (n == 0) return;   // no stochastic unit: nothing built, nothing allocated
+            var table = KillerVictimTable.Current;
+            if ((table == null || ReferenceEquals(table, _mine)) && (!_tried || Stale(repo)))
+            {
+                _tried = true;
+                var built = KillerVictimTkb.LoadFor(repo);
+                if (built != null) { _mine = built; KillerVictimTable.Current = built; }
+                Remember(repo);   // a failed try waits for the world to change, never retried every step
+                table = KillerVictimTable.Current;
+            }
+            if (table == null) return;
             var job = new Job { Repo = repo, Now = now, Table = table };
             if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _firers, n, in job);
             else for (int i = 0; i < n; i++) job.Execute(_firers[i], i, null!);
@@ -113,6 +127,32 @@ namespace Fdp.Toolkit.Aggregate
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
 
             public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Allocate(Repo, self, Now, Table);
+        }
+
+        /// <summary>⭐ CE-8008 — does a unit hold a type the table was not built over, or did the soldier map change? (Serial; 0 B unless it did.)</summary>
+        private bool Stale(EntityRepository repo)
+        {
+            if (!ReferenceEquals(KillerVictimTkb.PersonalSoldiers, _personalAt)) return true;
+            foreach (var e in _units!)
+            {
+                if (!repo.HasComponent<UnitHoldings>(e)) continue;
+                ref readonly var h = ref repo.GetComponentRO<UnitHoldings>(e);
+                for (int i = 0; i < h.Count; i++)
+                    if (h.Items[i].Kind != HoldingKind.Sensor && !_builtOver.Contains(h.Items[i].Type)) return true;
+            }
+            return false;
+        }
+
+        private void Remember(EntityRepository repo)
+        {
+            _personalAt = KillerVictimTkb.PersonalSoldiers;
+            _builtOver.Clear();
+            foreach (var e in _units!)
+            {
+                if (!repo.HasComponent<UnitHoldings>(e)) continue;
+                ref readonly var h = ref repo.GetComponentRO<UnitHoldings>(e);
+                for (int i = 0; i < h.Count; i++) if (h.Items[i].Kind != HoldingKind.Sensor) _builtOver.Add(h.Items[i].Type);
+            }
         }
 
         /// <summary>One firer's allocation (the test seam).</summary>
@@ -260,7 +300,8 @@ namespace Fdp.Toolkit.Aggregate
                 _victims[n++] = e;
             }
             if (n == 0) return;
-            var job = new Job { Repo = repo, Now = now, All = _all, AllCount = all, Seed = seed };
+            var job = new Job { Repo = repo, Now = now, All = _all, AllCount = all, Seed = seed, ManOutBelow = KillerVictimTable.Current?.ManOutBelow ?? 0f,
+                                 ZoneShare = KillerVictimTable.Current?.ManZoneShare, ZoneFactor = KillerVictimTable.Current?.ManZoneFactor };
             if (Fdp.Core.Jobs.ParallelEntities.Enabled) Fdp.Core.Jobs.ParallelEntities.Run(repo, _victims, n, in job);
             else for (int i = 0; i < n; i++) job.Execute(_victims[i], i, null!);
         }
@@ -275,17 +316,20 @@ namespace Fdp.Toolkit.Aggregate
             public Entity[] All;
             public int AllCount;
             public uint Seed;
+            public float ManOutBelow;
+            public float[]? ZoneShare, ZoneFactor;
 
             /// <summary>The FIRERS' allocations: phase B writes none.</summary>
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads.Unmanaged<FireAllocation>();
 
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d) { }
 
-            public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Resolve(Repo, self, Now, All, AllCount, Seed);
+            public void Execute(Entity self, int index, Fdp.Core.Jobs.BatchContext ctx) => Resolve(Repo, self, Now, All, AllCount, Seed, ManOutBelow, ZoneShare, ZoneFactor);
         }
 
         /// <summary>One victim's step (the test seam).</summary>
-        internal static void Resolve(EntityRepository repo, Entity self, SimInstant now, Entity[] all, int allCount, uint seed)
+        internal static void Resolve(EntityRepository repo, Entity self, SimInstant now, Entity[] all, int allCount, uint seed, float manOutBelow = 0f,
+                                     float[]? zoneShare = null, float[]? zoneFactor = null)
         {
             ref var u = ref repo.GetComponentRW<AggregateUnit>(self);
             ref var slots = ref repo.GetComponentRW<UnitSlotTable>(self);
@@ -334,7 +378,10 @@ namespace Fdp.Toolkit.Aggregate
                     int s = PickExposed(in slots, ref rng);
                     if (s < 0) break;
                     bool wasUp = slots.IsUp(s);
-                    float hp = (float)slots.Slots[s].Health - damage[FireAllocation.PersonnelClass];
+                    float hit = damage[FireAllocation.PersonnelClass];
+                    if (zoneShare != null && zoneFactor != null) hit *= zoneFactor[DrawZone(zoneShare, ref rng)];   // ⭐ CE-8009 — ONE zone, not the mean
+                    float hp = (float)slots.Slots[s].Health - hit;
+                    if (hp < manOutBelow) hp = 0f;   // ⭐ CE-8009 — INCAPACITATED is out of the fight (the soldier's Gen.Injury line), as the physical man is
                     slots.Slots[s].Health = (Half)MathF.Max(0f, hp);
                     slots.Slots[s].Stress = (Half)MathF.Min(1f, (float)slots.Slots[s].Stress + StochasticCombat.StressHit);
                     if (wasUp && !slots.IsUp(s)) downNow++;
@@ -423,6 +470,14 @@ namespace Fdp.Toolkit.Aggregate
             }
             for (int i = t.Count - 1; i >= 0; i--) if (t.IsUp(i)) return i;
             return -1;
+        }
+
+        /// <summary>⭐ CE-8009 — the body zone a hit lands on, drawn by the zones' shares (seeded).</summary>
+        private static int DrawZone(float[] share, ref Fdp.Toolkit.Determinism.SimRng rng)
+        {
+            float x = rng.NextSingle();
+            for (int i = 0; i < share.Length - 1; i++) { x -= share[i]; if (x < 0f) return i; }
+            return share.Length - 1;
         }
 
         /// <summary>⭐ CE-8009 — the share of the incoming fire that still finds the up men: a broken man has gone to ground

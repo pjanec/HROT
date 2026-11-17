@@ -97,6 +97,42 @@ namespace Fdp.Toolkits.Tests.Aggregate
         }
 
         /// <summary>
+        /// ⭐ CE-8009 (R-8006) — the naked eye stops at the soldiers' own TKB <c>VisionRange</c>, as the physical soldier's does: an enemy at 200 m
+        /// (well inside the eye's R50) is contacted when the soldier sees 500 m, never when he sees 150 m; optics are not capped.
+        /// ✅ Red-proof: the cap never applied ⇒ the 150 m soldier contacts it ⇒ red.
+        /// </summary>
+        [Fact]
+        public void R8006_TheNakedEye_StopsAtTheSoldiersOwnVisionRange()
+        {
+            var before = KillerVictimTkb.PersonalSoldiers;
+            try
+            {
+                foreach (var (vision, optics, seen) in new[] { (500f, false, true), (150f, false, false), (150f, true, true) })
+                {
+                    var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+                    var man = new Fdp.Interfaces.TkbTemplate("Rifleman", 9001);
+                    man.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.SensorCapabilitiesDto { VisionRange = vision, HearingRange = 200f, FieldOfViewDegrees = 360f });
+                    db.Register(man);
+                    KillerVictimTkb.PersonalSoldiers = new System.Collections.Generic.Dictionary<SlotRole, TkbTypeId> { [SlotRole.Rifleman] = (TkbTypeId)9001 };
+                    using var w = World();
+                    w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+                    var me = Unit(w, Vector3.Zero, ForceId.Friend);
+                    if (optics)
+                    {
+                        var h = new UnitHoldings { Count = 1 };
+                        h.Items[0] = new UnitHolding { Kind = HoldingKind.Sensor, Sensor = HoldingSensor.Optics, Count = 1, Operational = 1 };
+                        w.GetComponentRW<UnitHoldings>(me) = h;
+                    }
+                    Unit(w, new Vector3(0, 200, 0), ForceId.Hostile);
+                    var sys = new StochasticUnitSensorSystem();
+                    for (int s = 1; s <= 10; s++) { At(w, s); sys.Execute(w, 1f); }
+                    Assert.Equal(seen, w.GetComponentRO<SquadCognitiveState>(me).Contacts.Count > 0);
+                }
+            }
+            finally { KillerVictimTkb.PersonalSoldiers = before; }
+        }
+
+        /// <summary>
         /// ⭐ CE-8018 (N-3) — a stochastic observer sees PHYSICAL bodies, one way: an enemy man at ONE man's half-chance range (R50 × √(1/9))
         /// lands in its pool on the third step, as a unit at its own R50 does; a friendly man, a dead one and a part (a mount) never; the man's
         /// death takes him out. ✅ Red-proof: the bodies not gathered ⇒ the pool stays empty ⇒ red.

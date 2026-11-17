@@ -110,6 +110,9 @@ public class TheFourRoutingTablesAgreeTests
         ("Aggregate.Formation",            AttributeIds.AggregateFormation,            "{\"Aggregate\":{\"Formation\":1}}"),
         ("Aggregate.Posture",              AttributeIds.AggregatePosture,              "{\"Aggregate\":{\"Posture\":1}}"),
         ("Aggregate.Prepared",             AttributeIds.AggregatePrepared,             "{\"Aggregate\":{\"Prepared\":2}}"),
+        ("Aggregate.Width",                AttributeIds.AggregateWidth,                "{\"Aggregate\":{\"Width\":200}}"),     // ⭐ CE-8022 ①
+        ("Aggregate.Depth",                AttributeIds.AggregateDepth,                "{\"Aggregate\":{\"Depth\":80}}"),
+        ("Aggregate.Heading",              AttributeIds.AggregateHeading,              "{\"Aggregate\":{\"Heading\":45}}"),
         ("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}"),
         ("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               "{\"Weather\":{\"FeatherM\":500.0}}"),
     };
@@ -153,7 +156,7 @@ public class TheFourRoutingTablesAgreeTests
                            "\"Weapon\":{\"Posture\":2,\"AimPoint\":{\"0\":12.5},\"AimTarget\":1,\"HeldItem\":1}," +
                            "\"Damage\":{\"Part\":{\"3\":128},\"MobilityKill\":1}," +
                            "\"Proficiency\":0.8,\"Temperament\":{\"RiskAcceptance\":0.7,\"Obedience\":0.6,\"Nerve\":0.5,\"Resolve\":0.4}," +
-                           "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0},\"Aggregate\":{\"Resolution\":3,\"Pin\":1,\"Echelon\":1,\"Formation\":2,\"Posture\":1,\"Prepared\":2}}";
+                           "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0},\"Aggregate\":{\"Resolution\":3,\"Pin\":1,\"Echelon\":1,\"Formation\":2,\"Posture\":1,\"Prepared\":2,\"Width\":200.0,\"Depth\":80.0,\"Heading\":45.0}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -488,6 +491,9 @@ public class TheFourRoutingTablesAgreeTests
         ("Aggregate.Formation", 0, "{\"Aggregate\":{\"Formation\":1}}", Want.Number, 1, ""),
         ("Aggregate.Posture", 0, "{\"Aggregate\":{\"Posture\":1}}", Want.Number, 1, ""),
         ("Aggregate.Prepared", 0, "{\"Aggregate\":{\"Prepared\":2}}", Want.Number, 2, ""),
+        ("Aggregate.Width", 0, "{\"Aggregate\":{\"Width\":200}}", Want.Number, 200.0, ""),   // ⭐ CE-8022 ①
+        ("Aggregate.Depth", 0, "{\"Aggregate\":{\"Depth\":80}}", Want.Number, 80.0, ""),
+        ("Aggregate.Heading", 0, "{\"Aggregate\":{\"Heading\":405}}", Want.Number, 45.0, ""),   // normalised 0..360
         ("Weather.PrecipitationMmPerHour", 0, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}", Want.Number, 4.0, ""),
         ("Weather.FeatherM", 0, "{\"Weather\":{\"FeatherM\":500.0}}", Want.Number, 500.0, ""),
     };

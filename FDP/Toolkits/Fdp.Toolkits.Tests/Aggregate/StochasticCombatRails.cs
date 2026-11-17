@@ -17,9 +17,9 @@ namespace Fdp.Toolkits.Tests.Aggregate
     {
         private static readonly TkbTypeId Rifle = new(9001), Ifv = new(212);
 
-        private static KillerVictimTable Table()
+        private static KillerVictimTable Table(float damagePerHit = 12.5f)
         {
-            var rifle = new WeaponNumbers(Rifle, DispersionMils: 2f, Penetration: 6f, DamagePerHit: 12.5f, EffectiveRoundsPerSecond: 0.5f, MaxRange: 600f);
+            var rifle = new WeaponNumbers(Rifle, DispersionMils: 2f, Penetration: 6f, DamagePerHit: damagePerHit, EffectiveRoundsPerSecond: 0.5f, MaxRange: 600f);
             var t = KillerVictimGenerator.Build(new[] { rifle }, new[]
             {
                 new TargetNumbers(KillerVictimTable.Personnel, Radius: 0.3f, Health: 25f),
@@ -100,13 +100,17 @@ namespace Fdp.Toolkits.Tests.Aggregate
         }
 
         /// <summary>One duel: <paramref name="steps"/> 1 s steps; returns (A's present, B's present, A's ammo, B's suppression).</summary>
-        private static (int A, int B, int AmmoA, float SuppB, string State) Duel(uint seed, int steps, PreparedLevel bCover = PreparedLevel.Unprepared, bool parallel = false, int threads = 1)
+        private static (int A, int B, int AmmoA, float SuppB, string State) Duel(uint seed, int steps, PreparedLevel bCover = PreparedLevel.Unprepared, bool parallel = false, int threads = 1,
+                                                                                 float manOutBelow = 0f, float damagePerHit = 12.5f,
+                                                                                 float[]? zoneShare = null, float[]? zoneFactor = null)
         {
             bool wasPar = Fdp.Core.Jobs.ParallelEntities.Enabled;
             var wasTable = KillerVictimTable.Current;
             Fdp.Core.Jobs.ParallelEntities.Enabled = parallel;
             Fdp.Core.Jobs.FdpWorkerPool.Resize(threads);
-            KillerVictimTable.Current = Table();
+            KillerVictimTable.Current = Table(damagePerHit);
+            KillerVictimTable.Current.ManOutBelow = manOutBelow;
+            KillerVictimTable.Current.ManZoneShare = zoneShare; KillerVictimTable.Current.ManZoneFactor = zoneFactor;
             try
             {
                 using var w = World();
@@ -150,6 +154,47 @@ namespace Fdp.Toolkits.Tests.Aggregate
             int differ = 0;
             for (uint s = 12; s < 18; s++) if (Duel(s, 120).State != r.State) differ++;
             Assert.True(differ >= 5, $"only {differ}/6 seeds fought a different fight");
+        }
+
+        /// <summary>
+        /// ⭐ CE-8009 — a man hit below the soldier's INCAPACITATION line is out of the fight (down), as the physical injury model takes him
+        /// out (<c>Gen.Injury IncapacitatedBelow</c>, 30 % of the slot = 7.5), not only when his health runs out: over 30 seeds at 30 s more men
+        /// are down with the line than without. The line travels with the table (its JSON).
+        /// ✅ Red-proof: the line not applied in the loss phase ⇒ no difference ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8009_AManBelowTheIncapacitationLine_IsOutOfTheFight()
+        {
+            int without = 0, with = 0;
+            // a 9-point round: 25 → 15.7 → 6.4 — below the line after TWO hits, below DownBelow only after THREE
+            for (uint s = 1; s <= 30; s++)
+            {
+                var a = Duel(s, 30, damagePerHit: 9f); without += 18 - a.A - a.B;
+                var b = Duel(s, 30, manOutBelow: 7.5f, damagePerHit: 9f); with += 18 - b.A - b.B;
+            }
+            Assert.True(with > without, $"down with the line {with}, without {without}");
+            var t = Table(); t.ManOutBelow = 7.5f;
+            Assert.Equal(7.5f, KillerVictimTable.FromJson(t.ToJson()).ManOutBelow);
+        }
+
+        /// <summary>
+        /// ⭐ CE-8009 — a hit lands on ONE zone: with a head (1 in 10, 3× the mean) and a body (the rest, below the mean) and the incapacitation
+        /// line between them, the first hits mostly WOUND (body) and a few take a man out at once (head), where the mean took him out with every
+        /// hit. Over 30 seeds at 10 s fewer men are down with the zones than with the mean. ✅ Red-proof: the zone draw skipped ⇒ the mean ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8009_AHitLandsOnOneZone_NotTheMean()
+        {
+            // a 20-point round: mean 20.6 (25 → 4.4, below the 7.5 line: out); body 0.75 × mean (25 → 9.6, wounded); head 3.25 × mean (out)
+            var share = new[] { 0.1f, 0.9f };
+            var factor = new[] { 3.25f, 0.75f };
+            int mean = 0, zoned = 0;
+            for (uint s = 1; s <= 30; s++)
+            {
+                var a = Duel(s, 10, manOutBelow: 7.5f, damagePerHit: 20f); mean += 18 - a.A - a.B;
+                var b = Duel(s, 10, manOutBelow: 7.5f, damagePerHit: 20f, zoneShare: share, zoneFactor: factor); zoned += 18 - b.A - b.B;
+            }
+            Assert.True(zoned < mean, $"down at 10 s: zoned {zoned}, mean {mean}");
         }
 
         /// <summary>⭐ P-5 / C-2 — over 30 seeds a FORTIFIED squad loses far fewer men than one in the open (the cover factor), at 60 s.</summary>

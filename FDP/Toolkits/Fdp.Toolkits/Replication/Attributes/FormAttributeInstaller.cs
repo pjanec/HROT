@@ -97,6 +97,7 @@ public sealed class FormAttributeInstaller : IBinaryAttributeInstaller<EntityAtt
     {
         AttributeIds.AggregateResolution, AttributeIds.AggregatePin, AttributeIds.AggregateEchelon,
         AttributeIds.AggregateFormation, AttributeIds.AggregatePosture, AttributeIds.AggregatePrepared,
+        AttributeIds.AggregateWidth, AttributeIds.AggregateDepth, AttributeIds.AggregateHeading,   // ⭐ CE-8022 ①
     };
 
     /// <summary>The weather scalars' attribute ids.</summary>
