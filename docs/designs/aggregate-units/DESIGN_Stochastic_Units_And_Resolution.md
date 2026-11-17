@@ -918,8 +918,17 @@ sequenceDiagram
 In one line: F-5's system, renamed `UnitResolutionFitSystem`, re-issues a SQUAD's order (the same id, `IsResume`) with the play the routing table gives at its new
 resolution — after its men are rostered by agg-backend's `Handover` (`CmdAssignSubordinate`), with its planned posts as D-2f `Posts` (DP3-D ②); a merge projects
 the params onto the stochastic play and removes the roster; an automatic switch waits while the order has no play at the target (`SwitchBlocked`); the
-physical fallback rows let a physical squad take `Order.Defend` / `Order.BreakContact` (F-X2-2). Platoons / companies: not yet (F-X2-1, X2-I).
-⚠ X-2 (§13) is answered for the squad echelon; the "one level at a time" split (X-5 / D-P7) is still not what the split does — F-X2-1 (agg-backend).
+physical fallback rows let a physical squad take `Order.Defend` / `Order.BreakContact` (F-X2-2). Platoons / companies: ⛔ SUPERSEDED — built by CE-8307 (§23.5f).
+
+### 23.5f agg-behaviors — the split goes ONE level (X-5 / D-P7): a platoon splits into stochastic squads *(`2026-11-17`, CE-8307; R-8382 … R-8399)*
+
+⭐ **The as-built lives in [`DESIGN_Split_One_Level.md`](DESIGN_Split_One_Level.md) §11** (the decision, the UML, the review's fold §10) — a pointer, not a copy.
+In one line: a split creates the composite's DIRECT subordinates (`BusResolutionSwitch.Composition` from `StochasticUnitFill.Composition`) — a platoon its
+3 stochastic squads, each carrying its share of the slot table, which the same manager then splits into men by their own bands; a FORCED split (C-7)
+builds the whole subtree held and hands every level over in one tick; the merge goes leaves first; a split platoon / company re-resolves its order to its
+own play (`PlatoonDefend` / `PlatoonAttack` / … , the relay `UnitRelayMove` / `UnitRelayBreakContact` for a kind it has no play for). ⭐ Closes F-X2-1.
+⚠ The as-built D-P2 is not top-down (§16a note). Findings F-SOL-1 (holdings never materialised), F-SOL-3 (`UnitCompositionDto` unread), F-SOL-4
+(a hold-back attack has no echelon play), F-SOL-5 (no cluster-tier run).
 
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 

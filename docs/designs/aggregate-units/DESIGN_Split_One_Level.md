@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-11-17, agg-behaviors — CE-8307; lane decisions R-8382 … R-8391 "for the user's review"; the independent review folded in §10 — R-8392 … R-8399, the coordinator's decisions)
+build-state: BUILT (2026-11-17, agg-behaviors — CE-8307, §11 the as-built; was READY-TO-BUILD; lane decisions R-8382 … R-8391 "for the user's review"; the independent review folded in §10 — R-8392 … R-8399, the coordinator's decisions)
 updated: 2026-11-17
-current-answer: §10 the review (its decisions OVERRIDE the rows they name) · §0 the decision · §3–§5a the UML · §6 the sub-questions with leans · §7 slices and acceptance
+current-answer: §11 AS BUILT (read first) · §10 the review (its decisions OVERRIDE the rows they name) · §0 the decision · §3–§5a the UML · §6 the sub-questions with leans · §7 slices and acceptance
 stale-below: nothing.
 known-rot: §6 Q-e's "an order with no platoon row … holds the AUTOMATIC split" and §9 F-SOL-2 — SUPERSEDED by §10 R-8392 (Attack / Hold / Bound / SupportByFire rows, the relay); §6 Q-a's Pin ("a unit child starts unpinned") — SUPERSEDED by R-8395
 known-conflict: none — this design RESOLVES DESIGN_X2_Order_Reresolution.md's known-conflict (F-X2-1: the split flattens a platoon to men, against §13 X-5 / §16a D-P7)
@@ -63,7 +63,7 @@ orders the stochastic squads by kind (ST-0's routing).
 | grep `StochasticUnitFill\.(Leaves\|ChildType\|ChildDesignation\|Build\|EchelonOf)` | 4 production | `CgfLogicPack.cs:302, :308` (the switch's two Funcs), the fill itself — ⭐ ONE place wires the composite into the switch |
 | grep `RostersItsMen` | 5 | `UnitResolution.cs:110, :458` · `UnitResolutionFitSystem.cs:119` · `OrderReissue.cs:39` · rail `X2I_*` |
 | grep `"InfantrySquad"` in classes / rows | 3 | `EntityClassTable.cs:257` (`11.1.*.1.2`), `ResolutionRouting.cs:94-95` — ⭐ NO `InfantryPlatoon` / `InfantryCompany` class |
-| grep `Fulfils = ` (platoon / company plays) | 3 | `PlatoonDefend`, `CompanyDefend` (Defend), `PlatoonHold` (Hold) — ⛔ `PlatoonAttack` / `CompanyAttack` declare none |
+| grep `Fulfils = ` (platoon / company plays) | ~~3~~ **5** *(corrected by the review)* | `PlatoonDefend`, `CompanyDefend` (Defend), `PlatoonHold` (Hold), `PlatoonBound` (Bound), `PlatoonSupportByFire` (SupportByFire) — `PlatoonAttack` / `CompanyAttack` declared none (they do now, R-8392) |
 | grep `u.Echelon == 0` | 1 | `UnitPostPlanningSystem.Plans` (DP3's scope) |
 
 ⚠ Coverage could not be checked (`check_index_coverage` is not in the CLI); every absence above is grep-confirmed.
@@ -304,6 +304,43 @@ sequenceDiagram
   Note over P,M: one tick - no level ever stands stochastic in contact
 ```
 *What it shows that §4 could not: under C-7 the cascade is one held build — the squads are never released stochastic, so nothing between "stochastic platoon" and "men" ever fights.*
+
+## 11. AS BUILT *(agg-behaviors, `2026-11-17` — read this first)*
+
+| slice | built | commit | rails *(each red-proved by one compiling mutation)* |
+|---|---|---|---|
+| **S1** (cross-lane, agg-backend's files) | ✅ §0 + §10 F2 / F3 / F4 / F5 / F8 / F9 / F12 | `521da8993` (re-landed with S2; the first push `cc57bb263` was reverted by the coordinator as `87d10e9b7` — it did not build alone) | `UnitResolutionRails` OL1 … OL4, F2, F3, F4, F8, F9, F12, PinMidSplit, Company (3 levels) · `UnitResolutionWiringRails.AHeldSquad_*` · `StochasticUnitFillTests.CE8307_*` |
+| **S2** | ✅ §6 Q-e … Q-j + §10 F1 / F7 / F10 / F11 | `521da8993` | `ResolutionRoutingTableTests.CE8307_*` · `SquadManeuverTests.CE8307_*` ×3 (the platoon's Defend → PlatoonDefend, same id; the relay; a hold-back attack waits) · `BehaviorParamsValidationTests` R8300 (Attack plays ≥ 4 incl. PlatoonAttack / CompanyAttack, BreakContact 3) and X2C2 (13 physical rows, each fulfils its order, the name rule finds nothing) |
+| **S3** | ✅ the scenarios (§7a) | see git | — |
+
+**Deviations from §6 / §10, each with its reason**
+
+| design said | as built | why |
+|---|---|---|
+| F1 (b): ONE relay play on `InfantryUnit` | ONE `Relay` function, TWO registered plays (`UnitRelayMove`, `UnitRelayBreakContact`), rows on `InfantryPlatoon` / `InfantryCompany` | a play declares ONE params DTO and ONE `Fulfils` (R-8300, X2C2); an `InfantryUnit` row would also catch a physical SQUAD's March / Dash (no name-rule play today) — a behaviour change nobody asked for. March / Dash need no row: a stochastic unit runs them as Move (X2-J) |
+| F1 (b): "via `CommandOrders.Route`" | `CommandOrders.Order` (by kind) for every child | `Route` needs a physical play name to send a physical child; the relay knows only the kind — `Order` is what `Route` does for a stochastic child and the routing table resolves it for a physical one |
+| F4: copy `PinPhysical` down | DERIVED each step (`EffectivePin`) | a copy outlives the parent's pin; derived, lifting the parent's pin lifts it below |
+| F1 (a): PlatoonAttack / CompanyAttack fulfil Attack | + a HOLD-BACK attack resolves to no echelon play (`OrderReissue.HoldsBack`) | both plays close; re-resolving a support-by-fire order to them would assault (F-SOL-4) |
+| §7 S2 a rail "0 B steady" | `X2_ASteadyFrame_AllocatesNothing` and `DP3_ASteadyPlanningFrame_AllocatesNothing` (parallel) green — the latter was RED with the uncached lookup (F7) | — |
+
+**Gates** (T-1 the features' own suites; plain and under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`): Fdp.Toolkits `Aggregate` 72 / 0 ·
+Hrot.Core (`StochasticUnitFill`, `ResolutionRouting`, `EntityClassTable`, `OrderResolver`) 30 / 0 · SimHost (`SquadManeuverTests`, `CgfLogicPackTests`, `BehaviorParamsValidationTests`,
+`TacticalIntentResolutionSystemTests`, `ScenarioRulesTests`, `BasicInfantrySopTests`) 548 / 4 plain, 544 / 8 parallel — every red RED AT BASE `87d10e9b7`
+(`CgfLogicPackTests` ×3 — fixed by the coordinator merge `b872e1565`, `CE4621_TheConductTable`; parallel-only `BasicInfantrySopTests` ×4) · F13: `MenuOrdersTests` 38 / 1
+(`K2_OrderLettersAreDeclaredAndDistinct` — "order 'Convoy' declares no map letter", RED at base), `OrderVocabularyTests` + `ScenarioChecksTests` 26 / 0.
+
+### 11a. The scenario sweep *(R-4277; each in its own fresh process, `scripts/scenario-regression.sh <one name>`)*
+
+| scenario | stochastic 305 / 306 | expected change | result |
+|---|---|---|---|
+| **agg-platoon-splits-into-squads** *(new)* | 305 | the platoon → 3 squads (roster 3, `PlatoonDefend` at 69.25 s) → each squad → its 10 men (72.25 / 74.25 / 79.25 s — squad 3 waited its 10 s deadline for an order) | 28 / 28; golden captured + SAME |
+| **agg-platoon-merges-back** *(new)* | 305 | squads carry the authored losses; the pin merges the whole tree in one step; 3 down / 2 hurt / 27 up | 23 / 23; golden captured + SAME |
+| **agg-split-on-contact** *(re-judged)* | 305 | squads, then men `<P>/<s>/<n>` | 33 / 33; golden re-captured + SAME |
+| **agg-merge-back** *(re-judged)* | 305 | squads then men; leaves-first merge; the pin's split gives the same 3 squads | 18 / 18; golden re-captured + SAME |
+| **agg-forced-handover** *(re-judged)* | 305 ×2 | C-7: squads and men built held, one-tick handover; no squad fire line / loss | 15 / 15; golden re-captured + SAME |
+| agg-battalion-fight · agg-march-mounted · agg-march-open · agg-mixed-company-attack · agg-out-of-ammo · agg-platoon-duel · agg-platoon-under-company · agg-prepared-defence · agg-recorded · agg-route-dropped · agg-shelled-unit | 305 / 306 | none — no PHYSICAL enemy inside any stochastic unit's band (the manager splits only on a physical enemy), so nothing splits | all pass, golden SAME |
+| the squad / X-2 ones: agg-break-contact · agg-commanded-split · agg-defend-fires · agg-detect-by-range · agg-merge-keeps-order · agg-refused-order · agg-sees-physical · agg-split-keeps-order · agg-squad-holds-house | — (302) | none — a squad's direct children are its men (key == leaf) | all pass, golden SAME |
+| sq-defend-house · pc-defend-house · bc-house-defended · ts-three-defenders | — | none (physical defence) | all pass |
 
 ## 9. Findings *(measured while designing)*
 
