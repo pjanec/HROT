@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "air-range",
-    "description": "What: two Aces in an arena whose stalemate is 30 s (CE-10004, AC-12). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, EnergyBleed or G-LOC) inside 120 s, and someone is shot down or crashes inside 240 s."
+    "description": "What: two Aces in an arena whose stalemate is 10 s (CE-10004, AC-12; authored short \u2014 \ud83d\udcd0 after the merge two Aces now decide the fight inside ~45 s, so a 30 s quiet left the lapses no time, R-10026). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, EnergyBleed or G-LOC) inside 120 s, and someone is shot down or crashes inside 240 s."
   },
   "entities": {
     "ac000021-0000-4000-8000-000000000001": {
@@ -127,7 +127,7 @@
         "FloorAglM": 300,
         "CeilingAglM": 6000,
         "MaxShotRangeM": 6000,
-        "StalemateSeconds": 30,
+        "StalemateSeconds": 10,
         "LapsesOff": 0
       }
     }

@@ -1,0 +1,35 @@
+{
+  "$doc": "\u00a723.6 ST-1. Prediction offline from UnitSpeedModel (FootMps 1.5, OffRoadFoot 0.9, column factor 1) and ColumnDepth for 30 slots (145 m, measured in the probe): (2000+145)/1.35 = 1588.9 s. The play is started at t = 0.1 s.",
+  "runFor": 1758,
+  "golden": false,
+  "expect": [
+    {
+      "name": "it marches as a column",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Formation",
+      "op": "==",
+      "value": "Column",
+      "before": 60
+    },
+    {
+      "name": "the route is the 2000 m leg",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitRoute.Length",
+      "op": "==",
+      "value": 2000,
+      "before": 60
+    },
+    {
+      "name": "its tail arrives within +-10 % of the predicted time",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "Arrived",
+      "after": 1430,
+      "before": 1748
+    }
+  ]
+}

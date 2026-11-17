@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Combat
         private static float DefaultPerRound(WeaponMountDto mount, bool automatic, bool smallArms)
         {
             if (smallArms) return 1f / SmallArmsRoundsToHot;
-            if (mount.Category is WeaponCategory.Grenade or WeaponCategory.Bomb or WeaponCategory.Countermeasure) return 0f;
+            if (mount.Category is WeaponCategory.Grenade or WeaponCategory.Bomb or WeaponCategory.Countermeasure or WeaponCategory.Bow) return 0f;   // ⭐ CE-4649 — a bow has no barrel to heat
             if (!automatic) return SingleShotHeatPerRound;
             return mount.RateOfFire > 0f ? 1f / (mount.RateOfFire / 60f * AutomaticBurstSeconds) : AutomaticHeatPerRound;
         }

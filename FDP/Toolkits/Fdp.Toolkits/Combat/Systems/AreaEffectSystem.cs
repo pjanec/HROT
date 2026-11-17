@@ -278,6 +278,8 @@ namespace Fdp.Toolkit.Combat.Systems
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
             MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
             FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
+            // ⭐ CE-8005 (R-171) — the STOCHASTIC units the burst reaches are NOT applied here: a hidden UnitEntity is skipped above, and
+            //   Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem applies the burst on the node that owns the unit (its slot table is the Brain's)
             log.Add(record);
         }
 

@@ -80,6 +80,18 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-2260</c> BC-4 (CB-71) — an ASSAULT RIFLEMAN: the InfantrySoldier plus stun grenades (mount 1) and M67 (mount 2) — what
         /// the clearing demos field, so the room drill can bang a room out. 📄 docs/designs/group-maneuvers/DESIGN_Building_Clearing.md §7.3.</summary>
         public const int TkbAssaultRifleman    = 2009;
+        /// <summary>⭐ <c>CE-4648</c> (OF-10, docs/designs/person-looks/DESIGN_Person_Outfits.md) — a Middle-East FIGHTER with a rifle: the Insurgent's body,
+        /// senses, temperament and brain in the local dress of <see cref="OutfitCatalog.MiddleEastFighter"/>.</summary>
+        public const int TkbMiddleEastFighter  = 2010;
+        /// <summary>⭐ <c>CE-4648</c> — a Middle-East fighter with an RPG and a rifle (what 2003 carries).</summary>
+        public const int TkbMiddleEastFighterRpg = 2011;
+        /// <summary>⭐ <c>CE-4648</c> — a Middle-East machine gunner: a man-portable machine gun (the PKM class) as his mount 0.</summary>
+        public const int TkbMiddleEastMachineGunner = 2012;
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
+        /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
+        public const int TkbArcher = 2013, TkbCrossbowman = 2014;
+        /// <summary>⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET prop: a straw boss on a stand (a thin box with an <see cref="ArcheryTargetDto"/> scoring face).</summary>
+        public const int TkbArcheryTarget = 2015;
 
         // ── Tuning constants — moved verbatim with the templates; used only here. ────────────────
         internal const float CivilianVisionRange  = 30f;
@@ -349,37 +361,112 @@ namespace Hrot.Core.Tkb
                 DamagePerHit = NlawDamage, AmmoGuid = MunitionTkbCatalog.TkbNlawMissile, Category = WeaponCategory.Atgm,
                 MagazineSize = 1, ReloadSeconds = NlawReloadSeconds, AimSeconds = NlawAimSeconds });
 
-            // Insurgent (2003)
-            {
-                var t = new TkbTemplate("Insurgent", TkbInsurgent);
-                Master(t, "Insurgent", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
-                t.AddDescriptor(TemperamentDto.Insurgent());   // ⭐ CE-2269 TS-2/TS-3 — an insurgent obeys little (0.3, ± his own spread)
-                t.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 (B-12, HI-3/HI-6) — a phone: his charge's remote trigger
-                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
-                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
-                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
-                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
-                t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
-                // ⭐ CE-3210 (hit location HL-12) — the class template (bodies.json "Soldier") gives a helmet and a vest; an insurgent wears
-                //   neither: a SPARSE override of the two armour fields it changes, nothing else restated.
-                t.AddDescriptor(new BodyZonesDto { Zones =
-                {
-                    new BodyZoneDto { Zone = "Head",  ArmourSide = 0, ArmourRear = 0, ArmourTop = 0 },
-                    new BodyZoneDto { Zone = "Torso", ArmourFront = 0, ArmourRear = 0 },
-                } });
-                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
-                t.AddDescriptor(new WeaponSuiteDto { Mounts =
-                {
-                    new WeaponMountDto { InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */,
-                                         MagazineSize = 1, ReloadSeconds = RpgReloadSeconds, AimSeconds = RpgAimSeconds, FireOnMove = false },   // ⭐ M5
-                    Rifle(),   // ⭐ M5 — and a rifle, for men (the RPG for vehicles: the weapon brain picks)
-                } });
-                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher));   // ⭐ CE-3283 — an RPG / an ATGM
-                t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
-                tkb.Register(t);
-            }
+            // Insurgent (2003) + the Middle-East fighters (2010-2012, CE-4648 OF-10) — ONE helper builds them all from the insurgent template
+            //   (⛔ no second copy of its descriptors); ⭐ OF-12: the Insurgent himself wears the fighter wardrobe now (a camouflaged soldier read as a
+            //   soldier of the hostile side). Behaviour, body, senses and the RPG + rifle of the 2003 are unchanged.
+            Insurgent(tkb, "Insurgent", TkbInsurgent, OutfitCatalog.MiddleEastFighter, RpgLauncher(), Rifle());
+            Insurgent(tkb, "MiddleEastFighter", TkbMiddleEastFighter, OutfitCatalog.MiddleEastFighter, Rifle());
+            Insurgent(tkb, "MiddleEastFighterRpg", TkbMiddleEastFighterRpg, OutfitCatalog.MiddleEastFighter, RpgLauncher(), Rifle());
+            Insurgent(tkb, "MiddleEastMachineGunner", TkbMiddleEastMachineGunner, OutfitCatalog.MiddleEastFighter, MachineGun());
+            // ⭐ CE-4649 (BW-12) — the Archer and the Crossbowman: the same template, everyday clothes (OutfitCatalog.Archer), their silent weapon
+            Insurgent(tkb, "Archer", TkbArcher, OutfitCatalog.Archer, Bow());
+            Insurgent(tkb, "Crossbowman", TkbCrossbowman, OutfitCatalog.Archer, Crossbow());
+            ArcheryTarget(tkb);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4648</c> (OF-10, OF-12) — the INSURGENT template, one place: an irregular with <paramref name="mounts"/>, no helmet or vest, the
+        /// insurgent temperament, the soldier SOP and brain, wearing <paramref name="outfit"/>. 2003 (RPG + rifle) is its first instance; the Middle-East
+        /// fighters are the same descriptors with another weapon set.
+        /// </summary>
+        private static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
+        {
+            var t = new TkbTemplate(name, type);
+            Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+            t.AddDescriptor(TemperamentDto.Insurgent());   // ⭐ CE-2269 TS-2/TS-3 — an insurgent obeys little (0.3, ± his own spread)
+            t.AddDescriptor(new PocketItemsDto { Phone = true });   // ⭐ CE-3234 (B-12, HI-3/HI-6) — a phone: his charge's remote trigger
+            t.AddDescriptor(outfit);   // ⭐ CE-4648 (OF-11) — what he wears; the wardrobe wins over his Infantry class
+            t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+            t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)   // ⭐ CE-3112 — a human: the Infantry navmesh layer + the pedestrian presets (was unset ⇒ PersonalCar)
+            t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });   // ⭐ 5d-2 — doors
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+            t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+            // ⭐ CE-3210 (hit location HL-12) — the class template (bodies.json "Soldier") gives a helmet and a vest; an insurgent wears
+            //   neither: a SPARSE override of the two armour fields it changes, nothing else restated.
+            t.AddDescriptor(new BodyZonesDto { Zones =
+            {
+                new BodyZoneDto { Zone = "Head",  ArmourSide = 0, ArmourRear = 0, ArmourTop = 0 },
+                new BodyZoneDto { Zone = "Torso", ArmourFront = 0, ArmourRear = 0 },
+            } });
+            t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
+            var suite = new WeaponSuiteDto();
+            foreach (var m in mounts) suite.Mounts.Add(m);
+            t.AddDescriptor(suite);
+            t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+            bool rpg = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Atgm || m.AmmoGuid == MunitionTkbCatalog.TkbRpg7Rocket);
+            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow);   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
+            t.AddDescriptor(silent ? Sounds(FootstepsRange, SoundSourceClass.Footsteps) : rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
+                                : Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
+            t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
+            tkb.Register(t);
+        }
+
+        /// <summary>⭐ M5 — the insurgent's RPG (mount 0 where he has one): a one-round launcher, aimed, fired standing.</summary>
+        private static WeaponMountDto RpgLauncher() => new()
+        {
+            InitialAmmunition = RpgAmmo, MuzzleVelocity = RpgMuzzleVelocity, Range = RpgRange, Penetration = RpgPenetration, DamagePerHit = RpgDamage, AmmoGuid = MunitionTkbCatalog.TkbRpg7Rocket /* ⭐ LR-1 (R-271) */,
+            MagazineSize = 1, ReloadSeconds = RpgReloadSeconds, AimSeconds = RpgAimSeconds, FireOnMove = false,   // ⭐ M5
+        };
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET: a prop (no brain, no weapon) the rounds can strike — a thin oriented box 1.2 m wide and 1.4 m high with a plenty of health, so it
+        /// is a body an arrow's raycast meets; its <see cref="ArcheryTargetDto"/> is the scoring face (centre 1.0 m up, 10 rings of 6 cm).
+        /// </summary>
+        private static void ArcheryTarget(ITkbDatabase tkb)
+        {
+            var t = new TkbTemplate("ArcheryTarget", TkbArcheryTarget);
+            // a culture feature (a prop). ⚠ Hidden from the Add Entity palette until ui gives it a 3-D look (an unknown box otherwise — rail
+            //   S1_EveryPlaceableBuiltInType_HasAFamily): a scenario still places it by its id (2015).
+            var dis = new DISEntityType { Kind = 5 };
+            t.DisType = dis;
+            t.AddDescriptor(new TkbMasterDto { CustomName = "ArcheryTarget", DisType = dis.ToString(), HideFromPalette = true });
+            t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/Box2x1x1", ShapeKind = CollisionShapeKind.OrientedBox, ShapeHeight = 1.4f });
+            t.AddDescriptor(new BodyGeometryDto { Length = 0.3f, Width = 1.2f, Height = 1.4f });
+            t.AddDescriptor(new VehicleParametersDto { Length = 0.3f, Width = 1.2f, MaxSpeedFwd = 0f, MaxAccel = 0f });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 100000f });
+            t.AddDescriptor(new ArcheryTargetDto());
+            tkb.Register(t);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-1, BW-2, BW-6, BW-7; §5) — a BOW as a man's mount: 60 m/s, drawn in 1.0 s and the next arrow nocked in 1.0 s (a magazine of ONE: every
+        /// arrow is a draw), 20 in the quiver, a 100 m engagement limit (the brain fires inside Mount.Range; §5's 60 m is the EFFECTIVE range, its 150 m the flight's), 4 mm / 45 damage, 8 mils of spread; the LOW arc only (<see cref="IndirectArc.LowOnly"/>); fires on the move
+        /// (BW-8: from a horse); no heat. Its round is the silent, sticking <see cref="MunitionTkbCatalog.TkbArrow"/>. ⚠ Starter numbers — tuning starts here.
+        /// </summary>
+        public static WeaponMountDto Bow() => new()
+        {
+            Category = WeaponCategory.Bow, InitialAmmunition = 20, MagazineSize = 1, ReloadSeconds = 1.0f, AimSeconds = 1.0f, MuzzleVelocity = 60f, Range = 100f,
+            Penetration = MunitionTkbCatalog.ArrowPenetrationMm, DamagePerHit = MunitionTkbCatalog.ArrowDamage, DispersionMils = 8f,
+            AmmoGuid = MunitionTkbCatalog.TkbArrow, Arc = IndirectArc.LowOnly, FireOnMove = true,
+        };
+
+        /// <summary>⭐ <c>CE-4649</c> (BW-1, §5) — a CROSSBOW: the bow's kind with its own numbers — 90 m/s, drawn (aimed) in 0.5 s but SPANNED in 6 s per bolt, 15 bolts, 80 m, 6 mm /
+        /// 55 damage, 4 mils; its round is <see cref="MunitionTkbCatalog.TkbCrossbowBolt"/>.</summary>
+        public static WeaponMountDto Crossbow() => new()
+        {
+            Category = WeaponCategory.Bow, InitialAmmunition = 15, MagazineSize = 1, ReloadSeconds = 6.0f, AimSeconds = 0.5f, MuzzleVelocity = 90f, Range = 120f,
+            Penetration = MunitionTkbCatalog.BoltPenetrationMm, DamagePerHit = MunitionTkbCatalog.BoltDamage, DispersionMils = 4f,
+            AmmoGuid = MunitionTkbCatalog.TkbCrossbowBolt, Arc = IndirectArc.LowOnly, FireOnMove = true,
+        };
+
+        /// <summary>⭐ <c>CE-4648</c> (OF-10) — a man's machine gun (the PKM class of NedTkbCatalog's infantry machine gunner, CE-3253: 7.62, ~650 rpm,
+        /// 1000 m, a 100-round box, 1 in 5 traces), as a mount of his own (mount 0, where the rifleman has his rifle).</summary>
+        private static WeaponMountDto MachineGun() => new()
+        {
+            InitialAmmunition = 500, MagazineSize = 100, ReloadSeconds = 7f, MuzzleVelocity = RifleMuzzleVelocity, Range = 1000f, RateOfFire = 650f, Penetration = 8f,
+            DamagePerHit = 30f, DispersionMils = RifleDispersionMils, AmmoGuid = MunitionTkbCatalog.Tkb762Ball, TracerAmmoGuid = MunitionTkbCatalog.Tkb762Tracer,
+            TracerEvery = 5, Category = WeaponCategory.MachineGun,
+        };
 
         /// <summary>⭐ M5 — the infantry rifle (the InfantrySoldier's mount), as a second mount.</summary>
         private static WeaponMountDto Rifle() => new()

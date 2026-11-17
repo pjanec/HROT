@@ -53,6 +53,18 @@ namespace Hrot.AI.Behaviors.Brains
         public static BTreeBuilder<Blackboard, BTreeContext> Build()
             => new BTreeBuilder<Blackboard, BTreeContext>()
             .Selector(rows => rows
+                .Sequence(row => row
+                    .Condition(FireFromSeatBehavior.EnemyInArc, Id("c3454000-0000-0000-0000-000000000002"))
+                        .Label("On a firing seat, enemy in its arc")
+                    .Condition(CoverFightConditions.NoTask, Id("c3454000-0000-0000-0000-000000000003"))
+                        .Label("No task")
+                    .Condition(CoverFightConditions.MayFire, Id("c3454000-0000-0000-0000-000000000004"))
+                        .Label("May fire (ROE)")
+                    .React(BehaviorNames.FireFromSeat, ReactionUrgency.Contact, Id("c3454000-0000-0000-0000-000000000005"))
+                        .Label("React: FireFromSeat"),
+                    Id("c3454000-0000-0000-0000-000000000001"))
+                    .Label("Firing seat + enemy in its arc, no task → fire from the seat")
+                    .Comment("CE-3454 (Motorcycle PF-3): a man in an open firing seat (a pillion, a mounted archer, a pickup-bed rifleman) engages on his own — above 'under command' and 'aboard', because neither his unit's plays nor the vehicle fire HIS weapon. An order (a drive-by's FireAtTarget) is a task, so it keeps the fire.")
                 .Condition(SopConditions.UnderCommand, Id("c2080000-0000-0000-0000-0000000000c1"))
                     .Label("Under command → his unit reacts for him")
                     .Comment("CE-2322 (AQ97 A, R-2062): true = the row wins and nothing is ordered — a man under a live commander gets his reactions from his unit (its SOP, its plays); with no commander (or his commander out of the fight) the rows below are his.")

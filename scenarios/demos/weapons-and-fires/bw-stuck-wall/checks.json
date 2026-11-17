@@ -1,0 +1,18 @@
+{
+  "$doc": "CE-4649 BW-4 - arrows stick in the wall and the ground.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "at least 3 arrows stop on the wall or the ground",
+      "on": "shot",
+      "by": "Archer",
+      "n": 3,
+      "where": {
+        "outcome": "StoppedByTerrain"
+      }
+    }
+  ]
+}

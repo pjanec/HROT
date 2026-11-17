@@ -23,6 +23,19 @@ namespace CarKinem.Core
         /// <summary>1 = the target is a CROWD: the hull gives way to no person.</summary>
         public byte Crowd;
 
+        /// <summary>⭐ <c>CE-2445</c> (RM-2, R-2134) — the RUN-IN (m): inside it the ram is a lethal act (<c>RamTarget</c>) and the hull drives the STRAIGHT line to
+        /// its move's end, never a path round what is in the way (<c>NavigationIntentBridgeSystem</c>) — the break gate decides at the obstacle. One value for both.</summary>
+        public const float RunInMetres = 50f;
+
+        /// <summary>⭐ <c>CE-2445</c> — is <paramref name="hull"/> ramming and its move's end at <paramref name="destination"/> inside the run-in?</summary>
+        public static bool InRunIn(Fdp.Core.EntityRepository repo, Fdp.Core.Entity hull, System.Numerics.Vector3 destination)
+        {
+            if (!On(repo, hull, out _) || !repo.HasComponent<Fdp.Core.SimTransform>(hull)) return false;
+            var at = (System.Numerics.Vector3)repo.GetComponentRO<Fdp.Core.SimTransform>(hull).Position;
+            float dx = destination.X - at.X, dy = destination.Y - at.Y;
+            return dx * dx + dy * dy <= RunInMetres * RunInMetres;
+        }
+
         /// <summary>True when <paramref name="hull"/> is ramming now.</summary>
         public static bool On(Fdp.Core.EntityRepository repo, Fdp.Core.Entity hull, out RamOrder order)
         {

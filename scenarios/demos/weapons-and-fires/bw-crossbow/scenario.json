@@ -1,0 +1,90 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4649 (bows BW-1, BW-6) - on basic-desert a Crossbowman (Friend, 100,100) shoots a standing Hostile 'Target' 60 m north (100,160). A crossbow aims in 0.5 s but SPANS in 6 s per bolt. Judge: (1) three bolts are fired (2) the third is NOT before 12 s (the gaps are >= 6 s) (3) a bolt hits. Fail: the bolts come faster than the span. Check: scripts/scenario-regression.sh bw-crossbow"
+ },
+ "entities": {
+  "4649a003-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2014
+   },
+   "EntityInfo": {
+    "Name": "Crossbowman",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "4649a003-0000-4000-8000-000000000002"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a003-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     100,
+     160,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Target",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

@@ -1,3 +1,4 @@
+using Hrot.AI.Behaviors.Orders;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -577,11 +578,13 @@ namespace Hrot.AI.Behaviors.Brains
                     p.Dirty[slot] = 1;
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
-                if (!OrderFor(ref p, slot, json, out var behaviour, out var order)) continue;
+                if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral)) continue;
                 // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
-                if (CommandOrders.StillRunning(world, self, squad, behaviour, order)) continue;
-                CommandOrders.Assign(world, self, squad, behaviour, order, newOrder: true);
+                // ⭐ agg-behaviors R-8305 / R-8315 — every arm is routed by kind with the TWO payloads (a stochastic squad gets Order(kind, neutral); a physical one
+                //   exactly the play's own json); SquadRecover (elsewhere) stays Assign — no stochastic row
+                if (CommandOrders.StillRoutedRunning(world, self, squad, kind, neutral, behaviour, order)) continue;
+                CommandOrders.Route(world, self, squad, kind, neutral, behaviour, order, newOrder: true);
                 if (behaviour == BehaviorNames.SquadDefend || behaviour == BehaviorNames.SupportByFire) Sector(ref p, slot, world, squad);   // AU-1: the base of fire keeps its sector (DA-27)
                 ws.Orders++;
             }
@@ -590,9 +593,10 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The order a slot of <paramref name="slot"/>'s role gets in the plan's phase (false = none: it keeps what it has).</summary>
-        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order)
+        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
-            behaviour = order = "";
+            behaviour = order = neutral = "";
+            kind = 0;
             byte role = p.Role[slot];
             var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
             switch (p.Phase)
@@ -603,22 +607,24 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐ CE-4608 (Building Clearing §6a — "the remnant holds the foothold") — a relieved assault squad stops clearing and defends
                     //   the objective it was in (⛔ no order left its ClearBuilding running on)
                     if (role == PlatoonAttackPlan.Reserve && p.Phase == PlatoonAttackPlan.PhaseAssault && p.Spent[slot] != 0)
-                        return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order);
+                        return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     if (role == PlatoonAttackPlan.Support && p.Preset != (byte)PlatoonAttackPreset.ClearBuilding)
                         return p.Lifted != 0 || p.Posts == 0
-                            ? Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order)
-                            : SupportByFire(ref p, json, out behaviour, out order);   // ⭐ CE-2436 AU-1 (A-1, A-3)
+                            ? Defend(p.SupportAt, SupportPostRadius, p.Speed, json, out behaviour, out order, out kind, out neutral)
+                            : SupportByFire(ref p, json, out behaviour, out order, out kind, out neutral);   // ⭐ CE-2436 AU-1 (A-1, A-3)
                     if (role == PlatoonAttackPlan.Assault && p.Phase == PlatoonAttackPlan.PhaseAssault)
                     {
                         if (p.OBuilding[p.Current] != 0)
                         {
                             behaviour = BehaviorNames.ClearBuilding;
                             order = JsonSerializer.Serialize(new ClearBuildingParamsJsonDto { Building = o, Speed = p.Speed }, json);
+                            kind = OrderKind.ClearBuilding; neutral = Attack(o, p.Speed, json);
                         }
                         else
                         {
                             behaviour = BehaviorNames.FireAndMovement;
                             order = JsonSerializer.Serialize(new FireAndMovementParamsJsonDto { Objective = o, Speed = p.Speed }, json);
+                            kind = OrderKind.FireAndMovement; neutral = Attack(o, p.Speed, json);
                         }
                         return true;
                     }
@@ -626,15 +632,16 @@ namespace Hrot.AI.Behaviors.Brains
                     // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
                     //   the crossing smoke) — bounding only before contact. 📌 measured: bounding under the line's fire ≈ 0.66 m/s over 113 m
                     if (role == PlatoonAttackPlan.Assault)
-                        return p.Contact != 0 ? Rush(p.AssaultAt, p.Speed, json, out behaviour, out order) : Bound(p.AssaultAt, p.Speed, json, out behaviour, out order);
+                        return p.Contact != 0 ? Rush(p.AssaultAt, p.Speed, json, out behaviour, out order, out kind, out neutral) : Bound(p.AssaultAt, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     if (role == PlatoonAttackPlan.Reserve && p.Phase == PlatoonAttackPlan.PhaseApproach)
-                        return Bound(p.ReserveAt, p.Speed, json, out behaviour, out order);
+                        return Bound(p.ReserveAt, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     return false;
                 case PlatoonAttackPlan.PhaseConsolidate:
-                    return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order);
+                    return Defend(o, ConsolidateRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                 case PlatoonAttackPlan.PhaseAbort:
                     behaviour = BehaviorNames.BreakContact;
-                    order = JsonSerializer.Serialize(new BreakContactParamsJsonDto { To = p.Start, Speed = p.Speed }, json);
+                    order = neutral = JsonSerializer.Serialize(new BreakContactOrder { To = p.Start, Speed = p.Speed }, json);
+                    kind = OrderKind.BreakContact;
                     return true;
                 default:
                     return false;
@@ -642,17 +649,26 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ AU-2 (A-7) — fire and movement to <paramref name="at"/>.</summary>
-        private static bool Rush(Vector3 at, float speed, JsonSerializerOptions json, out string behaviour, out string order)
+        private static bool Rush(Vector3 at, float speed, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.FireAndMovement;
             order = JsonSerializer.Serialize(new FireAndMovementParamsJsonDto { Objective = at, Speed = speed }, json);
+            kind = OrderKind.FireAndMovement; neutral = Attack(at, speed, json);
             return true;
         }
 
+        /// <summary>⭐ R-8315 — the neutral Attack order on a place (the objective): what a stochastic squad is ordered for ClearBuilding / FireAndMovement / Bound.</summary>
+        private static string Attack(Vector3 at, float speed, JsonSerializerOptions json)
+            => JsonSerializer.Serialize(new AttackOrder { Position = at, Speed = speed }, json);
+
         /// <summary>⭐ AU-1 (A-1) — the base of fire's order: hold at the support point, the plan's posts under sustained fire.</summary>
-        private static bool SupportByFire(ref PlatoonAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order)
+        private static bool SupportByFire(ref PlatoonAttackPlan p, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.SupportByFire;
+            // ⭐ R-8315 / CE-8302 (R-8341) — a stochastic squad: Order(SupportByFire, AttackOrder HoldBack on the SUPPORT POINT — where the physical squad stands;
+            //   the phase fires at whatever is in reach, so the posts are not its to aim)
+            kind = OrderKind.SupportByFire;
+            neutral = JsonSerializer.Serialize(new AttackOrder { Position = p.SupportAt, Speed = p.Speed, HoldBack = true }, json);
             order = JsonSerializer.Serialize(new SupportByFireParamsJsonDto
             {
                 Position = p.SupportAt, Speed = p.Speed,
@@ -662,17 +678,19 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
-        private static bool Defend(Vector3 at, float radius, float speed, JsonSerializerOptions json, out string behaviour, out string order)
+        private static bool Defend(Vector3 at, float radius, float speed, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.SquadDefend;
-            order = JsonSerializer.Serialize(new SquadDefendParamsJsonDto { Position = at, SearchRadius = radius, Speed = speed }, json);
+            order = neutral = JsonSerializer.Serialize(new DefendOrder { Position = at, SearchRadius = radius, Speed = speed }, json);   // ⭐ R-8300 — the neutral Defend order
+            kind = OrderKind.Defend;
             return true;
         }
 
-        private static bool Bound(Vector3 to, float speed, JsonSerializerOptions json, out string behaviour, out string order)
+        private static bool Bound(Vector3 to, float speed, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
         {
             behaviour = BehaviorNames.BoundingOverwatch;
             order = JsonSerializer.Serialize(new BoundingOverwatchParamsJsonDto { Objective = to, Speed = speed }, json);
+            kind = OrderKind.Bound; neutral = Attack(to, speed, json);
             return true;
         }
 

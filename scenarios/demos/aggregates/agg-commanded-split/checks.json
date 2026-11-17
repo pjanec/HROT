@@ -1,0 +1,70 @@
+{
+  "$doc": "DESIGN_X2_Order_Reresolution.md \u00a78 (X2-H, R-8361): PlatoonDefend gives orders through CommandOrders.Route and re-sends only when Stands fails; the routed checks are resolution-blind and match by RequestId, which the reconciler keeps (IsResume).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Blue Stochastic Squad/1",
+    "Blue Stochastic Squad/2",
+    "Blue Stochastic Squad/3",
+    "Blue Stochastic Squad/4",
+    "Blue Stochastic Squad/5",
+    "Blue Stochastic Squad/6",
+    "Blue Stochastic Squad/7",
+    "Blue Stochastic Squad/8",
+    "Blue Stochastic Squad/9",
+    "Blue Stochastic Squad/10"
+  ],
+  "expect": [
+    {
+      "name": "the platoon runs PlatoonDefend",
+      "on": "task",
+      "who": "Blue Platoon",
+      "is": "PlatoonDefend",
+      "before": 5
+    },
+    {
+      "name": "it orders its stochastic squad Defend by KIND: the squad runs the generic play",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "StochasticUnitDefend",
+      "before": 10
+    },
+    {
+      "name": "the enemy inside the band: the squad de-aggregates",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 30
+    },
+    {
+      "name": "X-2: within 3 s of the handover the squad runs SquadDefend",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "SquadDefend",
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "... and never the stochastic play again",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Squad",
+        "is": "StochasticUnitDefend"
+      },
+      "after": "split+3"
+    }
+  ],
+  "anchors": {
+    "split": {
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  }
+}

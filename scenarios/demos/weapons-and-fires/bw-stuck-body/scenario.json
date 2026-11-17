@@ -1,0 +1,90 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4649 (bows BW-5, BW-6) - on basic-desert an Archer (Friend, 100,100) shoots an unarmoured Hostile 'Target' 40 m north (100,140, health 100). Each arrow that hits a body part sticks in it (a HitMarks Arrow mark that follows his dead pose). Judge: (1) the Target dies (2) at least 2 marks are written on him (the rail HitResolutionSystemDetonationTests.CE4649 proves the kind is Arrow, and none on an animal). Fail: the Target survives, or no marks. Check: scripts/scenario-regression.sh bw-stuck-body"
+ },
+ "entities": {
+  "4649a005-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2013
+   },
+   "EntityInfo": {
+    "Name": "Archer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "4649a005-0000-4000-8000-000000000002"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a005-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     100,
+     140,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     -0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Target",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

@@ -152,6 +152,12 @@ SquadRecover | hostedInput=Hrot.Map.Definitions.Behavior.SquadRecoverParamsJsonD
 SquadRide | hostedInput=- | inputBytes=0
 SquadShelterFromAir | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 StationWeapon | hostedInput=Hrot.Map.Definitions.Behavior.StationWeaponParamsJsonDto | inputBytes=24
+StochasticUnitAttack | hostedInput=Hrot.AI.Behaviors.Orders.AttackOrder | inputBytes=64
+StochasticUnitBreakContact | hostedInput=Hrot.AI.Behaviors.Orders.BreakContactOrder | inputBytes=16
+StochasticUnitDefend | hostedInput=Hrot.AI.Behaviors.Orders.DefendOrder | inputBytes=32
+StochasticUnitHold | hostedInput=- | inputBytes=0
+StochasticUnitMove | hostedInput=Hrot.AI.Behaviors.Orders.MoveOrder | inputBytes=16
+StochasticUnitSop | hostedInput=- | inputBytes=0
 Strength | hostedInput=- | inputBytes=160
 SubordinateForEachDemo | hostedInput=- | inputBytes=0
 SupportByFire | hostedInput=Hrot.Map.Definitions.Behavior.SupportByFireParamsJsonDto | inputBytes=120

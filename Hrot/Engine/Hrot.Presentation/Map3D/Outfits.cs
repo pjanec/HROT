@@ -1,11 +1,14 @@
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Toolkit.Tkb.Domain;
+using Hrot.Core.Tkb;
 using Raylib_cs;
 
 namespace Hrot.UI.Common.Map3D;
 
-/// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-2) — what a civilian wears on his legs.</summary>
-public enum Legwear : byte { Trousers, Shorts, Skirt }
+/// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-2) — what a civilian wears on his legs. ⭐ CE-4648 (OF-4) — <c>LongSkirt</c> (to the
+/// ankles) and <c>Hidden</c> (under a robe) are new; the member NAMES are what an <c>OutfitDto</c> option's Kind says.</summary>
+public enum Legwear : byte { Trousers, Shorts, Skirt, LongSkirt, Hidden }
 
 /// <summary>⭐ CE-1099 (§6q O-2) — a civilian's hair: short, long (down his back) or none.</summary>
 public enum HairStyle : byte { Short, Long, None }
@@ -17,10 +20,14 @@ public enum CamoPattern : byte { None, Woodland, Fleck, Desert }
 /// <summary>
 /// ⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q) — what one man wears: the colour of each part of his figure (<see cref="Outfits.ColourOfPart"/>)
 /// and the details drawn on them (<see cref="Outfits.Details"/>). Computed from his seed, so the same on every node and every frame.
+/// ⭐ CE-4648 — <paramref name="Dressed"/>: from a type's own wardrobe (<c>OutfitDto</c>), whose garment kinds (<paramref name="TopKind"/>,
+/// <paramref name="HeadKind"/>, <paramref name="OverKind"/>) and cloth colours (<paramref name="HeadCloth"/>, <paramref name="OverColour"/>) the details draw.
 /// </summary>
 public readonly record struct Outfit(
     Color Top, Color Sleeve, Color Bottom, Color Shin, Color Skin, Color Hair, HairStyle HairStyle, Legwear Legwear,
-    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false);
+    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false,
+    bool Woman = false, bool Dressed = false, OutfitTop TopKind = OutfitTop.Shirt, OutfitHead HeadKind = OutfitHead.None,
+    OutfitOver OverKind = OutfitOver.None, Color HeadCloth = default, Color OverColour = default);
 
 /// <summary>⭐ CE-1101 (§6r S-3) — a moustache or a beard, or none.</summary>
 public enum BeardKind : byte { None, Moustache, Beard }
@@ -43,64 +50,41 @@ public readonly record struct PartDetail(int Part, Vector3 Centre, Vector3 Exten
 /// </summary>
 public static class Outfits
 {
-    // ── palettes ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-    private static readonly Color[] SkinTones =
-        [new(236, 200, 170, 255), new(214, 172, 136, 255), new(198, 150, 110, 255), new(160, 112, 76, 255), new(112, 76, 52, 255)];
-    private static readonly Color[] HairColours =
-        [new(30, 24, 20, 255), new(70, 48, 30, 255), new(140, 96, 56, 255), new(200, 170, 110, 255), new(150, 150, 150, 255), new(130, 60, 30, 255)];
-    private static readonly Color[] Tops =
-        [new(180, 40, 40, 255), new(40, 90, 160, 255), new(230, 230, 225, 255), new(60, 120, 70, 255), new(220, 180, 60, 255), new(120, 60, 130, 255),
-         new(200, 110, 50, 255), new(90, 90, 96, 255), new(150, 190, 220, 255), new(210, 150, 160, 255), new(120, 90, 60, 255), new(30, 30, 34, 255)];
-    private static readonly Color[] ChildTops =
-        [new(230, 60, 60, 255), new(60, 140, 230, 255), new(250, 210, 40, 255), new(70, 190, 90, 255), new(240, 120, 190, 255), new(250, 150, 40, 255)];
-    private static readonly Color[] Bottoms =
-        [new(52, 72, 110, 255), new(150, 132, 96, 255), new(110, 110, 112, 255), new(36, 36, 38, 255), new(92, 66, 44, 255), new(40, 46, 70, 255)];
-    private static readonly Color[] Suits = [new(52, 54, 58, 255), new(34, 40, 62, 255), new(28, 28, 30, 255), new(96, 98, 102, 255)];
-    private static readonly Color[] Ties = [new(170, 30, 36, 255), new(40, 70, 150, 255), new(110, 30, 50, 255), new(40, 100, 60, 255)];
-    private static readonly Color Shirt = new(238, 238, 236, 255);
-    private static readonly Color[] GreyHair = [new(200, 200, 198, 255), new(170, 170, 168, 255), new(232, 230, 224, 255), new(140, 138, 134, 255)];
-    private static readonly Color[] MutedTops =
-        [new(120, 100, 80, 255), new(90, 96, 110, 255), new(150, 140, 120, 255), new(100, 110, 90, 255), new(130, 90, 90, 255), new(70, 72, 80, 255)];
-
     /// <summary>⭐ CE-1162 — an elderly civilian's outfit: grey hair (a man often balding), muted top and trousers or a long skirt.</summary>
-    private static Outfit Elderly(Draw r, long seed, long type, Color skin, Color? own)
+    private static Outfit Elderly(Draw r, long seed, long type, Color skin, Color? own, PersonSex sex)
     {
-        bool woman = r.Chance(0.5f);
-        var hair = GreyHair[r.Pick(GreyHair.Length)];
+        bool woman = Sexed(r.Chance(0.5f), sex);   // ⭐ CE-4648 OF-2 — the type's sex wins; the draw is still consumed, so every later roll is the one it always was
+        var hair = OutfitPalettes.GreyHair[r.Pick(OutfitPalettes.GreyHair.Length)];
         var style = woman ? (r.Chance(0.6f) ? HairStyle.Short : HairStyle.Long) : (r.Chance(0.4f) ? HairStyle.None : HairStyle.Short);
-        var top = own is { } c ? Scale(c, 0.8f) : MutedTops[r.Pick(MutedTops.Length)];
+        var top = own is { } c ? Scale(c, 0.8f) : OutfitPalettes.MutedTops[r.Pick(OutfitPalettes.MutedTops.Length)];
         var legs = woman && r.Chance(0.5f) ? Legwear.Skirt : Legwear.Trousers;
-        var bottom = Bottoms[r.Pick(Bottoms.Length)];
+        var bottom = OutfitPalettes.Bottoms[r.Pick(OutfitPalettes.Bottoms.Length)];
         return new Outfit(top, top, bottom, legs == Legwear.Trousers ? bottom : skin, skin, hair, style, legs, false, default, CamoPattern.None,
-                          false, false, FaceOf(seed, type, woman, false));
+                          false, false, FaceOf(seed, type, woman, false), Woman: woman);
     }
 
-    /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
-    public static readonly Color PoliceUniform = new(34, 46, 82, 255);
+    /// <summary>⭐ CE-4648 OF-2 — who he is: a type that says <c>Female</c> / <c>Male</c> (<c>PersonDto.Sex</c>) always draws a woman / a man; <c>Unspecified</c> keeps the seed's chance.</summary>
+    private static bool Sexed(bool chance, PersonSex sex) => sex switch { PersonSex.Female => true, PersonSex.Male => false, _ => chance };
 
-    /// <summary>⭐ CE-1172 (U11) — the police vest (darker than the uniform), its pouches, the black belt; the cap's band.</summary>
-    public static readonly Color PoliceVest = new(20, 24, 36, 255), PolicePouch = new(30, 32, 40, 255), PoliceBelt = new(14, 14, 16, 255),
-                                 CapBand = new(236, 236, 232, 255);
-    // ⚠ measured on the first frame: dark patches on olive vanished under the shading ⇒ each pattern mixes a LIGHT and a DARK tone
-    private static readonly Color[] Woodland = [new(122, 92, 56, 255), new(26, 28, 22, 255), new(128, 150, 84, 255)];
-    private static readonly Color[] Fleck = [new(214, 194, 140, 255), new(166, 156, 98, 255), new(126, 72, 42, 255)];   // sand-heavy
-    // ⭐ CE-1235 (§6q O-4a) — desert: tan, brown and pale sand over the khaki cloth, large patches like woodland's
-    private static readonly Color[] Desert = [new(158, 126, 84, 255), new(112, 84, 54, 255), new(224, 208, 168, 255)];
+    /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
+    public static readonly Color PoliceUniform = OutfitPalettes.PoliceUniform;
+
+    /// <summary>⭐ CE-1172 (U11) — the police vest (darker than the uniform), its pouches, the black belt; the cap's band. ⭐ CE-4648 — from <c>OutfitCatalog</c>.</summary>
+    public static readonly Color PoliceVest = OutfitPalettes.PoliceVest, PolicePouch = OutfitPalettes.PolicePouch, PoliceBelt = OutfitPalettes.PoliceBelt,
+                                 CapBand = OutfitPalettes.CapBand;
 
     /// <summary>⭐ CE-1235 (docs/DESIGN_Map_3D_Mode.md §6q O-4a, R-1020) — a soldier's cloth when neither he nor his type names one: his
     /// SIDE's — a friend (blue) green-olive, a hostile (red) desert khaki, a neutral olive — so the two sides read apart in a dim room,
-    /// not only by their pattern.</summary>
-    public static readonly Color WoodlandCloth = new(96, 110, 72, 255), DesertCloth = new(190, 170, 125, 255);
-    private static readonly Color[] EyeColours = [new(60, 40, 28, 255), new(96, 64, 36, 255), new(70, 110, 160, 255), new(80, 120, 80, 255), new(110, 116, 120, 255)];
-    private static readonly Color[] LipColours = [new(132, 52, 48, 255), new(150, 70, 66, 255), new(118, 60, 56, 255), new(170, 60, 70, 255)];
+    /// not only by their pattern. ⭐ CE-4648 — from <c>OutfitCatalog</c>.</summary>
+    public static readonly Color WoodlandCloth = OutfitPalettes.WoodlandCloth, DesertCloth = OutfitPalettes.DesertCloth;
 
     /// <summary>⭐ CE-1101 (§6r S-2) — the three tones the shader paints a pattern in (over the uniform): woodland brown, black and light
     /// green; fleck sand, olive and red-brown; ⭐ CE-1235 desert tan, brown and pale sand.</summary>
     public static (Color, Color, Color) CamoTones(CamoPattern pattern) => pattern switch
     {
-        CamoPattern.Fleck => (Fleck[0], Fleck[1], Fleck[2]),
-        CamoPattern.Desert => (Desert[0], Desert[1], Desert[2]),
-        _ => (Woodland[0], Woodland[1], Woodland[2]),
+        CamoPattern.Fleck => (OutfitPalettes.Fleck[0], OutfitPalettes.Fleck[1], OutfitPalettes.Fleck[2]),
+        CamoPattern.Desert => (OutfitPalettes.Desert[0], OutfitPalettes.Desert[1], OutfitPalettes.Desert[2]),
+        _ => (OutfitPalettes.Woodland[0], OutfitPalettes.Woodland[1], OutfitPalettes.Woodland[2]),
     };
 
     /// <summary>⭐ CE-1101 — where a man's pattern starts in the noise (metres of offset), so no two men wear the same cloth cut.</summary>
@@ -115,7 +99,7 @@ public static class Outfits
         float eyes = 0.17f + r.Next() * 0.08f, mouth = 0.11f + r.Next() * 0.08f, brow = 0.018f + r.Pick(3) * 0.008f;
         float roll = r.Next();
         var beard = woman || child ? BeardKind.None : roll < 0.15f ? BeardKind.Moustache : roll < 0.30f ? BeardKind.Beard : BeardKind.None;
-        return new FaceLook(eyes, mouth, brow, beard, EyeColours[r.Pick(EyeColours.Length)], LipColours[r.Pick(LipColours.Length)]);
+        return new FaceLook(eyes, mouth, brow, beard, OutfitPalettes.EyeColours[r.Pick(OutfitPalettes.EyeColours.Length)], OutfitPalettes.LipColours[r.Pick(OutfitPalettes.LipColours.Length)]);
     }
 
     /// <summary>
@@ -127,20 +111,25 @@ public static class Outfits
     /// camouflage: his side does not change his uniform), armed or not.</param>
     /// <param name="elderly">⭐ CE-1162 (U1-b) — an elderly civilian (the type's <c>PersonDto.Age</c>): grey or white hair, often thin on top,
     /// muted everyday clothes (no shorts, no bright tops), sometimes a cardigan.</param>
+    /// <param name="sex">⭐ CE-4648 (OF-2) — the type's <c>PersonDto.Sex</c>: <c>Female</c> ⇒ always a woman, <c>Male</c> ⇒ always a man, <c>Unspecified</c> ⇒
+    /// the seed picks (the old behaviour). The <c>r.Chance(0.5)</c> draw is consumed either way, so every later roll is unchanged.</param>
+    /// <param name="wardrobe">⭐ CE-4648 (OF-1, OF-11) — the type's own wardrobe (its <c>OutfitDto</c>, flattened once): when it has one he is dressed from it
+    /// whatever his class is — no side camouflage unless his top is a <c>Uniform</c> that says <c>BySide</c>. Null ⇒ the everyday wardrobes below.</param>
     public static Outfit For(long seed, long type, bool soldier, bool child, Color? own, ForceId side, PersonKit kit = PersonKit.Civilian,
-                             bool elderly = false)
+                             bool elderly = false, PersonSex sex = PersonSex.Unspecified, Wardrobe? wardrobe = null)
     {
+        if (wardrobe != null) return Dress(wardrobe, seed, type, child, own, side, sex);
         var r = new Draw(seed, type);
-        var skin = SkinTones[r.Pick(SkinTones.Length)];
-        var hair = HairColours[r.Pick(HairColours.Length)];
-        if (elderly && kit == PersonKit.Civilian && !soldier && !child) return Elderly(r, seed, type, skin, own);
+        var skin = OutfitPalettes.SkinTones[r.Pick(OutfitPalettes.SkinTones.Length)];
+        var hair = OutfitPalettes.HairColours[r.Pick(OutfitPalettes.HairColours.Length)];
+        if (elderly && kit == PersonKit.Civilian && !soldier && !child) return Elderly(r, seed, type, skin, own, sex);
         if (kit == PersonKit.Security)
         {
             var uniform = own ?? PoliceUniform;
             var trousers = Scale(uniform, 0.8f);
             // ⭐ CE-1172 (People Display U11) — the police look: a cap (the shield man a riot helmet), a vest and a belt
             return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, CamoPattern.None,
-                              child, true, FaceOf(seed, type, woman: false, child), Police: true,
+                              child, true, FaceOf(seed, type, woman: false, child), Police: true, TopKind: OutfitTop.Uniform,
                               Riot: type == Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield);
         }
         if (soldier)
@@ -150,31 +139,109 @@ public static class Outfits
             var trousers = Scale(uniform, 0.85f);
             var camo = side switch { ForceId.Friend => CamoPattern.Woodland, ForceId.Hostile => CamoPattern.Desert, _ => CamoPattern.None };
             return new Outfit(uniform, uniform, trousers, trousers, skin, hair, HairStyle.Short, Legwear.Trousers, false, default, camo, child, true,
-                              FaceOf(seed, type, woman: false, child));
+                              FaceOf(seed, type, woman: false, child), TopKind: OutfitTop.Uniform);
         }
 
-        bool woman = r.Chance(0.5f);
+        bool woman = Sexed(r.Chance(0.5f), sex);   // ⭐ CE-4648 OF-2 — the type's sex wins, the draw is consumed all the same
         var style = woman ? (r.Chance(0.75f) ? HairStyle.Long : HairStyle.Short)
                           : (r.Chance(0.15f) && !child ? HairStyle.None : r.Chance(0.1f) ? HairStyle.Long : HairStyle.Short);
         bool suit = !child && r.Chance(woman ? 0.08f : 0.15f);
         if (suit)
         {
-            var cloth = Suits[r.Pick(Suits.Length)];
-            return new Outfit(cloth, cloth, cloth, cloth, skin, hair, style, Legwear.Trousers, true, Ties[r.Pick(Ties.Length)],
-                              CamoPattern.None, false, false, FaceOf(seed, type, woman, false));
+            var cloth = OutfitPalettes.Suits[r.Pick(OutfitPalettes.Suits.Length)];
+            return new Outfit(cloth, cloth, cloth, cloth, skin, hair, style, Legwear.Trousers, true, OutfitPalettes.Ties[r.Pick(OutfitPalettes.Ties.Length)],
+                              CamoPattern.None, false, false, FaceOf(seed, type, woman, false), Woman: woman, TopKind: OutfitTop.Suit);
         }
 
         // O-1 — the top: his type's colour, a little lighter or darker; else an everyday colour (a child's brighter)
-        var top = own is { } c ? Scale(c, 0.75f + 0.5f * r.Next()) : child ? ChildTops[r.Pick(ChildTops.Length)] : Tops[r.Pick(Tops.Length)];
+        var top = own is { } c ? Scale(c, 0.75f + 0.5f * r.Next()) : child ? OutfitPalettes.ChildTops[r.Pick(OutfitPalettes.ChildTops.Length)] : OutfitPalettes.Tops[r.Pick(OutfitPalettes.Tops.Length)];
         bool shortSleeves = r.Chance(child ? 0.6f : 0.45f);
         float roll = r.Next();
         var legs = woman && roll < (child ? 0.35f : 0.40f) ? Legwear.Skirt
                  : roll > (child ? 0.55f : 0.80f) ? Legwear.Shorts
                  : Legwear.Trousers;
-        var bottom = legs == Legwear.Skirt && r.Chance(0.5f) ? Tops[r.Pick(Tops.Length)] : Bottoms[r.Pick(Bottoms.Length)];
+        var bottom = legs == Legwear.Skirt && r.Chance(0.5f) ? OutfitPalettes.Tops[r.Pick(OutfitPalettes.Tops.Length)] : OutfitPalettes.Bottoms[r.Pick(OutfitPalettes.Bottoms.Length)];
         var shin = legs == Legwear.Trousers ? bottom : skin;
         return new Outfit(top, shortSleeves ? skin : top, bottom, shin, skin, hair, style, legs, false, default, CamoPattern.None, child, false,
-                          FaceOf(seed, type, woman, child));
+                          FaceOf(seed, type, woman, child), Woman: woman);
+    }
+
+    // ── ⭐ CE-4648 (OF-1, OF-6, OF-7, OF-11) — a type that has its own wardrobe ──────────────────────────────────────────────────────
+
+    /// <summary>One slot's option, by its draw — ⭐ OF-6: ONE draw picks the option, even when the slot has just one.</summary>
+    private static int Option(Wardrobe.Slot slot, ref Draw r) => slot.PickOption(r.Next());
+
+    /// <summary>One slot's colour — ⭐ OF-6: ONE draw, even when the option has one colour (none ⇒ the default colour, alpha 0).</summary>
+    private static Color Colour(Wardrobe.Slot slot, int option, ref Draw r)
+    {
+        var colours = slot.Colours[option];
+        float u = r.Next();
+        return colours.Length == 0 ? default : colours[Math.Min(colours.Length - 1, (int)(u * colours.Length))];
+    }
+
+    /// <summary>
+    /// ⭐ CE-4648 — the man seeded <paramref name="seed"/> of a type with its own <paramref name="w"/>ardrobe. ⭐ OF-6: the draws go in a FIXED
+    /// order — skin, sex, top, legs, over, head, hair, beard — each slot exactly one draw for its option and one for its colour, so adding
+    /// an option to one type reshuffles nobody else. ⭐ OF-5: a scarf or veil hides the hair (it is drawn in the cloth's colour), a niqab or a
+    /// face wrap hides the beard, a robe or an abaya hides the legs. ⭐ OF-11: the wardrobe wins over his class — no camouflage unless his top
+    /// is a <c>Uniform</c> that says <c>BySide</c>. ⛔ No LINQ, no allocation: indexes arrays flattened once per type.
+    /// </summary>
+    private static Outfit Dress(Wardrobe w, long seed, long type, bool child, Color? own, ForceId side, PersonSex sex)
+    {
+        var r = new Draw(seed, type);
+        var skin = Colour(w.Skin, Option(w.Skin, ref r), ref r);
+        bool woman = Sexed(r.Chance(0.5f), sex);   // the sex draw is ALWAYS consumed (OF-6)
+        var set = w.SetFor(woman);
+
+        int ti = Option(set.Top, ref r);
+        var topKind = (OutfitTop)set.Top.Kind[ti];
+        var cloth = Colour(set.Top, ti, ref r);
+        int li = Option(set.Legs, ref r);
+        var legKind = (Legwear)set.Legs.Kind[li];
+        var legCloth = Colour(set.Legs, li, ref r);
+        int oi = Option(set.Over, ref r);
+        var overKind = (OutfitOver)set.Over.Kind[oi];
+        var overColour = Colour(set.Over, oi, ref r);
+        int hi = Option(set.Head, ref r);
+        var headKind = (OutfitHead)set.Head.Kind[hi];
+        var headCloth = Colour(set.Head, hi, ref r);
+        int ci = Option(set.Hair, ref r);
+        var hairStyle = (HairStyle)set.Hair.Kind[ci];
+        var hair = Colour(set.Hair, ci, ref r);
+        int bi = Option(set.Beard, ref r);
+        var beardKind = (BeardKind)set.Beard.Kind[bi];
+
+        // the top: an entity's / type's own colour wins; a Uniform with no colour of its own wears his side's cloth
+        var camo = CamoPattern.None;
+        Color top = own ?? cloth;
+        if (topKind == OutfitTop.Uniform)
+        {
+            if (own == null && cloth.A == 0) top = side == ForceId.Hostile ? DesertCloth : WoodlandCloth;
+            if (set.Top.Camo[ti] == OutfitCamo.BySide) camo = side switch { ForceId.Friend => CamoPattern.Woodland, ForceId.Hostile => CamoPattern.Desert, _ => CamoPattern.None };
+        }
+        else if (top.A == 0) top = OutfitPalettes.Tops[0];
+
+        // the legs
+        bool longGarment = topKind is OutfitTop.Robe or OutfitTop.Abaya;
+        if (longGarment) legKind = Legwear.Hidden;                    // OF-5 — a robe hides the legs
+        else if (legKind == Legwear.Hidden) legKind = Legwear.Trousers;
+        Color bottom;
+        if (longGarment || topKind == OutfitTop.Suit) bottom = top;
+        else if (topKind == OutfitTop.Uniform && legCloth.A == 0) bottom = Scale(top, 0.85f);
+        else bottom = legCloth.A == 0 ? Scale(top, 0.8f) : legCloth;
+        var shin = legKind is Legwear.Shorts or Legwear.Skirt ? skin : bottom;
+
+        // the head: a scarf, a hijab, a niqab or a face wrap hides the hair — drawn long, in the cloth's colour (OF-5)
+        bool covered = headKind is OutfitHead.Shemagh or OutfitHead.Hijab or OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap;
+        if (covered && headCloth.A != 0) { hairStyle = HairStyle.Long; hair = headCloth; }
+        if (headKind is OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap) beardKind = BeardKind.None;   // the face below the eyes is covered
+
+        bool suit = topKind == OutfitTop.Suit;
+        var sleeve = topKind == OutfitTop.TShirt ? skin : top;
+        var face = FaceOf(seed, type, woman, child) with { Beard = child ? BeardKind.None : beardKind };
+        return new Outfit(top, sleeve, bottom, shin, skin, hair, hairStyle, legKind, suit, suit ? OutfitPalettes.Ties[(int)((ulong)(seed ^ type) % (ulong)OutfitPalettes.Ties.Length)] : default,
+                          camo, child, topKind == OutfitTop.Uniform, face, Police: false, Riot: headKind == OutfitHead.RiotHelmet, Woman: woman, Dressed: true,
+                          TopKind: topKind, HeadKind: headKind, OverKind: overKind, HeadCloth: headCloth, OverColour: overColour);
     }
 
     /// <summary>
@@ -201,7 +268,7 @@ public static class Outfits
         into.Clear();
         if (o.Suit)
         {
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.51f, 0f, 0.30f), new(0.03f, 0.26f, 0.36f), Shirt, Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.51f, 0f, 0.30f), new(0.03f, 0.26f, 0.36f), OutfitPalettes.Shirt, Turned: true));
             into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.53f, 0f, 0.10f), new(0.03f, 0.08f, 0.62f), o.Tie, Turned: true));
         }
         if (o.Legwear == Legwear.Skirt)   // from the waist to the knee, a little wider than the hips
@@ -216,6 +283,39 @@ public static class Outfits
         if (o.HairStyle == HairStyle.Long && !o.Police)   // down the back of the head to the shoulders
             into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
         // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
+
+        // ── ⭐ CE-4648 (OF-4) — the new garment kinds, drawn with STAND-INS made of the boxes the figure already has ──────────────────
+        //   a long skirt / a robe / an abaya = the skirt box lengthened to the ankles (an abaya a little wider, to the ground); a chest rig = the
+        //   police vest box in a drab colour; a cap / a skullcap = the police cap's crown (+ its peak); a hijab / niqab / shemagh = the long-hair
+        //   box in the cloth's colour (the hair is hidden under it, OF-5); a niqab / face wrap adds a box across the lower face.
+        if (o.Legwear == Legwear.LongSkirt)
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -1.22f), new(1.25f, 1.08f, 1.48f), o.Bottom, Turned: true));
+        else if (o.Legwear == Legwear.Hidden)
+        {
+            bool abaya = o.TopKind == OutfitTop.Abaya;
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, abaya ? -1.29f : -1.22f), new(abaya ? 1.45f : 1.35f, abaya ? 1.22f : 1.14f, abaya ? 1.62f : 1.48f),
+                                    o.Bottom, Turned: true));
+        }
+        if (o.OverKind == OutfitOver.ChestRig)
+        {
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, 0.14f), new(1.08f, 1.06f, 0.62f), o.OverColour, Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, 0.22f, 0.02f), new(0.10f, 0.20f, 0.22f), Scale(o.OverColour, 0.7f), Turned: true));
+            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, 0.02f), new(0.10f, 0.20f, 0.22f), Scale(o.OverColour, 0.7f), Turned: true));
+        }
+        switch (o.HeadKind)
+        {
+            case OutfitHead.Cap:
+                into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.02f, 0f, 0.45f), new(1.10f, 1.10f, 0.20f), o.HeadCloth, Turned: true));
+                into.Add(new PartDetail(BlockFigure.HeadIndex, new(0.56f, 0f, 0.31f), new(0.26f, 0.92f, 0.04f), o.HeadCloth, Turned: true));
+                break;
+            case OutfitHead.Skullcap:
+                into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.02f, 0f, 0.44f), new(1.06f, 1.06f, 0.16f), o.HeadCloth, Turned: true));
+                break;
+            case OutfitHead.Niqab:
+            case OutfitHead.ShemaghFaceWrap:
+                into.Add(new PartDetail(BlockFigure.HeadIndex, new(0.53f, 0f, -0.27f), new(0.07f, 1.0f, 0.46f), o.HeadCloth, Turned: true));
+                break;
+        }
     }
 
     // ── ⭐ CE-1100 (§6q O-6) — a personal car's paint ────────────────────────────────────────────────────────────────────────────

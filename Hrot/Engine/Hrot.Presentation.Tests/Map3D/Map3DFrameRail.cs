@@ -3425,6 +3425,76 @@ public sealed class Map3DFrameRail
     }
 
     /// <summary>
+    /// ⭐ CE-4648 (docs/designs/person-looks/DESIGN_Person_Outfits.md §6) — the (V) acceptance for the Middle-East wardrobes, drawn with the data path's STAND-INS
+    /// (robe and abaya = a long box, scarves = the long-hair box in the cloth's colour, chest rig = the vest box): a row each of men, women, boys, girls and the
+    /// elderly (1105–1110), and the fighters (2003, 2010, 2011, 2012) with their rifles. Face-on, then the fighters closer. Screenshots <c>ce4648-*.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE4648_V_MiddleEastPeople_AndFighters_AreDressedFromTheirWardrobes()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<StanceIntent>();
+        world.RegisterComponent<EntityInfo>();
+        var tkb = Map3DTests.BuiltIn();
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
+        world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
+        var query = WorldQuery.Of(world)!;
+        var spot = FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        int people = 0;
+        void Person(long type, float dx, float dy, ForceId side = ForceId.Neutral)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.Identity });   // facing +x (east)
+            world.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
+            world.AddComponent(e, new StanceIntent { TargetStance = StanceId.Standing });
+            world.AddComponent(e, new EntityInfo { ForceId = side });
+            people++;
+        }
+        // the back row: eight of each civilian (the seeds differ per entity); the front row: the fighters
+        long[] cast = [1105, 1106, 1107, 1108, 1109, 1110];
+        for (int row = 0; row < cast.Length; row++)
+            for (int i = 0; i < 6; i++) Person(cast[row], 0.9f * (row % 2), 4.5f - (row * 6 + i) * 0.26f);
+        long[] fighters = [Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInsurgent, Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMiddleEastFighter,
+                           Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMiddleEastFighterRpg, Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbMiddleEastMachineGunner];
+        for (int i = 0; i < 8; i++) Person(fighters[i % fighters.Length], 3.0f, 2.6f - i * 0.7f, ForceId.Hostile);
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera();
+        canvas.Camera = two;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        sw.Set(true, animate: false);
+
+        float ground = G(spot.X, spot.Y);
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X, spot.Y, ground + 0.9f), 13f, MathF.PI, -0.08f);
+        frame.Step(canvas.Draw);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce4648-1-the-cast.png"));
+        Assert.True(LitShader.Shared.IsValid, "the shader with the body surface compiled");
+        Assert.Equal(0, bodies.CamoPainted);           // ⭐ OF-11 — the fighters wear their wardrobe, not their side's camouflage
+        Assert.Equal(people, bodies.FacesPainted);     // every head has its face
+        Assert.True(bodies.DetailsDrawn >= people, "robes, scarves and rigs are details");
+
+        sw.Camera3D.Pose = new CameraPose(new Vector3(spot.X + 3.0f, spot.Y - 1.0f, ground + 1.1f), 5.0f, MathF.PI, -0.10f);
+        frame.Step(canvas.Draw);
+        frame.Screenshot(Path.Combine(shots, "ce4648-2-the-fighters.png"));
+    }
+
+    /// <summary>
     /// ⭐ CE-1201 (docs/DESIGN_Entity_Control.md §8p) — the over-the-shoulder view: a rifleman seen from behind his right shoulder, his head
     /// drawn, looking where he aims. Screenshot <c>ce1201-over-the-shoulder.png</c>.
     /// </summary>

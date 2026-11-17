@@ -34,6 +34,19 @@ namespace Hrot.Map.Definitions.Behavior.Orders
         public static string IntentFor(string orderName) => IntentPrefix + orderName;
     }
 
+    /// <summary>
+    /// ⭐ agg-behaviors R-8316 (ST-3) — an order field the order cannot go WITHOUT, <i>unless a sibling of the same <see cref="Group"/> is set</i>: "Target OR Position"
+    /// (<c>AttackOrder</c>). The one rule for "complete" (<c>OrderMenu.MissingIn</c>) reads it beside <c>[Required]</c>; ⛔ not a <c>[Required]</c> (that would demand both).
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = true, AllowMultiple = false)]
+    public sealed class RequiredAnyOfAttribute : Attribute
+    {
+        public RequiredAnyOfAttribute(string group) => Group = group ?? throw new ArgumentNullException(nameof(group));
+
+        /// <summary>The group's name; the fields sharing it satisfy each other (the first one declared is the one a menu pick fills).</summary>
+        public string Group { get; }
+    }
+
     /// <summary>⭐ <c>CE-2140</c> — the map gestures an order DTO may claim, so no order name is written in UI code (AQ90 §2.3k ①).</summary>
     public enum OrderGesture : byte
     {

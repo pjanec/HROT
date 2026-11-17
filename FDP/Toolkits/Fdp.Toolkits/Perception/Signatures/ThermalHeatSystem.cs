@@ -41,7 +41,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                 foreach (ref readonly var shot in view.ReadEvents<WeaponFireNotification>())
                     if (shot.Fired && repo.IsAlive(shot.Shooter) && repo.HasComponent<ThermalState>(shot.Shooter)   // ⭐ Q94 A-2 (R-3018)
                         && !Fdp.Toolkit.Combat.Munitions.IsExpendable(repo, shot.AmmoGuid)   // ⭐ CE-2188 (§5.4b F5) — a dispenser heats no barrel
-                        && !Fdp.Toolkit.Combat.PersonHands.Threw(repo, in shot))              // ⭐ CE-3248 (TC-6) — nor does a hand
+                        && !Fdp.Toolkit.Combat.PersonHands.Threw(repo, in shot)              // ⭐ CE-3248 (TC-6) — nor does a hand
+                        && !Fdp.Toolkit.Combat.Munitions.IsSilent(repo, shot.AmmoGuid))   // ⭐ CE-4649 — nor an arrow's string
                     {
                         ref var t = ref repo.GetComponentRW<ThermalState>(shot.Shooter);
                         t.Heat = MathF.Min(1f, t.Heat + t.FiringHeatPerShot);

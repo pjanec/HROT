@@ -1,0 +1,115 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: a physical 'Blue Company' (CompanyDefend at (300,400), facing east) over ONE subordinate, a STOCHASTIC 'Blue Stochastic Platoon' (AggregateUnit Stochastic, no members - its slot table is filled from the TKB composite: 30 men), on demo-city. A HoldArea objective (radius 150 m around the position, 20 men) is subject to the company. Judge: (1) the company's SITREP shows the stochastic platoon Green; (2) the objective's census counts the stochastic platoon's men (there is no other man in the area, so 20 can only be met by the 30 slot-table men); (3) the company's Defend order reaches the stochastic platoon as the generic play (StochasticUnitDefend), not PlatoonDefend. Fail: the platoon reads Unknown / is not counted / is given a physical play. Check: scripts/scenario-regression.sh agg-platoon-under-company"
+  },
+  "entities": {
+    "a9000001-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          240,
+          405,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "CompanyDefend",
+        "Params": {
+          "Position": [
+            300,
+            400,
+            0
+          ],
+          "Threat": [
+            700,
+            400,
+            0
+          ],
+          "Frontage": 160.0,
+          "Depth": 220.0
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000001-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          290,
+          440,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Platoon",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000001-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000001-0000-4000-8000-000000000003": {
+      "TkbIdentity": {
+        "TkbType": 8860
+      },
+      "EntityInfo": {
+        "Name": "Blue holds the line",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "HoldArea",
+        "Params": {
+          "common": {
+            "title": "Blue holds the line",
+            "subject": "a9000001-0000-4000-8000-000000000001"
+          },
+          "area": {
+            "circle": {
+              "center": [
+                300,
+                400,
+                0
+              ],
+              "radius": 150
+            }
+          },
+          "minMen": 20,
+          "maxEnemy": 0,
+          "holdSeconds": 20
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -193,6 +193,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void O7_R47_ABTreeEntityLeavingTheWalkDropsItsDedupEntry_O7c4b()
         {
+        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
             var world = TestWorldFactory.Create();
             const int BTreeDoc = 8602;
 

@@ -77,8 +77,8 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
 
     private bool ComposesMuscle => Hrot.SimHost.MuscleRoleInputs.ComposesMuscle(BootRole);
 
-    /// <summary>The node's one trajectory pool when the role composes the Muscle (routes written by the solver, read by kinematics — CE-180). Made on first use:
-    /// a Brain-only boot never allocates one.</summary>
+    /// <summary>The node's one trajectory pool when the role composes the Muscle (routes written by the solver, read by kinematics — CE-180). Made on first use.
+    /// ⭐ CE-8005 — a Brain-only boot has one too: the routes the solver sends back for its stochastic units land in it.</summary>
     public Hrot.Common.Infrastructure.TrajectoryPoolProvider TrajectoryPool => _trajectoryPool ??= new();
     private Hrot.Common.Infrastructure.TrajectoryPoolProvider? _trajectoryPool;
 
@@ -165,7 +165,8 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         // P3 step 3b's EXECUTION GATE (docs/DESIGN_Role_Affinity_Ownership.md §3.5, §6f, §6i): turned on HERE and only here — it follows the role POLICY,
         // which this host has; the editor is offline, receives no ghosts, and for it the gate would only subtract.
-        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus);
+        var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus, lifecycle: () => EntityCreation?.Elm,
+            remoteRoutes: ComposesMuscle ? null : () => TrajectoryPool.Pool, localNodeId: (Fdp.Core.NodeId)(int)context.NodeId);   // ⭐ CE-8005 — a Brain-only node has no navmesh: a stochastic unit's route is asked of the solver
 
         // ⭐ CE-4270 B7b — the Muscle role's parts, built only when the declared role composes it (dormant for the Brain alone).
         Muscle = ComposesMuscle
@@ -318,7 +319,9 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         // Auxiliary translators (time-sync, combat, mission-control) via the injected factory — the SimHost pattern.
         configuredFactory?.CreateSimHostAuxiliaryTranslators()?.RegisterOn(context.Kernel);
         configuredFactory?.CreateSimHostPerceptionTranslators()?.RegisterOn(context.Kernel);
-        configuredFactory?.CreateSimHostPathfindingTranslators()?.RegisterOn(context.Kernel);
+        // ⭐ CE-8005 — WITH the pool: the Brain's path-request pair is pool-gated (NedSimHostPathfindingTranslators), and a stochastic unit's follower
+        //   asks the solver over it (this node has no navmesh). The pool holds the routes the response brings back.
+        configuredFactory?.CreateSimHostPathfindingTranslators(TrajectoryPool.Pool)?.RegisterOn(context.Kernel);
         // ⭐ CE-2121 slice ② — the Brain's half of the stance wire: its request out, the body's report in.
         Hrot.Animation.Replication.AnimationReplicationModule.RegisterStanceOn(context.Kernel, context.Participant, context.EntityMap, BootRole);
     }

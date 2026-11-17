@@ -1,0 +1,270 @@
+{
+  "$doc": "\u00a723.6 ST-5 (\u00a723.6g), D-P3 LIVE end to end (DESIGN_DP3_Planned_Posts.md \u00a79): agg-behaviors' UnitPostPlanningSystem writes PlannedPosts (138) during Planning; agg-backend's manager (DP3-B) waits for Ready (or 10 s) and Materialise puts the k-th live slot on post k. OBJ = house-3f (10 x 8 m) placed by its SW corner at (125,161) turned 180 deg => footprint x 115-125, y 153-161, storeys at z 0 / 3 / roof 6. Measured at the handover (2.25 s; plan Ready at 0.25 s): all 10 men 0.5 m inside an outer wall, 5 at z 3, 5 at z 0, 5 on the north (enemy-facing) wall; no man on the roof (the plan's survey picked none). The rows read the men, not PlannedPosts' arrays (a fixed buffer is not in the entity dump). Children by NAME <squad>/<composite slot> (F-22, R-8349), listed in `later`. Supersedes the fallback-line rows (R-8337 -> R-8351).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Blue Stochastic Squad/1",
+    "Blue Stochastic Squad/2",
+    "Blue Stochastic Squad/3",
+    "Blue Stochastic Squad/4",
+    "Blue Stochastic Squad/5",
+    "Blue Stochastic Squad/6",
+    "Blue Stochastic Squad/7",
+    "Blue Stochastic Squad/8",
+    "Blue Stochastic Squad/9",
+    "Blue Stochastic Squad/10"
+  ],
+  "expect": [
+    {
+      "name": "the squad in the house de-aggregates: Physical",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 20
+    },
+    {
+      "name": "D-P3: the squad's own plan is Ready before its men are created (the manager waited for it)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "PlannedPosts.Ready",
+      "op": "==",
+      "value": 1,
+      "before": "split"
+    },
+    {
+      "name": "... with a post entry for each of the 10 live slots",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "PlannedPosts.Count",
+      "op": "==",
+      "value": 10,
+      "before": "split"
+    },
+    {
+      "name": "its slot table is whole (10 men up)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 10,
+      "atEnd": true
+    },
+    {
+      "name": "house: Blue Stochastic Squad/1 carries the stable key uuid5(unit, child:1)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/1",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "b7eb8db5-e374-5d37-90e5-e84865743245",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/2 carries the stable key uuid5(unit, child:2)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/2",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "93fc61af-2ed0-51c0-b4eb-a786a200076f",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/3 carries the stable key uuid5(unit, child:3)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/3",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "eccf4b15-554f-5ca6-9823-9e8e662d8f7a",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/4 carries the stable key uuid5(unit, child:4)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/4",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "e2c796c7-aa04-5209-9137-d14c04f61bee",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/5 carries the stable key uuid5(unit, child:5)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/5",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "8bea274c-ffb5-58b0-83b1-3e080d6324cb",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/6 carries the stable key uuid5(unit, child:6)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/6",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "dd63e206-27e6-577e-a527-c627cecfbcb6",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/7 carries the stable key uuid5(unit, child:7)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/7",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "5a2062c5-0cba-5ca8-8972-5c3e0c54f794",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/8 carries the stable key uuid5(unit, child:8)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/8",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "1db2eccb-0699-5120-a7bb-ce3253ab348c",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/9 carries the stable key uuid5(unit, child:9)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/9",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "28209c39-32c1-5403-b3f9-98d738be6d05",
+      "after": "split"
+    },
+    {
+      "name": "house: Blue Stochastic Squad/10 carries the stable key uuid5(unit, child:10)",
+      "on": "field",
+      "who": "Blue Stochastic Squad/10",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "2057eecd-be3a-5c1c-9fb2-cee871bf8ecf",
+      "after": "split"
+    },
+    {
+      "name": "D-P3: at the handover EVERY man stands inside the house (x >= 115 - 0.5)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.0",
+      "op": ">=",
+      "value": 114.5,
+      "quantifier": "all",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "... (x <= 125 + 0.5)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.0",
+      "op": "<=",
+      "value": 125.5,
+      "quantifier": "all",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "... (y >= 153 - 0.5)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 152.5,
+      "quantifier": "all",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "... (y <= 161 + 0.5) - not on the fallback line, which runs 2 m apart across the heading out to x 134",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 161.5,
+      "quantifier": "all",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "D-P3: at least 5 men are posted on the upper storey (z >= 2.5)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.2",
+      "op": ">=",
+      "value": 2.5,
+      "quantifier": "atLeast:5",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "D-P3: at least 5 men man the wall that faces the enemy (the north wall, y >= 160: its windows and door)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": ">=",
+      "value": 160,
+      "quantifier": "atLeast:5",
+      "after": "split",
+      "before": "split+0.5"
+    },
+    {
+      "name": "X-2 (X2-F): within 3 s of the handover the squad runs SquadDefend - its Defend order re-resolved at Physical",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "SquadDefend",
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "X-2 (DP3-D 2): the men START on their planned posts - 3 s after the handover every man is still inside the house (no walk to a surveyed post)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 161.5,
+      "quantifier": "all",
+      "after": "split+3",
+      "before": "split+3.5"
+    },
+    {
+      "name": "they hold the position: at 20 s every man is still at the house (y <= 166 - within 5 m of its north wall: under fire SquadDefend displaces men, F-X2-6)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 166,
+      "quantifier": "all",
+      "after": 20,
+      "before": 20.5
+    },
+    {
+      "name": "... (x <= 125.5)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.0",
+      "op": "<=",
+      "value": 125.5,
+      "quantifier": "all",
+      "after": 20,
+      "before": 20.5
+    }
+  ],
+  "anchors": {
+    "split": {
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  }
+}

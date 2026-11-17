@@ -1422,6 +1422,338 @@ public sealed class Map3DTests
     /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-1, O-2, O-5) — civilians of a type with no colour are NOT the family green and
     /// VARY: across sixty men every kind of clothes appears — long and short sleeves, trousers, shorts and skirts, a suit, long hair and
     /// none; each man's outfit is repeatable. A type WITH a colour dresses its men in that colour, lighter or darker.</summary>
+    // ── ⭐ CE-4648 (docs/designs/person-looks/DESIGN_Person_Outfits.md §6) — the dressing is IDENTICAL after the wardrobes moved to data ──
+
+    private const int BaselineSeeds = 500;
+
+    private static string BaselineFixture([System.Runtime.CompilerServices.CallerFilePath] string here = "")
+        => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(here)!, "Fixtures", "outfits-baseline.txt");
+
+    /// <summary>How the 3-D map dresses a man of <paramref name="look"/>'s type (the one call the layer makes).</summary>
+    private static Outfit DressedLike(in EntityBodyLayer3D.TypeLook look, long seed, long type, Fdp.Core.ForceId side, Raylib_cs.Color? own)
+        => Outfits.For(seed, type, look.Soldier, look.Child, own, side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+
+    private static void Fold(ref uint h, string text) { foreach (char c in text) h = (h ^ c) * 16777619u; }
+
+    private static string ColourText(Raylib_cs.Color c) => $"{c.R},{c.G},{c.B},{c.A}";
+
+    /// <summary>One man's whole dressing as text: every part colour, his face and the details drawn on his parts — what a frame is made of.</summary>
+    private static string DressingText(in Outfit o, System.Collections.Generic.List<PartDetail> details)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(ColourText(o.Top)).Append('|').Append(ColourText(o.Sleeve)).Append('|').Append(ColourText(o.Bottom)).Append('|').Append(ColourText(o.Shin)).Append('|')
+          .Append(ColourText(o.Skin)).Append('|').Append(ColourText(o.Hair)).Append('|').Append(o.HairStyle).Append('|').Append(o.Legwear).Append('|')
+          .Append(o.Suit).Append('|').Append(ColourText(o.Tie)).Append('|').Append(o.Camo).Append('|').Append(o.Child).Append('|').Append(o.Soldier).Append('|')
+          .Append(o.Face.EyeSpacing).Append(',').Append(o.Face.MouthHalfWidth).Append(',').Append(o.Face.BrowHalfHeight).Append(',').Append(o.Face.Beard).Append(',')
+          .Append(ColourText(o.Face.EyeColour)).Append(',').Append(ColourText(o.Face.Lips)).Append('|').Append(o.Police).Append('|').Append(o.Riot);
+        Outfits.Details(o, 0, details);
+        foreach (var d in details)
+            sb.Append(';').Append(d.Part).Append(d.Centre).Append(d.Extent).Append(ColourText(d.Colour)).Append(d.Turned);
+        return sb.ToString();
+    }
+
+    /// <summary>Every person type of the built-in catalogue, dressed as the 3-D map dresses it: seeds 1..500, each side where a side matters,
+    /// with and without the type's own colour. One line per (type, side, own): the hash of each seed's dressing, then a 0/1 per seed saying he was a woman.</summary>
+    private static System.Collections.Generic.List<string> DressingLines()
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        var details = new System.Collections.Generic.List<PartDetail>();
+        foreach (var t in BuiltIn().GetAll().OrderBy(x => x.TkbType))
+        {
+            if (VisualFamilies.Of(t) != VisualFamily.Person) continue;
+            var look = EntityBodyLayer3D.Resolve(t);
+            var sides = look.Soldier || look.Kit != PersonKit.Civilian
+                ? new[] { Fdp.Core.ForceId.Friend, Fdp.Core.ForceId.Hostile, Fdp.Core.ForceId.Neutral }
+                : new[] { Fdp.Core.ForceId.Neutral };
+            foreach (var side in sides)
+                foreach (bool own in look.TypeColoured ? new[] { false, true } : new[] { false })
+                {
+                    var hashes = new System.Text.StringBuilder();
+                    var women = new System.Text.StringBuilder();
+                    for (int seed = 1; seed <= BaselineSeeds; seed++)
+                    {
+                        var o = DressedLike(look, seed, t.TkbType, side, own ? look.Colour : null);
+                        uint h = 2166136261u;
+                        Fold(ref h, DressingText(o, details));
+                        hashes.Append(h.ToString("x8"));
+                        women.Append(o.Woman ? '1' : '0');
+                    }
+                    lines.Add($"{t.TkbType} {side} {(own ? "own" : "none")} {hashes} {women}");
+                }
+        }
+        return lines;
+    }
+
+    [Fact]
+    public void CE4648_EveryExistingPersonType_IsDressedExactlyAsBeforeTheWardrobesMovedToData()
+    {
+        var now = DressingLines();
+        if (System.Environment.GetEnvironmentVariable("HROT_OUTFITS_RECORD") == "1")
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(BaselineFixture())!);
+            System.IO.File.WriteAllLines(BaselineFixture(), now);
+            return;
+        }
+        var before = System.IO.File.ReadAllLines(BaselineFixture()).ToDictionary(l => string.Join(' ', l.Split(' ').Take(3)));
+        int compared = 0, moved = 0;
+        foreach (var line in now)
+        {
+            var f = line.Split(' ');
+            string key = string.Join(' ', f.Take(3));
+            if (!before.TryGetValue(key, out var was)) continue;   // a type that did not exist then: its own rails
+            long type = long.Parse(f[0]);
+            if (type == 2003) continue;   // OF-12 — the Insurgent's NEW wardrobe: its own rail
+            var w = was.Split(' ');
+            var tpl = BuiltIn().GetByType(type)!;
+            var sex = tpl.GetDescriptor<PersonDto>()?.Sex ?? PersonSex.Unspecified;
+            for (int s = 0; s < BaselineSeeds; s++)
+            {
+                bool wasWoman = w[4][s] == '1';
+                bool same = w[3].AsSpan(s * 8, 8).SequenceEqual(f[3].AsSpan(s * 8, 8));
+                compared++;
+                if (sex == PersonSex.Unspecified || wasWoman == (sex == PersonSex.Female))
+                    Assert.True(same, $"type {type} {f[1]} {f[2]} seed {s + 1}: the dressing moved");
+                else
+                {   // OF-2 — the type says who he is: only a seed whose old chance of sex DISAGREED with the type changes
+                    moved++;
+                    Assert.Equal(sex == PersonSex.Female, f[4][s] == '1');
+                }
+            }
+        }
+        Assert.True(compared > 5000, $"compared only {compared}");
+        Assert.True(moved > 0);   // the defect really was there to fix (1101 / 1102 drew the other sex half the time)
+    }
+
+    private static EntityBodyLayer3D.TypeLook LookOf(long type) => EntityBodyLayer3D.Resolve(BuiltIn().GetByType(type)!);
+
+    private static OutfitSlot SlotOf(params OutfitOption[] options) => new() { Options = [.. options] };
+
+    private static OutfitOption OptionOf(string kind, float weight = 1f, OutfitCamo camo = OutfitCamo.None, string[]? colours = null)
+        => new() { Kind = kind, Weight = weight, Camo = camo, Colours = [.. colours ?? []] };
+
+    /// <summary>⭐ CE-4648 OF-2 — the type's <c>PersonDto.Sex</c> says who he is: <c>Female</c> ⇒ 200 seeds, 200 women; <c>Male</c> ⇒ 200 men; <c>Unspecified</c> ⇒ both
+    /// (the defect: the "adult female" type 1102 was a man half the time, because nothing read the sex).</summary>
+    [Fact]
+    public void CE4648_OF2_ATypesSex_DecidesWhoHeIs_AnUnspecifiedTypeDrawsBoth()
+    {
+        var woman = LookOf(CivilianTkbCatalog.TkbCivilianAdultFemale);
+        var man = LookOf(CivilianTkbCatalog.TkbCivilianAdultMale);
+        var either = LookOf(CivilianTkbCatalog.TkbCivilianElderly);   // Unspecified
+        int women = 0, men = 0, eitherWomen = 0, eitherMen = 0;
+        for (int seed = 1; seed <= 200; seed++)
+        {
+            if (DressedLike(woman, seed, 1102, Fdp.Core.ForceId.Neutral, null).Woman) women++;
+            if (!DressedLike(man, seed, 1101, Fdp.Core.ForceId.Neutral, null).Woman) men++;
+            if (DressedLike(either, seed, 1104, Fdp.Core.ForceId.Neutral, null).Woman) eitherWomen++; else eitherMen++;
+        }
+        Assert.Equal(200, women);
+        Assert.Equal(200, men);
+        Assert.InRange(eitherWomen, 40, 160);
+        Assert.InRange(eitherMen, 40, 160);
+        foreach (var (type, female) in new[] { (1105, false), (1106, true), (1107, false), (1108, true), (1109, false), (1110, true) })
+        {
+            var look = LookOf(type);
+            for (int seed = 1; seed <= 200; seed++) Assert.Equal(female, DressedLike(look, seed, type, Fdp.Core.ForceId.Neutral, null).Woman);
+        }
+    }
+
+    /// <summary>⭐ CE-4648 OF-6 — the same seed is the same outfit from two TypeLooks built separately, and ADDING AN OPTION to one slot of one type
+    /// moves no other slot (each slot is exactly one option draw and one colour draw, even when it has a single option).</summary>
+    [Fact]
+    public void CE4648_OF6_TheSameSeedIsTheSameOutfit_AndAnOptionAddedToOneSlot_MovesNoOtherSlot()
+    {
+        var a = LookOf(CivilianTkbCatalog.TkbCivilianMiddleEastMan);
+        var b = LookOf(CivilianTkbCatalog.TkbCivilianMiddleEastMan);
+        Assert.NotSame(a.Wardrobe, b.Wardrobe);   // two looks, flattened separately
+        var plain = Wardrobe.Of(OutfitCatalog.MiddleEastMan)!;
+        var grown = Wardrobe.Of(OutfitCatalog.MiddleEastMan with
+        {   // the man's Legs slot has ONE option; give it a second (rarely picked)
+            Legs = SlotOf(OutfitCatalog.MiddleEastMan.Legs.Options[0], OptionOf("Shorts", 0.001f, colours: [OutfitCatalog.Bottoms[0]])),
+        })!;
+        var neutral = Fdp.Core.ForceId.Neutral;
+        var men = LookOf(CivilianTkbCatalog.TkbCivilianAdultMale);
+        for (int seed = 1; seed <= 500; seed++)
+        {
+            Assert.Equal(DressedLike(a, seed, 1105, neutral, null), DressedLike(b, seed, 1105, neutral, null));
+            var was = Outfits.For(seed, 1105, false, false, null, neutral, PersonKit.Civilian, false, PersonSex.Male, plain);
+            var now = Outfits.For(seed, 1105, false, false, null, neutral, PersonKit.Civilian, false, PersonSex.Male, grown);
+            Assert.Equal((was.Skin, was.Top, was.Sleeve, was.Hair, was.HairStyle, was.Face, was.HeadKind, was.HeadCloth, was.OverKind, was.TopKind),
+                         (now.Skin, now.Top, now.Sleeve, now.Hair, now.HairStyle, now.Face, now.HeadKind, now.HeadCloth, now.OverKind, now.TopKind));
+        }
+        // and a type that has no wardrobe (1101) does not know 1105's lists at all
+        var before = DressedLike(men, 7, 1101, neutral, null);
+        Assert.Equal(before, DressedLike(LookOf(CivilianTkbCatalog.TkbCivilianAdultMale), 7, 1101, neutral, null));
+    }
+
+    /// <summary>⭐ CE-4648 OF-7 — dressing a street of 500 people (every wardrobe, old and new) allocates NOTHING in the steady state.</summary>
+    [Fact]
+    public void CE4648_OF7_DressingFiveHundredPeople_AllocatesNothing()
+    {
+        long[] types = [1101, 1102, 1103, 1104, 1105, 1106, 1107, 1108, 1109, 1110, 2002, 2003, 2010, 2011, 2012, 1201, 1203];
+        var looks = new EntityBodyLayer3D.TypeLook[types.Length];
+        for (int i = 0; i < types.Length; i++) looks[i] = LookOf(types[i]);
+        var details = new System.Collections.Generic.List<PartDetail>(64);
+        int sink = 0;
+        void Street()
+        {
+            for (int i = 0; i < 500; i++)
+            {
+                int k = i % types.Length;
+                var o = Outfits.For(i + 1, types[k], looks[k].Soldier, looks[k].Child, null, (Fdp.Core.ForceId)(i % 3), looks[k].Kit, looks[k].Elderly, looks[k].Sex, looks[k].Wardrobe);
+                Outfits.Details(o, i, details);
+                sink += o.Top.R + details.Count + (int)Outfits.ColourOfPart(o, 4)!.Value.G;
+            }
+        }
+        Street(); Street();   // JIT, static init and the details list's growth are first-call costs
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        Street();
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(sink != 0);
+        Assert.Equal(0L, allocated);
+    }
+
+    /// <summary>⭐ CE-4648 OF-11 — a type WITH an <c>OutfitDto</c> wears it whatever its class: the Infantry-class fighter gets no side camouflage and no side cloth;
+    /// a type whose top is a <c>Uniform</c> that says <c>BySide</c> keeps R-1020's cloth and pattern by side.</summary>
+    [Fact]
+    public void CE4648_OF11_TheWardrobeWinsOverTheClass_UnlessHisTopIsAUniformBySide()
+    {
+        var fighter = LookOf(UrbanCombatTkbCatalog.TkbMiddleEastFighter);
+        Assert.True(fighter.Soldier);   // he still carries the rifle (the held weapon follows the class)
+        Assert.Equal(PersonKit.Soldier, fighter.Kit);
+        Assert.NotNull(fighter.Wardrobe);
+        foreach (var side in new[] { Fdp.Core.ForceId.Friend, Fdp.Core.ForceId.Hostile, Fdp.Core.ForceId.Neutral })
+            for (int seed = 1; seed <= 200; seed++)
+            {
+                var o = DressedLike(fighter, seed, 2010, side, null);
+                Assert.Equal(CamoPattern.None, o.Camo);
+                Assert.False(o.Police);
+                Assert.True(o.Dressed);
+                Assert.NotEqual(Outfits.DesertCloth, o.Top);
+                Assert.NotEqual(Outfits.WoodlandCloth, o.Top);
+            }
+
+        var bySide = Wardrobe.Of(new OutfitDto { Top = SlotOf(OptionOf("Uniform", camo: OutfitCamo.BySide)) })!;
+        Outfit Of(Fdp.Core.ForceId side) => Outfits.For(5, 9999, true, false, null, side, PersonKit.Soldier, false, PersonSex.Male, bySide);
+        Assert.Equal((CamoPattern.Desert, Outfits.DesertCloth), (Of(Fdp.Core.ForceId.Hostile).Camo, Of(Fdp.Core.ForceId.Hostile).Top));
+        Assert.Equal((CamoPattern.Woodland, Outfits.WoodlandCloth), (Of(Fdp.Core.ForceId.Friend).Camo, Of(Fdp.Core.ForceId.Friend).Top));
+        Assert.Equal(CamoPattern.None, Of(Fdp.Core.ForceId.Neutral).Camo);
+        // …and a Uniform that does NOT say BySide is a plain cloth
+        var plainUniform = Wardrobe.Of(new OutfitDto { Top = SlotOf(OptionOf("Uniform", colours: ["#445566"])) })!;
+        Assert.Equal(CamoPattern.None, Outfits.For(5, 9999, true, false, null, Fdp.Core.ForceId.Hostile, PersonKit.Soldier, false, PersonSex.Male, plainUniform).Camo);
+    }
+
+    /// <summary>⭐ CE-4648 OF-12 — the Insurgent (2003) wears the fighter wardrobe: no uniform, no camouflage, the same on either side; his weapons, body and brain are
+    /// the template's own (and the three new fighters are the SAME template with another weapon set — no copied descriptors).</summary>
+    [Fact]
+    public void CE4648_OF12_TheInsurgent_WearsTheFighterWardrobe_AndTheFightersShareHisTemplate()
+    {
+        var insurgent = LookOf(UrbanCombatTkbCatalog.TkbInsurgent);
+        Assert.NotNull(insurgent.Wardrobe);
+        var heads = new System.Collections.Generic.HashSet<OutfitHead>();
+        int rigs = 0;
+        for (int seed = 1; seed <= 500; seed++)
+        {
+            var hostile = DressedLike(insurgent, seed, 2003, Fdp.Core.ForceId.Hostile, null);
+            Assert.Equal(CamoPattern.None, hostile.Camo);
+            Assert.Equal(hostile, DressedLike(insurgent, seed, 2003, Fdp.Core.ForceId.Friend, null));   // his side does not change what he wears
+            heads.Add(hostile.HeadKind);
+            if (hostile.OverKind == OutfitOver.ChestRig) rigs++;
+        }
+        Assert.Contains(OutfitHead.Shemagh, heads);
+        Assert.Contains(OutfitHead.ShemaghFaceWrap, heads);
+        Assert.InRange(rigs, 200, 400);   // 60 % wear an ammunition chest rig
+
+        var db = BuiltIn();
+        var t2003 = db.GetByType(UrbanCombatTkbCatalog.TkbInsurgent)!;
+        foreach (long type in new long[] { UrbanCombatTkbCatalog.TkbMiddleEastFighter, UrbanCombatTkbCatalog.TkbMiddleEastFighterRpg, UrbanCombatTkbCatalog.TkbMiddleEastMachineGunner })
+        {
+            var t = db.GetByType(type)!;
+            Assert.Equal(t2003.GetDescriptor<BehaviorProfileDto>(), t.GetDescriptor<BehaviorProfileDto>());
+            Assert.Equal(t2003.GetDescriptor<CombatPlatformDefDto>(), t.GetDescriptor<CombatPlatformDefDto>());
+            Assert.Equal((t2003.GetDescriptor<SensorCapabilitiesDto>()!.VisionRange, t2003.GetDescriptor<SensorCapabilitiesDto>()!.HearingRange),
+                         (t.GetDescriptor<SensorCapabilitiesDto>()!.VisionRange, t.GetDescriptor<SensorCapabilitiesDto>()!.HearingRange));
+            Assert.Equal(t2003.GetDescriptor<TemperamentDto>(), t.GetDescriptor<TemperamentDto>());
+            Assert.Same(OutfitCatalog.MiddleEastFighter, t.GetDescriptor<OutfitDto>());
+        }
+        var mounts = (long type) => db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+        Assert.Equal(2, mounts(UrbanCombatTkbCatalog.TkbInsurgent).Count);          // RPG + rifle, as ever
+        Assert.Equal(2, mounts(UrbanCombatTkbCatalog.TkbMiddleEastFighterRpg).Count);
+        Assert.Equal(WeaponCategory.SmallArms, Assert.Single(mounts(UrbanCombatTkbCatalog.TkbMiddleEastFighter)).Category);
+        var mg = Assert.Single(mounts(UrbanCombatTkbCatalog.TkbMiddleEastMachineGunner));
+        Assert.Equal(WeaponCategory.MachineGun, mg.Category);
+        Assert.Equal(MunitionTkbCatalog.Tkb762Ball, (int)mg.AmmoGuid);
+    }
+
+    /// <summary>⭐ CE-4648 OF-8 — the six Middle-East civilians are authored through the one civilian helper: who they are (age, sex), what they wear (an
+    /// <c>OutfitDto</c>), and the picture the 3-D map resolves from it.</summary>
+    [Fact]
+    public void CE4648_OF8_TheMiddleEastCivilians_AreAuthored_WithTheirAgeSexAndWardrobe()
+    {
+        var db = BuiltIn();
+        foreach (var (type, age, sex) in new[]
+        {
+            (1105, AgeBand.Adult, PersonSex.Male), (1106, AgeBand.Adult, PersonSex.Female), (1107, AgeBand.Child, PersonSex.Male),
+            (1108, AgeBand.Child, PersonSex.Female), (1109, AgeBand.Elderly, PersonSex.Male), (1110, AgeBand.Elderly, PersonSex.Female),
+        })
+        {
+            var t = db.GetByType(type)!;
+            var person = t.GetDescriptor<PersonDto>()!;
+            Assert.Equal((age, sex), (person.Age, person.Sex));
+            Assert.NotNull(t.GetDescriptor<OutfitDto>());
+            Assert.NotNull(t.GetDescriptor<BehaviorProfileDto>());   // a civilian's brain and body come with the one helper
+            var look = EntityBodyLayer3D.Resolve(t);
+            Assert.Equal(VisualFamily.Person, look.Family);
+            Assert.Equal(age == AgeBand.Child, look.Child);
+            Assert.Equal(age == AgeBand.Elderly, look.Elderly);
+            Assert.Equal(sex, look.Sex);
+            Assert.False(look.Soldier);
+        }
+    }
+
+    /// <summary>⭐ CE-4648 OF-5 / OF-4 — what a garment hides, and the stand-ins that draw the new kinds: a scarf or veil hides the hair (it is drawn long, in the
+    /// cloth's colour), a niqab or a face wrap hides the beard, a robe or an abaya hides the legs (a long box in its colour), a chest rig is a vest box.</summary>
+    [Fact]
+    public void CE4648_OF5_ScarvesHideHair_RobesHideLegs_VeilsHideTheBeard_AndTheNewGarmentsAreDrawnWithStandIns()
+    {
+        var neutral = Fdp.Core.ForceId.Neutral;
+        var details = new System.Collections.Generic.List<PartDetail>();
+        var seen = new System.Collections.Generic.HashSet<string>();
+        foreach (long type in new long[] { 1105, 1106, 1107, 1108, 1109, 1110, 2010 })
+        {
+            var look = LookOf(type);
+            for (int seed = 1; seed <= 300; seed++)
+            {
+                var o = DressedLike(look, seed, type, neutral, null);
+                Outfits.Details(o, seed, details);
+                bool Has(int part, float minZ) => details.Any(d => d.Part == part && d.Extent.Z >= minZ);
+                if (o.HeadKind is OutfitHead.Hijab or OutfitHead.Niqab or OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap)
+                {
+                    Assert.Equal(HairStyle.Long, o.HairStyle);
+                    Assert.Equal(o.HeadCloth, o.Hair);
+                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && d.Colour.Equals(o.HeadCloth)), "the long-hair box, in the cloth's colour");
+                    seen.Add(o.HeadKind.ToString());
+                }
+                if (o.HeadKind is OutfitHead.Niqab or OutfitHead.ShemaghFaceWrap)
+                {
+                    Assert.Equal(BeardKind.None, o.Face.Beard);
+                    Assert.True(details.Any(d => d.Part == BlockFigure.HeadIndex && d.Extent.X < 0.1f), "the veil across the lower face");
+                }
+                if (o.HeadKind is OutfitHead.Skullcap or OutfitHead.Cap) { Assert.True(Has(BlockFigure.HeadIndex, 0.1f)); seen.Add(o.HeadKind.ToString()); }
+                if (o.TopKind is OutfitTop.Robe or OutfitTop.Abaya)
+                {
+                    Assert.Equal(Legwear.Hidden, o.Legwear);
+                    Assert.Equal(o.Top, o.Bottom);          // the legs are the robe's colour
+                    Assert.True(Has(BlockFigure.TorsoIndex, 1.4f), "the robe's box, to the ankles");
+                    seen.Add(o.TopKind.ToString());
+                }
+                if (o.Legwear == Legwear.LongSkirt) { Assert.True(Has(BlockFigure.TorsoIndex, 1.4f)); seen.Add("LongSkirt"); }
+                if (o.OverKind == OutfitOver.ChestRig) { Assert.Contains(details, d => d.Part == BlockFigure.TorsoIndex && d.Colour.Equals(o.OverColour)); seen.Add("ChestRig"); }
+            }
+        }
+        foreach (var kind in new[] { "Hijab", "Niqab", "Shemagh", "ShemaghFaceWrap", "Skullcap", "Cap", "Robe", "Abaya", "LongSkirt", "ChestRig" })
+            Assert.Contains(kind, seen);
+    }
+
     [Fact]
     public void CE1099_Civilians_VaryInWhatTheyWear_AndATypesColourIsKept()
     {

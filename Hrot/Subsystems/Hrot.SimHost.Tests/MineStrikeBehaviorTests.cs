@@ -40,8 +40,8 @@ namespace Hrot.SimHost.Tests
         private static void Strike(EntityRepository repo, Entity by, Entity field)
             => repo.Bus.Publish(new MineStruck { Field = field, Row = 3, Col = 4, By = by, X = 10f, Y = 0f });
 
-        /// <summary>⭐ MF-5 — a man of the squad sets off a mine: the SQUAD (his commander) runs the drill — every live man is ordered to hold where
-        /// he stands (none carried back across the field) — and holds until its <c>Hold</c> is over, then the task may go on. A second strike of the
+        /// <summary>⭐ MF-5 — a man of the squad sets off a mine: the SQUAD (his commander) runs the drill — every live man is ordered to BACK OUT along his own
+        /// track and hold there (MR-5; no track ⇒ where he stands; none carried back across the field) — and holds until its <c>Hold</c> is over, then the task may go on. A second strike of the
         /// same field while it runs does not start it again. ✅ Red-proof: the hold orders dropped ⇒ red.</summary>
         [Fact]
         public void CE4624_MS_B1_AManSetsOffAMine_HisSquadHalts_EveryManHoldsWhereHeStands_ThenTheHoldEnds()
@@ -54,7 +54,7 @@ namespace Hrot.SimHost.Tests
             {
                 w.Tick();
                 reflex.Execute(repo, 0.1f);
-                foreach (var e in repo.ReadManagedEvents<AssignTacticalIntentEvent>()) if (e != null && e.IntentId == BehaviorNames.PersonHold) holds++;
+                foreach (var e in repo.ReadManagedEvents<AssignTacticalIntentEvent>()) if (e != null && e.IntentId == BehaviorNames.BackOut) holds++;   // ⭐ MR-5: each man backs out (no track here ⇒ he holds where he stands)
                 foreach (var a in repo.ReadManagedEvents<AssignBehaviorEvent>()) if (a != null && a.BehaviorName == BehaviorNames.MineStrike) strikes++;
             }
             Strike(repo, men[1], field);
@@ -100,6 +100,81 @@ namespace Hrot.SimHost.Tests
             var conduct = Fdp.Toolkit.Behavior.BehaviorConduct.Of(Fdp.Toolkit.Behavior.BehaviorHash.FromName(BehaviorNames.MineStrike));
             Assert.Equal(Fdp.Toolkit.Behavior.Conduct.Halts | Fdp.Toolkit.Behavior.Conduct.LeavesRoute, conduct);
             Assert.NotEqual(Fdp.Toolkit.Behavior.Conduct.None, conduct & Hrot.AI.Behaviors.Orders.OrderConduct.Forbids(Hrot.AI.Behaviors.Orders.OrderKind.Dash));
+        }
+
+        // ── ⭐ MR-5 back-out (R-2125's interim ended by terrain's MineBreadcrumbs, MS-T2) ─────────────────────────────────────────────────────────
+
+        /// <summary>A square field 0…100 × 0…100 at the origin, as the scenario authors it.</summary>
+        private static Entity Field(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<MineBreadcrumbs>()) repo.RegisterComponent<MineBreadcrumbs>();
+            var field = repo.CreateEntity();
+            repo.AddComponent(field, new SimTransform { Rotation = Quaternion.Identity });
+            repo.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline
+                { Points = new[] { new Vector2(0, 0), new Vector2(100, 0), new Vector2(100, 100), new Vector2(0, 100) } });
+            return field;
+        }
+
+        /// <summary>His track: from x = −10 (outside) east along y = 50 to x = 10 (inside), a point every 2 m — newest at x = 10.</summary>
+        private static void Track(EntityRepository repo, Entity e)
+        {
+            if (!repo.IsComponentTypeRegistered<MineBreadcrumbs>()) repo.RegisterComponent<MineBreadcrumbs>();
+            var b = new MineBreadcrumbs();
+            for (int x = -10; x <= 10; x += 2) b.Add(new Vector2(x, 50));
+            repo.AddComponent(e, b);
+        }
+
+        /// <summary>⭐ MR-5 — the walk takes his OWN track back, newest first, and STOPS at its first point outside the field (x = −2), not at the
+        /// track's oldest end (x = −10). ✅ Red-proofs: the cut dropped ⇒ 11 points, ends at −10 ⇒ red; the order reversed ⇒ starts at −10 ⇒ red.</summary>
+        [Fact]
+        public void CE4624_MR5_TheWalk_IsHisOwnTrackBack_NewestFirst_ToTheFirstPointOutsideTheField()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            var field = Field(repo);
+            Track(repo, w.Man);
+            var t = new TrailWalk();
+            Assert.True(TrailWalk.Start(ref t, repo, w.Man, field));
+            Assert.Equal(7, t.Count);                                    // x = 10, 8, … 0, −2
+            unsafe
+            {
+                Assert.Equal(10f, t.X[0]);
+                Assert.Equal(-2f, t.X[t.Count - 1]);
+            }
+            var none = new TrailWalk();
+            Assert.False(TrailWalk.Start(ref none, repo, repo.CreateEntity(), field));   // no track ⇒ he holds where he is
+        }
+
+        /// <summary>⭐ MR-5 — a struck VEHICLE backs out ITSELF: one leg at a time along its track, newest first, REVERSE allowed (it keeps its
+        /// facing), then it stands. ✅ Red-proof: the drill's walk dropped ⇒ no move after the strike ⇒ red.</summary>
+        [Fact]
+        public unsafe void CE4624_MR5_AStruckVehicle_BacksOutAlongItsTrack_InReverse_ThenStands()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.Bus.IsRegistered<MineStruck>()) repo.Bus.Register<MineStruck>();
+            if (!repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>()) repo.RegisterComponent<global::CarKinem.Core.VehicleState>();
+            repo.AddComponent(w.Man, new global::CarKinem.Core.VehicleState());
+            var field = Field(repo);
+            Track(repo, w.Man);
+            var reflex = new MineStrikeReflexSystem();
+            Strike(repo, w.Man, field);
+            var dests = new System.Collections.Generic.List<float>();
+            for (int i = 0; i < 300; i++)
+            {
+                w.Tick(); reflex.Execute(repo, 0.1f);
+                ref var ch = ref repo.GetComponentRW<LocomotionChannel>(w.Man);
+                if (ch.ActiveAction != Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo || ch.Status != NodeStatus.Running) continue;
+                fixed (byte* b = ch.Params)
+                {
+                    var mp = *(Fdp.Toolkit.Navigation.MoveToParams*)b;
+                    Assert.Equal(1, mp.ReverseAllowed);
+                    if (dests.Count == 0 || dests[^1] != mp.Destination.X) dests.Add(mp.Destination.X);
+                }
+                ch.Status = NodeStatus.Success;                          // the leg arrives
+            }
+            Assert.Equal(new float[] { 10, 8, 6, 4, 2, 0, -2, -4, -6, -8, -10 }, dests);   // newest first; the field has no network id here ⇒ the whole track (the cut: the rail above)
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, repo.GetComponentRO<LocomotionChannel>(w.Man).ActiveAction);   // stands there
         }
     }
 }

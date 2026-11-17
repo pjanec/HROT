@@ -250,6 +250,16 @@ public static class AttributeCompilerFactory
                 (ref Fdp.Toolkit.Behavior.Components.CombatTemperament c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetTemperament(ref c, FormAttributes.TemperamentField.Resolve, r.GetDouble()),
                 kind: KindOf("Temperament.Resolve"));
 
+        foreach (var id in FormAttributeInstaller.AggregateIds)   // ⭐ CE-8015 — a stochastic unit's AggregateUnit
+        {
+            ushort attribute = id;
+            var def = AttributeVocabulary.All.Single(d => d.AttributeId == attribute);
+            builder.RegisterValuePath<Fdp.Toolkit.Aggregate.AggregateUnit>(
+                def.JsonPath,
+                (ref Fdp.Toolkit.Aggregate.AggregateUnit c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => FormAttributes.SetAggregate(ref c, attribute, r.GetDouble()),
+                kind: def.Kind);
+        }
+
         foreach (var id in FormAttributeInstaller.WeatherIds)
         {
             ushort attribute = id;

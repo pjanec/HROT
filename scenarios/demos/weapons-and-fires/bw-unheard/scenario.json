@@ -1,0 +1,148 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: CE-4649 (bows BW-9, R-3100) - on basic-desert an Archer (Friend, 100,100) shoots a Hostile 'Target' 60 m north (100,160) with his bow; two Hostile soldiers ('Soldier A/B', 250 m north, 100,350 / 115,350) are far outside his sight (150 m) but well inside a RIFLE's hearing (400 m). Shows the bow is silent to the AI. Judge: (1) the Archer shoots (2) a soldier never reacts: neither ever fires. Fail: a soldier fires (he heard a shot). The rail SoundEmissionSystemTests.CE4649 proves the same man's rifle is still heard. Check: scripts/scenario-regression.sh bw-unheard"
+ },
+ "entities": {
+  "4649a002-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2013
+   },
+   "EntityInfo": {
+    "Name": "Archer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "4649a002-0000-4000-8000-000000000002"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649a002-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     100,
+     160,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TkbIdentity": {
+    "TkbType": 2003
+   },
+   "EntityInfo": {
+    "Name": "Target",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "HoldFire",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "4649a002-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     100,
+     350,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Soldier A",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "4649a002-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     115,
+     350,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071080798594735,
+     0.7071054825112363
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Soldier B",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  }
+ }
+}

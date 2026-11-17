@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin a physical 'Blue Company' (CompanyDefend at (1000,200), facing north) over ONE stochastic 'Blue Stochastic Squad' (from the TKB composite) standing on that position; a stochastic 'Red Stochastic Squad' 500 m north ATTACKS it (StochasticUnitAttack on (1000,200)) and walks in. Judge: (1) the squad is ordered Defend by KIND and holds its position (it never breaks contact, never leaves); (2) it does NOT fire while the enemy is beyond its riflemen's reach (the M4's 300 m, the killer-victim table's MaxRange) - it has seen it long before; (3) it fires within seconds of the enemy coming inside 300 m (Red's centre past y 500) and the fire tells: a Red slot goes down. Fail: no fire after the enemy closes (finding F-14), fire before it is in reach, or the defender leaving its position. Check: scripts/scenario-regression.sh agg-defend-fires"
+  },
+  "entities": {
+    "a9000020-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          150,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Company",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "CompanyDefend",
+        "Params": {
+          "Position": [
+            1000,
+            200,
+            0
+          ],
+          "Threat": [
+            1000,
+            700,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000020-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Stochastic Squad",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a9000020-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "a9000020-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          700,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Stochastic Squad",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitAttack",
+        "Params": {
+          "Position": [
+            1000,
+            200,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

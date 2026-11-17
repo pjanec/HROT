@@ -98,6 +98,83 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(0f, det.HitZ, precision: 4);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-5, R-3099) — an ARROW / a BOLT (a round whose look <c>Sticks</c>) that strikes a PART writes a <c>HitMarks</c> entry of kind <c>Arrow</c> / <c>Bolt</c> (the
+        /// viewer draws the shaft out of the part, kept when he falls); an ordinary bullet writes <c>Bullet</c>; a hit with NO part (an animal is a plain cylinder, R-3099) writes NO mark at all.
+        /// 🔴 Red-proof: the mark kind fixed at Bullet ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_AnArrowOnAPart_WritesAnArrowMark_ABoltABoltMark_ABulletABulletMark_NoPartNoMark()
+        {
+            const long Arrow = 9066, Bolt = 9067, Ball = 9001;
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var (id, bolt) in new[] { (Arrow, false), (Bolt, true) })
+            {
+                var t = new Fdp.Interfaces.TkbTemplate("round" + id, id);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Arrow, Sticks = true, Bolt = bolt });
+                db.Register(t);
+            }
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+
+            Fdp.Toolkit.Physics.BodyParts.HitMarkKind MarkOf(long ammo, byte hasPart)
+            {
+                var bullet = _world.CreateEntity();
+                _world.AddComponent(bullet, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 45f, Penetration = 4f, Ammo = ammo });
+                var man = _world.CreateEntity();
+                _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = PhysicsConstants.PackBulletRayId(bullet.Index), HitEntity = man, Start = new Vector3(0, 0, 1.6f), End = new Vector3(10, 0, 1.6f),
+                    T = 0.5f, HasBodyPart = hasPart, BodyPart = 4, Face = 1, LocalPoint = new Vector3(0.5f, 0f, 0.1f),
+                } });
+                _world.Bus.SwapBuffers();
+                _sys.Execute(_world, 0.016f);
+                _world.Bus.SwapBuffers();
+                if (!_world.HasComponent<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man)) return 0;
+                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Physics.BodyParts.HitMarks>(man).TryGet(0, out _, out _, out _, out var kind));
+                return kind;
+            }
+
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Arrow, MarkOf(Arrow, 1));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bolt, MarkOf(Bolt, 1));
+            Assert.Equal(Fdp.Toolkit.Physics.BodyParts.HitMarkKind.Bullet, MarkOf(Ball, 1));
+            Assert.Equal((Fdp.Toolkit.Physics.BodyParts.HitMarkKind)0, MarkOf(Arrow, 0));   // an animal (no part box): the arrow wounds it, no mark
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (bows BW-11) — the RING an arrow scores: the distance of the strike from the scoring face's centre (a prop's position + FaceCentreZ), 10 rings of 6 cm
+        /// (10 at the centre … 1 at the rim, 0 beyond), read from the prop's TKB <c>ArcheryTargetDto</c>; a prop with none is no target (−1). 🔴 Red-proof: ring width halved ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_TheRingOfAnArrow_IsTheDistanceFromTheFacesCentre_10To1_0BeyondTheRim()
+        {
+            const long Target = 9500, Crate = 9501;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("target", Target);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.ArcheryTargetDto());
+            db.Register(t);
+            db.Register(new Fdp.Interfaces.TkbTemplate("crate", Crate));
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            Entity Make(long type)
+            {
+                var e = _world.CreateEntity();
+                _world.AddComponent(e, new SimTransform { Position = new Vector3(50f, 5f, 0f), Rotation = Quaternion.Identity });
+                _world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)type });
+                return e;
+            }
+            var target = Make(Target);
+            var centre = new Vector3(50f, 5f, 1.0f);
+            Assert.Equal(10, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre));
+            Assert.Equal(10, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.059f, 0f)));
+            Assert.Equal(9, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.061f, 0f)));
+            Assert.Equal(5, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0f, 0.31f)));
+            Assert.Equal(1, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0.55f, 0f, 0f)));
+            Assert.Equal(0, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, target, centre + new Vector3(0f, 0.7f, 0f)));   // beyond the rim: a miss on the boss
+            Assert.Equal(-1, Fdp.Toolkit.Combat.ArcheryScoring.RingAt(_world, Make(Crate), centre));
+        }
+
         // ── ⭐ Buildings §3d P2 (R-217): the walls crossed BEFORE the struck unit, on this segment ─────────────
 
         /// <summary>A wooden fence (0.05 m, 3 mm RHA) at x = 5 on the segment (0,0,1.6) → (10,0,1.6). A unit struck at x = 4 (before it)

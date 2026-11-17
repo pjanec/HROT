@@ -358,7 +358,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   who stops and sets it off as the searchers come — the price of a search) · `cp-moto-attack` ✅ (two men on one bike: a threat, no engine rung)
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
 - *(added `2026-11-17`)* **Vehicles hurt the people they hit,** by speed and weight; a ramming car does not swerve for its target, and its ram is a
-  lethal act once it is in its last 50 m. ▶ `cp-ram-barrier` ⚠ the car paths ROUND a weak barrier instead of through it (CE-2445, backend's direct move)
+  lethal act once it is in its last 50 m, where it drives the straight line — through a weak barrier, not round it. ▶ `cp-ram-barrier` ✅ (through four barrels, then fired on)
 
 - 🚧 *(added `2026-11-17`)* **Road convoys:** a column of vehicles that never splits — every follower drives the LEAD's actual path at a spacing
   measured along it, never passes the vehicle ahead, stops with it, and the lead slows when the tail falls back. Off the road net it drives our own
@@ -402,6 +402,19 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   the gunners stand and fire, everyone else takes cover. Drones can be made immune to jamming with one switch. (shown in `cc-battalion`)
 - *(added `2026-11-15`)* **A radar SAM site:** a search radar finds aircraft, a tracking radar guides the missiles; aircraft get a radar
   warning when they are painted. ▶ `sam-site` ✅ (3 of 3, the same at 1, 4 and 8 threads) ([DESIGN_Radar_SAM](designs/air-attack/DESIGN_Radar_SAM.md))
+
+- *(added `2026-11-17`, `air` lane — [DESIGN_Air_Combat](designs/air-attack/DESIGN_Air_Combat.md), CE-4647)* **Jets that hold their altitude and
+  never fly into the ground:** a cruise leg holds one altitude over the hills; an automatic ground-collision recovery (Auto-GCAS) pulls up from a
+  dive, inverted or not, and turns away from a ridge too steep to climb. ▶ `ac-cruise-altitude` ✅ · `ac-gcas-ridge` ✅ · `ac-gcas-inverted` ✅ ·
+  `ac-gcas-steep-ridge` ✅ · `ac-map-edge` ✅
+- *(added `2026-11-17`)* **Missiles that can be beaten:** a missile boosts, coasts and slows; a pilot drags it out of energy far out and beams it with
+  flares or chaff near, or breaks hard at the last moment; a radar missile loses a low, beaming target. A late pilot is hit. ▶ `ac-ir-defeated` ✅ ·
+  `ac-ir-hits-late` ✅ · `ac-two-missiles` ✅ · `ac-radar-chaff-beam` ✅ · `ac-sam-dodge` ✅ (a jet in transit beams the SAMs) · `ac-attack-evades` ✅
+- *(added `2026-11-17`)* **Dogfights:** an F-16 and a MiG-29 merge, then fight with missiles (only inside the weapon's zone, one at a time) and the
+  gun (it leads a turning target); out of weapons or hurt they leave. Skill decides: an Ace beats a Rookie. A combat air patrol finds bandits by radar
+  and splits them between the wingmen. Lapses break a stalemate. ▶ `ac-dogfight-1v1` ✅ · `ac-skill-decides` ✅ · `ac-guns-drone` ✅ ·
+  `ac-guns-turning` ✅ · `ac-head-on-shot` ✅ · `ac-winchester` ✅ · `ac-cap` ✅ · `ac-stalemate-lapse` ✅ · `ac-dogfight-2v2` ⚠ the guns fire but
+  no gun round hits · ⏳ not run on a cluster with the jets fighting (see STATUS)
 
 ## 11. Indirect fire
 

@@ -37,6 +37,8 @@ namespace Hrot.ScenarioEditor.Gizmos
         {
             _behaviorRegistry = behaviorRegistry ?? throw new ArgumentNullException(nameof(behaviorRegistry));
             Inputs = Hrot.Common.Diagnostics.Gizmos.Seeable.Inputs(() => _behaviorRegistry.DefinitionCount, typeof(NetworkIdentity), typeof(BehaviorState), typeof(IsEmbarkedTag));
+            // ⚠ CE-8607 — a unit's info line also reads its strength (roster members, slot table): those are not inputs here, so a held picture could lag a
+            //   loss by up to the held frames (≤ 3) — the same budget every held card row has (CE-2402)
         }
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -48,10 +50,23 @@ namespace Hrot.ScenarioEditor.Gizmos
 
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0) return;   // a card is keyed by the network id
-            var card = draw.Card(net, DebugTraceLayers.Labels);
+            var card = draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity));   // ⭐ CE-8605 — Unit cards / Men's cards
 
             // ⛔ CE-1327 — the hit points row (30) is gone: the health bar at the top of the card (row 10) shows them (user, 2026-10-25:
             //   "we can remove the HP line as we are showing the health bar at the top of the card").
+
+            // ⭐ CE-8607 (UI-11 line 3) — a UNIT's row 40 is its INFO line: strength · what it does · the worst alarm (one writer per row)
+            if (Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity))
+            {
+                string? doing = null;
+                if (_behaviorRegistry != null && Has<BehaviorState>(view, entity))
+                {
+                    int hash = view.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash;
+                    if (hash != 0 && _behaviorRegistry.TryGetName(hash, out string? n)) doing = n;
+                }
+                Hrot.Common.Diagnostics.Gizmos.UnitCardFacts.InfoRow(card, view, entity, doing);
+                return;
+            }
 
             // Row 40: the active behaviour (yellow).
             if (_behaviorRegistry != null && Has<BehaviorState>(view, entity))

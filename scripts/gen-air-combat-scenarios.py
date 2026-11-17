@@ -334,14 +334,29 @@ def s3():
     # ── ac-dogfight-1v1 — F-16 vs MiG, both Veteran (a demo: expect rows only) ────────────────────────────────────────────────────────
     v, m = gid(23, 1), gid(23, 2)
     write("ac-dogfight-1v1",
-          "What: a Veteran F-16 ('Viper') and a Veteran MiG-29 ('Fulcrum') ordered to attack each other, 8 km apart at 2 km (CE-10003, AC-5…AC-13). "
-          "Judge: they close to 2 km inside 120 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start.",
-          {v: fighter("Viper", 401, (-4000, -500), 0, 220, "Friend", m), m: fighter("Fulcrum", 409, (4000, 500), 180, 220, "Hostile", v)},
+          "What: a Veteran F-16 ('Viper') and a Veteran MiG-29 ('Fulcrum') ordered to attack each other, 8 km apart at 2 km, in a 4 km arena "
+          "(CE-10003, AC-5…AC-13): they MERGE through its centre (no shot before the pass, R-10020), then fight. Judge: they close to 2 km inside 120 s, someone shoots inside 120 s, and one of them is shot down inside 300 s; neither leaves 10 km of the start.",
+          {v: fighter("Viper", 401, (-4000, -500), 0, 220, "Friend", m), m: fighter("Fulcrum", 409, (4000, 500), 180, 220, "Hostile", v),
+           gid(23, 3): arena()},
           {"$doc": "DESIGN_Air_Combat §6 S3 — a DEMO (Scenario Regression §5): expect rows only, no golden.", "runFor": 300, "golden": False,
            "expect": [{"name": "they close to 2 km", "on": "close", "who": "Viper", "from": "Fulcrum", "m": 2000, "before": 120},
                       {"name": "a shot inside 120 s", **shot("*"), "before": 120},
                       {"name": "one is shot down", **field("*", "Health.Current", "<=", 0), "before": 300},
                       {"name": "the fight stays over the map", "never": {"on": "far", "who": "*", "point": [0, 0], "m": 10000}}]})
+
+    # ── ⭐ CE-10005 — ac-guns-turning — the F-16 behind a MiG in a 5 g turn: the accelerating lead (AC-8, RV-10) ─────────────────────────
+    v, m = gid(25, 1), gid(25, 2)
+    mz = ground_beyond(0, 0) + ALT
+    write("ac-guns-turning",
+          "What: an Ace F-16 ('Viper') 700 m behind a MiG ('Fulcrum') that flies a sustained 5 g level turn (an authored mode-8 Break at 5 g toward "
+          "a point 400 m to its left — inside its turn circle, so it circles for ever; no behaviour, no weapons used; health 100 000 — the test is the gun, not the kill) (CE-10005, AC-8 / RV-10: the gun lead adds the "
+          "target's acceleration). Judge: a Viper GUN round hits the turning MiG inside 120 s.",
+          {v: fighter("Viper", 401, (-700, 0), 0, 200, "Friend", m, skill="Ace"),
+           m: jet("Fulcrum", 409, (0, 0, mz), yaw(0), (200, 0, 0), force="Hostile", Health={"Current": 100000, "Max": 100000},
+                  NavigationIntent={"Mode": "AirCombat", "IntentId": 1},
+                  AirCombatSteer={"Manoeuvre": "Break", "Point": [0, 400, round(mz)], "MaxG": 5, "Throttle": 0.8, "FloorAgl": 300})},
+          {"$doc": "DESIGN_Air_Combat §6 S3 — feature (golden).", "runFor": 120, "golden": {"every": 10},
+           "expect": [{"name": "a Viper gun round hits the turning MiG", **shot("Viper", where={"weaponIndex": 0}, hit="Fulcrum"), "before": 120}]})
 
     # ── ac-winchester — an F-16 with no gun ammunition: after its missiles it leaves ───────────────────────────────────────────────────
     v, m = gid(24, 1), gid(24, 2)
@@ -382,18 +397,69 @@ def s2_arena():
                       {"name": "the beamed missile is beaten (no MiG round hits the F-16 in 20 s)", "never": shot("Fulcrum", hit="Viper"), "before": 20}]})
 
 
+def s2_transit():
+    # ── ⭐ CE-10005 — ac-sam-dodge — an F-16 in TRANSIT (a Move order) past a radar SAM and a Stinger team: the one defence beams them ───────
+    v, sam, stg = gid(15, 1), gid(15, 2), gid(15, 3)
+    # ⚠ the ground's eyes see only inside the perception grid, which is the terrain's 2 x 2 km (LocalGridBuilderSystem) — so the SAMs sit
+    #   inside it and the F-16 crosses it east-west along y 500 (between the ridge's end and the plateau), slowly (130 m/s: 15 s over it)
+    start, dest = (-6000, 500), (9000, 500)
+    sam_at, stg_at = (-300, -100), (300, 150)
+    write("ac-sam-dodge",
+          "What: an F-16 ('Viper', no air-combat order — a plain Move at 130 m/s, 120 m over the ground) in TRANSIT east across the range past a "
+          "radar SAM ('Radar SAM', 600 m south of its track) and a Stinger team ('Stinger Gunner', 350 m south of it), both on their default SOPs (CE-10005, AC-9: a transit's missile "
+          "defence through the one MissileDefence). Judge: the SAMs fire; the F-16 BEAMS (its defence phase) with decoys; at least one SAM missile is "
+          "DEFEATED; the F-16 is alive at 120 s.",
+          {v: jet("Viper", 401, (start[0], start[1], ground_beyond(*start) + 120), yaw(0), (130, 0, 0),
+                  Behavior={"Name": "AirPlatformMove", "Params": {"Location": [dest[0], dest[1], 0], "Speed": 130}, "Origin": "Superior"}),
+           sam: {"SimTransform": {"Position": [sam_at[0], sam_at[1], round(ground_beyond(*sam_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 114},
+                 "EntityInfo": {"Name": "Radar SAM", "ForceId": "Hostile"}, "Health": {"Current": 400, "Max": 400}, "TargetMemory": {"Entries": []},
+                 "Sop": {"Name": "BasicVehicleSop", "Params": {}, "Origin": "Superior"}},
+           stg: {"SimTransform": {"Position": [stg_at[0], stg_at[1], round(ground_beyond(*stg_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 202},
+                 "EntityInfo": {"Name": "Stinger Gunner", "ForceId": "Hostile"}, "Health": {"Current": 100, "Max": 100}, "TargetMemory": {"Entries": []},
+                 "Sop": {"Name": "BasicInfantrySop", "Params": {}, "Origin": "Superior"}}},
+          {"$doc": "DESIGN_Air_Combat §6 S2 — feature (golden).", "runFor": 120, "golden": {"every": 10},
+           "expect": [{"name": "a SAM fires (the radar SAM or the Stinger — both names hold an 'S')", **shot("*S")},
+                      {"name": "the F-16 beams", **field("Viper", "MissileDefenceState.Phase", "in", ["Beam", 2])},
+                      {"name": "it drops decoys", **field("Viper", "MissileDefenceState.DecoysTotal", ">=", 1)},
+                      {"name": "a SAM missile is defeated", **shot("*S", where={"outcome": "Defeated"})},
+                      alive("Viper")]})
+
+    # ── ⭐ CE-10005 — ac-attack-evades — the A-10 gun run under a Stinger: §7e's evade through MissileDefence, then it comes round ────────
+    a10, trk, stg = gid(16, 1), gid(16, 2), gid(16, 3)
+    trk_at, stg_at, a_at = (-700, -700), (-400, -500), (-7000, -700)   # ⚠ inside the 2 km perception grid (the Stinger's eyes), see ac-sam-dodge; the south-west corner, clear of the plateau wall (📐 an A-10 coming round at 700 m flew into it)
+    write("ac-attack-evades",
+          "What: an A-10 ('A-10') ordered to attack a truck ('Truck') 350 m from a Stinger team ('Stinger Gunner', default SOP) (CE-10005, AC-9 / "
+          "Air Operations §7e: the attack's evade through the one MissileDefence). Judge: the Stinger fires; the A-10 BEAMS it (its defence phase) "
+          "with a salvo of four flares; then it COMES ROUND and its gun destroys the truck.",
+          {a10: {"SimTransform": {"Position": [a_at[0], a_at[1], round(ground_beyond(*a_at) + 300, 1)], "Rotation": yaw(0)}, "TkbIdentity": {"TkbType": 405},
+                 "EntityInfo": {"Name": "A-10", "ForceId": "Friend"}, "Health": {"Current": 1500, "Max": 1500},
+                 "Behavior": {"Name": "AirPlatformAttack", "Params": {"Target": trk}, "Origin": "Superior"}},
+           trk: {"SimTransform": {"Position": [trk_at[0], trk_at[1], round(ground_beyond(*trk_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 106},
+                 "EntityInfo": {"Name": "Truck", "ForceId": "Hostile"}, "Health": {"Current": 100, "Max": 100}, "TargetMemory": {"Entries": []}},
+           stg: {"SimTransform": {"Position": [stg_at[0], stg_at[1], round(ground_beyond(*stg_at), 1)], "Rotation": [0, 0, 0, 1]}, "TkbIdentity": {"TkbType": 202},
+                 "EntityInfo": {"Name": "Stinger Gunner", "ForceId": "Hostile"}, "Health": {"Current": 100, "Max": 100}, "TargetMemory": {"Entries": []},
+                 "Sop": {"Name": "BasicInfantrySop", "Params": {}, "Origin": "Superior"}}},
+          {"$doc": "DESIGN_Air_Combat §6 S2 — feature (golden).", "runFor": 240, "golden": {"every": 10},
+           "anchors": {"defended": field("A-10", "MissileDefenceState.Count", ">=", 1)},
+           "expect": [{"name": "the Stinger fires", **shot("Stinger Gunner")},
+                      {"name": "the A-10 beams it", **field("A-10", "MissileDefenceState.Phase", "in", ["Beam", 2])},
+                      {"name": "four flares", **field("A-10", "MissileDefenceState.DecoysTotal", ">=", 4)},
+                      {"name": "it comes round: the truck is destroyed after the defence", **field("Truck", "Health.Current", "<=", 0), "after": "defended"}]})
+
+
 def s4():
     # ── ac-dogfight-2v2 — two pairs, an Ace and a Rookie a side, in an arena (a demo: expect rows only) ──────────────────────────────────
     v1, v2, f1, f2, a = gid(31, 1), gid(31, 2), gid(31, 3), gid(31, 4), gid(31, 5)
     write("ac-dogfight-2v2",
           "What: an Ace F-16 ('Viper') with a Rookie wingman ('Viper 2') against an Ace MiG ('Fulcrum') with a Rookie wingman ('Fulcrum 2'), each "
-          "ordered on a different bandit, in a 4 km arena over the hills (CE-10004, AC-10…AC-13). Judge: four missiles and a gun hit, two kills inside "
-          "600 s; never a shot beyond the arena's 6 km; never a friendly hit.",
+          "ordered on a different bandit, in a 4 km arena over the hills (CE-10004, AC-10…AC-13). ⚠ This DEMO's arena authors its own shot cap, "
+          "MaxShotRangeM 2.5 km (the default stays 6 km, AC-11 / R-10025): the show is a close fight where a missile beaten leaves the jets near enough "
+          "for the guns. Judge: four missiles and a gun hit, two kills inside 600 s; never a shot beyond 6 km; never a friendly hit.",
           {v1: fighter("Viper", 401, (-5000, -600), 0, 220, "Friend", f1, skill="Ace"),
            v2: fighter("Viper 2", 401, (-5300, 600), 0, 220, "Friend", f2, skill="Rookie"),
            f1: fighter("Fulcrum", 409, (5000, 600), 180, 220, "Hostile", v1, skill="Ace"),
            f2: fighter("Fulcrum 2", 409, (5300, -600), 180, 220, "Hostile", v2, skill="Rookie"),
-           a: arena()},
+           a: arena(maxshot=2500)},
           {"$doc": "DESIGN_Air_Combat §6 S4 — a DEMO (Scenario Regression §5): expect rows only.", "runFor": 600, "golden": False,
            "expect": [{"name": "four missiles", **shot("*", n=4, where={"weaponIndex": [">=", 1]})},
                       {"name": "a gun hit", **shot("*", where={"weaponIndex": 0, "outcome": "Hit"})},
@@ -403,22 +469,54 @@ def s4():
                       {"name": "no Fulcrum hits a Fulcrum", "never": shot("*Fulcrum", hit="*Fulcrum")}]})
 
     # ── ac-skill-decides — an Ace against a Rookie, lapses off: skill alone decides ───────────────────────────────────────────────────────
-    v, m, a = gid(32, 1), gid(32, 2), gid(32, 3)
+    # ⭐ CE-10005 (R-10021) — "5 seeds": the sim is deterministic and the verifier has no seed knob, so the five seeds are five PAIRS, each in
+    #   its own arena 30 km from the next (no pair sees another's fight), each a different start (distance, offset, height, which side the Ace is on)
+    ents, seeds = {}, [((0, 0), 10000, 300, 0, False), ((0, 30000), 12000, -600, 300, True), ((30000, 0), 9000, 900, -200, False),
+                       ((0, -30000), 11000, -200, 500, True), ((-30000, 0), 10000, 500, -400, False)]
+    for k, ((cx, cy), dist, off, dz, flip) in enumerate(seeds):
+        v, m, a = gid(32, 10 * k + 1), gid(32, 10 * k + 2), gid(32, 10 * k + 3)
+        sv, sm = (-1, 1) if not flip else (1, -1)
+        pv = (cx + sv * dist / 2, cy + off / 2); pm = (cx + sm * dist / 2, cy - off / 2)
+        ents[v] = fighter(f"Viper {k + 1}", 401, (pv[0], pv[1], ground_beyond(*pv) + ALT + dz), 0 if sv < 0 else 180, 220, "Friend", m, skill="Ace")
+        ents[m] = fighter(f"Fulcrum {k + 1}", 409, (pm[0], pm[1], ground_beyond(*pm) + ALT - dz), 180 if sv < 0 else 0, 220, "Hostile", v, skill="Rookie")
+        a_ = arena(centre=(cx, cy), lapses_off=True); a_["EntityInfo"]["Name"] = f"Arena {k + 1}"
+        ents[a] = a_
     write("ac-skill-decides",
-          "What: an Ace F-16 against a Rookie MiG, lapses OFF in the arena, merging head-on from 10 km (CE-10004, AC-12). Judge: the Rookie is shot "
-          "down inside 300 s and the Ace is never lost.",
-          {v: fighter("Viper", 401, (-5000, 300), 0, 220, "Friend", m, skill="Ace"), m: fighter("Fulcrum", 409, (5000, -300), 180, 220, "Hostile", v, skill="Rookie"),
-           a: arena(lapses_off=True)},
+          "What: five Ace F-16s ('Viper 1'…'Viper 5') each against a Rookie MiG ('Fulcrum 1'…'Fulcrum 5'), lapses OFF, each pair in its own arena "
+          "30 km from the next and starting differently — the design's five seeds (CE-10004 / CE-10005, AC-12, R-10021). Each pair merges, then fights; "
+          "skill alone decides: reaction, the g, the shot discipline AND the defence (a Rookie turns level and drops two decoys, an Ace drags far shots). "
+          "Judge: at least four of the five Rookies are shot down inside 300 s, and never more than one Ace is lost.",
+          ents,
+          {"$doc": "DESIGN_Air_Combat §6 S4 — feature (expect rows; a demo-length fight). Five seeds = five pairs (R-10021).", "runFor": 300, "golden": False,
+           "expect": [{"name": "at least 4 of 5 Rookies are shot down", **field("*Fulcrum", "Health.Current", "<=", 0, quantifier="atLeast:4"), "before": 300},
+                      {"name": "never 2 Aces lost", "never": field("*Viper", "Health.Current", "<=", 0, quantifier="atLeast:2")}]})
+
+    # ── ⭐ CE-10005 — ac-cap — two F-16s on CAP (the armed search over the arena) against two MiGs: radar contacts, deconflicted picks ───────
+    v1, v2, f1, f2, a = gid(34, 1), gid(34, 2), gid(34, 3), gid(34, 4), gid(34, 5)
+    cap = {"Name": "AirArmedSearch", "Params": {"Location": [0, 0, 0], "RadiusM": 8000, "QuietSeconds": 600, "HeightAgl": ALT}, "Origin": "Superior"}
+    def capper(name, pos):
+        return jet(name, 401, (pos[0], pos[1], ground_beyond(*pos) + ALT), yaw(0), (220, 0, 0), Behavior=cap, AirCombatState=pilot("Veteran", None))
+    write("ac-cap",
+          "What: two Veteran F-16s ('Viper 1', 'Viper 2') on CAP — the armed search over a 4 km arena, no bandit named — and two Veteran MiGs "
+          "('Fulcrum 1' on Viper 1, 'Fulcrum 2' on Viper 2) coming in from 8.5 km (all four start inside the arena's soft edge, so all four MERGE) (CE-10005, AC-13, R-10022). The F-16s' radars search; each picks "
+          "an air contact, a wingman's bandit only when no other is left. Judge: each MiG is shot at by an F-16 (the picks are deconflicted), and "
+          "a MiG is shot down inside 300 s.",
+          {v1: capper("Viper 1", (-3000, -600)), v2: capper("Viper 2", (-3300, 600)),
+           f1: fighter("Fulcrum 1", 409, (5500, -600), 180, 220, "Hostile", v1), f2: fighter("Fulcrum 2", 409, (5800, 600), 180, 220, "Hostile", v2),
+           a: arena()},
           {"$doc": "DESIGN_Air_Combat §6 S4 — feature (expect rows; a demo-length fight).", "runFor": 300, "golden": False,
-           "expect": [{"name": "the Rookie is shot down", **field("Fulcrum", "Health.Current", "<=", 0), "before": 300}, alive("Viper")]})
+           "expect": [{"name": "an F-16 shoots at Fulcrum 1", **shot("*Viper", at="Fulcrum 1")},
+                      {"name": "an F-16 shoots at Fulcrum 2", **shot("*Viper", at="Fulcrum 2")},
+                      {"name": "a MiG is shot down", **field("*Fulcrum", "Health.Current", "<=", 0), "before": 300},
+                      {"name": "no Viper hits a Viper", "never": shot("*Viper", hit="*Viper")}]})
 
     # ── ac-stalemate-lapse — two Aces, a 30 s stalemate: a lapse breaks it ───────────────────────────────────────────────────────────
     v, m, a = gid(33, 1), gid(33, 2), gid(33, 3)
     write("ac-stalemate-lapse",
-          "What: two Aces in an arena whose stalemate is 30 s (CE-10004, AC-12). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, "
+          "What: two Aces in an arena whose stalemate is 10 s (CE-10004, AC-12; authored short — 📐 after the merge two Aces now decide the fight inside ~45 s, so a 30 s quiet left the lapses no time, R-10026). Judge: past the stalemate a pilot lapses (Fixation, LateWarning, "
           "EnergyBleed or G-LOC) inside 120 s, and someone is shot down or crashes inside 240 s.",
           {v: fighter("Viper", 401, (-5000, 300), 0, 220, "Friend", m, skill="Ace"), m: fighter("Fulcrum", 409, (5000, -300), 180, 220, "Hostile", v, skill="Ace"),
-           a: arena(stalemate=30)},
+           a: arena(stalemate=10)},
           {"$doc": "DESIGN_Air_Combat §6 S4 — feature (expect rows).", "runFor": 240, "golden": False,
            "expect": [{"name": "a pilot lapses", **field("*", "AirCombatState.Lapse", "in", ["Fixation", "LateWarning", "EnergyBleed", "GLoc", 1, 2, 3, 4]), "before": 120},
                       {"name": "someone is down", **field("*", "Health.Current", "<=", 0), "before": 240}]})
@@ -430,5 +528,6 @@ if __name__ == "__main__":
     s2()
     s3()
     s2_arena()
+    s2_transit()
     s4()
     print("air-range terrain + S1 scenarios written")

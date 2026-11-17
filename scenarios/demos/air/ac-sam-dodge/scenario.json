@@ -1,0 +1,127 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an F-16 ('Viper', no air-combat order \u2014 a plain Move at 130 m/s, 120 m over the ground) in TRANSIT east across the range past a radar SAM ('Radar SAM', 600 m south of its track) and a Stinger team ('Stinger Gunner', 350 m south of it), both on their default SOPs (CE-10005, AC-9: a transit's missile defence through the one MissileDefence). Judge: the SAMs fire; the F-16 BEAMS (its defence phase) with decoys; at least one SAM missile is DEFEATED; the F-16 is alive at 120 s."
+  },
+  "entities": {
+    "ac00000f-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -6000,
+          500,
+          224.7
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          130,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformMove",
+        "Params": {
+          "Location": [
+            9000,
+            500,
+            0
+          ],
+          "Speed": 130
+        },
+        "Origin": "Superior"
+      }
+    },
+    "ac00000f-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -100,
+          67.7
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 114
+      },
+      "EntityInfo": {
+        "Name": "Radar SAM",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "ac00000f-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          300,
+          150,
+          164.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

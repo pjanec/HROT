@@ -1,0 +1,235 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: two Veteran F-16s ('Viper 1', 'Viper 2') on CAP \u2014 the armed search over a 4 km arena, no bandit named \u2014 and two Veteran MiGs ('Fulcrum 1' on Viper 1, 'Fulcrum 2' on Viper 2) coming in from 8.5 km (all four start inside the arena's soft edge, so all four MERGE) (CE-10005, AC-13, R-10022). The F-16s' radars search; each picks an air contact, a wingman's bandit only when no other is left. Judge: each MiG is shot at by an F-16 (the picks are deconflicted), and a MiG is shot down inside 300 s."
+  },
+  "entities": {
+    "ac000022-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -3000,
+          -600,
+          2104.5
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirArmedSearch",
+        "Params": {
+          "Location": [
+            0,
+            0,
+            0
+          ],
+          "RadiusM": 8000,
+          "QuietSeconds": 600,
+          "HeightAgl": 2000
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000022-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -3300,
+          600,
+          2110.3
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirArmedSearch",
+        "Params": {
+          "Location": [
+            0,
+            0,
+            0
+          ],
+          "RadiusM": 8000,
+          "QuietSeconds": 600,
+          "HeightAgl": 2000
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000022-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          5500,
+          -600,
+          2091.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000022-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000022-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          5800,
+          600,
+          2098.9
+        ],
+        "Rotation": [
+          0,
+          0,
+          1.0,
+          0.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          -220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac000022-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    },
+    "ac000022-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          100.0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8840
+      },
+      "EntityInfo": {
+        "Name": "Arena",
+        "ForceId": "Neutral"
+      },
+      "AirArena": {
+        "Centre": [
+          0,
+          0,
+          100.0
+        ],
+        "RadiusM": 4000,
+        "FloorAglM": 300,
+        "CeilingAglM": 6000,
+        "MaxShotRangeM": 6000,
+        "StalemateSeconds": 90,
+        "LapsesOff": 0
+      }
+    }
+  }
+}
