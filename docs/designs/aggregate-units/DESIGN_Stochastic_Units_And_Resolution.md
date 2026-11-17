@@ -910,6 +910,15 @@ sequenceDiagram
 | rail `ST3_HoldBack_StandsOnItsSupportPosition_FiresThere_NeverClosesAndNeverEnds` (renamed from `…ApproachesToTheAssaultDistance…`): HoldBack on a point 250 m short of the enemy ⇒ Set there (±25 m), no PhaseLine, never closer for 180 s, firing and hitting, never ends. Red-proved: `HoldOn` ignored ⇒ `InRange` red. The three routing rails now assert the support point (company 250 m, platoon 120 m, the PlatoonSupportByFire squad within its spread) | `SquadManeuverTests.AggregateAttack.cs` |
 | ⭐ **`agg-battalion-fight` measured after the fix: the outcome is UNCHANGED (golden SAME before the relabel).** The base of fire now heads for x 450 (250 m from Red), but Red's two front companies open fire at ~290 m (x ≈ 410, 328 s) and destroy it by 335 s — still on its way in, so it never reports Set and the assault is still never ordered. That is the stand-off sitting inside the defender's rifle reach plus agg-backend's lethality (F-15 / CE-8009), ⛔ not tuned here. The scenario's rows are RELABELLED: Company 2 = the base of fire, Company 1 = the assault (never committed) | §23.6c row; `scripts/gen-agg-scenarios.py` |
 
+### 23.5e agg-behaviors — X-2 as built: a unit keeps its order across a split / merge *(`2026-11-17`, CE-8306; R-8353 … R-8371)*
+
+⭐ **The as-built lives in [`DESIGN_X2_Order_Reresolution.md`](DESIGN_X2_Order_Reresolution.md) §11** (the decision, the UML, the deviations) — this is a pointer, not a copy.
+In one line: F-5's system, renamed `UnitResolutionFitSystem`, re-issues a SQUAD's order (the same id, `IsResume`) with the play the routing table gives at its new
+resolution — after its men are rostered by agg-backend's `Handover` (`CmdAssignSubordinate`), with its planned posts as D-2f `Posts` (DP3-D ②); a merge projects
+the params onto the stochastic play and removes the roster; an automatic switch waits while the order has no play at the target (`SwitchBlocked`); the
+physical fallback rows let a physical squad take `Order.Defend` / `Order.BreakContact` (F-X2-2). Platoons / companies: not yet (F-X2-1, X2-I).
+⚠ X-2 (§13) is answered for the squad echelon; the "one level at a time" split (X-5 / D-P7) is still not what the split does — F-X2-1 (agg-backend).
+
 ### 23.6 ⏳ The FEATURE-TEST SCENARIOS *(coordinator, `2026-11-16`, R-4277 — leans for the user; dispatched with the regression suite's handoffs, not before)*
 
 🔒 User, verbatim: *"i think there should be a lot of feature testing scenarios for the aggregated entities, not sure if covered already"* —
@@ -1077,6 +1086,17 @@ Goldens: re-captured where they moved and every row passed (each SAME on a secon
 | **R-8381** | ⭐ no C-8 band row in `agg-platoon-duel`: no rung measures this geometry, and a band is never invented; the `$doc` and the description say so. The duel's six rows stand | a ladder rung at an unequal force ratio or at 300 m — then add its band; or the user wanting the duel re-shaped to rung 1's 9 v 9 at 275 m (a different scenario) |
 
 Re-run `2026-11-17` (fresh process): 6 / 6, the same times, golden SAME — not re-captured (only the description / `$doc` text moved).
+
+#### 23.6i X-2's scenarios — a squad keeps its order across a split / merge *(`2026-11-17`, CE-8306, R-8371; same generator, same folder; [DESIGN_X2 §11](DESIGN_X2_Order_Reresolution.md))*
+
+| scenario | rows | what it judges |
+|---|---|---|
+| `agg-split-keeps-order` *(new)* | 6/6, golden SAME | SquadDefend within 3 s of the handover (2.25 s), never the stochastic play after; `UnitRoster.Count` 10; every man a subordinate, slot 1's the SquadLeader |
+| `agg-merge-keeps-order` *(new — `agg-merge-back` is a platoon, X2-I)* | 6/6, golden SAME | SquadDefend after the split; the merge at 209.25 s; StochasticUnitDefend within 3 s, never SquadDefend after; no `UnitRoster` left |
+| `agg-commanded-split` *(new)* | 5/5, golden SAME | PlatoonDefend orders the stochastic squad by kind; after the split SquadDefend, never the stochastic play again |
+| `agg-squad-holds-house` *(re-judged)* | golden re-captured, SAME | + SquadDefend within 3 s of the handover; + every man still inside 3 s after it (he starts ON his planned post). ⚠ the "20 s, every man inside" row moved to "within 5 m of the north wall": under fire (Red's first round 8.55 s) SquadDefend displaces men 1–4 m out of the north wall — F-X2-6; before X-2 the men ran no play at all, so the old row passed on inert men. ⛔ SUPERSEDED: that row as written in §23.6g |
+
+⚠ **PROGRESS Set is not expressible** — the squad's `ReportOutbox` / `CommandReportHistory` are not in the entity dump (measured: every path fails) ⇒ a grammar gap, judged instead by the men not leaving their posts.
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

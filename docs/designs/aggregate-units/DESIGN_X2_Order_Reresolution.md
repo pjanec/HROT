@@ -1,10 +1,10 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD (2026-11-17, agg-behaviors; lane decisions R-8353 … R-8363 "for the user's review"; cross-lane edits to agg-backend files named in §9)
-updated: 2026-11-17 (first version — design only, nothing built)
-current-answer: §0 the decision · §2 the claim table · §3–§6 the UML · §7 the sub-questions with leans · §8 slices and acceptance · §9 cross-lane edits · §10 findings
-stale-below: nothing.
-known-rot: none.
+build-state: BUILT (2026-11-17, agg-behaviors — S1…S4 built; S5 DROPPED by the user, R-8365; §11 is the as-built, read it first)
+updated: 2026-11-17 (as built: §11)
+current-answer: §11 AS BUILT (deviations, rails, scenarios) · then §0 the decision · §3–§6 the UML (as amended by §11) · §7 the sub-questions · §9 cross-lane edits · §10 findings
+stale-below: §8 row S5 and X2-F's "S5 measures it" — SUPERSEDED by R-8365 (§11). §2 claim 4 — SUPERSEDED (§11: the ingress applies a Simulation-phase publish TWO frames later).
+known-rot: §3 places PlayFor on TacticalIntentResolutionSystem — as built it is OrderReissue.PlayFor (R-8367). §4's frame numbers assume a one-frame ingress lag (as built: two, R-8368).
 known-conflict: DESIGN_Stochastic_Units_And_Resolution.md §13 X-1 / X-3 / D-P7 say a split goes ONE LEVEL at a time; the as-built split FLATTENS the composite to men (StochasticUnitFill.Leaves) — this design scopes X-2 to the squad echelon and files the conflict (§10 F-X2-1), it does not resolve it
 related-designs:
   - DESIGN_Stochastic_Units_And_Resolution.md — OWNS X-2 (§13), the split process D-P1…D-P7 (§16a, D-P6 the handover), SV-10 (§17.1: restart from the current situation; an untyped order cannot switch), the manager and switch as built (§23.4) and our routing (§23.5–§23.5c, F-5); this file answers X-2 only
@@ -283,6 +283,41 @@ Parallel rule (X2-G): the S2–S4 rails under `HROT_PARALLEL_SIM=1 HROT_READ_CHE
 | `Hrot/Subsystems/Hrot.CGF/CgfLogicPack.cs` | shared (agg-backend's constructor site) | `ChildDesignation = …`, `SwitchBlocked = OrderReissue.BlockReason`, the renamed fit system |
 | `Hrot/Engine/Hrot.Core/MapDefinitions/Behavior/SquadDefendParamsJsonDto.cs` | behaviors (the defence) | `MaxPosts` 8 → 13 |
 
+## 11. AS BUILT *(agg-behaviors, `2026-11-17` — read this first)*
+
+| slice | built | commit | rails *(each red-proved by one compiling mutation)* |
+|---|---|---|---|
+| **S1** (cross-lane, agg-backend files) | ✅ `Handover` → one `CmdAssignSubordinate` per released man at squad echelon, designation from `ChildDesignation` (`StochasticUnitFill.ChildDesignation`, the same leaf as `ChildType`); `Merge` removes `UnitRoster`; `ResolutionManagerSystem.SwitchBlocked` (automatic split AND merge wait; the pin goes); the physical FALLBACK rows (`Resolve` consults them only when `OrderResolver` returns NoBehaviour); `Plays.Hold`, `IsStochasticPlay`, `StochasticPlays` | `5a56af0f2` | `UnitResolutionRails.X2B_*` ×2, `X2D_*` · `ResolutionRoutingTableTests.X2C2_*`, `X2E_*` · `BehaviorParamsValidationTests.X2C2_*` (every physical row fulfils its order and the name rule finds nothing) |
+| **S2** | ✅ the Roslyn rename (stdio — 3 files, grep agrees); `UnitResolutionFitSystem`'s ORDER + REACTION arms; `OrderReissue` (`PlayFor`, `BlockReason`, `ParamsFor`/`Project`, `WithPlannedPosts`); `ReportRefusal(repo, entity, origin)`; `CgfLogicPack` wires `ChildDesignation` + `SwitchBlocked` (the fit system built before the manager, so both ask one registry) | `b0c32fe58` | `SquadManeuverTests.X2_*` ×6 (split: same id, ONE start, rostered first · merge: projected · paused · stale reaction · no play ⇒ cleared + TaskFailed · 0 B over 200 frames) |
+| **S3** | ✅ `GaveRouted` / `StillRoutedRunning` match EITHER routed form (the running check by `RequestId`); `CompanyBehaviors` / `PlatoonConvoyBehavior` off `KeyFor` (left in place, unreferenced — public API) | `b0c32fe58` | `X2H_ACommandersRoutedCheck_SurvivesTheMembersSplit_ByRequestId` |
+| **S4** | ✅ the re-issued `SquadDefend` carries `PlannedPosts` as D-2f `Posts`; `MaxPosts` 8 → 13 | `b5b157e6c` | `X2F_ASplitSquadsSquadDefend_StartsFromItsPlannedPosts_NoAsk_AndReportsSet` |
+| **S5** | ⛔ **DROPPED** — 🔒 user, `2026-11-17`: *"Breaking replay is no issue."* (R-8365): MaxPosts goes to 13 regardless; an old recording replayed mid-`SquadDefend` may mis-read its blackboard block — accepted. ⛔ SUPERSEDED: X2-F's "S5 measures it … else keep 8" | — | — |
+
+**Deviations from §2–§7, each with its reason**
+
+| design said | as built | why |
+|---|---|---|
+| wanted = `PlayFor(…)`, re-issue when running ≠ wanted | the FIT test is the play's FAMILY vs the unit's resolution (`IsStochasticPlay` by hash) — only a misfit calls `PlayFor` (R-8366) | ⭐ "running ≠ wanted" would re-resolve a physical squad that never switched (`SquadHold` ≠ `InfantrySquadHold`), breaking "physical behaviour unchanged"; and `Resolve` builds strings — the family test is one hash compare, 0 B |
+| `PlayFor` on `TacticalIntentResolutionSystem` | `OrderReissue.PlayFor` (R-8367) | `BlockReason` (Hrot.AI.Behaviors) needs it and cannot see Hrot.CGF — ONE implementation where both reach it |
+| claim 4: an assign published in frame N is applied before the reconciler runs in N+1 | ⛔ measured false: the kernel runs Input → swap → Simulation (`ModuleHostKernel.cs:654, :715`), so a Simulation-phase publish is read by the ingress TWO frames later. ⇒ the arm waits while a request for the unit is ON THE BUS (`ReadManaged<AssignBehaviorEvent>` / `Read<ClearBehaviorEvent>`) — stateless, seek-safe (R-8368) | without it the S2-c rail measured two starts per switch |
+| `BlockReason`: an order with no kind / no row ⇒ wait | the same, **squad echelon only** (R-8369) | a platoon's Defend has no physical row (no `InfantryPlatoon` class) — unscoped, every automatic platoon split under a Defend would have waited forever (X2-I) |
+| the merge projects into "the kind's `[Order]` DTO" | into the TARGET play's own params DTO (`ParamsDtoRegistry.TryGetBehavior`) (R-8370) | kinds with no `[Order]` DTO (Bound, ClearBuilding, …) route to a play that has one; the target's DTO is what its strict read accepts |
+| X2-E: a stale reaction is "CLEARED at origin Reaction" | cleared at origin **Self**, and the same for a stale task at origin Sop / Self (R-8364) | a Reaction-origin clear is gated like a reaction — refused against a MORE urgent running one; a Self clear ends the reaction as if it ended itself (a paused task resumes) |
+| `agg-merge-keeps-order` *or* re-judge `agg-merge-back` | a NEW scenario (R-8371) | `agg-merge-back` is a PLATOON — X-2 is squad-only (X2-I) |
+
+**Scenarios** (R-4277, editor tier, each in a fresh process, golden captured then SAME in a second; main design §23.6i): `agg-split-keeps-order` 6/6 ·
+`agg-merge-keeps-order` 6/6 (new; `agg-merge-back` is a platoon) · `agg-commanded-split` 5/5 · `agg-squad-holds-house` re-judged (+ SquadDefend within 3 s, + every man
+still inside 3 s after the handover; the 20 s row moved to "within 5 m of the north wall" — F-X2-6). ⚠ "PROGRESS Set" (§8) is not expressible: `ReportOutbox` is not in the
+entity dump — judged by the men not leaving their posts instead. ⚠ A merge's stray TaskFailed (F-X2-5) is not exercised: no scenario merges a COMMANDED squad.
+
+**Gates:** S1 `UnitResolutionRails` 11/0, `ResolutionRoutingTableTests` 8/0 · S2–S4 `SquadManeuverTests` + `CgfLogicPackTests` + `BehaviorParamsValidationTests` +
+`TacticalIntentResolutionSystemTests` (+ `ScenarioRulesTests`, `BasicInfantrySopTests`) 545/0 plain; under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`
+541/4 — the 4 are `BasicInfantrySopTests`' soldier SOP (an undeclared `EntityInfo` read in `EqsTacticsNodes.Engageable`, no X-2 code on the stack; not proved at the base).
+
+**Findings while building:** F-X2-5, F-X2-6 (§10).
+
+**Lane decisions:** R-8364 … R-8371 (above) · R-8365 is the user's ruling.
+
 ## 10. Findings *(measured while designing)*
 
 | # | finding | where it goes |
@@ -290,4 +325,6 @@ Parallel rule (X2-G): the S2–S4 rails under `HROT_PARALLEL_SIM=1 HROT_READ_CHE
 | **F-X2-1** | ⛔ **the split FLATTENS the composite**: a stochastic platoon splits straight into its 30 men (`StochasticUnitFill.Leaves`), not into 3 squads — contrary to X-5 / D-P7 (*"one level at a time"*). Its men exceed `UnitRoster.Capacity` (16) and `PlatoonDefend` orders squads, so no roster or order can be handed to a split platoon | to agg-backend (a one-level split: a platoon's children are stochastic SQUADS, each splitting by its own trigger) — X2-I waits on it |
 | **F-X2-2** | ⛔ **at Physical the routing table refuses Defend and BreakContact for a squad** (no `InfantrySquadDefend`): today it never matters because commanders `Assign` physical plays by name (R-8305), but any `Order.Defend` to a physical squad — an operator's included — is refused | X2-C2 (R-8302's rows) |
 | **F-X2-3** | ⚠ a commander's routed check re-sends after its member switches (a new id ⇒ the defenders restart, CE-2304) | X2-H |
+| **F-X2-5** *(as built)* | ⚠ on a MERGE the physical play ticks once more after its men left (the reconciler's re-issue reaches the ingress two frames later): `SquadManeuverRunner.Tick` returns Failure on an empty roster, so the play ENDS before the stochastic one starts — the re-issued assign then lands in an empty slot and the order goes on (same id); a commander may hear a stray PROGRESS TaskFailed | ours, open — measured in `agg-merge-keeps-order` (§11) |
+| **F-X2-6** *(as built)* | ⚠ `agg-squad-holds-house`: once the men RUN SquadDefend (X-2), Red's fire from 480 m (first round 8.55 s) displaces 4 of them 1–4 m out of the house's north wall by 10–14 s (D-2 displacement picks a point outside). Before X-2 the men ran no play and stood still | the physical defence (behaviors) — whether a displaced defender may leave the building |
 | **F-X2-4** | ⚠ once a split forms a roster, a merge that left the unit's `UnitRoster` behind (even at Count 0 — the `DestructionOrder` cascade empties it, never removes it) would silently drop the unit from the staff composer's stochastic arm (no SITREP / Set / TaskFailed) | X2-B |

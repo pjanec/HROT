@@ -32,7 +32,7 @@ commander's sensors and live men. Links: [main design](https://github.com/pjanec
 | DP3-B (ours) | ✅ `UnitPostPlanningSystem`, registered in `CgfLogicPack` right before `ResolutionManagerSystem` | `Hrot.CGF/Systems/UnitPostPlanningSystem.cs` |
 | DP3-B (agg-backend) | ✅ built by agg-backend `b0d53162e` (R-4286): Planning waits for `Ready` or `DeadlineSeconds` (10 s) for a unit that HAS `PlannedPosts`; forced never waits; a withdrawn trigger removes the component. ⛔ SUPERSEDED: *"not built — the posts are written but not consumed"* (true until the merge `6e4e3f1c0`) | `UnitResolution.cs:245-268` |
 | DP3-D ① | ✅ the manager writes `_posts[k] = post.Point` for each `TryGet(k)` over the first `Count` live slots, then `Materialise` (one struct, unified on ours at the merge `6e4e3f1c0`) | `UnitResolution.cs:259-266` |
-| DP3-D ② | ⛔ not built (waits on X-2) | — |
+| DP3-D ② | ✅ built with X-2 S4 (`2026-11-17`, CE-8306, R-8359): the reconciler's re-issued `SquadDefend` carries `PlannedPosts` as D-2f `Posts` (`OrderReissue.WithPlannedPosts`); `SquadDefendPostJsonDto.MaxPosts` 8 → 13. 🔒 User: *"Breaking replay is no issue."* — an old recording replayed mid-`SquadDefend` may mis-read its blackboard block, accepted (R-8365). Live in `agg-squad-holds-house`: SquadDefend at the handover, every man still inside the house 3 s later (no ask). ⛔ SUPERSEDED: *"not built (waits on X-2)"* · *"whether the blackboard is recorded is NOT measured"* (it is — DESIGN_X2 claim 13) | `UnitResolutionFitSystem.cs`, `OrderReissue.cs`; [DESIGN_X2 §11](DESIGN_X2_Order_Reresolution.md) |
 
 ### 9a. ⭐ The end-to-end verdict *(`2026-11-17`, `exp/agg-behaviors` after merging agg-backend `b0d53162e`; design §23.6g, R-8351)*
 
