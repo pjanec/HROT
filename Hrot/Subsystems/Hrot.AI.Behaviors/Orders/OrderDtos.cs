@@ -75,6 +75,12 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>The lead's speed (m/s); 0 = 10 m/s.</summary>
         [JsonPropertyName("Speed")]
         public float Speed;
+
+        /// <summary>⭐ <c>CE-9012</c> — an authored ROUTE the lead follows (as <c>FollowRoute</c> does) instead of routing to <see cref="Destination"/> itself;
+        /// none ⇒ the lead routes. With a route the lead drives our own path (the route), whatever <see cref="Mode"/> says. A platoon's convoy sends it.</summary>
+        [JsonPropertyName("Route")]
+        [Fdp.Toolkit.Behavior.Attributes.MapPickableEntity("road_graphs")]
+        public Fdp.Toolkit.Replication.EntityLink Route;
     }
 
     /// <summary>

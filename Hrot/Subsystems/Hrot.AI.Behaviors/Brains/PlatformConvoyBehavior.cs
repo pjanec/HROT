@@ -35,6 +35,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public long LeadPacked;
             public Vector3 Destination;
+            /// <summary>⭐ CE-9012 — the authored route the lead follows (its network id); 0 = the lead routes to <see cref="Destination"/>.</summary>
+            public int RouteNet;
             public float Gap, Speed;
             public byte Rank, Mode, Priority;
         }
@@ -69,6 +71,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Gap = order.Gap > 0f ? order.Gap : CarKinem.Systems.ConvoyLeadSystem.DefaultGap,
                 Speed = order.Speed > 0f ? order.Speed : DefaultSpeed,
                 Rank = (byte)Math.Clamp(order.Rank, 0, ConvoyTrail.MaxRanks - 1), Mode = (byte)order.Mode, Priority = order.Priority ? (byte)1 : (byte)0,
+                RouteNet = order.Route.IsNone ? 0 : order.Route.Ref.NetworkId,
             };
         }
 
@@ -120,6 +123,14 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 if (s.Issued == 0)
                 {
+                    if (p.RouteNet > 0)
+                    {
+                        // ⭐ CE-9012 — an authored route (a platoon's convoy): the lead follows it as FollowRoute does — the one channel writer
+                        if (!world.HasComponent<LocomotionChannel>(self)) return NodeStatus.Failure;
+                        CgfNodes.WriteFollowRoute(world, self, CgfNodes.TryFindRouteTrajectory(world, p.RouteNet, out int trajectory) ? trajectory : 0, p.RouteNet, loop: false);
+                        s.Issued = 1;
+                        return NodeStatus.Running;
+                    }
                     bool traffic = TrafficRuns(world);
                     if ((ConvoyMode)p.Mode == ConvoyMode.Traffic && !traffic)
                         Hrot.AI.Behaviors.Logging.BehaviorLog.Warn(self, world, "PlatformConvoy: Mode Traffic, but no SUMO traffic runs here (a SUMO net and the scenario's traffic settings) — the lead drives our own route.");

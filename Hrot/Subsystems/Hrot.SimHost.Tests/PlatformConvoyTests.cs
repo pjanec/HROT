@@ -80,6 +80,22 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        /// <summary>⭐ <c>CE-9012</c> — a convoy given an authored ROUTE: the lead follows it (the one <c>CgfNodes.WriteFollowRoute</c> writer, as <c>FollowRoute</c>
+        /// does) instead of routing to the destination itself. 🔴 Red-proof: the lead ignoring <c>RouteNet</c> ⇒ it asks a MoveTo ⇒ red.</summary>
+        [Fact]
+        public unsafe void ALeadGivenARoute_FollowsIt_AsFollowRouteDoes()
+        {
+            var w = World();
+            var lead = Vehicle(w, Vector3.Zero);
+            var p = Params(default, 0, ConvoyMode.Route); p.RouteNet = 9811;
+            var s = default(PlatformConvoyBehavior.ConvoyState);
+            Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref p, ref s, lead, w));
+            var ch = w.GetComponentRO<LocomotionChannel>(lead);
+            Assert.Equal(NavigationConstants.ActionIdFollowRoute, ch.ActiveAction);
+            Assert.Equal(9811, (*(Fdp.Toolkit.Navigation.FollowRouteParams*)ch.Params).RouteEntityId);
+            w.Dispose();
+        }
+
         [Fact]
         public void AFollower_JoinsBehindItsLead_AndIsDoneWhenTheLeadArrives()
         {
