@@ -10,8 +10,12 @@ namespace Fdp.Toolkit.Aggregate
     /// <c>SetResolutionPolicy</c> verb (a trigger, the game master) or authored in the scenario; saved (default data policy) and recorded.
     /// ⭐ Every number is the same name and unit as <see cref="ResolutionBands"/>; <b>a field ≤ 0 means "the SV-9 default"</b> (an authored file that
     /// holds only some of them is complete; to ask for "none" write a tiny positive value). Read through <see cref="ResolutionPolicies.BandsOf"/>.
-    /// ⭐ The detail areas (SV-15: a village the exercise is about — always physical) are up to <see cref="MaxAreas"/> authored entity references;
-    /// ⚠ the manager does not read them yet (no field in <see cref="ResolutionBands"/>; a note to agg-backend). ⭐ <see cref="FrameBudgetMs"/> is the
+    /// ⭐ The detail areas (SV-15: a village the exercise is about — always physical) are up to <see cref="MaxAreas"/> AUTHORED entity references —
+    /// <see cref="EntityLink"/>s (CE-8304, R-8380: a person names them, so the file keeps HOW — a GUID / <c>@Key</c> — and the scenario loader resolves
+    /// them, <c>DESIGN_Scenario_Rules.md</c> SR-140 as amended by S9′, the <c>RoutePlan.Waypoints[].HoldUnit</c> precedent; never a network id in the file);
+    /// ⚠ the manager does not read them yet (no field in <see cref="ResolutionBands"/>; a note to agg-backend).
+    /// ⭐ <see cref="QuietSeconds"/> / <see cref="DeadlineSeconds"/> are <see cref="SimDuration"/>s (S0, the <see cref="ResolutionBands"/> precedent);
+    /// their memory and JSON are a float's, so a saved file and the verb's JSON read the same. ⭐ <see cref="FrameBudgetMs"/> is the
     /// performance governor's cap (SV-8) — DOCUMENTED and DORMANT: nothing reads it.
     /// </summary>
     [ComponentId(GlobalComponentIds.ResolutionPolicy)]
@@ -24,27 +28,34 @@ namespace Fdp.Toolkit.Aggregate
         public float PhysicalBand;
         public float LeadMetres;
         public float MergeMargin;
-        public float QuietSeconds;
+        public SimDuration QuietSeconds;
         public float ForcedRange;
-        public float DeadlineSeconds;
+        public SimDuration DeadlineSeconds;
         /// <summary>SV-8, dormant: the frame budget (ms) a future governor would merge the quietest units to keep. Nothing reads it.</summary>
         public float FrameBudgetMs;
         /// <summary>How many of <see cref="Area0"/>… are set.</summary>
         public int AreaCount;
-        // explicit fields, not an InlineArray: the scenario serializer's EntityRef remap walks fields
-        public EntityRef Area0, Area1, Area2, Area3, Area4, Area5, Area6, Area7;
+        // explicit fields, not an InlineArray: the scenario loader's link resolution (and the EntityRef remap) walks fields
+        public EntityLink Area0, Area1, Area2, Area3, Area4, Area5, Area6, Area7;
 
-        /// <summary>The detail area in slot <paramref name="i"/> (none when out of range).</summary>
-        public readonly EntityRef AreaAt(int i) => i switch
+        /// <summary>The detail area in slot <paramref name="i"/> as authored (none when out of range).</summary>
+        public readonly EntityLink LinkAt(int i) => i switch
         {
-            0 => Area0, 1 => Area1, 2 => Area2, 3 => Area3, 4 => Area4, 5 => Area5, 6 => Area6, 7 => Area7, _ => EntityRef.None,
+            0 => Area0, 1 => Area1, 2 => Area2, 3 => Area3, 4 => Area4, 5 => Area5, 6 => Area6, 7 => Area7, _ => EntityLink.None,
         };
 
-        /// <summary>Appends <paramref name="area"/> (once); <c>false</c> when full or none.</summary>
-        public bool AddArea(EntityRef area)
+        /// <summary>The detail area in slot <paramref name="i"/> — its live answer (none when out of range).</summary>
+        public readonly EntityRef AreaAt(int i) => LinkAt(i).Ref;
+
+        /// <summary>Appends <paramref name="area"/> (once — the same live entity, or the same authored form); <c>false</c> when full or none.</summary>
+        public bool AddArea(EntityLink area)
         {
             if (area.IsNone) return false;
-            for (int i = 0; i < AreaCount; i++) if (AreaAt(i).Equals(area)) return true;
+            for (int i = 0; i < AreaCount; i++)
+            {
+                var have = LinkAt(i);
+                if (area.Ref.IsNone ? have.Spec == area.Spec : have.Ref.Equals(area.Ref)) return true;
+            }
             if (AreaCount >= MaxAreas) return false;
             switch (AreaCount)
             {
@@ -59,7 +70,7 @@ namespace Fdp.Toolkit.Aggregate
         public void ClearAreas()
         {
             AreaCount = 0;
-            Area0 = Area1 = Area2 = Area3 = Area4 = Area5 = Area6 = Area7 = EntityRef.None;
+            Area0 = Area1 = Area2 = Area3 = Area4 = Area5 = Area6 = Area7 = EntityLink.None;
         }
 
         /// <summary>The bands this policy says: each field > 0, else SV-9's default.</summary>

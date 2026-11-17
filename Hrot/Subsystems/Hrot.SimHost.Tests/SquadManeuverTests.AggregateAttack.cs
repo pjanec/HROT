@@ -5,11 +5,15 @@ using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Aggregate;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Fdp.Toolkit.Replication;
 using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Squad.Command;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.AI.Behaviors.Orders;
+using Hrot.CGF.Systems;
 using Hrot.Core.Tkb;
 using Hrot.Map.Definitions.Behavior;
 using Xunit;
@@ -314,6 +318,88 @@ namespace Hrot.SimHost.Tests
             p.Ticks(6); p.Set(p.Second); p.Ticks(5);
             Assert.True(p.OrdersTo(p.Second, BehaviorNames.PlatoonSupportByFire) > 0 && p.OrdersTo(p.First, BehaviorNames.PlatoonAttack) > 0);
             Assert.True(NoRoutedOrder(p.S, p.First) && NoRoutedOrder(p.S, p.Second));
+        }
+
+        /// <summary>⭐⭐⭐ <c>ST-3 ACCEPTANCE, COMPANY-ROUTED</c> (design §23.5 "As built — ST-3" acceptance row; R-8315, CE-8302 / R-8341; CE-8305) — a PHYSICAL company's
+        /// <c>CompanyAttack</c> over one STOCHASTIC and one PHYSICAL platoon, end to end through the receiver's resolution (<see cref="TacticalIntentResolutionSystem"/>, the routing
+        /// table): ① the stochastic platoon as the BASE OF FIRE is ordered <c>Order.SupportByFire</c> (HoldBack, on the company's support position 250 m short), RUNS
+        /// <c>StochasticUnitAttack</c>, walks onto that position and reports Set there; its Set orders the physical ASSAULT platoon <c>PlatoonAttack</c>, which RUNS it. ② the roles
+        /// swapped: the stochastic platoon as the ASSAULT runs <c>StochasticUnitAttack</c> on the objective (no HoldBack), the physical base of fire runs <c>PlatoonSupportByFire</c>.
+        /// ⭐ Neither crossed: the stochastic member never ran (or was ordered) a physical play, the physical member never ran the stochastic play nor got an <c>Order.*</c>.
+        /// ✅ Red-proof: <c>CommandOrders.Route</c> sending the PHYSICAL payload/play to every member ⇒ the stochastic member runs a physical play ⇒ red.</summary>
+        [Fact]
+        public void ST3_Acceptance_APhysicalCompanyAttack_OverAStochasticAndAPhysicalPlatoon_EachRunsItsOwnPlay_NoneCrossed()
+        {
+            int stochasticPlay = BehaviorHash.FromName(ResolutionRoutingTable.Plays.Attack);
+            int[] physicalPlays = { BehaviorHash.FromName(BehaviorNames.PlatoonAttack), BehaviorHash.FromName(BehaviorNames.PlatoonSupportByFire) };
+            foreach (bool stochasticIsTheBaseOfFire in new[] { true, false })
+            {
+                var c = new Company();
+                var repo = c.S.Repo;
+                Entity sto = stochasticIsTheBaseOfFire ? c.Second : c.First, phy = stochasticIsTheBaseOfFire ? c.First : c.Second;
+                AggregateTestUnits.Make(repo, sto, slots: 30, up: 30);
+                repo.AddComponent(sto, new UnitEntity());
+                repo.AddComponent(sto, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 6101 });
+                repo.SetDisType(sto, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+                repo.SetDisType(phy, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+                foreach (var m in new[] { sto, phy }) { repo.AddComponent(m, new BehaviorState()); repo.SetAuthority<BehaviorState>(m, true); }
+                var composer = new StaffComposerSystem();
+                var resolver = new TacticalIntentResolutionSystem(new TacticalIntentMapperRegistry(), c.S.Registry);
+                var mover = new StochasticUnitMovementSystem();
+                int seen = 0;
+                bool stoRanPhysical = false, phyRanStochastic = false;
+                void Frame()
+                {
+                    c.S.Pause(1.0 - 0.016);                                                                       // a second of sim time a frame: the follower and the staff's delays move
+                    c.Ticks(1);
+                    mover.Execute(repo, 1f);
+                    composer.Execute(repo, 0.016f);
+                    repo.FlushCommandBuffers();
+                    var all = c.S.Orders;
+                    for (; seen < all.Count; seen++)                                                              // every member's orders through ITS receiver's resolution
+                        if (all[seen].Entity.Equals(sto) || all[seen].Entity.Equals(phy)) { repo.Bus.PublishManaged(all[seen]); repo.Bus.SwapBuffers(); resolver.Execute(repo, 0.016f); }
+                    int hs = repo.GetComponentRO<BehaviorState>(sto).ActiveBehaviorHash, hp = repo.GetComponentRO<BehaviorState>(phy).ActiveBehaviorHash;
+                    if (Array.IndexOf(physicalPlays, hs) >= 0) stoRanPhysical = true;
+                    if (hp == stochasticPlay) phyRanStochastic = true;
+                }
+
+                Vector3 o1 = new(0f, 400f, 0f);
+                CompanyAttack(c, 0f, o1);
+                if (stochasticIsTheBaseOfFire)
+                {
+                    for (int i = 0; i < 8; i++) Frame();
+                    var support = LastOrder<AttackOrder>(c.S, sto, "Order.SupportByFire");
+                    Assert.True(support.HoldBack, "① the stochastic base of fire is ordered by KIND, HoldBack");
+                    float standOff = Vector2.Distance(new Vector2(support.Position.Local.X, support.Position.Local.Y), new Vector2(o1.X, o1.Y));
+                    Assert.True(MathF.Abs(standOff - CompanyAttackBehavior.SupportStandOffMetres) < 1f, "① on the company's support position (CE-8302): " + standOff);
+                    Assert.Equal(stochasticPlay, repo.GetComponentRO<BehaviorState>(sto).ActiveBehaviorHash);       // its receiver runs the stochastic play
+                    Assert.Equal(0, c.OrdersTo(phy, BehaviorNames.PlatoonAttack));                                   // the assault waits for the base of fire's Set
+                    for (int i = 0; i < 900 && c.OrdersTo(phy, BehaviorNames.PlatoonAttack) == 0; i++) Frame();      // it walks onto the support position, reports Set, the company orders the assault
+                    Assert.True(c.OrdersTo(phy, BehaviorNames.PlatoonAttack) > 0, "① the stochastic base of fire's own Set ordered the physical assault");
+                    var at = Where(repo, sto);
+                    Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(support.Position.Local.X, support.Position.Local.Y)) < 30f, $"① it stands on its support position: {at}");
+                    Frame(); Frame();
+                    Assert.Equal(BehaviorHash.FromName(BehaviorNames.PlatoonAttack), repo.GetComponentRO<BehaviorState>(phy).ActiveBehaviorHash);   // the physical member RUNS its play
+                }
+                else
+                {
+                    for (int i = 0; i < 8; i++) Frame();
+                    Assert.True(c.OrdersTo(phy, BehaviorNames.PlatoonSupportByFire) > 0, "② the physical base of fire gets its play");
+                    Assert.Equal(BehaviorHash.FromName(BehaviorNames.PlatoonSupportByFire), repo.GetComponentRO<BehaviorState>(phy).ActiveBehaviorHash);
+                    c.Set(phy);
+                    for (int i = 0; i < 8 && OrdersOf(c.S, sto, "Order.Attack") == 0; i++) Frame();
+                    var attack = LastOrder<AttackOrder>(c.S, sto, "Order.Attack");
+                    Assert.False(attack.HoldBack, "② the stochastic ASSAULT closes");
+                    Assert.True(Near(attack.Position, o1), "② on the objective");
+                    Frame(); Frame();
+                    Assert.Equal(stochasticPlay, repo.GetComponentRO<BehaviorState>(sto).ActiveBehaviorHash);
+                }
+                // ⭐ none crossed — by the orders AND by what each receiver ran
+                Assert.Equal(0, c.OrdersTo(sto, BehaviorNames.PlatoonAttack) + c.OrdersTo(sto, BehaviorNames.PlatoonSupportByFire));
+                Assert.True(NoRoutedOrder(c.S, phy), "the physical member never got an Order.*");
+                Assert.False(stoRanPhysical, "the stochastic member never ran a physical play");
+                Assert.False(phyRanStochastic, "the physical member never ran the stochastic play");
+            }
         }
 
         /// <summary>⭐ <c>ST-3</c> (R-8315) — <c>CompanyDefend</c>'s counter-attack: the strong reserve is a STOCHASTIC platoon ⇒ <c>Order.Attack</c> (a position attack on the lost block's point); its Set ⇒ it defends the

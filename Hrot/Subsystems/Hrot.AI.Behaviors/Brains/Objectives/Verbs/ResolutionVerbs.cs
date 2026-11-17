@@ -16,7 +16,10 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
     /// </summary>
     public struct SetResolutionPolicyParams : IActionArgsCheck
     {
-        public float PhysicalBand, LeadMetres, MergeMargin, QuietSeconds, ForcedRange, DeadlineSeconds, FrameBudgetMs;
+        public float PhysicalBand, LeadMetres, MergeMargin, ForcedRange, FrameBudgetMs;
+        /// <summary>⭐ S0 (CE-8304) — lengths of sim time, as on the component; the JSON is the same number of seconds.</summary>
+        public SimDuration QuietSeconds, DeadlineSeconds;
+        /// <summary>A detail area, kept AS AUTHORED on the component (CE-8304, R-8380); a bare id is stored as the target's GUID.</summary>
         public EntityLink Area;
         public bool ClearAreas;
 
@@ -56,11 +59,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             {
                 if (!w.IsAlive(env)) return;
                 var live = w.HasComponent<ResolutionPolicy>(env) ? w.GetComponentRO<ResolutionPolicy>(env) : default;
-                Apply(ref live, in args);
+                var serial = args;
+                serial.Area = Authored(w, args.Area);   // the target's GUID is read here, serially (no cross-entity read in the rule phase)
+                Apply(ref live, in serial);
                 if (w.HasComponent<ResolutionPolicy>(env)) w.SetComponent(env, live); else w.AddComponent(env, live);
                 var b = live.Bands();
                 Fdp.Core.Logging.FdpLog<Log>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                    $"resolution policy: band {b.PhysicalBand} m, lead {b.LeadMetres} m, margin {b.MergeMargin} m, quiet {b.QuietSeconds} s, forced {b.ForcedRange} m, {live.AreaCount} detail area(s) (asked by {self})"));
+                    $"resolution policy: band {b.PhysicalBand} m, lead {b.LeadMetres} m, margin {b.MergeMargin} m, quiet {(float)b.QuietSeconds} s, forced {b.ForcedRange} m, {live.AreaCount} detail area(s) (asked by {self})"));
             });
             return NodeStatus.Success;
         }
@@ -76,7 +81,18 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             if (p.DeadlineSeconds > 0f) live.DeadlineSeconds = p.DeadlineSeconds;
             if (p.FrameBudgetMs > 0f) live.FrameBudgetMs = p.FrameBudgetMs;
             if (p.ClearAreas) live.ClearAreas();
-            if (!p.Area.Ref.IsNone) live.AddArea(p.Area.Ref);
+            if (!p.Area.IsNone) live.AddArea(p.Area);
+        }
+
+        /// <summary>⭐ CE-8304 (R-8380) — the link the component keeps: as authored (a GUID / <c>@Key</c>); a BARE id (a live pick, an id typed in)
+        /// becomes the target's stable GUID, so the saved scenario never holds a network id (S9′) — unless the target has none (then as given).</summary>
+        public static EntityLink Authored(EntityRepository world, EntityLink area)
+        {
+            if (area.Ref.IsNone || !area.Spec.IsNone || !world.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.EntityGuid>()) return area;
+            var e = area.Ref.Resolve(world);
+            if (e.IsNull || !world.HasComponent<Fdp.Toolkit.Scenario.EntityGuid>(e)) return area;
+            var guid = world.GetComponentRO<Fdp.Toolkit.Scenario.EntityGuid>(e).Value;
+            return guid == Guid.Empty ? area : new EntityLink(area.Ref, RefSpec.ByExact(guid));
         }
 
         private static NodeStatus Fail(EntityRepository world, Entity self, string reason)

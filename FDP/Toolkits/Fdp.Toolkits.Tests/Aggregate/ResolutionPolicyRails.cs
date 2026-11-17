@@ -66,21 +66,30 @@ namespace Fdp.Toolkits.Tests.Aggregate
             Assert.True(p.AreaAt(0).IsNone);
         }
 
-        /// <summary>⭐ SAVED with the scenario (the default data policy): the authored numbers survive a save and a load. ✅ Red-proof: the component marked
-        /// <c>NoScenario</c> ⇒ not serialised ⇒ red.</summary>
+        /// <summary>⭐ SAVED with the scenario (the default data policy): the authored numbers survive a save and a load — ⭐ CE-8304: and a detail area keeps its
+        /// AUTHORED form (a GUID), so the file names the entity by its stable GUID, never by a network id alone (S9′; the loader resolves it). ✅ Red-proofs: the component
+        /// marked <c>NoScenario</c> ⇒ not serialised ⇒ red · the areas back as <c>EntityRef</c> ⇒ the spec is lost ⇒ red.</summary>
         [Fact]
         public void ThePolicy_SurvivesASaveAndLoad()
         {
             using var src = Repo();
             var env = src.CreateEntity();
-            src.AddComponent(env, new ResolutionPolicy { PhysicalBand = 650f, LeadMetres = 250f, MergeMargin = 75f, QuietSeconds = 30f, ForcedRange = 220f, DeadlineSeconds = 6f, FrameBudgetMs = 12f });
+            var village = new System.Guid("5a1e0000-0000-4000-8000-000000008304");
+            var policy = new ResolutionPolicy { PhysicalBand = 650f, LeadMetres = 250f, MergeMargin = 75f, QuietSeconds = 30f, ForcedRange = 220f, DeadlineSeconds = 6f, FrameBudgetMs = 12f };
+            Assert.True(policy.AddArea(new EntityLink(new EntityRef(4321), RefSpec.ByExact(village))));
+            src.AddComponent(env, policy);
             var serializer = new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Fdp.Toolkits.Tests").Build();
             var dom = serializer.Serialize(src, new Fdp.Toolkit.Scenario.ScenarioHeader("Fdp.Toolkits.Tests"));
 
             using var fresh = Repo();
             serializer.Deserialize(fresh, dom);
             Assert.Equal(new ResolutionBands(650f, 250f, 75f, 30f, 220f, 6f), ResolutionPolicies.BandsOf(fresh));
-            foreach (var e in fresh.Query().With<ResolutionPolicy>().Build()) Assert.Equal(12f, fresh.GetComponentRO<ResolutionPolicy>(e).FrameBudgetMs);
+            foreach (var e in fresh.Query().With<ResolutionPolicy>().Build())
+            {
+                ref readonly var back = ref fresh.GetComponentRO<ResolutionPolicy>(e);
+                Assert.Equal(12f, back.FrameBudgetMs);
+                Assert.Equal((1, RefSpec.ByExact(village)), (back.AreaCount, back.LinkAt(0).Spec));   // the file carries the GUID the loader resolves
+            }
         }
 
         /// <summary>⭐ RECORDED: a mid-run change of the policy (the verb) comes back at the scrubbed frame. ✅ Red-proof: the component not added on the
