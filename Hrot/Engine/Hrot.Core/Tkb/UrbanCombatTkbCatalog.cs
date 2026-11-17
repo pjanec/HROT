@@ -379,7 +379,7 @@ namespace Hrot.Core.Tkb
         /// insurgent temperament, the soldier SOP and brain, wearing <paramref name="outfit"/>. 2003 (RPG + rifle) is its first instance; the Middle-East
         /// fighters are the same descriptors with another weapon set.
         /// </summary>
-        private static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
+        internal static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
         {
             var t = new TkbTemplate(name, type);
             Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
@@ -404,7 +404,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(suite);
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             bool rpg = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Atgm || m.AmmoGuid == MunitionTkbCatalog.TkbRpg7Rocket);
-            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow);   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
+            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow || m.AmmoGuid == (ulong)MunitionTkbCatalog.TkbThrowingHatchet);   // ⭐ CE-4650 — a thrown hatchet makes no report either   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
             t.AddDescriptor(silent ? Sounds(FootstepsRange, SoundSourceClass.Footsteps) : rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
                                 : Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
             t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011
