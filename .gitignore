@@ -87,6 +87,9 @@ assets/terrain/*
 !assets/terrain/roadblock-street/
 # CE-4623 AB-10 — the hand-authored FARM for the animals demo (scenarios/demos/animals/farm-under-fire): a pasture fence, a pig pen, an orchard — committed on purpose
 !assets/terrain/farm/
+# CE-10001 (air lane, R-10009) — the generated AIR-RANGE for the air-combat feature tests (scenarios/demos/air/ac-*): 2 x 2 km, written by
+#   scripts/gen-air-combat-scenarios.py from the same height function the checks are computed from — committed on purpose (~10 KB)
+!assets/terrain/air-range/
 # CE-6001 — the hand-planned CITY-BATTLE terrain (assets/terrain-plans/city-battle.plan.json, regenerate with HROT_GEN_CITY_BATTLE=1): committed on purpose, WITHOUT its kept source/ (ignored below)
 !assets/terrain/city-battle/
 # the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
