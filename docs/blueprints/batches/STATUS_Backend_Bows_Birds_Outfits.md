@@ -44,7 +44,6 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 | id | decision | what would change it |
 |---|---|---|
 | R-3098 | the existing wardrobes (everyday, child, elderly, police, soldier) keep their EXACT draw sequence, reading every colour from `OutfitCatalog` data (no palette left in code); a type with an authored `OutfitDto` is dressed by the OF-6 fixed-order slot draw. ⭐ Why: today's dresser consumes its random stream conditionally (`Outfits.cs:156-177`: suit, sleeves, skirt/shorts rolls depend on earlier rolls), so one generic slot draw would reshuffle every existing crowd and break the design's own acceptance ("the existing frames pixel-identical", §6). The OF-2 sex fix still consumes the old 50 % roll, so nothing else shifts | the user accepting a one-time reshuffle of every crowd's clothes ⇒ the everyday set becomes ordinary slot data and one draw procedure remains |
-
 | R-3099 | an arrow / bolt that hits an ANIMAL wounds it as any round does, and leaves NO stuck mark — animals have no part boxes in the hit test (S0); the round is torn down | an animal part kit in `BodyPartRay` (sim + ui) — filed as a follow-up |
 | R-3100 | the bow's silence (BW-9) is a property of the MUNITION (`Silent` on the arrow / bolt rows), checked in `SoundEmissionSystem` beside the two existing exceptions — a man who carries a bow AND a rifle is still heard when he fires the rifle | the user wanting a quiet SHOOTER type instead |
 
