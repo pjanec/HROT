@@ -162,21 +162,3 @@ review): [`DESIGN_X2_Order_Reresolution.md`](../../designs/aggregate-units/DESIG
 ⭐ **F-X2-1 (for you)** — a split FLATTENS to the leaves: `StochasticUnitFill.Leaves` (`StochasticUnitFill.cs:31-45`) expands the composite to MEN, so a stochastic
 platoon splits into 30 soldiers, not 3 squads — against X-5 / D-P7 ("one level at a time"). 30 men also exceed a roster's 16 and `PlatoonDefend` orders
 squads ⇒ X-2 is squad-only until a platoon splits into squads (stochastic or physical). Yours to decide / build; ours is unaffected at squad echelon.
-
-## `2026-11-17` (later) — CE-8307: the split goes ONE level (F-X2-1 closed) — what it changes in YOUR files
-
-🔒 User, `2026-11-17`: *"Please work on making stochastic platoon split into squads instead of 30 soldiers."* — and this lane was told to merge your
-lane as needed, so the edits below were made here (each named in its commit). Design: [`DESIGN_Split_One_Level.md`](../../designs/aggregate-units/DESIGN_Split_One_Level.md).
-
-| ⚠ we edited (cross-lane) | what |
-|---|---|
-| `Aggregate/UnitResolution.cs` | NEW `SplitChild` (a direct subordinate: key, type, designation, leaf range, is-a-unit, echelon) · NEW `BusResolutionSwitch.Composition` host Func (null ⇒ the old per-leaf path, every rail of yours unchanged) · `Materialise`: a UNIT child (a platoon's squad) is ONE request carrying `AggregateUnit { Stochastic }` + its share of the table (`ShareOf`: the leaves under it, renumbered to its own composite), at its men's posts' centroid; `AggregateChild.Slot` = its KEY (no layout change) · `Handover`: a unit child gets its LATEST share (D-P4) · `Merge`: a unit child's table copied back slot for slot · the manager: a HELD unit child is never decided; an automatic merge waits while a unit child is split / splitting (leaves first); the PIN merges / cancels them first (one step) · `UnitSplits.RostersItsMen` REPLACED by `RostersItsChildren(n)` (the split's DIRECT children ≤ the roster) — the echelon is no longer read |
-| `Hrot.Core/Tkb/StochasticUnitFill.cs` | NEW `Composition`, `DirectChildren`, `SplitsIntoUnits`, `RostersItsChildren(repo, unit)` |
-| `Hrot.Core/Tkb/ResolutionRouting.cs` | two physical fallback rows: `(InfantryPlatoon, Physical, Defend) → PlatoonDefend`, `(InfantryCompany, …) → CompanyDefend` (+ the two classes in `EntityClassTable`) |
-| `CgfLogicPack.cs` | `Composition = StochasticUnitFill.Composition(…)` beside `ChildType` |
-| `Fdp.Toolkits.Tests/Aggregate/UnitResolutionRails.cs` | + `OL1`…`OL4`; `X2B_*` no longer asserts "a platoon assigns none" (a platoon's direct children are its squads now); `X2I_*` re-pinned on `RostersItsChildren` |
-
-| # | finding | where |
-|---|---|---|
-| F-SOL-1 | a split materialises no holding (vehicle / weapon system) at any echelon — before and after; the parent keeps its holdings, the children get none | yours (§12 / S-7) |
-| F-SOL-3 | `UnitCompositionDto` (`Gen.UnitComposition`, Fdp.Toolkits) has no reader beside `TkbCompositionDef` | coordinator (ruling 9) |

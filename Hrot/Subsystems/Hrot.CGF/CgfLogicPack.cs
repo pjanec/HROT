@@ -307,13 +307,6 @@ namespace Hrot.CGF
                     && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
                         ? Hrot.Core.Tkb.StochasticUnitFill.ChildDesignation(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType, slot)
                         : Fdp.Core.CommandHierarchy.TacticalDesignation.Undefined,
-                // ⭐⭐ CE-8307 (agg-behaviors, cross-lane; DESIGN_Split_One_Level.md) — a split goes ONE level: the composite's DIRECT subordinates
-                //   (a platoon's stochastic squads, each with its share of the table), never its flattened men (X-5 / D-P7)
-                Composition = static (repo, unit) =>
-                    repo.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && repo.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db
-                    && repo.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit)
-                        ? Hrot.Core.Tkb.StochasticUnitFill.Composition(db, repo.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(unit).TkbType)
-                        : null,
                 Lifecycle = lifecycle,
             }, gateOnAuthority)
             {
