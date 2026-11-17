@@ -141,7 +141,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
                     Results = new Fdp.Core.Collections.NativeArray<Fdp.Toolkit.Navigation.PathResult>(Fdp.Toolkit.Navigation.PathfindingBatchData.DefaultCapacity, Fdp.Core.Collections.Allocator.Persistent),
                 });
                 using var pool = new global::CarKinem.Trajectory.TrajectoryPoolManager();
-                var sys = new StochasticUnitMovementSystem { RemoteRoutes = () => pool, LocalNodeId = 3 };
+                var sys = new StochasticUnitMovementSystem { RemoteRoutes = () => pool, LocalNodeId = (Fdp.Core.NodeId)3 };
                 double t = 0;
                 void Step(float dt) { t += dt; w.SetSingleton(new GlobalTime { TotalTime = t }); sys.Execute(w, dt); w.Bus.SwapBuffers(); }
 
@@ -175,6 +175,32 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 Assert.Equal(UnitMoveState.OnRoute, w.GetComponentRO<AggregateUnit>(e).Move);
                 Assert.Equal(2, w.GetComponent<UnitRoute>(e).Points.Length);
                 w.GetSingleton<Fdp.Toolkit.Navigation.PathfindingBatchData>().Results.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// ⭐ F-19 (R-4286) — a stochastic unit stands ON THE TERRAIN: placed at an authored z of 0 on ground 12 m up, it is put on it; moved along
+        /// a route whose points carry z 0, it stays on it; a unit already on the ground is not re-written (its position untouched).
+        /// ✅ Red-proof: the ground pass skipped ⇒ z stays 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F19_AStochasticUnit_StandsOnTheTerrain()
+        {
+            var (w, e) = World(new Vector3(100, 100, 0), new AggregateUnit { Resolution = AggregateResolution.Stochastic, Width = 40f });
+            using (w)
+            {
+                w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+                    { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 1200, 1200], "groundZ": 12 }, "features": [] }
+                    """, "f19"));
+                var sys = new StochasticUnitMovementSystem();
+                sys.Execute(w, 1f);
+                Assert.Equal(12f, (float)w.GetComponentRO<SimTransform>(e).Position.Z, 3);          // placed: on the ground
+                ref var u = ref w.GetComponentRW<AggregateUnit>(e);
+                UnitMoves.Order(ref u, new WorldPoint(300, 100, 0), UnitFormation.Line, 0f, SimInstant.Zero);
+                for (int s = 0; s < 30; s++) sys.Execute(w, 1f);
+                var p = w.GetComponentRO<SimTransform>(e).Position;
+                Assert.True(p.X > 110f, "it moved");
+                Assert.Equal(12f, (float)p.Z, 3);                                                     // moved: still on the ground
             }
         }
 

@@ -35,10 +35,11 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 W.RegisterComponent<SimTransform>(); W.RegisterComponent<EntityInfo>(); W.RegisterComponent<AggregateUnit>();
                 W.RegisterComponent<UnitSlotTable>(); W.RegisterComponent<AggregateChild>(); W.RegisterComponent<EntityGuid>();
                 W.RegisterComponent<Health>(); W.RegisterComponent<GlobalTime>();
+                W.RegisterComponent<PlannedPosts>(); W.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
                 Manager = new ResolutionManagerSystem(Switch);
                 Unit = W.CreateEntity();
                 W.AddComponent(Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-                W.AddComponent(Unit, new EntityInfo { ForceId = ForceId.Friend });
+                W.AddComponent(Unit, new EntityInfo { ForceId = ForceId.Friend, Name = "Alpha" });
                 W.AddComponent(Unit, new EntityGuid(new Guid("8e5a1d3c-0000-4000-8000-000000008012")));
                 W.AddComponent(Unit, new AggregateUnit { Resolution = AggregateResolution.Stochastic, Width = 60f, Pin = pin });
                 var s = new UnitSlotTable { Count = 6 };
@@ -55,7 +56,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             public void Step()
             {
                 T += 1.0;
-                W.SetSingleton(new GlobalTime { TotalTime = T });
+                W.SetSingleton(new GlobalTime { TotalTime = T, FrameNumber = (long)T });   // one perception step a second (PerceptionClock)
                 Manager.Execute(W, 1f);
                 W.Bus.SwapBuffers();
                 foreach (var r in W.Bus.ReadManaged<EntityCreationRequest>())
@@ -116,7 +117,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             var victim = h.Children().Find(c => h.W.GetComponentRO<AggregateChild>(c).Slot == 0);
             h.W.DestroyEntity(victim);
             h.MoveEnemy(3000f);
-            for (int s = 0; s < 59; s++) h.Step();
+            for (int s = 0; s < (int)ResolutionBands.Default.QuietSeconds - 1; s++) h.Step();   // the policy's quiet time, less one step
             Assert.Equal(AggregateResolution.Physical, h.U.Resolution);          // not before the quiet time
             h.Step(); h.Step();
             Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
@@ -157,7 +158,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             for (int s = 0; s < 90; s++) h.Step();
             Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
             h.W.GetComponentRW<Fdp.Toolkit.Perception.Components.SensorContactList>(sensor).State[0] = (byte)Fdp.Toolkit.Perception.Components.SensorContactState.Lost;
-            for (int s = 0; s < 59; s++) h.Step();
+            for (int s = 0; s < (int)ResolutionBands.Default.QuietSeconds - 1; s++) h.Step();   // the policy's quiet time, less one step
             Assert.Equal(AggregateResolution.Physical, h.U.Resolution);          // the quiet time starts when he is lost
             h.Step(); h.Step();
             Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);
@@ -186,6 +187,122 @@ namespace Fdp.Toolkits.Tests.Aggregate
             {
                 h.Step();
                 Assert.Equal(AggregateResolution.Physical, h.U.Resolution);       // EVERY step: no merge-and-resplit flip-flop
+            }
+        }
+
+        /// <summary>
+        /// ⭐ F-23 (R-4286) — HYSTERESIS: with an enemy PARKED at 550 m (inside the split trigger, band + lead = 600, but outside the old merge
+        /// line, band + margin = 500) the unit splits ONCE and never merges back in 5 min (measured before: a flip every ~63 s). Beyond the trigger
+        /// + margin (800) it merges only after 30 s with nobody watching and no man in CONTACT (a child that saw an enemy within 2 steps).
+        /// ✅ Red-proof: the merge line back at band + margin ⇒ it merges at 550 m ⇒ red; the contact check skipped ⇒ it merges while a man fights ⇒ red.
+        /// </summary>
+        [Fact]
+        public void F23_AnEnemyParkedBetweenTheLines_SplitsOnce_AndAMergeWaitsForQuiet()
+        {
+            using var h = new Host();
+            h.MoveEnemy(550f);
+            int splits = 0; var was = h.U.Resolution;
+            for (int s = 0; s < 300; s++)
+            {
+                h.Step();
+                if (was == AggregateResolution.Stochastic && h.U.Resolution == AggregateResolution.Physical) splits++;
+                if (splits == 1) Assert.Equal(AggregateResolution.Physical, h.U.Resolution);    // once physical, it stays
+                was = h.U.Resolution;
+            }
+            Assert.Equal(1, splits);
+
+            h.MoveEnemy(750f);                                                    // beyond the trigger, inside trigger + margin: still no merge
+            for (int s = 0; s < 60; s++) { h.Step(); Assert.Equal(AggregateResolution.Physical, h.U.Resolution); }
+
+            h.MoveEnemy(900f);                                                    // beyond 800 — but a man is in contact for 40 s
+            var man = h.Children()[0];
+            h.W.AddComponent(man, new Fdp.Toolkit.Perception.Components.TargetMemory());
+            for (int s = 0; s < 40; s++)
+            {
+                h.Step();
+                ref var mem = ref h.W.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(man);
+                unsafe { mem.Count = 1; mem.EntityIds[0] = 42; mem.LastSeenTick[0] = (uint)h.T; }   // he sees an enemy, every step
+                Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            }
+            for (int s = 0; s < 29; s++) { h.Step(); Assert.Equal(AggregateResolution.Physical, h.U.Resolution); }   // quiet, but not yet 30 s
+            for (int s = 0; s < 3; s++) h.Step();
+            Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);         // 30 s quiet beyond the line: merged
+        }
+
+        /// <summary>⭐ F-22 (R-4286) — a split's children are NAMED <c>&lt;unit&gt;/&lt;composite slot&gt;</c> (checks, goldens and the UI name them).
+        /// ✅ Red-proof: the name not set ⇒ empty ⇒ red.</summary>
+        [Fact]
+        public void F22_TheChildrenAreNamed_UnitSlashSlot()
+        {
+            using var h = new Host();
+            h.MoveEnemy(500f);
+            h.Step(); h.Step();
+            var names = new List<string>();
+            foreach (var c in h.Children()) names.Add(h.W.GetComponentRO<EntityInfo>(c).Name);
+            names.Sort(StringComparer.Ordinal);
+            Assert.Equal(new[] { "Alpha/1", "Alpha/2", "Alpha/3", "Alpha/4", "Alpha/5" }, names);   // slot 6 is dead: never created
+        }
+
+        /// <summary>
+        /// ⭐ DP3-B (R-4286) — a unit being PLANNED (its planner added <see cref="PlannedPosts"/>) waits in Planning for Ready, then its men are
+        /// created AT the planned posts (DP3-D ①; the rest at the fallback); not Ready ⇒ the deadline (10 s) and the fallback; a FORCED split never
+        /// waits; a withdrawn trigger clears the plan; a unit nobody plans for goes at once (as before).
+        /// ✅ Red-proof: the wait skipped ⇒ Materialising on the first step ⇒ red; the planned points not used ⇒ the men on the line ⇒ red.
+        /// </summary>
+        [Fact]
+        public void DP3B_APlannedUnit_WaitsForThePlan_AndItsMenStandOnThePosts()
+        {
+            // ① Ready after 3 s: the men at the planned posts (two planned, three on the fallback)
+            using (var h = new Host())
+            {
+                var plan = new PlannedPosts();
+                h.W.AddComponent(h.Unit, plan);
+                h.MoveEnemy(500f);
+                for (int s = 0; s < 3; s++) { h.Step(); Assert.Equal(SplitStage.Planning, h.U.Splitting); }
+                ref var p = ref h.W.GetComponentRW<PlannedPosts>(h.Unit);
+                p.Set(0, new Vector3(11, 22, 3), default, PlannedPosts.PostedFlag); p.Set(1, new Vector3(44, 55, 6), default, PlannedPosts.PostedFlag); p.Count = 2; p.Ready = 1;
+                h.Step(); h.Step();
+                var at = new List<Vector3>();
+                foreach (var c in h.Children()) at.Add((Vector3)h.W.GetComponentRO<SimTransform>(c).Position);
+                Assert.Equal(5, at.Count);
+                Assert.Contains(new Vector3(11, 22, 3), at);
+                Assert.Contains(new Vector3(44, 55, 6), at);
+            }
+            // ② never Ready: the deadline, then the fallback
+            using (var h = new Host())
+            {
+                h.W.AddComponent(h.Unit, new PlannedPosts());
+                h.MoveEnemy(500f);
+                for (int s = 0; s < 9; s++) { h.Step(); Assert.Equal(SplitStage.Planning, h.U.Splitting); }
+                h.Step(); h.Step();
+                Assert.NotEqual(SplitStage.Planning, h.U.Splitting);
+                Assert.Equal(5, h.Children().Count);
+            }
+            // ③ forced (within 300 m): no wait at all
+            using (var h = new Host())
+            {
+                h.W.AddComponent(h.Unit, new PlannedPosts());
+                h.MoveEnemy(250f);
+                h.Step();
+                Assert.Equal(SplitStage.Materialising, h.U.Splitting);
+            }
+            // ④ withdrawn: the plan cleared
+            using (var h = new Host())
+            {
+                h.W.AddComponent(h.Unit, new PlannedPosts());
+                h.MoveEnemy(500f);
+                h.Step();
+                h.MoveEnemy(2000f);
+                h.Step();
+                Assert.Equal(SplitStage.NotSplitting, h.U.Splitting);
+                Assert.False(h.W.HasComponent<PlannedPosts>(h.Unit));
+            }
+            // ⑤ nobody plans: at once, as before
+            using (var h = new Host())
+            {
+                h.MoveEnemy(500f);
+                h.Step(); h.Step();
+                Assert.Equal(SplitStage.Materialising, h.U.Splitting);
             }
         }
 

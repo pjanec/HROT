@@ -33,7 +33,7 @@ namespace Fdp.Toolkits.Tests.Aggregate
             repo.AddComponent(env, new ResolutionPolicy { PhysicalBand = 650f, QuietSeconds = 20f });   // a PARTIAL authoring: the zeros are the defaults
             var b = ResolutionPolicies.BandsOf(repo);
             var d = ResolutionBands.Default;
-            Assert.Equal((650f, 20f), (b.PhysicalBand, b.QuietSeconds));
+            Assert.Equal((650f, 20f), (b.PhysicalBand, (float)b.QuietSeconds));   // QuietSeconds is a SimDuration (S0, agg-backend R-4286)
             Assert.Equal((d.LeadMetres, d.MergeMargin, d.ForcedRange, d.DeadlineSeconds), (b.LeadMetres, b.MergeMargin, b.ForcedRange, b.DeadlineSeconds));
 
             repo.SetComponent(env, new ResolutionPolicy { PhysicalBand = 800f, LeadMetres = 300f, MergeMargin = 50f, QuietSeconds = 5f, ForcedRange = 150f, DeadlineSeconds = 3f });

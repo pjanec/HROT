@@ -35,14 +35,14 @@ namespace Fdp.Toolkit.Aggregate
     public readonly record struct ResolutionBands(
         float PhysicalBand = 400f,       // a physical enemy nearer than this ⇒ physical (SV-9)
         float LeadMetres = 200f,         // D-P1's lead: the process's budget × the closing speed, widened into the trigger band
-        float MergeMargin = 100f,        // the hysteresis margin a merge needs beyond the band
-        float QuietSeconds = 60f,        // out of contact and out of the band this long before an automatic merge
+        float MergeMargin = 200f,        // ⭐ F-23 (R-4286) — the hysteresis a merge needs BEYOND THE SPLIT TRIGGER (band + lead + this ≈ 800 m)
+        SimDuration QuietSeconds = default,   // ⭐ S0 — a length of sim time (30 s, Default) · ⭐ F-23 — beyond it, unobserved and with no man in contact, this long before an automatic merge
         float ForcedRange = 300f,        // C-7: a physical enemy this near forces the fallback handover AT ONCE
-        float DeadlineSeconds = 10f)     // D-P5: the process's deadline (fallback posts are used from the start until D-P3's planners land)
+        SimDuration DeadlineSeconds = default)   // ⭐ S0 — a length of sim time (10 s, Default) · D-P5: the process's deadline (fallback posts are used from the start until D-P3's planners land)
     {
         /// <summary>SV-9's fixed bands. ⚠ Use THIS, never <c>new ResolutionBands()</c> — a record struct's parameterless <c>new()</c> is all
         /// zeros, not the defaults above (measured: every band 0, the manager never split).</summary>
-        public static ResolutionBands Default => new(400f, 200f, 100f, 60f, 300f, 10f);
+        public static ResolutionBands Default => new(400f, 200f, 200f, 30f, 300f, 10f);
     }
 
     /// <summary>
@@ -243,10 +243,26 @@ namespace Fdp.Toolkit.Aggregate
                         }
                         return;
                     case SplitStage.Planning:
-                        if (withdrawn && u.Pin != ResolutionPin.PinPhysical && !forced) { u.Splitting = SplitStage.NotSplitting; return; }
+                        if (withdrawn && u.Pin != ResolutionPin.PinPhysical && !forced)
+                        {
+                            u.Splitting = SplitStage.NotSplitting;
+                            if (HasPlan(repo, unit)) repo.RemoveComponent<PlannedPosts>(unit);   // ⭐ DP3-B — a withdrawn trigger clears the plan
+                            return;
+                        }
                         if (!repo.IsComponentTypeRegistered<UnitSlotTable>() || !repo.HasComponent<UnitSlotTable>(unit)) return;
-                        // ⭐ D-P5 — the fallback posts (the real planners' posts, SV-5 / D-P3, are agg-behaviors')
+                        // ⭐ DP3-B (R-4286) — a unit that IS being planned (its planner added PlannedPosts) waits for Ready or the deadline;
+                        //   a forced split (C-7) never waits; a unit nobody plans for goes at once, as before.
+                        bool planned = HasPlan(repo, unit);
+                        if (planned && !forced && repo.GetComponentRO<PlannedPosts>(unit).Ready == 0
+                            && (double)now - (double)u.SplittingSince < b.DeadlineSeconds) return;
+                        // ⭐ D-P5 — the fallback posts for every live slot; ⭐ DP3-D ① — the planned ones over the first Count (the order Materialise walks)
                         int n = UnitSplits.FallbackPosts(in u, at, repo.GetComponentRO<UnitSlotTable>(unit), _posts);
+                        if (planned)
+                        {
+                            ref readonly var plan = ref repo.GetComponentRO<PlannedPosts>(unit);
+                            int m = System.Math.Min(System.Math.Min((int)plan.Count, PlannedPosts.Capacity), n);
+                            for (int i = 0; i < m; i++) if (plan.TryGet(i, out var post)) _posts[i] = post.Point;   // an entry with no post keeps its fallback point (agg-behaviors' PostedFlag, unified at the R-4286 merge)
+                        }
                         _switch.Materialise(repo, unit, _posts.AsSpan(0, n));
                         u.Splitting = SplitStage.Materialising;
                         return;
@@ -271,12 +287,15 @@ namespace Fdp.Toolkit.Aggregate
             }
 
             if (res != AggregateResolution.Physical || !HasChildren(repo, unit)) return;
-            // a split unit: re-aggregate when out of the band + margin and quiet (automatic), or at once on the instructor's pin
-            bool far = d > b.PhysicalBand + b.MergeMargin;
+            // a split unit: re-aggregate when beyond the SPLIT TRIGGER + the margin and quiet (automatic), or at once on the instructor's pin.
+            // ⭐ F-23 (R-4286) — the merge line is band + lead + margin, never inside the trigger (band + lead): with an enemy parked between
+            //   the old merge line (band + margin, 500 m) and the trigger (600 m) the unit split and merged every ~63 s (measured).
+            bool far = d > b.PhysicalBand + b.LeadMetres + b.MergeMargin;
             if (u.Pin == ResolutionPin.PinPhysical || u.Pin == ResolutionPin.PinKeep) return;
             if (u.Pin != ResolutionPin.PinStochastic)
             {
-                if (!far || Observed(repo, unit)) { u.SplittingSince = now; return; }   // ⭐ CE-8013 ④ — UNOBSERVED too (automatic only)
+                // ⭐ CE-8013 ④ — UNOBSERVED too; ⭐ F-23 — and no man of it in CONTACT (automatic only)
+                if (!far || Observed(repo, unit) || InContact(repo, unit)) { u.SplittingSince = now; return; }
                 if ((double)now - (double)u.SplittingSince < b.QuietSeconds) return;
             }
             u.Splitting = SplitStage.Merging;
@@ -285,6 +304,29 @@ namespace Fdp.Toolkit.Aggregate
             u.Splitting = SplitStage.NotSplitting;
             u.SplittingSince = now;
         }
+
+        /// <summary>⭐ DP3-B — is the unit being planned for (its planner added <see cref="PlannedPosts"/>)?</summary>
+        private static bool HasPlan(EntityRepository repo, Entity unit)
+            => repo.IsComponentTypeRegistered<PlannedPosts>() && repo.HasComponent<PlannedPosts>(unit);
+
+        /// <summary>⭐ F-23 (R-4286) — is a man of the split unit in CONTACT: a live child that saw an enemy in the last
+        /// <see cref="ContactSteps"/> perception steps (its <c>TargetMemory</c>, against <c>PerceptionClock</c> — the stamp's own clock).</summary>
+        private static unsafe bool InContact(EntityRepository repo, Entity unit)
+        {
+            if (!repo.IsComponentTypeRegistered<AggregateChild>() || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()) return false;
+            uint now = Fdp.Toolkit.Perception.PerceptionClock.Now(repo);
+            foreach (var c in repo.Query().With<AggregateChild>().With<Fdp.Toolkit.Perception.Components.TargetMemory>().Build())
+            {
+                if (repo.GetComponentRO<AggregateChild>(c).Unit != unit) continue;
+                ref readonly var mem = ref repo.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(c);
+                for (int k = 0; k < mem.Count; k++)
+                    if (now - mem.LastSeenTick[k] <= ContactSteps) return true;
+            }
+            return false;
+        }
+
+        /// <summary>A sighting this many perception steps old still counts as contact (the sensors re-stamp a target they hold every step).</summary>
+        private const uint ContactSteps = 2;
 
         private static bool HasChildren(EntityRepository repo, Entity unit)
         {
@@ -330,6 +372,7 @@ namespace Fdp.Toolkit.Aggregate
             ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
             var guid = UnitSplits.UnitGuid(repo, unit);
             var force = repo.HasComponent<EntityInfo>(unit) ? repo.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
+            string unitName = repo.HasComponent<EntityInfo>(unit) ? (string)repo.GetComponentRO<EntityInfo>(unit).Name : "";
             int k = 0;
             for (int i = 0; i < slots.Count && k < posts.Length; i++)
             {
@@ -345,13 +388,19 @@ namespace Fdp.Toolkit.Aggregate
                         new EntityGuid(UnitSplits.ChildGuid(guid, slot)),
                         new SimTransform { Position = posts[k], Rotation = Quaternion.Identity },
                         new AggregateChild { Unit = unit, Slot = (byte)i, Held = 1 },
-                        new EntityInfo { ForceId = force },
+                        new EntityInfo { ForceId = force, Name = ChildName(unitName, slot) },   // ⭐ F-22 (R-4286) — checks, goldens, the UI name him
                     },
                 });
                 k++;
             }
             _requested[unit] = k;
         }
+
+        /// <summary>⭐ F-22 (R-4286) — a split child's name: <c>&lt;unit name&gt;/&lt;composite slot&gt;</c> (e.g. <c>Alpha/3</c>) — stable across splits,
+        /// the same leaf every time. A unit with no name gives just the slot.</summary>
+        public static string ChildName(string unitName, int compositeSlot)
+            => string.IsNullOrEmpty(unitName) ? compositeSlot.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                                               : unitName + "/" + compositeSlot.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         public bool AllPresent(EntityRepository repo, Entity unit)
             => _requested.TryGetValue(unit, out int n) && Count(repo, unit) >= n;

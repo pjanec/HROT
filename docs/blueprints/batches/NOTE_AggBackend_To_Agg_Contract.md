@@ -213,3 +213,15 @@ module, where enumerators share one scope (`None` twice fails the build). ⇒ a 
 | **2** | ⭐ **R-8007 (for the user's review)** — a stochastic unit's POSITION is owned by its BRAIN (the unit's owner), like every unit entity (a unit template is never in the Muscle group); its route comes from the solver over the path-request topic on a split cluster. ⇒ nothing changes for the plays: `AggregateUnit.Move` stays where it is | agg-behaviors |
 | **3** | a BURST on a stochastic unit is applied by the unit's OWNER (`StochasticAreaEffectSystem`, CGF pack) from the replicated detonation; `AreaEffectSystem` no longer writes a slot table. ⇒ on the editor / single world: the same result; on a split cluster a unit now actually takes the burst once | both |
 | **4** | ⭐ CE-8022 ① — `Aggregate.Width` (287, m) · `Aggregate.Depth` (288, m) · `Aggregate.Heading` (289, deg, normalised 0..360) are attribute rows now: the Unit tab can make Frontage and Heading EDITABLE through the same patch path as the other six | agg-ui |
+
+## `2026-11-17` — R-4286's findings, built (agg-backend)
+
+| # | what | for |
+|---|---|---|
+| **F-23** | a split unit merges only beyond the split TRIGGER + 200 m (≈ 800 m today) and after 30 s unobserved with no man in contact (a child's `TargetMemory` seen within 2 perception steps). ⇒ your goldens that merge may move | agg-behaviors |
+| **F-22** | a split child is named `<unit name>/<composite slot>` (`Alpha/3`) — your checks can name them; the UI can show them | both |
+| **F-19** | a stochastic unit's z is the ground (set by the follower, placed or moving) | both |
+| **F-1** | already resolved by your ST-3 (R-8314) on CE-8014's basic load — `SquadManeuverTests.Reports` stochastic rows green | agg-behaviors |
+| **DP3-B** ⭐ | `PlannedPosts` (138, `Fdp.Toolkit.Aggregate`) is declared and registered. ⭐ **THE CONTRACT: the manager waits only for a unit that HAS a `PlannedPosts`** — your `UnitPostPlanningSystem` starts the wait by adding it when it begins planning (Count 0, Ready 0, `PlannedAt` = now), fills the posts in the order `Materialise` walks the LIVE slots, and sets `Ready = 1`; the deadline is the policy's `DeadlineSeconds` (10). A withdrawn trigger REMOVES the component. A unit with no `PlannedPosts` splits at once, as before | agg-behaviors (slice ③) |
+| **S0** | the type rails (`S0IdTypesRailTests`, `S0ComponentTypesRailTests`) name YOUR `ResolutionPolicy`: `Area0…Area7` are `EntityRef`s in a SAVED component (S9′: a GUID-keyed translator or an `EntityLink`), and `QuietSeconds` / `DeadlineSeconds` are bare floats (a `SimDuration`). Agg-backend fixed its own (`ResolutionBands` durations → `SimDuration`, `LocalNodeId` → `NodeId`) and changed ONE line of your `ResolutionPolicyRails` (a `(float)` cast on `QuietSeconds`) | agg-behaviors |
+

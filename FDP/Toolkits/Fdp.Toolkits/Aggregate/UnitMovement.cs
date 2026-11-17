@@ -219,14 +219,14 @@ namespace Fdp.Toolkit.Aggregate
         /// the node plans with what it has (its navmesh, else its roads, else the straight leg).</summary>
         public Func<global::CarKinem.Trajectory.TrajectoryPoolManager?>? RemoteRoutes { get; init; }
         /// <summary>This node's id — the request's <c>SourceNodeId</c> (the Brain egress forwards only its own; 0 ⇒ never asks).</summary>
-        public int LocalNodeId { get; init; }
+        public Fdp.Core.NodeId LocalNodeId { get; init; }
         /// <summary>How long a unit waits for the solver before it plans with what this node has (s of sim time).</summary>
         public const double RemoteWaitSeconds = 5.0;
         private readonly Dictionary<Entity, (long Id, Vector3 To, SimInstant Since)> _asked = new();
 
         private global::CarKinem.Trajectory.TrajectoryPoolManager? RemotePool(EntityRepository repo)
         {
-            if (RemoteRoutes == null || LocalNodeId == 0 || repo.HasSingletonManaged<INavmeshProvider>() || !repo.HasSingleton<PathfindingBatchData>()) return null;
+            if (RemoteRoutes == null || (int)LocalNodeId == 0 || repo.HasSingletonManaged<INavmeshProvider>() || !repo.HasSingleton<PathfindingBatchData>()) return null;
             return RemoteRoutes();
         }
 
@@ -244,7 +244,7 @@ namespace Fdp.Toolkit.Aggregate
                 MobilityProfile = (byte)(!mounted ? 2 : mobility == HoldingMobility.Tracked ? 1 : 0),   // 0 wheeled · 1 tracked · 2 infantry
                 RoadUse = mounted ? RoadUse.Prefer : RoadUse.Neutral,
                 NavLayerMask = (int)(mounted ? VehicleLayer : InfantryLayer),
-                SourceNodeId = (Fdp.Core.NodeId)LocalNodeId,
+                SourceNodeId = LocalNodeId,
             });
             return id;
         }
@@ -306,7 +306,29 @@ namespace Fdp.Toolkit.Aggregate
                 if (u.Move != UnitMoveState.OnRoute) continue;
                 Step(repo, e, ref u, in h, repo.GetManagedComponentRO<UnitRoute>(e), deltaTime);
             }
+            OnTheGround(repo);
         }
+
+        /// <summary>⭐ F-19 (R-4286) — every stochastic unit stands ON THE TERRAIN: placed (an authored z of 0) or moved (a route point's z),
+        /// its z is the ground under it (<c>IWorldQuery.GroundHeightAt</c>, the one ground answer) — its line of sight no longer starts
+        /// underground. ⭐ Written only when it is off by more than <see cref="GroundTolerance"/>: a standing unit is not re-written every step.</summary>
+        private void OnTheGround(EntityRepository repo)
+        {
+            var world = Fdp.Toolkit.World.WorldQuery.Of(repo);
+            if (world == null) return;
+            foreach (var e in _units!)
+            {
+                if (repo.GetComponentRO<AggregateUnit>(e).Effective != AggregateResolution.Stochastic) continue;
+                var p = repo.GetComponentRO<SimTransform>(e).Position;
+                float z = world.GroundHeightAt((float)p.X, (float)p.Y);
+                if (MathF.Abs((float)p.Z - z) <= GroundTolerance) continue;
+                ref var t = ref repo.GetComponentRW<SimTransform>(e);
+                t.Position = new WorldPoint(p.X, p.Y, z);
+            }
+        }
+
+        /// <summary>How far (m) off the ground a unit may be before it is put back on it.</summary>
+        public const float GroundTolerance = 0.05f;
 
         /// <summary>One step of the follower (the test seam): advances the head, places the unit, marks the arrival.</summary>
         internal static void Step(EntityRepository repo, Entity e, ref AggregateUnit u, in UnitHoldings h, UnitRoute route, float dt)

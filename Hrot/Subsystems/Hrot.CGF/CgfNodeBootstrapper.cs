@@ -166,7 +166,7 @@ internal sealed class CgfNodeBootstrapper : SharedApplicationBootstrapper
         // P3 step 3b's EXECUTION GATE (docs/DESIGN_Role_Affinity_Ownership.md §3.5, §6f, §6i): turned on HERE and only here — it follows the role POLICY,
         // which this host has; the editor is offline, receives no ghosts, and for it the gate would only subtract.
         var cgfLogicPack = new CgfLogicPack(BehaviorRegistry, context.EntityMap, mapperRegistry, BlueprintRegistry, vehicleApi: null, gateOnAuthority: true, nodeBus: context.EventBus, lifecycle: () => EntityCreation?.Elm,
-            remoteRoutes: ComposesMuscle ? null : () => TrajectoryPool.Pool, localNodeId: (int)context.NodeId);   // ⭐ CE-8005 — a Brain-only node has no navmesh: a stochastic unit's route is asked of the solver
+            remoteRoutes: ComposesMuscle ? null : () => TrajectoryPool.Pool, localNodeId: (Fdp.Core.NodeId)(int)context.NodeId);   // ⭐ CE-8005 — a Brain-only node has no navmesh: a stochastic unit's route is asked of the solver
 
         // ⭐ CE-4270 B7b — the Muscle role's parts, built only when the declared role composes it (dormant for the Brain alone).
         Muscle = ComposesMuscle
