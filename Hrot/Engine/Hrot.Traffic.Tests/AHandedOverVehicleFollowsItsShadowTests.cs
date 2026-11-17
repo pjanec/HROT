@@ -59,6 +59,59 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.Equal(0f, world.GetComponent<VehicleState>(e).Speed);
     }
 
+    /// <summary>⭐ <c>CE-9020</c> ③ — a hand-over SUMO will not take (no shadow ever comes) holds only <see cref="TrafficShadowFollowSystem.RefusedHoldSeconds"/>:
+    /// then the traffic leg ends where the body stands (arrived — the move's executor drives on itself). 🔴 Red-proof: no time-out ⇒ it holds for ever
+    /// (CE-9020, measured on <c>cv-mode-1-to-2</c>) ⇒ red.</summary>
+    [Fact]
+    public void CE9020_ARefusedHandover_HoldsOnlyUntilTheTimeOut()
+    {
+        using var world = World(out var e);
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0);
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0 + TrafficShadowFollowSystem.RefusedHoldSeconds - 0.1);
+        follow.Execute(world, 0.05f);
+        Assert.Equal(KinematicsMode.Traffic, world.GetComponent<NavState>(e).Mode);   // still waiting
+        Assert.Equal(1, world.GetComponent<NavState>(e).IsBlocked);
+
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.0 + TrafficShadowFollowSystem.RefusedHoldSeconds + 0.1);
+        follow.Execute(world, 0.05f);
+        var nav = world.GetComponent<NavState>(e);
+        Assert.Equal(KinematicsMode.None, nav.Mode);
+        Assert.Equal(1, nav.HasArrived);
+        Assert.Equal(0, nav.IsBlocked);
+        Assert.False(world.HasComponent<TrafficShadowFollow>(e));
+    }
+
+    /// <summary>⭐ <c>CE-9020</c> ② — the destination (400, 400) is 100 m off the only road (y = 300): the hand-over sent SUMO the nearest road
+    /// point (400, 300), and a shadow gone THERE is the traffic leg's arrival (the executor drives on); gone elsewhere it is still lost.
+    /// 🔴 Red-proof: the follow judging only the destination ⇒ "lost" at the road point ⇒ red.</summary>
+    [Theory]
+    [InlineData(395f, 300f, 1)]   // at the road point
+    [InlineData(150f, 300f, 0)]   // on the road, far from it
+    public void CE9020_TheShadowGoneAtTheRoadPoint_IsTheTrafficLegsArrival(float x, float y, byte arrived)
+    {
+        using var world = World(out var e);
+        world.RegisterManagedComponent<TrafficNetCache>();
+        var model = Sim.Ingest.NetworkParser.ParseXml(
+            "<net><location netOffset=\"0,0\" convBoundary=\"0,0,600,600\" projParameter=\"!\"/>"
+            + "<edge id=\"e\" from=\"a\" to=\"b\"><lane id=\"e_0\" index=\"0\" speed=\"13.9\" length=\"600\" shape=\"0,300 600,300\"/></edge></net>");
+        var place = SumoNetPlacement.For(model, new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null);
+        world.SetSingletonManaged(new TrafficNetCache("x.net.xml", "x.net.xml", model, "0", place));
+        Assert.True(TrafficRoadPoint.Near(model, place, new Vector2(400, 400), out var road, out bool onNet));
+        Assert.False(onNet);
+        Assert.Equal(400f, road.X, 1); Assert.Equal(300f, road.Y, 1);
+
+        var follow = new TrafficShadowFollowSystem();
+        Frame(world, new[] { Shadow(x, y, 0f) }, now: 1.0);
+        follow.Execute(world, 0.05f);
+        Frame(world, Array.Empty<TrafficCarPose>(), now: 1.5);
+        follow.Execute(world, 0.05f);
+
+        Assert.Equal(KinematicsMode.None, world.GetComponent<NavState>(e).Mode);
+        Assert.Equal(arrived, world.GetComponent<NavState>(e).HasArrived);
+    }
+
     [Fact]
     public void G4_ABodyThisNodeDoesNotMove_IsLeftAlone()
     {

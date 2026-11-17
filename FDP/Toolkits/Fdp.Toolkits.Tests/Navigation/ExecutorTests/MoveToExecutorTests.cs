@@ -133,6 +133,48 @@ namespace Fdp.Toolkit.Navigation.Tests.ExecutorTests
             Assert.Equal(NodeStatus.Success, channel.Status);
         }
 
+        /// <summary>⭐ <c>CE-9020</c> (mode 1 → 2) — a move handed to the traffic whose traffic leg ARRIVED short of the destination (SUMO took it
+        /// only to the nearest road point, or not at all) goes on as our own path (road use stepped down: in-traffic → Prefer, the escort's
+        /// priority → StronglyPrefer), and the channel keeps Running; a leg that ended within the traffic arrival slack is a real arrival.
+        /// 🔴 Red-proof: drop <c>TryDriveOn</c> ⇒ Success 70 m short ⇒ red.</summary>
+        [Theory]
+        [InlineData(RoadUse.InTraffic, 30f, RoadUse.Prefer)]
+        [InlineData(RoadUse.InTrafficPriority, 30f, RoadUse.StronglyPrefer)]
+        [InlineData(RoadUse.InTraffic, 100f - NavigationConstants.TrafficArrivalSlackMetres + 1f, RoadUse.Unspecified)]   // arrived
+        public void CE9020_ATrafficLegThatEndedShort_DrivesOnAsOurOwnPath(RoadUse use, float endedAtX, RoadUse drivesOn)
+        {
+            var (world, entity, channel) = BuildWorld(new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f);
+            unsafe
+            {
+                ref var p = ref Unsafe.AsRef<MoveToParams>(Unsafe.AsPointer(ref channel.Params[0]));
+                p.Flags = NavigationConstants.WithRoadUse(0, use);
+            }
+            world.AddComponent(entity, new SimTransform { Position = new Vector3(endedAtX, 0f, 0f), Rotation = Quaternion.Identity });
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+            uint traffic = world.GetComponent<NavigationIntent>(entity).IntentId;
+            world.SetComponent(entity, new NavigationStatus { IntentId = traffic, Result = NavigationResult.Arrived });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            if (drivesOn == RoadUse.Unspecified)
+            {
+                Assert.Equal(NodeStatus.Success, channel.Status);
+                return;
+            }
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(traffic + 1, intent.IntentId);
+            Assert.Equal(NavigationMode.PathToPoint, intent.Mode);
+            Assert.Equal(drivesOn, NavigationConstants.RoadUseOf(intent.Flags));
+            Assert.Equal(new Vector3(100f, 0f, 0f), intent.FinalDestination);
+
+            world.SetComponent(entity, new NavigationStatus { IntentId = intent.IntentId, Result = NavigationResult.Arrived });
+            world.GetComponentRW<SimTransform>(entity).Position = new Vector3(98f, 0f, 0f);
+            executor.Execute(entity, ref channel, world, 0.016f);
+            Assert.Equal(NodeStatus.Success, channel.Status);   // our own leg arrived: the move is done
+        }
+
         // ── Test 3: Execute ignores stale status ──────────────────────────────────────────────────
 
         /// <summary>

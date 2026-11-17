@@ -36,11 +36,13 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
     {
         if (view is not EntityRepository world) return;
         var net = TrafficNetCache.Of(world);
-        _runtime.SetHandovers(net is null ? Array.Empty<TrafficHandover>() : Gather(world, net.Placement, _scratch));
+        _runtime.SetHandovers(net is null ? Array.Empty<TrafficHandover>() : Gather(world, net.Placement, _scratch, net.Model));
     }
 
     /// <summary>The hand-over requests of <paramref name="world"/>, a new array (the stepping thread keeps it).</summary>
-    public static TrafficHandover[] Gather(EntityRepository world, SumoNetPlacement placement, List<TrafficHandover>? scratch = null)
+    /// <param name="model">⭐ CE-9020 — the parsed net: a destination OFF it is sent as the nearest road point (<see cref="TrafficRoadPoint"/>);
+    /// <c>null</c> sends the destination as it is (SUMO refuses one with no lane near).</param>
+    public static TrafficHandover[] Gather(EntityRepository world, SumoNetPlacement placement, List<TrafficHandover>? scratch = null, Sim.Ingest.NetworkModel? model = null)
     {
         var into = scratch ?? new List<TrafficHandover>();
         into.Clear();
@@ -64,7 +66,10 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
             var front = new Vector2(tf.Position.X, tf.Position.Y) + fwd * (length * 0.5f);
             var (nx, ny) = placement.ToNet(front.X, front.Y);
             var (ax, ay) = placement.ToNet(front.X + fwd.X, front.Y + fwd.Y);   // the heading through the placement (UTM convergence)
-            var (dx, dy) = placement.ToNet(intent.FinalDestination.X, intent.FinalDestination.Y);
+            var dest = new Vector2(intent.FinalDestination.X, intent.FinalDestination.Y);
+            // ⭐ CE-9020 (mode 1 → 2) — SUMO drives to where it CAN take the destination; the rest is ours (MoveToExecutor)
+            if (model is not null && TrafficRoadPoint.Near(model, placement, dest, out var road, out _)) dest = road;
+            var (dx, dy) = placement.ToNet(dest.X, dest.Y);
             float speed = velocity && world.HasComponent<SimVelocity>(e)
                 ? new Vector2(world.GetComponentRO<SimVelocity>(e).Linear.X, world.GetComponentRO<SimVelocity>(e).Linear.Y).Length() : 0f;
             string? vType = typed && world.HasComponent<TkbIdentity>(e)
