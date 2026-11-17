@@ -350,6 +350,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - 📐 **Checkpoints and ramming:** a vehicle checkpoint with its drill, and vehicles that ram through a barrier or another vehicle.
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
 
+- 🚧 *(added `2026-11-17`)* **Road convoys:** a column of vehicles that never splits — every follower drives the LEAD's actual path at a spacing
+  measured along it, never passes the vehicle ahead, stops with it, and the lead slows when the tail falls back. Off the road net it drives our own
+  route (off-road → the road in its lane → off-road); SUMO's cars treat the whole column as one obstacle, so none cuts in. An attack or a new order
+  breaks the column at once and each vehicle's own drill takes over. ▶ `cv-offroad-join-leave` ✅ · ⏳ `cv-red-lights`, `cv-no-cut-in`,
+  `cv-blocked-road`, `cv-ambush`, `cv-mode-1-to-2` · ⚠ a SUMO-driven escort with beacon and siren waits on a SumoSharp change (H14)
+  ([DESIGN_Road_Convoy](designs/vehicle-tactics/DESIGN_Road_Convoy.md), CE-4631)
+
 ## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
 
 - 🚧 **A minefield is one object:** an outline, a mine type (anti-personnel, anti-tank or mixed), a spacing and a row direction. Thousands of
