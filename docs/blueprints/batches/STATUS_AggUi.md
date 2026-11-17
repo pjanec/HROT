@@ -15,6 +15,15 @@ Handoff [HANDOFF_Coordinator_To_AggUi.md](HANDOFF_Coordinator_To_AggUi.md), disp
 **Binding:** at start (later merged — see CE-8603) `exp/agg-backend` and `exp/agg-behaviors` did NOT exist (measured `git fetch`, 2026-11-16) and `AggregateUnit` / `UnitSlotTable` are only
 reserved ids (`GlobalComponentIds.cs:1351-1356`) ⇒ every slice that draws the unit's own state waits for the contract; what does not was built.
 
+## Sync — R-4286 (the agg lanes merge each other)
+
+⭐ `2026-11-17`: merged `coordinator@2154f2a2a` (`7b3f6eec9`), `exp/agg-backend@2de034f22` (`4edc96ae9`), `exp/agg-behaviors@13f498aae` (`90d8fbe5f`);
+test projects restored. Conflicts were neighbouring lines (ownership groups, descriptors, translator pack, pack-count pins, ledgers) — both sides kept.
+Follow-up `63117180f`: the unit card reads `UnitStrength` / `UnitAmmunition.TryShare` (RV-5 / R-8004 landed — its own slot-table branch removed);
+the Brain descriptor lists gained `dtMineClearing` / `dtRamOrder` (missing on every branch: red on coordinator too).
+⚠ **Not this lane's, reported:** `NedTkbBuilderCombatTests.CE3281_…` (the air lane's F-16C / MiG-29 fire unheard) and `CE4621_TheMotorcycle_…`
+(expected 2, got 3) — both from coordinator's air content, red on the merged tree, no file of this lane.
+
 ## Slices
 
 | slice | id | state | what |
