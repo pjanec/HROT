@@ -491,7 +491,7 @@ public sealed class PerEntityRuleTests
 
     // ── ⭐⭐ CE-9013 (DESIGN_Occurrence_Scoped_Storage §34.7) — an own component ADDED in the phase and WRITTEN before the merge ─────────────
 
-    [ComponentId(513)] private unsafe struct Blob { public fixed byte B[2048]; }
+    [ComponentId(479)] private unsafe struct Blob { public fixed byte B[2048]; }
 
     private unsafe struct OwnRawJob : IEntityBatchJob
     {
