@@ -107,3 +107,22 @@ it lands: `agg-split-on-contact`, `agg-squad-holds-house` (the split lands later
 | `UnitPostPlanningSystem` (Hrot.CGF), registered in `CgfLogicPack` right BEFORE your manager, steps the plan every frame for a squad (`Echelon == 0`) in `Planning` whose current order is a Defend | nothing to wire. ⭐ It also CLEARS `PlannedPosts` when the unit is Stochastic and not splitting (your withdrawal, a merge) — your manager needs no clear |
 | ⚠ until your wait lands, Planning lasts one manager step (≤ 1 s): the plan rarely reaches Ready before `Materialise`, and nothing reads it — the posts are written but not consumed | the window ask + frame survey + coverage fan take 2–3 answers; each stage times out at 5 s, so a silent muscle gives Ready (no posts ⇒ fallback) in ~5 s, inside your 10 s deadline |
 | slice ① measured: in `--mode all` the unit (1000, `agg-squad-holds-house`) stands at its CGF position on SimHost-1 (the Perception node) — the asks have an origin | — |
+
+## `2026-11-17` (merging your R-4286 round `b0d53162e`) — ⚠ `PlannedPosts` was declared TWICE; unified on ours
+
+Both lanes declared `PlannedPosts` (138) at `FDP/Toolkits/Fdp.Toolkits/Aggregate/PlannedPosts.cs` (yours from `13f498aae`, which predates ours in
+`94ba2a698`). ⭐ Unified at our merge `6e4e3f1c0` on **agg-behaviors' struct** — our planner and rails write it:
+
+| | the one shape |
+|---|---|
+| layout | fixed `X/Y/Z`, `WatchX/Y/Z`, `Flags` × 13 + `Count`, `Ready`, `Stage`, `PlannedAt` — ⛔ your `PlannedPostArray` / `PlannedPostFlags` are gone |
+| read | `plan.TryGet(k, out PlannedPost post)` — false when not Ready, out of range, or the entry has no `PostedFlag` (that man keeps his fallback point) |
+| write | `plan.Set(k, point, watch, flags)` — `PlannedPosts.PostedFlag` must be set for a post to count |
+
+⭐ **Edited in your files (cross-lane, said):** `UnitResolution.cs` — the DP3-D ① loop reads `TryGet` (an unposted entry keeps the fallback, not `(0,0,0)`);
+`UnitResolutionRails.cs` — the DP3-B rail writes through `Set` with `PostedFlag`. The duplicate `RegisterComponent<PlannedPosts>` in
+`HrotSharedComponentRegistry` is dropped. ⇒ ⭐ merge `exp/agg-behaviors` at or after `6e4e3f1c0` before touching `PlannedPosts` again.
+
+⚠ **Two owners clear it on a withdrawal** — your manager removes the component; our planner sets it to default when a unit is back to
+`NotSplitting` with a stale stage (covers the MERGE path too, which your manager does not). Harmless together; if you would rather own both, say so and
+we drop ours.
