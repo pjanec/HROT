@@ -37,8 +37,8 @@ public sealed class Wardrobe
     /// <summary>The garment slots of one sex (or of the type, when it names no per-sex sets).</summary>
     public sealed class Set
     {
-        public readonly Slot Top, Legs, Over, Head, Hair, Beard;
-        internal Set(Slot top, Slot legs, Slot over, Slot head, Slot hair, Slot beard) { Top = top; Legs = legs; Over = over; Head = head; Hair = hair; Beard = beard; }
+        public readonly Slot Top, Legs, Over, Head, Hair, Beard, Extra;
+        internal Set(Slot top, Slot legs, Slot over, Slot head, Slot hair, Slot beard, Slot extra) { Top = top; Legs = legs; Over = over; Head = head; Hair = hair; Beard = beard; Extra = extra; }
     }
 
     public readonly Slot Skin;
@@ -55,14 +55,14 @@ public sealed class Wardrobe
     {
         if (dto == null) return null;
         var neutral = new Set(
-            Top(dto.Top, null), Legs(dto.Legs, null), Over(dto.Over, null), Head(dto.Head, null), Hair(dto.Hair, null), Beard(dto.Beard, null));
+            Top(dto.Top, null), Legs(dto.Legs, null), Over(dto.Over, null), Head(dto.Head, null), Hair(dto.Hair, null), Beard(dto.Beard, null), Extra(dto.Extra, null));
         return new Wardrobe(Flatten(dto.Skin, null, 0, (string[])OutfitCatalog.SkinTones, _ => 0), neutral, SetOf(dto.Men, neutral), SetOf(dto.Women, neutral));
     }
 
     private static Set? SetOf(OutfitSet? set, Set fallback)
         => set == null ? null
          : new Set(Top(set.Top, fallback.Top), Legs(set.Legs, fallback.Legs), Over(set.Over, fallback.Over), Head(set.Head, fallback.Head),
-                   Hair(set.Hair, fallback.Hair), Beard(set.Beard, fallback.Beard));
+                   Hair(set.Hair, fallback.Hair), Beard(set.Beard, fallback.Beard), Extra(set.Extra, fallback.Extra));
 
     // an unauthored slot is the everyday default: shirts in everyday colours, trousers, nothing over or on the head, short hair, no beard
     private static Slot Top(OutfitSlot s, Slot? fb) => Flatten(s, fb, 0, OutfitCatalog.Tops, Kind<OutfitTop>);
@@ -71,6 +71,8 @@ public sealed class Wardrobe
     private static Slot Head(OutfitSlot s, Slot? fb) => Flatten(s, fb, 0, System.Array.Empty<string>(), Kind<OutfitHead>);
     private static Slot Hair(OutfitSlot s, Slot? fb) => Flatten(s, fb, 0, OutfitCatalog.HairColours, Kind<HairStyle>);
     private static Slot Beard(OutfitSlot s, Slot? fb) => Flatten(s, fb, 0, System.Array.Empty<string>(), Kind<BeardKind>);
+
+    private static Slot Extra(OutfitSlot s, Slot? fb) => Flatten(s, fb, 0, System.Array.Empty<string>(), Kind<OutfitExtra>);
 
     private static byte Kind<T>(string name) where T : struct, System.Enum
         => System.Enum.TryParse<T>(name, out var kind) && System.Enum.IsDefined(kind)

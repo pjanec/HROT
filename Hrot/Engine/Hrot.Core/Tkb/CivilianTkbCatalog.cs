@@ -29,6 +29,8 @@ namespace Hrot.Core.Tkb
         public const int TkbCivilianAdultFemale = 1102;
         public const int TkbCivilianChild       = 1103;
         public const int TkbCivilianElderly     = 1104;
+        /// <summary>⭐ <c>CE-4648</c> (R-1066) — Afghan civilians: man, woman, boy, girl, elderly man, elderly woman (<see cref="OutfitCatalog.AfghanMan"/> …).</summary>
+        public const int TkbCivilianAfghanMan = 1111, TkbCivilianAfghanWoman = 1112, TkbCivilianAfghanBoy = 1113, TkbCivilianAfghanGirl = 1114, TkbCivilianAfghanElderlyMan = 1115, TkbCivilianAfghanElderlyWoman = 1116;
 
         // ⭐ CE-4648 (docs/designs/person-looks/DESIGN_Person_Outfits.md §3 OF-8, §5) — the Middle-East civilians: the same body, behaviour and
         //   PersonDto as the civilians above (the one Civilian(...) helper), each with an OutfitDto saying what it wears (OutfitCatalog).
@@ -66,6 +68,13 @@ namespace Hrot.Core.Tkb
             Civilian(tkb, "CivilianMiddleEastGirl",         TkbCivilianMiddleEastGirl,         height: 1.24f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Female, OutfitCatalog.MiddleEastGirl);
             Civilian(tkb, "CivilianMiddleEastElderlyMan",   TkbCivilianMiddleEastElderlyMan,   height: 1.68f, radius: 0.30f, runSpeed: 3.0f, AgeBand.Elderly, PersonSex.Male,   OutfitCatalog.MiddleEastElderlyMan);
             Civilian(tkb, "CivilianMiddleEastElderlyWoman", TkbCivilianMiddleEastElderlyWoman, height: 1.58f, radius: 0.28f, runSpeed: 2.8f, AgeBand.Elderly, PersonSex.Female, OutfitCatalog.MiddleEastElderlyWoman);
+            // ⭐ CE-4648 (R-1066) — Afghan civilians: the same helper, the same sizes
+            Civilian(tkb, "CivilianAfghanMan",          TkbCivilianAfghanMan,          height: 1.74f, radius: 0.30f, runSpeed: 6.0f, AgeBand.Adult,   PersonSex.Male,   OutfitCatalog.AfghanMan);
+            Civilian(tkb, "CivilianAfghanWoman",        TkbCivilianAfghanWoman,        height: 1.62f, radius: 0.28f, runSpeed: 5.6f, AgeBand.Adult,   PersonSex.Female, OutfitCatalog.AfghanWoman);
+            Civilian(tkb, "CivilianAfghanBoy",          TkbCivilianAfghanBoy,          height: 1.28f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Male,   OutfitCatalog.AfghanBoy);
+            Civilian(tkb, "CivilianAfghanGirl",         TkbCivilianAfghanGirl,         height: 1.24f, radius: 0.22f, runSpeed: 4.5f, AgeBand.Child,   PersonSex.Female, OutfitCatalog.AfghanGirl);
+            Civilian(tkb, "CivilianAfghanElderlyMan",   TkbCivilianAfghanElderlyMan,   height: 1.66f, radius: 0.30f, runSpeed: 3.0f, AgeBand.Elderly, PersonSex.Male,   OutfitCatalog.AfghanElderlyMan);
+            Civilian(tkb, "CivilianAfghanElderlyWoman", TkbCivilianAfghanElderlyWoman, height: 1.56f, radius: 0.28f, runSpeed: 2.8f, AgeBand.Elderly, PersonSex.Female, OutfitCatalog.AfghanElderlyWoman);
 
             // ⭐ CE-3223 (B-5, CV-9) — the non-lethal loadouts: the shield and baton men carry stun grenades (the baton's blow is a behaviours
             //   melee node, D5); the launcher man a 40 mm baton-round launcher. Tear gas waits for the cloud (CE-3219 part 3).

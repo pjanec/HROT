@@ -402,6 +402,52 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(heli, hit.HitEntity);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-10006</c> (air combat AC-8, R-10029) — a PLANE's position is its body's CENTRE, so its band is centred there: a round
+        /// level with the jet 1 m BELOW its position hits it; a round 4 m below passes under. A helicopter (its position is its skids) keeps
+        /// the band from its position up. 🔴 Red-proof (mutant, run): the band from the position up for a plane too ⇒ the 1 m-low round
+        /// misses ⇒ red (📐 ac-dogfight-2v2: 215 rounds a median 2.6 m from the bandit's centre, none hit).
+        /// </summary>
+        [Fact]
+        public void CE10006_APlanesHitBand_IsCentredOnItsBody_AHelicoptersStartsAtItsSkids()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var jet = SpawnCollider(new Vector2(10f, 0f), radius: 2f, layer: Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            _world.GetComponentRW<SimTransform>(jet).Position = new Vector3(10f, 0f, 2000f);
+            _world.GetComponentRW<PhysicsCollider>(jet).Height = 4.9f;
+            _world.AddComponent(jet, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 1999f), new Vector3(20f, 0f, 1999f)).HitEntity);   // 1 m under its centre
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 2002f), new Vector3(20f, 0f, 2002f)).HitEntity);   // 2 m over it
+            Assert.Equal(0, FireRound(new Vector3(0f, 0f, 1996f), new Vector3(20f, 0f, 1996f)).HasHit);       // 4 m under: past the band
+
+            _world.GetComponentRW<Fdp.Toolkit.Motion.Locomotion>(jet).Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+            Assert.Equal(0, FireRound(new Vector3(0f, 0f, 1999f), new Vector3(20f, 0f, 1999f)).HasHit);       // a helicopter: from its skids up
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 2001f), new Vector3(20f, 0f, 2001f)).HitEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-10006</c> (R-10029) — a jet beyond the collider grid, listed in <see cref="SpatialGridData.AirOutside"/>, is met by a round
+        /// passing through it; not listed, it is not (the grid alone cannot place it). 🔴 Red-proof (mutant, run): the solver's AirOutside loop
+        /// removed ⇒ no hit ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10006_AJetBeyondTheGrid_IsStillMetByARound()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var jet = _world.CreateEntity();
+            _world.AddComponent(jet, new SimTransform { Position = new Vector3(50_000f, 0f, 2000f), Rotation = Quaternion.Identity });
+            _world.AddComponent(jet, new SimVelocity());
+            _world.AddComponent(jet, new PhysicsCollider { Radius = 2f, Height = 4.9f, CollisionLayer = Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer });
+            _world.AddComponent(jet, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            _world.SetSingleton(new SpatialGridData { Grid = _grid });
+            Assert.Equal(0, FireRound(new Vector3(49_990f, 0f, 2000f), new Vector3(50_010f, 0f, 2000f)).HasHit);   // not listed: unseen
+            var outside = new Fdp.Core.Collections.NativeArray<Entity>(4, Fdp.Core.Collections.Allocator.Persistent);
+            outside[0] = jet;
+            _world.SetSingleton(new SpatialGridData { Grid = _grid, AirOutside = outside, AirOutsideCount = 1 });
+            Assert.Equal(jet, FireRound(new Vector3(49_990f, 0f, 2000f), new Vector3(50_010f, 0f, 2000f)).HitEntity);
+            outside.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-2182</c> — rounds still never meet each other: a round sits on the round's bit, which its own mask skips.</summary>
         [Fact]
         public void CE2182_RoundsNeverMeetEachOther()

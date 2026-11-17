@@ -1977,6 +1977,14 @@ lists 1003. Rails `Map3DTests.CE1099_*` ×4, `CE1100_*`; frame rail `CE1099_V` (
 | *civilians (suits, skirts, shorts, short sleeves, varied hair and skin), three children, soldiers behind, three cars* | *soldiers by side, right to left: two friends (woodland), two hostiles (sand fleck), a neutral (plain)* |
 | ![above](assets/map-3d/dress-3-above.png) | |
 
+#### 6q.2 CE-4648 — what a type wears comes from the TKB; the new garments (`2026-11-17`, ui + backend) — AS-BUILT
+
+⭐ **SUPERSEDES §6q O-1 / O-2's "everyday colours drawn from code palettes"** for any type with an `OutfitDto` (the palettes are now `OutfitCatalog` data, flattened once per type into `Wardrobe`; a type without one keeps the everyday set, pixel-identical). The block figure gained thirteen garments — robe, abaya, shemagh + agal, skullcap, hijab, niqab, chest rig, face wrap, buckskin, breechcloth, headband + feathers, braids, face paint — drawn by `Outfits.Details` as boxes on the torso and head, with the hiding rules (a robe hides the legs, a scarf the hair, a niqab / face wrap the lower face). Owner: [`DESIGN_Person_Outfits.md`](designs/person-looks/DESIGN_Person_Outfits.md) §9 (mockups, the as-built table, the one deviation).
+
+#### 6q.3 CE-4648 — Native American ornaments and Afghan dress (`2026-11-17`, ui) — AS-BUILT
+
+The figure gained a LAST outfit slot `Extra` (armbands, necklace, waistcoat, patu), the warrior's yoke / hair-pipe breastplate / braids, and the Afghan perahan tunban, pakol, lungee and chadari — all boxes on the torso, head and the arm and leg parts, drawn by `Outfits.Details`. Owner and the as-built table: [`DESIGN_Person_Outfits.md`](designs/person-looks/DESIGN_Person_Outfits.md) §10. ⛔ Prior state (the braids "over the chest from the shoulder", armbands across the shoulder top in the first draft) is SUPERSEDED by that table.
+
 #### 6q.1 O-4a — the side picks the cloth (`CE-1235`, `2026-10-21`, ui) — DESIGN + AS-BUILT
 
 🔒 **User, `2026-10-21`:** *"In the PC House Defend demo, there are two teams, blue one and red one. They are identified by the label card on

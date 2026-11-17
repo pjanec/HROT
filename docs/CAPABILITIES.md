@@ -200,6 +200,8 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   ▶ `ua-civ-provocation` ✅
 - **Small things people do:** take out a phone on a pause, hold a stone ready to throw. (Shown inside the riot demos.)
 - **Neutral people are never targets:** no unit aims at them, and they are not counted as threats. ▶ `ua-civ-neutral-gate` ✅
+- **What a person wears comes from the TKB** (a type's wardrobe: garments, headwear, hair, colours; seeded variety inside its lists), with Middle-East dress — thobe, abaya, shemagh and agal, skullcap, hijab, niqab, chest rig, face wrap — and the Native American garments (buckskin, breechcloth, headband with feathers, braids, face paint). Drawn on the block figure; verified by frame rails (`PersonOutfitsRail`), not yet by a scenario. ▶ `civ-middle-east-market` ⏳ not yet built
+- **Afghan people and the Native American warrior's look** — Afghan civilians (man, woman, boy, girl, elderly man, elderly woman) and fighters (rifle, RPG, machine gunner) in perahan tunban, waistcoat, pakol, lungee turban, patu and the chadari; the warrior with black hair and a braid each side, headband and feathers, beaded yoke, bone breastplate, armbands, necklace. Seeded inside each type's own lists. ▶ `civ-afghan-village` ✅ (the look itself is held by the frame rails `PersonOutfitsRail`)
 
 ## 3a. Animals *(added `2026-11-16`; ⚠ built by the `backend` and `ui` lanes, the batch still finishing — [DESIGN_Animals](designs/animals/DESIGN_Animals.md), CE-4623)*
 

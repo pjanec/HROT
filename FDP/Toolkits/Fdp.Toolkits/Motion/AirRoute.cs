@@ -114,6 +114,51 @@ namespace Fdp.Toolkit.Motion
         public static bool IsFlownThrough(in AirStop s) => s.Hold == RouteHold.Drop && s.Kind != RouteWaypointKind.Ground && !s.Last;
 
         /// <summary>
+        /// ⭐ CE-10006 (R-10030) — the first waypoint of <paramref name="waypoints"/> that <paramref name="old"/>'s follower, at
+        /// <paramref name="progress"/>, has not passed yet (each waypoint placed at the path's nearest sample, scanning forward). 0 when none
+        /// is passed. A loop whose last waypoint is passed resumes at 0; a route resumes at its last waypoint at worst. Allocation-free.
+        /// </summary>
+        public static int ResumeIndex(AirPath old, IReadOnlyList<NavRouteWaypoint> waypoints, float progress)
+        {
+            var pts = old.Points; var s = old.S;
+            int n = waypoints.Count, j = 0;
+            if (n == 0 || pts.IsDefaultOrEmpty) return 0;
+            for (int i = 0; i < n; i++)
+            {
+                var w = waypoints[i].Position;
+                float best = float.MaxValue; int bj = j;
+                for (int k = j; k < pts.Length; k++)
+                {
+                    float dx = pts[k].X - w.X, dy = pts[k].Y - w.Y, d = dx * dx + dy * dy;
+                    if (d < best) { best = d; bj = k; }
+                }
+                j = bj;
+                if (s[bj] > progress) return i;
+            }
+            return old.Loop ? 0 : n - 1;
+        }
+
+        /// <summary>⭐ CE-10006 (R-10030) — the route from waypoint <paramref name="from"/> on: a loop is ROTATED (the same circuit), a route
+        /// drops the waypoints already passed. In place (the caller's scratch list).</summary>
+        public static void ResumeAt(List<NavRouteWaypoint> waypoints, int from, bool loop)
+        {
+            int n = waypoints.Count;
+            if (from <= 0 || from >= n) return;
+            if (loop)
+                for (int i = 0; i < from; i++) waypoints.Add(waypoints[i]);
+            waypoints.RemoveRange(0, from);
+        }
+
+        /// <summary>⭐ CE-10006 (R-10030) — a resumed path's stops name their waypoint in the ROUTE's numbering again (holds key on it).</summary>
+        public static AirPath RenumberStops(AirPath path, int from, int routeCount)
+        {
+            if (path.Stops.IsDefaultOrEmpty || routeCount <= 0) return path;
+            var b = path.Stops.ToBuilder();
+            for (int i = 0; i < b.Count; i++) { var st = b[i]; st.Waypoint = (st.Waypoint + from) % routeCount; b[i] = st; }
+            return path with { Stops = b.ToImmutable() };
+        }
+
+        /// <summary>
         /// Compiles <paramref name="waypoints"/> into an <see cref="AirPath"/> flown from <paramref name="from"/> (an approach leg is added
         /// when the body is not at the first waypoint). <paramref name="ground"/> null ⇒ flat ground at 0.
         /// </summary>

@@ -1,0 +1,180 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: ac-sam-dodge on a ROUTE \u2014 an F-16 ('Viper', no air-combat order) follows a 3-waypoint route ('Viper route', 120 m over the ground, 130 m/s) east across the range past a radar SAM ('Radar SAM') and a Stinger team ('Stinger Gunner'), both on their default SOPs (CE-10006, AC-9 / R-10030: a ROUTE transit's missile defence through the one MissileDefence; the route resumes at the waypoint not yet passed). Judge: the SAMs fire; the F-16 BEAMS with decoys; a SAM missile is DEFEATED; it is alive; after the defence it never flies back to the route's first waypoint and it reaches the last one."
+  },
+  "entities": {
+    "ac000011-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -6000,
+          500,
+          224.7
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          130,
+          0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "ActiveTaskId": "ac000011-0000-4000-8000-0000000000a1",
+          "Tasks": [
+            {
+              "TaskId": "ac000011-0000-4000-8000-0000000000a1",
+              "ExecutingEngine": "",
+              "BehaviorName": "FollowRoute",
+              "BehaviorParams": {
+                "routeEntityId": "ac000011-0000-4000-8000-000000000004",
+                "Speed": 130
+              },
+              "Triggers": []
+            }
+          ]
+        }
+      }
+    },
+    "ac000011-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          -3000,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8802
+      },
+      "EntityInfo": {
+        "Name": "Viper route",
+        "ForceId": "Friend"
+      },
+      "RoutePlan": {
+        "Waypoints": [
+          {
+            "X": -3000,
+            "Y": 500,
+            "Z": 0,
+            "TargetSpeed": 130,
+            "HeightAgl": 120
+          },
+          {
+            "X": 3000,
+            "Y": 500,
+            "Z": 0,
+            "TargetSpeed": 130,
+            "HeightAgl": 120
+          },
+          {
+            "X": 9000,
+            "Y": -1500,
+            "Z": 0,
+            "TargetSpeed": 130,
+            "HeightAgl": 120
+          }
+        ],
+        "IsLoop": false
+      }
+    },
+    "ac000011-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -100,
+          67.7
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 114
+      },
+      "EntityInfo": {
+        "Name": "Radar SAM",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "ac000011-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          300,
+          150,
+          164.1
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 202
+      },
+      "EntityInfo": {
+        "Name": "Stinger Gunner",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicInfantrySop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

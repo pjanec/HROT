@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(91, idx.Count);   // ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2); ⭐ CE-4624 — + the mine clearer (page 1, slot 2/2)
-        Assert.Equal(91, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(109, idx.Count);   // ⭐ CE-4648 — + the 6 Afghan civilians and 3 Afghan fighters (R-1066); + the 6 Middle-East civilians and 3 fighters (the Insurgent REPLACED, not added); ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2); ⭐ CE-4624 — + the mine clearer (page 1, slot 2/2)
+        Assert.Equal(109, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
@@ -679,6 +679,12 @@ public sealed class EntityTypeCatalogTests
         1108 CivilianMiddleEastGirl | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1109 CivilianMiddleEastElderlyMan | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1110 CivilianMiddleEastElderlyWoman | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1111 CivilianAfghanMan | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1112 CivilianAfghanWoman | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1113 CivilianAfghanBoy | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1114 CivilianAfghanGirl | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1115 CivilianAfghanElderlyMan | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
+        1116 CivilianAfghanElderlyWoman | dis 3.1.0.2.0.0.0 | family Person | folder Life Form/Land/Civilian (HROT) | icon _person
         1201 SecurityShield | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
         1202 SecurityBaton | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
         1203 SecurityLauncher | dis 3.1.0.3.0.0.0 | family Person | folder Life Form/Land/Security Force (HROT) | icon _person
@@ -697,6 +703,9 @@ public sealed class EntityTypeCatalogTests
         2013 Archer | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2014 Crossbowman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2015 ArcheryTarget | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        2016 AfghanFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2017 AfghanFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2018 AfghanMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -

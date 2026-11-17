@@ -51,7 +51,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             // ⭐⭐ CE-10005 (AC-9, RV-14) — a TRANSIT's missile defence, through THE ONE MissileDefence (a MoveTo flight: the beam break, a helicopter
             //   drops to its evade height); while it runs the move waits, and when it ends the move is issued again from where the aircraft is
-            if (Defend(ref p, self, world)) return NodeStatus.Running;
+            if (Defend(self, world, PointOf(in p, world), p.HeightAgl > 0f ? p.HeightAgl : DefaultCruiseHeightAgl, p.Speed)) { p.Issued = 0; return NodeStatus.Running; }
             if (p.Issued == 0)
             {
                 if (!LocomotionMoveTo.Issue(world, self, PointOf(in p, world), p.Speed, p.ArrivalRadius > 0f ? p.ArrivalRadius : DefaultArrivalRadius, source: LocomotionMoveTo.OrderSource(world, self)))
@@ -62,10 +62,29 @@ namespace Hrot.AI.Behaviors.Brains
             return LocomotionMoveTo.Status(world, self);
         }
 
-        /// <summary>⭐ CE-10005 (AC-9) — the transit's defence: true while it runs (its beam break is on the locomotion channel); the move is
-        /// re-issued (<see cref="FlyToParams.Issued"/> cleared) so it resumes when the defence ends. Only an aircraft with a defence state type
-        /// and a missile warning ever enters it.</summary>
-        private static bool Defend(ref FlyToParams p, Entity self, EntityRepository world)
+        /// <summary>
+        /// ⭐⭐ CE-10006 (AC-9, R-10030) — a ROUTE transit's defence (<c>FollowRoute</c>, every aircraft's route order): true while the one
+        /// <see cref="MissileDefence"/> runs (its beam break is on the locomotion channel, so the route action waits); when it ends the route
+        /// action re-activates and the motion node RESUMES the route at the first waypoint not yet passed (<c>AirRoute.ResumeIndex</c>). An
+        /// AIRCRAFT only — a ground unit's route is untouched. The break flies on along the present heading at the transit's height rules
+        /// (a plane ≥ <see cref="AirAttackNodes.EvadeHeightAglPlane"/> above the ground, a helicopter down to its evade height).
+        /// </summary>
+        public static bool DefendRoute(Entity self, EntityRepository world)
+        {
+            if (!Fdp.Toolkit.Motion.Locomotions.InAir(world, self) || !world.HasComponent<SimTransform>(self)) return false;
+            Vector3 at = world.GetComponentRO<SimTransform>(self).Position;
+            var v = world.HasComponent<SimVelocity>(self) ? world.GetComponentRO<SimVelocity>(self).Linear : Vector3.Zero;
+            var dir = new Vector2(v.X, v.Y);
+            dir = dir.LengthSquared() > 1f ? Vector2.Normalize(dir) : Vector2.UnitY;
+            float ground = Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f;
+            float agl = MathF.Max(1f, at.Z - ground);
+            return Defend(self, world, new Vector3(at.X + dir.X * 1000f, at.Y + dir.Y * 1000f, ground + agl), agl, 0f);
+        }
+
+        /// <summary>⭐ CE-10005 (AC-9) — a transit's defence (a Move toward <paramref name="to"/>, flown <paramref name="heightAgl"/> above the
+        /// ground): true while it runs (its beam break is on the locomotion channel). Only an aircraft with a defence state type and a missile
+        /// warning ever enters it.</summary>
+        private static bool Defend(Entity self, EntityRepository world, Vector3 to, float heightAgl, float speed)
         {
             if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.MissileWarning>()
                 || !world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.MissileDefenceState>()
@@ -76,17 +95,15 @@ namespace Hrot.AI.Behaviors.Brains
             var ds = before;
             Vector3 at = world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
             bool rotor = Fdp.Toolkit.Motion.Locomotions.Of(world, self) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
-            var to = PointOf(in p, world);
             var dir = new Vector2(to.X - at.X, to.Y - at.Y);
             var flight = new MissileDefence.Flight
             {
-                Fighter = false, MoveZ = rotor ? to.Z - (p.HeightAgl > 0f ? p.HeightAgl : DefaultCruiseHeightAgl) + AirAttackNodes.EvadeHeightAglRotor
+                Fighter = false, MoveZ = rotor ? to.Z - heightAgl + AirAttackNodes.EvadeHeightAglRotor
                     : MathF.Max(at.Z, (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f) + AirAttackNodes.EvadeHeightAglPlane),
-                Speed = p.Speed, FallbackDir = dir.LengthSquared() > 1f ? Vector2.Normalize(dir) : Vector2.UnitY,
+                Speed = speed, FallbackDir = dir.LengthSquared() > 1f ? Vector2.Normalize(dir) : Vector2.UnitY,
             };
             bool defending = MissileDefence.Run(world, self, ref ds, now, in flight, out _, out _);
             if (!AirAttackNodes.Same(in before, in ds)) MissileDefence.Store(world, self, in ds);
-            if (defending) p.Issued = 0;   // the move resumes from here when the defence ends
             return defending;
         }
     }
