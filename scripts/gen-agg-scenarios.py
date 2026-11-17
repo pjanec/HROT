@@ -657,7 +657,9 @@ def agg_squad_holds_house(probe=False):
         men(f"... (y <= {FP['y'][1]} + 0.5) - not on the fallback line, which runs 2 m apart across the heading out to x 134", "SimTransform.Position.1", "<=", FP["y"][1] + 0.5, "all", **at_split),
         men("D-P3: at least 5 men are posted on the upper storey (z >= 2.5)", "SimTransform.Position.2", ">=", 2.5, "atLeast:5", **at_split),
         men("D-P3: at least 5 men man the wall that faces the enemy (the north wall, y >= 160: its windows and door)", "SimTransform.Position.1", ">=", 160, "atLeast:5", **at_split),
-        men("they hold the house: at 20 s every man is still inside it (y <= 161.5)", "SimTransform.Position.1", "<=", FP["y"][1] + 0.5, "all", after=20, before=20.5),
+        task("X-2 (X2-F): within 3 s of the handover the squad runs SquadDefend - its Defend order re-resolved at Physical", U, "SquadDefend", after="split", before="split+3"),
+        men("X-2 (DP3-D 2): the men START on their planned posts - 3 s after the handover every man is still inside the house (no walk to a surveyed post)", "SimTransform.Position.1", "<=", FP["y"][1] + 0.5, "all", after="split+3", before="split+3.5"),
+        men("they hold the position: at 20 s every man is still at the house (y <= 166 - within 5 m of its north wall: under fire SquadDefend displaces men, F-X2-6)", "SimTransform.Position.1", "<=", FP["y"][1] + 5, "all", after=20, before=20.5),
         men("... (x <= 125.5)", "SimTransform.Position.0", "<=", FP["x"][1] + 0.5, "all", after=20, before=20.5),
     ]
     desc = ("What: on cqb-village a STOCHASTIC 'Blue Stochastic Squad' (10 men from the TKB composite) holds the village's three-storey house 'OBJ' (StochasticUnitDefend); a PHYSICAL 'Red Squad' "
@@ -808,12 +810,105 @@ def agg_defend_fires(probe=False):
     write(s, "berlin", desc, checks)
 
 
+# ───────────────────────────────────────────── X-2 (order re-resolution on a switch) ─────────────────────────────────────────────
+
+def x2_squad(s, name, at, defend_at, commander=None):
+    """A stochastic SQUAD (type 302: a leader and 9 riflemen from the TKB composite) holding an authored Defend (the generic play, origin Superior)."""
+    return s.unit(name, BLUE, at, SQUAD, commander, aggregate={}, behavior=("StochasticUnitDefend", {"Position": pt(defend_at), "SearchRadius": 30}))
+
+
+def agg_split_keeps_order(probe=False):
+    """X-2 (DESIGN_X2_Order_Reresolution.md §8): a stochastic squad under a Defend that splits keeps its order - SquadDefend, its men rostered."""
+    s = Scn("agg-split-keeps-order", "a9000021")
+    U = "Blue Stochastic Squad"
+    x2_squad(s, U, (300, 300), (300, 300))
+    s.physical_squad("Red Squad", RED, (300, 780), None)       # 480 m: inside the band (600 m), outside the forced range (300 m) and the rifles' 300 m
+    MEN = "*" + U + "/"
+    rows = [
+        field("the patrol inside the band: the squad de-aggregates - Physical", U, "AggregateUnit.Resolution", "==", "Physical", before=20),
+        task("X-2: within 3 s of the handover the squad runs SquadDefend (its Defend order, re-resolved at Physical)", U, "SquadDefend", after="split", before="split+3"),
+        never("... and never the stochastic StochasticUnitDefend again", {"on": "task", "who": U, "is": "StochasticUnitDefend"}, after="split+3"),
+        field("X2-B: its 10 men are in its roster (the handover assigned them)", U, "UnitRoster.Count", "==", 10, after="split", before="split+3"),
+        {"name": "... every man is the squad's subordinate (a designation set: the leader SquadLeader, the rest Wingman)", "on": "field", "who": MEN, "path": "UnitSubordinate.Designation",
+         "op": "!=", "value": "Undefined", "quantifier": "all", "after": "split+1", "before": "split+3"},
+        {"name": "... the leader is slot 1's man", "on": "field", "who": U + "/1", "path": "UnitSubordinate.Designation", "op": "==", "value": "SquadLeader", "after": "split+1", "before": "split+3"},
+    ]
+    desc = ("What: on berlin a STOCHASTIC 'Blue Stochastic Squad' (10 men from the TKB composite) holds (300,300) under a Defend order (the generic StochasticUnitDefend); a PHYSICAL 'Red Squad' stands 480 m north - "
+            "inside the resolution manager's band, outside its rifles' reach - so the squad de-aggregates. Judge (X-2): (1) the squad splits; (2) within 3 s of the handover it runs SquadDefend - the SAME order, "
+            "re-resolved at its new resolution by the routing table - and never the stochastic play again; (3) its 10 men are in its roster, each its subordinate (the leader SquadLeader). "
+            "Fail: the squad keeps the stochastic play over its men, an empty roster, or no order after the split. Check: scripts/scenario-regression.sh agg-split-keeps-order")
+    checks = {"$doc": "DESIGN_X2_Order_Reresolution.md §8 (X2-A / X2-B / X2-C, R-8353 ... R-8355): BusResolutionSwitch.Handover assigns each released man (CmdAssignSubordinate -> UnitHierarchySystem, a frame later); "
+                      "UnitResolutionFitSystem re-issues the order (AssignBehaviorEvent IsResume, same id) once the roster is complete; the ingress applies it two frames later. The squad holds open ground "
+                      "(no house): SquadDefend plans posts from the terrain. Children by NAME <squad>/<composite slot> (F-22), listed in `later`.",
+              "runFor": 30, "golden": {"every": 10}, "later": child_names(U, range(1, 11)), "expect": rows,
+              "anchors": {"split": {"on": "field", "who": U, "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}}}
+    if probe:
+        checks["golden"] = False
+    write(s, "berlin", desc, checks)
+
+
+def agg_merge_keeps_order(probe=False):
+    """X-2: the split squad's enemy leaves; it merges back and keeps its Defend as the stochastic play, its roster gone."""
+    s = Scn("agg-merge-keeps-order", "a9000022")
+    U = "Blue Stochastic Squad"
+    x2_squad(s, U, (300, 300), (300, 300))
+    sq = s.physical_squad("Red Patrol", RED, (300, 850), None)          # 550 m: inside the 600 m trigger, outside the forced range
+    s.ents[sq]["Behavior"] = {"Name": "SquadMarch", "Params": {"Objective": pt((300, 1700)), "Shape": 0, "Spacing": 4}, "Origin": "Superior"}
+    MERGE_AT = 209.25   # measured (§23.6i, editor tier): the merge lands at 209.25 s (the patrol past 800 m at ~179 s + 30 s quiet)
+    rows = [
+        field("contact: the squad splits (the patrol 550 m off)", U, "AggregateUnit.Resolution", "==", "Physical", before=15),
+        task("... and runs its Defend as SquadDefend", U, "SquadDefend", after="split", before="split+3"),
+        field("the patrol walks past the merge line (800 m) and 30 s pass quiet: the squad merges back", U, "AggregateUnit.Resolution", "==", "Stochastic", after="split+5", before=MERGE_AT + 1),
+        task("X-2: after the merge it runs its Defend as the stochastic StochasticUnitDefend (the params projected onto the neutral DTO)", U, "StochasticUnitDefend", after=MERGE_AT, before=MERGE_AT + 3),
+        never("... and never SquadDefend again", {"on": "task", "who": U, "is": "SquadDefend"}, after=MERGE_AT + 3),
+        never("X2-B: the merge leaves no roster on the squad (F-X2-4: a kept roster drops it out of the staff's stochastic arm)", {"on": "field", "who": U, "path": "UnitRoster.Count", "op": ">=", "value": 0}, after=MERGE_AT + 1),
+    ]
+    desc = ("What: on berlin a STOCHASTIC 'Blue Stochastic Squad' (10 men) holds (300,300) under a Defend order; a PHYSICAL 'Red Patrol' 550 m north marches away north. Judge (X-2): (1) the squad splits "
+            "while the patrol is near and runs SquadDefend; (2) once the patrol is past the 800 m merge line and 30 s are quiet the men merge back; (3) within 3 s it runs the stochastic StochasticUnitDefend - "
+            "the same order - and never SquadDefend again; (4) no roster is left on it. Fail: SquadDefend on a memberless unit, no order after the merge, or a roster left behind. "
+            "Check: scripts/scenario-regression.sh agg-merge-keeps-order")
+    checks = {"$doc": "DESIGN_X2_Order_Reresolution.md §8 (X2-B / X2-C, R-8354 / R-8355): BusResolutionSwitch.Merge removes UnitRoster; the reconciler re-issues the order projected onto "
+                      "StochasticUnitDefend's DTO (OrderReissue.Project). New rather than re-judging agg-merge-back (a PLATOON: X-2 is squad-only, X2-I).",
+              "runFor": MERGE_AT + 20, "golden": {"every": 40}, "later": child_names(U, range(1, 11)), "expect": rows,
+              "anchors": {"split": {"on": "field", "who": U, "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}}}
+    if probe:
+        checks["golden"] = False
+    write(s, "berlin", desc, checks)
+
+
+def agg_commanded_split(probe=False):
+    """X-2 X2-H: a physical platoon (PlatoonDefend) over a stochastic squad that splits: the squad runs SquadDefend, the platoon gives it ONE order."""
+    s = Scn("agg-commanded-split", "a9000023")
+    P, U = "Blue Platoon", "Blue Stochastic Squad"
+    pl = s.unit(P, BLUE, (300, 280), PLATOON, behavior=("PlatoonDefend", {"Position": pt((300, 300)), "Threat": pt((300, 800))}))
+    s.unit(U, BLUE, (300, 300), SQUAD, pl, aggregate={})
+    s.physical_squad("Red Squad", RED, (300, 780), None)
+    rows = [
+        task("the platoon runs PlatoonDefend", P, "PlatoonDefend", before=5),
+        task("it orders its stochastic squad Defend by KIND: the squad runs the generic play", U, "StochasticUnitDefend", before=10),
+        field("the enemy inside the band: the squad de-aggregates", U, "AggregateUnit.Resolution", "==", "Physical", before=30),
+        task("X-2: within 3 s of the handover the squad runs SquadDefend", U, "SquadDefend", after="split", before="split+3"),
+        never("... and never the stochastic play again", {"on": "task", "who": U, "is": "StochasticUnitDefend"}, after="split+3"),
+    ]
+    desc = ("What: on berlin a PHYSICAL 'Blue Platoon' (PlatoonDefend at (300,300), threat north) commands ONE STOCHASTIC 'Blue Stochastic Squad'; a PHYSICAL 'Red Squad' stands 480 m north. Judge (X-2, X2-H): "
+            "(1) the platoon orders the squad Defend by kind (the generic StochasticUnitDefend); (2) the squad splits and within 3 s runs SquadDefend - the platoon's SAME order (its request id kept), so the platoon "
+            "does not re-send it and the posted men are not restarted. Fail: the squad back on the stochastic play, or a second order after the switch. Check: scripts/scenario-regression.sh agg-commanded-split")
+    checks = {"$doc": "DESIGN_X2_Order_Reresolution.md §8 (X2-H, R-8361): PlatoonDefend gives orders through CommandOrders.Route and re-sends only when Stands fails; the routed checks are resolution-blind "
+                      "and match by RequestId, which the reconciler keeps (IsResume).",
+              "runFor": 40, "golden": {"every": 10}, "later": child_names(U, range(1, 11)), "expect": rows,
+              "anchors": {"split": {"on": "field", "who": U, "path": "AggregateUnit.Resolution", "op": "==", "value": "Physical"}}}
+    if probe:
+        checks["golden"] = False
+    write(s, "berlin", desc, checks)
+
+
 GENERATORS = {"agg-march-mounted": lambda: agg_march_mounted(381.25, 350, 60 / 3.6), "agg-platoon-under-company": agg_platoon_under_company, "agg-refused-order": agg_refused_order, "agg-recorded": agg_recorded, "agg-march-open": agg_march_open,
               "agg-route-dropped": agg_route_dropped, "agg-detect-by-range": agg_detect_by_range, "agg-sees-physical": agg_sees_physical, "agg-break-contact": agg_break_contact,
               "agg-platoon-duel": agg_platoon_duel, "agg-shelled-unit": agg_shelled_unit, "agg-prepared-defence": agg_prepared_defence, "agg-out-of-ammo": agg_out_of_ammo,
               "agg-battalion-fight": agg_battalion_fight, "agg-mixed-company-attack": agg_mixed_company_attack,
               "agg-split-on-contact": agg_split_on_contact, "agg-squad-holds-house": agg_squad_holds_house, "agg-merge-back": agg_merge_back,
-              "agg-forced-handover": agg_forced_handover, "agg-defend-fires": agg_defend_fires}
+              "agg-forced-handover": agg_forced_handover, "agg-defend-fires": agg_defend_fires,
+              "agg-split-keeps-order": agg_split_keeps_order, "agg-merge-keeps-order": agg_merge_keeps_order, "agg-commanded-split": agg_commanded_split}
 
 if __name__ == "__main__":
     args = sys.argv[1:]

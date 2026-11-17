@@ -217,12 +217,31 @@
       "before": "split+0.5"
     },
     {
-      "name": "they hold the house: at 20 s every man is still inside it (y <= 161.5)",
+      "name": "X-2 (X2-F): within 3 s of the handover the squad runs SquadDefend - its Defend order re-resolved at Physical",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "SquadDefend",
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "X-2 (DP3-D 2): the men START on their planned posts - 3 s after the handover every man is still inside the house (no walk to a surveyed post)",
       "on": "field",
       "who": "*Blue Stochastic Squad/",
       "path": "SimTransform.Position.1",
       "op": "<=",
       "value": 161.5,
+      "quantifier": "all",
+      "after": "split+3",
+      "before": "split+3.5"
+    },
+    {
+      "name": "they hold the position: at 20 s every man is still at the house (y <= 166 - within 5 m of its north wall: under fire SquadDefend displaces men, F-X2-6)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "SimTransform.Position.1",
+      "op": "<=",
+      "value": 166,
       "quantifier": "all",
       "after": 20,
       "before": 20.5

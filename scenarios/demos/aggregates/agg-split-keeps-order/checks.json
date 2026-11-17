@@ -1,0 +1,87 @@
+{
+  "$doc": "DESIGN_X2_Order_Reresolution.md \u00a78 (X2-A / X2-B / X2-C, R-8353 ... R-8355): BusResolutionSwitch.Handover assigns each released man (CmdAssignSubordinate -> UnitHierarchySystem, a frame later); UnitResolutionFitSystem re-issues the order (AssignBehaviorEvent IsResume, same id) once the roster is complete; the ingress applies it two frames later. The squad holds open ground (no house): SquadDefend plans posts from the terrain. Children by NAME <squad>/<composite slot> (F-22), listed in `later`.",
+  "runFor": 30,
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Blue Stochastic Squad/1",
+    "Blue Stochastic Squad/2",
+    "Blue Stochastic Squad/3",
+    "Blue Stochastic Squad/4",
+    "Blue Stochastic Squad/5",
+    "Blue Stochastic Squad/6",
+    "Blue Stochastic Squad/7",
+    "Blue Stochastic Squad/8",
+    "Blue Stochastic Squad/9",
+    "Blue Stochastic Squad/10"
+  ],
+  "expect": [
+    {
+      "name": "the patrol inside the band: the squad de-aggregates - Physical",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
+      "before": 20
+    },
+    {
+      "name": "X-2: within 3 s of the handover the squad runs SquadDefend (its Defend order, re-resolved at Physical)",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "SquadDefend",
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "... and never the stochastic StochasticUnitDefend again",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Squad",
+        "is": "StochasticUnitDefend"
+      },
+      "after": "split+3"
+    },
+    {
+      "name": "X2-B: its 10 men are in its roster (the handover assigned them)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitRoster.Count",
+      "op": "==",
+      "value": 10,
+      "after": "split",
+      "before": "split+3"
+    },
+    {
+      "name": "... every man is the squad's subordinate (a designation set: the leader SquadLeader, the rest Wingman)",
+      "on": "field",
+      "who": "*Blue Stochastic Squad/",
+      "path": "UnitSubordinate.Designation",
+      "op": "!=",
+      "value": "Undefined",
+      "quantifier": "all",
+      "after": "split+1",
+      "before": "split+3"
+    },
+    {
+      "name": "... the leader is slot 1's man",
+      "on": "field",
+      "who": "Blue Stochastic Squad/1",
+      "path": "UnitSubordinate.Designation",
+      "op": "==",
+      "value": "SquadLeader",
+      "after": "split+1",
+      "before": "split+3"
+    }
+  ],
+  "anchors": {
+    "split": {
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical"
+    }
+  }
+}
