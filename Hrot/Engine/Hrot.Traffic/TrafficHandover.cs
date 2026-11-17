@@ -11,7 +11,7 @@ namespace Hrot.Traffic;
 /// <summary>⭐ AQ93 §14 G3 — one of our vehicles handed to SUMO, as the stepping thread spawns its shadow: NET coordinates; (X, Y) is the
 /// FRONT BUMPER (SumoSharp H13's position convention); heading in radians, 0 = east, counter-clockwise (atan2).</summary>
 public readonly record struct TrafficHandover(int NetworkId, uint IntentId, double X, double Y, double Heading, double Speed,
-                                              double DestX, double DestY, string? VType, bool Priority = false);
+                                              double DestX, double DestY, string? VType, bool Priority = false, double? MaxSpeed = null);
 
 /// <summary>
 /// ⭐ AQ93 §14 G2/G3 (R-4023) — each frame on a SERVING node's main thread: every body whose <see cref="NavigationIntent"/> says
@@ -24,6 +24,9 @@ public readonly record struct TrafficHandover(int NetworkId, uint IntentId, doub
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficHandoverSystem : IEcsModuleSystem
 {
+    /// <summary>⭐ CE-9000 (C-6) — the speed a cap factor scales when the escort names no top speed (m/s, an urban limit).</summary>
+    public const double CapReferenceSpeed = 13.9;
+
     private readonly TrafficRuntime _runtime;
     private readonly List<TrafficHandover> _scratch = new();
 
@@ -46,6 +49,7 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
         bool velocity = world.IsComponentTypeRegistered<SimVelocity>();
         bool sized = world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>();
         bool typed = world.IsComponentTypeRegistered<TkbIdentity>();
+        bool trails = world.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>();
         foreach (var e in world.Query().With<NavigationIntent>().With<SimTransform>().With<NetworkIdentity>().Build())
         {
             var intent = world.GetComponentRO<NavigationIntent>(e);
@@ -65,8 +69,20 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
             string? vType = typed && world.HasComponent<TkbIdentity>(e)
                 ? world.GetComponentRO<TkbIdentity>(e).TkbType.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
             bool priority = NavigationConstants.RoadUseOf(intent.Flags) == RoadUse.InTrafficPriority;   // ⭐ CE-9000 (C-1) — the escort's beacon and siren
+            // ⭐ CE-9000 (C-6) — a convoy lead whose column is stretched: its cap as a top speed (the lead's own system wrote the factor; this node holds the
+            //   trail when it is also the kinematic owner — the editor; a dedicated traffic node has none, so no cap there yet, C-8)
+            double? cap = null;
+            if (trails && world.HasComponent<CarKinem.Convoy.ConvoyTrail>(e))
+            {
+                float factor = world.GetComponentRO<CarKinem.Convoy.ConvoyTrail>(e).SpeedCapFactor;
+                if (factor < 1f)
+                {
+                    float top = sized && world.HasComponent<CarKinem.Core.VehicleParams>(e) ? world.GetComponentRO<CarKinem.Core.VehicleParams>(e).MaxSpeedFwd : 0f;
+                    cap = Math.Max(0.0, factor * (top > 0f ? top : CapReferenceSpeed));
+                }
+            }
             into.Add(new TrafficHandover(world.GetComponentRO<NetworkIdentity>(e).Value, intent.IntentId,
-                nx, ny, Math.Atan2(ay - ny, ax - nx), speed, dx, dy, vType, priority));
+                nx, ny, Math.Atan2(ay - ny, ax - nx), speed, dx, dy, vType, priority, cap));
         }
         return into.ToArray();
     }
