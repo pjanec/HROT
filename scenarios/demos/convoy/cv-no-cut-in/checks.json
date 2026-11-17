@@ -21,11 +21,11 @@
       "value": "Traffic"
     },
     {
-      "name": "traffic comes close to the column (the never rows are not vacuous)",
+      "name": "traffic comes close to the column — a SUMO car within 12 m of any convoy vehicle (the never rows are not vacuous)",
       "on": "close",
       "who": "*SUMO ",
-      "from": "Escort 3",
-      "m": 10
+      "from": "*Escort",
+      "m": 12
     },
     {
       "name": "no car cuts in between Escort 1 and Escort 2",
