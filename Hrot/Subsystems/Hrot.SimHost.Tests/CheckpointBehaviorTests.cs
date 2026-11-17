@@ -256,6 +256,7 @@ namespace Hrot.SimHost.Tests
             f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
             f.Tick(3);
             var demands = new List<(Entity To, string What, BehaviorOrigin Origin)>();
+            string? embarkJson = null;
             var (car, driver) = StoppedCar(f, charge: false);
             void Run(int k)
             {
@@ -268,6 +269,7 @@ namespace Hrot.SimHost.Tests
                         if (e == null) continue;
                         if (e.IntentId == BehaviorNames.CombatPosture) f.Posts[e.Entity] = Objective(e.JsonParams);
                         if (e.Entity == driver) demands.Add((e.Entity, e.IntentId, e.Origin));
+                        if (e.Entity == driver && e.IntentId == BehaviorNames.Embark) embarkJson = e.JsonParams;
                     }
                 }
             }
@@ -292,7 +294,9 @@ namespace Hrot.SimHost.Tests
             repo.AddComponent(car, new Fdp.Toolkit.Civilians.Custody { Searched = 1 });
             Run(3);
             Assert.Equal((2, 1, 0), (f.Watch.SearchStage, f.Watch.Released, f.Watch.Held));
-            Assert.Contains(demands, d => d.What == BehaviorNames.Embark);
+            // ⭐ the release is an INSTRUCTION (a reaction is refused by his running "hands up") and names the vehicle by Embark's own key
+            Assert.Contains(demands, d => d.What == BehaviorNames.Embark && d.Origin == BehaviorOrigin.Superior);
+            Assert.Contains("\"vehicle\":", embarkJson);
         }
 
         /// <summary>⭐ K-6 — the same search of a car with something in its concealed boot ⇒ FOUND, the driver HELD (detained), never told to board.
@@ -317,6 +321,95 @@ namespace Hrot.SimHost.Tests
             Run(3);
             Assert.Equal((3, 1, 0, 1), (f.Watch.SearchStage, f.Watch.Found, f.Watch.Released, f.Watch.Held));
             Assert.Contains(asks, a => a.Man == driver && a.Verb == Fdp.Toolkit.Civilians.CustodyVerb.Detain);
+        }
+
+        // ── ⭐ R-2133's ⏭ — the signalled vehicle stops at the line on its own (StopAtSignal) ─────────────────────────────────────────────
+
+        private static void Arrive(StationWeaponBehaviorTests.World w)
+        {
+            ref var ch = ref w.Repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(w.Man);
+            ch.Status = NodeStatus.Success;
+        }
+
+        /// <summary>⭐ The signalled vehicle closes on the LINE ON ITS OWN COURSE at <see cref="StopAtSignalBehavior.ApproachSpeed"/> and stops there; it holds while its people
+        /// are out (the search) and ends once they are all back in (released) — the task it paused then goes on. ✅ Red-proofs: the move not issued ⇒ red;
+        /// "released" ending as soon as one gets out ⇒ red.</summary>
+        [Fact]
+        public unsafe void R2133_ASignalledVehicle_StopsAtTheLine_HoldsWhileSearched_EndsWhenItsPeopleAreBack()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            var driver = repo.CreateEntity();
+            var buffer = new PassengerBuffer(); buffer.Passengers[0] = driver;
+            repo.AddComponent(w.Man, buffer);
+            var p = new StopAtSignalBehavior.StopAtSignalParams { StopAt = new Vector3(380f, 12f, 0f) };
+            var s = new StopAtSignalBehavior.StopAtSignalState();
+            w.Tick();
+            Assert.Equal(NodeStatus.Running, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo));
+            var ch = repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(w.Man);
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, ch.ActiveAction);
+            {
+                byte* b = ch.Params;                                                                 // a local: its fixed buffer is already fixed
+                var mp = *(Fdp.Toolkit.Navigation.MoveToParams*)b;
+                Assert.Equal(380f - StopAtSignalBehavior.CreepMetres, mp.Destination.X, 2);         // ON its course (it faces +X from the origin), short of the line
+                Assert.Equal(0f, mp.Destination.Y, 2);
+                Assert.Equal(StopAtSignalBehavior.ApproachSpeed, mp.Speed);
+            }
+            Arrive(w); w.Tick();
+            Assert.Equal(NodeStatus.Running, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo));   // the creep to the line
+            {
+                var ch2 = repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(w.Man);
+                byte* b2 = ch2.Params;
+                var mp2 = *(Fdp.Toolkit.Navigation.MoveToParams*)b2;
+                Assert.Equal(380f, mp2.Destination.X, 2);
+                Assert.Equal(StopAtSignalBehavior.CreepSpeed, mp2.Speed);
+            }
+            Arrive(w); w.Tick();
+            Assert.Equal(NodeStatus.Running, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo));   // stopped at the line
+            Assert.Equal(1, s.Phase);
+            ref var bf = ref repo.GetComponentRW<PassengerBuffer>(w.Man);
+            bf.Passengers[0] = Entity.Null;                                                          // "out, hands up"
+            for (int i = 0; i < 300; i++) { w.Tick(); Assert.Equal(NodeStatus.Running, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo)); }   // 30 s searched
+            repo.GetComponentRW<PassengerBuffer>(w.Man).Passengers[0] = driver;                     // released: he boards again
+            w.Tick();
+            Assert.Equal(NodeStatus.Success, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo));
+        }
+
+        /// <summary>⭐ Stopped at the line and nobody asked out: after <see cref="StopAtSignalBehavior.WavedOnSeconds"/> it is waved on (Success).
+        /// ✅ Red-proof: the waved-on end dropped ⇒ it waits for ever ⇒ red.</summary>
+        [Fact]
+        public void R2133_ASignalledVehicle_NobodyAskedOut_IsWavedOn()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            var buffer = new PassengerBuffer(); buffer.Passengers[0] = repo.CreateEntity();
+            repo.AddComponent(w.Man, buffer);
+            var p = new StopAtSignalBehavior.StopAtSignalParams { StopAt = new Vector3(380f, 12f, 0f) };
+            var s = new StopAtSignalBehavior.StopAtSignalState();
+            w.Tick(); StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo);
+            Arrive(w); w.Tick(); StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo);
+            Arrive(w); w.Tick(); StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo);
+            var last = NodeStatus.Running;
+            for (int i = 0; i < (int)(StopAtSignalBehavior.WavedOnSeconds * 10) - 5; i++) { w.Tick(); last = StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo); }
+            Assert.Equal(NodeStatus.Running, last);
+            for (int i = 0; i < 10; i++) { w.Tick(); last = StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo); }
+            Assert.Equal(NodeStatus.Success, last);
+        }
+
+        /// <summary>⭐ A vehicle under a RAM order ignores the signal: the reaction ends at once and issues no move (📐 cp-ram-barrier: the rammer obeyed and
+        /// never rammed). ✅ Red-proof: the ram check dropped ⇒ it closes on the line ⇒ red.</summary>
+        [Fact]
+        public void R2133_AVehicleUnderARamOrder_IgnoresTheSignal()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<global::CarKinem.Core.RamOrder>()) repo.RegisterComponent<global::CarKinem.Core.RamOrder>();
+            repo.AddComponent(w.Man, new global::CarKinem.Core.RamOrder { Active = 1 });
+            var p = new StopAtSignalBehavior.StopAtSignalParams { StopAt = new Vector3(380f, 12f, 0f) };
+            var s = new StopAtSignalBehavior.StopAtSignalState();
+            w.Tick();
+            Assert.Equal(NodeStatus.Success, StopAtSignalBehavior.Tick(ref p, ref s, w.Man, repo));
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(w.Man).ActiveAction);
         }
     }
 }

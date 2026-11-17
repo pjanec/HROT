@@ -20,7 +20,8 @@ merge of `coordinator@56b704904`.
 |---|---|---|
 | **CE-3454** a man in an open firing seat engages on his own | ✅ built | `BasicInfantrySop`'s FIRST row → React `FireFromSeat` (fires from the seat, no move; ends 3 s after the arc is clear). On a firing seat = his own `CanShoot` aboard (boarding strips it everywhere else but a weapon's gunner seat); an enemy SEEN within 1 s, within 60 m (R-2136), inside the seat's arc; no task; the ROE lets him fire; ⛔ never the rider's stopped-only seat (PF-3/PF-4). An order is a task, so the drive-by's ordered burst keeps it |
 | **MR-5** the MineStrike back-out | ✅ built — `mf-strike-and-halt` back-out row ✔ (red without it), `mf-at-vs-vehicle` ✔, `mf-recon-and-mark` ✔; reds pre-existing: CE-2446, CE-2447 | `TrailWalk` (one walker): the mover's own breadcrumbs, newest first, cut after the first point outside the field; `MineStrike` orders every live man `BackOut` (walk out, then hold); a struck vehicle (or a lone man) backs out itself, reverse allowed. R-2125's interim ENDED |
-| checkpoint follow-ups | ⏳ next | a civilian who slows on seeing the signal; the waved-on SUMO car (R-2133's ⏭) |
+| checkpoint follow-up: the civilian stops on the signal | ✅ built — all six checkpoint scenarios pass (`cp-civilian-stops` new) | the checkpoint sends the signalled vehicle `StopAtSignal` (a reaction; the VBIED / ram never take it): it slows, stops at the line, holds while searched, ends when its people are back (released) or after 20 s untouched (waved on); scenario `cp-civilian-stops` (route straight through) |
+| checkpoint follow-up: the SUMO car | ⏳ not built | not measured whether a SUMO-driven car takes the reaction (SUMO drives it); likely needs a traffic-side hold (backend's SUMO bridge) |
 
 ## §1 Ids allocated
 
@@ -38,3 +39,5 @@ R-2136 (lane decision, for the user's review: a firing-seat man opens fire on hi
 | at 100 m the drive-by's pillion, his ordered target down at the pass, took on the second sentry ~70 m off the road, lost the duel; bike, rider and pillion killed at the post | probe capture (`t` 34–50 s) | R-2136 tightened to 60 m |
 | `mf-strike-and-halt` "a man is hurt" is red — an AP mine bursts under the lead man (0.3 m) and nobody's Health moves; red WITHOUT the back-out too (stash run at the same tree) | dense capture `t` 29–34 s | CE-2446, terrain |
 | `mf-no-way-round` "nobody enters the field" red at 49.5 s (the squad reacts at 55.5 s); red at the same tree WITHOUT the back-out too (no mine goes off) | stash run | CE-2447 (behaviors, MS-B4) |
+| K-6's RELEASE never re-boarded anyone: sent as a reaction (refused by the running "hands up") and keyed `Vehicle` (Embark reads `vehicle`) — the committed `cp-routine-car` golden shows the driver out from ~50 s to the end | `cp-civilian-stops` probe; base golden | fixed: an instruction, the right key; both car scenarios now check "the driver boards again" |
+| the released car read as a threat the moment it moved off the line | `cp-civilian-stops` run | the watch waves through the last vehicle it searched (not held) |
