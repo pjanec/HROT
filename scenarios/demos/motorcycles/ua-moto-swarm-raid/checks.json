@@ -1,0 +1,122 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4621 IM-5 swarm raid, one row per Judge line.",
+  "runFor": 240,
+  "golden": {
+    "every": 20
+  },
+  "expect": [
+    {
+      "name": "a bike reaches the east approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        320.0,
+        200.0
+      ],
+      "within": 30
+    },
+    {
+      "name": "a bike reaches the north-east approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        260.0,
+        303.9
+      ],
+      "within": 30
+    },
+    {
+      "name": "a bike reaches the north-west approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        140.0,
+        303.9
+      ],
+      "within": 30
+    },
+    {
+      "name": "a bike reaches the west approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        80.0,
+        200.0
+      ],
+      "within": 30
+    },
+    {
+      "name": "a bike reaches the south-west approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        140.0,
+        96.1
+      ],
+      "within": 30
+    },
+    {
+      "name": "a bike reaches the south-east approach point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        260.0,
+        96.1
+      ],
+      "within": 30
+    },
+    {
+      "name": "the bikes close on the post together",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        200,
+        200
+      ],
+      "within": 30,
+      "quantifier": "all",
+      "after": "a bike reaches the east approach point"
+    },
+    {
+      "name": "the pillions fire at the post",
+      "on": "shot",
+      "by": "*Pillion",
+      "n": 3,
+      "after": "a bike reaches the east approach point"
+    },
+    {
+      "name": "a bike rides out east",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        380.0,
+        200.0
+      ],
+      "within": 30,
+      "after": "the bikes close on the post together"
+    },
+    {
+      "name": "a bike rides out west",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        20.0,
+        200.0
+      ],
+      "within": 30,
+      "after": "the bikes close on the post together"
+    },
+    {
+      "name": "at least four bikes reach the rally point",
+      "on": "near",
+      "who": "*Bike",
+      "point": [
+        40,
+        360
+      ],
+      "within": 40,
+      "quantifier": "atLeast:4",
+      "after": "the bikes close on the post together"
+    }
+  ]
+}

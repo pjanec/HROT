@@ -1,0 +1,199 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a drive-by (CE-4621 IM-1, the throw; docs/designs/vehicle-tactics/DESIGN_Motorcycle.md \u00a75). A two-up insurgent motorcycle ('Bike': 'Rider' in front, 'Pillion' in the firing seat) rides east along the road at y = 200 at 14 m/s, slows to 4 m/s within 40 m of a two-man sentry post ('Sentry 1', 'Sentry 2' at x 200-206, 14 m off the road), the pillion throws ONE grenade at the post while passing, and the bike escapes at speed to (390, 200), the east edge of the town. Judge: (1) the pillion throws: a burst goes off at the post (within 15 m of Sentry 1) (2) a sentry is hurt (3) the bike passes the post (within 20 m of (200, 200)) (4) the bike escapes: past x = 340 (140 m beyond the post) by 70 s (5) the riders are still aboard at the end. Check: scripts/scenario-regression.sh ua-moto-drive-by-grenade"
+  },
+  "entities": {
+    "46210d02-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 115
+      },
+      "EntityInfo": {
+        "Name": "Bike",
+        "ForceId": "Hostile"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "46210d02-0000-4000-8000-000000000002",
+          "46210d02-0000-4000-8000-000000000003"
+        ],
+        "Seats": [
+          0,
+          1
+        ]
+      },
+      "Behavior": {
+        "Name": "DriveBy",
+        "Params": {
+          "Target": "46210d02-0000-4000-8000-000000000004",
+          "Escape": [
+            390,
+            200,
+            0
+          ],
+          "PassSpeed": 4,
+          "Speed": 14,
+          "PassMetres": 40,
+          "Throw": true
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46210d02-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d02-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "46210d02-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          40,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Pillion",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46210d02-0000-4000-8000-000000000001",
+        "Seat": 1
+      }
+    },
+    "46210d02-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          200,
+          214,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Sentry 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "React",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "46210d02-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          206,
+          215,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Sentry 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "ReturnFire",
+        "Reactions": "React",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    }
+  }
+}

@@ -1,0 +1,381 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: a ROUTINE civilian car at the checkpoint (CE-4622 K-4/K-6, docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md CP-1, CP-2, CP-4) on basic-desert: the squad 'Checkpoint' (Stopper, Searcher 1, Searcher 2, Rifleman, Gunner with an M249) runs Checkpoint on the 'Checkpoint approach' route (stop line x 380). A Neutral 'Car' with its 'Driver' drives east from x 100 at 12 m/s and slows (5 m/s at x 330) to stop at the line. Judge: (1) the checkpoint signals it (the Stopper's Warning gesture) and never fires (2) it reads ROUTINE (3) the Driver gets out with his hands up, he and the car are searched and RELEASED (he boards again). Fail: any shot at the car; a threat; no search."
+ },
+ "entities": {
+  "c4622001-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     60,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8802
+   },
+   "EntityInfo": {
+    "Name": "Checkpoint approach",
+    "ForceId": "Friend"
+   },
+   "RoutePlan": {
+    "Waypoints": [
+     {
+      "X": 60,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 0,
+      "HeightAgl": 0
+     },
+     {
+      "X": 380,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 0,
+      "HeightAgl": 0
+     }
+    ],
+    "IsLoop": false
+   }
+  },
+  "c4622001-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     430,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 302
+   },
+   "EntityInfo": {
+    "Name": "Checkpoint",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Checkpoint",
+    "Params": {
+     "Approach": "c4622001-0000-4000-8000-000000000001"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     425,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Stopper",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+    "Designation": "Rifleman"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     428,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Searcher 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+    "Designation": "Rifleman"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     431,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Searcher 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+    "Designation": "Rifleman"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     434,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+    "Designation": "Rifleman"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     437,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 207
+   },
+   "EntityInfo": {
+    "Name": "Gunner",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "UnitSubordinate": {
+    "CommanderGuid": "c4622001-0000-4000-8000-000000000002",
+    "Designation": "AutomaticRifleman"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1002
+   },
+   "EntityInfo": {
+    "Name": "Car",
+    "ForceId": "Neutral"
+   },
+   "PassengerBuffer": {
+    "Count": 1,
+    "Passengers": [
+     "c4622001-0000-4000-8000-000000000021"
+    ],
+    "Seats": [
+     0
+    ]
+   },
+   "Behavior": {
+    "Name": "FollowRoute",
+    "Params": {
+     "routeEntityId": "c4622001-0000-4000-8000-000000000020",
+     "Speed": 12
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1101
+   },
+   "EntityInfo": {
+    "Name": "Driver",
+    "ForceId": "Neutral"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "IsEmbarkedTag": {
+    "Vehicle": "c4622001-0000-4000-8000-000000000010",
+    "Seat": 0
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "c4622001-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 8802
+   },
+   "EntityInfo": {
+    "Name": "Car route",
+    "ForceId": "Neutral"
+   },
+   "RoutePlan": {
+    "Waypoints": [
+     {
+      "X": 100,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 12,
+      "HeightAgl": 0
+     },
+     {
+      "X": 250,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 12,
+      "HeightAgl": 0
+     },
+     {
+      "X": 330,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 5,
+      "HeightAgl": 0
+     },
+     {
+      "X": 378,
+      "Y": 300,
+      "Z": 0,
+      "TargetSpeed": 2,
+      "HeightAgl": 0
+     }
+    ],
+    "IsLoop": false
+   }
+  }
+ }
+}

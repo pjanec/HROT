@@ -1,0 +1,19 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2355 S4) \u2014 rf-wall-hugger, the scenario's Judge list: the Shooter fires at the windows; (3) a grenade is dropped at the Hugger (a blast by a defender, 'Red 1-3'). \u26a0 Left out: (1) 'a defender shot at ducks within 2 s', (2) 'ONE defender moves to an opening that sees the Hugger' and (4) 'no defender's look follows the Hugger out of sight' (a reaction latency, an opening and a gaze are not cues).",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Shooter fires",
+      "on": "shot",
+      "by": "Shooter"
+    },
+    {
+      "name": "(3) a grenade is dropped at the Hugger",
+      "on": "blast",
+      "by": "*Red "
+    }
+  ]
+}

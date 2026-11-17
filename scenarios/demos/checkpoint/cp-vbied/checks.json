@@ -1,0 +1,56 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-7 the VBIED.",
+ "runFor": 60,
+ "golden": {
+  "every": 10
+ },
+ "expect": [
+  {
+   "name": "the Stopper signals",
+   "on": "gesture",
+   "who": "Stopper",
+   "is": "Warning"
+  },
+  {
+   "name": "a threat by time",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Threats",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the ladder climbs past the signal (a warning shot or more)",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.MaxRung",
+   "op": ">=",
+   "value": 2
+  },
+  {
+   "name": "the Gunner fires",
+   "on": "shot",
+   "by": "Gunner"
+  },
+  {
+   "name": "the VBIED is hit",
+   "on": "field",
+   "who": "VBIED",
+   "path": "Health.Current",
+   "op": "<",
+   "value": 300
+  },
+  {
+   "name": "no burst among the rear posts",
+   "never": {
+    "on": "blast",
+    "where": {
+     "burst.0": [
+      ">",
+      410
+     ]
+    }
+   }
+  }
+ ]
+}

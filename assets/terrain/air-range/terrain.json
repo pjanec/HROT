@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "origin": {
+    "lat": 49.0,
+    "lon": 16.0,
+    "alt": 0.0
+  },
+  "name": "air-range",
+  "world": "air-range.world.geojson"
+}

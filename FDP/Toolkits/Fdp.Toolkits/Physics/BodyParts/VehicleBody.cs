@@ -57,7 +57,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
     /// where the engine region lies (S2-4).
     /// </summary>
     public readonly record struct VehicleKitPart(byte Part, KitShape Shape, Vector3 Centre, Vector3 Extent, KitAxis Axis, float PitchDegrees,
-                                                 float YawDegrees, KitRole Role, bool EngineBox = false);
+                                                 float YawDegrees, KitRole Role, bool EngineBox = false, float RollDegrees = 0f);   // ⭐ CE-4647 — RollDegrees: a fin canted outward (ui's KitPart.RollDegrees)
 
     /// <summary>⭐ <c>CE-3211</c> — a vehicle kit: its default size (m), where its turret turns and its gun's trunnion (fractions), its parts.
     /// ⭐ <c>CE-3214</c> (S2b-8) — <paramref name="RestElevation"/>: the lay (radians) of a gun with no turret part (ui's <c>LaidPose</c> fallback).</summary>
@@ -274,6 +274,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 }
                 local = Matrix4x4.CreateTranslation(0, 0, -0.5f) * Matrix4x4.CreateScale(diameter, diameter, length) * lay;
             }
+            if (part.RollDegrees != 0f) local *= Matrix4x4.CreateRotationX(part.RollDegrees * MathF.PI / 180f);
             if (part.PitchDegrees != 0f) local *= Matrix4x4.CreateRotationY(part.PitchDegrees * MathF.PI / 180f);
             if (part.YawDegrees != 0f) local *= Matrix4x4.CreateRotationZ(part.YawDegrees * MathF.PI / 180f);
             var m = local * Matrix4x4.CreateTranslation(centre);

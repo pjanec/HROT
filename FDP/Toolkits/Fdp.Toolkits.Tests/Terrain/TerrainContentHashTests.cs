@@ -36,6 +36,22 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.NotEqual(a, OfTerrain());
         }
 
+        /// <summary>⭐ AQ112 A — the kept OLD versions (<c>versions/&lt;hash&gt;/…</c>) are no part of the current terrain's identity: adding, changing or removing one leaves the hash as it was. 🔴 Red-proof: drop <c>versions/</c> from <c>IsExcluded</c> ⇒ the hash moves.</summary>
+        [Fact]
+        public void OfTerrain_IgnoresTheKeptVersions()
+        {
+            string a = OfTerrain();
+            string v = Path.Combine(_dir, TerrainCatalog.VersionsDirectoryName, new string('c', 64));
+            Directory.CreateDirectory(v);
+            File.WriteAllText(Path.Combine(v, "terrain.json"), "{\"schemaVersion\":2}");
+            File.WriteAllText(Path.Combine(v, "w.geojson"), "old world bytes");
+            Assert.Equal(a, OfTerrain());
+            File.WriteAllText(Path.Combine(v, "w.geojson"), "other old world bytes");
+            Assert.Equal(a, OfTerrain());
+            Directory.Delete(Path.Combine(_dir, TerrainCatalog.VersionsDirectoryName), true);
+            Assert.Equal(a, OfTerrain());
+        }
+
         /// <summary>The cache is used: a world file changed back to the SAME length and mtime answers the cached hash (no world byte is read); a new mtime re-hashes. 🔴 Red-proof: ignore the cache ⇒ the first assertion fails.</summary>
         [Fact]
         public void OfTerrain_IsCachedByLengthAndMtime()

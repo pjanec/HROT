@@ -1,0 +1,101 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: the ac-ir-defeated shot, but the F-16's pilot is in a forced LateWarning lapse \u2014 he reacts to the launch 2 s late (CE-10002, AC-12). Judge: the F-16 is hit (its health below its maximum) inside 20 s \u2014 the timely defence is what saved it in ac-ir-defeated."
+  },
+  "entities": {
+    "ac00000c-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -1000,
+          0,
+          2107.6
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00000c-0000-4000-8000-000000000002"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran",
+        "ForcedLapse": "LateWarning"
+      }
+    },
+    "ac00000c-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -3800,
+          0,
+          2109.4
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.0,
+          1.0
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          220.0,
+          0.0,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 409
+      },
+      "EntityInfo": {
+        "Name": "Fulcrum",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 450,
+        "Max": 450
+      },
+      "Behavior": {
+        "Name": "AirPlatformAttack",
+        "Params": {
+          "Target": "ac00000c-0000-4000-8000-000000000001"
+        },
+        "Origin": "Superior"
+      },
+      "AirCombatState": {
+        "Skill": "Veteran"
+      }
+    }
+  }
+}

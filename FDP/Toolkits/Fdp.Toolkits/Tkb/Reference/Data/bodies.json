@@ -294,6 +294,23 @@
       ]
     },
     {
+      "name": "TwinEngineJet",
+      "plan": "FixedWing",
+      "dis": "1.2.*.1.200",
+      "kit": "TwinEngineJet",
+      "inheritArmour": true,
+      "zones": [
+        { "zone": "Fuselage", "parts": [0], "multiplier": 1.0 },
+        { "zone": "Cockpit",  "parts": [1], "multiplier": 1.5, "effect": "Catastrophic", "woundedAt": 160 },
+        { "zone": "Wing",     "parts": [2], "multiplier": 0.6, "effect": "Catastrophic", "woundedAt": 192 },
+        { "zone": "Engine",   "parts": [3], "multiplier": 1.0, "effect": "Catastrophic", "woundedAt": 96 },
+        { "zone": "Tail",     "parts": [4], "multiplier": 0.7, "effect": "Catastrophic", "woundedAt": 128 },
+        { "zone": "Turret",   "parts": [5], "multiplier": 1.0, "effect": "Firepower",    "woundedAt": 64 },
+        { "zone": "Gun",      "parts": [6], "multiplier": 0.3, "effect": "Firepower",    "woundedAt": 32 },
+        { "zone": "Stores",   "parts": [7], "multiplier": 0.5 }
+      ]
+    },
+    {
       "name": "AttackJet",
       "plan": "FixedWing",
       "dis": "1.2.*.2",

@@ -317,7 +317,9 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state
                     D(Hrot.NED.Descriptors.EDescriptorType.dtFlockState),        // ⭐ CE-4623 AB-3 — a bird flock's state
                     D(Hrot.NED.Descriptors.EDescriptorType.dtFormationController),   // ⭐ CE-9007 — a road column's lead
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtFormationFollower) },   // ⭐ CE-9007 — a road column's explicit-leader slot
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFormationFollower),   // ⭐ CE-9007 — a road column's explicit-leader slot
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order to its motion node
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtAirArena) },        // ⭐ CE-10000 (AC-10) — the air-combat arena
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
@@ -328,7 +330,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtDescent),            // ⭐ airborne insertion B-1 — a body coming down
                     D(Hrot.NED.Descriptors.EDescriptorType.dtLookState),          // ⭐ CE-3252 (LD-E) — where a person looks, the Muscle turns the head
                     D(Hrot.NED.Descriptors.EDescriptorType.dtSpawnLevel),         // ⭐ CE-3271 (Q94 D) — the birth level, resolved where the position is owned
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnderFire) },        // ⭐ CE-1223 — when a man was last under fire (Muscle's stamp)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnderFire),          // ⭐ CE-1223 — when a man was last under fire (Muscle's stamp)
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFighterPilotState) }, // ⭐ CE-10000 (AC-2) — a fighter's g / GCAS / live threat
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

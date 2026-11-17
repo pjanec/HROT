@@ -188,12 +188,19 @@ namespace Hrot.Editor.Director
                 }
                 case "knowledge":
                     return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
+                case "far":
+                case "close":
+                    return _w.World is { } dw && DistanceHolds(dw, c) ? _rel : null;
                 default:
                 {
-                    if (_w.World is not { } world) return null;
                     // a task cue may name several behaviours: any of them
                     var specs = a.Is is JsonArray many ? many.Select(x => a with { Is = x?.DeepClone() }) : new[] { a };
-                    return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                    if (_w.World is { } world) return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                    // ⭐ RT-5 (R-3094) — a world with no repository (the cluster tier reads a node over HTTP): the SAME value comparisons
+                    //   (AnchorBook's TaskHolds / SideHolds / HealthHolds / EmbarkHolds / GestureHolds, CE-4117 N6) on the unit's dumped components.
+                    //   ⛔ Before, every near / task / side / health / embark / gesture cue silently read false there.
+                    var who = UnitsNamed(a.Who!).ToList();
+                    return specs.Any(s => who.Any(id => Components(id) is { } comps && StateHolds(s, comps))) ? _rel : null;
                 }
             }
         }
@@ -229,7 +236,68 @@ namespace Hrot.Editor.Director
             return false;
         }
 
+        /// <summary>
+        /// ⭐ CE-10002 (air combat RV-15, R-10012) — <c>far</c> / <c>close</c>: some unit <see cref="AnchorSpec.Who"/> names is more than (<c>far</c>) /
+        /// within (<c>close</c>) <see cref="CheckCue.M"/> of the unit <see cref="CheckCue.From"/> names (3-D; the nearest of them) or of
+        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing.
+        /// </summary>
+        private bool DistanceHolds(EntityRepository world, CheckCue c)
+        {
+            if (c.Spec.Who is not { } who) return false;
+            bool far = c.On == "far";
+            foreach (var id in UnitsNamed(who))
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (e.IsNull || !world.HasComponent<SimTransform>(e)) continue;
+                var at = world.GetComponentRO<SimTransform>(e).Position;
+                float d = float.MaxValue;
+                if (c.From != null)
+                {
+                    foreach (var fid in UnitsNamed(c.From))
+                    {
+                        var f = new Fdp.Toolkit.Replication.EntityRef(fid).Resolve(world);
+                        if (f.IsNull || f == e || !world.HasComponent<SimTransform>(f)) continue;
+                        d = MathF.Min(d, System.Numerics.Vector3.Distance(at, world.GetComponentRO<SimTransform>(f).Position));
+                    }
+                    if (d == float.MaxValue) continue;
+                }
+                else if (c.Spec.Point is { } p) d = System.Numerics.Vector2.Distance(new System.Numerics.Vector2(at.X, at.Y), p);
+                else continue;
+                if (far ? d > c.M : d <= c.M) return true;
+            }
+            return false;
+        }
+
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;
+
+        /// <summary>⭐ RT-5 (R-3094) — a STATE cue on one unit's DUMPED components (enum fields by name, a vector as [x, y, z]): the comparison is
+        /// AnchorBook's own, value for value; only the reading differs.</summary>
+        private bool StateHolds(AnchorSpec a, JsonObject comps)
+        {
+            switch (a.On)
+            {
+                case "near":
+                    if (a.Point is not { } p || At(comps, "SimTransform.Position") is not JsonArray pos || pos.Count < 2) return false;
+                    return System.Numerics.Vector2.Distance(new System.Numerics.Vector2((float)(Num(pos[0]) ?? 0), (float)(Num(pos[1]) ?? 0)), p) <= a.Within;
+                case "task":
+                    if (comps["BehaviorState"] is not JsonObject bs) return false;
+                    int hash = (int)(Num(bs["ActiveBehaviorHash"]) ?? 0);
+                    // the hash's name: the world's own map, else the start record of the behaviour now running (the dump carries no registry)
+                    string? started = comps["BehaviorStartRecord"]?["BehaviorName"]?.ToString();
+                    return AnchorBook.TaskHolds(a, hash, h => _w.BehaviourName(h) ?? started);
+                case "side":
+                    return Enum.TryParse<Fdp.Core.ForceId>(At(comps, "EntityInfo.ForceId")?.ToString(), true, out var side) && AnchorBook.SideHolds(a, side);
+                case "health":
+                    if (comps["Health"] is not JsonObject hp) return false;
+                    return AnchorBook.HealthHolds(a, (float)(Num(hp["Current"]) ?? 0), (float)(Num(hp["Max"]) ?? 0));
+                case "embark":
+                    return AnchorBook.EmbarkHolds(a, comps["IsEmbarkedTag"] is JsonObject);
+                case "gesture":
+                    return AnchorBook.GestureHolds(a, Enum.TryParse<Fdp.Toolkit.Combat.GestureKind>(At(comps, "Gesture.Kind")?.ToString(), true, out var g) ? g : Fdp.Toolkit.Combat.GestureKind.None);
+                default:
+                    return false;
+            }
+        }
 
         private JsonObject? Components(int id)
         {

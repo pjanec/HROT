@@ -152,6 +152,10 @@ namespace Hrot.Map.Common
         public const long Obstacle_Wreck         = 8819;
         // ⭐ CE-4624 (minefields §3a) — the MINEFIELD: one entity per field (a closed outline, its mines derived). DIS 5.0.0.91, class "Minefield". ⛔ A permanent wire value.
         public const long Minefield              = 8830;
+        // ⭐ CE-10004 (air combat AC-10, R-10013) — the AIR ARENA: one authored entity per show stage (its AirArena component: centre, radius,
+        //   floor, ceiling, the shot cap, the stalemate). A map graphic, no body. ⛔ PERMANENT WIRE VALUE; 8840 measured free on every origin
+        //   branch's TkbEntityTypes.cs and nowhere else in the tree (`git grep 8840`), 2026-11-17.
+        public const long AirArena               = 8840;
         // ⭐ CE-5010 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-4264) — the three clutter-only boxes become obstacle types too, so a row of barrels / jersey barriers / booths is real obstacle ENTITIES.
         //   ⛔ PERMANENT WIRE VALUES; 8820–8822 measured free (no use in any origin branch's TkbEntityTypes.cs, nor anywhere in the tree), 2026-11-16.
         public const long Obstacle_Barrel        = 8820;
@@ -239,6 +243,10 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-7027</c> (City Battle §11 R-1b) — a BOMBER quadcopter: the quadcopter airframe with a drop rack of two M67s; it hovers
         /// over a point, drops one and flies back (<c>AirAttackProfile.HoverDrop</c>). ⛔ A permanent wire value.</summary>
         public const long Drone_Bomber = 408;
+        /// <summary>⭐ <c>CE-10000</c> (air lane, AC-7; docs/designs/air-attack/DESIGN_Air_Combat.md §5a) — a MiG-29-class FIGHTER: DIS 1.2.222.1.200
+        /// (a HROT subcategory, R-10002), class <c>TwinEngineFighter</c> (its own body, ui's). The better instantaneous turn; the F-16 the better
+        /// sustained one. Faction from the scenario. ⛔ A permanent wire value.</summary>
+        public const long Jet_MiG29 = 409;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

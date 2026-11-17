@@ -101,13 +101,62 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (repo.HasComponent<BallisticProjectile>(e) && repo.GetComponentRO<BallisticProjectile>(e).StoppedTick != 0) continue;
                 var pos = repo.GetComponentRO<SimTransform>(e).Position;
                 ref var vel = ref repo.GetComponentRW<SimVelocity>(e).Linear;
-                if (Steer(repo, world, ref g, pos, vel, out var desired))
+                bool steered = Steer(repo, world, ref g, pos, vel, out var desired);
+                if (g.MaxG > 0f)
+                {
+                    // ⭐⭐ CE-10002 (AC-6) — boost / coast, the g by speed², the lag; too slow ⇒ DEFEATED: it expires, its shot row says so
+                    if (Motor(ref g, ref vel, steered, desired, deltaTime))
+                    {
+                        if (ShotLog.Peek(repo)?.Of(e) is { } shot) ShotLog.End(shot, ShotOutcome.Defeated, tick, pos);
+                        // ⭐ AC-9a — the aircraft it was after counts it (its motion node's report; this system runs on that node, serially)
+                        if (repo.IsAlive(g.Target) && repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FighterPilotState>()
+                            && repo.HasComponent<Fdp.Toolkit.Motion.FighterPilotState>(g.Target))
+                        {
+                            ref var fp = ref repo.GetComponentRW<Fdp.Toolkit.Motion.FighterPilotState>(g.Target);
+                            if (fp.Defeated < 255) fp.Defeated++;
+                        }
+                        repo.DestroyEntity(e);
+                        continue;
+                    }
+                }
+                else if (steered)
                     vel = Turn(vel, desired, TurnRateOf(g.TurnRateDegPerSec) * (MathF.PI / 180f) * deltaTime) * g.SpeedMps;
                 // ⭐ CE-3198 (§3b) — the overfly fuze: fires DOWN as the round passes over the roof
                 if (g.Overfly != 0 && OverflyFuze(repo, e, in g, pos, vel, deltaTime)) { repo.DestroyEntity(e); continue; }
                 // ⭐ CE-2187 (§3c, AD2) — the proximity fuze: bursts where its step passes closest to its target
                 if (g.ProximityM > 0f && ProximityFuze(repo, e, in g, pos, vel, deltaTime, tick)) repo.DestroyEntity(e);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-10002 (AC-6, RV-1; DESIGN_Air_Combat §3, §5b) — a motor round's step: it BOOSTS to <see cref="GuidedRound.SpeedMps"/> over its
+        /// burn, then COASTS losing <see cref="GuidedRound.DragPerS"/> (more while it turns: × (1 + the g it pulls ÷ its MaxG)); the g it can
+        /// pull is <c>MaxG·(v / SpeedMps)²</c> (a slowing missile gets LESS agile); its steering follows the lead through a first-order
+        /// lag. True when it is DEFEATED (coasting below <see cref="GuidedRound.MinSpeedMps"/>). Pure arithmetic: no allocation.
+        /// </summary>
+        public static bool Motor(ref GuidedRound g, ref Vector3 vel, bool steered, Vector3 desired, float dt)
+        {
+            if (g.SpeedNow <= 0f) g.SpeedNow = MathF.Max(vel.Length(), 1f);
+            if (g.BurnLeftS > 0f) { g.SpeedNow = MathF.Min(g.SpeedMps, g.SpeedNow + g.BoostMps2 * dt); g.BurnLeftS -= dt; }
+            else g.SpeedNow = MathF.Max(0f, g.SpeedNow - g.DragPerS * (1f + g.LoadG / g.MaxG) * dt);
+            if (g.BurnLeftS <= 0f && g.MinSpeedMps > 0f && g.SpeedNow < g.MinSpeedMps) return true;
+            float v = MathF.Max(g.SpeedNow, 1f);
+            float ratio = v / MathF.Max(g.SpeedMps, 1f);
+            float gAvail = g.MaxG * ratio * ratio;
+            var dir = vel.LengthSquared() > 1e-8f ? Vector3.Normalize(vel) : g.SteerDir;
+            g.LoadG = 0f;
+            if (steered)
+            {
+                float k = g.SteerLagS > 0f ? MathF.Min(1f, dt / g.SteerLagS) : 1f;
+                var s = g.SteerDir + (desired - g.SteerDir) * k;
+                g.SteerDir = s.LengthSquared() > 1e-8f ? Vector3.Normalize(s) : desired;
+                var next = Turn(dir, g.SteerDir, gAvail * 9.81f / v * dt);
+                float turned = MathF.Acos(Math.Clamp(Vector3.Dot(dir, next), -1f, 1f));
+                g.LoadG = turned / MathF.Max(dt, 1e-4f) * v / 9.81f;
+                dir = next;
+            }
+            vel = dir * g.SpeedNow;
+            return false;
         }
 
         /// <summary>Above the roof, a fuze this much higher than the overfly height still fires (the round's path is not exact).</summary>
@@ -172,6 +221,20 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-2187</c> (§3c) — does a seeker flying along <paramref name="vel"/> from <paramref name="pos"/> see
         /// <paramref name="point"/>: inside its cone (always, with no cone).</summary>
+        /// <summary>⭐ CE-10002 (RV-4) — the notch: a target's speed along the line of sight under this (m/s), below this height (m AGL).</summary>
+        public const float NotchMps = 50f, NotchAglM = 300f;
+
+        /// <summary>⭐ CE-10002 (RV-4) — is <paramref name="target"/> in the radar seeker's notch, seen from <paramref name="seeker"/>?</summary>
+        public static bool InNotch(EntityRepository repo, Fdp.Toolkit.World.IWorldQuery? world, Entity target, Vector3 seeker, Vector3 targetPoint)
+        {
+            float ground = world?.GroundHeightAt(targetPoint.X, targetPoint.Y) ?? 0f;
+            if (targetPoint.Z - ground >= NotchAglM) return false;
+            if (!Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, target, out _, out var tv)) return false;
+            var los = targetPoint - seeker;
+            float d = los.Length();
+            return d > 1e-3f && MathF.Abs(Vector3.Dot(tv, los / d)) < NotchMps;
+        }
+
         public static bool InCone(in GuidedRound g, Vector3 pos, Vector3 vel, Vector3 point)
         {
             if (g.SeekerCos <= 0f) return true;
@@ -210,6 +273,9 @@ namespace Fdp.Toolkit.Combat.Systems
 
             // fire-and-forget (⭐ CE-2187: an IR / radar seeker too): the round's own seeker — inside its cone only
             bool sees = targetKnown && InCone(in g, pos, vel, targetPoint) && (world == null || !world.SightBlocked(pos, targetPoint));
+            // ⭐⭐ CE-10002 (air combat AC-6, RV-4) — THE RADAR NOTCH: a radar seeker loses a target whose own speed along the line of sight is
+            //   under NotchMps (it flies across the beam — no Doppler against the ground clutter) while it is below NotchAglM above the ground
+            if (sees && g.Guidance == GuidanceKind.Radar && InNotch(repo, world, g.Target, pos, targetPoint)) sees = false;
             if (sees) g.LastSeen = targetPoint;
             var goal = g.LastSeen;
             // ⭐ CE-2187 (§3c) — a HOMING seeker (IR, radar) leads a target it sees: it steers at where the target will be when it arrives
@@ -217,7 +283,9 @@ namespace Fdp.Toolkit.Combat.Systems
             //   helicopter crossing at 60 m/s — outside a 4 m proximity fuze (measured, rail CE2187_AnIrRound_…).
             if (sees && g.Guidance is GuidanceKind.InfraRed or GuidanceKind.Radar
                 && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, g.Target, out _, out var targetVelocity))
-                goal = TargetLead.Point(pos, Vector3.Zero, g.SpeedMps, targetPoint, targetVelocity);
+                // ⭐ R-10018 (user 2026-11-17: "Harden as you lean.") — a MOTOR round leads on its CURRENT speed (the same lead pursuit, a true
+                //   input): on the burn-out speed it led a target it could not reach yet and half of the straight-flying targets were missed
+                goal = TargetLead.Point(pos, Vector3.Zero, g.MaxG > 0f ? MathF.Max(g.SpeedNow, 1f) : g.SpeedMps, targetPoint, targetVelocity);
             var toGoal = goal - pos;
             if (toGoal.LengthSquared() < 1e-6f) return false;
             // ⭐ CE-2201 — a top attack's DIVE is the branch below (at least the dive angle, homing once the line is steeper). ⛔ It was

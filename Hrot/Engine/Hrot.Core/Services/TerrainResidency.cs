@@ -197,6 +197,17 @@ public sealed class TerrainResidency
 
         // ⭐ W12 — a terrain is a FOLDER, resolved by the one catalog (staging → shared → shipped).
         string? definitionPath = _catalog.ResolveDefinition(terrainName);
+        // ⭐⭐ AQ112 B (R-4280) — an overlay names the base it was compiled over by HASH: when the current terrain was re-imported since, the kept old version is the base
+        //   (the replay's recording opens its overlay through here too — its TerrainHash IS the overlay header's base hash)
+        if (definitionPath != null && !string.IsNullOrEmpty(overlayFolder)
+            && File.Exists(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))
+        {
+            string wantedBase = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder).BaseHash;
+            definitionPath = _catalog.ResolveDefinition(terrainName, wantedBase)
+                ?? throw new InvalidOperationException(
+                    $"[Terrain] The overlay '{overlayFolder}' was compiled against terrain '{terrainName}' content hash '{wantedBase}', but that version is not available: the resident terrain "
+                  + $"('{definitionPath}') has content hash '{TerrainContentHash.OfTerrain(definitionPath!)}' and there is no '{TerrainCatalog.VersionsDirectoryName}/{wantedBase}' beside it. Recompile the overlay (save the scenario) against this terrain.");
+        }
         if (definitionPath == null)
             throw new FileNotFoundException(
                 $"[Terrain] Terrain '{terrainName}' was not found: no '{terrainName}/{TerrainCatalog.DefinitionFileName}' "
@@ -806,9 +817,27 @@ public sealed class TerrainResidency
         foreach (var b in new HashSet<int>(damage.Keys.Concat(lastDamage.Keys)))
         {
             damage.TryGetValue(b, out var now); lastDamage.TryGetValue(b, out var was);
-            if (now == was || (uint)b >= (uint)baseWorld.Buildings.Count || baseWorld.Buildings[b].Footprint.Length == 0) continue;
+            if (now == was) continue;
             var lo = new System.Numerics.Vector2(float.MaxValue); var hi = new System.Numerics.Vector2(float.MinValue);
-            foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            if (WallGroups.IsBuilding(baseWorld, b))
+            {
+                if (baseWorld.Buildings[b].Footprint.Length == 0) continue;
+                foreach (var v in baseWorld.Buildings[b].Footprint) { lo = System.Numerics.Vector2.Min(lo, v); hi = System.Numerics.Vector2.Max(hi, v); }
+            }
+            else
+            {
+                // ⭐ CE-4629 (found by tt-dozer-breach) — a FREE-WALL line's group (CE-4599) is dirty where its panels stand: ⛔ was skipped (only a building had a box), so a cut in a
+                //   garden wall or a fence was never re-baked — the navmesh kept the wall closed while the world showed the gap
+                for (int i = 0; i < baseWorld.Panels.Count; i++)
+                {
+                    if (WallGroups.Of(baseWorld, i) != b) continue;
+                    var pa = baseWorld.Panels[i];
+                    float t = pa.Thickness * 0.5f;
+                    lo = System.Numerics.Vector2.Min(lo, System.Numerics.Vector2.Min(pa.A, pa.B) - new System.Numerics.Vector2(t));
+                    hi = System.Numerics.Vector2.Max(hi, System.Numerics.Vector2.Max(pa.A, pa.B) + new System.Numerics.Vector2(t));
+                }
+                if (lo.X > hi.X) continue;
+            }
             rects.Add((lo, hi));
         }
         return rects;

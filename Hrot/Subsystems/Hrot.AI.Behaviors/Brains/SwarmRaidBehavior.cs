@@ -71,7 +71,10 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.SwarmRaid, Params = typeof(SwarmRaidParamsJsonDto), Categories = BehaviorCategory.Commander,
+        // ⭐ R-3096 (found by ua-moto-swarm-raid) — the raid FULFILS a Dash: a mounted rush into the objective that no contact reaction may halt or
+        //   send to cover (OrderConduct: Dash forbids All). ⛔ With no kind its order forbade nothing, and the commander's ReactToContact displaced the
+        //   raid at the first sight of the post — the bikes were ordered to Suppress instead of riding to their approach points.
+        [Behavior(BehaviorNames.SwarmRaid, Params = typeof(SwarmRaidParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Dash), Categories = BehaviorCategory.Commander,
             Description = "Bikes converge on an objective from several directions, fight, then disperse on divergent routes to a rally point.")]
         [BTreeDefinition(BehaviorNames.SwarmRaid, Curated = true, Group = "Library/Insurgent", ParamsType = typeof(SwarmRaidBlackboard))]
         public static BTreeBuilder<SwarmRaidBlackboard, BTreeContext> BuildTree()

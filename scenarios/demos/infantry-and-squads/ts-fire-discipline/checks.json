@@ -1,0 +1,66 @@
+{
+  "$doc": "docs/DESIGN_Temperament_And_Stress.md \u00a76 (CE-2272) \u2014 ts-fire-discipline, the scenario's Judge list: (1) no regular breaks and the regulars fire back; (2) at least half the militia break \u2014 a break is an edge, men break at different times (R-2076 measured 13.8-35.5 s), so 'half at one instant' cannot hold: each of the four is asked individually (stricter than the Judge's half; if one is later seen to hold, loosen to the Judge's two with the evidence); (3) every man who broke recovers once the fire stops (nobody is still broken at the end). '*Regular ' / '*Militia ' (trailing space) name the four men of a team and not the gunner. \u26a0 Left out: 'is back on his task by the end' (no task-resumed cue) and (4) the printed figures.",
+  "runFor": 100,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "(1) no regular breaks",
+      "never": {
+        "on": "field",
+        "who": "*Regular ",
+        "path": "Stress.Broken",
+        "op": "==",
+        "value": 1
+      }
+    },
+    {
+      "name": "(1) the regulars fire back",
+      "on": "shot",
+      "by": "*Regular "
+    },
+    {
+      "name": "(2) Militia 1 breaks (the men break one by one, 13.8-35.5 s; the Judge needs half, all four are asked)",
+      "on": "field",
+      "who": "Militia 1",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(2) Militia 2 breaks (the men break one by one, 13.8-35.5 s; the Judge needs half, all four are asked)",
+      "on": "field",
+      "who": "Militia 2",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(2) Militia 3 breaks (the men break one by one, 13.8-35.5 s; the Judge needs half, all four are asked)",
+      "on": "field",
+      "who": "Militia 3",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(2) Militia 4 breaks (the men break one by one, 13.8-35.5 s; the Judge needs half, all four are asked)",
+      "on": "field",
+      "who": "Militia 4",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 1
+    },
+    {
+      "name": "(3) at the end nobody is still broken",
+      "on": "field",
+      "who": "*Militia ",
+      "path": "Stress.Broken",
+      "op": "==",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

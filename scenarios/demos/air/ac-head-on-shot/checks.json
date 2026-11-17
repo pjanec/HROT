@@ -1,0 +1,47 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S3 \u2014 feature (golden).",
+  "runFor": 60,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "Viper shoots inside 6 km",
+      "on": "shot",
+      "by": "Viper",
+      "n": 1,
+      "where": {
+        "range": [
+          "<=",
+          6000
+        ]
+      }
+    },
+    {
+      "name": "Fulcrum shoots inside 6 km",
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1,
+      "where": {
+        "range": [
+          "<=",
+          6000
+        ]
+      }
+    },
+    {
+      "name": "no shot beyond 6 km",
+      "never": {
+        "on": "shot",
+        "by": "*",
+        "n": 1,
+        "where": {
+          "range": [
+            ">",
+            6000
+          ]
+        }
+      }
+    }
+  ]
+}

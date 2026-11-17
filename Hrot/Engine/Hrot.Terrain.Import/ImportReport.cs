@@ -6,6 +6,8 @@ public sealed class ImportReport
     public string TerrainName { get; set; } = "";
     public Dictionary<string, double> StageSeconds { get; } = new();
     public List<string> Warnings { get; } = new();
+    /// <summary>⭐ AQ112 A — the content hash of the terrain this import REPLACED, now kept under <c>versions/&lt;hash&gt;/</c> (null: nothing was replaced).</summary>
+    public string? KeptVersionHash { get; set; }
 
     public int HeightCols { get; set; }
     public int HeightRows { get; set; }

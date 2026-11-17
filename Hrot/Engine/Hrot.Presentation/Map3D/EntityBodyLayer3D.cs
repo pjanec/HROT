@@ -482,6 +482,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
                 if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
                     parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
+                else if (JetStores.Carries(look.Family) && !wreck)   // ⭐ CE-4647 — the missiles still on the rails, the afterburner, the wingtip vortex (cached: 0 B)
+                {
+                    bool carries = JetStores.Left(world, e, tkb, out int irLeft, out int radarLeft);
+                    bool burner = false, vortex = false;
+                    if (FighterState.Read(world, e) is { } flight) { burner = flight.Throttle >= JetStores.BurnerFrom; vortex = flight.GLoad >= JetStores.VortexFromG; }
+                    if (carries || burner || vortex) parts = StoresOf(look.Family, type, size, parts, carries ? irLeft : -1, radarLeft, burner, vortex);
+                }
             }
             _drawn.Add(e);
             if (look.Family == VisualFamily.Person) _figureFrames[e] = (body, size.Z);   // ⭐ CE-1085 — where a carried weapon hangs
@@ -2090,6 +2097,16 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         return placed;
     }
 
+    private readonly Dictionary<(long Type, Vector3 Size, int Load), KitPart[]> _storeLoads = new();
+
+    /// <summary>⭐ CE-4647 — a jet's kit with its rails and the missiles left, its afterburner and its vortex trails (<see cref="JetStores"/>), built ONCE per (type, size, load): a steady frame allocates nothing.</summary>
+    private KitPart[] StoresOf(VisualFamily family, long type, Vector3 size, KitPart[] body, int ir, int radar, bool burner, bool vortex)
+    {
+        var key = (type, size, (ir < 0 ? 0 : 1 + ir * 3 + radar) + (burner ? 16 : 0) + (vortex ? 32 : 0));
+        if (!_storeLoads.TryGetValue(key, out var parts)) _storeLoads[key] = parts = JetStores.Load(family, size, body, ir, radar, burner, vortex);
+        return parts;
+    }
+
     /// <summary>⭐ CE-4621 — pins the look of <paramref name="tkbType"/> (a rail's seam: a stand-in type whose class the table does not have yet cannot resolve a family).</summary>
     internal void PinLook(long tkbType, TypeLook look) => _looks[tkbType] = look;
 
@@ -2106,6 +2123,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || tkbType == Hrot.Map.Common.TkbEntityTypes.AirArena   // ⭐ CE-4647 — nor an AIR ARENA: AirArenaProjector draws it (a map graphic, no body)
             || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.StrikesType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.KnowledgeType   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
             || Hrot.Core.Tkb.TreeDamageTkb.Is(tkbType))   // ⭐ CE-4603 (B-6) — nor a cell's felled trunks (the trees vanish from the terrain); terrain lane, cross-lane   // ⭐ CE-4591 (P-4) — nor a ground cell's craters (drawn into the ground); terrain lane, cross-lane one-line edit   // ⭐ CE-4391 S-1 — nor a building's DAMAGE entity (breaches): drawn into the walls in S-4 (ui, R-4195); a cross-lane one-line edit
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
@@ -2268,6 +2286,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.WeaponSystem => new Color(84, 92, 70, 255),
         VisualFamily.SpArtillery => new Color(112, 120, 82, 255),
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
+        VisualFamily.TwinEngineJet => new Color(120, 128, 140, 255),   // ⭐ CE-4647 — a slightly bluer grey than the F-16 (the faction / TKB colour wins)
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
         VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)

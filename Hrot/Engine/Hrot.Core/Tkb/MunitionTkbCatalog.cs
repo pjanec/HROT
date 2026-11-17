@@ -158,6 +158,16 @@ namespace Hrot.Core.Tkb
         public const string MineAntiPersonnelName = "anti-personnel mine", MineAntiTankName = "anti-tank mine", LineChargeName = "line charge";
         /// <summary>⭐ CE-4624 (MS-T1) — an anti-tank mine's burst against the BELLY: penetration (mm RHA) and damage of its direct hit on the hull's bottom (starter values, tune with the armour's <c>ArmorBottom</c>).</summary>
         public const float AntiTankMinePenetrationMm = 120f, AntiTankMineDamage = 250f;
+        /// <summary>⭐⭐ <c>CE-10000</c> (air lane, AC-6 / AC-8; docs/designs/air-attack/DESIGN_Air_Combat.md §5b, §7) — the air-to-air missiles and the
+        /// fighter guns: AIM-9X class (IR), AIM-120 class (radar), R-73 class (IR), R-77 class (radar), the M61's 20 mm HEI, the GSh-30-1's 30 mm HEI.
+        /// A motor (boost then coast), a g limit that falls with speed², a 0.4 s steering lag — dodgeable by drag and a timely break. ⛔ Permanent wire values.</summary>
+        public const int TkbAim9x = 6060, TkbAim120 = 6061, TkbR73 = 6062, TkbR77 = 6063, TkbM61Hei = 6064, TkbGsh30Hei = 6065;
+        public const string Aim9xName = "AIM-9X class missile", Aim120Name = "AIM-120 class missile", R73Name = "R-73 class missile",
+                            R77Name = "R-77 class missile", M61HeiName = "M61 20mm HEI", Gsh30HeiName = "GSh-30-1 30mm HEI";
+        /// <summary>⭐ <c>CE-10000</c> — the library entries the air-to-air rounds take their numbers from.</summary>
+        public const string IrAamLibraryName = "IR AAM warhead", RadarAamLibraryName = "radar AAM warhead", M61HeiLibraryName = "20mm HEI";
+        /// <summary>⭐ <c>CE-10000</c> (§5b, RV-11) — the AAMs' proximity fuze reach (m): IR 8, radar 12.</summary>
+        public const float IrAamFuzeM = 8f, RadarAamFuzeM = 12f;
         /// <summary>⭐ CE-4624 — the mines' blast INJURY radii (m): an AP mine 5, an AT mine 12, a line-charge burst 15 (starter values).</summary>
         public const float MineApInjuryRadiusM = 5f, MineAtInjuryRadiusM = 12f, LineChargeInjuryRadiusM = 15f;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
@@ -291,10 +301,12 @@ namespace Hrot.Core.Tkb
             //   starter values — tuning starts here.
             Register(tkb, StingerName, TkbStingerMissile, Dis(1, Usa, 1, 15), ProximityFused(StingerLibraryName), 0f, LibraryDamage(StingerLibraryName),   // "Stinger" (anti-air)
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 700f, MaxFlightSeconds = 12f, MinRangeM = 200f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.6f });
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.82f,
+                                      BurnSeconds = 2f, MaxG = 25f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) — the motor · ⭐ R-10018 MaxG 20 → 25, flares rejected 0.6 → 0.82
             Register(tkb, IglaName, TkbIglaMissile, Dis(1, Russia, 1, 30), ProximityFused(IglaLibraryName), 0f, LibraryDamage(IglaLibraryName),   // "SA-18 Grouse (9M39)"
                      new MissileDto { Guidance = GuidanceKind.InfraRed, SpeedMps = 570f, MaxFlightSeconds = 14f, MinRangeM = 500f,
-                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.4f });
+                                      TargetDomain = TargetDomain.Air, SeekerConeDeg = 20f, FlareRejection = 0.7f,
+                                      BurnSeconds = 2f, MaxG = 23f, DragPerS = 60f, MinSpeedMps = 250f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b)
             // ⭐⭐ CE-4617 (B-2, RS-3, RV-6 / RV-7) — the radar SAM's missile: a short-range radar-guided round (an SA-8 / Tor class, rounded:
             //   ~800 m/s, 0.5–8 km, 15 kg-class fragmentation warhead). The seeker cone is WIDE (60°) so a crossing jet's lead (~21° at
             //   250 / 700 m/s) stays inside it; it flies 18 s (8 km at 800 m/s with margin); chaff is rejected 9 in 10, and only in the
@@ -302,7 +314,8 @@ namespace Hrot.Core.Tkb
             Register(tkb, RadarSamName, TkbRadarSamMissile, Dis(1, Russia, 1, 0), ProximityFused(RadarSamLibraryName), 0f, LibraryDamage(RadarSamLibraryName),
                      new MissileDto { Guidance = GuidanceKind.Radar, SpeedMps = 800f, MaxFlightSeconds = 18f, MinRangeM = 500f,
                                       TargetDomain = TargetDomain.Air, SeekerConeDeg = 60f, ChaffRejection = 0.9f,
-                                      MinTargetRcsM2 = 0.03f });   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
+                                      MinTargetRcsM2 = 0.03f,   // ⭐ RS-8 — refuses an FPV (0.01 m²), takes a recon drone (0.05)
+                                      BurnSeconds = 4f, MaxG = 38f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f });   // ⭐ CE-10002 (AC-6, §5b) · ⭐ R-10018 MaxG 30 → 38
             // ⭐ CE-2190 (Weapon Systems §5c, AD5) — the ZU-23-2's rounds: plain (no proximity fuze), AT2's lead aims them
             Register(tkb, Zu23HeiName, Tkb23mmHei, Dis(1, Russia, 2, 3, 5),   // "23 mm / 23 mm ZSU AAA HEI OFZ" (the ZU-23's 23×152 round)
                      LibraryWarhead(Zu23HeiLibraryName), LibraryPenetration(Zu23HeiLibraryName), LibraryDamage(Zu23HeiLibraryName));
@@ -314,6 +327,23 @@ namespace Hrot.Core.Tkb
             //   falls; chaff blooms and hangs longer, sinking slowly. Starter values — tuning starts here.
             // ⭐ CE-3213 — SISO-REF-010 v37: kind 8 (Expendable), domain 2 (Air), category 2 "Flare" / 1 "Chaff" (enumeration 25); a generic
             //   decoy names no country or type ⇒ 0.
+            // ⭐⭐ CE-10000 (air lane, AC-6 / AC-8; DESIGN_Air_Combat §5b) — the air-to-air missiles: public figures, rounded (the design's table). The
+            //   motor: SpeedMps is the BURN-OUT speed reached over BurnSeconds from the launcher's speed, then DragPerS is lost (more while turning);
+            //   the g available = MaxG·(v / SpeedMps)²; the steering follows the lead through SteerLagS; below MinSpeedMps the round is Defeated.
+            Register(tkb, Aim9xName, TkbAim9x, Dis(1, Usa, 1, 1), AamFused(IrAamLibraryName, IrAamFuzeM), 0f, LibraryDamage(IrAamLibraryName),
+                     IrAam(seekerConeDeg: 90f, flareRejection: 0.82f));
+            Register(tkb, Aim120Name, TkbAim120, Dis(1, Usa, 1, 2), AamFused(RadarAamLibraryName, RadarAamFuzeM), 0f, LibraryDamage(RadarAamLibraryName),
+                     RadarAam(chaffRejection: 0.9f));
+            Register(tkb, R73Name, TkbR73, Dis(1, Russia, 1, 2), AamFused(IrAamLibraryName, IrAamFuzeM), 0f, LibraryDamage(IrAamLibraryName),
+                     IrAam(seekerConeDeg: 90f, flareRejection: 0.82f));
+            Register(tkb, R77Name, TkbR77, Dis(1, Russia, 1, 3), AamFused(RadarAamLibraryName, RadarAamFuzeM), 0f, LibraryDamage(RadarAamLibraryName),
+                     RadarAam(chaffRejection: 0.9f));
+            // ⭐ CE-10000 (AC-8) — the fighter guns' rounds: plain HEI (no proximity fuze), led by the gun lead (the target's acceleration included)
+            Register(tkb, M61HeiName, TkbM61Hei, Dis(2, Usa, 2, 3),     // "20 mm"
+                     LibraryWarhead(M61HeiLibraryName), LibraryPenetration(M61HeiLibraryName), LibraryDamage(M61HeiLibraryName));
+            Register(tkb, Gsh30HeiName, TkbGsh30Hei, Dis(2, Russia, 2, 4),   // "30 mm"
+                     LibraryWarhead(Gau8HeiLibraryName), LibraryPenetration(Gau8HeiLibraryName), LibraryDamage(Gau8HeiLibraryName));
+
             Register(tkb, FlareName, TkbFlare, new DISEntityType { Kind = 8, Domain = 2, Category = 2 },
                      expendable: new ExpendableDto { LifeSeconds = 5f, SinkMps = 8f });
             Register(tkb, ChaffName, TkbChaff, new DISEntityType { Kind = 8, Domain = 2, Category = 1 },
@@ -382,6 +412,26 @@ namespace Hrot.Core.Tkb
 
         /// <summary>⭐ <c>CE-2187</c> — the library's warhead for <paramref name="libraryName"/>, its fuze a proximity fuze of
         /// <see cref="SamProximityFuzeM"/>.</summary>
+        /// <summary>⭐ <c>CE-10000</c> — an air-to-air missile's proximity-fused warhead with its own fuze reach.</summary>
+        private static WarheadDto? AamFused(string libraryName, float fuzeM)
+            => LibraryWarhead(libraryName) is { } w ? w with { Fuze = FuzeKind.Proximity, ProximityFuzeM = fuzeM } : null;
+
+        /// <summary>⭐ <c>CE-10000</c> (§5b) — the IR air-to-air missile's flight: 850 m/s after a 5 s burn, 40 g, −40 m/s per s coasting, defeated below 300.</summary>
+        private static MissileDto IrAam(float seekerConeDeg, float flareRejection) => new()
+        {
+            Guidance = GuidanceKind.InfraRed, SpeedMps = 850f, MaxFlightSeconds = 25f, MinRangeM = 300f, TargetDomain = TargetDomain.Air,
+            SeekerConeDeg = seekerConeDeg, FlareRejection = flareRejection,
+            BurnSeconds = 5f, MaxG = 50f, DragPerS = 40f, MinSpeedMps = 300f, SteerLagS = 0.4f,   // ⭐ R-10018 MaxG 40 → 50, flares rejected 0.6 → 0.82
+        };
+
+        /// <summary>⭐ <c>CE-10000</c> (§5b) — the radar air-to-air missile's flight: 1 100 m/s after an 8 s burn, 35 g, −30 m/s per s coasting, defeated below 350.</summary>
+        private static MissileDto RadarAam(float chaffRejection) => new()
+        {
+            Guidance = GuidanceKind.Radar, SpeedMps = 1100f, MaxFlightSeconds = 30f, MinRangeM = 500f, TargetDomain = TargetDomain.Air,
+            SeekerConeDeg = 60f, ChaffRejection = chaffRejection,
+            BurnSeconds = 8f, MaxG = 44f, DragPerS = 30f, MinSpeedMps = 350f, SteerLagS = 0.4f,   // ⭐ R-10018 MaxG 35 → 44
+        };
+
         private static WarheadDto? ProximityFused(string libraryName)
             => LibraryWarhead(libraryName) is { } w ? w with { Fuze = FuzeKind.Proximity, ProximityFuzeM = SamProximityFuzeM } : null;
 
@@ -451,6 +501,8 @@ namespace Hrot.Core.Tkb
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
+                [TkbAim9x] = 700, [TkbR73] = 650, [TkbAim120] = 1000, [TkbR77] = 950,              // ⭐ CE-10000 — the air-to-air missiles
+                [TkbM61Hei] = 8, [TkbGsh30Hei] = 10,                                               // ⭐ CE-10000 — the fighter guns' rounds
                 [TkbMineAntiPersonnel] = 10, [TkbMineAntiTank] = 60, [TkbLineCharge] = 400,           // ⭐ CE-4624 — the mines and the line charge (rule order: a mine a few small-arms rounds' worth, a charge in the hundreds)
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
@@ -514,6 +566,15 @@ namespace Hrot.Core.Tkb
                 // ⭐ CE-4617 (B-2, RV-15) → CE-4618 (ui U-2) — the radar SAM's missile: a slim 3 m body (a Tor-class 9M330: ~2.9 m × 0.23 m, drawn 0.17 for a slimmer read),
                 //   nose, mid wings and tail fins (the Missile shape), light grey-green so it shows against sky and ground, smoke trail on
                 [TkbRadarSamMissile] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.17f, ColorHex = "#C4C8B8", SmokeTrail = true },
+                // ⭐ CE-4647 (AC-15 step 4, ui) — the air-to-air rounds' looks (replacing the air lane's placeholders; mockup air-combat-stores.svg): the public lengths, a slightly stout body so it reads at a few hundred metres
+                //   (the layer also draws every round at least 10 px long), IR missiles grey (the rail's metal), radar missiles near-white (the stores' light colour); each trails smoke only while its motor burns (BurnSeconds, ProjectileLayer.TrailFactor).
+                //   The guns' rounds trace: the M61's a yellow-orange streak, the GSh-30's a hotter red-orange one — so two jets' bursts are told apart.
+                [TkbAim9x] = new() { Shape = MunitionShape.Missile, Length = 3.0f, Diameter = 0.16f, ColorHex = "#9AA3AE", SmokeTrail = true },
+                [TkbAim120] = new() { Shape = MunitionShape.Missile, Length = 3.66f, Diameter = 0.2f, ColorHex = "#E6E8E2", SmokeTrail = true },
+                [TkbR73] = new() { Shape = MunitionShape.Missile, Length = 2.9f, Diameter = 0.17f, ColorHex = "#8E968F", SmokeTrail = true },
+                [TkbR77] = new() { Shape = MunitionShape.Missile, Length = 3.6f, Diameter = 0.22f, ColorHex = "#D8DAD2", SmokeTrail = true },
+                [TkbM61Hei] = new() { Shape = MunitionShape.Shell, Length = 0.17f, Diameter = 0.02f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFC040" },
+                [TkbGsh30Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF5A30" },
                 [Tkb23mmHei] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [Tkb23mmApi] = new() { Shape = MunitionShape.Shell, Length = 0.2f, Diameter = 0.023f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
                 // ⭐ CE-3235 (B-13, §7.10 PU-3) — the hand items are SEEN (so a lying one replicates and a brain can pick it up): the grenade

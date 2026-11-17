@@ -218,7 +218,14 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
         dtMinefieldLanes              = 194,
         dtMineClearing                = 195,
-        // ⭐ R-4282 / CE-4631 — the `convoy` lane's block 198–203 (196 dtRamOrder and 197 are the checkpoint's).
+        // ⭐ CE-10000 (R-10001, the `air` lane; docs/designs/air-attack/DESIGN_Air_Combat.md §4b, §7) — air combat: a fighter's order from its brain
+        //   (Brain group → the motion node), the motion node's g / GCAS / live-threat report (Muscle group → every node), the authored arena (its
+        //   creator's brain → every node). 216–219 measured free on every lane branch 2026-11-17 (the top of 207–219, so the convoy lane's three
+        //   take 207 upwards, NOTE_Coordinator_To_Convoy_Ordinals.md); 219 is the air lane's spare, not declared.
+        dtAirCombatSteer              = 216,
+        dtFighterPilotState           = 217,
+        dtAirArena                    = 218,
+        // ⭐ R-4282 / CE-4631 — the `convoy` lane's block: 198–200 + three from 207 up (⛔ 201–206 are the TIME translators', NOTE_Coordinator_To_Convoy_Ordinals; 216–219 air); 196 dtRamOrder and 197 are the checkpoint's.
         // ⭐ CE-9007 (R-9007 / R-9012; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md C-8) — a road column's formation, the Brain group (the convoy behaviour
         //   writes both) → every node: the lead's FormationController, a follower's EXPLICIT-leader slot (a commander-led slot is derived on every node by
         //   UnitHierarchySystem from the replicated assign events, so it is not sent). 198–199 measured free on every lane 2026-11-17.
@@ -226,6 +233,8 @@ namespace Hrot.NED.Descriptors
         dtFormationFollower           = 199,
         // ⭐ R-4276 / CE-4616 — the EXPERIMENTAL aggregate lanes' block 220–239 (reserved, not yet declared): 220 dtAggregateUnit · 221
         //   dtUnitSlotTable · 222 dtUnitHoldings (the contract); then agg-backend 223–229, agg-behaviors 230–234, agg-ui 235–239.
+        // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).
+        dtRamOrder                    = 196,
         // etc., all known descriptor types here
     }
 

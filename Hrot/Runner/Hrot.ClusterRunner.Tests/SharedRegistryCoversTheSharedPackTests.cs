@@ -65,6 +65,17 @@ public sealed class SharedRegistryCoversTheSharedPackTests
     /// replicated since CE-3261) was registered only by the brain's cognitive registry. The walk above could not see it: those ingresses apply
     /// through their command buffer, not <c>ApplyToEntity</c>. ✅ Red before the fix (EngagementArea).
     /// </summary>
+    /// <summary>⭐ CE-3456 (found by ua-moto-parked-bomb) — an armed charge's timer is registered on every node: ⛔ only the weapon translator's
+    /// produced list named it, so <c>ChargeTimers.Arm</c> refused in production and a parked bomb never went off (its rails register it by hand).
+    /// 🔴 Red-proof: drop the registration ⇒ red.</summary>
+    [Fact]
+    public void CE3456_TheChargeTimer_IsRegisteredOnEveryNode()
+    {
+        var world = new EntityRepository();
+        HrotSharedComponentRegistry.RegisterAll(world);
+        Assert.True(world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.ChargeTimer>());
+    }
+
     [Fact]
     public void CE3268_EveryComponentASharedTranslatorTargets_IsRegisteredByTheSharedRegistry()
     {

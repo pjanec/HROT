@@ -57,6 +57,8 @@ public static class PlacementToolRegistry
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.DeployRole),          "Deploy Role",  PlacementToolKind.Point, "_area"),
         // ⭐ U-25 / S4 (DESIGN_Initial_State §3) — a named Point (8816): placed with the point tool, drawn by NamedPointGizmo; pickers resolve it to its position (PointLink, SR-130)
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.Point),               "Point",        PlacementToolKind.Point, "_area"),
+        // ⭐ CE-4647 (AC-15, R-1060) — an AIR ARENA (8840): placed with the point tool at its centre, born with the contract's default AirArena (GameplayBirth); the Edit Shape tool then drags its handles
+        new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.AirArena),            "Air Arena",    PlacementToolKind.Point, "_airarena"),
         new MapGraphicInfo((Fdp.Core.TkbTypeId)(TkbEntityTypes.TacGraphic_FireLine), "Fire Line",    PlacementToolKind.None,  "_fireline",
                            DisabledReason: "No placement tool yet."),
     };

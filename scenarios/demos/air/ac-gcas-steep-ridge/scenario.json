@@ -1,0 +1,57 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "air-range",
+    "description": "What: an F-16 at 150 m flies north at a wall rising 1:1.8 to a 720 m plateau (north of y 600) \u2014 no climb clears it (CE-10001, AC-4). Judge: GCAS takes the stick and turns away (GcasCount \u2265 1); it is never lost."
+  },
+  "entities": {
+    "ac000004-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -500.0,
+          -300.0,
+          223.9
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "SimVelocity": {
+        "Linear": [
+          0,
+          220,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 401
+      },
+      "EntityInfo": {
+        "Name": "Viper",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 400,
+        "Max": 400
+      },
+      "NavigationIntent": {
+        "Mode": "DirectPoint",
+        "IntentId": 1,
+        "FinalDestination": [
+          -500.0,
+          2500.0,
+          1005.6
+        ],
+        "TargetSpeed": 220
+      }
+    }
+  }
+}

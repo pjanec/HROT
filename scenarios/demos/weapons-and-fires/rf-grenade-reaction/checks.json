@@ -1,0 +1,30 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2355 S5) \u2014 rf-grenade-reaction, the scenario's Judge list: the Thrower throws one M67 at (280,380); (2) one Blue man picks it up and throws it back (a blast whose shooter is a Blue man \u2014 measured: Blue 3, ~2.4 s after the throw, so the Thrower's own grenade never bursts); (1) every Blue man leaves the lethal radius (3.7 m) or is prone when it bursts \u2014 read as the OUTCOME: nobody is lethally hurt (health never under 99 900 of 100 000; the measured fragment cost at 12-14 m is \u2264 0.004 %). \u26a0 'prone when it bursts' and 'enough fuse left' are not cues.",
+  "runFor": 30,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the Thrower throws",
+      "on": "shot",
+      "by": "Thrower",
+      "before": 2
+    },
+    {
+      "name": "(2) a Blue man throws it back",
+      "on": "blast",
+      "by": "*Blue "
+    },
+    {
+      "name": "(1) no Blue man is lethally hurt",
+      "never": {
+        "on": "field",
+        "who": "*Blue ",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 99900
+      }
+    }
+  ]
+}

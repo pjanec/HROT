@@ -226,6 +226,36 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3459</c> (found by the feature scenario <c>ua-moto-parked-bomb</c>; DESIGN_Motorcycle §9 IM-2 "ride → park → leave") — "everyone
+        /// out" puts the PEOPLE out: the charge in the boot stays aboard (still in its seat, still stowed), and the man set down STANDS — the
+        /// carrier's velocity he rode with is gone. 🔴 Red-proofs: <c>EjectAll</c> without the stowed test ⇒ the charge is set down ⇒ red;
+        /// <c>Leave</c> without the velocity reset ⇒ the man keeps 4 m/s ⇒ red (measured live: a charge drifted ~270 m before it burst).
+        /// </summary>
+        [Fact]
+        public void CE3459_EveryoneOut_LeavesTheCargoInTheBoot_AndTheMenSetDownStand()
+        {
+            _world.RegisterComponent<SimVelocity>();
+            var car = Spawn(CarType, new Vector3(30f, 0f, 0f));
+            var driver = Spawn(ManType, Vector3.Zero);
+            var load = Spawn(ChargeType, Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, driver, car));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, load, car));
+            var moving = new SimVelocity { Linear = new Vector3(4f, 0f, 0f) };
+            _world.AddComponent(car, moving);
+            _world.AddComponent(driver, moving);   // as EmbarkedStateSystem copies it in, aboard
+            _world.AddComponent(load, moving);
+
+            Assert.Equal(1, Embarkation.EjectAll(_world, car));
+            Assert.False(_world.HasComponent<IsEmbarkedTag>(driver));
+            Assert.Equal(Vector3.Zero, _world.GetComponentRO<SimVelocity>(driver).Linear);
+            Assert.True(_world.HasComponent<IsEmbarkedTag>(load));
+            Assert.Equal(4, CarryStations.SeatOf(_world, load, out _));
+            ref readonly var buffer = ref _world.GetComponentRO<PassengerBuffer>(car);
+            Assert.Equal(1, buffer.Count);
+            Assert.Equal(load, buffer.Passengers[4]);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3234</c> (B-12, HI-6) — a man sets off a charge he does not carry only with a PHONE in his hand; his own vest needs none.
         /// ✅ Red-proof: <c>Ask</c> without the phone gate ⇒ the empty-handed man's ask goes out ⇒ red.
         /// </summary>

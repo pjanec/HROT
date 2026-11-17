@@ -1,0 +1,78 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 macros S3b B3 (the scenario's Judge list): the counter-attack director macro with delay 4 s. Rows: before 4 s nothing is inserted and the amplifier is 0; at ~4 s a hostile fire team appears at @CounterAttackFrom (150,100); (the World Environment's SkillAmplifier itself is not a nameable unit, so the Hostile +1 is read where it lands: ) the Hostile men's CombatProficiency.SideTiers = 1 and the Friend man's 0 (the Friend man has none until a tier is set: a missing component reads null, so he is judged as not 1). \u26a0 Left out: 'the message is sent' (a message is not in the dump; the trigger's own FireCount stands for it).",
+  "runFor": 15,
+  "golden": {
+    "every": 5
+  },
+  "later": [
+    "Leader",
+    "Rifleman A",
+    "Rifleman B",
+    "Rifleman C"
+  ],
+  "expect": [
+    {
+      "name": "nothing is inserted before 4 s",
+      "never": {
+        "on": "field",
+        "who": "Leader",
+        "path": "EntityInfo.ForceId",
+        "op": "==",
+        "value": "Hostile"
+      },
+      "before": 3.9
+    },
+    {
+      "name": "the hostile fire team appears at ~4 s",
+      "on": "field",
+      "who": "Leader",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile",
+      "after": 3.9,
+      "before": 6
+    },
+    {
+      "name": "it appears at @CounterAttackFrom (150,100)",
+      "on": "near",
+      "who": "Leader",
+      "point": [
+        150,
+        100
+      ],
+      "within": 15,
+      "after": 3.9,
+      "before": 6
+    },
+    {
+      "name": "the Hostile men carry SideTiers 1",
+      "on": "field",
+      "who": "Sentry",
+      "path": "CombatProficiency.SideTiers",
+      "op": "==",
+      "value": 1,
+      "after": 3.9,
+      "before": 8
+    },
+    {
+      "name": "the Friend man carries no tier",
+      "never": {
+        "on": "field",
+        "who": "Defender",
+        "path": "CombatProficiency.SideTiers",
+        "op": "==",
+        "value": 1
+      }
+    },
+    {
+      "name": "the director's trigger fires once",
+      "on": "field",
+      "who": "Counter-attack",
+      "path": "ObjectiveStatus.FireCount",
+      "op": ">=",
+      "value": 1,
+      "after": 3.9,
+      "before": 6
+    }
+  ]
+}

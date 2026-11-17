@@ -1,0 +1,44 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S2 \u2014 feature (golden).",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the MiG fires",
+      "on": "shot",
+      "by": "Fulcrum",
+      "n": 1
+    },
+    {
+      "name": "the F-16 beams",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.Phase",
+      "op": "in",
+      "value": [
+        "Beam",
+        2
+      ]
+    },
+    {
+      "name": "it drops chaff",
+      "on": "field",
+      "who": "Viper",
+      "path": "MissileDefenceState.DecoysTotal",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "the beamed missile is beaten (no MiG round hits the F-16 in 20 s)",
+      "never": {
+        "on": "shot",
+        "by": "Fulcrum",
+        "n": 1,
+        "hit": "Viper"
+      },
+      "before": 20
+    }
+  ]
+}

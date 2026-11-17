@@ -17,6 +17,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Has<Fdp.Toolkit.Combat.AreaEffectCloud>(view, entity) || Has<LightweightRound>(view, entity)) return true;
             // ⭐ CE-4624 (live check, 2026-11-16) — a MINEFIELD / its strikes / its knowledge record: MinefieldGizmo draws the field; the field entity is no unit (it drew a generic 2-D box at its anchor)
             if (Has<Fdp.Toolkit.Terrain.Minefield>(view, entity) || Has<Fdp.Toolkit.Terrain.MinefieldStrikes>(view, entity) || Has<Fdp.Toolkit.Terrain.MinefieldKnowledge>(view, entity)) return true;
+            if (Has<Fdp.Toolkit.Motion.AirArena>(view, entity)) return true;   // ⭐ CE-4647 — an air ARENA: AirArenaProjector draws it, it is no unit
             return Has<TkbIdentity>(view, entity) && Hrot.Core.Tkb.MapCameraTkb.Is(view.GetComponentRO<TkbIdentity>(entity).TkbType);
         }
 

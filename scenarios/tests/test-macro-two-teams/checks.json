@@ -1,0 +1,82 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 macros S3a (the scenario's Judge list): the fire-team macro placed twice (Team East side Friend, Team Turned side Hostile) plus an Observer whose ForceId is the scenario param 'side' (default Hostile). Rows: both instances report Done; 8 transient men appear (4 each: 4 Leaders, 4... the men are named Leader / Rifleman A-C, two of each name), each carrying a MacroOrigin; the Friend team's men are Friend and the Hostile team's Hostile (a bound side param); the Observer is Hostile (the default side). \u26a0 Left out: 'the second team rotated' (no yaw cue).",
+  "runFor": 10,
+  "golden": {
+    "every": 5
+  },
+  "later": [
+    "Leader",
+    "Rifleman A",
+    "Rifleman B",
+    "Rifleman C"
+  ],
+  "expect": [
+    {
+      "name": "Team East's instance is Done",
+      "on": "field",
+      "who": "Team East",
+      "path": "MacroExpansionStatus.State",
+      "op": "==",
+      "value": "Done",
+      "before": 5
+    },
+    {
+      "name": "Team Turned's instance is Done",
+      "on": "field",
+      "who": "Team Turned",
+      "path": "MacroExpansionStatus.State",
+      "op": "==",
+      "value": "Done",
+      "before": 5
+    },
+    {
+      "name": "two leaders appear (one per team)",
+      "on": "field",
+      "who": "Leader",
+      "path": "EntityInfo.Name",
+      "op": "==",
+      "value": "Leader",
+      "quantifier": "atLeast:2",
+      "before": 5
+    },
+    {
+      "name": "all 6 riflemen carry a MacroOrigin",
+      "on": "field",
+      "who": "*Rifleman",
+      "path": "MacroOrigin.Instance",
+      "op": "!=",
+      "value": null,
+      "quantifier": "atLeast:6",
+      "before": 5
+    },
+    {
+      "name": "one team is Friend (its 4 men)",
+      "on": "field",
+      "who": "*e",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Friend",
+      "quantifier": "atLeast:4",
+      "before": 5
+    },
+    {
+      "name": "one team is Hostile (its 4 men)",
+      "on": "field",
+      "who": "*e",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile",
+      "quantifier": "atLeast:4",
+      "before": 5
+    },
+    {
+      "name": "the Observer takes the run's side (default Hostile)",
+      "on": "field",
+      "who": "Observer",
+      "path": "EntityInfo.ForceId",
+      "op": "==",
+      "value": "Hostile",
+      "before": 5
+    }
+  ]
+}

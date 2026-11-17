@@ -26,7 +26,7 @@ public class VehicleBodyParityTests
     /// <summary>The families S2 covers (S2-1), in the generated table's order.</summary>
     private static readonly VisualFamily[] Families =
         { VisualFamily.Tank, VisualFamily.Afv, VisualFamily.SpArtillery, VisualFamily.WheeledCar, VisualFamily.WheeledUtility,
-          VisualFamily.Helicopter, VisualFamily.AttackHelicopter, VisualFamily.Jet, VisualFamily.AttackJet, VisualFamily.CargoPlane };   // ⭐ CE-3215
+          VisualFamily.Helicopter, VisualFamily.AttackHelicopter, VisualFamily.Jet, VisualFamily.AttackJet, VisualFamily.CargoPlane, VisualFamily.TwinEngineJet };   // ⭐ CE-3215 · ⭐ CE-4647 the MiG's twin-fin kit (appended: the generated table's order)
 
     /// <summary>
     /// ⭐ <c>CE-3215</c> (§12 S2c-2) — an AIRCRAFT kit's part ids, by the index of its colliding parts: the air kits carry no roles that name
@@ -37,6 +37,7 @@ public class VehicleBodyParityTests
     {
         [VisualFamily.Helicopter] = new byte[] { 0, 0, 0, 0, 1, 4, 4, 3 },           // ⭐ CE-1209 the fuselage's rear, front, cabin floor and roof; cockpit, tail boom, fin, mast
         [VisualFamily.Jet] = new byte[] { 0, 0, 1, 2, 2, 4, 4, 4, 3 },               // fuselage, nose, canopy, wings, tailplanes, fin, nozzle
+        [VisualFamily.TwinEngineJet] = new byte[] { 0, 0, 1, 0, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4 },   // ⭐ CE-4647 — body, nose, canopy, underbody, 2 wings, 2 engine bays, 2 nozzles, 2 intakes, 2 tailplanes, 2 fins
         [VisualFamily.CargoPlane] = new byte[] { 0, 0, 1, 2, 3, 3, 3, 3, 4, 4, 4 },  // fuselage, nose, cockpit, wing, 4 engines, tail, fin, tailplane
         [VisualFamily.AttackJet] = new byte[] { 0, 0, 6, 1, 2, 3, 3, 4, 4, 4 },      // fuselage, nose, the GAU-8, canopy, wing, 2 engines, tailplane, 2 fins
         [VisualFamily.AttackHelicopter] = new byte[]                                  // fuselage, nose, sensor ball, 2 canopies, 2 nacelles, pylon, mast,
@@ -312,7 +313,7 @@ public class VehicleBodyParityTests
                 string role = p.Role switch { PartRole.Turret => "KitRole.Turret", PartRole.Gun => "KitRole.Gun", _ => "KitRole.Hull" };
                 sb.AppendLine($"                new({id}, KitShape.{p.Shape}, new({F(p.Centre.X)}, {F(p.Centre.Y)}, {F(p.Centre.Z)}), " +
                               $"new({F(p.Extent.X)}, {F(p.Extent.Y)}, {F(p.Extent.Z)}), KitAxis.{p.Axis}, {F(p.PitchDegrees)}, {F(p.YawDegrees)}, {role}" +
-                              (i == engine ? ", EngineBox: true" : "") + $"),   // {(AircraftIds.ContainsKey(family) ? AircraftPart.NameOf(id) : VehiclePart.NameOf(id))}");
+                              (i == engine ? ", EngineBox: true" : "") + (p.RollDegrees != 0f ? $", RollDegrees: {F(p.RollDegrees)}" : "") + $"),   // {(AircraftIds.ContainsKey(family) ? AircraftPart.NameOf(id) : VehiclePart.NameOf(id))}");
             }
             sb.AppendLine("            }),");
         }

@@ -1,0 +1,157 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S1 \u2014 feature (golden). The leg altitudes are computed by scripts/gen-air-combat-scenarios.py from the terrain's own function.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "leg1": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        -1400,
+        -3000
+      ],
+      "within": 400
+    },
+    "leg1end": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        -100,
+        -3000
+      ],
+      "within": 400
+    },
+    "leg2": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        2500,
+        -1680
+      ],
+      "within": 400
+    },
+    "leg2end": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        2500,
+        -1020
+      ],
+      "within": 400
+    },
+    "leg3": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        -100,
+        300
+      ],
+      "within": 400
+    },
+    "leg3end": {
+      "on": "near",
+      "who": "Viper",
+      "point": [
+        -1400,
+        300
+      ],
+      "within": 400
+    }
+  },
+  "expect": [
+    {
+      "name": "Viper is never lost",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    },
+    {
+      "name": "GCAS never needed on a cruise route",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "FighterPilotState.GcasCount",
+        "op": ">",
+        "value": 0
+      }
+    },
+    {
+      "name": "leg 1 holds 550 m (never below \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": "<",
+        "value": 535
+      },
+      "after": "leg1",
+      "before": "leg1end"
+    },
+    {
+      "name": "leg 1 holds 550 m (never above \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": ">",
+        "value": 565
+      },
+      "after": "leg1",
+      "before": "leg1end"
+    },
+    {
+      "name": "leg 2 holds 426 m (never below \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": "<",
+        "value": 411
+      },
+      "after": "leg2",
+      "before": "leg2end"
+    },
+    {
+      "name": "leg 2 holds 426 m (never above \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": ">",
+        "value": 441
+      },
+      "after": "leg2",
+      "before": "leg2end"
+    },
+    {
+      "name": "leg 3 holds 625 m (never below \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": "<",
+        "value": 610
+      },
+      "after": "leg3",
+      "before": "leg3end"
+    },
+    {
+      "name": "leg 3 holds 625 m (never above \u00b115)",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "SimTransform.Position.2",
+        "op": ">",
+        "value": 640
+      },
+      "after": "leg3",
+      "before": "leg3end"
+    }
+  ]
+}

@@ -56,5 +56,19 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         [Description("It IS a munition (an FPV drone): meeting a body or the ground bursts its first weapon mount. Otherwise a crash only destroys it.")]
         public bool DetonatesOnImpact { get; init; } = false;
+
+        // ⭐ CE-10001 (air lane, AC-3; docs/designs/air-attack/DESIGN_Air_Combat.md §5a) — a fighter's airframe for the one integrator (Steer3D).
+        //   AccelMps2 above is its THRUST (R-3007; no second thrust field, RV-13). 0 = the defaults (6 g, corner 1.6 × stall, 0.3, 60 deg/s).
+        [EditUnit("g")] [Description("The most g the airframe pulls (0 = 6 g).")]
+        public float MaxG { get; init; } = 0f;
+
+        [EditUnit("m/s")] [Description("Corner speed: below it the g available falls with speed squared (0 = 1.6 x stall).")]
+        public float CornerSpeedMps { get; init; } = 0f;
+
+        [EditUnit("m/s²")] [Description("Induced drag per (n² - 1): how much speed a hard turn costs (0 = 0.3).")]
+        public float DragK { get; init; } = 0f;
+
+        [EditUnit("deg/s")] [Description("Roll rate (0 = 60 deg/s).")]
+        public float RollRateDeg { get; init; } = 0f;
     }
 }

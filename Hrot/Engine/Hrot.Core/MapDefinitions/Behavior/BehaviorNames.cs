@@ -284,6 +284,12 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Breach = "Breach";
         /// <summary>⭐ CE-4624 MS-B4 — a squad whose route reaches a minefield halts short of it and calls the engineers.</summary>
         public const string MinefieldAhead = "MinefieldAhead";
+        /// <summary>⭐ CE-4622 K-2 (Checkpoint RM-2) — a vehicle drives INTO a body or a crowd: its avoidance skips the target, it may break a weak barrier, the car commits a Lethal act.</summary>
+        public const string RamTarget = "RamTarget";
+        /// <summary>⭐ CE-4622 K-4 (Checkpoint CP-1) — a squad mans a vehicle checkpoint: stopper, searchers, the overwatch MG and the reaction at their posts, watching the approach.</summary>
+        public const string Checkpoint = "Checkpoint";
+        /// <summary>⭐ CE-4622 K-6 (Checkpoint CP-4) — a stopped civilian answers "out, hands up": he gets out and stands with his hands up (a reaction).</summary>
+        public const string ComplyAtCheckpoint = "ComplyAtCheckpoint";
         /// <summary>⭐ <c>CE-2307</c> (CH-1, Squad Tactics §5b) — a carrier hit while it drives with troops aboard keeps going, out of the
         /// kill zone.</summary>
         public const string PushThrough = "PushThrough";

@@ -99,8 +99,11 @@ namespace Fdp.Toolkit.Motion
             var p = repo.IsComponentTypeRegistered<FlightParams>() && repo.HasComponent<FlightParams>(e)
                 ? repo.GetComponentRO<FlightParams>(e) : FlightParams.From(new FlightParamsDto());
             if (cls == LocomotionClass.Rotorcraft) AirborneHolds(repo, e, in intent, terrain, p.HoverHeightM);
+            // ⭐ CE-10001 (AC-1) — a plane's cruise legs hold one altitude, its climbs start early by its climb rate over its cruise speed
+            float climbSlope = cls == LocomotionClass.FixedWing && p.ClimbMps > 0f
+                ? p.ClimbMps / MathF.Max(1f, p.CruiseSpeedMps > 0f ? p.CruiseSpeedMps : p.MaxSpeedMps) : 0f;
             var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,
-                terrain == null ? null : terrain.GroundHeightAt);
+                terrain == null ? null : terrain.GroundHeightAt, climbSlope);
             repo.SetManagedComponent(e, path with { IntentId = intent.IntentId, RouteEntityId = intent.RouteEntityId, RouteVersion = version });
             // ⭐ CE-4046 ② — a new path starts a fresh follower (the managed path carried it, and was new each compile)
             if (!repo.IsComponentTypeRegistered<AirFollower>()) repo.RegisterComponent<AirFollower>();

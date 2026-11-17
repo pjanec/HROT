@@ -30,6 +30,12 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ R-3007 — how fast it changes speed (0 ⇒ the model's own); whether meeting something bursts its warhead (1 = an FPV drone).</summary>
         public float AccelMps2;
         public byte DetonatesOnImpact;
+        /// <summary>⭐ CE-10001 (AC-3, §5a) — a fighter's airframe: the most g, the corner speed (below it the g falls with speed²), the induced
+        /// drag per (n² − 1) (m/s²) and the roll rate (deg/s). 0 ⇒ <see cref="FighterLimits.Of"/>'s defaults.</summary>
+        public float MaxG;
+        public float CornerSpeedMps;
+        public float DragK;
+        public float RollRateDeg;
 
         public static FlightParams From(FlightParamsDto d) => new()
         {
@@ -38,6 +44,7 @@ namespace Fdp.Toolkit.Motion
             HoverHeightM = d.HoverHeightM, TurnRadiusM = d.TurnRadiusM,
             StallSpeedMps = d.StallSpeedMps, CruiseSpeedMps = d.CruiseSpeedMps, MaxBankDeg = d.MaxBankDeg,
             AccelMps2 = d.AccelMps2, DetonatesOnImpact = d.DetonatesOnImpact ? (byte)1 : (byte)0,
+            MaxG = d.MaxG, CornerSpeedMps = d.CornerSpeedMps, DragK = d.DragK, RollRateDeg = d.RollRateDeg,
         };
 
         /// <summary>The radius a route is rounded to: <see cref="TurnRadiusM"/>; else a plane's cruise² / (g·tan max bank) (DESIGN_Air_Operations

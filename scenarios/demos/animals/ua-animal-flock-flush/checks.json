@@ -1,0 +1,58 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 the flock that betrays an ambush, one row per Judge line. FlockState.Mode Perched / Flying / Landed by name.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the flock is perched at the start",
+      "on": "field",
+      "who": "Orchard birds",
+      "path": "FlockState.Mode",
+      "op": "==",
+      "value": "Perched",
+      "before": 3
+    },
+    {
+      "name": "the flock lifts off",
+      "on": "field",
+      "who": "Orchard birds",
+      "path": "FlockState.Mode",
+      "op": "!=",
+      "value": "Perched"
+    },
+    {
+      "name": "the birdsong stops",
+      "on": "field",
+      "who": "Orchard birds",
+      "path": "AnimalState.FearBand",
+      "op": ">=",
+      "value": 2,
+      "after": "the flock lifts off"
+    },
+    {
+      "name": "the first shot",
+      "on": "shot",
+      "by": "*"
+    },
+    {
+      "name": "no shot before the flock lifts off",
+      "never": {
+        "on": "shot",
+        "by": "*"
+      },
+      "before": "the flock lifts off"
+    },
+    {
+      "name": "a patrol man hears it before the first shot",
+      "on": "field",
+      "who": "*Patrol",
+      "path": "HeardTraces.Count",
+      "op": ">",
+      "value": 0,
+      "after": "the flock lifts off",
+      "before": "the first shot"
+    }
+  ]
+}
