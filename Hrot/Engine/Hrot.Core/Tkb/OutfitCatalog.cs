@@ -200,22 +200,6 @@ namespace Hrot.Core.Tkb
         };
 
         /// <summary>
-        /// ⭐ <c>CE-4650</c> NA-2 (DESIGN_Bows_And_Crossbows.md §9) — the NATIVE AMERICAN WARRIOR: a buckskin shirt with fringe or a bare chest (skin tone), leggings and a breechcloth (buckskin, dark), a headband with feathers / a single
-        /// feather / nothing, black hair in two braids or loose, stripes of face paint on a third of them. Drawn with stand-ins (the presentation lists them): buckskin = a shirt in tan, bare chest = a shirt in his skin tone, leggings = trousers,
-        /// breechcloth = the short-skirt box, headband = the police-cap band in its colour, feather and face paint = not drawn, braids = the long-hair box.
-        /// </summary>
-        public static readonly OutfitDto NativeWarrior = new()
-        {
-            Skin = S(O("Skin", 1f, C(198, 150, 110), C(176, 126, 88), C(160, 112, 76))),
-            Top = S(O(nameof(OutfitTop.Buckskin), 50f, C(190, 150, 100), C(176, 136, 90), C(160, 124, 84)), O(nameof(OutfitTop.Shirt), 50f, C(198, 150, 110), C(176, 126, 88), C(160, 112, 76))),
-            Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(170, 134, 90), C(150, 116, 76), C(132, 100, 64))),
-            Over = S(O(nameof(OutfitOver.Breechcloth), 100f, C(96, 70, 46), C(70, 52, 36), C(52, 40, 30))),
-            Head = S(O(nameof(OutfitHead.Headband), 60f, C(170, 30, 30), C(30, 30, 34), C(230, 228, 220)), O(nameof(OutfitHead.Feather), 25f, C(236, 232, 224), C(60, 44, 30)), O(nameof(OutfitHead.None), 15f)),
-            Hair = S(O(nameof(OutfitHair.Braids), 60f, HairColours[0]), O(nameof(OutfitHair.Long), 40f, HairColours[0])),
-            FacePaint = S(O(nameof(OutfitFacePaint.Stripes), 30f, C(170, 30, 30), C(236, 232, 224), C(24, 24, 26)), O(nameof(OutfitFacePaint.None), 70f)),
-        };
-
-        /// <summary>
         /// 2003 / 2010 / 2011 / 2012 — a Middle-East FIGHTER (OF-10, OF-12): drab shirt, military jacket or robe, often an ammunition chest rig, a
         /// shemagh (sometimes across the face), a cap or nothing, short hair, almost always bearded. ⛔ No camouflage: his top is no <c>Uniform</c>.
         /// </summary>
