@@ -33,34 +33,68 @@ def sumo_lanes(net_path, de, dn, frame_utm):
     ox, oy, proj = float(m.group(1)), float(m.group(2)), m.group(3)
     if "utm" not in proj or not frame_utm:
         return []
-    lanes = []
-    for lm in re.finditer(r'<lane id="([^"]+)"[^>]*?(?:width="([\d.]+)")?[^>]*?shape="([^"]+)"', text):
-        lid, width, shape = lm.group(1), lm.group(2), lm.group(3)
-        if lid.startswith(":"):   # junction-internal lanes: the junction area is painted by the lanes that meet there
+    lanes, edge_class = [], {}
+    for em in re.finditer(r'<edge id="([^"]+)"([^>]*)>(.*?)</edge>', text, re.S):
+        eid, attrs, body = em.group(1), em.group(2), em.group(3)
+        if eid.startswith(":") or 'function="internal"' in attrs:   # junction-internal: the junction AREA below covers them
             continue
-        w = float(width) if width else 3.2
-        pts = []
-        for p in shape.split():
-            xy = p.split(",")
-            pts.append((float(xy[0]) - ox - de, float(xy[1]) - oy - dn))
-        if len(pts) >= 2:
-            lanes.append((pts, w))
+        tm = re.search(r'type="([^"]*)"', attrs)
+        cls = road_class(tm.group(1) if tm else "")
+        edge_class[eid] = cls
+        for lm in re.finditer(r'<lane [^>]*?shape="([^"]+)"[^>]*>|<lane [^>]*?shape="([^"]+)"[^>]*/>', body):
+            tag = lm.group(0)
+            wm = re.search(r'width="([\d.]+)"', tag)
+            w = float(wm.group(1)) if wm else (3.2 if cls == "asphalt" else 2.2)
+            shape = lm.group(1) or lm.group(2)
+            pts = [(float(p.split(",")[0]) - ox - de, float(p.split(",")[1]) - oy - dn) for p in shape.split()]
+            if len(pts) >= 2:
+                lanes.append((pts, w, cls))
+    # the JUNCTION areas (SUMO's own polygon of each crossing; the user: "without them roads look ugly segmented"): painted in the
+    # surface of the roads that meet there — asphalt when any street enters it, else dirt. Internal junctions are skipped (their
+    # area is inside their parent's polygon).
+    for jm in re.finditer(r'<junction id="([^"]+)" type="([^"]+)"([^>]*)/?>', text):
+        jid, jtype, attrs = jm.group(1), jm.group(2), jm.group(3)
+        if jtype == "internal" or jid.startswith(":"): continue
+        sm = re.search(r'shape="([^"]+)"', attrs); im = re.search(r'incLanes="([^"]*)"', attrs)
+        if not sm: continue
+        pts = [(float(p.split(",")[0]) - ox - de, float(p.split(",")[1]) - oy - dn) for p in sm.group(1).split()]
+        if len(pts) < 3: continue
+        inc = [edge_class.get(l.rsplit("_", 1)[0]) for l in (im.group(1).split() if im else [])]
+        cls = "asphalt" if "asphalt" in inc else "dirt"
+        lanes.append((pts, 0.0, cls + "-area"))
     return lanes
 
 
+ASPHALT = ("motorway", "trunk", "primary", "secondary", "tertiary", "residential", "unclassified", "service", "living_street", "road")
+
+
+def road_class(sumo_type):
+    """The surface a road is drawn with, from its OSM highway class (SUMO's edge type "highway.<class>"): asphalt for streets and
+    roads, dirt / gravel for tracks, paths, footways and steps."""
+    k = sumo_type.split(".", 1)[-1].replace("_link", "")
+    return "asphalt" if k in ASPHALT else "dirt"
+
+
 def roads_mask(lanes, x0, y0, W, H, cell=1.0):
-    """An 8-bit mask (the NORTH row first) of the lanes at `cell` m: 255 on a lane (its width + 0.5 m of shoulder)."""
+    """An RGB mask (the NORTH row first) of the lanes at `cell` m: R = asphalt, G = dirt / gravel (each lane its width + 0.5 m)."""
     from PIL import Image, ImageDraw
     mw, mh = int(round(W / cell)), int(round(H / cell))
-    img = Image.new("L", (mw, mh), 0)
-    dr = ImageDraw.Draw(img)
-    for pts, w in lanes:
-        px = [((x - x0) / cell, (y0 + H - y) / cell) for x, y in pts]
-        dr.line(px, fill=255, width=max(1, int(round((w + 0.5) / cell))), joint="curve")
-        r = (w + 0.5) / cell / 2
-        for cx, cy in (px[0], px[-1]):
-            dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
-    return img
+    chans = {"asphalt": Image.new("L", (mw, mh), 0), "dirt": Image.new("L", (mw, mh), 0)}
+    for cls in ("dirt", "asphalt"):
+        dr = ImageDraw.Draw(chans[cls])
+        for pts, w, c in lanes:
+            if c == cls + "-area":   # a junction polygon, filled (and its rim, so it meets the lanes' edges without a seam)
+                px = [((x - x0) / cell, (y0 + H - y) / cell) for x, y in pts]
+                dr.polygon(px, fill=255)
+                dr.line(px + [px[0]], fill=255, width=max(1, int(round(0.6 / cell))))
+                continue
+            if c != cls: continue
+            px = [((x - x0) / cell, (y0 + H - y) / cell) for x, y in pts]
+            dr.line(px, fill=255, width=max(1, int(round((w + 0.5) / cell))), joint="curve")
+            r = (w + 0.5) / cell / 2
+            for cx, cy in (px[0], px[-1]):
+                dr.ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    return Image.merge("RGB", (chans["asphalt"], chans["dirt"], Image.new("L", (mw, mh), 0)))
 
 
 # ── buildings (UL-13) ────────────────────────────────────────────────────────────────────────────────────────────────────────

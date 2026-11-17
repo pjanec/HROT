@@ -261,11 +261,12 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
         lanes = tl.sumo_lanes(os.path.join(folder, terrain["sumoNet"]["file"]), de, dn, (terrain.get("frame") or {}).get("utm"))
     roads_img = tl.roads_mask(lanes, x0, y0, W, H, 1.0)
     roads_img.save(os.path.join(out, f"{name}.roads.png"))
-    roads = np.asarray(roads_img) > 127
+    roads = np.asarray(roads_img)[..., :2].max(-1) > 127
     if lanes and bc is not None:
         tx, ty = views[0]["target"][:2]
         best = None
-        for pts, wdt in lanes:
+        for pts, wdt, cls_ in lanes:
+            if cls_ != "asphalt": continue   # the street view stands on a street (not a forest track, not a junction area)
             for i in range(len(pts) - 1):
                 (ax, ay), (bx, by) = pts[i], pts[i + 1]
                 d = math.hypot(ax - tx, ay - ty)
@@ -303,7 +304,8 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
     near = [tuple((vw.get("eye") or vw["target"])[:2]) for vw in views if vw["name"] in ("street", "village-low")]
     # dense close to the cameras (0.45 m within 90 m), lighter beyond (0.9 m to 220 m) — the outer points inside 90 m are dropped
     if near:
-        g_in = tl.scatter_near(near, 90.0, 0.45, open_ok, zs, rng, mask_px)
+        g_in = np.concatenate([tl.scatter_near(near, 60.0, 0.35, open_ok, zs, rng, mask_px),
+                               tl.scatter_near(near, 90.0, 0.6, open_ok, zs, rng, mask_px)])
         g_out = tl.scatter_near(near, 220.0, 0.9, open_ok, zs, rng, mask_px)
         P = g_out[:, :2] / np.array([100.0, -100.0])
         far = np.ones(len(P), bool)
@@ -318,9 +320,11 @@ def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tr
             ex, ey, ez = vw["eye"]; vw["unreal"] = {"locationCm": [ex * 100, -ey * 100, ez * 100], "pitch": vw["pitch"], "yaw": vw["yaw"] - 90.0}
     with open(os.path.join(out, f"{name}.views.json"), "w", encoding="utf-8") as f:
         json.dump({"views": views, "mask": {"cell": mask_cell, "size": [mw, mh], "northWestCm": [x0 * 100, -(y0 + H) * 100], "extentCm": [W * 100, H * 100]},
-                   "roads": {"lanes": len(lanes), "cell": 1.0, "extentCm": [W * 100, H * 100]}, "grass": int(len(grass)), "ferns": int(len(ferns)),
+                   "roads": {"lanes": sum(1 for l in lanes if not l[2].endswith("-area")), "junctions": sum(1 for l in lanes if l[2].endswith("-area")),
+                             "cell": 1.0, "extentCm": [W * 100, H * 100]}, "grass": int(len(grass)), "ferns": int(len(ferns)),
                    "trees": int(n), "treeSpacing": tree_spacing}, f, indent=1)
-    return {"trees": int(n), "views": [v["name"] for v in views], "mask": [mw, mh], "lanes": len(lanes), "grass": int(len(grass)), "ferns": int(len(ferns))}
+    return {"trees": int(n), "views": [v["name"] for v in views], "mask": [mw, mh], "lanes": sum(1 for l in lanes if not l[2].endswith("-area")),
+            "junctions": sum(1 for l in lanes if l[2].endswith("-area")), "grass": int(len(grass)), "ferns": int(len(ferns))}
 
 
 def write_buildings(out, name, feats, z, x0, y0, cell, rows, cols, tile_m=500.0):

@@ -87,6 +87,9 @@ def main():
     if not a.placeholders:
         job["assets"] = find_assets(a.project)
         print("assets:", json.dumps({k: (v if not isinstance(v, dict) else v["B"]) for k, v in job["assets"].items()}, indent=1))
+    rm = os.path.join(folder, "roads", f"{name}.roads-mesh.json")   # hrot-roadscene: HROT's own TrafficRoadScene (UL-14)
+    if os.path.exists(rm):
+        job["roadMeshes"] = json.load(open(rm, encoding="utf-8")); job["roadMeshDir"] = fwd(os.path.join(folder, "roads"))
     bm = os.path.join(folder, f"{name}.buildings-mesh.json")
     if os.path.exists(bm) and not a.no_buildings:
         job["buildingMeshes"] = json.load(open(bm, encoding="utf-8"))

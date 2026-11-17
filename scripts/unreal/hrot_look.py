@@ -88,6 +88,9 @@ def step_sky():
     spawn(unreal.VolumetricCloud, label="Clouds")
     ppv = spawn(unreal.PostProcessVolume, label="PostProcess")
     ppv.set_editor_property("unbound", True)
+    pps = ppv.get_editor_property("settings")   # pass 7: a little darker (the foliage and the meadow read washed out)
+    pps.set_editor_property("override_auto_exposure_bias", True); pps.set_editor_property("auto_exposure_bias", -0.6)
+    ppv.set_editor_property("settings", pps)
     log("sky, sun, clouds, fog")
 
 
@@ -112,7 +115,7 @@ def step_ground_material():
         ASSETS.import_asset_tasks([rt])
         roads_tex = unreal.load_asset("/Game/Hrot/T_HrotRoads")
         roads_tex.set_editor_property("srgb", False)
-        roads_tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+        roads_tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)   # RGB: R asphalt, G dirt
         roads_tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
         roads_tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); roads_tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     state["roads_tex"] = roads_tex
@@ -157,7 +160,7 @@ def step_ground_material():
         rs = None
         if state.get("roads_tex"):
             rs = E(unreal.MaterialExpressionTextureSample, -800, 700)
-            rs.set_editor_property("texture", state["roads_tex"]); rs.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)   # pass 5: a linear (non-sRGB) mask
+            rs.set_editor_property("texture", state["roads_tex"]); rs.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
             link(uv, rs, "UVs")
         bc, nrm_, rough_, ao_ = textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise, rs)
         MEL.connect_material_property(bc, "", unreal.MaterialProperty.MP_BASE_COLOR)
@@ -205,25 +208,32 @@ def textured_ground(m, E, link, op, lerp, c1, c2, c3, ts, steep, wp, noise, road
     ff = layer("forestFloor", 350.0, -1800, -400); rk = layer("rock", 800.0, -1800, 100)
     soil = layer("soil", 350.0, -1800, 600) if A.get("soil") else None
     road = layer("gravel", 250.0, -1800, 1100) if (A.get("gravel") and roads is not None) else None
+    dirt = layer("dirt", 300.0, -1800, 1600) if (A.get("dirt") and roads is not None) else None
     # soil patches: a second, larger noise thresholded — bare earth breaking up the meadows (never in forest)
     n2 = E(unreal.MaterialExpressionNoise, -1400, 600)
     n2.set_editor_property("scale", 0.00012); n2.set_editor_property("output_min", 0.0); n2.set_editor_property("output_max", 1.0); n2.set_editor_property("levels", 4)
     link(wp, n2, "Position")
     soil_a = E(unreal.MaterialExpressionSaturate, -1100, 600)
-    link(op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, n2, c1(0.66, -1300, 700), -1250, 600), c1(5.0, -1250, 720), -1150, 600), soil_a, "")
+    # pass 7: soil only on the highest noise (fewer, smaller patches) and at most 70 % (the meadow shows through)
+    link(op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, n2, c1(0.76, -1300, 700), -1250, 600), c1(3.0, -1250, 720), -1150, 600), soil_a, "")
+    soil_a = op(unreal.MaterialExpressionMultiply, soil_a, c1(0.7, -1100, 700), -1050, 600)
+    meadow_tint = c3((0.82, 1.0, 0.72), -1300, -1250)   # the Megascans grass reads dry from the air: pulled toward green
     def mix(a_, b_, alpha, ch, x, y, out_alpha=""):
         return lerp(a_[ch] if isinstance(a_, dict) else a_, b_[ch] if isinstance(b_, dict) else b_, alpha, x, y, out_alpha)
     res = {}
     for k, ch in enumerate(("B", "N", "ORM")):
         y = -1200 + k * 500
         v = mix(g1, g2, noise, ch, -1200, y)
+        if ch == "B": v = op(unreal.MaterialExpressionMultiply, v, meadow_tint, -1150, y + 60)
         if soil is not None: v = mix(v, soil, soil_a, ch, -1100, y)
         v = mix(v, ff, ts, ch, -1000, y, out_alpha="R")
         v = mix(v, rk, steep, ch, -800, y)
-        if road is not None:
+        if dirt is not None:   # tracks, paths: dirt (G)
+            v = mix(v, dirt, roads, ch, -700, y, out_alpha="G")
+        if road is not None:   # streets: dark, fine gravel = asphalt-like (R)
             rv = road[ch]
-            if ch == "B": rv = op(unreal.MaterialExpressionMultiply, rv, c1(0.42, -700, y + 80), -680, y + 40)   # gravel darkened: asphalt-like
-            v = mix(v, rv, roads, ch, -650, y)
+            if ch == "B": rv = op(unreal.MaterialExpressionMultiply, rv, c1(0.28, -700, y + 80), -680, y + 40)
+            v = mix(v, rv, roads, ch, -650, y, out_alpha="R")
         res[ch] = v
     water = c3((0.02, 0.05, 0.06), -800, 900)
     res["B"] = lerp(res["B"], water, ts, -600, -1200, out_alpha="G")
@@ -327,6 +337,84 @@ def scatter_split(bin_path, meshes, label, cull_cm):
     return total
 
 
+def road_material():
+    """The road surface: our roads mask decides it per pixel — dirt where the mask's G (tracks, paths), dark fine gravel (asphalt-like)
+    elsewhere — so the ONE mesh of lane ribbons (Sim.Scene builds tracks and streets alike) reads right everywhere."""
+    A = JOB.get("assets") or {}
+    m = fresh_asset("/Game/Hrot", "M_HrotRoad", unreal.Material, unreal.MaterialFactoryNew())
+    m.set_editor_property("two_sided", True)
+    E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
+    def link(a, b, pin, out=""): MEL.connect_material_expressions(a, out, b, pin)
+    def c1(v, x, y):
+        e = E(unreal.MaterialExpressionConstant, x, y); e.set_editor_property("r", v); return e
+    def c2(a, b, x, y):
+        e = E(unreal.MaterialExpressionConstant2Vector, x, y); e.set_editor_property("r", a); e.set_editor_property("g", b); return e
+    def op(cls, a, b, x, y, oa="", ob=""):
+        e = E(cls, x, y); link(a, e, "A", oa); link(b, e, "B", ob); return e
+    wp = E(unreal.MaterialExpressionWorldPosition, -1600, 0)
+    xy = E(unreal.MaterialExpressionComponentMask, -1400, 0)
+    for p_, v in (("r", True), ("g", True), ("b", False), ("a", False)): xy.set_editor_property(p_, v)
+    link(wp, xy, "")
+    mask = JOB["mask"]
+    uvm = op(unreal.MaterialExpressionDivide, op(unreal.MaterialExpressionSubtract, xy, c2(*mask["northWestCm"], -1400, 120), -1200, 0), c2(*mask["extentCm"], -1200, 160), -1000, 0)
+    rs = E(unreal.MaterialExpressionTextureSample, -800, 0)
+    rs.set_editor_property("texture", state["roads_tex"]); rs.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    link(uvm, rs, "UVs")
+    alpha = E(unreal.MaterialExpressionSaturate, -600, 0)
+    link(op(unreal.MaterialExpressionSubtract, rs, rs, -700, 0, "G", "R"), alpha, "")
+    def tex(key, ch, tile_cm, x, y):
+        uv = op(unreal.MaterialExpressionDivide, xy, c1(tile_cm, x - 200, y + 60), x - 100, y)
+        t = E(unreal.MaterialExpressionTextureSample, x, y)
+        t.set_editor_property("texture", unreal.load_asset(A[key][ch]))
+        t.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if ch == "N" else
+                              (unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if ch == "B" else unreal.MaterialSamplerType.SAMPLERTYPE_MASKS))
+        link(uv, t, "UVs"); return t
+    out = {}
+    for k, ch in enumerate(("B", "N", "ORM")):
+        g = tex("gravel", ch, 200.0, -400, -600 + k * 400); d = tex("dirt", ch, 300.0, -400, -400 + k * 400)
+        if ch == "B": g = op(unreal.MaterialExpressionMultiply, g, c1(0.26, -300, -500), -250, -600)
+        e = E(unreal.MaterialExpressionLinearInterpolate, -100, -600 + k * 400)
+        link(g, e, "A"); link(d, e, "B"); link(alpha, e, "Alpha")
+        out[ch] = e
+    MEL.connect_material_property(out["B"], "", unreal.MaterialProperty.MP_BASE_COLOR)
+    MEL.connect_material_property(out["N"], "", unreal.MaterialProperty.MP_NORMAL)
+    rough = E(unreal.MaterialExpressionComponentMask, 100, 200)
+    for p_, v in (("r", False), ("g", True), ("b", False), ("a", False)): rough.set_editor_property(p_, v)
+    link(out["ORM"], rough, "")
+    MEL.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.recompile_material(m)
+    return m
+
+
+def step_roads():
+    """UL-14: HROT's OWN road scene (hrot-roadscene → TrafficRoadScene, SumoSharp's Sim.Scene): lane ribbons, junction fills, sidewalks,
+    lane markings, crosswalks — the geometry HROT's 3-D map draws, laid on our ground."""
+    spec = JOB.get("roadMeshes")
+    A = JOB.get("assets") or {}
+    if not spec or not state.get("roads_tex") or not (A.get("gravel") and A.get("dirt")): return
+    road = road_material()
+    paint = flat_material("M_HrotRoadPaint", (0.82, 0.82, 0.80), 0.55)
+    walk = two_sided_instance_of(A["gravel"]["MI"], "MI_HrotSidewalk") if A.get("gravel") else road
+    by_kind = {"Asphalt": road, "Junction": road, "Sidewalk": walk, "LaneMarking": paint, "Crosswalk": paint}
+    n = 0
+    for t in spec["tiles"]:
+        mat = by_kind.get(t["kind"], road)
+        a = unreal.HrotTerrainLibrary.build_mesh(os.path.join(JOB["roadMeshDir"], t["file"]).replace("\\", "/"),
+                                                 f"/Game/Hrot/Roads/SM_{JOB['terrain'].replace('-', '_')}_{t['kind']}_{t['tile'][0]}_{t['tile'][1]}",
+                                                 [mat], unreal.Vector(*t["locationCm"]), f"Road_{t['kind']}_{t['tile'][0]}_{t['tile'][1]}")
+        if a: n += t["triangles"]
+    log(f"roads: HROT's road scene, {len(spec['tiles'])} tiles, {n} triangles ({', '.join(f'{k} {v}' for k, v in spec['triangles'].items())})")
+
+
+def two_sided_instance_of(parent_path, name):
+    mi = fresh_asset("/Game/Hrot", name, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mi.set_editor_property("parent", unreal.load_asset(parent_path))
+    o = mi.get_editor_property("base_property_overrides")
+    o.set_editor_property("override_two_sided", True); o.set_editor_property("two_sided", True)
+    mi.set_editor_property("base_property_overrides", o)
+    return mi
+
+
 def step_grass():
     A = JOB.get("assets") or {}
     msg = []
@@ -373,10 +461,14 @@ def shoot_next():
 
 
 def step_save():
+    """The map AND every asset this run made (the ground material, the masks, the building meshes, the material instances) — pass 6
+    saved only the map, so the level opened later in the editor fell back to older copies (the user saw no roads, no grass)."""
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+    ok = unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
+    log(f"saved the map and every new asset ({'ok' if ok else 'some packages FAILED to save'})")
 
 
-STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_grass, step_shots, None, step_save]
+STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_roads, step_grass, step_shots, None, step_save]
 
 
 def tick(dt):
