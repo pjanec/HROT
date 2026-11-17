@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — in progress, unattended
-updated: 2026-11-16
-current-answer: the slice table, then §1 decisions, §2 gates
+updated: 2026-11-17
+current-answer: §0 the morning report, then the slice table, §1 decisions, §2 gates
 related-designs:
   - ../../designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md — THE design; the as-built folds into it
   - HANDOFF_Coordinator_To_Behaviors_Checkpoint_And_Ramming.md — the dispatch (b933ddd7d)
@@ -10,6 +10,19 @@ related-designs:
 # STATUS — `behaviors`: the checkpoint, ramming and the car bomb (CE-4622, K-1…K-8) — unattended
 
 Started after the minefield batch was reported (`5f02a8cd0`); merged `coordinator` at `f4c649fdb` (contains the dispatch `b933ddd7d`).
+
+## 0. Morning report (`2026-11-17`)
+
+| | |
+|---|---|
+| ✅ **built, gated, red-proved** | K-1 vehicle impact · K-2 `RamOrder` + `RamTarget` · K-3 the engine aim point, the coast, the soft-skin occupant rule, the driver · K-4 the `Checkpoint` play + `VehicleApproachWatch` · K-5 the vehicle ladder · K-6 the search (incl. a VEHICLE search in custody) — gate rows in §2, 7 + 7 + 4 + 7 + 7 + 3 mutants all RED |
+| ✅ **feature scenarios** (R-4277) | `cp-routine-car` 6/6 · `cp-vbied` 6/6 · `cp-compliant-bomber` 4/4 · `cp-moto-attack` 5/5 — `scripts/scenario-regression.sh`, deterministic editor run; goldens captured and REPEAT in a fresh process (`same` ×4) |
+| ⚠ **`cp-ram-barrier`** 1/4 | the car paths ROUND the barrels (R-2129's named trigger) — a path-less direct move is the mover's: **CE-2445**, `NOTE_Behaviors_To_Backend_Ram_Direct_Move.md` |
+| ⭐ **what the scenarios FOUND** (no rail had) | the squad SOP paused the checkpoint for a contact drill · the MG's post had the stopper on its line (held fire) · the ram was a lethal act from 370 m (R-2134) · the men's searcher waited where the man had been · the complying man drifted · custody's 1.5 m reach lay inside the crowd's push (R-2135, cross-lane: 2 m) — all fixed, design §5b K-7 |
+| 1 / 4 / 8 threads (`stepped-hash.py`, `HROT_PARALLEL_SIM=1`, Debug build) | `cp-moto-attack` 20 s: **STATE EQUAL** · the other three: see §2 (running at the time of writing) |
+| ⚠ **the K-1 vehicle re-check** (30 vehicle scenarios, `scratchpad regk1`) | golden-only reds: their goldens predate the `2026-11-15` `VehicleParams` change (motorcycle, backend) — first diff at t=0 in a struct K-1 does not touch ⇒ pre-existing. Verdict reds: `hill-attack`, `hill-attack-close` (tanks do not fire / advance), `ua-air-defence` (no missile warning), `bd-destruction` (one walk-in, documented as not repeating), `mf-at-vs-vehicle` (CE-2444, terrain — reported fixed on `terrain`), `hsm-channel-e2e` crashed (`missing BlueprintBlackboard1024`, a blueprint issue) — ⏳ the base comparison (pre-K-1 `1da29a25c`) runs after the thread checks |
+| 🟡 **for the user's review** | R-2128…R-2135 (lane decisions, §1) — the two with reach: **R-2134** (a ram is a lethal act only in its last 50 m) and **R-2135** (custody's search reach 2 m) |
+| ⏭ next | CE-2445 (backend) · the minefield follow-up: terrain's breadcrumbs landed (`NOTE_Terrain_To_Behaviors_Minefield_Switch.md`) ⇒ switch `MineStrike` from hold-in-place to backing out (R-2125's interim) · a civilian who SLOWS on seeing the signal and the waved-on SUMO car (R-2133's ⏭) |
 
 | slice | state | result |
 |---|---|---|
