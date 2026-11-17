@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — building
+state: DONE — S2 + thumbnails built; the scenarios of S3 / S4 are not in this half
 updated: 2026-11-17
 current-answer: the step table + the lane decisions
 related-designs:
@@ -13,9 +13,9 @@ Handoff: [`HANDOFF_Coordinator_To_Ui_Person_Outfits.md`](HANDOFF_Coordinator_To_
 | # | step | state |
 |---|---|---|
 | 1 | mockups (13 garments, front + side, `docs/designs/person-looks/person-outfits-*.svg`, generator `scripts/gen-person-outfits-mockup.py`) | ✅ approved by the coordinator (checkpoint 1, two rounds) |
-| 2 | the real drawing in `Outfits.Details` + the Native American enum members | ⏳ |
-| 3 | thumbnails of the new types backend registered | ⏳ |
-| 4 | fold the as-built into the design + Map 3D §6q; CAPABILITIES | ⏳ |
+| 2 | the real drawing in `Outfits.Details` + the Native American enum members (checkpoint 2 approved, then the lit-frame / feather fixes) | ✅ `904b0216f`, `e20fcc859` |
+| 3 | thumbnails: 1105–1110, 2010–2012 added, the Insurgent 2003 replaced (atlas 91 → 100 pictures); the Native American type is not registered yet ⇒ its thumbnail waits | ✅ |
+| 4 | as-built folded into the design §9 + Map 3D §6q.2 (prior state SUPERSEDED); CAPABILITIES row (scenario ⏳) | ✅ |
 
 ## Lane decisions (for the user's review)
 
@@ -23,3 +23,19 @@ Handoff: [`HANDOFF_Coordinator_To_Ui_Person_Outfits.md`](HANDOFF_Coordinator_To_
 |---|---|---|
 | R-1062 | the Native American garment kinds are added to the outfit enums by ui (`OutfitTop.Buckskin`, `OutfitLegs.Breechcloth`, `OutfitHead.Headband`, hair `Braids`) — backend's catalogue rows name them later | backend declaring different member names |
 | R-1063 | FACE PAINT lives in the BEARD slot (`BeardKind.Paint`) — adding a slot would add a draw and reshuffle every existing person; the stripe colours come from a hash of the seed, no extra draw | a wish for authored paint colours per type ⇒ a new slot and a re-baselined fixture |
+
+Further decisions: the sleeve fringe of the buckskin is DROPPED (accepted at checkpoint 2); the catalogue off-white `White` is now (244,243,238) — it is PRIVATE to the Middle-East wardrobes (`Shirt` and every existing garment are untouched; the existing-person identity probe `CE4648_EveryExistingPersonType…` passes), only the new types and the re-dressed 2003 use it.
+
+## Gates (rule 8) — all `--no-build` after `dotnet build Hrot.Presentation.Tests`, display rails under `xvfb-run -a`
+
+| gate | result |
+|---|---|
+| `PersonOutfitsRail` (geometry · 0 B for 500 people × 13 garments · lit 3/4 frames, thobe ≥ the white shirt) | 3 / 0 |
+| red-proofs (one mutation each, reverted, tree clean): back drape removed · an allocation in `Garments` · thobe torso darkened ×0.7 | the geometry, the 0 B and the frame rail each went RED |
+| `Map3DTests` (incl. `CE4648_*` baseline probe seeds 1–500 of every existing person type, OF-2 / 6 / 7 / 11 / 12, the updated OF-5) | green except the 3 known reds `S1_TheIconFallback…`, `CE1309_TheMindStateBar…`, `CE1086_TheFpvDrone…` (confirmed pre-existing; named by the handoff) |
+| `Map3DFrameRail` (every civilian / child / elderly / police / soldier frame rail) | 52 / 2 — `CE4388_TheCachedWireSphere…` (red at base `4fa79837f`) and `E2b_V_ARandomTerrain…` (terrain, no person) |
+| `EntityTypeCatalogTests` + `CE2138` + `PersonBodyParityTests` + `AirCombatLooksRail` | 44 / 0; the atlas count line moved 91 → 100 (exactly the 9 added thumbnails) |
+| existing figures unchanged | proved by the data probe (every old type × seeds 1–500 × side × own colour) AND the diff of `Outfits.cs`: only code for NEW kinds was removed; a PNG diff cannot prove it (frames differ between two baseline runs) |
+| not run | `civ-middle-east-market` / `me-fighters-ambush` scenarios (not in this half's scope); the Native American type's thumbnail (not registered) |
+
+Ids: `R-1062`, `R-1063` (no `CE-` ids allocated).

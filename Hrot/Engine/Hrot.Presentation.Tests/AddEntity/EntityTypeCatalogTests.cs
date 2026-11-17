@@ -344,8 +344,8 @@ public sealed class EntityTypeCatalogTests
         // ⭐ CE-4273 (Next_2 A-10) — the seed's 75 + the Car. ⛔ SUPERSEDED: "slot = position in sorted order" — true of the seed only; §2j says a name
         //   KEEPS its slot and an addition takes the next free one (the Car sorts among the C's and sits in slot 75). The invariant now: one cell per
         //   name, on the grid, inside the pages.
-        Assert.Equal(91, idx.Count);   // ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2); ⭐ CE-4624 — + the mine clearer (page 1, slot 2/2)
-        Assert.Equal(91, ThumbnailAtlas.Shared.Count);
+        Assert.Equal(100, idx.Count);   // ⭐ CE-4648 — + the 6 Middle-East civilians and 3 fighters (the Insurgent REPLACED, not added); ⭐ CE-4623 AU-2 — + the 11 animal thumbnails (80cc7fdda); ⭐ CE-6007 — + the bulldozer (page 1, slot 4/1); ⭐ CE-4618 — + the radar SAM truck (page 1, slot 5/1); ⭐ CE-4621 — + the motorcycle (page 1, slot 0/2); ⭐ CE-4624 — + the mine clearer (page 1, slot 2/2)
+        Assert.Equal(100, ThumbnailAtlas.Shared.Count);
         Assert.True(idx.TryGet("Car", out _, out _, out _, out _, out _));
 
         var names = idx.Names.ToList();
