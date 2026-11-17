@@ -801,7 +801,6 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void CE2081_AReaction_PausesTheTask_AndItResumesWhereItWas_OnItsOwnToken()
         {
-        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
             using var f = new Fixture();
             f.Task("SopT_TwoStep", BehaviorOrigin.Superior);
             f.Frames(1);                                                       // step 1 done, step 2 running

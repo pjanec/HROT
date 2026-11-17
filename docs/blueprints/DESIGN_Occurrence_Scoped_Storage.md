@@ -9,7 +9,7 @@ build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is 
   §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
   probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
   neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
-current-answer: ⭐⭐ §34.7 (2026-11-17, DESIGN) — a block appended INSIDE the parallel brain phase: an addressable pending block, played at the merge (CE-9013 / CE-3467). ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
+current-answer: ⭐⭐ §34.7 (2026-11-17, approved; as-built §34.7.7) — a block appended INSIDE the parallel brain phase: an addressable pending block, played at the merge (CE-9013 / CE-3467). ⭐⭐⭐ §34 — U-0, THE MULTI-BLOCK STORE (R-236, CE-3137) — IS THE NEWEST SECTION AND IS BUILT (2026-10-09, U-0a…U-0e). ⚠ READ §34.6 (AS-BUILT) FIRST — §34.2/§34.3 are the pre-build shape. (§33, E6, is BUILT.)
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
   ⚠⚠ §3.1 IS SUPERSEDED — it says "BTree-hosts-BTree is not a missing feature", which CE-337 made
@@ -10475,7 +10475,7 @@ the only new types are two plain value carriers.*
 order is LARGEST-first, not assign-time-block-first (the store records no attach order; a one-block unit is unaffected, and inside a view
 the cost difference is one ~14 ns scan).
 
-### 34.7 ⭐⭐ `CE-9013` / `CE-3467` — **GROWTH INSIDE THE PARALLEL PHASE: an addressable pending block** *(`2026-11-17`, `build-state: DESIGN` — awaiting the user's approval)*
+### 34.7 ⭐⭐ `CE-9013` / `CE-3467` — **GROWTH INSIDE THE PARALLEL PHASE: an addressable pending block** *(`2026-11-17`, approved by the user — *"Approved and retire backends wrong fix"*; `build-state: BUILDING` — §34.7.7 is the as-built)*
 
 > 🔒 **User, `2026-11-17`:** *"The first block is not big … for sure we want it to grow by adding a new bigger component, and the only
 > question is how … or whether we provide a temporary storage for the component so that the code can access it from the middle of the
@@ -10613,3 +10613,15 @@ refuse in phase, retry next tick — `UnitMemory.Ref<T>` must return a `ref` now
 | **G-1** engine | `BatchContext.AllocateOwnRaw` / `OwnRaw` + arena + `Reset`; `ParallelEntities` plays them first per batch | `Fdp.Core.Tests`: a raw own add is readable by address in its job, lands at the merge with its final bytes, in batch order at 1 / 2 / 4 / 8 threads (the add log identical); a destroyed entity's pending add is dropped; 0 B on a steady run |
 | **G-2** store | `AddBlock` in a phase → pending; `TryAttachSlot` / `Measure` through the view; cross-entity in-phase attach throws; retire `EnsureStandardLadder` + its call in `BrainPhase` + `SuspendStandardLadder` in the nine fixtures (backend's code — cross-lane edit, said) | `UnitMemoryTests`: under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`, in-phase growth at each step 256 → 1024, 1024 → 4096, 4096 → 16384; a chain 1024 → 4096 → 16384 in ONE tick; the slot reads the same bytes on the next tick; a unit that needs nothing keeps one block (red against the ladder) |
 | **G-3** proof | T-1 suites (`OccurrenceStoreAccessTests`, `UnitMemoryTests`, `BTreeHostsBTreeTests.U0_R5`, `PerEntityRuleTests`); `stepped-hash.py --threads 1,4,8` on `uc-urban-battle`, `ua-rpg-window`; CE-9012 put back and `uc-urban-battle` passes | — |
+
+#### 34.7.7 AS-BUILT — `2026-11-17`
+
+| design | as built | why it differs |
+|---|---|---|
+| `BatchContext.AllocateOwnRaw(entity, typeId, size)` / `OwnRaw` | as designed, plus `OwnRawCount`; the "own" check is `ParallelReadCheck.Current == e.Index` (throws otherwise); a second allocation of one type for one entity in a tick throws | — |
+| the merge plays them first in each batch | `for b: PlayOwnRaw(b); Commands.Playback(b)` — then `PlayLater`, then `ApplyDeferred`, unchanged | — |
+| `TryAttachSlot` / `Measure` through the view | `TryAttachSlot` walks the view when one is open (RW through `ViewBlockRW`, so Q-1's stamp-on-change still decides the stamp); `Measure` unchanged | ⭐ `Measure` / `AppendBlockFor` / `EnsureRoom` are called only serially (measured, §34.7.1), and a pending block is never seen by them |
+| `AddBlock` in a phase → pending | as designed; outside the unit's own view it throws, naming §34.7 | — |
+| — | `BeginTickView` inside a phase also appends the batch's pending blocks for its unit | robustness: today one view per unit tick (measured), so it is a no-op cost (`OwnRawCount` 0) unless a second view opens in the same phase |
+| retire R-3103 | `EnsureStandardLadder`, `SuspendStandardLadder`, the `BrainPhase` call and the throw removed; the seven test files backend changed for it restored to their pre-CE-3467 state; the 32 KiB command-buffer cap kept | — |
+

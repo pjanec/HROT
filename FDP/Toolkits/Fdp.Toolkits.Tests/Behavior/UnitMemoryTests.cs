@@ -197,76 +197,157 @@ public sealed unsafe class UnitMemoryTests
         Assert.Throws<InvalidOperationException>(() => UnitMemory.Ref<Burned>(world, unit));
     }
 
-    // ── ⭐⭐ CE-3467 (R-3103) — a unit memory attached INSIDE the parallel brain phase needs room that is already there ─────────────────────────
+    // ── ⭐⭐ CE-9013 (DESIGN_Occurrence_Scoped_Storage §34.7) — the store GROWS inside the parallel brain phase: a pending block ──────────────
+    //   📐 Before: the append was deferred into the batch's command buffer and AddBlock read the block back at once ("Entity … missing
+    //   BlueprintBlackboard4096"; uc-urban-battle / ua-rpg-window exit 134). Now the batch hands out the block, the unit's view holds it, and
+    //   the merge adds it as the component, first in its batch.
 
-    [UnitMemory]
-    private struct Mid3K
-    {
-        public fixed byte B[3000];
-    }
+    [UnitMemory] private struct Mem600 { public fixed byte B[600]; }
+    [UnitMemory] private struct Mem3K { public fixed byte B[3000]; }
+    [UnitMemory] private struct Mem10K { public fixed byte B[10000]; }
 
-    private struct AttachJob : IEntityBatchJob
+    private static readonly int[] s_seen = new int[8];
+
+    /// <summary>One unit tick in the phase, as BrainTickSystem.TickInPhase runs it: the unit's view open, then the unit memories touched.</summary>
+    private struct GrowJob : IEntityBatchJob
     {
         public EntityRepository Repo;
-        public void Execute(Entity e, int index, BatchContext ctx) => UnitMemory.Ref<Mid3K>(Repo, e).B[0] = 7;
+        public int Steps;   // bit 0: Mem600, bit 1: Mem3K, bit 2: Mem10K
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            using var view = OccurrenceStoreAccess.BeginTickView(Repo, e);
+            byte tag = (byte)(1 + e.Index % 200);
+            if ((Steps & 1) != 0) { ref var m = ref UnitMemory.Ref<Mem600>(Repo, e); m.B[0] = tag; m.B[599] = tag; }
+            if ((Steps & 2) != 0) { ref var m = ref UnitMemory.Ref<Mem3K>(Repo, e); m.B[0] = tag; m.B[2999] = tag; }
+            if ((Steps & 4) != 0) { ref var m = ref UnitMemory.Ref<Mem10K>(Repo, e); m.B[0] = tag; m.B[9999] = tag; }
+            // read back INSIDE the same tick, through a second lookup — the pending block answers it
+            if ((Steps & 4) != 0) s_seen[0] = UnitMemory.Ref<Mem10K>(Repo, e).B[9999];
+            s_seen[1] = ctx.OwnRawCount;
+        }
         public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
     }
 
-    private static Entity BrainUnitWithOnlyTheSmallestTier(EntityRepository world)
+    private static Entity BrainUnitWith(EntityRepository world, int smallestTiers)
     {
         var e = world.CreateEntity();
         world.AddComponent(e, new BehaviorState());
-        OccurrenceStoreAccess.AddBlock(world, e, BlueprintTierTable.Ascending[0]);   // 256 only
+        for (int i = 0; i < smallestTiers; i++) OccurrenceStoreAccess.AddBlock(world, e, BlueprintTierTable.Ascending[i]);
         return e;
     }
 
-    private static int Tiers(EntityRepository world, Entity e)
+    private static int TierBits(EntityRepository world, Entity e)
     {
-        int n = 0;
-        foreach (var spec in BlueprintTierTable.Ascending) if (spec.Has(world, e)) n++;
-        return n;
+        int bits = 0;
+        for (int i = 0; i < BlueprintTierTable.Ascending.Count; i++) if (BlueprintTierTable.Ascending[i].Has(world, e)) bits |= 1 << i;
+        return bits;
     }
 
-    /// <summary>
-    /// ⭐⭐ <c>CE-3467</c> (R-3103) — a brain unit spawned with ONLY the 256 tier: the brains' serial pre-pass (<c>BrainPhase.Prepare</c> ⇒
-    /// <c>EnsureStandardLadder</c>) gives it the 1024 and 4096 tiers, so a 3 KB unit memory attaches INSIDE the parallel phase. Without the pre-pass the attach needs
-    /// a new block there — which the phase defers — and fails with a clear exception naming the unit and the size, not a crash in memory.
-    /// 🔴 Red-proof: <c>EnsureStandardLadder</c> not called ⇒ the "cannot be appended inside the parallel phase" exception.
-    /// </summary>
-    [Fact]
-    public void CE3467_AUnitWithOnlyTheSmallTier_IsGivenTheStandardLadder_SoA3KbMemoryAttachesInsideTheParallelPhase()
+    private static void InPhase(Action body)
     {
         bool was = ParallelEntities.Enabled;
         ParallelEntities.Enabled = true;
-        try
-        {
-            using var starved = CreateWorld();
-            var s = BrainUnitWithOnlyTheSmallestTier(starved);
-            var ex = Assert.Throws<InvalidOperationException>(() => ParallelEntities.Run(starved, new[] { s }, 1, new AttachJob { Repo = starved }));
-            Assert.Contains("cannot be appended inside the parallel phase", ex.Message);
-            Assert.Contains("3000", ex.Message);
-
-            using var world = CreateWorld();
-            var e = BrainUnitWithOnlyTheSmallestTier(world);
-            Assert.Equal(1, Tiers(world, e));
-            OccurrenceStoreAccess.EnsureStandardLadder(world);               // what BrainPhase.Prepare runs, serially
-            Assert.Equal(3, Tiers(world, e));                                 // 256 + 1024 + 4096
-            ParallelEntities.Run(world, new[] { e }, 1, new AttachJob { Repo = world });
-            Assert.Equal(7, UnitMemory.Ref<Mid3K>(world, e).B[0]);
-        }
-        finally { ParallelEntities.Enabled = was; }
+        try { body(); } finally { ParallelEntities.Enabled = was; }
     }
 
-    /// <summary>⭐ <c>CE-3467</c> — the pre-pass is 0 bytes on a steady frame (a cached query and a mask read per unit; no LINQ).</summary>
-    [Fact]
-    public void CE3467_TheStandardLadderPrePass_AllocatesNothingOnASteadyFrame()
+    /// <summary>
+    /// ⭐⭐ CE-9013 — EVERY growth step inside the phase: 256 → 1024 (a 600 B memory), 256+1024 → 4096 (3 KB), 256+1024+4096 → 16384 (10 KB). The
+    /// new tier is NOT a component during the tick (it is the batch's pending block) and IS one after the merge, with the bytes the tick wrote.
+    /// 🔴 Red-proof: AddBlock adding the component as before (the deferred add) ⇒ "missing BlueprintBlackboard…" inside the job.
+    /// </summary>
+    [Theory]
+    [InlineData(1, 1, 0b0011)]   // 256 → +1024
+    [InlineData(2, 2, 0b0111)]   // 256 + 1024 → +4096
+    [InlineData(3, 4, 0b1111)]   // 256 + 1024 + 4096 → +16384
+    public void CE9013_R1_EachGrowthStep_AppendsInsideThePhase_AndLandsAtTheMerge(int startTiers, int step, int expectedBits)
     {
-        using var world = CreateWorld();
-        for (int i = 0; i < 50; i++) BrainUnitWithOnlyTheSmallestTier(world);
-        OccurrenceStoreAccess.EnsureStandardLadder(world);                   // the first frame adds the blocks
-        OccurrenceStoreAccess.EnsureStandardLadder(world);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int f = 0; f < 20; f++) OccurrenceStoreAccess.EnsureStandardLadder(world);
-        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        InPhase(() =>
+        {
+            using var world = CreateWorld();
+            var e = BrainUnitWith(world, startTiers);
+            ParallelEntities.Run(world, new[] { e }, 1, new GrowJob { Repo = world, Steps = step });
+            Assert.Equal(1, s_seen[1]);                                  // one pending block during the tick
+            Assert.Equal(expectedBits, TierBits(world, e));             // the merge added it as the component
+            byte tag = (byte)(1 + e.Index % 200);
+            if (step == 1) { Assert.Equal(tag, UnitMemory.Ref<Mem600>(world, e).B[0]); Assert.Equal(tag, UnitMemory.Ref<Mem600>(world, e).B[599]); }
+            if (step == 2) { Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, e).B[0]); Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, e).B[2999]); }
+            if (step == 4) { Assert.Equal(tag, UnitMemory.Ref<Mem10K>(world, e).B[0]); Assert.Equal(tag, UnitMemory.Ref<Mem10K>(world, e).B[9999]); }
+            Assert.Equal(startTiers + 1, OccurrenceStoreAccess.Measure(world, e).Blocks);
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-9013 — a CHAIN in one tick: a 256-only unit takes a 600 B, a 3 KB and a 10 KB memory in the same tick ⇒ three pending blocks
+    /// (1024, 4096, 16384), each found by the next attach (no tier appended twice), and a later lookup in the same tick reads the 16 KB one.
+    /// 🔴 Red-proof: TryAttachSlot walking the component mask instead of the view ⇒ the pending tiers are invisible and appended again (throws).
+    /// </summary>
+    [Fact]
+    public void CE9013_R2_AChainOfGrowthsInOneTick_EachFindsThePendingBlocksBeforeIt()
+    {
+        InPhase(() =>
+        {
+            using var world = CreateWorld();
+            var e = BrainUnitWith(world, 1);
+            ParallelEntities.Run(world, new[] { e }, 1, new GrowJob { Repo = world, Steps = 7 });
+            byte tag = (byte)(1 + e.Index % 200);
+            Assert.Equal(3, s_seen[1]);
+            Assert.Equal(tag, s_seen[0]);
+            Assert.Equal(0b1111, TierBits(world, e));
+            Assert.Equal(tag, UnitMemory.Ref<Mem600>(world, e).B[599]);
+            Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, e).B[2999]);
+            Assert.Equal(tag, UnitMemory.Ref<Mem10K>(world, e).B[9999]);
+        });
+    }
+
+    /// <summary>
+    /// ⭐ CE-9013 — many units across many batches each grow their OWN store; every one lands with its own bytes, none crosses to another.
+    /// And growth is LAZY again (R-237 C): a unit that needs no more room keeps its one block — the R-3103 ladder is gone from the pre-pass.
+    /// </summary>
+    [Fact]
+    public void CE9013_R3_ManyUnitsAcrossBatches_EachGrowsItsOwnStore_AndAUnitThatNeedsNothingKeepsOneBlock()
+    {
+        InPhase(() =>
+        {
+            using var world = CreateWorld();
+            var units = new Entity[100];
+            for (int i = 0; i < units.Length; i++) units[i] = BrainUnitWith(world, 1);
+            var idle = BrainUnitWith(world, 1);
+            Fdp.Toolkit.Behavior.BrainPhase.Prepare(world);
+            Assert.Equal(0b0001, TierBits(world, idle));                 // 🔴 red with the eager ladder (256 + 1024 + 4096)
+            ParallelEntities.Run(world, units, units.Length, new GrowJob { Repo = world, Steps = 2 });
+            foreach (var u in units)
+            {
+                Assert.Equal(0b0101, TierBits(world, u));               // 256 + the 4096 the 3 KB memory needed (1024 cannot hold it)
+                byte tag = (byte)(1 + u.Index % 200);
+                Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, u).B[0]);
+                Assert.Equal(tag, UnitMemory.Ref<Mem3K>(world, u).B[2999]);
+            }
+            Assert.Equal(0b0001, TierBits(world, idle));
+        });
+    }
+
+    private struct CrossJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public Entity Other;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            using var view = OccurrenceStoreAccess.BeginTickView(Repo, e);
+            UnitMemory.Ref<Mem600>(Repo, Other);   // ANOTHER unit's store, inside the phase
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>⭐ CE-9013 — growing ANOTHER unit's store inside the phase is a cross-entity write: it throws (the per-entity guard or §34.7's), and the other store is untouched.</summary>
+    [Fact]
+    public void CE9013_R4_GrowingAnotherUnitsStoreInsideThePhase_Throws()
+    {
+        InPhase(() =>
+        {
+            using var world = CreateWorld();
+            var self = BrainUnitWith(world, 1);
+            var other = BrainUnitWith(world, 1);
+            Assert.ThrowsAny<Exception>(() => ParallelEntities.Run(world, new[] { self }, 1, new CrossJob { Repo = world, Other = other }));
+            Assert.Equal(0b0001, TierBits(world, other));
+        });
     }
 }
