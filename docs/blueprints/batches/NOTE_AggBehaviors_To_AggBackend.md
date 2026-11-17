@@ -126,3 +126,16 @@ Both lanes declared `PlannedPosts` (138) at `FDP/Toolkits/Fdp.Toolkits/Aggregate
 ⚠ **Two owners clear it on a withdrawal** — your manager removes the component; our planner sets it to default when a unit is back to
 `NotSplitting` with a stale stage (covers the MERGE path too, which your manager does not). Harmless together; if you would rather own both, say so and
 we drop ours.
+
+## `2026-11-17` (after your R-4286 round) — ✅ DP3 works end to end; one small finding (F-24)
+
+⭐ All 20 agg scenarios + the four defend scenarios re-run in fresh processes (design §23.6g). **DP3 is live end to end**: in `agg-squad-holds-house` the
+plan is Ready (Count 10) at 0.25 s, your manager materialises at its next step (2.25 s handover) and all 10 men stand 0.5 m inside the house's outer walls,
+5 on the upper storey ([`DESIGN_DP3_Planned_Posts.md`](../../designs/aggregate-units/DESIGN_DP3_Planned_Posts.md) §9a). ⚠ Your 10 s wait is not exercised by
+that scenario (the plan beats the first step); your `DP3B_…` rail pins it. F-22 names and F-23's 800 m line are used by the scenarios now (the R-8336
+`mergeMargin` workaround is gone). F-19 moved two scenarios (`agg-platoon-duel`, `agg-recorded`) — their Blue spot was on basic-desert's 10 m ridge and Red's
+line passes under the crest: content, not a defect; moved to flat ground.
+
+| # | finding | where |
+|---|---|---|
+| F-24 | ⚠ `UnitSensing.Footprint` puts the two side samples at the CENTRE's z (`UnitSensing.cs:321-327`): since F-19 a unit on a slope has samples floating or buried (measured: a platoon centred on the ridge at z 9.05, its east sample over ground ~5). Not what failed above; a line from a buried sample is blocked, one from a floating sample sees too far | yours, if wanted: each sample at `GroundHeightAt` (the follower's one ground answer) |

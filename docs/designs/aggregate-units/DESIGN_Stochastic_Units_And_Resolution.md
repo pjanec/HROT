@@ -995,9 +995,9 @@ agg-backend. ⭐ A slice is DONE when ITS rows pass.
 
 | # | lane decision (for the user's review) | would change it |
 |---|---|---|
-| **R-8335** | the children are addressed by network id (measured per scenario, deterministic in a fresh run); each id's `EntityGuid` is checked against SV-4's `uuid5(<unit>, child:<composite slot>)` — so a re-keyed or missing man fails | F-22 answered (a child name): then by name |
-| **R-8336** | split-on-contact and merge-back set `mergeMargin: 250` by the author's policy — the default merge distance (500 m) lies inside the split trigger (600 m) and a unit flip-flops every ~63 s (F-23) | F-23 fixed in the manager: the policy line goes |
-| **R-8337** | agg-squad-holds-house judges the FALLBACK line (as built), its `$doc` says the window / door posts wait for D-P3 | D-P3 built |
+| **R-8335** (the grammar stays; the scenarios now use names, R-8349) | the children are addressed by network id (measured per scenario, deterministic in a fresh run); each id's `EntityGuid` is checked against SV-4's `uuid5(<unit>, child:<composite slot>)` — so a re-keyed or missing man fails | F-22 answered (a child name): then by name |
+| **R-8336** ⛔ SUPERSEDED by R-8350 (§23.6g) | split-on-contact and merge-back set `mergeMargin: 250` by the author's policy — the default merge distance (500 m) lies inside the split trigger (600 m) and a unit flip-flops every ~63 s (F-23) | F-23 fixed in the manager: the policy line goes |
+| **R-8337** ⛔ SUPERSEDED by R-8351 (§23.6g) | agg-squad-holds-house judges the FALLBACK line (as built), its `$doc` says the window / door posts wait for D-P3 | D-P3 built |
 
 #### 23.6e As built — `agg-defend-fires` (F-14, R-8339) *(`2026-11-16`; same generator, same folder)*
 
@@ -1024,6 +1024,29 @@ Goldens: re-captured where they moved and every row passed (each SAME on a secon
 | **R-8343** | prepared-defence judged at the half-strength line by 70 s | a loss band from the C-8 ladder |
 | **R-8344** | the duel's Blue row is "hit", not "down" | — |
 | **R-8345** | the battalion's Red 1 / 2 rows read Green with 5–9 down | agg-backend's balance moving again |
+
+#### 23.6g Re-run after agg-backend's R-4286 round — DP3 live, F-22 names, F-23 hysteresis, F-19 terrain z *(`2026-11-17`, merge `6e4e3f1c0` of `b0d53162e`; R-8349 … R-8352; ⭐ supersedes the matching rows of §23.6b / §23.6d)*
+
+⭐ All 20 agg scenarios + the four defend scenarios (`sq-defend-house` 3/3, `pc-defend-house` 7/7, `bc-house-defended` 4/4, `ts-three-defenders` 9/9 golden SAME) re-run in fresh processes after a restore + rebuild. **No engine regression; DP3 works end to end** ([`DESIGN_DP3_Planned_Posts.md`](DESIGN_DP3_Planned_Posts.md) §9a).
+
+| scenario | what moved | as re-authored | why it still tests the Judge line |
+|---|---|---|---|
+| `agg-squad-holds-house` | ⭐ the men are no longer on the fallback line: 5 of the 10 old line rows red, every man inside the house | ⭐ rows judge the REAL posts (**R-8351**, supersedes R-8337): `PlannedPosts.Ready` = 1 and `Count` = 10 before the men exist; at the handover (2.25 s) ALL men inside OBJ's footprint (x 115–125, y 153–161), ≥ 5 at z ≥ 2.5, ≥ 5 on the enemy-facing north wall; all still inside at 20 s. 22 / 22 | the Judge line "the men materialise at sensible positions (windows, doors) in the house" is now judged directly; the fallback line fails four of these rows |
+| `agg-split-on-contact` | names; the policy workaround unneeded | children by NAME (**R-8349**); the `mergeMargin 250` policy removed (**R-8350**); a new row: with the patrol parked 200 m off the platoon NEVER merges back (F-23: contact + 800 m line). 67 / 67, times unchanged (Planning 67.25 s, Physical 69.25 s) — a platoon is not planned for (D-P3 plans a squad), so the manager does not wait | the merge hysteresis is now judged on the DEFAULT bands |
+| `agg-merge-back` | with the old content (patrol 450 m, margin 250 ⇒ merge line 850 m) the merge never came before 240 s | no policy (**R-8350**); the patrol starts 550 m off; merged at 209.25 s (the patrol past 800 m and 30 s quiet); a new row: the patrol is NEVER inside 800 m after the merge; the pin moves to 250 s (second split 252.25 s); runFor 280. 64 / 64 | the round trip (losses kept, the same 27 keys) is unchanged; the merge is judged against F-23's line |
+| `agg-forced-handover` | names only (golden) | golden re-captured | — |
+| `agg-platoon-duel` · `agg-recorded` | ⛔ Blue never hit / no Blue slot down: F-19 stands the units on the terrain, and Blue's spot (300, 200) on basic-desert is a 10 m ridge (crest 10.x at y 210); Red's line (eye 2 m → Blue's point 1 m above ground) passes under the crest, Blue's line (11 m down to Red) clears it — **Red never fired** (measured, `FireAllocation.Count`) | both moved to FLAT ground (measured z 0 for y 260–600): duel Blue (300,300) / Red (300,600), recorded Blue (300,300) / Red (300,500) (**R-8352**). Duel 6 / 6 with the same times as before (hit 3.25 s, Red 8 down 11.25 s, 4 broken 7.25 s); recorded 2 / 2 | the scenarios were authored for flat ground (F-19's "underground z" was hiding the ridge); the terrain itself is now part of the model — not a defect (a crest hides a unit from a lower observer) |
+| `agg-shelled-unit` | Red Platoon Clear's z (−3.6 m, the ground) | golden re-captured | — |
+| the other 12 | — | unchanged, goldens SAME (march-open / march-mounted / mixed have none) | — |
+
+| # | lane decision (for the user's review) | would change it |
+|---|---|---|
+| **R-8349** | split children are addressed by NAME `<unit>/<composite slot>` (F-22), listed in `later`; the network-id grammar (R-8335) stays valid, unused here | — |
+| **R-8350** | split-on-contact and merge-back run on the DEFAULT bands; merge-back's patrol starts 550 m off (inside the 600 m trigger) so the walk to 800 m stays short (wall ~220 s) | agg-backend moving the bands again |
+| **R-8351** | holds-house judges the men's POSITIONS (inside the footprint, upper storey, enemy-facing wall), not `PlannedPosts`' flags — a fixed buffer is not in the entity dump (measured) | the dump exposing fixed buffers: then a "window flag" row |
+| **R-8352** | duel / recorded moved off basic-desert's ridge to flat ground | the user wanting the ridge (then: the rows say Red cannot see Blue) |
+
+⚠ Observation for agg-backend (NOTE, F-24): `UnitSensing.Footprint` (`UnitSensing.cs:321-327`) puts the side samples at the CENTRE's z — on a slope a sample floats or is buried (Blue's east sample on the ridge: z 9.05 where the ground is ~5). Not what failed here.
 
 ### 23.7 agg-behaviors — ST-0 ①: the four readers answer a memberless unit *(build-state: BUILT — see the as-built rows at the end)*
 

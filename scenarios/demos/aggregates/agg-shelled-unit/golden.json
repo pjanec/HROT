@@ -2682,7 +2682,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -2730,7 +2730,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "f60b28cc45211414",
@@ -4485,7 +4485,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -4533,7 +4533,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "51a82cd6d3e68e1d",
@@ -6281,7 +6281,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -6329,7 +6329,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "5db1e4d847dd73d5",
@@ -8077,7 +8077,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -8125,7 +8125,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "d836166e0dadba2b",
@@ -9873,7 +9873,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -9921,7 +9921,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "1645970c53e13839",
@@ -11669,7 +11669,7 @@
           "position": [
             340,
             900,
-            0
+            -3.614
           ],
           "health": null,
           "visible": {
@@ -11717,7 +11717,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "56fd329bb9e4696f",
+            "SimTransform": "02036f202278e3f6",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "0964ca1f39f57979",
             "SopState": "a9fe06f7473ff602",
