@@ -95,6 +95,25 @@ namespace Hrot.SimHost.Tests
             w.Dispose(); w2.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1958</c> (pigs stuck in their pen's wall) — an area's HOME circle fits INSIDE its outline with a body's room to spare: a 16 m square pen
+        /// (farm-under-fire's, its walls 8 m off its centre) gives a home of 8 − 1.5 = 6.5 m, so no grazing spot or flight is ever chosen past a wall.
+        /// 🔴 Red-proof: the farthest-vertex radius again ⇒ 11.3 m (a spot in the corner beyond the walls).
+        /// </summary>
+        [Fact]
+        public void CE1958_AnAreasHome_FitsInsideItsOutline()
+        {
+            var (w, area) = World(AnimalSpecies.Pig, 3);
+            w.SetManagedComponent(area, new EditablePolyline { Points = new[] { new Vector2(-8, -8), new Vector2(8, -8), new Vector2(8, 8), new Vector2(-8, 8) } });
+            var home = Frame(w, new AnimalAreaSystem())[0].InitialComponents.OfType<AnimalHome>().Single();
+            Assert.Equal(8f - AnimalAreaSystem.BodyClearanceM, home.Radius, 3);
+            Assert.Equal(home.Radius, w.GetComponentRO<AnimalHome>(area).Radius, 3);   // the herd's own home (its grazing spots) the same
+            // the 40 × 20 m field: its narrow side decides (10 m), never its corner (22.4 m)
+            var (w2, _) = World(AnimalSpecies.Cattle, 2);
+            Assert.Equal(10f - AnimalAreaSystem.BodyClearanceM, Frame(w2, new AnimalAreaSystem())[0].InitialComponents.OfType<AnimalHome>().Single().Radius, 3);
+            w.Dispose(); w2.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-4623</c> AB-10 — the PRODUCT registers every animal component: the shared registry the area (every node loads it with a
         /// scenario), the brain's registry the fear, herds and homes. 📐 Found by the demo: only the rails registered them, so in the product every
         /// "is it registered" guard was false — the scenario failed to load (<c>unknown component type name 'AnimalArea'</c>), and fear, herds and

@@ -3013,7 +3013,7 @@ namespace CarKinem.Tests.Systems
                 Assert.True(nose > 15f + 3f, $"it ran on through: nose x={nose:F2}");
                 Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
             }
-            else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            else Assert.True(nose <= 15f - thickness * 0.5f + 0.05f, $"held with its whole body short of the barrier (CE-1958): nose x={nose:F2}");
             repo.Dispose();
         }
 
@@ -3033,7 +3033,7 @@ namespace CarKinem.Tests.Systems
             var (nose, breaches, _) = DriveInto(repo, e, 8f);
             Assert.Empty(breaches);   // it cleared the fence, it did not break it
             if (clears) Assert.True(nose > 15f + 3f, $"it cleared the fence: nose x={nose:F2}");
-            else Assert.True(nose < 15f + 1.5f, $"held at the barrier: nose x={nose:F2}");
+            else Assert.True(nose <= 15f - thickness * 0.5f + 0.05f, $"held with its whole body short of the barrier (CE-1958): nose x={nose:F2}");
             repo.Dispose();
         }
 
@@ -3064,6 +3064,49 @@ namespace CarKinem.Tests.Systems
                 Assert.Empty(breaches);
                 Assert.True(nose < 5f && at.Y > 20f, $"it followed its path north: at ({at.X:F1}, {at.Y:F1})");
             }
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1958</c> (the user, from the editor: "pigs stuck in the fence — half the body each side, never gets out") — an AI animal standing nose to a
+        /// brick pen wall with its way on BEHIND it turns on the spot and walks there, and at no frame does any corner of its body cross the wall's face.
+        /// 🔴 Red-proofs: no turn on the spot (CarKinematicsSystem's held branch) ⇒ held facing the wall for good, never arrives; the centre-only trace
+        /// (HasHull for the corners) ⇒ walked at the wall it stands 1.1 m through.
+        /// </summary>
+        [Fact]
+        public void CE1958_AnAnimalNoseToAWall_TurnsOnTheSpot_AndWalksAway_NeverPartlyThroughIt()
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15("brick", 0.25f, 1.0f));
+            repo.RemoveComponent<Fdp.Toolkit.Navigation.ManualDrive>(e);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float face = 15f - 0.125f;
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(face - p.Length * 0.5f - 0.05f, 0f, 0f);   // its nose 5 cm off the wall, facing it
+            repo.SetComponent(e, tf);
+            // first it is sent THROUGH the wall: it walks up to it and stops with its whole body short of the face
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(30f, 0f, 0f), TargetSpeed = 1.5f, ArrivalRadius = 1f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float deepest = float.MinValue;
+            void Frame()
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                var t = repo.GetComponent<SimTransform>(e);
+                var f3 = Vector3.Transform(Vector3.UnitX, t.Rotation);
+                var f = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    deepest = MathF.Max(deepest, CarKinem.Controllers.HullClearance.Corner(new Vector2(t.Position.X, t.Position.Y), f, a * p.Length * 0.5f, b * p.Width * 0.5f).X);
+            }
+            for (int i = 0; i < 3 * 60; i++) Frame();
+            Assert.True(deepest <= face + 0.02f, $"a corner reached x={deepest:F2} (the wall's face at {face:F3})");
+            // then its way on is BEHIND it: it turns on the spot and walks there
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 0f, 0f), TargetSpeed = 1.5f, ArrivalRadius = 1f });
+            for (int i = 0; i < 20 * 60; i++) Frame();
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), Vector2.Zero) < 3f, $"it turned and walked away: at ({at.X:F1}, {at.Y:F1})");
+            Assert.True(deepest <= face + 0.02f, $"a corner reached x={deepest:F2} while it turned (the wall's face at {face:F3})");
             repo.Dispose();
         }
 

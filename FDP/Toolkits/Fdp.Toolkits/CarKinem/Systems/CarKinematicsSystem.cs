@@ -845,7 +845,7 @@ namespace CarKinem.Systems
                 else if (!wall && !person)
                 {
                     hereFwd = FacingOf(tf.Rotation);
-                    bool sized = HullClearance.HasHull(in hull);
+                    bool sized = HullClearance.HasBody(in hull);   // ⭐ CE-1958 — an animal by its body too (HasHull leaves it out: no backing)
                     wall = HullClearance.StepBarrier(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
                                                      sized ? hull.Length : 0f, sized ? hull.Width : 0f, out barrier);
                 }
@@ -887,6 +887,19 @@ namespace CarKinem.Systems
                     planar = Vector2.Zero;
                     if (!person) { fwd2D = hereFwd; yawRate = 0f; }
                     held = true;
+                    // ⭐ CE-1958 — an AI animal held at a wall TURNS ON THE SPOT toward where it is going (it has no reverse and turns only while it
+                    //   walks, so facing a fence with its way on behind it, it stood there for good). Never a possessed one (its rider steers it).
+                    if (!person && hull.Class == VehicleClass.Quadruped && nav.Mode != KinematicsMode.Manual && HullClearance.HasBody(in hull))
+                    {
+                        var aim = AimOf(in nav, in hull, here, 0f) - here;
+                        if (aim.LengthSquared() > 1e-4f
+                            && HullClearance.TurnInPlace(_terrain, here, hereFwd, tf.Position.Z, Vector2.Normalize(aim), hull.Length, hull.Width,
+                                                         AnimalPivotRadPerS * dt, out var turnedAt, out var turnedFwd))
+                        {
+                            pos2D = turnedAt;
+                            fwd2D = turnedFwd;
+                        }
+                    }
                 }
             }
             float dz = z - tf.Position.Z;
@@ -1091,6 +1104,9 @@ namespace CarKinem.Systems
         /// <see cref="VehicleMaxClimbSlope"/>, is not taken (it stops there). 🔴 Inside a building's footprint the surface sampler offers
         /// only the roof (the footprint is solid), and a tank that overshot into a building was lifted onto its 15 m roof.</summary>
         public const float VehicleMaxStepM = 0.5f, VehicleMaxClimbSlope = 1.0f;
+
+        /// <summary>⭐ CE-1958 — how fast an animal held at a wall turns on the spot (rad/s): a quarter turn in about a second.</summary>
+        public const float AnimalPivotRadPerS = 1.5f;
 
         /// <summary>⭐ <c>CE-6014</c> — how far ahead an avoidance swerve is checked against the hull guard: this many seconds at the current
         /// speed, at least <see cref="SwerveLookaheadMinM"/>.</summary>
