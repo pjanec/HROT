@@ -82,7 +82,7 @@
       "on": "shot",
       "by": "*Pillion",
       "n": 3,
-      "after": "a bike reaches the east approach point"
+      "at": "*Post Guard"
     },
     {
       "name": "a bike rides out east",

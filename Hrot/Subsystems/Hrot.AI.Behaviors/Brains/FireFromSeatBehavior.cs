@@ -28,6 +28,12 @@ namespace Hrot.AI.Behaviors.Brains
         public const float QuietSeconds = 3f;
         /// <summary>Seconds between shots (the AimAndFire executor's cooldown) — the posture's own number.</summary>
         public const float CooldownSeconds = 1f;
+        /// <summary>⭐ R-2136 — the farthest he opens fire ON HIS OWN (m): a target of opportunity at close range — from a moving vehicle his spread doubles
+        /// (PF-2), so farther out the vehicle's play decides (a drive-by orders the burst at the pass). 📐 Unbounded, the drive-by's pillion fired at the
+        /// post from the start line (~170 m, the bike still waiting) and the swarm raid's from the approach; at 100 m the drive-by's pillion, his ordered
+        /// target down, took on the second sentry ~70 m off the road, lost the duel and the bike never escaped. A tuning value, set against
+        /// <c>ua-animal-horse-rider</c> (targets 25 m off the line), <c>ua-moto-swarm-raid</c> (the bikes close to 30 m) and <c>ua-moto-drive-by</c>.</summary>
+        public const float OwnInitiativeRangeM = 60f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct FireFromSeatState
@@ -94,15 +100,17 @@ namespace Hrot.AI.Behaviors.Brains
             return !WeaponSystems.IsWeaponSystem(world, world.GetComponentRO<IsEmbarkedTag>(self).VehicleEntity);
         }
 
-        /// <summary>The SOP row's condition: on a firing seat AND an enemy seen (within 1 s) inside the seat's arc.</summary>
+        /// <summary>The SOP row's condition: on a firing seat AND an enemy seen (within 1 s) inside the seat's arc — and NOT the rider's seat that fires
+        /// only stopped (PF-3 / PF-4: "the rider only drives"; 📐 the drive-by's rider engaged a sentry after the pass, drew its fire, the pillion was hit
+        /// and the escape failed). ⚠ The host's stations are read only once an enemy qualifies — never on the spawn frame.</summary>
         [SharedAiCondition]
         public static bool EnemyInArc(Entity self, EntityRepository world)
-            => OnFiringSeat(self, world) && !TargetInArc(self, world, Entity.Null).IsNull;
+            => OnFiringSeat(self, world) && !TargetInArc(self, world, Entity.Null).IsNull && !Embarkation.FiresStoppedOnly(world, self);
 
         /// <summary>
         /// The enemy to fire at: <paramref name="current"/> while it still qualifies (no flip-flop), else the first qualifying memory slot
         /// (slots are score-ordered). Qualifies: identified, SEEN within <see cref="CoverFightConditions.InSightTicks"/>, alive, in the fight,
-        /// hostile, his sector allows it, and — where his memory places it — inside his seat's arc. ⭐ Reads only his own memory and the
+        /// hostile, his sector allows it, and — where his memory places it — within <see cref="OwnInitiativeRangeM"/> and inside his seat's arc. ⭐ Reads only his own memory and the
         /// seat's arc (his host's stations and transform, last tick). No allocation.
         /// </summary>
         public static unsafe Entity TargetInArc(Entity self, EntityRepository world, Entity current)
@@ -111,6 +119,8 @@ namespace Hrot.AI.Behaviors.Brains
             ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
             uint now = PerceptionClock.Now(world);
             Entity first = Entity.Null;
+            bool placed = world.HasComponent<SimTransform>(self);
+            var at = placed ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : default;
             for (int i = 0; i < mem.Count && i < PerceptionConstants.MaxTrackedTargets; i++)
             {
                 if (mem.EntityIds[i] <= 0 || TargetMemory.IsAnonymous(in mem, i)) continue;
@@ -119,7 +129,9 @@ namespace Hrot.AI.Behaviors.Brains
                 var e = new Entity((ulong)mem.EntityIds[i]);
                 if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !KillZone.Hostile(world, self, e)) continue;
                 if (!EngagementAreas.Allows(world, self, e)) continue;
-                if (!WeaponSystems.InStationArc(world, self, new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]))) continue;
+                var where = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
+                if (placed && Vector3.DistanceSquared(at, where) > OwnInitiativeRangeM * OwnInitiativeRangeM) continue;   // R-2136 — close range only
+                if (!WeaponSystems.InStationArc(world, self, where)) continue;
                 if (e.Equals(current)) return e;
                 if (first.IsNull) first = e;
             }

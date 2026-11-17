@@ -320,15 +320,17 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>A bike at the origin facing +X; <paramref name="firing"/> = seat 1 is a firing seat whose arc is 30°…330° (both sides and the
         /// rear, never ahead — the pillion's); the unit sits in seat 1. The enemy is remembered SEEN at <paramref name="enemyAt"/>.</summary>
-        private static unsafe World Seated(bool firing, System.Numerics.Vector3 enemyAt)
+        private static unsafe World Seated(bool firing, System.Numerics.Vector3 enemyAt, bool stoppedOnly = false)
         {
             var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });   // he sits at the bike (R-2136's range)
             var bike = w.Repo.CreateEntity();
             w.Repo.AddComponent(bike, new SimTransform { Rotation = System.Numerics.Quaternion.Identity });
             var stations = new CarrierStations();
             if (firing)
             {
                 stations.FiringMask = 1 << 1;
+                if (stoppedOnly) stations.StoppedOnlyMask = 1 << 1;
                 stations.Seats[1] = new StationSeat
                 {
                     HasArc = 1,
@@ -379,6 +381,14 @@ namespace Hrot.SimHost.Tests
             var closed = Seated(firing: false, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f));
             closed.Tick(); closed.KeepSeeing(); closed.Run(0.5);
             Assert.Null(closed.TaskName);
+
+            var far = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, FireFromSeatBehavior.OwnInitiativeRangeM + 20f, 0f));   // R-2136
+            far.Tick(); far.KeepSeeing(); far.Run(0.5);
+            Assert.Null(far.TaskName);
+
+            var rider = Seated(firing: true, enemyAt: new System.Numerics.Vector3(0f, 40f, 0f), stoppedOnly: true);   // PF-3/PF-4: the rider only drives
+            rider.Tick(); rider.KeepSeeing(); rider.Run(0.5);
+            Assert.Null(rider.TaskName);
         }
 
         /// <summary>⭐ CE-3454 — a TASKED firing-seat man (a drive-by's ordered fire) keeps his task: the row needs no task. And once the enemy
