@@ -19,14 +19,15 @@ related-designs:
 | **S2 missiles that can be beaten** | 🟡 BUILT — the motor + Monte-Carlo, the live threat + reflex, ⭐ `MissileDefence.Run` (AirAttack's evade + radar escape folded in), the radar notch, the grammar; 4 / 6 scenarios — see below | `air: S2 — MissileDefence.Run …` (`1c2be25bf`) + the S3/S4 commit |
 | **S3 the fighters** | 🟡 BUILT — the `AirCombat` profile of `AirAttack`, mode 8 from the brain, tick-start targets, `EmploymentZone`, the accelerating gun lead, winchester / disengage | `air: S3 + S4 —` (`ef77654cc`) and later |
 | **S4 the show** | 🟡 BUILT — `AirArenaSystem`, arena floor / shot cap / soft edge / merge, lapses, TKB 8840 | same |
-| ⏳ NOT built | the CAP (Hold + the fighter SOP row) and a next-target pick after a kill (R-10014); a TRANSIT move's defence (so `ac-sam-dodge` / `ac-attack-evades` are not written); `sam-site`'s chaff band re-measure | — |
+| **CE-10005 the fights close** | ✅ BUILT — skill on the defence, the merge, the CAP (= `AirArmedSearch`, deconflicted), a transit's defence, the gun's lead on the nose, the fighter's radar, the serial brains' pre-pass; scenarios below | `air: CE-10005 —` (`87e3a1e16`) + the gates commit |
+| ⏳ NOT built | a ROUTE (FollowRoute) transit's defence; the Hold + SOP-row form of the CAP (R-10022 chose `AirArmedSearch`) | — |
 
 ## Ids taken *(⛔ permanent)*
 
 | what | value |
 |---|---|
-| tracker | `CE-10000` (the contract + S0) · `CE-10001` (S1) · `CE-10002` (S2) · `CE-10003` (S3) · `CE-10004` (S4) — next free `CE-10005` |
-| rulings | `R-10000` … `R-10018` (below) — next free `R-10019` |
+| tracker | `CE-10000` (the contract + S0) · `CE-10001` (S1) · `CE-10002` (S2) · `CE-10003` (S3) · `CE-10004` (S4) · `CE-10005` (the closing fights, skill on the defence, the CAP, the transit's defence) — next free `CE-10006` |
+| rulings | `R-10000` … `R-10028` (below) — next free `R-10029` |
 | components | `MissileDefenceState` 128 · `AirArena` 160 · `AirCombatSteer` 277 · `FighterPilotState` 278 · `AirCombatState` 279 |
 | DDS ordinals | `dtAirCombatSteer` 216 · `dtFighterPilotState` 217 · `dtAirArena` 218 · 219 spare (undeclared) |
 | TKB | `Jet_MiG29` 409 · munitions 6060 AIM-9X · 6061 AIM-120 · 6062 R-73 · 6063 R-77 · 6064 M61 HEI · 6065 GSh-30-1 HEI |
@@ -59,6 +60,14 @@ related-designs:
 
 | **R-10018** | ⭐ the missiles HARDENED (🔒 user, `2026-11-17`: *"Harden as you lean."*; AC-6 / R-4283 — the same lead pursuit with energy): `MaxG` ×1.25 on every AAM and SAM (IR 50, radar 44, radar SAM 38, Stinger 25, Igla 23), flare rejection 0.82 (IR AAM, Stinger) / 0.7 (Igla), and a motor round leads on its CURRENT speed; lag, drag, min speed kept. The Monte-Carlo rail now drops the defence's flares by the system's rule. 📐 timely 24 % · late 41 % · undefended 94 % (bands 10–25 · 40–60 · 85–97) | the sweep: drag / min speed do not move a 1.2–3 km shot; a short lag kills the defended too; the burn-out-speed lead missed half the straight targets; the decoys set the defended bands. SUPERSEDES R-10007's numbers (5 / 13 / 50 %) | the user re-banding |
 
+| **R-10019** | ⭐ SKILL ON THE DEFENCE (AC-12): a Rookie never drags, flies the beam as a LEVEL break, drops 2 decoys per missile; an Ace drags ANY seeker while it is > 4 s out; a Veteran keeps AC-9; the reflex pulls the pilot's own g | 📐 `ac-skill-decides` diagnosed: the Ace died at 21.5 s to the Rookie's second radar shot (both beamed head-on 6 km shots; no notch at 2 km). With it: 4 of 5 Rookies down, ≤ 1 Ace lost | the user re-weighting skill |
+| **R-10020** | ⭐ the MERGE holds fire until the PASS (bandit behind the wing line or < 1 km), 300 m right of the centre (left-to-left), corner × 1.2; it flies in from outside the arena | 📐 the 1v1 fired radar missiles at each other at 6 km (4.4 s) and both died; the merge never started (4.03 km from the centre was outside the 4 km radius ⇒ `ReturnToArena`, weapons free). Now: close 14 s, first shot 16 s. AC-11's 6 km default untouched | a show wanting head-on BVR shots |
+| **R-10021** | "5 seeds" = FIVE PAIRS in one scenario, each in its own arena 30 km apart with a different start; rows: ≥ 4 Rookies down (`atLeast:4`) AND never 2 Aces lost | the sim is deterministic and the verifier has no seed knob; ⚠ the two rows admit 3 strict pair wins in the worst case (4 Rookies down incl. one whose Ace also died) — measured: 4 Rookies down, 0–1 Ace | a verifier seed knob |
+| **R-10022** | ⭐ the CAP = the EXISTING `AirArmedSearch` over the arena (not a Hold + a SOP row); a fighter picks only hostile aircraft, deconflicted by the arena pre-pass's tick-start index of the pilots' targets and a RANK spread; the higher rank yields a shared bandit when another is free. ⭐ the fighter's RADAR (AC-13, was missing): Search on CAP, Track in the fight | the seam law (ruling 9): a search-and-engage order existed and is the aircraft's; ⚠ the ground's eyes see only inside the 2 km grid, so the CAP sees by RADAR. SUPERSEDES R-10014 for the CAP | the user wanting the Hold + SOP-row form |
+| **R-10023** | a TRANSIT's defence = `AirOrderNodes.FlyTo` (the Move) calls `MissileDefence.Run` (MoveTo flight), the move re-issued after; a PLANE breaks no lower than 150 m AGL (transit and attack) | 📐 the A-10's break "at its height" off a 16 m gun pass flew into the hills (`ac-attack-evades`); a route (FollowRoute) transit is not wired | a route transit needing it |
+| **R-10024** | the GUN: a lead pursuit inside 800 m flies the brain's gun lead (`TargetLead.PointAccelerating`, as an offset in the steer's `Point`, 1 m steps) tracked 2 × harder; the 2° cone is judged on the NOSE (velocity + 0.6°/g angle of attack toward the lift) | 📐 `ac-guns-turning`: the flight path held ~6° behind the lead of a 5 g target and the gun never fired; after: a gun hit at 28 s (27 hits / 60 s) | — |
+| **R-10025** | the 2v2 DEMO authors its OWN arena shot cap, 2.5 km (said in its description); the default stays 6 km | at 6 km the four fought on missiles at range and no gun fired; at 2.5 km the guns fire (245 rounds measured) — ⚠ still 0 gun HITS (the Rookies' gun from a pure pursuit; the Aces rarely inside 500 m) | the user's show call |
+
 ## Scenarios *(R-4277 — DONE = `scripts/scenario-regression.sh <name>` passes)*
 
 | slice | scenario | verdict |
@@ -72,6 +81,43 @@ related-designs:
 | S4 | `ac-stalemate-lapse` (2/2: a lapse at 40 s, a kill) | ✅ PASS (no golden: a demo-length fight) |
 | S4 | `ac-dogfight-2v2` (demo) | ⚠ 5/6 — 4 missiles ✅, two kills ✅ (328 s before R-10018), never beyond 6 km ✅, no fratricide ✅; "a gun hit" ❌: the missiles decide it before a gun pass |
 | S4 | `ac-skill-decides` | ❌ 0/2 — the Ace is lost and the Rookie survives in this one seed. 5 seeds per the design are not available (the verifier has no seed knob); skill sets reaction, g and shot discipline, but with R-10018 a missile at a Rookie's max range still hits ~24 % of a timely defence. ⭐ the user's call: give skill more (a Rookie's flares later / fewer, an Ace's earlier) |
+
+## ⭐ Scenarios — CE-10005 *(`2026-11-17`, `scripts/scenario-regression.sh`; artifacts `sr-full`, `sr-full2`, `sr-cap2`, `sr-cap3`, `sr-final2`)*
+
+| scenario | verdict | golden |
+|---|---|---|
+| S1 ×5 (`ac-cruise-altitude`, `ac-gcas-ridge`, `ac-gcas-inverted`, `ac-gcas-steep-ridge`, `ac-map-edge`) | ✅ 5 / 5 | gcas ×3 + map-edge SAME; cruise-altitude re-recorded (1 mm at t 20 s — float noise of the merged tree) |
+| S2 `ac-ir-defeated` · `ac-ir-hits-late` · `ac-two-missiles` · `ac-radar-chaff-beam` | ✅ 4 / 4 | re-recorded: the jets move by metres (the reflex now pulls the PILOT's g — a Veteran 8, R-10019 — and the fighters' radars are on, R-10022); shot rows, outcomes and every verdict unchanged. ⚠ `ac-radar-chaff-beam` was RED until the merge became head-on only (its MiG chases from behind) |
+| S2 `ac-sam-dodge` ⭐ new | ✅ 5 / 5 (a SAM fires 40 s, the F-16 beams + decoys, a SAM missile DEFEATED, alive) | captured |
+| S2 `ac-attack-evades` ⭐ new | ✅ 4 / 4 (Stinger 66 s, the A-10 beams, 4 flares, the truck destroyed after the defence) | captured |
+| S3 `ac-guns-drone` · `ac-head-on-shot` · `ac-winchester` | ✅ 3 / 3 | guns-drone, head-on re-recorded (metres, as above); winchester SAME |
+| S3 `ac-guns-turning` ⭐ new | ✅ a Viper gun hit at 28 s | captured |
+| S3 `ac-dogfight-1v1` (demo) | ✅ 4 / 4 — close 14 s, first shot 16 s, a kill 62 s, stays over the map | — |
+| S4 `ac-skill-decides` (5 pairs) | ✅ ≥ 4 Rookies down at 86 s, never 2 Aces lost | — |
+| S4 `ac-cap` ⭐ new | ✅ 4 / 4 — each MiG shot at by an F-16 (17 s, 19 s), a MiG down 43 s, no fratricide | — |
+| S4 `ac-stalemate-lapse` | ✅ 2 / 2 (authored stalemate 10 s, R-10026) | — |
+| S4 `ac-dogfight-2v2` (demo) | ⚠ 5 / 6 — "a gun hit" ❌: the guns FIRE (245 rounds measured with the 2.5 km cap, R-10025) but none hits | — |
+| `ua-air-attack` · `sam-site` · `ua-air-strike` | ✅ | `ua-air-strike` golden "different" PRE-EXISTING (format staleness, see the S2-rest gates) |
+| `ua-air-defence` | ❌ 2 / 3 PRE-EXISTING (red on the base, S1 gates) | — |
+
+| id | decision (CE-10005, later) | why | would change it |
+|---|---|---|---|
+| **R-10026** | `ac-stalemate-lapse` authors a 10 s stalemate | 📐 with the merge and R-10019 two Aces decide inside ~45 s; a 30 s quiet left the 2 %/s draws too little time (the row failed) | the user preferring Veterans there |
+| **R-10027** | ⭐ the SERIAL brains run the same pre-pass (`BrainPhase.Prepare`) — cross-lane into `BrainTickSystem` | 📐 the `--mode all` cluster run (serial): the arena index was never built — no merge, both fired at 6 km at 4.6 s; after: merge, pass at 16 s, a kill at ~40 s | — |
+| **R-10028** | the fight's FIRST decision waits until both motions are known (straight on, weapons safe); after a KILL the steer HOLDS over the arena (`ReturnToArena`; no arena ⇒ straight and level) | 📐 cluster: no replicated velocity on the first ticks ⇒ the head-on test failed; the winner kept chasing the falling wreck at 9 g into GCAS; straight and level, the 1v1's winner left 10 km (its row went red) | — |
+
+## Gates — CE-10005 *(`2026-11-17`; base = `air-wip` `96d39cf1a` merged with `ui`)*
+
+| gate | command | result | vs base |
+|---|---|---|---|
+| T-1 attack / defence / radar / orders + the machine checks | `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter "AirAttackNodesTests\|AirDefence\|AirCombatContractTests\|Radar\|EmitterLocating\|AirOrderNodes\|AirArmedSearch"` | 60 / 0 / 0 | +2 rails (`CE10005_SkillOnTheDefence…`, `CE10005_TheMerge…`) |
+| T-1 motion + guided | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter "GuidedRoundSystemTests\|FixedWingModelTests\|RotorcraftModelTests\|Countermeasure\|AirRoute"` | 77 / 0 / 0 | — |
+| catalogue goldens | `dotnet test Hrot/Engine/Hrot.Presentation.Tests --no-build --filter "EntityTypeCatalogTests\|CE2138"` | 47 / 0 | ONE line added: `8840 Air Arena \| dis - \| family Unknown \| folder Other \| icon -` (it was red: the arena type had no golden row) |
+| red-proofs | one compiling mutation each, its own test project built + filtered, reverted (tree clean) | ✅ all RED: `CE10002_TheFighterDefence` (live end → snapshot), `CE10003_AFightersRadar` (exemption removed), `CE10003_TheZone` (coast drag dropped), `CE10003_TheGunLead` (acceleration term dropped), `CE10005_SkillOnTheDefence` (the Ace read as a Veteran) | the four from the S3 commit now proven |
+| protocol | `python3 scripts/protocol-doc-check.py` | OK (162 topics, 105 ordinals) | no wire change (the radar's class is `Unknown`) |
+| ⭐ the cluster | `--mode all` (domain 47, port 8179), `POST /scenario/load/live ac-dogfight-1v1`, sampled on the SimHost perspective | ✅ mode 8 crosses the wire (`NavigationIntent.Mode AirCombat` on SimHost); Merge → the pass at 16 s (640 m) → LeadPursuit / Drag / Beam → a kill at ~40 s; 4 shots, the head-on pair DEFEATED | found R-10027 + R-10028 (both fixed, then re-run) |
+| `python3 scripts/stepped-hash.py --threads 1,4,8 --scenario ac-dogfight-2v2 --chunk 400` (6 × 400 steps = 40 s, past the first shots at ~21 s; final Release build `8d31f80b2`) | ✅ **STATE EQUAL** at 1 / 4 / 8 threads (38 entities, 0 types differ, 0 SimTransform rows) | was 2 s only |
+| `sam-site` chaff band | ⏳ not re-measured (one seeded run gives no band) | — |
 
 ## Gates *(CLAUDE.md rule 8 — the contract commit; base = `4fa79837f`)*
 
@@ -98,8 +144,14 @@ related-designs:
 
 - ⚠ **GCAS predicts STRAIGHT AHEAD** (as the real Auto-GCAS does): a planned turn short of terrain can trip it (measured on a U-turn 100 m from the wall). Accepted; scenarios keep routes clear of it.
 - ✅ ~~the §5b missile is very dodgeable (R-10007)~~ — hardened by the user's decision (R-10018).
-- ⏳ **still to build** (the next session's plan, in order): ① a TRANSIT move's defence (`MissileDefence.Run` with a MoveTo flight from the route / point move behaviours) ⇒ write `ac-sam-dodge` and `ac-attack-evades`; ② the CAP (a Hold over the arena + the fighter SOP row: an air contact ⇒ Attack) and a next-target pick after a kill (R-10014) — deconfliction through the group's shared contacts; ③ skill that decides (`ac-skill-decides` ❌: a Rookie's flares later / fewer); ④ `ac-guns-turning`; ⑤ `sam-site`'s chaff band (a seeded multi-run); ⑥ the `--mode all` cluster run of `ac-dogfight-1v1`; ⑦ red-prove the four new rails.
-- ⚠ **show finding**: with R-10018 the fights end on missiles at range — the 1v1 never merges inside 2 km and the 2v2 has no gun hit. For the show, the arena's `MaxShotRangeM` (6 km) is the knob (the user's: AC-11).
+- ⭐ **CE-10005 (`2026-11-17`) — the plan left after it:** ① `ac-dogfight-2v2`'s gun HIT (guns fire — 245 rounds with the 2.5 km cap — none hits: a
+  Rookie fires from a PURE pursuit, which does not fly the gun lead; lean: a Rookie inside 800 m flies a lead pursuit too, poorly — a coarser lead, his
+  6.5 g — then re-measure); ② a ROUTE (FollowRoute) transit's defence (only the Move is wired); ③ `sam-site`'s chaff band (a seeded multi-run);
+  ⑤ the cluster run was made BEFORE the
+  post-kill hold (`8d31f80b2`) — re-run it once to see the winner hold over the arena; ⑥ the perception grid is the terrain's 2 km: air-defence
+  scenarios must stay inside it (a larger `air-range` re-bakes the navmesh, R-10009).
+- ✅ ~~still to build (the S0–S4 session's plan)~~ — done by CE-10005 except the items above: ① a TRANSIT move's defence (`MissileDefence.Run` with a MoveTo flight from the route / point move behaviours) ⇒ write `ac-sam-dodge` and `ac-attack-evades`; ② the CAP (a Hold over the arena + the fighter SOP row: an air contact ⇒ Attack) and a next-target pick after a kill (R-10014) — deconfliction through the group's shared contacts; ③ skill that decides (`ac-skill-decides` ❌: a Rookie's flares later / fewer); ④ `ac-guns-turning`; ⑤ `sam-site`'s chaff band (a seeded multi-run); ⑥ the `--mode all` cluster run of `ac-dogfight-1v1`; ⑦ red-prove the four new rails.
+- ✅ ~~show finding: the fights end on missiles at range~~ — the merge holds fire to the pass (R-10020); the 1v1 closes at 14 s. ⚠ the 2v2's gun hit is still open (above).
 
 - ⚠ the component-id space is exhausted (R-10000) — a decision for the user before the next lane needs an id.
 - the `AirArena` entity needs a TKB type to be authored (S4): a free entity-type id outside the air blocks — measured then.
