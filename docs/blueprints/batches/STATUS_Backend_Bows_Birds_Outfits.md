@@ -49,7 +49,7 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 
 ## ⏸ Open when paused
 
-- **Goldens**: six read "different" after C / D. `farm-under-fire` measured — a cow 0.3 m off at t = 40 s, the birdsong stopping 0.5 s earlier: the INTENDED part-C bird take-off ⇒ re-capture it and the three `ua-animal-*`; the two CIVILIAN ones (`ua-armed-shield`, `ua-civ-police-line`, no birds) are being diffed before deciding (R-3101's threat-filter change or D's "game is an enemy" conditions are the suspects).
+- **Goldens**: six read "different" after C / D. `farm-under-fire` measured — a cow 0.3 m off at t = 40 s, the birdsong stopping 0.5 s earlier: the INTENDED part-C bird take-off ⇒ re-capture it and the three `ua-animal-*`; the two CIVILIAN ones (`ua-armed-shield`, `ua-civ-police-line`) measured: their goldens are the OLD format (no `visible` map, recorded before RT-3) — every visible field reads golden null; the one timing change is the rifleman firing 0.4 s earlier (41.27 vs 41.67 s). ⇒ **all six are RE-CAPTURES, no regression** — do it on resume (`--verify-capture`).
 - **CE-3468** (Points / Best blind to their children under the parallel brain phase) and **CE-3469** (six SimHost rails red only under the parallel env, pre-existing at `f83070611`) — filed, not fixed.
 - **R-3101** — the user's answer on the force cap pending.
 - When E closes: fold the as-built into the three designs, CAPABILITIES rows, design build-states.
