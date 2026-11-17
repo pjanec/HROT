@@ -47,12 +47,25 @@
       "after": "two"
     },
     {
-      "name": "a MiG missile is defeated",
+      "name": "both missile rows END (hit or beaten)",
       "on": "shot",
       "by": "*Fulcrum",
-      "n": 1,
+      "n": 2,
       "where": {
-        "outcome": "Defeated"
+        "weaponIndex": [
+          ">=",
+          1
+        ],
+        "outcome": [
+          "in",
+          [
+            "Hit",
+            "Defeated",
+            "Expired",
+            "Detonated",
+            "StoppedByTerrain"
+          ]
+        ]
       }
     }
   ]

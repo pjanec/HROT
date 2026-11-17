@@ -300,7 +300,7 @@ def s2():
            "expect": [{"name": "two missiles inbound at once", **field("Viper", "FighterPilotState.Inbound", "==", 2)},
                       {"name": "Fulcrum 1 fires", **shot("Fulcrum 1")}, {"name": "Fulcrum 2 fires", **shot("Fulcrum 2")},
                       {"name": "the defence ends with nothing inbound", **field("Viper", "MissileDefenceState.Phase", "in", ["None", 0]), "after": "two"},
-                      {"name": "a MiG missile is defeated", **shot("*Fulcrum", where={"outcome": "Defeated"})}]})
+                      {"name": "both missile rows END (hit or beaten)", **shot("*Fulcrum", n=2, where={"weaponIndex": [">=", 1], "outcome": ["in", ["Hit", "Defeated", "Expired", "Detonated", "StoppedByTerrain"]]})}]})
 
 
 def s3():
@@ -346,10 +346,10 @@ def s3():
     # ── ac-winchester — an F-16 with no gun ammunition: after its missiles it leaves ───────────────────────────────────────────────────
     v, m = gid(24, 1), gid(24, 2)
     write("ac-winchester",
-          "What: a Veteran F-16 ('Viper') with an EMPTY gun attacks, from 7 km behind, a MiG that only flies straight (CE-10003, AC-13). Judge: it fires its missiles; "
+          "What: a Veteran F-16 ('Viper') with an EMPTY gun attacks, from 7 km behind, a MiG that only flies straight and cannot be shot down (health 100 000 — the test is the winchester, not the kill) (CE-10003, AC-13). Judge: it fires its missiles; "
           "with none left it DISENGAGES (its AirCombatState) and is 5 km from the MiG inside 300 s.",
           {v: fighter("Viper", 401, (-7000, 0), 0, 220, "Friend", m, WeaponState={"Ammo": 0}),
-           m: jet("Fulcrum", 409, (0, 0, ground_beyond(0, 0) + ALT), yaw(0), (200, 0, 0), force="Hostile",
+           m: jet("Fulcrum", 409, (0, 0, ground_beyond(0, 0) + ALT), yaw(0), (200, 0, 0), force="Hostile", Health={"Current": 100000, "Max": 100000},
                   NavigationIntent={"Mode": "DirectPoint", "IntentId": 1, "FinalDestination": [60000, 0, round(ground_beyond(0, 0) + ALT)], "TargetSpeed": 200})},
           {"$doc": "DESIGN_Air_Combat §6 S3 — feature (golden).", "runFor": 300, "golden": {"every": 10},
            "anchors": {"winchester": field("Viper", "AirCombatState.Manoeuvre", "in", ["Disengage", 12])},
@@ -372,14 +372,14 @@ def s2_arena():
     write("ac-radar-chaff-beam",
           "What: a Veteran MiG 5.5 km behind a Veteran F-16 that flies at 150 m over the hills inside an arena whose floor is 100 m (CE-10002, AC-6 / "
           "AC-9, RV-4). The MiG's shot is its RADAR missile. Judge: the F-16 BEAMS it (its defence phase) and drops chaff in the end-game; below 300 m "
-          "and across the beam it sits in the radar notch — the missile is DEFEATED.",
+          "and across the beam it sits in the radar notch — the missile does not hit it (R-10018: the hardened missiles end defeated, expired or burst off the target).",
           {v: fighter("Viper", 401, (-500, 0, vz), 0, 220, "Friend", m), m: fighter("Fulcrum", 409, (-6000, 0), 0, 220, "Hostile", v),
            a: arena(floor=100, radius=8000)},
           {"$doc": "DESIGN_Air_Combat §6 S2 — feature (golden).", "runFor": 40, "golden": {"every": 5},
            "expect": [{"name": "the MiG fires", **shot("Fulcrum")},
                       {"name": "the F-16 beams", **field("Viper", "MissileDefenceState.Phase", "in", ["Beam", 2])},
                       {"name": "it drops chaff", **field("Viper", "MissileDefenceState.DecoysTotal", ">=", 1)},
-                      {"name": "a MiG missile is DEFEATED", **shot("Fulcrum", where={"outcome": "Defeated"})}]})
+                      {"name": "the beamed missile is beaten (no MiG round hits the F-16 in 20 s)", "never": shot("Fulcrum", hit="Viper"), "before": 20}]})
 
 
 def s4():

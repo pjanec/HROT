@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "air-range",
-    "description": "What: a Veteran F-16 ('Viper') with an EMPTY gun attacks, from 7 km behind, a MiG that only flies straight (CE-10003, AC-13). Judge: it fires its missiles; with none left it DISENGAGES (its AirCombatState) and is 5 km from the MiG inside 300 s."
+    "description": "What: a Veteran F-16 ('Viper') with an EMPTY gun attacks, from 7 km behind, a MiG that only flies straight and cannot be shot down (health 100 000 \u2014 the test is the winchester, not the kill) (CE-10003, AC-13). Judge: it fires its missiles; with none left it DISENGAGES (its AirCombatState) and is 5 km from the MiG inside 300 s."
   },
   "entities": {
     "ac000018-0000-4000-8000-000000000001": {
@@ -85,8 +85,8 @@
         "ForceId": "Hostile"
       },
       "Health": {
-        "Current": 450,
-        "Max": 450
+        "Current": 100000,
+        "Max": 100000
       },
       "NavigationIntent": {
         "Mode": "DirectPoint",

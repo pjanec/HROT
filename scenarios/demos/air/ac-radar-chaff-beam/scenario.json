@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "air-range",
-    "description": "What: a Veteran MiG 5.5 km behind a Veteran F-16 that flies at 150 m over the hills inside an arena whose floor is 100 m (CE-10002, AC-6 / AC-9, RV-4). The MiG's shot is its RADAR missile. Judge: the F-16 BEAMS it (its defence phase) and drops chaff in the end-game; below 300 m and across the beam it sits in the radar notch \u2014 the missile is DEFEATED."
+    "description": "What: a Veteran MiG 5.5 km behind a Veteran F-16 that flies at 150 m over the hills inside an arena whose floor is 100 m (CE-10002, AC-6 / AC-9, RV-4). The MiG's shot is its RADAR missile. Judge: the F-16 BEAMS it (its defence phase) and drops chaff in the end-game; below 300 m and across the beam it sits in the radar notch \u2014 the missile does not hit it (R-10018: the hardened missiles end defeated, expired or burst off the target)."
   },
   "entities": {
     "ac00000e-0000-4000-8000-000000000001": {

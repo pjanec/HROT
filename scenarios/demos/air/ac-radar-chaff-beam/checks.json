@@ -31,13 +31,14 @@
       "value": 1
     },
     {
-      "name": "a MiG missile is DEFEATED",
-      "on": "shot",
-      "by": "Fulcrum",
-      "n": 1,
-      "where": {
-        "outcome": "Defeated"
-      }
+      "name": "the beamed missile is beaten (no MiG round hits the F-16 in 20 s)",
+      "never": {
+        "on": "shot",
+        "by": "Fulcrum",
+        "n": 1,
+        "hit": "Viper"
+      },
+      "before": 20
     }
   ]
 }
