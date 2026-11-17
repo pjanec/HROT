@@ -153,6 +153,54 @@ public sealed class PersonOutfitsRail
         Assert.Equal(3, DetailsOf(tkb, Index("facepaint")).Count);
     }
 
+    private static readonly long[] Fighters = [2003, 2010, 2011, 2012];
+
+    /// <summary>⭐ CE-4648 polish — the odds the user asked for, pinned over seeds 1–500 of the REAL catalogue: a Middle-East fighter wears head cover (shemagh, face wrap or skullcap)
+    /// in ≥ 75 % of seeds and a chest rig in ≥ 60 %; a boy often wears a small thobe. (Also writes the thumbnails' "typical" seed table when HROT_GEN_THUMB_SEEDS=1.)</summary>
+    [Fact]
+    public void TheFightersAreMostlyCoveredAndRigged_AndBoysOftenWearAThobe_OverSeeds1To500()
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
+        foreach (long type in Fighters)
+        {
+            int covered = 0, rigged = 0;
+            for (int s = 1; s <= 500; s++)
+            {
+                var o = Of(type, s);
+                if (o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap or OutfitHead.Skullcap) covered++;
+                if (o.OverKind == OutfitOver.ChestRig) rigged++;
+            }
+            Assert.True(covered >= 375, $"type {type}: head cover in {covered}/500");
+            Assert.True(rigged >= 300, $"type {type}: a chest rig in {rigged}/500");
+        }
+        int thobes = 0;
+        for (int s = 1; s <= 500; s++) if (Of(1107, s).TopKind == OutfitTop.Robe) thobes++;
+        Assert.InRange(thobes, 150, 350);   // the boy's pool has a robe in 40 %
+
+        if (Environment.GetEnvironmentVariable("HROT_GEN_THUMB_SEEDS") == "1")
+        {
+            // the seeds (entity ids) whose outfit is the TYPICAL one: the thumbnails script respawns until the entity's id is in its type's list
+            bool Typical(long type, Outfit o) => type switch
+            {
+                1105 or 1109 => o.TopKind == OutfitTop.Robe && o.HeadKind is OutfitHead.Shemagh or OutfitHead.Skullcap && o.Face.Beard != BeardKind.None,
+                1107 => o.TopKind == OutfitTop.Robe,
+                _ => o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap && o.OverKind == OutfitOver.ChestRig,
+            };
+            var json = new System.Text.StringBuilder("{\n");
+            long[] types = [1105, 1107, 1109, 2003, 2010, 2011, 2012];
+            for (int k = 0; k < types.Length; k++)
+            {
+                var seeds = new List<long>();
+                for (long s = 1; s <= 6000; s++) if (Typical(types[k], Of(types[k], s))) seeds.Add(s);
+                json.Append($"  \"{types[k]}\": [{string.Join(", ", seeds)}]{(k + 1 < types.Length ? "," : "")}\n");
+            }
+            json.Append("}\n");
+            var dir = new DirectoryInfo(AppContext.BaseDirectory); while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "scripts"))) dir = dir.Parent;
+            File.WriteAllText(Path.Combine(dir!.FullName, "scripts", "thumbnail-typical-seeds.json"), json.ToString());
+        }
+    }
+
     /// <summary>The OF-7 promise for the new garments: dressing and detailing 500 people in every garment allocates nothing once warm.</summary>
     [Fact]
     public void TheNewGarments_AllocateNothing_ForFiveHundredPeople()

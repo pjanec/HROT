@@ -212,11 +212,13 @@ namespace Hrot.Core.Tkb
             Top = S(O(nameof(OutfitTop.Shirt), 10f, Khaki), O(nameof(OutfitTop.Shirt), 10f, Olive), O(nameof(OutfitTop.Shirt), 10f, FieldGrey), O(nameof(OutfitTop.Shirt), 10f, FieldBlack),
                     O(nameof(OutfitTop.Jacket), 10f, Olive), O(nameof(OutfitTop.Jacket), 10f, Khaki), O(nameof(OutfitTop.Jacket), 10f, FieldGreen),
                     O(nameof(OutfitTop.Robe), 12f, White), O(nameof(OutfitTop.Robe), 10f, LightGrey), O(nameof(OutfitTop.Robe), 8f, Brown)),
-            Over = S(O(nameof(OutfitOver.ChestRig), 60f, Drab), O(nameof(OutfitOver.None), 40f)),
+            Over = S(O(nameof(OutfitOver.ChestRig), 75f, Drab), O(nameof(OutfitOver.None), 25f)),   // ⭐ CE-4648 polish: a rig in 75 % of fighters (was 60)
             Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(106, 100, 76), C(70, 72, 56), C(48, 48, 50), C(120, 112, 88))),
+            // ⭐ CE-4648 polish (user review): head cover — a shemagh (40), a face wrap (32) or a skullcap (8) — in 80 % of fighters, a cap in 8, bareheaded in 12
             Head = S(O(nameof(OutfitHead.Shemagh), 20f, RedWhiteCheck), O(nameof(OutfitHead.Shemagh), 12f, CapWhite), O(nameof(OutfitHead.Shemagh), 8f, ClothBlack),
-                     O(nameof(OutfitHead.ShemaghFaceWrap), 10f, Khaki), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, Drab), O(nameof(OutfitHead.ShemaghFaceWrap), 7f, RedWhiteCheck),
-                     O(nameof(OutfitHead.Cap), 8f, CapOlive), O(nameof(OutfitHead.Cap), 7f, FieldBlack), O(nameof(OutfitHead.None), 20f)),
+                     O(nameof(OutfitHead.ShemaghFaceWrap), 14f, Khaki), O(nameof(OutfitHead.ShemaghFaceWrap), 10f, Drab), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, RedWhiteCheck),
+                     O(nameof(OutfitHead.Skullcap), 8f, CapWhite),
+                     O(nameof(OutfitHead.Cap), 4f, CapOlive), O(nameof(OutfitHead.Cap), 4f, FieldBlack), O(nameof(OutfitHead.None), 12f)),
             Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
             Beard = S(Dark(nameof(OutfitBeard.Beard), 70f), Dark(nameof(OutfitBeard.Moustache), 15f), Dark(nameof(OutfitBeard.None), 15f)),
         };
