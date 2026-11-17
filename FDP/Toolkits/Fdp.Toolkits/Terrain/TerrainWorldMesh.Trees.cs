@@ -37,30 +37,63 @@ namespace Fdp.Toolkit.Terrain
             var o = woods.Origin;
             int c0 = Math.Max(0, (int)MathF.Ceiling(((min.X - o.X) / cell) - 0.5f)), c1 = Math.Min(woods.Columns - 1, (int)MathF.Ceiling(((max.X - o.X) / cell) - 0.5f) - 1);
             int r0 = Math.Max(0, (int)MathF.Ceiling(((min.Y - o.Y) / cell) - 0.5f)), r1 = Math.Min(woods.Rows - 1, (int)MathF.Ceiling(((max.Y - o.Y) / cell) - 0.5f) - 1);
+            if (near) { AddPolygonTrees(world, o, cell, min, max, v, t, g); return; }
             for (int r = r0; r <= r1; r++)
                 for (int c = c0; c <= c1; c++)
                 {
                     var (density, canopy) = woods.CellAt(c, r);
                     if (density <= 0f || canopy <= 0f) continue;
                     float x0 = o.X + (c * cell), y0 = o.Y + (r * cell);
-                    if (near) AddWoodTrees(world, c, r, x0, y0, cell, density, canopy, v, t, g);
-                    else AddCanopyCell(world, woods, c, r, x0, y0, cell, canopy, v, t, g);
+                    AddCanopyCell(world, woods, c, r, x0, y0, cell, canopy, v, t, g);
                 }
         }
 
-        private static void AddWoodTrees(TerrainWorld world, int c, int r, float x0, float y0, float cell, float density, float canopy,
-                                         List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
+        /// <summary>
+        /// ⭐⭐ <c>CE-1968</c> (the user, `2026-11-17`: "the trees land ~10 m off the polygon, partly outside it") — the NEAR trees of every forest polygon that reaches the
+        /// chunk, planted INSIDE THE POLYGON: on the woods' world-aligned 25 m cells (the same per-cell hash and density), every cell the polygon's box overlaps whose centre lies
+        /// in the chunk (one chunk owns a cell), each candidate kept only when the polygon contains it and no LATER forest polygon does (the last listed wins, as in the grid).
+        /// ⛔ Was: a whole 25 m cell planted wherever the cell's CENTRE fell inside the polygon ⇒ trees up to ~12.5 m beyond the edge and bare strips inside it. The SIMULATION's
+        /// woods stay per cell (sight, fire, the navmesh — R-4190 T-2), and so does the far canopy sheet; only the drawn trees follow the drawn polygon.
+        /// </summary>
+        private static void AddPolygonTrees(TerrainWorld world, Vector2 o, float cell, Vector2 min, Vector2 max, List<Vector3> v, List<int> t, List<TerrainTriangleTag> g)
         {
-            int n = (int)MathF.Round(density * cell * cell / 10000f);
-            for (int i = 0; i < n; i++)
+            var surfaces = world.Surfaces;
+            for (int si = 0; si < surfaces.Count; si++)
             {
-                float x = x0 + (cell * (0.08f + (0.84f * Hash(c, r, (i * 3) + 1))));
-                float y = y0 + (cell * (0.08f + (0.84f * Hash(c, r, (i * 3) + 2))));
-                float h = canopy * (0.8f + (0.4f * Hash(c, r, (i * 3) + 3)));
-                float z = world.GroundHeightAt(x, y);
-                AddTrunk(new Vector3(x, y, z), 0.18f, h * 0.55f, v, t, g);
-                AddCrown(new Vector3(x, y, z + (0.68f * h)), 0.3f * h, Hash(c, r, (i * 3) + 4) < 0.5f ? CrownMaterial : CrownDarkMaterial, v, t, g);
+                var s = surfaces[si];
+                if (s.Type != TerrainSurfaceType.Forest || s.Density <= 0f || s.Canopy <= 0f) continue;
+                int c0 = (int)MathF.Floor((s.Min.X - o.X) / cell), c1 = (int)MathF.Floor((s.Max.X - o.X) / cell);
+                int r0 = (int)MathF.Floor((s.Min.Y - o.Y) / cell), r1 = (int)MathF.Floor((s.Max.Y - o.Y) / cell);
+                for (int r = r0; r <= r1; r++)
+                    for (int c = c0; c <= c1; c++)
+                    {
+                        float x0 = o.X + (c * cell), y0 = o.Y + (r * cell);
+                        float mx = x0 + (cell * 0.5f), my = y0 + (cell * 0.5f);
+                        if (mx < min.X || mx >= max.X || my < min.Y || my >= max.Y) continue;   // the chunk that holds the cell's centre owns it
+                        int n = (int)MathF.Round(s.Density * cell * cell / 10000f);
+                        for (int i = 0; i < n; i++)
+                        {
+                            float x = x0 + (cell * (0.08f + (0.84f * Hash(c, r, (i * 3) + 1))));
+                            float y = y0 + (cell * (0.08f + (0.84f * Hash(c, r, (i * 3) + 2))));
+                            var at = new Vector2(x, y);
+                            if (!PolygonMath.Contains(s.Polygon, at) || LaterForestHolds(surfaces, si, at)) continue;
+                            float h = s.Canopy * (0.8f + (0.4f * Hash(c, r, (i * 3) + 3)));
+                            float z = world.GroundHeightAt(x, y);
+                            AddTrunk(new Vector3(x, y, z), 0.18f, h * 0.55f, v, t, g);
+                            AddCrown(new Vector3(x, y, z + (0.68f * h)), 0.3f * h, Hash(c, r, (i * 3) + 4) < 0.5f ? CrownMaterial : CrownDarkMaterial, v, t, g);
+                        }
+                    }
             }
+        }
+
+        private static bool LaterForestHolds(IReadOnlyList<TerrainSurface> surfaces, int after, Vector2 at)
+        {
+            for (int k = after + 1; k < surfaces.Count; k++)
+            {
+                var s = surfaces[k];
+                if (s.Type == TerrainSurfaceType.Forest && at.X >= s.Min.X && at.X <= s.Max.X && at.Y >= s.Min.Y && at.Y <= s.Max.Y && PolygonMath.Contains(s.Polygon, at)) return true;
+            }
+            return false;
         }
 
         private static void AddCanopyCell(TerrainWorld world, TerrainWoods woods, int c, int r, float x0, float y0, float cell, float canopy,

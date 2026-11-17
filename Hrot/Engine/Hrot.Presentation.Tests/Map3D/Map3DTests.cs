@@ -4745,6 +4745,23 @@ public sealed class Map3DTests
         Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1966</c> (the user, `2026-11-17`: "a pink cube in the middle of every placed terrain feature in 3-D, sometimes bigger than the feature") — a placed terrain FEATURE
+    /// (TKB 8818: a wall, a wood, a ditch …) and a terrain BLOCK (8817) have no 3-D body: the terrain mesh draws what they make, and their handle is the feature gizmo's.
+    /// They had no look, so the body layer drew its UNKNOWN box at the feature's anchor. 🔴 Red-proof: drop them from <c>EntityBodyLayer3D.LookOf</c>'s no-body list ⇒ Unknown.
+    /// </summary>
+    [Theory]
+    [InlineData(8818L)]
+    [InlineData(8817L)]
+    public void CE1966_APlacedTerrainFeatureOrBlock_HasNo3DBody(long tkbType)
+    {
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, 8818L);
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.TerrainBlock, 8817L);
+        var look = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => null!, () => null).LookOf(tkbType, BuiltIn());
+        Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit, look.Family);   // the "no body" look, never the unknown box
+        Assert.Equal(System.Numerics.Vector3.Zero, look.Size);
+    }
+
     /// <summary>⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8 U4-f) — a gas / smoke CLOUD is drawn by the
     /// effect layer, never as a unit: no 3-D body (TKB 7202), and the one "not a unit" rule (<c>NotAUnit</c>) keeps the 2-D symbol, anchor
     /// and pick box away — the same entity without its cloud component draws as an ordinary unit.</summary>
