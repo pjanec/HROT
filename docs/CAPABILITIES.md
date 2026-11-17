@@ -392,12 +392,14 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   `ac-gcas-steep-ridge` ✅ · `ac-map-edge` ✅
 - *(added `2026-11-17`)* **Missiles that can be beaten:** a missile boosts, coasts and slows; a pilot drags it out of energy far out and beams it with
   flares or chaff near, or breaks hard at the last moment; a radar missile loses a low, beaming target. A late pilot is hit. ▶ `ac-ir-defeated` ✅ ·
-  `ac-ir-hits-late` ✅ · `ac-two-missiles` ✅ · `ac-radar-chaff-beam` ✅ · `ac-sam-dodge` ✅ (a jet in transit beams the SAMs) · `ac-attack-evades` ✅
+  `ac-ir-hits-late` ✅ · `ac-two-missiles` ✅ · `ac-radar-chaff-beam` ✅ · `ac-sam-dodge` ✅ (a jet in transit beams the SAMs) · `ac-sam-dodge-route` ✅
+  (the same on a route — it resumes the route where it was) · `ac-attack-evades` ✅
 - *(added `2026-11-17`)* **Dogfights:** an F-16 and a MiG-29 merge, then fight with missiles (only inside the weapon's zone, one at a time) and the
   gun (it leads a turning target); out of weapons or hurt they leave. Skill decides: an Ace beats a Rookie. A combat air patrol finds bandits by radar
   and splits them between the wingmen. Lapses break a stalemate. ▶ `ac-dogfight-1v1` ✅ · `ac-skill-decides` ✅ · `ac-guns-drone` ✅ ·
-  `ac-guns-turning` ✅ · `ac-head-on-shot` ✅ · `ac-winchester` ✅ · `ac-cap` ✅ · `ac-stalemate-lapse` ✅ · `ac-dogfight-2v2` ⚠ the guns fire but
-  no gun round hits · ⏳ not run on a cluster with the jets fighting (see STATUS)
+  `ac-guns-turning` ✅ · `ac-head-on-shot` ✅ · `ac-winchester` ✅ · `ac-cap` ✅ · `ac-stalemate-lapse` ✅ · `ac-dogfight-2v2` ✅ (a gun hit, two
+  kills; rounds now meet aircraft beyond a small terrain) · on a `--mode all` cluster the jets fight (merge, all missiles, a turning fight) ⚠ with no
+  kill in 311 s — two Veterans out of missiles trade head-on passes (see STATUS, CE-10006) — 21 / 21 `ac-*` pass (`2026-11-17`)
 
 ## 11. Indirect fire
 
