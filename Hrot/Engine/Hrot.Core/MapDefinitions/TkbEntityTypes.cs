@@ -239,6 +239,10 @@ namespace Hrot.Map.Common
         /// <summary>⭐ <c>CE-7027</c> (City Battle §11 R-1b) — a BOMBER quadcopter: the quadcopter airframe with a drop rack of two M67s; it hovers
         /// over a point, drops one and flies back (<c>AirAttackProfile.HoverDrop</c>). ⛔ A permanent wire value.</summary>
         public const long Drone_Bomber = 408;
+        /// <summary>⭐ <c>CE-10000</c> (air lane, AC-7; docs/designs/air-attack/DESIGN_Air_Combat.md §5a) — a MiG-29-class FIGHTER: DIS 1.2.222.1.200
+        /// (a HROT subcategory, R-10002), class <c>TwinEngineFighter</c> (its own body, ui's). The better instantaneous turn; the F-16 the better
+        /// sustained one. Faction from the scenario. ⛔ A permanent wire value.</summary>
+        public const long Jet_MiG29 = 409;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

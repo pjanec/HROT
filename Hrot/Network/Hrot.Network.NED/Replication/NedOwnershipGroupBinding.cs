@@ -128,6 +128,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
+        map.RegisterMapping((long)EDescriptorType.dtRamOrder, GlobalComponentIds.RamOrder);                  // ⭐ CE-4622 K-2 — the hull's ram order: the Brain group's, read by the mover
         map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
         map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);   // ⭐ CE-4603 (B-6) — the same shape
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
@@ -161,6 +162,9 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtAggregateUnit, GlobalComponentIds.AggregateUnit);           // ⭐ CE-8001 — a stochastic unit's state (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtUnitSlotTable, GlobalComponentIds.UnitSlotTable);           // ⭐ CE-8001 — its slot table (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtUnitHoldings, GlobalComponentIds.UnitHoldings);             // ⭐ CE-8001 — its holdings (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtAirCombatSteer, GlobalComponentIds.AirCombatSteer);         // ⭐ CE-10000 (AC-2) — a fighter's order (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFighterPilotState, GlobalComponentIds.FighterPilotState);   // ⭐ CE-10000 (AC-2) — its motion node's report (Muscle group)
+        map.RegisterMapping((long)EDescriptorType.dtAirArena, GlobalComponentIds.AirArena);                     // ⭐ CE-10000 (AC-10) — the arena (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtUnderFire, GlobalComponentIds.UnderFire);                   // ⭐ CE-1223 — when a man was last under fire
         // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);

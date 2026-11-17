@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-10 (CE-4396: the local frame is UTM, protocol 2 — GeoReference Frame 1 / 2 + the zone override; the tangent plane retired) · 2026-11-01 (CE-4200: entity ids are int32 on the wire — the id-width rows below; before: 2026-10-28 gateway re-check: GeoReference field names/units, ids int64 in the gateway table, the sender-identity layout, derived names in §11 and the related-designs; library 1.2.20)
-current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check; §Concepts 15 states the one topic-name rule
+updated: 2026-11-16 (drift pass: the minefield descriptors + ContactBreach in §Inventory, every EDescriptorType ordinal in §Descriptor ordinals, the path request's layer-mask bits incl. the mover's SIDE in bits 14…18 (R-5047) in §Concepts 16, SUMO traffic's own protocol in §SUMO traffic, counts recounted, GizmoMap type names; kept current by scripts/protocol-doc-check.py) · 2026-11-10 (CE-4396: the local frame is UTM, protocol 2 — GeoReference Frame 1 / 2 + the zone override; the tangent plane retired) · 2026-11-01 (CE-4200: entity ids are int32 on the wire — the id-width rows below; before: 2026-10-28 gateway re-check: GeoReference field names/units, ids int64 in the gateway table, the sender-identity layout, derived names in §11 and the related-designs; library 1.2.20)
+current-answer: the whole document; §Inventory is generated-checked by scripts/ned-wire-inventory.py --check; every production [DdsTopic] type (Hrot/, FDP/ incl. the vendored SumoSharp and GizmoMap) and every EDescriptorType ordinal must be NAMED here — scripts/protocol-doc-check.py exits 1 otherwise (the drift check that keeps this document current); §Concepts 15 states the one topic-name rule
 stale-below: nothing
-known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 114 wire types here; its EDescriptorType listing stops at 94 (the enum now has 77 entries, AllDescriptors.cs:6); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
+known-rot: (1) ../projects/Hrot/Network/Hrot.Network.NED.md is dated 2026-05-23 — its "Key Wire Types" table covers 30 of the 144 wire types here; its EDescriptorType listing stops at 94 (the enum now has 102 entries, AllDescriptors.cs:6 — §Descriptor ordinals here); it still lists AreaQueryRequestBatch / AreaQueryResponseBatch and Messages/AreaQueryMessages.cs, RETIRED 2026-10-01 (AllDescriptors.cs:42, file absent); its TacticalIntentRequest row says "[DdsTopic] managed" but the type carries no [DdsTopic] (topic bound by a translator constant). (2) [fixed 2026-10-27 by AQ107 D: `WorldPos.Time` is now `WorldPos.SimTime`, a double of sim seconds]. (3) The doc comment on OwnershipUpdate.DescrTypeId says "1=EntityState, 2=WeaponState" (Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs) but the ordinals are EDescriptorType (dtWorldPos = 2, AllDescriptors.cs:6).
 known-conflict: BDC_NED_SST_Descriptor_Rules.md (the authoritative spec) and the code differ in the places listed in §Code versus the spec; neither side has been reconciled by a ruling. (Topic names have no conflict left: every name is derived from the C# type, no exceptions — §Concepts 15.)
 related-designs:
   - ../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md — OWNS the wire change — one frame (local metres + GeoReference), names from types, WorldPos as a quaternion pose (R-4092); all of A–I is BUILT (2026-10-28) and this reference describes the result
@@ -22,7 +22,10 @@ related-designs:
   - ../designs/dds-to-ecs/DESIGN.md — OWNS the rule that DDS types are DTOs behind translators
   - ../designs/bugs-2/BUG2-DESIGN.md — OWNS the sender-identity requirement (EnableSenderTracking) on every participant
   - ../RUNBOOK_Cluster_Debugging_Over_Http.md — OWNS the ddsmonitor wire-capture recipe (§5a)
-  - ../blueprints/Architect_Question_93_Sumo_Traffic_Node.md — OWNS the SUMO traffic node, whose vehicles are NOT NED entities
+  - ../blueprints/Architect_Question_93_Sumo_Traffic_Node.md — OWNS the SUMO traffic node, whose vehicles are NOT NED entities (§SUMO traffic here summarises its wire)
+  - ../designs/minefields/DESIGN_Minefields.md — OWNS the minefield descriptors (dtMinefield … dtMineClearing, 191–195) and the side carried in the path request's layer mask (R-5047)
+  - ../DESIGN_Vehicle_Breaching.md — OWNS ContactBreach (§7.16) and the blade-cut / tree / ground damage records
+  - ../designs/navig-2/Navigation_Design_v2_0.md — OWNS the navmesh layers a path request's layer mask selects (§8.2/§8.3)
 -->
 
 # NED on the wire — the DDS protocol of HROT
@@ -32,7 +35,7 @@ SimNetGateway). It states **concepts, rules and full C# type names** — never t
 or the build-generated IDL, see Concepts §15). Every rule carries a `file:line` and/or a doc § citation; what could not be
 determined says so.
 
-**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 114 wire types) → For a protocol gateway → Code versus the spec.
+**Reading order.** Diagrams (3) → Concepts and rules → Inventory (all 144 wire types) → Descriptor ordinals → SUMO traffic (a separate protocol) → For a protocol gateway → Code versus the spec.
 
 **The one-paragraph model.** An entity is *nothing but* a set of keyed DDS instances ("descriptors"), one topic per descriptor type,
 all sharing the entity id. `EntityMaster` alive = the entity exists. Each descriptor has its own owner (the node that writes it);
@@ -195,7 +198,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 | Rule | Evidence |
 |---|---|
 | An entity is composed of descriptors and nothing else; each descriptor type has its own topic; which descriptors an entity type needs is a convention among apps | Spec L20-32; code mirrors it: `Hrot/Network/Hrot.Network.NED/GenericDescriptors.cs` header comment (L24-40) |
-| Each descriptor type has a stable integer **ordinal** (`EDescriptorType`, 77 entries, never reused — retired: 93, 94, 121, 134). It is the "descriptor type id" of `OwnershipUpdate`, `DeferredTakeOwnership`, `UpdateEntityDescriptorRequest` | `Hrot/Network/Hrot.Network.NED/AllDescriptors.cs:6,42` |
+| Each descriptor type has a stable integer **ordinal** (`EDescriptorType`, 102 entries, never reused — retired: 93, 94, 121 removed from the enum, 134 still declared but reserved; every ordinal and its wire type: §Descriptor ordinals). It is the "descriptor type id" of `OwnershipUpdate`, `DeferredTakeOwnership`, `UpdateEntityDescriptorRequest` | `Hrot/Network/Hrot.Network.NED/AllDescriptors.cs:6,42` |
 | ⛔ **Retired topics** *(R-3067 / AQ109 X3 + X4, 2026-10-30 — a WIRE-CONTRACT REMOVAL: a peer on an older build publishes topics nobody reads)*: the derived names `Hrot_NED_Messages_MapCommandRequest`, `Hrot_NED_Messages_ContextActionsUpdate`, `Hrot_NED_Messages_ContextMenuRequest`, `Hrot_NED_Descriptors_MapInteractionConfig` (X3) and `Hrot_NED_Messages_MapCommandAck`, `Hrot_NED_Messages_ContextActionInvoked`, `Hrot_NED_Messages_MapClickEvent`, `Hrot_NED_Messages_SelectionChangedEvent`, `Hrot_NED_Messages_DragEvent`, `Hrot_NED_Descriptors_MapConfigStatus`, `Hrot_NED_Descriptors_IGCapabilitiesAnnounce` (X4) are **reserved — never reuse them for a different type** (⚠ `Hrot_IG_Gizmos_IGCapabilitiesAnnounce`, the gizmo one, is live); the `CommandType` enum (`CMD_SET_VIEW`=0 … `CMD_DRAW_PERSONAL_ROUTE`=8) stays defined so its values are never renumbered | `Hrot/Network/Hrot.Network.NED/MapMessages.cs` tombstone comment; `docs/blueprints/Architect_Question_109_Retire_ExCon.md` §6.3, §6.4 |
 | In code every descriptor is reached through an `IDescriptorTranslator` (carries `TopicName` + `DescriptorOrdinal`); DDS structs are DTOs, never the ECS components | graph: `search_graph Interface ".*Descriptor.*"` → `FDP/Engine/Fdp.Core/Abstractions/IDescriptorTranslator.cs:82`; §[dds-to-ecs](../designs/dds-to-ecs/DESIGN.md) 1 |
 | Which descriptors a **replica** needs before it accepts an entity is *derived at runtime* from the TKB template (`MandatoryComponentResolver`), not listed anywhere; an unknown `TkbType` skips the gate entirely | `FDP/Toolkits/Fdp.Toolkits/Replication/Systems/GhostPromotionSystem.cs:225-296`. The per-type set: **not determinable from sources** as a static list |
@@ -214,7 +217,7 @@ Citation key: `path:line` = code in this repo (a path without a leading `Hrot/` 
 
 | Rule | Evidence |
 |---|---|
-| A descriptor topic is **keyed by the entity id** (80 of the 114 wire types are keyed; the 34 unkeyed are messages or singletons) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
+| A descriptor topic is **keyed by the entity id** (106 of the 144 wire types are keyed; the 38 unkeyed are messages or singletons — recounted 2026-11-16) | `scripts/ned-wire-inventory.py` (a type is keyed when a member carries `[DdsKey]`) |
 | Spec says `KeepLast 1` so `read_instance` returns one sample; HROT state topics are `Reliable + TransientLocal + KeepLast(1)` (kind `S`) | Spec L59; §QoS kinds below |
 | **Multi-instance descriptors** are keyed by *(parent entity id + part/child instance id)*: turret pose and weapon task/status (part id = 2000 + turret index), the four EQS-family topics (child sensor index = `PartMetadata.InstanceId`) | `SimDescriptors.cs` comments at `EntityTurretPose`; `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsDdsTopics.cs:23-40` |
 | Other composite keys: `MapEntitySymbol` (entity + map group), `SensorTrackState` (observer + target), `DescriptorOptimisticLock` (entity + descriptor type) | inventory §A, §F |
@@ -266,18 +269,18 @@ The attribute `[DdsQos]` also carries `AutodisposeUnregisteredInstances` *(libra
 | `SN` | Reliable · TransientLocal · KeepLast(N>1) | gets the last N (N = 64 or 100) | `SysOpStatus`, library demo master |
 | `SA` | Reliable · TransientLocal · KeepAll | gets everything retained | `DescriptorOptimisticLock` |
 | `Q` | Reliable · Volatile · KeepAll | **gets nothing**; no sample of a burst is lost | requests, acks, shots, detonations, commands |
-| `QN` | Reliable · Volatile · KeepLast(N) | gets nothing; bounded burst | `MissileWarning` |
+| `QN` | Reliable · Volatile · KeepLast(N) | gets nothing; bounded burst | `MissileWarning`, `ContactBreach` |
 | `L` | BestEffort · Volatile · KeepLast(N) | gets nothing; cosmetic or high rate | `NearMiss`, `MeleeStrike`, `RoundImpact`, `AudioTargetDetected`, `SensorTargets`, library demo state |
 | `B` | Reliable · Volatile · history not stated | gets nothing | raycast and path batches |
 | `D` | **no `[DdsQos]` (or history only)** — library default; measured effect: *a reader keeps ONE sample*, so two events in one take overwrite each other | gets the library default | 9 types; the fire-pipeline events were moved off it for exactly that loss (`FireInteractionMessages.cs:27-29`) |
 
-Counts over the 125 types: S 66 · Q 31 · D 9 · SL 5 · L 6 · B 4 · SN 2 · SA 1 · QN 1. The exact default of `D` is **not determinable from sources** (library 1.2.20); the "one sample" effect is the measured statement in `Hrot/Network/Hrot.Network.NED/FireInteractionMessages.cs:27-29` (CE-3095).
+Counts over the 144 types (recounted 2026-11-16 with `ned-wire-inventory.py`'s QoS classifier): S 87 · Q 28 · D 9 · L 6 · SL 5 · B 4 · SN 2 · QN 2 · SA 1. The exact default of `D` is **not determinable from sources** (library 1.2.20); the "one sample" effect is the measured statement in `Hrot/Network/Hrot.Network.NED/FireInteractionMessages.cs:27-29` (CE-3095).
 
 ### 9. Descriptors versus messages
 
 | Rule | Evidence |
 |---|---|
-| **Descriptor** = keyed state, retained (`S*`), has an owner, moves by `OwnershipUpdate`, deleted by dispose. **Message** = event, request, ack or command, volatile (`Q*`, `L`, `B`), has no owner, is never disposed. Inventory kind: 67 descriptors, 58 messages *(was written 69 / 59 — recounted from the Kind column, CE-4079)* | inventory column "Kind" (rule: keyed ∧ TransientLocal ⇒ descriptor, with four manual exceptions listed in §Not determinable #10) |
+| **Descriptor** = keyed state, retained (`S*`), has an owner, moves by `OwnershipUpdate`, deleted by dispose. **Message** = event, request, ack or command, volatile (`Q*`, `L`, `B`), has no owner, is never disposed. Inventory kind: 88 descriptors, 56 messages *(recounted from the Kind column 2026-11-16; was 67 / 58 at CE-4079)* | inventory column "Kind" (rule: keyed ∧ TransientLocal ⇒ descriptor, with four manual exceptions listed in §Not determinable #10) |
 | Messages carry the originating node id (`SourceNodeId`) so every node drops its own sample when it reads the topic back | `FireInteractionMessages.cs` (WeaponFire, RoundImpact, MunitionDetonation, EntityHitDamage) |
 | A request is answered by an ack keyed by a **request id** (GUID or uint) — `CreateEntityRequest` → `CreateUpdateDeleteEntityAck`; `MissionControlRequest` → `MissionControlAck`; `ClusterOpRequest` → `SysOpStatus`; `WeaponFireRequest` → `WeaponFire` (carries the id and a refusal code) | `GenericMessages.cs:158-320`; `Hrot/Network/Hrot.Network.Orchestration/Orchestration/OrchestrationMessages.cs:191-215` |
 
@@ -338,14 +341,38 @@ Counts over the 125 types: S 66 · Q 31 · D 9 · SL 5 · L 6 · B 4 · SN 2 · 
 | ⭐ **One rule, no exceptions: the topic name is CycloneDDS.NET's derived name of the C# type** *(AQ107 A, R-4092/R-4093)* — `CycloneDDS.Schema.DdsTopicName.Of<T>()`: **the namespace, the containing types and the type name, each part joined with `_`**. `Hrot.NED.Descriptors.WorldPos` is the topic `Hrot_NED_Descriptors_WorldPos`; a nested `A.B.Outer.Inner` is `A_B_Outer_Inner`. So the **Full name** column of §Inventory *is* the topic: replace every `.` (and the `+` of a nested type) with `_`. No `[DdsTopic]`, reader, writer, translator or helper in HROT writes a name (a bare `[DdsTopic]` is the only form; `DdsWriterAdapter` / `DdsCommandClient` take none), and no type has a name that differs from its own — `scripts/ned-wire-inventory.py --check` FAILS on an explicit name anywhere in HROT-owned code (the one place it does not look: vendored SumoSharp, R-4046). The same rule is used by the library's runtime, its code generator and DdsMonitor. An external client gets the name from the type's IDL name: for a top-level type, the DDS *type* name with `::` replaced by `_`. ⚠ A namespace or type rename is therefore a **wire break**. The one pair of spellings the rule cannot tell apart (`A.B` + `C` vs `A` + `B_C`) is rejected by `--check` and by the NED test `TheTopicNamesAreDerivedFromTypesTests` (no explicit name · all derived names unique · a name-less pair exchanges a sample on a private domain) | `Hrot/Network/Hrot.Network.NED.Tests/TheTopicNamesAreDerivedFromTypesTests.cs`; `scripts/ned-wire-inventory.py`; library `src/CycloneDDS.Schema/DdsTopicName.cs`; [AQ107](../blueprints/Architect_Question_107_NED_Wire_Frame_And_Names.md) item A |
 | Some types are `[DdsManaged]` (strings, sequences, unions): variable length; a few payloads are **JSON text** (`ClusterOpRequest.PayloadJson`, EQS/survey results, attribute patches) | inventory; `GenericMessages.cs`, `OrchestrationMessages.cs` |
 
+### 16. The path request's navigation layer mask — layers, modifiers and the mover's SIDE
+
+Each request inside `Hrot.NED.Descriptors.PathRequestBatch` (the `Hrot.NED.Descriptors.DdsPathRequest` element) carries a 32-bit **navmesh layer
+mask** (an `int` on the wire). It is **not only a layer selector**: spare bits carry *modifiers* that change how the solver prices the route. ⚠ An
+outside client that sends a path request, or reads one, must treat the mask by these bits — never as a plain layer enum, and never compare it for
+equality with a layer value.
+
+| Bits | Meaning | Evidence |
+|---|---|---|
+| 0…3 | the navmesh **layer(s)**: Infantry 1, Vehicle 2, Naval 4, Air 8 (one per baked mover kind). A mask of **0 = all layers** (the solver reads it as every bit set) | `FDP/Toolkits/Fdp.Toolkits/Navigation/NavLayerMask.cs:10-20`; `…/Navigation/Systems/PathfindingSolverSystem.cs:211`; §[Navigation v2](../designs/navig-2/Navigation_Design_v2_0.md) 8.2/8.3 |
+| 8 | **tracked** modifier: woods priced, not closed (CE-4369) | `…/Navigation/NavLayerSelection.cs` (`TrackedModifier`) |
+| 9…12 | the mover type's **forest factor** in fifteenths (1…15; 0 = not authored, the class rule) — the woods cost is 15 / value (CE-4621) | `NavLayerSelection.cs` (`WoodsFactorShift`, `WoodsFactorMask`) |
+| 13 | **jump** modifier: the route may use off-mesh jump links (an animal that jumps; CE-4623) | `NavLayerSelection.cs` (`JumpModifier`) |
+| **14…18** | ⭐ **the mover's SIDE + 1** (5 bits, mask `0x1F << 14`); **0 = no side** (no minefield knowledge applied). The solver prices the route by that side's minefield knowledge (minefields MR-4, KR-9, lane decision **R-5047**: the side rides the mask's spare bits, not the request's pad byte) | `NavLayerSelection.cs` (`SideShift` = 14, `SideMask`, `SideBits`, `SidePlus1Of`); §[Minefields](../designs/minefields/DESIGN_Minefields.md) MR-4; R-5047 / R-4278 in [RULINGS](../blueprints/RULINGS.md) |
+| 4…7, 19…31 | not assigned (measured 2026-11-16) — send 0 | `NavLayerMask.cs`, `NavLayerSelection.cs` |
+
+⚠⚠ **The side value is the ECS `ForceId` + 1, NOT the wire `eForceIdentifier`** (§13): `Fdp.Core.ForceId` numbers **Neutral 0, Friend 1, Hostile 2**
+(`FDP/Engine/Fdp.Core/Components/ForceId.cs`), so the side bits read **1 = neutral, 2 = friendly, 3 = hostile**, whereas `EntityInfo.ForceIdentifier` on the
+wire is UNKNOWN 0, FRIENDLY 1, OPPOSING 2, NEUTRAL 3 (`Utils/ForceIdMapping.cs` converts between them). A force outside 0…30 encodes as 0. **Who sets it:**
+every HROT request site builds the mask through the one rule `NavLayerSelection.For` (`PathRequests`, `NavigationIntentBridgeSystem`, the EQS context,
+`CarKinematicsSystem`), which ORs in the side bits of the mover's `EntityInfo` force **unless the mask already carries side bits** (an explicit
+side wins). `NavigationIntent.LayerMask` (the brain's explicit mask, 0 = the entity's own) is that rule's input, so a client writing a
+`NavigationIntent` may leave the side bits 0. An external solver that does not model minefields may ignore bits 14…18; it must still not treat them as layers.
+
 ## Inventory
 
-All **125** production wire types carry a bare `[DdsTopic]` — the topic name of each is DERIVED from its full name (§Concepts 15), so there is no topic column. Full names are
+All **144** production wire types carry a bare `[DdsTopic]` — the topic name of each is DERIVED from its full name (§Concepts 15), so there is no topic column. Full names are
 **reflection style** (`Namespace.Type`; a nested type would print `Namespace.Outer+Nested` — none exists today). Kind and QoS legend
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
 §Excluded roots. Family counts are informational; `--check` compares the full names only (and fails on an explicit topic name anywhere in HROT-owned code).
 
-### A. Entity descriptors (keyed state of an entity) — 37
+### A. Entity descriptors (keyed state of an entity) — 60
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -403,9 +430,17 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityWeaponTaskStatus` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Muscle's report on a turret order |
 | `Hrot.NED.Descriptors.EntityWeather` | descriptor | yes: entity id | S | Hrot.Network.NED | Authored weather, global or regional |
 | `Hrot.NED.Descriptors.GroundClampingOverride` | descriptor | yes: entity id | S | Hrot.Network.NED | Per-entity ground clamping override for the IG |
+| `Hrot.NED.Descriptors.EntityMinefield` | descriptor | yes: entity id | S | Hrot.Network.NED | An authored minefield's parameters and lanes (the outline is the field's editable polyline; TKB 8830; `dtMinefield` 191, CE-4624). No ownership group: the entity's creator keeps it. `[DdsManaged]` (the lane list) |
+| `Hrot.NED.Descriptors.EntityMinefieldStrikes` | descriptor | yes: entity id | S | Hrot.Network.NED | One field's ground truth: its struck / cleared mines as lattice (row, col) entries (`dtMinefieldStrikes` 192). Written by the node that DECIDED the strikes (no group — the record entity's creator), applied on every node. `[DdsManaged]` |
+| `Hrot.NED.Descriptors.EntityMinefieldKnowledge` | descriptor | yes: entity id | S | Hrot.Network.NED | One side's knowledge of one field: a 2-bit cell grid (unknown / suspected / known-clear / known-mined; TKB 7206; `dtMinefieldKnowledge` 193). The deciding node → every node (no group); receivers union records as a lattice maximum. `[DdsManaged]` |
+| `Hrot.NED.Descriptors.EntityMinefieldLanes` | descriptor | yes: entity id | S | Hrot.Network.NED | The lanes a node CLEARED through one field — segment, width, the clearing side (TKB 7208; `dtMinefieldLanes` 194, CE-4624 MS-T4). The clearing node → every node (no group). `[DdsManaged]` |
+| `Hrot.NED.Descriptors.EntityMineClearing` | descriptor | yes: entity id | S | Hrot.Network.NED | A mine clearer's tool marker — its plough / flail / line charge is working (`dtMineClearing` 195; the `EntityBladeCut` pattern): the brain's, read by the Muscle that clears. ⚠ Meant as the Brain group's (type and component comments), but measured 2026-11-16: `Hrot/Engine/Hrot.Core/HrotOwnershipGroups.cs` sets no Brain bit for `MineClearing` (BladeCut's is at :57), so today the creator's remainder owns it |
+| `Hrot.NED.Descriptors.EntityAirCombatSteer` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's air-combat ORDER — the manoeuvre, the target and the arena (network ids), throttle, the GCAS floor, the g the pilot will pull, his lapse (`dtAirCombatSteer` 216, CE-10000, AC-2): the Brain group's, read every frame by the motion node's `FixedWingModel.Fight` while `NavigationIntent.Mode` = `NAV_AIR_COMBAT` (8) |
+| `Hrot.NED.Descriptors.EntityFighterPilotState` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's REPORT from its motion node — g, throttle, GCAS (active, count, lowest height), the LIVE threat (inbound rounds, the nearest's bearing, seeker, closure, time to impact), the last-ditch time, rounds defeated, speed (`dtFighterPilotState` 217, CE-10000, AC-2 / AC-9a): the Muscle group's; sent on a change of its rounded values |
+| `Hrot.NED.Descriptors.EntityAirArena` | descriptor | yes: entity id | S | Hrot.Network.NED | The air-combat ARENA — centre, radius, floor, ceiling, the show's shot cap, the stalemate clock and the last hit (`dtAirArena` 218, CE-10000, AC-10): its creator's Brain |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
-### B. Interactions and events (fire, impact, damage, interaction) — 12
+### B. Interactions and events (fire, impact, damage, interaction) — 13
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -420,19 +455,20 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Messages.NearMiss` | message | no | L | Hrot.Network.NED | A round passed close to a unit |
 | `Hrot.NED.Messages.RoundImpact` | message | no | L | Hrot.Network.NED | A round marked a world surface (cosmetic) |
 | `Hrot.NED.Messages.WeaponFire` | message | no | Q | Hrot.Network.NED | A shot was fired (or refused) |
+| `Hrot.NED.Messages.ContactBreach` | message | no | QN | Hrot.Network.NED | A vehicle's contact with a barrier — broke it, bumped it open, too strong, or pushing (with the push's progress) — published by the node that decided it (the hull's muscle) to every node for the driver's HUD cue, the dust and the crash on a station that is not the muscle; a push at most 5 times a second per hull; carries the writing node, every node drops its own (`dtContactBreach` 187, CE-5001, §[Vehicle Breaching](../DESIGN_Vehicle_Breaching.md) 7.16) |
 | `Hrot.NED.Messages.WeaponFireRequest` | message | no | Q | Hrot.Network.NED | Brain asks Muscle to fire a weapon (+ `OriginalShooterEntityId` of a thrown-back round, CE-4155) |
 
-### C. Mission, AI, perception and navigation — 17
+### C. Mission, AI, perception and navigation — 19
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
 | `Hrot.NED.Descriptors.EntityMission` | descriptor | yes: entity id | S | Hrot.Network.NED | Active mission plan of an entity |
-| `Hrot.NED.Descriptors.NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side) |
+| `Hrot.NED.Descriptors.NavigationIntent` | descriptor | yes: entity id | S | Hrot.Network.NED | Brain's navigation command (CQRS command side). `Mode` (`ENavigationMode`): NONE 0 · DIRECT_POINT 1 · FOLLOW_ROUTE 2 · JOIN_FORMATION 3 · ROAD_GRAPH 4 · PATH_TO_POINT 5 · MANUAL 6 · TRAFFIC 7 · ⭐ AIR_COMBAT 8 (CE-10000, AC-2 — the motion node flies the `EntityAirCombatSteer`; both sides map it, RV-6) |
 | `Hrot.NED.Descriptors.NavigationStatus` | descriptor | yes: entity id | S | Hrot.Network.NED | Muscle's navigation feedback (CQRS status side) |
-| `Hrot.NED.Descriptors.PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver |
+| `Hrot.NED.Descriptors.PathRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched path requests to the navigation solver; each request's layer mask also carries modifier bits and the mover's SIDE (§Concepts 16) |
 | `Hrot.NED.Descriptors.PathResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched path answers |
-| `Hrot.NED.Descriptors.PlacementRequestBatchWire` | message | yes: source node id | B | Hrot.Network.NED | Placement query (slots: key, point, layer, radius; MaxShift) to the navigation solver (`dtPlacementRequestBatch` 180, macros S3a item 5) |
-| `Hrot.NED.Descriptors.PlacementResponseBatchWire` | message | yes: target node id | B | Hrot.Network.NED | The solver's per-slot placement answers (Exact / Shifted / Failed, point, reason) (`dtPlacementResponseBatch` 181) |
+| `Hrot.NED.Descriptors.PlacementRequestBatchWire` | message | yes: source node id | Q | Hrot.Network.NED | Placement query (slots: key, point, layer, radius; MaxShift) to the navigation solver (`dtPlacementRequestBatch` 180, macros S3a item 5) |
+| `Hrot.NED.Descriptors.PlacementResponseBatchWire` | message | yes: target node id | Q | Hrot.Network.NED | The solver's per-slot placement answers (Exact / Shifted / Failed, point, reason) (`dtPlacementResponseBatch` 181) |
 | `Hrot.NED.Descriptors.RaycastRequestBatch` | message | yes: source node id | B | Hrot.Network.NED | Batched raycast requests to the navigation solver |
 | `Hrot.NED.Descriptors.RaycastResponseBatch` | message | yes: target node id | B | Hrot.Network.NED | Batched raycast answers |
 | `Hrot.NED.Descriptors.SensorConfig` | descriptor | yes: entity id | S | Hrot.Network.NED | Sensor configuration of an observer entity |
@@ -471,7 +507,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.Orchestration.NodeIdGrant` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Master's node-id grant or refusal |
 | `Hrot.NED.Descriptors.Orchestration.NodeIdRequest` | message | yes: computer hash + process id | S | Hrot.Network.Orchestration | Process asks the master for a node id (with its kind, `SubsystemName`, and the id it held last time as `PreferredId`: the master grants inside the kind's range, CE-4331 ⑥) |
 
-### F. Map, gizmo and operator UI — 15
+### F. Map, gizmo and operator UI — 3
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -479,7 +515,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.MapRoute` | descriptor | yes: entity id | S | Hrot.Network.NED | Waypoint route of an entity |
 | `Hrot.NED.Descriptors.MapVisualOverlay` | descriptor | yes: entity id | S | Hrot.Network.NED | Tactical graphic overlay attached to an entity |
 
-### G. Time, session and cluster orchestration — 21
+### G. Time, session and cluster orchestration — 23
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -546,6 +582,170 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.Gameplay.PlayerSlotTopic` | descriptor | yes: station node id | S | Hrot.Gameplay | Player Join: each station's slot — Choosing / TakingControl / Playing / Dead, its unit and respawn time |
 
 
+## Descriptor ordinals
+
+Every `Hrot.NED.Descriptors.EDescriptorType` value (`Hrot/Network/Hrot.Network.NED/AllDescriptors.cs`; 102 entries, 2026-11-16) and the wire type it names.
+The ordinal is the "descriptor type id" of `OwnershipUpdate`, `DeferredTakeOwnership` and `UpdateEntityDescriptorRequest` (§Concepts 2) and the
+discriminator of `Hrot.NED.Descriptors.EntityDescriptorUnion` (the creation request's payload). A wire type in §Inventory with no row here
+(orchestration, time, id allocation, Player Join, …) is never named by an ownership message. Rules: an ordinal is **never reused** — 93 / 94
+(the AreaQuery pair, retired 2026-10-01) and 121 (the door command) are removed from the enum; 134 stays declared but reserved. **Blocks:**
+100–119 animation · 160–169 traffic · 171–179 rules · 220–239 reserved for the experimental aggregate lanes (R-4276, not declared yet). A new
+ordinal is "measured free on every lane" first (the enum's comments). `scripts/protocol-doc-check.py` fails when an ordinal is missing here
+or its number differs.
+
+| Ordinal | `EDescriptorType` | Wire type (full name, §Inventory) | Note |
+|---|---|---|---|
+| 0 | `dtEntityMaster` | `Hrot.NED.Descriptors.EntityMaster` | the master (§3) |
+| 1 | `dtEntityInfo` | `Hrot.NED.Descriptors.EntityInfo` |  |
+| 2 | `dtWorldPos` | `Hrot.NED.Descriptors.WorldPos` |  |
+| 3 | `dtMapVisualOverlay` | `Hrot.NED.Descriptors.MapVisualOverlay` |  |
+| 4 | `dtMapRoute` | `Hrot.NED.Descriptors.MapRoute` |  |
+| 30 | `dtEntityDamage` | `Hrot.NED.Descriptors.EntityDamage` |  |
+| 40 | `dtMapEntitySymbol` | `Hrot.NED.Descriptors.MapEntitySymbol` |  |
+| 51 | `dtEntityMission` | `Hrot.NED.Descriptors.EntityMission` |  |
+| 52 | `dtNavigationIntent` | `Hrot.NED.Descriptors.NavigationIntent` |  |
+| 53 | `dtNavigationStatus` | `Hrot.NED.Descriptors.NavigationStatus` |  |
+| 54 | `dtDeferredTakeOwnership` | `Hrot.NED.Messages.DeferredTakeOwnership` |  |
+| 55 | `dtOwnershipUpdate` | `Fdp.Network.Cyclone.Topics.OwnershipUpdate` | the ownership message's own ordinal |
+| 60 | `dtSensorConfig` | `Hrot.NED.Descriptors.SensorConfig` |  |
+| 61 | `dtRaycastRequestBatch` | `Hrot.NED.Descriptors.RaycastRequestBatch` |  |
+| 62 | `dtSensorTrackState` | `Hrot.NED.Descriptors.SensorTrackState` |  |
+| 63 | `dtRaycastResponseBatch` | `Hrot.NED.Descriptors.RaycastResponseBatch` |  |
+| 64 | `dtPathRequestBatch` | `Hrot.NED.Descriptors.PathRequestBatch` |  |
+| 65 | `dtPathResponseBatch` | `Hrot.NED.Descriptors.PathResponseBatch` |  |
+| 66 | `dtGroundClampingOverride` | `Hrot.NED.Descriptors.GroundClampingOverride` |  |
+| 80 | `dtWeaponFireRequest` | `Hrot.NED.Messages.WeaponFireRequest` |  |
+| 81 | `dtWeaponFire` | `Hrot.NED.Messages.WeaponFire` |  |
+| 82 | `dtMunitionDetonation` | `Hrot.NED.Messages.MunitionDetonation` |  |
+| 83 | `dtEntityHitDamage` | `Hrot.NED.Messages.EntityHitDamage` |  |
+| 84 | `dtAudioTargetDetected` | `Hrot.NED.Descriptors.AudioTargetDetected` |  |
+| 85 | `dtNearMiss` | `Hrot.NED.Messages.NearMiss` |  |
+| 90 | `dtMissionControlRequest` | `Hrot.NED.Messages.MissionControlRequest` |  |
+| 91 | `dtMissionControlAck` | `Hrot.NED.Messages.MissionControlAck` |  |
+| 92 | `dtTacticalIntentRequest` | `Hrot.NED.Messages.TacticalIntentRequest` |  |
+| 95 | `dtEqsSensorConfig` | `Fdp.Toolkit.Spatial.Eqs.Topics.EqsSensorConfigTopic` |  |
+| 96 | `dtEqsResult` | `Fdp.Toolkit.Spatial.Eqs.Topics.EqsResultTopic` | ⚠ shared: `WorldSurveyResultTopic` and `DangerAreaResultTopic` translators use 96 too (the EQS result family, §Inventory H) |
+| 97 | `dtBehaviorFault` | `Hrot.NED.Messages.BehaviorFaultReport` |  |
+| 98 | `dtBrainIntent` | `Hrot.NED.Messages.EntityBrainIntent` |  |
+| 100 | `dtAnimationChannelIntent` | — | declared, **not on the wire** — DD-2 §2.2 animation channel DTO, not `[DdsTopic]` yet (CE-3010) |
+| 101 | `dtAnimationChannelStatus` | — | declared, **not on the wire** (as 100) |
+| 102 | `dtLookAtChannelIntent` | `Hrot.Animation.Replication.DdsLookAtChannelIntent` |  |
+| 103 | `dtLookAtChannelStatus` | `Hrot.Animation.Replication.DdsLookAtChannelStatus` |  |
+| 104 | `dtStanceIntent` | `Hrot.Animation.Replication.DdsStanceIntent` |  |
+| 105 | `dtStanceStatus` | `Hrot.Animation.Replication.DdsStanceStatus` |  |
+| 106 | `dtAnimationMontageQueue` | — | declared, **not on the wire** — DD-2 §4 montage queue (as 100) |
+| 107 | `dtAnimationMontageQueueState` | — | declared, **not on the wire** (as 106) |
+| 120 | `dtDoorState` | `Hrot.NED.Descriptors.EntityDoorState` |  |
+| 122 | `dtInteractionRequest` | `Hrot.NED.Messages.EntityInteractionRequest` |  |
+| 123 | `dtObstacleShape` | `Hrot.NED.Descriptors.EntityObstacleShape` |  |
+| 124 | `dtTurretPose` | `Hrot.NED.Descriptors.EntityTurretPose` |  |
+| 125 | `dtWeaponTask` | `Hrot.NED.Descriptors.EntityWeaponTask` |  |
+| 126 | `dtWeaponTaskStatus` | `Hrot.NED.Descriptors.EntityWeaponTaskStatus` |  |
+| 127 | `dtWeaponPosture` | `Hrot.NED.Descriptors.EntityWeaponPosture` |  |
+| 128 | `dtManualDrive` | `Hrot.NED.Descriptors.EntityManualDrive` |  |
+| 129 | `dtPossessedBy` | `Hrot.NED.Descriptors.EntityPossessedBy` |  |
+| 130 | `dtWeaponAmmo` | `Hrot.NED.Descriptors.EntityWeaponAmmo` |  |
+| 131 | `dtPassengerBuffer` | `Hrot.NED.Descriptors.EntityPassengers` | the name says buffer, the topic is the passenger list |
+| 132 | `dtWeaponSystemState` | `Hrot.NED.Descriptors.EntityWeaponSystemState` |  |
+| 133 | `dtMissileWarning` | `Hrot.NED.Messages.MissileWarning` |  |
+| 134 | `dtDispenseCountermeasure` | — | ⛔ RESERVED, retired (BS-1-DESIGN §5.4c: a release is an ordinary `WeaponFireRequest`); no topic — never reuse |
+| 135 | `dtPartDamage` | `Hrot.NED.Descriptors.EntityPartDamage` |  |
+| 136 | `dtHitMarks` | `Hrot.NED.Descriptors.EntityHitMarks` |  |
+| 137 | `dtDescent` | `Hrot.NED.Descriptors.EntityDescent` |  |
+| 138 | `dtScenarioClock` | `Hrot.NED.Descriptors.EntityScenarioClock` |  |
+| 139 | `dtWeather` | `Hrot.NED.Descriptors.EntityWeather` |  |
+| 140 | `dtRoundImpact` | `Hrot.NED.Messages.RoundImpact` |  |
+| 141 | `dtOperatorUseStatus` | `Hrot.NED.Descriptors.EntityOperatorUseStatus` |  |
+| 142 | `dtEffectState` | `Hrot.NED.Descriptors.EntityEffectState` |  |
+| 143 | `dtGesture` | `Hrot.NED.Descriptors.EntityGesture` |  |
+| 144 | `dtAreaEffectCloud` | `Hrot.NED.Descriptors.EntityAreaEffectCloud` |  |
+| 145 | `dtHostileAct` | `Hrot.NED.Descriptors.EntityHostileAct` |  |
+| 146 | `dtSquadReport` | `Hrot.NED.Messages.SquadReport` |  |
+| 147 | `dtLookState` | `Hrot.NED.Descriptors.EntityLookState` |  |
+| 148 | `dtCustody` | `Hrot.NED.Descriptors.EntityCustody` |  |
+| 149 | `dtLean` | `Hrot.NED.Descriptors.EntityLean` |  |
+| 150 | `dtCombatProficiency` | `Hrot.NED.Descriptors.EntityCombatProficiency` |  |
+| 151 | `dtEngagementArea` | `Hrot.NED.Descriptors.EntityEngagementArea` |  |
+| 152 | `dtUtterance` | `Hrot.NED.Descriptors.EntityUtterance` |  |
+| 153 | `dtDemeanour` | `Hrot.NED.Descriptors.EntityDemeanour` |  |
+| 154 | `dtMeleeStrike` | `Hrot.NED.Messages.MeleeStrike` |  |
+| 155 | `dtSpawnLevel` | `Hrot.NED.Descriptors.EntitySpawnLevel` |  |
+| 156 | `dtUnderFire` | `Hrot.NED.Descriptors.EntityUnderFire` |  |
+| 157 | `dtEntityGuid` | `Hrot.NED.Descriptors.EntityStableGuid` | no ownership group; also a `CreateEntityRequest` union arm |
+| 158 | `dtMacroInstance` | `Hrot.NED.Descriptors.EntityMacroInstance` |  |
+| 159 | `dtMacroExpansionStatus` | `Hrot.NED.Descriptors.EntityMacroExpansionStatus` |  |
+| 160 | `dtTrafficDemand` | `Hrot.NED.Descriptors.EntityTrafficDemand` | 160–169 is Traffic's block (AQ93 §12 N4) |
+| 170 | `dtMacroOrigin` | `Hrot.NED.Descriptors.EntityMacroOrigin` |  |
+| 171 | `dtObjectiveStatus` | `Hrot.NED.Descriptors.EntityObjectiveStatus` | 171–179 is the rules block |
+| 172 | `dtExerciseResult` | `Hrot.NED.Descriptors.EntityExerciseResult` |  |
+| 173 | `dtPlayerMessage` | `Hrot.NED.Messages.PlayerMessage` |  |
+| 174 | `dtRuleLeaves` | `Hrot.NED.Descriptors.EntityRuleLeaves` |  |
+| 175 | `dtManDowned` | `Hrot.NED.Messages.EntityManDowned` |  |
+| 180 | `dtPlacementRequestBatch` | `Hrot.NED.Descriptors.PlacementRequestBatchWire` |  |
+| 181 | `dtPlacementResponseBatch` | `Hrot.NED.Descriptors.PlacementResponseBatchWire` |  |
+| 182 | `dtRefKey` | `Hrot.NED.Descriptors.EntityRefKey` |  |
+| 183 | `dtBuildingDamage` | `Hrot.NED.Descriptors.EntityBuildingDamage` |  |
+| 184 | `dtGroundDamage` | `Hrot.NED.Descriptors.EntityGroundDamage` |  |
+| 185 | `dtTreeDamage` | `Hrot.NED.Descriptors.EntityTreeDamage` |  |
+| 186 | `dtBladeCut` | `Hrot.NED.Descriptors.EntityBladeCut` |  |
+| 187 | `dtContactBreach` | `Hrot.NED.Messages.ContactBreach` | a one-shot event, not a descriptor |
+| 188 | `dtRadarEmission` | `Hrot.NED.Descriptors.EntityRadarEmission` |  |
+| 189 | `dtAnimalState` | `Hrot.NED.Descriptors.EntityAnimalState` |  |
+| 190 | `dtFlockState` | `Hrot.NED.Descriptors.EntityFlockState` |  |
+| 191 | `dtMinefield` | `Hrot.NED.Descriptors.EntityMinefield` |  |
+| 192 | `dtMinefieldStrikes` | `Hrot.NED.Descriptors.EntityMinefieldStrikes` |  |
+| 193 | `dtMinefieldKnowledge` | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` |  |
+| 194 | `dtMinefieldLanes` | `Hrot.NED.Descriptors.EntityMinefieldLanes` |  |
+| 195 | `dtMineClearing` | `Hrot.NED.Descriptors.EntityMineClearing` |  |
+| 216 | `dtAirCombatSteer` | `Hrot.NED.Descriptors.EntityAirCombatSteer` |  |
+| 217 | `dtFighterPilotState` | `Hrot.NED.Descriptors.EntityFighterPilotState` |  |
+| 218 | `dtAirArena` | `Hrot.NED.Descriptors.EntityAirArena` |  |
+
+## SUMO traffic — a separate protocol on the same domain
+
+**What it is.** SUMO's vehicles, pedestrians and traffic lights are **not NED entities**: no `EntityMaster`, no descriptor, no ownership message.
+They travel on **SumoSharp's own topics** (`sumo/*`), published by the traffic node(s) (role `Traffic`, node id base 800, §Concepts 1) through the
+vendored SumoSharp replication library (`FDP/ExtDeps/SumoSharp`, read-only, R-4046 — the one place explicit topic names remain). They share the
+cluster's DDS domain and participant, so every sample carries the traffic node's sender identity. The design and every ruling: §[AQ93](../blueprints/Architect_Question_93_Sumo_Traffic_Node.md) 0 (D-wire, R-4020), 9 (how SUMO and HROT entities treat each other), 12 (the networked node).
+
+**Existing description.** SumoSharp ships a partial one — [`Sim.Replication.Dds/README.md`](../../FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/README.md)
+(the vehicle topics, the blob codec, several publishers) and [`Sim.Replication/README.md`](../../FDP/ExtDeps/SumoSharp/src/Sim.Replication/README.md)
+(the data model and the four logical channels). ⚠ It does not cover the pedestrian, command and status topics, and its *"always pass an explicit
+topic-name string"* is superseded — since HROT's change H11 every name sits on its type (`[DdsTopic("sumo/…")]`, `DdsTopicNames.cs` header). The
+upstream designs it cites (`SUMOSHARP-DEADRECKONING.md`, `PEDESTRIAN-DDS-TRANSPORT-DESIGN.md`, `HROT-INTEGRATION-DESIGN.md`) are **not vendored**
+(searched `FDP/ExtDeps/SumoSharp` for every `*.md`). The table below is measured from `FDP/ExtDeps/SumoSharp/src/Sim.Replication.Dds/*.cs`.
+
+| Topic (explicit name) | Type (`Sim.Replication.Dds.…`) | Key (concept) | QoS | Carries · who · when |
+|---|---|---|---|---|
+| `sumo/vehicles` | `DdsWireFrame` | kind + chunk + source | BestEffort · Volatile · KeepLast(64) | an opaque `FrameCodec` blob of lane-arc dead-reckoning records, one per car (lane, distance along it, lateral offset, speed, acceleration, upcoming lanes), ≤ 64 KiB a chunk. Per SUMO step, only the cars whose prediction error passed **0.3 m along / 0.2 m lateral**, plus a **3 s heartbeat** (`DrErrorPublishPolicy`, `Sim.Host/ReplicationPublisher.cs:31`) |
+| `sumo/vehicles-structured` | `DdsVehicleBatch` | chunk | BestEffort · Volatile · KeepLast(64) | the same records as typed columns (≤ 256 a sample) — **defined, not published by HROT** (its sink writes only the blob, `DdsReplicationSink.cs`) |
+| `sumo/lifecycle` | `DdsVehicleLifecycle` | car index + source | Reliable · TransientLocal · KeepLast(1) | spawn / despawn of a car with its fixed dimensions, SUMO type, **name** (= its HROT network id, below), TKB type (0 = SUMO's default car) and colour — a late joiner gets the current fleet |
+| `sumo/geometry` | `DdsNetworkGeometry` | chunk + source | Reliable · TransientLocal · KeepLast(1) | the net's lane polylines (`GeometryCodec`), chunked with a total count, **published once** per session (`LiveCitySim.cs:2104`). HROT's own nodes do not need it — they read the `.net.xml` that rides the terrain (R-4021) |
+| `sumo/tl` | `DdsTlState` | chunk + source | BestEffort · Volatile · KeepLast(1) | every controlled lane's signal state (`TlCodec`), **at most once per sim second** (`ReplicationPublisher.cs:195-215`) |
+| `sumo/ped-crowd` | `DdsPedCrowdFrame` | kind + chunk + source | BestEffort · Volatile · KeepLast(1) | free-moving pedestrians (position, velocity, radius; no heading) as a `FrameCodec` blob, sent past **0.1 m / 0.5 m/s** error or a **3 s heartbeat** (`Sim.Pedestrians/Lod/PedPublishScheduler.cs:70-72`) |
+| `sumo/ped-patharc` | `DdsPedLeg` | ped index + source | Reliable · TransientLocal · KeepLast(16) | a pedestrian's current leg along a path arc, **once per leg** |
+| `sumo/ped-activity` | `DdsPedActivityLeg` | ped index + source | Reliable · TransientLocal · KeepLast(16) | a pedestrian's activity timeline (`ActivityTimelineWire`, `Sim.Pedestrians`) |
+| `sumo/ped-lifecycle` | `DdsPedLifecycle` | ped index + source | Reliable · TransientLocal · KeepLast(16) | spawn / despawn / dead-reckoning model switch, with the pedestrian's name |
+| `sumo/commands` | `DdsViewerCommand` | writer id | Reliable · TransientLocal · KeepLast(256) | SumoSharp's own viewer → publisher commands (pause, speed, inject an obstacle) — **not used by HROT** (no reference outside SumoSharp; AQ93 §14.1) |
+| `sumo/status` | `DdsViewerStatus` | publisher id | Reliable · TransientLocal · KeepLast(1) | the publisher's engine state for SumoSharp's viewer — **not published by HROT** |
+
+| Rule | Evidence |
+|---|---|
+| **Several traffic nodes on one domain**: every car / pedestrian / light / geometry sample carries a **`Source` key = the publishing node's id** (H8, R-4055), so two nodes' car #5 are distinct instances. The owner of a car is the **sender** of its samples (`AppInstanceId`), falling back to the source | `DdsTopics.cs` (`Source`); `Hrot/Engine/Hrot.Traffic/TrafficSession.cs:13-14,72-73`; `TrafficModules.cs:204-225`; §AQ93 12 N5 |
+| **One id space with NED**: a car's or pedestrian's SUMO id is a network id from the cluster's id allocator (§Concepts 5), allocated when SUMO spawns it (N2), so every node names it alike — but nothing is published for it on NED | `TrafficSession.cs:63-66`; `TrafficPack.cs:82`; §AQ93 12 N2 |
+| **Reconstruction is receiver-side dead reckoning on cluster sim time**: lifecycle (who exists, sizes) + motion samples + lane geometry → pose = SumoSharp's lane-curve extrapolation (`DrExtrapolation`, `PoseResolver.Resolve`) at sim-now; pedestrians through `PedRemoteReconstructor.TryGetRenderPose`. A source silent for 5 s (on a clock that holds while paused) is dropped with its cars | `Sim.Replication/DrExtrapolation.cs`; `Sim.Core/PoseResolver.cs:73`; `Sim.Pedestrians/Lod/PedRemoteReconstructor.cs`; `DdsMultiSourceSubscriber.cs`; `TrafficModules.cs:95`; §AQ93 12.5 (CE-4021) |
+| **Coordinates are SUMO NET metres, not the NED local frame.** HROT places them by `SumoNetPlacement`: a UTM-georeferenced net in the frame's own zone is a pure translation (net − `netOffset` − (E0, N0)), another zone goes through geodetic; a net with no projection is placed by the terrain's anchor (net − anchor from `terrain.json`). Heights are SUMO's own | `Hrot/Engine/Hrot.Traffic/SumoNetPlacement.cs:8-18`; §Concepts 11 (the frame) |
+| **Where SUMO meets NED.** Each HROT node makes a *local* combat replica of a SUMO car or pedestrian only within 300 m of an HROT entity (R-4043) — never published. A hit on one is the ordinary `EntityHitDamage`; a shot or panicked pedestrian / car leaves SUMO and **becomes an NED entity** (created by CGF with the same id). **TrafficHandover:** an HROT vehicle given `NavigationIntent` mode Traffic is driven by a SUMO *shadow* car named **`hrot:<networkId>`** spawned by the serving traffic node; the vehicle stays an NED entity (its owner follows the shadow and publishes `WorldPos` as usual) | §AQ93 9.1–9.3, 14.2 (G1–G6); `Hrot/Engine/Hrot.Traffic/TrafficShadowFollowSystem.cs:10-25` |
+
+**How an external image generator (e.g. an Unreal client) gets the traffic.** ① Join the cluster's domain and subscribe to `sumo/lifecycle`,
+`sumo/vehicles`, `sumo/tl` and, for pedestrians, the four `sumo/ped-*` topics (all retained ones arrive at once for a late joiner). ② Get the lane
+geometry from `sumo/geometry` (retained) or the terrain's `.net.xml`. ③ Dead-reckon each car along its lane at the cluster's sim time, then place
+it in the NED local frame by the `SumoNetPlacement` rule and, if needed, to lat/lon through `GeoReference` (§Concepts 11). ④ **Skip cars whose
+name starts with `hrot:`** — they are HROT vehicles already on NED; drawing both doubles them (AQ93 G6). ⑤ Draw a converted pedestrian or car
+from NED once SUMO despawns it. The least work: reference SumoSharp's `Sim.Replication` + `Sim.Replication.Dds` assemblies (C#, CycloneDDS.NET) —
+`DdsMultiSourceSubscriber` / `DdsMultiSourcePedSubscriber` decode and demultiplex, `PoseResolver` resolves poses; a non-.NET client re-implements
+the `FrameCodec` / `GeometryCodec` / `TlCodec` decoders and the `DrExtrapolation` curve from those sources.
+
 ## Excluded roots
 
 `scripts/ned-wire-inventory.py` skips these roots — **excluded from §Inventory, still real on the wire in some deployments**:
@@ -555,8 +755,8 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | any `*.Tests` / `Tests` project | test doubles and rails, not product protocol | 4 types (`ned-wire-inventory.py --all` lists them) |
 | `FDP/Examples/**` | demo programs | 8 types (`Fdp.Examples.DDS` 5, `Fdp.Examples.DER` 3); derived names, no explicit name |
 | `docs/blueprints/experiments/**` | experiments, not built into the product; outside the three scanned roots | 4 bare `[DdsTopic]` types in one file (found by grep, not by the script); names derived like the rest |
-| `FDP/ExtDeps/GizmoMap` | an in-tree library that HROT edits in place (no sync script, no upstream pin — unlike SumoSharp), so its topic types follow the same rule: bare `[DdsTopic]`, derived names (`GizmoMap_Network_GizmoInteractionBatch`, `…_DebugPrimitivesBatch`, `…_GizmoUiState`, `…_StringInternEntry`); **its topics ride the same domain**. A second `EntityAttributeSchema` type that used to live here (the same wire shape as `Hrot.NED.Messages.EntityAttributeSchema`, nothing wrote or read it) was deleted by AQ107 A | 4 types |
-| `FDP/ExtDeps/SumoSharp` | vendored SUMO traffic bridge; **SUMO vehicles are not NED entities** — they travel on `sumo/*` topics — ⛔ **the one place explicit names remain: vendored, read-only (R-4046), so AQ107 A leaves them** (`sumo/vehicles`, `sumo/vehicles-structured`, `sumo/lifecycle`, `sumo/geometry`, `sumo/tl`, `sumo/commands`, `sumo/status`, `sumo/ped-patharc`, `sumo/ped-lifecycle`, `sumo/ped-crowd`, `sumo/ped-activity`) | 11 types; §[Q93](../blueprints/Architect_Question_93_Sumo_Traffic_Node.md) |
+| `FDP/ExtDeps/GizmoMap` | an in-tree library that HROT edits in place (no sync script, no upstream pin — unlike SumoSharp), so its topic types follow the same rule: bare `[DdsTopic]`, derived names (types `GizmoMap.Network.GizmoInteractionBatch`, `GizmoMap.Network.DebugPrimitivesBatch`, `GizmoMap.Network.GizmoUiState`, `GizmoMap.Network.StringInternEntry` ⇒ topics `GizmoMap_Network_GizmoInteractionBatch`, …); **its topics ride the same domain**. A second `EntityAttributeSchema` type that used to live here (the same wire shape as `Hrot.NED.Messages.EntityAttributeSchema`, nothing wrote or read it) was deleted by AQ107 A | 4 types |
+| `FDP/ExtDeps/SumoSharp` | vendored SUMO traffic bridge; **SUMO vehicles are not NED entities** — they travel on `sumo/*` topics (the protocol: §SUMO traffic) — ⛔ **the one place explicit names remain: vendored, read-only (R-4046), so AQ107 A leaves them** (`sumo/vehicles`, `sumo/vehicles-structured`, `sumo/lifecycle`, `sumo/geometry`, `sumo/tl`, `sumo/commands`, `sumo/status`, `sumo/ped-patharc`, `sumo/ped-lifecycle`, `sumo/ped-crowd`, `sumo/ped-activity`) | 11 types; §[Q93](../blueprints/Architect_Question_93_Sumo_Traffic_Node.md) |
 | `bin/`, `obj/` | build output | — |
 
 ## For a protocol gateway (DIS/HLA)
@@ -608,7 +808,7 @@ Source: `SimNetGateway.Protocol.Ned/NedMessages.cs` and DD-001 §9, Appendix A (
 
 | Gateway message | Real HROT type(s) | Mismatch to handle |
 |---|---|---|
-| `NedEntityMaster(Id, Name, TkbType, Force)` | `Hrot.NED.Descriptors.EntityMaster` (id, `TkbType`) **+** `Hrot.NED.Descriptors.EntityInfo` (name, force) | Name and Force are in **EntityInfo**; `TkbType` is `int64`; entity ids are `int64` on every topic since AQ107 E (gateway `ulong` — map, never truncate); the master also holds `DisType`, flags, request id |
+| `NedEntityMaster(Id, Name, TkbType, Force)` | `Hrot.NED.Descriptors.EntityMaster` (id, `TkbType`) **+** `Hrot.NED.Descriptors.EntityInfo` (name, force) | Name and Force are in **EntityInfo**; `TkbType` is `int64`; entity ids are `int32` on every topic since CE-4200 (§Concepts 4; gateway `ulong` — map, and never send an id above `int.MaxValue`; AQ107 E's `int64` is superseded); the master also holds `DisType`, flags, request id |
 | `NedGeoSpatial(Id, lat, lon, alt, heading, pitch, roll, speed)` | `Hrot.NED.Descriptors.WorldPos` | **no lat/lon, no Euler** (AQ107 B/D): local-ENU `Position` (m), quaternion `OrientationXyz`, ENU `Velocity` (m/s, a vector — speed = its length) and `AngularVelocity` (rad/s), `SimTime` (sim seconds); no acceleration; the gateway converts with the origin (the retained `GeoReference`, step 0 below); sender must re-send every ≤ 10 s |
 | `NedEntityDamage(Id, Level 0..3)` | `Hrot.NED.Descriptors.EntityDamage` (current, max health floats); event `Hrot.NED.Messages.EntityHitDamage` (HP lost) | **no discrete level**; derive from current/max — the thresholds are the gateway's decision |
 | `NedWeaponStatus(Id, SelectedMunitionTkb, Ammo, Member)` | `Hrot.NED.Descriptors.EntityWeaponAmmo` (per mount ammo + loaded round type), `EntityWeaponPosture`, `EntityWeaponSystemState` | **no "selected munition" field**; ammo is per mount (up to 4); no formation `Member` index |
@@ -668,6 +868,7 @@ python3 scripts/ned-wire-inventory.py            # sorted table: full name, deri
 python3 scripts/ned-wire-inventory.py --verbose  # + QoS text, [DdsManaged], key members
 python3 scripts/ned-wire-inventory.py --check    # exit 1 if code and §Inventory disagree (missing / stale / duplicate rows), or any HROT-owned [DdsTopic] has an explicit name, or two derived names collide
 python3 scripts/ned-wire-inventory.py --skeleton # draft rows for the types the doc lacks
+python3 scripts/protocol-doc-check.py           # exit 1 if a production [DdsTopic] type (SumoSharp / GizmoMap included) or an EDescriptorType ordinal is not NAMED here, or an ordinal row has the wrong number
 MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs docs/reference/NED_DDS_Protocol.md
 ```
 

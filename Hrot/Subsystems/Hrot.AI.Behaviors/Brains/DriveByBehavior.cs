@@ -24,6 +24,9 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const float DefaultPassSpeed = 4f, DefaultSpeed = 14f, DefaultPassMetres = 40f, BeyondMetres = 30f, ArrivalRadius = 6f;
         public const byte RidingUp = 0, Passing = 1, Escaping = 2;
+        /// <summary>⭐ R-3093 (found by ua-moto-drive-by-grenade) — a hand grenade is thrown within this range of the target, or once it is abeam.
+        /// ⛔ It used to be ordered at <see cref="DefaultPassMetres"/> (40 m) — beyond a throw's reach from a moving bike: it burst short of the post.</summary>
+        public const float ThrowMetres = 25f;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct DriveByParams
@@ -42,6 +45,8 @@ namespace Hrot.AI.Behaviors.Brains
         {
             public byte Phase;
             public byte Issued;
+            /// <summary>⭐ R-3093 — 1 once the pillion's throw is ordered (the throw waits for range; the burst is ordered at the pass).</summary>
+            public byte Thrown;
             /// <summary>Where the current ride-up move points (re-issued when the target has moved 5 m).</summary>
             public Vector3 Towards;
         }
@@ -102,11 +107,9 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (Vector2.Distance(new Vector2(here.X, here.Y), new Vector2(at.X, at.Y)) <= p.PassMetres)
                 {
-                    var dir = new Vector2(at.X - here.X, at.Y - here.Y);
-                    dir = dir.LengthSquared() > 1e-4f ? Vector2.Normalize(dir) : Vector2.UnitX;
-                    var beyond = new Vector3(at.X + dir.X * BeyondMetres, at.Y + dir.Y * BeyondMetres, at.Z);
+                    var beyond = PassPoint(here, world.GetComponentRO<SimTransform>(self).Rotation, at);
                     if (!LocomotionMoveTo.Issue(world, self, beyond, p.PassSpeed, ArrivalRadius, MoveGait.Keep, source: source)) return NodeStatus.Failure;
-                    OrderThePillion(world, self, p.Target, p.Throw != 0 ? (Vector3?)at : null);
+                    if (p.Throw == 0) OrderThePillion(world, self, p.Target, null);
                     s.Phase = Passing;
                     return NodeStatus.Running;
                 }
@@ -117,10 +120,43 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 return NodeStatus.Running;
             }
-            // Passing: until the pass move ends (arrived beyond the target, or it failed) — then escape
+            // Passing: the throw waits for range (or the target abeam) — R-3093
+            if (p.Throw != 0 && s.Thrown == 0 && InThrowingRange(here, world.GetComponentRO<SimTransform>(self).Rotation, at))
+            {
+                OrderThePillion(world, self, p.Target, at);
+                s.Thrown = 1;
+            }
+            // … until the pass move ends (arrived beyond the target, or it failed) — then escape
             if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+            if (p.Throw != 0 && s.Thrown == 0) { OrderThePillion(world, self, p.Target, at); s.Thrown = 1; }   // never closer: throw on the way out
             s.Phase = Escaping; s.Issued = 0;
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4621</c> IM-1 (found by the feature scenario <c>ua-moto-drive-by</c>, R-3089) — where the PASS goes: ALONGSIDE, along the bike's own
+        /// heading to <see cref="BeyondMetres"/> past the point abeam of the target (design §5: "2–5 m/s alongside"). ⛔ It used to aim
+        /// <see cref="BeyondMetres"/> past the target along the bike→target bearing, so a post 14 m off the road pulled the bike off the road and up to
+        /// the post at the pass speed — a slow charge at the sentries, not a drive-by.
+        /// </summary>
+        public static Vector3 PassPoint(Vector3 here, Quaternion rotation, Vector3 at)
+        {
+            var f = Vector3.Transform(Vector3.UnitX, rotation);
+            var fwd = new Vector2(f.X, f.Y);
+            if (fwd.LengthSquared() < 1e-4f) fwd = new Vector2(at.X - here.X, at.Y - here.Y);
+            fwd = fwd.LengthSquared() > 1e-4f ? Vector2.Normalize(fwd) : Vector2.UnitX;
+            float along = MathF.Max(0f, Vector2.Dot(new Vector2(at.X - here.X, at.Y - here.Y), fwd)) + BeyondMetres;
+            return new Vector3(here.X + fwd.X * along, here.Y + fwd.Y * along, here.Z);
+        }
+
+        /// <summary>⭐ R-3093 — within <see cref="ThrowMetres"/> of the target, or the target abeam / behind along the bike's heading.</summary>
+        public static bool InThrowingRange(Vector3 here, Quaternion rotation, Vector3 at)
+        {
+            var d = new Vector2(at.X - here.X, at.Y - here.Y);
+            if (d.LengthSquared() <= ThrowMetres * ThrowMetres) return true;
+            var f = Vector3.Transform(Vector3.UnitX, rotation);
+            var fwd = new Vector2(f.X, f.Y);
+            return fwd.LengthSquared() > 1e-4f && Vector2.Dot(d, fwd) <= 0f;   // no heading (an unset rotation) ⇒ range only
         }
 
         /// <summary>The pillion: a man in a FIRING seat that is not the driver's (the bike's own passenger list — its own component).</summary>

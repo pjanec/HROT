@@ -49,5 +49,19 @@ namespace Fdp.Toolkit.Combat.Components
         public float Rejection;
         /// <summary>⭐ <c>CE-2222</c> — its turn rate (°/s) and top-attack climb (°), from its <c>MissileDto</c>; 0 = the engine's.</summary>
         public float TurnRateDegPerSec, ClimbAngleDeg;
+
+        // ⭐⭐ CE-10002 (air lane, AC-6, RV-1; docs/designs/air-attack/DESIGN_Air_Combat.md §3, §5b) — a MOTOR and a g limit (all 0 ⇒ the
+        //   constant-speed round above, unchanged). SpeedMps stays the burn-out speed (it feeds the lead and the dive maths).
+        /// <summary>The speed it flies at NOW (m/s).</summary>
+        public float SpeedNow;
+        /// <summary>Burn time left (s); its boost (m/s²) to <see cref="SpeedMps"/> while it burns.</summary>
+        public float BurnLeftS, BoostMps2;
+        /// <summary>The g it pulls at <see cref="SpeedMps"/> (falls with speed²); the speed lost per second coasting; below <see cref="MinSpeedMps"/> it is defeated.</summary>
+        public float MaxG, DragPerS, MinSpeedMps;
+        /// <summary>The steering's lag (s) and the direction it is steering now (it follows the lead through the lag).</summary>
+        public float SteerLagS;
+        public Vector3 SteerDir;
+        /// <summary>The g it pulled last step (more drag while it turns).</summary>
+        public float LoadG;
     }
 }

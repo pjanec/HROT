@@ -1,0 +1,172 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "farm",
+    "description": "What: a rider fires from horseback (CE-4623 AB-1 / AB-5; docs/designs/animals/DESIGN_Animals.md \u00a75 / \u00a79). On the farm terrain a 'War horse' (TKB 704, fearless) carries a 'Rider' (Friend, rifle) in its saddle \u2014 a firing seat (\u00b1150\u00b0) \u2014 and gallops east along y = 160 from x 0 to x 260 at 12 m/s, passing two men 25 m off its line ('Target 1', 'Target 2', Hostile, hold fire); the rider is ORDERED to fire at Target 1 (FireAtTarget) \u2014 \u26a0 a man in a firing seat does not yet engage on his own (CE-3454, the behaviours lane). Judge: (1) the horse gallops (over 8 m/s) (2) the rider fires from the saddle (3) a target is hit (4) the war horse never bolts under fire (5) the rider is still in the saddle at the end. Check: scripts/scenario-regression.sh ua-animal-horse-rider"
+  },
+  "entities": {
+    "46230b02-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 704
+      },
+      "EntityInfo": {
+        "Name": "War horse",
+        "ForceId": "Friend"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "46230b02-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          0
+        ]
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            260,
+            160,
+            0
+          ],
+          "speed": 12,
+          "arrivalRadius": 5
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b02-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Rider",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "46230b02-0000-4000-8000-000000000001",
+        "Seat": 0
+      },
+      "Behavior": {
+        "Name": "FireAtTarget",
+        "Params": {
+          "targetNetworkId": "46230b02-0000-4000-8000-000000000003"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "46230b02-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          130,
+          185,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Target 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "46230b02-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          136,
+          187,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Target 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    }
+  }
+}

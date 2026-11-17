@@ -74,7 +74,7 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     /// <summary>One round, resolved for drawing: its look, where its centre is, the way its nose points, whether it is lying, the
     /// seconds left on its fuze (0 without one), where it was fired from, and its own seed.</summary>
     public readonly record struct Round(MunitionVisualDto Look, Vector3 Centre, Vector3 Nose, bool Lying, float FuzeLeft, Vector3 Muzzle, int Seed,
-                                        float Speed = 0f, Entity Entity = default);
+                                        float Speed = 0f, Entity Entity = default, long Ammo = 0);
 
     /// <summary>⭐ CE-1091 (docs/DESIGN_Map_3D_Mode.md §6n N-6) — a round's REMEMBERED path: where it was (newest last) and when (sim
     /// seconds), one point every <see cref="PathSpacing"/> metres, at most <see cref="PathPoints"/>. Presentation memory on each host — a
@@ -83,10 +83,14 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     {
         public readonly List<(Vector3 At, double T)> Points = new();
 
+        /// <summary>⭐ CE-4647 — the sim time this round was FIRST seen (its launch, on a host that watched it fly): its AGE is <c>now − FirstSeen</c>, never trimmed with the points.</summary>
+        public double FirstSeen = double.NaN;
+
         /// <summary>The round is at <paramref name="at"/> at <paramref name="t"/>: a new point once it moved <see cref="PathSpacing"/>
         /// from the last one (the newest point always follows it).</summary>
         public void Add(Vector3 at, double t)
         {
+            if (double.IsNaN(FirstSeen)) FirstSeen = t;
             if (Points.Count >= 2 && Vector3.Distance(Points[^2].At, at) < PathSpacing) { Points[^1] = (at, t); return; }
             Points.Add((at, t));
             if (Points.Count > PathPoints) Points.RemoveAt(0);
@@ -165,7 +169,7 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 }
                 // the muzzle is unknown on a viewer: a tracer / smoke trail runs back along the flight, capped by its own limits
                 var muzzle = at - (lying ? Vector3.Zero : nose * (look.SmokeTrail ? TrailSpacing * TrailPuffs : TracerMaxLength));
-                list.Add(new Round(look, at, nose, lying, 0f, muzzle, seed, lying ? 0f : speed, e));
+                list.Add(new Round(look, at, nose, lying, 0f, muzzle, seed, lying ? 0f : speed, e, type));
             }
         if (_query == null) { Remember(list, now); return list; }
         foreach (var e in _query)
@@ -194,7 +198,7 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 nose = InFlightPose(look.Shape, nose, now, seed);
             }
             list.Add(new Round(look, at, nose, lying, (round.Warhead & WarheadRound.TimeFuze) != 0 ? round.FuzeRemaining : 0f, round.Muzzle, seed,
-                               lying ? 0f : velocity.Length(), e));
+                               lying ? 0f : velocity.Length(), e, round.Ammo));
         }
         Remember(list, now);
         return list;
@@ -278,6 +282,21 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 break;
         }
         return solids;
+    }
+
+    /// <summary>⭐ CE-4647 (AC-15 step 4) — how long a missile's motor burns, seconds: its TKB template's <see cref="Fdp.Toolkit.Tkb.Domain.MissileDto.BurnSeconds"/> (the air lane's contract: IR 5 s, radar 8 s); 0 = no limit (a rocket or a missile whose row says nothing trails smoke all its flight, as before).</summary>
+    public static float BurnOf(ITkbDatabase? tkb, long ammo)
+        => tkb != null && ammo != 0 && tkb.TryGetByType(ammo, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MissileDto>() is { BurnSeconds: > 0f } m ? m.BurnSeconds : 0f;
+
+    /// <summary>⭐ CE-4647 — how long the smoke already laid lingers after burn-out (the coasting missile is seen to coast).</summary>
+    public const float TrailLingerSeconds = 0.8f;
+
+    /// <summary>⭐ CE-4647 — the smoke trail's strength 0…1 by the round's AGE against its motor's burn: full while it burns, fading over <see cref="TrailLingerSeconds"/>, then NONE while it coasts.
+    /// <paramref name="burn"/> ≤ 0 (no motor data) ⇒ 1 — unchanged. No allocation.</summary>
+    public static float TrailFactor(float burn, double age)
+    {
+        if (burn <= 0f || double.IsNaN(age) || age <= burn) return 1f;
+        return (float)Math.Max(0.0, 1.0 - (age - burn) / TrailLingerSeconds);
     }
 
     /// <summary>⭐ CE-1091 — every flying round's path grows by where it is now; rounds gone are forgotten.</summary>
@@ -406,8 +425,11 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
                 if (s.IsSphere) Raylib.DrawSphereEx(HrotToRaylib.Position(s.From), MathF.Max(0.005f, s.RadiusFrom), 6, 8, s.Colour);
                 else Raylib.DrawCylinderEx(HrotToRaylib.Position(s.From), HrotToRaylib.Position(s.To), s.RadiusFrom, s.RadiusTo, 8, s.Colour);
             }
-            foreach (var (at, radius, colour) in TrailOf(r, PathOf(r.Entity)))
-                Raylib.DrawSphereEx(HrotToRaylib.Position(at), radius, 5, 8, colour);
+            var path = PathOf(r.Entity);
+            float trail = TrailFactor(BurnOf(_tkb(), r.Ammo), path == null ? double.NaN : now - path.FirstSeen);   // ⭐ CE-4647 — smoke only while the motor burns
+            if (trail > 0f)
+                foreach (var (at, radius, colour) in TrailOf(r, path))
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(at), radius, 5, 8, trail >= 1f ? colour : new Color(colour.R, colour.G, colour.B, (byte)(colour.A * trail)));
             // ⭐ CE-1091 — a shell's faint streak along its last two seconds
             foreach (var (from, to) in StreakOf(r, PathOf(r.Entity), now))
                 Raylib.DrawLine3D(HrotToRaylib.Position(from), HrotToRaylib.Position(to), StreakColour);

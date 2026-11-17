@@ -20,15 +20,14 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// with no turret), a line-charge launcher at the rear top, two arms forward to a flail drum with chains that SPINS while the flail is on. The kit lies inside its 9.2 × 3.5 × 3.3 m box on
 /// the ground; the drum turns about its lateral axis and nothing else moves; the motion that spins it allocates nothing; the one <see cref="FlailActivity"/> reader is a stand-in until
 /// terrain's flail state lands; the real 3-D frame draws it (side, three-quarter, rear, from above) into <c>HROT_RAIL_SHOTS</c> as <c>clearer-*.png</c>.
-/// ⚠ Terrain's type 116 / class <c>MineClearer</c> have not landed, so the frame rail PINS the look of a stand-in type (<c>EntityBodyLayer3D.PinLook</c>); at the re-bind the family maps through
-/// <c>FamilyOfClass</c> and this rail draws the real type. ⛔ The frame test SKIPS without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~MineClearerModelRail</c>.
+/// ✅ Bound (2026-11-16) to terrain's TKB 116 / class <c>MineClearer</c>: the family maps through <c>FamilyOfClass</c> and the frame rail draws the REAL type through the real catalogue. ⛔ The frame test SKIPS without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~MineClearerModelRail</c>.
 /// 🔴 Red-proof: the drum role's rotation removed from <c>BodyTransform</c> fails the drum rails.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class MineClearerModelRail
 {
     private static readonly Vector3 Size = ShapeKits.DefaultSize(VisualFamily.MineClearer);
-    private const long StandInType = 91160L;   // not a TKB type: terrain's 116 has not landed (the look is pinned)
+    private const long ClearerType = TkbEntityTypes.Engineer_MineClearer;   // ✅ terrain's TKB 116, through the real catalogue
 
     private static Vector3 At(KitPart p, MotionPose motion, Vector3? local = null)
         => Vector3.Transform(local ?? Vector3.Zero, p.BodyTransform(Size, default, ArticulationPose.Neutral, motion));
@@ -44,8 +43,22 @@ public sealed class MineClearerModelRail
         var olive = EntityBodyLayer3D.DefaultColour(VisualFamily.MineClearer);
         Assert.NotEqual(EntityBodyLayer3D.DefaultColour(VisualFamily.Unknown), olive);
         Assert.True(olive.G > olive.B + 20 && olive.R < 140, $"an olive green, got {olive}");
-        // ⭐ not yet bound to a class: terrain declares "MineClearer" first (CE2138 requires the class to exist in EntityClassTable)
-        Assert.False(VisualFamilies.FamilyOfClass.ContainsKey("MineClearer"), "bound at the re-bind, with terrain's class — see the VisualFamily.MineClearer doc");
+        // ✅ bound to terrain's class (CE-4624, 2026-11-16): "MineClearer" = DIS 1.1.*.9.2, the REAL type 116 through the real catalogue
+        Assert.Equal(VisualFamily.MineClearer, VisualFamilies.FamilyOfClass["MineClearer"]);
+    }
+
+    /// <summary>⭐ CE-4624 — terrain's TKB 116 (<c>Engineer_MineClearer</c>) resolves to the family, its kit, its own 9.0 × 4.4 × 3.2 m box and its dull-olive colour (the TKB's own wins over the default).</summary>
+    [Fact]
+    public void TheRealType116_ResolvesToTheMineClearerFamily_ItsKit_TheTkbsBox_AndColour()
+    {
+        var tkb = Map3DTests.BuiltIn();
+        var t = tkb.GetByType(TkbEntityTypes.Engineer_MineClearer)!;
+        Assert.Equal(VisualFamily.MineClearer, VisualFamilies.Of(t));
+        var look = EntityBodyLayer3D.Resolve(t);
+        Assert.Equal(VisualFamily.MineClearer, look.Family);
+        Assert.Same(ShapeKits.MineClearer, EntityBodyLayer3D.KitOf(look));
+        Assert.Equal(new Vector3(9.0f, 4.4f, 3.2f), look.Size);
+        Assert.True(look.Colour.R > look.Colour.B + 40 && look.Colour.G > look.Colour.B, $"the TKB's dull olive, got {look.Colour}");
     }
 
     [Fact]
@@ -217,7 +230,7 @@ public sealed class MineClearerModelRail
             if (forScale) scale.Add(e);
             return e;
         }
-        var clearer = Put(StandInType, 0f, 0f);
+        var clearer = Put(ClearerType, 0f, 0f);
         Put(TkbEntityTypes.Tank_T72, 0f, 12f, forScale: true);
         Put(TkbEntityTypes.Infantry_Rifleman, 6f, -5f, forScale: true);
         bool flailOn = false;
@@ -230,7 +243,6 @@ public sealed class MineClearerModelRail
             var two = new MapCamera();
             canvas.Camera = two;
             var bodies = new EntityBodyLayer3D(() => world, () => tkb);
-            bodies.PinLook(StandInType, new EntityBodyLayer3D.TypeLook(VisualFamily.MineClearer, Size, EntityBodyLayer3D.DefaultColour(VisualFamily.MineClearer), false));
             var sw = new MapViewSwitch(canvas, two);
             sw.Camera3D.GroundHeight = (x, y) => G(x, y);
             canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));

@@ -1,0 +1,27 @@
+{
+  "$doc": "DESIGN_Air_Combat \u00a76 S1 \u2014 feature (golden).",
+  "runFor": 40,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "GCAS takes the stick",
+      "on": "field",
+      "who": "Viper",
+      "path": "FighterPilotState.GcasCount",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "Viper is never lost",
+      "never": {
+        "on": "field",
+        "who": "Viper",
+        "path": "Health.Current",
+        "op": "<=",
+        "value": 0
+      }
+    }
+  ]
+}

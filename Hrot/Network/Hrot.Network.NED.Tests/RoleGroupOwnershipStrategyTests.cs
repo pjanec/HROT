@@ -54,7 +54,9 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtFlockState),       // ⭐ CE-4623 AB-3 — a bird flock's state (its brain)
         D(EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state (its brain)
         D(EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
-        D(EDescriptorType.dtUnitHoldings) };    // ⭐ CE-8001 — its holdings
+        D(EDescriptorType.dtUnitHoldings),      // ⭐ CE-8001 — its holdings
+        D(EDescriptorType.dtAirCombatSteer),    // ⭐ CE-10000 (AC-2) — a fighter's order (its brain)
+        D(EDescriptorType.dtAirArena) };        // ⭐ CE-10000 (AC-10) — the arena (its creator's brain)
     private static readonly long[] Muscle     = { D(EDescriptorType.dtWorldPos), D(EDescriptorType.dtNavigationStatus),
         D(EDescriptorType.dtStanceStatus),    // ⭐ CE-2121 — the body's stance report
         D(EDescriptorType.dtTurretPose),      // ⭐ CE-1049 WL-1b — the turret pose, Muscle-owned
@@ -63,7 +65,8 @@ public sealed class RoleGroupOwnershipStrategyTests
         D(EDescriptorType.dtDescent),   // ⭐ airborne insertion B-1 (D-1) — a body coming down, moved with its position
         D(EDescriptorType.dtLookState),
         D(EDescriptorType.dtSpawnLevel),   // ⭐ CE-3271 (Q94 D) — the birth level travels with the position
-        D(EDescriptorType.dtUnderFire) };  // ⭐ CE-1223 — when a man was last under fire, stamped on the Muscle
+        D(EDescriptorType.dtUnderFire),    // ⭐ CE-1223 — when a man was last under fire, stamped on the Muscle
+        D(EDescriptorType.dtFighterPilotState) };   // ⭐ CE-10000 (AC-2) — a fighter's report, from its motion node
     private static readonly long[] Perception = { D(EDescriptorType.dtEqsResult) };
 
     private static RoleGroupOwnershipStrategy Strategy(bool withBrain = true, bool withMuscle = true)

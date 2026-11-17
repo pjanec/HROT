@@ -134,7 +134,10 @@ namespace Fdp.Toolkit.Perception.Systems
                 .Unmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>()
                 // ⭐ CE-4623 (found at AB-5) — is the target an aircraft (V8's air threat): its movement class, written at spawn only
                 .Unmanaged<Fdp.Toolkit.Motion.Locomotion>()
-                .Unmanaged<Fdp.Toolkit.Motion.Descent>();   // — and a man coming down a rope / under a canopy (Locomotions.Of reads it first)
+                .Unmanaged<Fdp.Toolkit.Motion.Descent>()   // — and a man coming down a rope / under a canopy (Locomotions.Of reads it first)
+                // ⭐ CE-3453 (found by the animal feature scenarios) — is the track an animal (a calm one is no contact) or an animal AREA (never one)
+                .Unmanaged<Fdp.Toolkit.Animals.AnimalState>()
+                .Unmanaged<Fdp.Toolkit.Animals.AnimalArea>();
             public ThreatEvaluationSystem Owner;
             public EntityRepository Repo;
             public float DeltaTime;
@@ -198,6 +201,11 @@ namespace Fdp.Toolkit.Perception.Systems
                         // If we have a live replica of the target, track its real-time 3D
                         // position — including the authoritative altitude (P3D-206).
                         var targetEntity = new Entity((ulong)tracksRO.EntityIds[i]);
+                        // ⭐ CE-3453 — a calm animal, or an animal AREA (an authored outline, no body), is not a contact: ⛔ they entered the
+                        //   16-slot memory like any man, so on a farm the cows, the hens and the two area entities evicted every enemy as fast
+                        //   as he entered — measured: a Red rifleman's memory held 16 animals and villagers and no Blue man, and nobody fired.
+                        //   A DANGEROUS animal (the guard dog attacking) stays one: self-defence needs it in memory (AR-6).
+                        if (Fdp.Toolkit.Animals.Animals.NotAContact(view, targetEntity)) continue;
                         if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
                         {
                             ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);

@@ -1,0 +1,39 @@
+{
+  "$doc": "docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md \u00a75 (CE-2362 S6) \u2014 rf-pinned-in-open, the scenario's Judge list: (1) Pinned drops prone under fire (StanceIntent.TargetStance Prone) and returns fire; (3) after ~30 s pinned and alone he crawls to the wreck (its south face, x 108-113, y 98: within 5 m of (110.5,98)); the Gunman fires at him. \u26a0 Left out: (2) 'a 2 m+ move at least every 15 s, alternating sides' (a rate of moves) and (4) the aim of the shots (printed per shooter, not a condition).",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Gunman fires at Pinned",
+      "on": "shot",
+      "by": "Gunman",
+      "at": "Pinned"
+    },
+    {
+      "name": "(1) Pinned drops prone",
+      "on": "field",
+      "who": "Pinned",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Prone"
+    },
+    {
+      "name": "(1) Pinned returns fire",
+      "on": "shot",
+      "by": "Pinned"
+    },
+    {
+      "name": "(3) Pinned crawls to the wreck",
+      "on": "near",
+      "who": "Pinned",
+      "point": [
+        110.5,
+        98
+      ],
+      "within": 5,
+      "after": 25
+    }
+  ]
+}

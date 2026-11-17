@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-14
-current-answer: §0 the ruling (R-4280) · §2 the sub-questions as approved
+updated: 2026-11-16
+current-answer: §0 the ruling (R-4280) · §2 the sub-questions as approved · §4 AS BUILT (B, A, C built; D not)
 stale-below: nothing
 related-designs:
   - docs/DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS D-4 (R-4235: "a re-import is a NEW terrain version … a batch step re-compiles every scenario on that terrain"); this question settles HOW the old version is found
@@ -55,3 +55,16 @@ code (said in the build).
 ## 3. What would change the recommendation
 
 A requirement that an old scenario MUST follow the new ground at once (no old version), or a disk budget that cannot keep a version per re-import.
+
+## 4. ✅ AS BUILT `2026-11-16` (`terrain` lane, B → A → C; D, the prune, NOT built)
+
+Nothing deviated from §2; the three decisions the build had to make are R-5060…R-5062 in [`STATUS_Terrain_Breaching_And_Versions.md`](batches/STATUS_Terrain_Breaching_And_Versions.md) §2.
+
+| piece | as built | rail (in the touched class's own suite) |
+|---|---|---|
+| **B** the one rule | `TerrainCatalog.ResolveDefinition(name, expectedHash)` (`FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainCatalog.cs`, beside the name-only one): the current definition when `TerrainContentHash.OfTerrain` matches (or no hash is asked for), else `<terrain folder>/versions/<hash>/terrain.json`, else null; a hash holding `/`, `\` or `.` throws. `Roots`-wide `List()` and the kept-ground scan skip anything inside a `versions/` folder (`IsInsideAVersion`) | `TerrainKeptGroundTests.ResolveByHash_FindsTheCurrentThenTheKeptVersion_ElseNull` |
+| **B** overlay load | `TerrainResidency.Prepare` (`Hrot/Engine/Hrot.Core/Services/TerrainResidency.cs`, before the C-5 check): reads the overlay header's base hash and resolves with it; no version ⇒ `InvalidOperationException` naming the missing hash, the resident hash and the `versions/<hash>` that is not there. C-5's own comparison stays as the guard on the version that WAS found | `TerrainLoadStepTests.AnOverlaySavedOnAnOldBase_StillLoads_AfterTheTerrainIsReImported_AQ112B` (and the older `AnOverlayForAnotherBase_IsRefused_NamingBothHashes_O4`, unchanged) |
+| **B** replay | no replay-side code: the Replay Browser opens a recording's overlay through `Prepare(name, overlayFolder)` (`ReplayBrowserSubsystem.ApplyRecordingTerrain`) and a recording's `TerrainHash` IS its overlay's header base hash (`RecorderTickSystem.cs:250` stamps it only with an overlay) — so the replay resolves the old version through the same line | `ReplayBrowserSubsystemTests.AQ112B_ARecordingMadeBeforeAReImport_ReplaysOnTheOldVersion` |
+| **A** | `TerrainImporter.Swap` (`Hrot/Engine/Hrot.Terrain.Import/TerrainImporter.cs`): hash the old folder, move it to `.old-…`, move the new one in, then file the old one as `<target>/versions/<oldHash>/` (an older `versions/` is moved to the new folder first and never nested; the same content again keeps nothing; a failure while filing leaves the old folder in `.old-…` and adds a report warning — the new terrain is already in place). `ImportReport.KeptVersionHash` names it. `TerrainContentHash.IsExcluded` skips `versions/`; `.gitignore` has `assets/terrain/**/versions/` | `ImporterTests.Replace_KeepsTheOldFolderUnderVersionsByHash_AndNeverNestsThem_AQ112A` · `TerrainContentHashTests.OfTerrain_IgnoresTheKeptVersions` |
+| **C** the function | `StorageProcessManager.RecompileScenariosOnTerrain(terrain)` → `RecompileReport` (moved / failed with reason / already current) (`Hrot/Subsystems/Hrot.Orchestrator/StorageProcessManager.cs`). It walks the NAS scenarios whose `terrain-overlay/overlay.json` names the terrain on a hash other than the current one and compiles each through `CompileOverlayCore` — the body of the save's `CompileTerrainOverlay`, extracted so the save and the re-compile share ONE compile (the save's wrapper keeps its delete-the-stale-overlay catch; a re-compile never deletes: a failing scenario keeps its old overlay, which still loads by B) | `StorageProcessManagerTests.AQ112C_RecompileScenariosOnTerrain_MovesTheOldOnes_ReportsTheFailing_AndLeavesTheRest` |
+| **C** the entry point | ⛔ NOT wired to the import wizard's last page or any menu / HTTP route: the wizard (`Hrot.Presentation`, the editor process) imports straight into the terrains folder and has no path to the orchestrator's `StorageProcessManager`, which owns the NAS and the compile delegates. The missing piece is a cluster-op / storage-op message (a new `StorageOpType` row + an intent the master hands to `_storage`) and the wizard page that sends it and shows the report — a UI-lane slice, filed as the follow-up row in the status file |

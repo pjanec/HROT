@@ -224,6 +224,16 @@ namespace Hrot.NED.Descriptors
         dtAggregateUnit               = 220,
         dtUnitSlotTable               = 221,
         dtUnitHoldings                = 222,
+        // ⭐ CE-10000 (R-10001, the `air` lane; docs/designs/air-attack/DESIGN_Air_Combat.md §4b, §7) — air combat: a fighter's order from its brain
+        //   (Brain group → the motion node), the motion node's g / GCAS / live-threat report (Muscle group → every node), the authored arena (its
+        //   creator's brain → every node). 216–219 measured free on every lane branch 2026-11-17 (the top of 207–219, so the convoy lane's three
+        //   take 207 upwards, NOTE_Coordinator_To_Convoy_Ordinals.md); 219 is the air lane's spare, not declared.
+        dtAirCombatSteer              = 216,
+        dtFighterPilotState           = 217,
+        dtAirArena                    = 218,
+        // ⭐ R-4282 / CE-4631 — the `convoy` lane's block: 198–200 + three from 207 up (⛔ 201–206 are the TIME translators', NOTE_Coordinator_To_Convoy_Ordinals; 216–219 air); 196 dtRamOrder and 197 are the checkpoint's.
+        // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).
+        dtRamOrder                    = 196,
         // etc., all known descriptor types here
     }
 

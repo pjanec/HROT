@@ -4,13 +4,23 @@
   "meaning": 2,
   "steps": 3601,
   "times": {
-    "the air defence fires at the A-10": 3.1333,
-    "the A-10 is hit (health below 330)": 3.75
+    "the air defence fires at the A-10": 3.2,
+    "the A-10 is hit (health below 330)": 3.5
   },
   "shots": [
     {
       "seq": 0,
-      "firedAt": 3.1333,
+      "firedAt": 3.2,
+      "shooter": "ZU-23-2",
+      "target": "A-10",
+      "hit": "A-10",
+      "outcome": "Hit",
+      "penetration": 59.1939,
+      "weaponIndex": 0
+    },
+    {
+      "seq": 1,
+      "firedAt": 3.3833,
       "shooter": "ZU-23-2",
       "target": "A-10",
       "hit": null,
@@ -19,28 +29,8 @@
       "weaponIndex": 0
     },
     {
-      "seq": 1,
-      "firedAt": 3.3167,
-      "shooter": "ZU-23-2",
-      "target": "A-10",
-      "hit": "A-10",
-      "outcome": "Hit",
-      "penetration": 59.1939,
-      "weaponIndex": 0
-    },
-    {
       "seq": 2,
-      "firedAt": 3.45,
-      "shooter": "ZU-23-2",
-      "target": "A-10",
-      "hit": "A-10",
-      "outcome": "Hit",
-      "penetration": 59.1939,
-      "weaponIndex": 0
-    },
-    {
-      "seq": 3,
-      "firedAt": 3.6,
+      "firedAt": 3.5167,
       "shooter": "ZU-23-2",
       "target": "A-10",
       "hit": null,
@@ -61,6 +51,23 @@
             150
           ],
           "health": 330,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 330,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "a264d3baa436a082",
             "ActionStatus": "88f697cab6962087",
@@ -76,7 +83,7 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "9bb92a03a42c370b",
             "Health": "955bc9231517eb50",
             "InteractionChannel": "c36eb62a5ca3f850",
@@ -94,6 +101,7 @@
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "5fe076a9428e44d5",
             "ResolvedStyle": "0167063891874244",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
@@ -115,6 +123,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -138,6 +149,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -151,7 +179,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -194,7 +222,7 @@
             "StanceStatus": "b0da919299ec29f4",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
@@ -208,6 +236,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -221,7 +266,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -264,7 +309,7 @@
             "StanceStatus": "b0da919299ec29f4",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
@@ -278,6 +323,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -291,7 +353,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -334,7 +396,7 @@
             "StanceStatus": "b0da919299ec29f4",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
@@ -348,6 +410,27 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -360,7 +443,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -398,7 +481,7 @@
             "SopState": "acd6d5767d677666",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "20b5fcf99486dea8",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -413,6 +496,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "3c80c4a408aa0470",
             "ActionStatus": "88f697cab6962087",
@@ -461,6 +564,23 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "d90b7d1c4502414d",
             "ActionStatus": "88f697cab6962087",
@@ -473,7 +593,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "05bd75748460d3a3",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -512,7 +632,7 @@
             "SopState": "45b458df464a2ee2",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "20af00f99480c6c6",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -527,6 +647,23 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "f6172e4699ebbf2a",
             "ActionStatus": "88f697cab6962087",
@@ -539,7 +676,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "11c8c4bdf1bd6d1d",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -578,7 +715,7 @@
             "SopState": "3a9e986399260ae7",
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "5e3243e133716970",
-            "VehicleParams": "dd5723b03877a5b9",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -592,6 +729,26 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dc8a1aeb160fd1e4",
             "ActionStatus": "88f697cab6962087",
@@ -641,20 +798,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -667,39 +841,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "0a146a3cfb883364",
+            "LocomotionChannel": "dbeb90e020f0fcee",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "451f2b986fed2c79",
-            "NavigationApplied": "48ae0223cb3f623f",
+            "NavigationApplied": "e996310cc0438f71",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "dc7abebc545983ce",
+            "TargetMemory": "80d49b3100d66262",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -715,6 +891,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -738,6 +917,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -751,7 +947,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -799,7 +995,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -814,6 +1010,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -827,7 +1040,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -875,7 +1088,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -890,6 +1103,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -903,7 +1133,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -951,7 +1181,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -966,10 +1196,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -978,7 +1229,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -987,7 +1238,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -1010,18 +1261,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "06f535eab8cbb612",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "a75819c8b839d761",
-            "TargetMemory": "42b7d7124b1dd616",
+            "SopState": "b5cda5233fa1ccd0",
+            "TargetMemory": "e8eebcd7453dbf4c",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -1037,6 +1288,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -1069,7 +1340,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -1089,21 +1360,38 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "966b58459575e95c",
-            "BehaviorState": "fa318567f2fbcbaf",
+            "BehaviorStartRecord": "16ce43f43bc9cba4",
+            "BehaviorState": "c36a42cd5ff82f58",
             "BlueprintAssignments": "38482a5e82f101f9",
-            "BlueprintBlackboard1024": "82b43e43d311f739",
+            "BlueprintBlackboard1024": "3fd036023e7b97e0",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BrainDiagnostics": "05d35e054d9c65da",
+            "BrainDiagnostics": "a9359df7dd4c3d45",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "e106941838980541",
+            "BrainJournal": "e4cdc81ddd0d4db3",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -1112,7 +1400,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -1134,24 +1422,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "d016b45bd3d9dc87",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "418868b47edc6ce5",
-            "TargetMemory": "db9addc09dd57bd9",
+            "SopState": "5ebead01b15bef9c",
+            "TargetMemory": "ad4a9bc93cf89209",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "1a77968536a72332",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "dfba795ecba6c2ed",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -1163,21 +1451,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "966b58459575e95c",
-            "BehaviorState": "fa318567f2fbcbaf",
+            "BehaviorStartRecord": "16ce43f43bc9cba4",
+            "BehaviorState": "c36a42cd5ff82f58",
             "BlueprintAssignments": "38482a5e82f101f9",
-            "BlueprintBlackboard1024": "62db81e81579801e",
+            "BlueprintBlackboard1024": "f37de70ad862b6b6",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
-            "BrainDiagnostics": "32d6da95c6d6a429",
+            "BrainDiagnostics": "694faa3bad78c3b7",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "9775238d38f7751a",
+            "BrainJournal": "2b884df5cc7b5158",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -1186,7 +1491,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -1207,7 +1512,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "1e353b816b5eb56c",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -1217,14 +1522,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "5b33e17911eb9d6c",
-            "TargetMemory": "c2b47754a553ab2d",
+            "SopState": "8dd67c6a73deca2a",
+            "TargetMemory": "0d3961fa23f6199c",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -1235,11 +1540,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -1267,17 +1592,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -1289,20 +1614,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -1315,39 +1657,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "9eba0f4dc1dcf392",
+            "LocomotionChannel": "304793c49527f2cc",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "9f220b0690fb34d1",
-            "NavigationApplied": "3e0c5e86507336fd",
+            "NavigationApplied": "95808d6df0b35caf",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "25de679b3f1d691b",
+            "TargetMemory": "71442fa8bf4d3043",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -1363,6 +1707,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -1386,6 +1733,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -1399,7 +1763,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -1448,7 +1812,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -1463,6 +1827,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -1476,7 +1857,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -1525,7 +1906,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -1540,6 +1921,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -1553,7 +1951,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -1601,7 +1999,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -1616,10 +2014,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -1628,7 +2047,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -1637,7 +2056,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -1660,18 +2079,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "06f535eab8cbb612",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "e34470b7cba6b66f",
-            "TargetMemory": "0cbadc4eb1141c9c",
+            "SopState": "3827fae1af6adf3d",
+            "TargetMemory": "ca54bf1099aa1d54",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -1687,6 +2106,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -1719,7 +2158,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -1739,22 +2178,39 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "9bc78bc3a58814ee",
-            "BehaviorState": "d658926c16de655a",
+            "BehaviorStartRecord": "8177f3aa6af23026",
+            "BehaviorState": "324b2cfc32517362",
             "BlueprintAssignments": "fdec2dff3f798d9e",
             "BlueprintBlackboard1024": "e723180b9bb9e33c",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BlueprintBlackboard4096": "b5998915404561f6",
-            "BrainDiagnostics": "36af4af812b9e5ae",
+            "BlueprintBlackboard4096": "64f4836e832b3646",
+            "BrainDiagnostics": "7159ec871ad359a9",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "28da1f332c2d14d2",
+            "BrainJournal": "66f6ea97f8e17bf6",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -1763,7 +2219,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -1785,24 +2241,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "d016b45bd3d9dc87",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "8a2275594cd969b7",
-            "TargetMemory": "db5a6b3fb1a00fe9",
+            "SopState": "f407dfe6d679f359",
+            "TargetMemory": "9cd055d115af37a9",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "3fc49fbd9460f8c8",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "cdc7bde386fe29bf",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -1814,21 +2270,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "ba2453dd596d67d7",
-            "BehaviorState": "cdbed7d27c812a4d",
+            "BehaviorStartRecord": "8034ce60b1f48461",
+            "BehaviorState": "7cc10be48d042987",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "4f6cec4ecea663ce",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "d84486ce5e0b4851",
+            "BrainJournal": "cc27cb5b7e8935bf",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -1837,7 +2310,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -1858,7 +2331,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "1e353b816b5eb56c",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -1868,14 +2341,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "3235269b47779123",
-            "TargetMemory": "3b0de4764e3b6840",
+            "SopState": "5bd8a7e29a15a25f",
+            "TargetMemory": "a396af78b129e5de",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -1886,11 +2359,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -1918,17 +2411,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -1940,20 +2433,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -1966,39 +2476,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "e4f887e3c8803983",
+            "LocomotionChannel": "9344ff00f408ddc9",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "5e3c1bd43350d9b8",
-            "NavigationApplied": "93c4bfa612d6b400",
+            "NavigationApplied": "cb97b7605af79606",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "54acf120cd5af130",
+            "TargetMemory": "90a6fca15555cfa8",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -2014,6 +2526,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -2037,6 +2552,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -2050,7 +2582,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2099,7 +2631,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2114,6 +2646,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -2127,7 +2676,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2176,7 +2725,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2191,6 +2740,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -2204,7 +2770,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2252,7 +2818,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2267,10 +2833,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -2279,7 +2866,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -2288,7 +2875,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -2311,18 +2898,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "b6369d098f66eae1",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "a72eba078b6f3770",
-            "TargetMemory": "6ed94784a20d030f",
+            "SopState": "b7a5bab12afea03e",
+            "TargetMemory": "dbcb55e741ac8740",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -2338,6 +2925,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -2370,7 +2977,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -2390,22 +2997,39 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "9bc78bc3a58814ee",
-            "BehaviorState": "d658926c16de655a",
+            "BehaviorStartRecord": "8177f3aa6af23026",
+            "BehaviorState": "324b2cfc32517362",
             "BlueprintAssignments": "fdec2dff3f798d9e",
             "BlueprintBlackboard1024": "e723180b9bb9e33c",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BlueprintBlackboard4096": "9c2bd51a9d6efdc1",
-            "BrainDiagnostics": "95004051501d87f0",
+            "BlueprintBlackboard4096": "a31cfe25cf5e9e07",
+            "BrainDiagnostics": "d539ddb71055b773",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "28da1f332c2d14d2",
+            "BrainJournal": "66f6ea97f8e17bf6",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -2414,7 +3038,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -2436,24 +3060,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "d016b45bd3d9dc87",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "b514c9717b3bafc0",
-            "TargetMemory": "00dbf1d104b3858d",
+            "SopState": "aca285f070973c26",
+            "TargetMemory": "ef7d363a937a3b01",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "9631e85dabd600a6",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "a24bd63cdb19b2e5",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -2465,21 +3089,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "ba2453dd596d67d7",
-            "BehaviorState": "cdbed7d27c812a4d",
+            "BehaviorStartRecord": "8034ce60b1f48461",
+            "BehaviorState": "7cc10be48d042987",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "4f6cec4ecea663ce",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "d84486ce5e0b4851",
+            "BrainJournal": "cc27cb5b7e8935bf",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -2488,7 +3129,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -2509,7 +3150,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "366bcda6fddf1675",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -2519,14 +3160,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "4527c97eccaeaf5f",
-            "TargetMemory": "3b4fe871b8d382f7",
+            "SopState": "df7f04f969060615",
+            "TargetMemory": "3188f87aa38a0113",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -2537,11 +3178,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -2569,17 +3230,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -2591,20 +3252,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -2617,39 +3295,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "ce1f1d3a95b5a898",
+            "LocomotionChannel": "f95951560db7874a",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "5e5197a7a1c482a2",
-            "NavigationApplied": "b33712fd74f3fa3d",
+            "NavigationApplied": "c0698279664a6def",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "77a0c5589d0f81cd",
+            "TargetMemory": "c46b40816d22612e",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -2665,6 +3345,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -2688,6 +3371,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -2701,7 +3401,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2750,7 +3450,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2765,6 +3465,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -2778,7 +3495,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2827,7 +3544,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2842,6 +3559,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -2855,7 +3589,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -2903,7 +3637,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -2918,10 +3652,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -2930,7 +3685,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -2939,7 +3694,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -2962,18 +3717,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "b6369d098f66eae1",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "fa6987a8a5a84c24",
-            "TargetMemory": "157430d3692df4f3",
+            "SopState": "085cdfcd43b0a9f1",
+            "TargetMemory": "e10b5bfd89511d74",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -2989,6 +3744,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -3021,7 +3796,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -3041,22 +3816,39 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "9bc78bc3a58814ee",
-            "BehaviorState": "d658926c16de655a",
+            "BehaviorStartRecord": "8177f3aa6af23026",
+            "BehaviorState": "324b2cfc32517362",
             "BlueprintAssignments": "fdec2dff3f798d9e",
             "BlueprintBlackboard1024": "e723180b9bb9e33c",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BlueprintBlackboard4096": "1db61aa889d25096",
-            "BrainDiagnostics": "030905a99ce63003",
+            "BlueprintBlackboard4096": "ef196da2fa1668fe",
+            "BrainDiagnostics": "600dab7569656218",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "28da1f332c2d14d2",
+            "BrainJournal": "66f6ea97f8e17bf6",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -3065,7 +3857,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -3087,24 +3879,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "d016b45bd3d9dc87",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "c11fd16a8dab0316",
-            "TargetMemory": "5c14f5a884013ddb",
+            "SopState": "6fb645e197d50430",
+            "TargetMemory": "cc18997c335aa358",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "f79eb28d4e04849c",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "d854a00b494eb52c",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -3116,21 +3908,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "ba2453dd596d67d7",
-            "BehaviorState": "cdbed7d27c812a4d",
+            "BehaviorStartRecord": "8034ce60b1f48461",
+            "BehaviorState": "7cc10be48d042987",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "4f6cec4ecea663ce",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "d84486ce5e0b4851",
+            "BrainJournal": "cc27cb5b7e8935bf",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -3139,7 +3948,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -3160,7 +3969,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "366bcda6fddf1675",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -3170,14 +3979,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "b6381a498227d4d5",
-            "TargetMemory": "7a304a9414ba1437",
+            "SopState": "0784de0718444450",
+            "TargetMemory": "20faedf65c252b07",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -3188,11 +3997,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -3220,17 +4049,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -3242,20 +4071,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -3268,39 +4114,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "b14132746e72398a",
+            "LocomotionChannel": "98da86af7e02be64",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "20e4122d4e424eed",
-            "NavigationApplied": "30f0bed96d421993",
+            "NavigationApplied": "0aaca5935927a11d",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "e20559a99a069034",
+            "TargetMemory": "9e1bc0c331bafe58",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -3316,6 +4164,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -3339,6 +4190,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -3352,7 +4220,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -3401,7 +4269,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -3416,6 +4284,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -3429,7 +4314,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -3478,7 +4363,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -3493,6 +4378,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -3506,7 +4408,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -3555,7 +4457,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -3570,10 +4472,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -3582,7 +4505,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -3591,7 +4514,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -3614,18 +4537,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "b6369d098f66eae1",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "597f6843c5bdcfb0",
-            "TargetMemory": "dd08a7c34d29258f",
+            "SopState": "d4717d5901b99c6f",
+            "TargetMemory": "736270b524a2503b",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -3641,6 +4564,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -3673,7 +4616,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -3693,22 +4636,39 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "9bc78bc3a58814ee",
-            "BehaviorState": "d658926c16de655a",
+            "BehaviorStartRecord": "8177f3aa6af23026",
+            "BehaviorState": "324b2cfc32517362",
             "BlueprintAssignments": "fdec2dff3f798d9e",
             "BlueprintBlackboard1024": "e723180b9bb9e33c",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BlueprintBlackboard4096": "b289a32b1539a7b8",
-            "BrainDiagnostics": "0a697c3b882d65ad",
+            "BlueprintBlackboard4096": "433c77b3ae73bc64",
+            "BrainDiagnostics": "5ded257cb462a43a",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "28da1f332c2d14d2",
+            "BrainJournal": "66f6ea97f8e17bf6",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -3717,7 +4677,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -3739,24 +4699,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "a3afe99cd2220c71",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "acd53d44c13bf133",
-            "TargetMemory": "808f71dc3f8344ac",
+            "SopState": "2a3cd36dd1bdcb8d",
+            "TargetMemory": "dacb7a72f7f8d7a6",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "f146f69c9fa99c93",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "acb594650017dfc0",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -3768,21 +4728,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "ba2453dd596d67d7",
-            "BehaviorState": "cdbed7d27c812a4d",
+            "BehaviorStartRecord": "8034ce60b1f48461",
+            "BehaviorState": "7cc10be48d042987",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "4f6cec4ecea663ce",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "d84486ce5e0b4851",
+            "BrainJournal": "cc27cb5b7e8935bf",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -3791,7 +4768,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -3812,7 +4789,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "366bcda6fddf1675",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -3822,14 +4799,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "a1d4b7c98080cb41",
-            "TargetMemory": "69a9238dbe7284c1",
+            "SopState": "510aa00dc739dc05",
+            "TargetMemory": "471c7d1861630a9d",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -3840,11 +4817,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -3872,17 +4869,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -3894,20 +4891,37 @@
       "units": {
         "A-10": {
           "position": [
-            597.76,
+            1146.508,
             500,
-            149.984
+            1.052
           ],
           "health": 0,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "Health.Current": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "460d17afccd5325d",
-            "ActionStatus": "379b844c3fe6278e",
+            "AcousticEmitter": "b470a34f24ff745d",
+            "ActionStatus": "7471dbb2b2194336",
             "ActiveMissionPlan": "6db3b8f59af1af82",
             "ActiveSensorTracks": "95004ea5a5fdd3ea",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AirFollower": "ab43ec3709720aa2",
-            "AirPath": "38937b9ac5e948d1",
-            "BehaviorStartRecord": "2e789f3de6c2f5f7",
+            "AirFollower": "d1f6bfd8e2c24109",
+            "AirPath": "5a634b2fe1774770",
+            "BehaviorStartRecord": "e5d7640469753a8e",
             "BehaviorState": "e4719f7a177fe2f3",
             "BlueprintAssignments": "650ca72095fa253b",
             "BlueprintBlackboard256": "c475f74cc16ebc7d",
@@ -3920,39 +4934,41 @@
             "EntityAppearance": "8a5f844973f77e5f",
             "EntityGuid": "124d067e1c37d243",
             "EntityInfo": "b0a57b2028f3d1bd",
-            "FlightParams": "232e58007586334a",
+            "FighterPilotState": "76b8d057b2d60805",
+            "FlightParams": "5e7a8ff13f6a34e1",
             "FlightState": "8da85d230dff991e",
             "Health": "cd0cc60be886e582",
-            "HeardTraces": "9dc236073cc48fac",
-            "HitMarks": "4795b3a14c08999f",
+            "HeardTraces": "b453121243795100",
+            "HitMarks": "454b0fe77a63253e",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "f2ecdeeab6a9052e",
-            "LocomotionChannel": "f1c489798aee92b7",
+            "LocomotionChannel": "dd4e2adaa7401d55",
             "MapDisplayComponent": "cd112677ba9e9000",
             "MissionAdapterState": "b9444dee55be5aac",
             "MissionPlan": "ed4daa2527e6cc65",
             "MissionPlanQueue": "06d5895623e94f68",
-            "NavigationApplied": "90eeb15e2ce9d9b8",
+            "NavigationApplied": "4be500473438335e",
             "NavigationIntent": "b8a5b710ecca0261",
-            "NavigationStatus": "8e2ed7e6e5907307",
+            "NavigationStatus": "baafeff86e635b41",
             "NetworkAuthority": "8794707a112cee7f",
             "NetworkIdentity": "498d873e8ef64c47",
-            "PartDamage": "4de86ebc19323f90",
+            "PartDamage": "aaa3fbc4903539e6",
             "PendingNetworkAck": "4541f2b8ef5997af",
             "PerceptionReceptor": "824b2a85c11f899d",
             "PhysicsCollider": "e343eed6db735a82",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "aa1d10f435fae07c",
+            "RadarSignature": "5fe076a9428e44d5",
+            "RecentSenses": "d90af20eda5fb5ef",
             "ResolvedStyle": "c0565337f434632e",
             "Roe": "14f610fa7e9d2d7b",
             "SensorMount": "65514b8a7320953d",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "86970a6d8341bd1e",
+            "SimTransform": "57250fdb4137809d",
             "SimVelocity": "bf069ad2ca2ec25a",
-            "TargetMemory": "4d5b829bacb8de37",
+            "TargetMemory": "db57bf89f76ac008",
             "TkbIdentity": "a0db58c966a98d53",
-            "UnderFire": "c2262c55b3ca7459",
+            "UnderFire": "636fb4d9f4850963",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "a6d91b92e6ccedaa",
             "WeaponAmmo": "d28182770712a637",
@@ -3968,6 +4984,9 @@
             0
           ],
           "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
           "components": {
             "CullingState": "9c97051fd4b28240",
             "EntityGuid": "09a3e17e175065ba",
@@ -3991,6 +5010,23 @@
             -2.023
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "b522815bc46df0f7",
             "ActionStatus": "88f697cab6962087",
@@ -4004,7 +5040,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -4053,7 +5089,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -4068,6 +5104,23 @@
             -1.668
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "022d131442baebaa",
             "ActionStatus": "88f697cab6962087",
@@ -4081,7 +5134,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -4130,7 +5183,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -4145,6 +5198,23 @@
             -1.293
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "dd11c30344553b00",
             "ActionStatus": "88f697cab6962087",
@@ -4158,7 +5228,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "f19c58327ddf683b",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "e80a67e99de5c2a2",
@@ -4207,7 +5277,7 @@
             "TargetMemory": "236b0dd577e0138f",
             "TkbIdentity": "1cf1b11761e25ed8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "8b5fd3c82ca3ad8b",
+            "VehicleParams": "f6cc5dbc3f693158",
             "VehicleState": "93adbcbd112837d3",
             "WeaponAmmo": "78dc800204c84baa",
             "WeaponChannel": "c36eb62a5ca3f850",
@@ -4222,10 +5292,31 @@
             0
           ],
           "health": 25,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 25,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 1
+            },
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "e0cf0491bc6d8105",
             "ActionStatus": "88f697cab6962087",
-            "ActiveSensorTracks": "e4a098e25764676a",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "783e6f4aa0ac7175",
             "BehaviorState": "03a6fc5adbe92090",
             "BlueprintAssignments": "650ca72095fa253b",
@@ -4234,7 +5325,7 @@
             "BrainInterrupts": "00fc813433b81130",
             "BrainJournal": "7cad217e6534b8a7",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -4243,7 +5334,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "5e67e0b10e72cc34",
-            "HeardTraces": "b2e37a4abf698f0f",
+            "HeardTraces": "231db47d165236bd",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "IsEmbarkedTag": "de742ec53010ca09",
@@ -4266,18 +5357,18 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "783e6f4aa0ac7175",
-            "RecentSenses": "b6369d098f66eae1",
+            "RecentSenses": "d024f432e1195b85",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "dfe8500acca3b8c4",
             "SimVelocity": "bf069ad2ca2ec25a",
             "SopStartRecord": "abf0d6fbd4d50cd2",
-            "SopState": "e130c81c6fb0535a",
-            "TargetMemory": "0a7650fc3e7ad49a",
+            "SopState": "91b33b06b434ae52",
+            "TargetMemory": "db26c3d37178d45d",
             "TkbIdentity": "20b5fcf99486dea8",
             "UtilityDecisionLog": "34cba9cb93ee7851",
-            "VehicleParams": "5c889776ab8a1545",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "642838cb78c484f8",
             "WeaponAmmo": "b73653a1d175fe8c",
@@ -4293,6 +5384,26 @@
             -0.025
           ],
           "health": 15,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 15,
+            "IsEmbarkedTag": {
+              "Vehicle": "@Stinger Gunner",
+              "Seat": 1
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "090b6dfa1a305e2e",
             "ActionStatus": "88f697cab6962087",
@@ -4325,7 +5436,7 @@
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "04808af129d8d321",
+            "SimTransform": "3d88ac751907fd0f",
             "SimVelocity": "ff41f64c1b574c8b",
             "TkbIdentity": "98987bd8372c81fc",
             "UtilityDecisionLog": "34cba9cb93ee7851",
@@ -4345,22 +5456,39 @@
             -0.025
           ],
           "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 100,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "96c99f666f1e3cfb",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "bcd27e800bd2a103",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "4aeadc5ba4263636",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "9bc78bc3a58814ee",
-            "BehaviorState": "d658926c16de655a",
+            "BehaviorStartRecord": "8177f3aa6af23026",
+            "BehaviorState": "324b2cfc32517362",
             "BlueprintAssignments": "fdec2dff3f798d9e",
             "BlueprintBlackboard1024": "e723180b9bb9e33c",
             "BlueprintBlackboard256": "9c6b3c71c6c7a151",
-            "BlueprintBlackboard4096": "be3a874ed2804106",
-            "BrainDiagnostics": "c1bd8f4e5ae1a5e4",
+            "BlueprintBlackboard4096": "063966b5f90516ae",
+            "BrainDiagnostics": "0ce25b387f9b54ab",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "28da1f332c2d14d2",
+            "BrainJournal": "66f6ea97f8e17bf6",
             "CarrierSeats": "85150cf0205905d4",
-            "CarrierStations": "98caf727b90d9c1d",
+            "CarrierStations": "ae3ba254ab107e79",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "ddce31fe3d734c87",
             "EntityAppearance": "7f7072c2521e1acb",
@@ -4369,7 +5497,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "e218c0868d95dd86",
-            "HeardTraces": "a2a19aa18b920ccf",
+            "HeardTraces": "b4ae62c987f1ca4c",
             "InjuryThresholds": "a757d6d8cced34c2",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
@@ -4391,24 +5519,24 @@
             "PersonCarrier": "f1b5ce9d4933b82e",
             "PhysicsCollider": "8df98111d0d82109",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "a3afe99cd2220c71",
+            "RecentSenses": "efef1c43a837ef70",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
             "SimTier": "365b00ecaf6d39dc",
-            "SimTransform": "c7779994abbf1f57",
+            "SimTransform": "3dc2037ba6233519",
             "SimVelocity": "ff41f64c1b574c8b",
             "Sop": "f6fde1dc0d5db4d2",
             "SopStartRecord": "2e865906291cd235",
-            "SopState": "bda80cc275365939",
-            "TargetMemory": "92945e0502241054",
+            "SopState": "6914dffd9c04dfc3",
+            "TargetMemory": "ac84cea908fe16da",
             "TkbIdentity": "20af00f99480c6c6",
-            "UtilityDecisionLog": "2d67de0ce40ae523",
-            "VehicleParams": "5c889776ab8a1545",
+            "UtilityDecisionLog": "9e457e5121d7c7b0",
+            "VehicleParams": "4f0f3e326bc6ccc6",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "5cb8dd409cdbc7bb",
             "WeaponAmmo": "b73653a1d175fe8c",
-            "WeaponChannel": "946050b361245efd",
+            "WeaponChannel": "b4e6a9552611b59d",
             "WeaponPosture": "63c0335b49b43d27",
             "WeaponState": "1c3a0b4aa9622031"
           }
@@ -4420,21 +5548,38 @@
             0
           ],
           "health": 500,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 500,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 5,
+              "ActiveMount": 32,
+              "HeldItem": "None"
+            }
+          },
           "components": {
             "AcousticEmitter": "2214f7ff8c239278",
-            "ActionStatus": "29069abbb336c62c",
-            "ActiveSensorTracks": "153b04b4a0096247",
+            "ActionStatus": "678373277dc07553",
+            "ActiveSensorTracks": "90c387ecbf04621a",
             "ActorCapabilityState": "c96ce970ba4444ef",
-            "BehaviorStartRecord": "ba2453dd596d67d7",
-            "BehaviorState": "cdbed7d27c812a4d",
+            "BehaviorStartRecord": "8034ce60b1f48461",
+            "BehaviorState": "7cc10be48d042987",
             "BlueprintAssignments": "390633fb115c5404",
             "BlueprintBlackboard1024": "4f6cec4ecea663ce",
             "BlueprintBlackboard256": "7495fb4b9e4fe92c",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
-            "BrainJournal": "d84486ce5e0b4851",
+            "BrainJournal": "cc27cb5b7e8935bf",
             "CarrierSeats": "5f89c1a8fb09018a",
-            "CarrierStations": "0295cdde560ea153",
+            "CarrierStations": "cf14305a7c975a43",
             "CullingState": "9c97051fd4b28240",
             "DisEntityType": "cccb89ddbfd78483",
             "EntityAppearance": "fb9b6c7ffc8384de",
@@ -4443,7 +5588,7 @@
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "3d35f260b3adcfab",
             "Health": "b078c10785077656",
-            "HeardTraces": "8b496ba226f40ba5",
+            "HeardTraces": "4c6d849d23de815a",
             "InteractionChannel": "c36eb62a5ca3f850",
             "KnownCombatantList": "a13c63e63cdb9166",
             "Locomotion": "d36cd036387a79c1",
@@ -4464,7 +5609,7 @@
             "PerceptionReceptor": "923d1da288576537",
             "PhysicsCollider": "1269793cc4c9d66d",
             "PreviousCapabilities": "c96ce970ba4444ef",
-            "RecentSenses": "366bcda6fddf1675",
+            "RecentSenses": "b810b6da5bc3351c",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
             "SeatPresetsFilled": "cc2d237b13769176",
@@ -4474,14 +5619,14 @@
             "SimVelocity": "bf069ad2ca2ec25a",
             "Sop": "ce9d2a22bc613efb",
             "SopStartRecord": "c389ba2a3210f6e1",
-            "SopState": "3c5ffd8adc15cf46",
-            "TargetMemory": "1ff8ec48a79c5e31",
+            "SopState": "f32b28c64d8d76a1",
+            "TargetMemory": "e0c6126315654577",
             "TkbIdentity": "5e3243e133716970",
-            "UtilityDecisionLog": "3b1eb4d284d2cfbb",
-            "VehicleParams": "dd5723b03877a5b9",
+            "UtilityDecisionLog": "a0573b5a3b5d7f02",
+            "VehicleParams": "8b239b40d91ca752",
             "VehicleState": "93adbcbd112837d3",
             "VisualData": "f9600e5ef930cd2e",
-            "WeaponChannel": "9e3bb6da58ae6421",
+            "WeaponChannel": "5a2a3219b2fa3105",
             "WeaponPosture": "63c0335b49b43d27"
           }
         },
@@ -4492,11 +5637,31 @@
             0.85
           ],
           "health": 120,
+          "visible": {
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 120,
+            "IsEmbarkedTag": {
+              "Vehicle": "@ZU-23 Technical",
+              "Seat": 2
+            },
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
           "components": {
-            "AcousticEmitter": "8dee1bab4e8ea220",
+            "AcousticEmitter": "475e8b3608d49ae1",
             "ActionStatus": "88f697cab6962087",
             "ActorCapabilityState": "783e6f4aa0ac7175",
-            "AmmoLoadout": "48a819a8a82273af",
+            "AmmoLoadout": "5e11f09d4f16af64",
             "BehaviorState": "03a6fc5adbe92090",
             "BrainDiagnostics": "2ecb33202630ee7c",
             "BrainInterrupts": "00fc813433b81130",
@@ -4524,17 +5689,17 @@
             "PreviousCapabilities": "783e6f4aa0ac7175",
             "ResolvedStyle": "0a7d0a472076a226",
             "Roe": "14f610fa7e9d2d7b",
-            "ShotOrdinal": "abce4ef1c70a2ce6",
+            "ShotOrdinal": "ba0b7729095bf4a5",
             "SimTier": "365b00ecaf6d39dc",
             "SimTransform": "909234265d2ed7d5",
             "SimVelocity": "bf069ad2ca2ec25a",
             "TkbIdentity": "989f7fd83732a776",
             "UtilityDecisionLog": "34cba9cb93ee7851",
             "VisualData": "625bed580a129ab9",
-            "WeaponAmmo": "e166284b09552edb",
+            "WeaponAmmo": "9ddf5a19cf04c736",
             "WeaponChannel": "c36eb62a5ca3f850",
             "WeaponPosture": "ab047033bcf37d78",
-            "WeaponState": "86586ed3c77bec16",
+            "WeaponState": "38c29c6b9ce94448",
             "WeaponSystemParams": "4b01edfb9a6521cf",
             "WeaponSystemState": "ba2cc4c8c4159bca"
           }
@@ -4543,7 +5708,7 @@
     }
   ],
   "verdicts": {
-    "the air defence fires at the A-10": 3.1333,
-    "the A-10 is hit (health below 330)": 3.75
+    "the air defence fires at the A-10": 3.2,
+    "the A-10 is hit (health below 330)": 3.5
   }
 }

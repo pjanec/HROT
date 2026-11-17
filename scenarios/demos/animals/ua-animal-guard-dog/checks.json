@@ -1,0 +1,50 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 AB-5 the guard dog, one row per Judge line. The area's dog is 'Farm dog 1'. AnimalState.Flags is a flags enum written by name ('Calling, Dangerous'), so 'contains' reads one flag.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "later": [
+    "Farm dog 1"
+  ],
+  "expect": [
+    {
+      "name": "the dog barks",
+      "on": "field",
+      "who": "Farm dog 1",
+      "path": "AnimalState.Flags",
+      "op": "contains",
+      "value": "Calling"
+    },
+    {
+      "name": "the dog bites a soldier",
+      "on": "field",
+      "who": "*Soldier",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    },
+    {
+      "name": "the dog is marked Dangerous",
+      "on": "field",
+      "who": "Farm dog 1",
+      "path": "AnimalState.Flags",
+      "op": "contains",
+      "value": "Dangerous"
+    },
+    {
+      "name": "a soldier fires at the dog",
+      "on": "shot",
+      "by": "*Soldier",
+      "after": "the dog is marked Dangerous"
+    },
+    {
+      "name": "no soldier fires before the dog is Dangerous",
+      "never": {
+        "on": "shot",
+        "by": "*Soldier"
+      },
+      "before": "the dog is marked Dangerous"
+    }
+  ]
+}
