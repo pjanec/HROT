@@ -5,6 +5,7 @@ updated: 2026-11-13 (§18.8 next conversions as built)
 current-answer: ⭐ §18.8 the next conversions as built (shared locks, coarse jobs, the staff phase) · §18.5 THE RULE AND THE BRAINS AS BUILT (overnight build, exp/threaded-build) · §16 POC 4 as built (one pool; no dependency scheduler) · §13 a job system? (the lean POC 4 tested) · §15 POC 3 as built (the cheap wins) · §14 POC 2 as built (the brain pre-score) · §12 R-4209 the sampled timer · §11 the aggregate (where the time is) · §10 after the experiment (R-4208, the emitter fix) · §9 the AS-BUILT of the overnight experiment (exp/parallel-sim) · §8 interleaving and quantizing (do less per frame) · §7 determinism is a switchable MODE (R-4207) and what per-batch buffers cost · §2 the lean · §1 what exists (measured) · §3 the options · §4 the hazards · §5 the staged plan · §6 open
 stale-below: nothing
 related-designs:
+  - blueprints/DESIGN_Occurrence_Scoped_Storage.md — OWNS the occurrence store; §34.7 (CE-9013 / CE-3467) a unit's memory block appended INSIDE the brain phase: an addressable own pending block, played at the merge
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the air-combat brain behaviour runs as a per-entity phase; its reads of `FighterPilotState` / `AirArena` are declared
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: its §9 binds every new system of that battle to this design's contract (+ the user's static-copy read rule)
   - blueprints/batches/HANDOFF_Coordinator_To_Backend_Managed_Reads_Audit.md — CE-4445, the managed-read audit and the default flip (R-4210)
@@ -967,6 +968,11 @@ deferred to the merge (it cannot be made in parallel), and the job's own later r
 
 ⭐ The drills: **228 / 228 serial and with parallel brains.** Rails: `PerEntityRuleTests.E3_*` (1 / 2 / 4 / 8 threads), `DangerAreaSensorSystemTests.E3_…`,
 the drills themselves (12 red without the R-195 wake).
+
+⭐ **Proposed `2026-11-17` (DESIGN, awaiting the user) — an own add the job must WRITE before the merge.** A copy read-back (`TryGetOwnPendingAdd`)
+is not enough for a unit's memory block: the brain attaches slots into it and writes them in the same tick. ⇒ `BatchContext.AllocateOwnRaw`
+hands the job a zeroed, addressable block for its OWN entity; the merge plays it first in its batch through `AddComponentRaw` (the path every
+deferred add already takes, so D-31's order is kept). 📄 [`DESIGN_Occurrence_Scoped_Storage.md` §34.7](blueprints/DESIGN_Occurrence_Scoped_Storage.md).
 
 ### 18.10 ⭐ ON BY DEFAULT *(U-2 / U-3, R-4224, `2026-11-13`)*
 

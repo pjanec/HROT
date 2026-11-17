@@ -703,7 +703,7 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐⭐ CE-2233 (CIV-0, the safety gate; DESIGN_Civilians_And_Crowd_Control CV-8) — the AI never fires at a NEUTRAL, whoever
             //   picked it (a ranking, a squad assignment, an order): the last gate before a round, on both paths. A possessed unit's
             //   fire (OperatorFire) does not come here — a human decides.
-            if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target)) return ActionReason.HoldNeutral;
+            if (Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, target) && !ForceLevels.IsOrdered(world, unit, target)) return ActionReason.HoldNeutral;   // ⭐ CE-4649 R-3101 — an explicit order lifts it for that target
             // ⭐ CE-2282 DA-L — never a target inside a NoFire area of his chain (friends' rooms, the assault element): always, both paths
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, target)) return ActionReason.HoldNoFireArea;
             // ⭐ CV-13a (R-2024) — nor at a man showing HANDS UP, even Hostile (a surrender is honoured; a feint is read live)

@@ -169,7 +169,7 @@ namespace Hrot.Common.Constants
 
         // --- ⭐ CE-8615 (exp/agg-ui, DESIGN_Stochastic_Unit_UI UI-9, mockup ⑤) — a unit's Resolution › request: writes AggregateUnit.Pin (SV-14). 2440–2444 free on this lane 2026-11-16.
         public const int ResolutionPhysical  = 2440;
-        public const int ResolutionFusion    = 2441;   // an informational row: no fusion pin exists (never runs)
+        public const int ResolutionFusion    = 2441;   // ⛔ RESERVED (R-8008): never offered, never reuse 2441
         public const int ResolutionAggregate = 2442;
         public const int ResolutionPinKeep   = 2443;
         public const int ResolutionUnpin     = 2444;

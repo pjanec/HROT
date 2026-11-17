@@ -22,5 +22,9 @@ namespace CarKinem.Spatial
         public const float OriginY = -750f;
         /// <summary>Maximum entity capacity of the spatial hash (linked-list slot count).</summary>
         public const int MaxEntities = 100_000;
+
+        /// <summary>⭐ CE-10006 (R-10029) — at most this many AIRCRAFT beyond the collider grid are still met by rounds (a show's jets,
+        /// an A-10 striking from beyond the map edge); more are dropped as before (warned).</summary>
+        public const int MaxAirOutside = 64;
     }
 }

@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Combat.Translators
                     {
                         repo.AddComponent(entity, new PhysicsCollider
                         {
-                            Radius         = Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ColliderRadius,
+                            Radius         = AnimalBodyRadius(template) ?? Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.ColliderRadius,   // ⭐ CE-4649 part C ② — a bird is its own body size, not the 2.5 m fallback
                             CollisionLayer = CombatCollisionLayer,
                             Height         = template.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight ?? 0f,
                         });
@@ -132,6 +132,10 @@ namespace Fdp.Toolkit.Combat.Translators
         }
     
         /// <summary>⭐ M8 (D-I) — the mount's <see cref="AmmoLoadout"/> when its TKB mount declares one (the first round loaded).</summary>
+        /// <summary>⭐ CE-4649 part C ② — an animal's body radius (its shape radius) when it has no kinematics descriptor to size a collider; null for anything else (the fallback stands).</summary>
+        private static float? AnimalBodyRadius(TkbTemplate t)
+            => t.GetDescriptor<AnimalTemperamentDto>() != null && t.GetDescriptor<StrideRenderModelDefDto>() is { ShapeRadius: > 0f } shape ? shape.ShapeRadius : null;
+
         private static void AddLoadout(EntityRepository repo, Entity mountEntity, WeaponMountDto mount)
         {
             if (!repo.IsComponentTypeRegistered<AmmoLoadout>() || repo.HasComponent<AmmoLoadout>(mountEntity)) return;

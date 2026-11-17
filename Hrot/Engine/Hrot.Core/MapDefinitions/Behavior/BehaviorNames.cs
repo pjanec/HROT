@@ -339,6 +339,8 @@ namespace Hrot.Map.Definitions.Behavior
         // ⭐ CE-1410 (R-1042) — the shipped library trees, C#-built since their JSON assets were converted (Hrot.AI.Behaviors/Brains/*Sop.cs,
         //   *Tactics*.cs). The SOPs (a unit's standing orders, CE-1019) first, then the tactics.
         public const string BasicInfantrySop = "BasicInfantrySop";
+        /// <summary>⭐ CE-4649 part D (AN-21g) — the hunter's standing orders (a SOP) and the reaction it starts: shoot the game in sight from where he stands.</summary>
+        public const string HunterSop = "HunterSop", Hunt = "Hunt";
         public const string BasicSquadSop = "BasicSquadSop";
         public const string BasicPlatoonSop = "BasicPlatoonSop";
         public const string BasicVehicleSop = "BasicVehicleSop";
@@ -380,6 +382,8 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ rules S4 E-2 — MEASURES of what the subject's men DID (a hit ratio, counts, report latency, time to an objective, a sampled utility input); <see cref="Counter"/> is the other thing (a pool the scenario moves).</summary>
         public const string HitRatio = "HitRatio";
         public const string Count = "Count";
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-11, R-3103) — a MEASURE: the rings the subject's arrows scored on archery targets (<c>ArcheryScoring</c>).</summary>
+        public const string ArcheryScore = "ArcheryScore";
         public const string ReportLatency = "ReportLatency";
         public const string TimeTo = "TimeTo";
         public const string Sample = "Sample";

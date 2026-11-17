@@ -48,5 +48,33 @@ namespace Fdp.Toolkit.Tests.Motion
             model.Autonomous(ref g, in idle, 0.05f);
             Assert.Equal(Vector3.Zero, w.GetComponentRO<SimVelocity>(e).Linear);
         }
+
+        /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a SHOT bird (Health ≤ 0) at 25 m FALLS under gravity (whatever it was told) and LIES still on the ground; a live one at the same height does not fall.
+        /// ✅ Red-proof: the dead check removed ⇒ it hangs in the air ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ADeadBird_Falls_AndLiesOnTheGround()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>();
+            w.RegisterComponent<SimVelocity>();
+            w.RegisterComponent<NavigationStatus>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            var e = w.CreateEntity();
+            w.AddComponent(e, new SimTransform { Position = new Vector3(10f, 0f, 25f), Rotation = Quaternion.Identity });
+            w.AddComponent(e, new SimVelocity { Linear = new Vector3(10f, 0f, 0f) });
+            w.AddComponent(e, new NavigationStatus());
+            w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 5f, Max = 5f });
+            var model = new BirdFlightModel();
+            var idle = new NavigationIntent();
+            void Step() { var f = new MotionFrame(w, e, ref w.GetComponentRW<SimTransform>(e), ref w.GetComponentRW<SimVelocity>(e)); model.Autonomous(ref f, in idle, 0.05f); }
+            for (int i = 0; i < 20; i++) Step();
+            Assert.Equal(25f, w.GetComponentRO<SimTransform>(e).Position.Z);        // alive, perched in the air as before: still
+            w.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Current = 0f;
+            Step();
+            Assert.True(w.GetComponentRO<SimTransform>(e).Position.Z < 25f, "it starts to fall at once");
+            for (int i = 0; i < 200; i++) Step();                                    // ~3 s fall from 25 m, then lying
+            Assert.Equal(0f, w.GetComponentRO<SimTransform>(e).Position.Z, 2);
+            Assert.Equal(Vector3.Zero, w.GetComponentRO<SimVelocity>(e).Linear);
+        }
     }
 }

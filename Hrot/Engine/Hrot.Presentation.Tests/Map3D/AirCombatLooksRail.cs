@@ -476,7 +476,7 @@ public sealed class AirCombatLooksRail
 
     internal static Pixels ScreenOf(JetScene scene) => ScreenOf(scene.Frame, scene.Render);
 
-    private static Pixels ScreenOf(UiFrameSession frame, Action render)
+    internal static Pixels ScreenOf(UiFrameSession frame, Action render)
     {
         render();
         var image = Raylib.LoadImageFromScreen();

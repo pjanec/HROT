@@ -80,10 +80,21 @@ namespace Fdp.Toolkit.Motion
             if (RouteSource == null || intent.RouteEntityId == 0) return;
             if (!RouteSource.TryGetRoute(repo, intent.RouteEntityId, _waypoints, out bool loop, out int version)) return;
             bool table = repo.TryGetTable(typeof(AirPath), out _);
+            int resumeAt = 0;
             if (table && repo.HasManagedComponent<AirPath>(e))
             {
                 var have = ((ISimulationView)repo).GetManagedComponentRO<AirPath>(e);
                 if (have.IntentId == intent.IntentId && have.RouteEntityId == intent.RouteEntityId && have.RouteVersion == version) return;
+                // ⭐ CE-10006 (AC-9, R-10030) — the SAME route ordered again while its follower was mid-way (a transit's missile defence broke
+                //   off it, then re-issued it): it RESUMES at the first waypoint not yet passed, from where the aircraft is — ⛔ never back to
+                //   the first waypoint (the recompile below starts from the body and would fly the whole route again)
+                if (have.RouteEntityId == intent.RouteEntityId && have.RouteVersion == version
+                    && repo.IsComponentTypeRegistered<AirFollower>() && repo.HasComponent<AirFollower>(e))
+                {
+                    var was = repo.GetComponentRO<AirFollower>(e);
+                    if (was.Stage != AirStage.Done && was.Progress > 0f && was.Progress < have.Length)
+                        resumeAt = AirRoute.ResumeIndex(have, _waypoints, was.Progress);
+                }
             }
             if (!table) repo.RegisterManagedComponent<AirPath>();
             // ⭐ Air Ops slice 4 (B9) — planes do not land or hover in v1: a Ground waypoint is flown over, a hold is ignored (warned)
@@ -102,8 +113,11 @@ namespace Fdp.Toolkit.Motion
             // ⭐ CE-10001 (AC-1) — a plane's cruise legs hold one altitude, its climbs start early by its climb rate over its cruise speed
             float climbSlope = cls == LocomotionClass.FixedWing && p.ClimbMps > 0f
                 ? p.ClimbMps / MathF.Max(1f, p.CruiseSpeedMps > 0f ? p.CruiseSpeedMps : p.MaxSpeedMps) : 0f;
+            int routeCount = _waypoints.Count;
+            if (resumeAt > 0) AirRoute.ResumeAt(_waypoints, resumeAt, loop);
             var path = AirRoute.Compile(repo.GetComponentRO<SimTransform>(e).Position, _waypoints, loop, p.TurnRadius, p.HoverHeightM,
                 terrain == null ? null : terrain.GroundHeightAt, climbSlope);
+            if (resumeAt > 0) path = AirRoute.RenumberStops(path, resumeAt, routeCount);   // a stop still names its ROUTE waypoint (holds key on it)
             repo.SetManagedComponent(e, path with { IntentId = intent.IntentId, RouteEntityId = intent.RouteEntityId, RouteVersion = version });
             // ⭐ CE-4046 ② — a new path starts a fresh follower (the managed path carried it, and was new each compile)
             if (!repo.IsComponentTypeRegistered<AirFollower>()) repo.RegisterComponent<AirFollower>();

@@ -99,7 +99,7 @@ public sealed class BehaviorParamsValidationTests
             }
         }
         Assert.Equal(4, perKind["Defend"]);          // SquadDefend, PlatoonDefend, CompanyDefend + the stochastic unit's StochasticUnitDefend
-        Assert.Equal(2, perKind["BreakContact"]);   // BreakContact + the stochastic unit's StochasticUnitBreakContact (ST-2)
+        Assert.Equal(3, perKind["BreakContact"]);   // BreakContact + the stochastic unit's StochasticUnitBreakContact (ST-2) + ⭐ CE-8307 the relay (UnitRelayBreakContact)
         Assert.True(perKind["Move"] >= 4 && perKind["Attack"] >= 4 && perKind["Hold"] >= 4, "the walk finds the plays (not vacuous)");
     }
 
@@ -120,11 +120,13 @@ public sealed class BehaviorParamsValidationTests
             Assert.True(defaults.TryGetBehavior(row.Behaviour, out var decl), row.Behaviour);
             Assert.Equal(row.Order, decl.Fulfils);
             var cls = Hrot.Core.Tkb.EntityClassTable.Default.Find(row.Class)!;
-            var dis = new Fdp.Core.DISEntityType { Kind = 11, Domain = 1, Country = 225, Category = 1, Subcategory = 2 };
+            // ⭐ CE-8307 — the row's echelon class: squad 2, platoon 4, company 5 (UnitEchelon)
+            byte echelon = row.Class switch { "InfantryPlatoon" => 4, "InfantryCompany" => 5, _ => 2 };
+            var dis = new Fdp.Core.DISEntityType { Kind = 11, Domain = 1, Country = 225, Category = 1, Subcategory = echelon };
             Assert.True(Hrot.Core.Tkb.EntityClassTable.Default.Chain(dis).Any(c => c.Name == cls.Name), "the rail's DIS is the row's class");
             var named = Hrot.Core.Tkb.OrderResolver.Resolve(Hrot.Core.Tkb.EntityClassTable.Default, dis, row.Order, x => registry.TryGetId(x, out _));
             Assert.Equal(Hrot.Core.Tkb.OrderResolution.NoBehaviour, named.Outcome);
         }
-        Assert.Equal(2, n);   // Defend, BreakContact
+        Assert.Equal(13, n);   // the squad's Defend, BreakContact · ⭐ CE-8307: the platoon's 7 (Defend, Attack, Hold, Bound, SupportByFire, Move / BreakContact relays), the company's 4
     }
 }

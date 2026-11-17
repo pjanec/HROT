@@ -27,6 +27,12 @@ namespace CarKinem.Systems
 
         private SpatialHashGrid _grid;
 
+        // ⭐ CE-10006 (R-10029) — the aircraft beyond the grid this frame (rounds still meet them); fixed capacity, never reallocated
+        private Fdp.Core.Collections.NativeArray<Entity> _airOutside = new(SpatialHashConstants.MaxAirOutside, Allocator.Persistent);
+
+        /// <summary>⭐ CE-10006 — aircraft beyond the grid this frame, still met by rounds (not counted in <see cref="Dropped"/>).</summary>
+        public int AirOutside { get; private set; }
+
         // ⭐ CE-3018 — the terrain this grid was last fitted to (reference compare: a commit swaps the singleton object).
         private TerrainWorld? _fittedTo;
 
@@ -88,6 +94,7 @@ namespace CarKinem.Systems
                 .Build();
 
             Dropped = 0;
+            int airOutside = 0;
             float maxRadius = 0f;   // ⭐ CE-3209 (HL-2) — the cell walk's pad
             foreach (var entity in query)
             {
@@ -104,6 +111,17 @@ namespace CarKinem.Systems
                 // ⭐⭐ CE-2193 (DESIGN_Terrain_World §4.4) — a collider the grid cannot place is invisible to every round: SAY SO, once.
                 //   ⛔ The grid is NOT widened to it: it follows the terrain by design (W9) — a unit off its terrain is an authoring
                 //   error to surface, not to absorb. 📐 Measured live (ua-air-attack): a truck at (0, 6 000) took 0 of 1 358 rounds.
+                // ⭐⭐ CE-10006 (air combat AC-8, R-10029) — an AIRCRAFT beyond the terrain is not an authoring error: a show's jets fight
+                //   over the arena around a small range, an A-10 strikes from beyond the map edge. 📐 ac-dogfight-2v2: 233 gun rounds passed
+                //   within ~1 m of the bandit's centre and none hit — the fight was outside this ±1 050 m grid. The few such bodies are kept
+                //   aside and every round tests them (RaycastSolverSystem); a ground unit off its terrain stays the error below.
+                if (airOutside < _airOutside.Length && Fdp.Toolkit.Motion.Locomotions.InAir(repo, entity))
+                {
+                    _airOutside[airOutside++] = entity;
+                    if (repo.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity))
+                        maxRadius = MathF.Max(maxRadius, repo.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(entity).Radius);
+                    continue;
+                }
                 Dropped++;
                 if (_warned.Add(entity))
                 {
@@ -117,7 +135,8 @@ namespace CarKinem.Systems
             }
 
             // Publish as singleton (Data-Oriented pattern)
-            repo.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = maxRadius });
+            AirOutside = airOutside;
+            repo.SetSingleton(new SpatialGridData { Grid = _grid, MaxRadius = maxRadius, AirOutside = _airOutside, AirOutsideCount = airOutside });
         }
     }
 }

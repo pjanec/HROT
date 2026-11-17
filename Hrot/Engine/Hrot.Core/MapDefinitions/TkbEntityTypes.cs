@@ -56,6 +56,10 @@ namespace Hrot.Map.Common
         public const long Animal_Pig = 710;
         public const long Animal_Goat = 711;
         public const long AnimalArea = 712;
+        /// <summary>⭐ CE-4649 part C ④ (AN-20c) — the DUCK and its flock; 713/714 measured free on every lane 2026-11-17 (700–799 beyond 712).</summary>
+        public const long Animal_Duck = 713, Animal_DuckFlock = 714;
+        /// <summary>⭐ CE-4649 part D (AN-21a / AN-21f) — the RABBIT and the HUNTING DOG; 715/716 measured free on every lane 2026-11-17 by a whole-repo grep (origin/behaviors, ui, coordinator, terrain, backend), 713/714 re-checked.</summary>
+        public const long Animal_Rabbit = 715, Animal_HuntingDog = 716;
 
         // ⭐⭐ Weapon systems WS-4 (600–699) — separable weapons, entities of their own (Gen.WeaponSystem, DIS 1.1.*.50).
         public const long WeaponSystem_M2Hmg = 600;
@@ -119,6 +123,8 @@ namespace Hrot.Map.Common
         public const long Infantry_AntiDrone = 212;
         /// <summary>⭐ <c>CE-2436</c> AU-7 — the other side's anti-drone man (faction 2). ⛔ PERMANENT WIRE VALUE.</summary>
         public const long Infantry_AntiDroneRed = 213;
+        /// <summary>⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge only, a standing rule to engage listed animals, never people (214 free on every lane 2026-11-17).</summary>
+        public const long Infantry_Hunter = 214;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

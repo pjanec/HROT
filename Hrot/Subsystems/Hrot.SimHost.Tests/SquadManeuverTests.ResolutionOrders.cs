@@ -183,7 +183,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>⭐ X-2 (X2-D, SV-10 / SV-14) — an order with NO play at the new resolution (a pinned merge of a squad recovering its wounded: no
         /// stochastic Recover row) is cleared and its commander hears TaskFailed; <see cref="OrderReissue.BlockReason"/> says why an automatic switch
-        /// waits for a squad, and never holds a platoon (X2-I). ✅ Red-proof: the clear dropped (the arm waiting on a missing play) ⇒ SquadRecover
+        /// waits for a squad (CE-8307: and for any unit whose direct children fit a roster — X2-I's echelon rule is gone). ✅ Red-proof: the clear dropped (the arm waiting on a missing play) ⇒ SquadRecover
         /// keeps running on a stochastic unit ⇒ red.</summary>
         [Fact]
         public void X2_AnOrderWithNoPlayThere_IsCleared_AndItsCommanderHearsTaskFailed()
@@ -204,9 +204,7 @@ namespace Hrot.SimHost.Tests
             Recovering();
             Assert.Equal(OrderKind.Recover, CurrentOrders.Of(repo, u).Kind);
             Assert.NotNull(OrderReissue.BlockReason(repo, u, AggregateResolution.Stochastic, fit.IsBehaviour));   // an automatic merge would wait
-            repo.GetComponentRW<AggregateUnit>(u).Echelon = 1;
-            Assert.Null(OrderReissue.BlockReason(repo, u, AggregateResolution.Stochastic, fit.IsBehaviour));      // never a platoon (X2-I)
-            repo.GetComponentRW<AggregateUnit>(u).Echelon = 0;
+            // ⭐ CE-8307 (R-8389): the scope is no longer the echelon (X2-I) but the split's direct children fitting a roster — pinned by X2I_*
             fit.Execute(repo, 0.016f);
             Assert.Equal(0, fit.Cleared);                                      // physical: Recover fits
 
@@ -299,9 +297,10 @@ namespace Hrot.SimHost.Tests
             Assert.True(Reports(repo, u, Fdp.Toolkit.Squad.Command.ProgressKind.Set) >= 1, "PROGRESS Set: every man on his post");
         }
 
-        /// <summary>⭐ X-2 R-8372 (📌 <c>agg-merge-back</c>, measured) — an echelon-0 unit with an AUTHORED table larger than a roster is out of scope: the
-        /// manager's <c>SwitchBlocked</c> never holds it (its Defend has no physical play — a platoon), and the reconciler leaves its play alone after a split.
-        /// ✅ Red-proof: the echelon alone as the scope ⇒ BlockReason holds the platoon's split ⇒ red.</summary>
+        /// <summary>⭐ X-2 R-8372, as revised by CE-8307 (R-8389) — a unit whose split's DIRECT children do not fit a roster (no composite to group them ⇒
+        /// each of its 20 slots a man) is out of scope: the manager's <c>SwitchBlocked</c> never holds it, and the reconciler leaves its play alone after a
+        /// split. ✅ Red-proof: <c>StochasticUnitFill.RostersItsChildren</c> always true ⇒ BlockReason holds the split (a platoon's Defend at Physical is
+        /// <c>PlatoonDefend</c>, but the 16 men are not squads) … ⇒ the reconciler re-issues ⇒ red.</summary>
         [Fact]
         public void X2I_AnAuthoredPlatoonTable_AtEchelonZero_IsOutOfScope()
         {
@@ -313,6 +312,114 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(ResolutionRoutingTable.Plays.Defend, s.TaskName);   // left alone (X2-I)
             Assert.Equal(0, fit.Cleared);
             Assert.Equal(0, fit.Reissued);
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8386; DESIGN_Split_One_Level.md §6 Q-e) — a PLATOON whose split made its 3 stochastic SQUADS keeps its Defend: once the
+        /// squads are in its roster the reconciler re-issues it as <c>PlatoonDefend</c> (the new <c>InfantryPlatoon</c> class and fallback row), the SAME
+        /// request id, once; the platoon then commands its squads. ✅ Red-proof: the <c>(InfantryPlatoon, Physical, Defend)</c> row dropped ⇒ no physical play
+        /// ⇒ the order is cleared ⇒ red.</summary>
+        [Fact]
+        public void CE8307_ASplitPlatoon_KeepsItsDefend_AsPlatoonDefend_OverItsSquads_SameId()
+        {
+            var (s, fit, hier, repo, u) = X2Squad(men: 3);                      // 3 direct children (no TKB here: the table's count stands in for them)
+            repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+            Assert.Null(OrderReissue.BlockReason(repo, u, AggregateResolution.Physical, fit.IsBehaviour));   // a platoon's Defend HAS a physical play now
+            var squads = new Entity[3];
+            for (int k = 0; k < 3; k++)
+            {
+                var c = repo.CreateEntity();
+                repo.AddComponent(c, new SimTransform { Position = X2Post + new Vector3(k * 20f, 0f, 0f), Rotation = Quaternion.Identity });
+                repo.AddComponent(c, new AggregateChild { Unit = u, Slot = (byte)(k + 1), Held = 0 });
+                repo.AddComponent(c, new AggregateUnit { Resolution = AggregateResolution.Stochastic });
+                repo.SetDisType(c, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Squad, 225));
+                squads[k] = c;
+            }
+            repo.GetComponentRW<AggregateUnit>(u).Resolution = AggregateResolution.Physical;
+            for (int i = 0; i < 4; i++) X2Frame(s, fit, hier);
+            Assert.Equal(0, fit.Reissued);                                       // not before the squads are rostered
+            for (int k = 0; k < 3; k++) repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = squads[k], Commander = u, Designation = TacticalDesignation.Wingman });
+            for (int i = 0; i < 20; i++) X2Frame(s, fit, hier);
+            Assert.Equal("PlatoonDefend", s.TaskName);
+            Assert.Equal(1, fit.Reissued);
+            Assert.Equal(0, fit.Cleared);
+            Assert.Equal(X2Request, X2Record(repo, u)!.RequestId);
+            Assert.Equal(3, repo.GetComponentRO<UnitRoster>(u).Count);
+        }
+
+        /// <summary>A split "platoon" of 3 stochastic squads (the CE8307 setup), its squads rostered; the platoon Physical.</summary>
+        private static (Squad S, UnitResolutionFitSystem Fit, Hrot.Common.Systems.UnitHierarchySystem Hier, EntityRepository R, Entity U, Entity[] Squads) SplitPlatoon(bool order = true)
+        {
+            var (s, fit, hier, repo, u) = X2Squad(men: 3, order: order);
+            repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+            var squads = new Entity[3];
+            for (int k = 0; k < 3; k++)
+            {
+                var c = repo.CreateEntity();
+                repo.AddComponent(c, new SimTransform { Position = X2Post + new Vector3(k * 20f, 0f, 0f), Rotation = Quaternion.Identity });
+                repo.AddComponent(c, new AggregateChild { Unit = u, Slot = (byte)(k + 1), Held = 0 });
+                repo.AddComponent(c, new AggregateUnit { Resolution = AggregateResolution.Stochastic });
+                repo.SetDisType(c, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Squad, 225));
+                squads[k] = c;
+            }
+            repo.GetComponentRW<AggregateUnit>(u).Resolution = AggregateResolution.Physical;
+            for (int k = 0; k < 3; k++) repo.Bus.Publish(new CmdAssignSubordinate { Subordinate = squads[k], Commander = u, Designation = TacticalDesignation.Wingman });
+            X2Frame(s, fit, hier);
+            return (s, fit, hier, repo, u, squads);
+        }
+
+        /// <summary>⭐⭐ CE-8307 (R-8392, the review's F1 (b)) — THE ONE RELAY: a split platoon under a Move (no platoon Move play) runs <c>UnitRelayMove</c>,
+        /// which passes the SAME order on — by KIND (<c>Order.Move</c>), the SAME json — to each squad in its roster, once. ✅ Red-proof: the relay
+        /// sending <c>"{}"</c> instead of its own order's json ⇒ red.</summary>
+        [Fact]
+        public void CE8307_ASplitPlatoonsMove_IsRelayedToEverySquad_ByKind_SameParams()
+        {
+            var (s, fit, hier, repo, u, squads) = SplitPlatoon(order: false);
+            const string json = "{\"Location\":[400,40,0],\"Speed\":2}";
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = u, BehaviorName = Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove, Origin = BehaviorOrigin.Operator, RequestId = X2Request, JsonParams = json });
+            SubordinateOrders? held = null;
+            bool ran = false;
+            for (int i = 0; i < 10 && held == null; i++)
+            {
+                X2Frame(s, fit, hier);
+                if (s.TaskName == Hrot.AI.Behaviors.Brains.UnitRelayBehaviors.UnitRelayMove)
+                {
+                    ran = true;
+                    Assert.Equal(OrderKind.Move, CurrentOrders.Of(repo, u).Kind);
+                    if (SubordinateOrders.Of(repo, u) is { Orders.Count: 3 } h) held = h;   // ⚠ the bare squads here run nothing, so the relay ends next frame (none is busy)
+                }
+            }
+            Assert.True(ran, "the relay ran");
+            Assert.NotNull(held);
+            Assert.Equal(3, held!.Orders.Count);
+            foreach (var e in held.Orders)
+            {
+                Assert.Contains(e.Member, squads);
+                Assert.Equal("Order.Move", e.Behavior);
+                Assert.Equal(json, e.Json);
+            }
+        }
+
+        /// <summary>⭐ CE-8307 (R-8392, F1 (a)) — a platoon's Attack now has a physical play (<c>PlatoonAttack</c> fulfils Attack): its automatic split is not
+        /// held — unless the attack HOLDS BACK (support by fire: the platoon's attack would close, F-SOL-4), which waits (X2-D).
+        /// ✅ Red-proof: <c>HoldsBack</c> always false ⇒ the hold-back attack is not held ⇒ red.</summary>
+        [Fact]
+        public void CE8307_APlatoonsAttack_HasAPhysicalPlay_AHoldBackAttackWaits()
+        {
+            foreach (bool holdBack in new[] { false, true })
+            {
+                var (s, fit, _, repo, u) = X2Squad(men: 3, order: false);
+                repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+                repo.Bus.PublishManaged(new AssignBehaviorEvent
+                {
+                    Entity = u, BehaviorName = ResolutionRoutingTable.Plays.Attack, Origin = BehaviorOrigin.Operator, RequestId = X2Request,
+                    JsonParams = "{" + Loc("Position", X2Post + new Vector3(300f, 0f, 0f)) + (holdBack ? ",\"HoldBack\":true" : "") + "}",
+                });
+                s.Tick(); s.Tick(); s.Tick();
+                Assert.Equal(ResolutionRoutingTable.Plays.Attack, s.TaskName);
+                Assert.Equal("PlatoonAttack", OrderReissue.PlayFor(repo, u, AggregateResolution.Physical, OrderKind.Attack, fit.IsBehaviour));
+                var why = OrderReissue.BlockReason(repo, u, AggregateResolution.Physical, fit.IsBehaviour);
+                if (holdBack) Assert.NotNull(why); else Assert.Null(why);
+            }
         }
     }
 }

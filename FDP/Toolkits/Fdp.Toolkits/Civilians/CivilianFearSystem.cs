@@ -137,6 +137,11 @@ namespace Fdp.Toolkit.Civilians
 
         // ⭐ CE-4623 AB-3 — the frame's threats for the flight zone: reused, grown never shrunk (0 B in the steady state)
         private Animals.AnimalFear.Threat[] _threats = new Animals.AnimalFear.Threat[64];
+        /// <summary>⭐ CE-4649 part D (AN-21f) — the frame's hunters (positions), gathered with the threats: a hunting dog's handler is the nearest one. Reused, grown never shrunk.</summary>
+        private (Entity Who, System.Numerics.Vector3 At)[] _hunters = new (Entity, System.Numerics.Vector3)[16];
+        private int _nHunters;
+        /// <summary>A hunting dog follows a hunter this near (m) and takes a fleeing animal this near for quarry (m).</summary>
+        public const float HandlerReachM = 250f, QuarryReachM = 45f;
 
         /// <summary>
         /// ⭐⭐ <c>CE-4623</c> AB-3 (AR-4) — every animal's flight-zone look (when due, ~5 Hz each, staggered), its fade over the species'
@@ -158,6 +163,11 @@ namespace Fdp.Toolkit.Civilians
                     var here = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(a).Position;
                     var seen = new ReadOnlySpan<Animals.AnimalFear.Threat>(_threats, 0, nThreats);
                     Animals.AnimalFear.LookRound(ref f, t, here, seen, now);
+                    if (t.Ranges)   // ⭐ CE-4649 part D (AN-21f) — the hunting dog's handler and quarry, for its brain
+                    {
+                        f.Handler = NearestHunter(here);
+                        f.Quarry = NearestQuarry(repo, a, here);
+                    }
                     if (t.Territorial)   // ⭐ AB-5 — the guard dog's ground
                     {
                         bool hasHome = homes && repo.HasComponent<Animals.AnimalHome>(a);
@@ -184,8 +194,36 @@ namespace Fdp.Toolkit.Civilians
             }
         }
 
+        private Entity NearestHunter(System.Numerics.Vector3 here)
+        {
+            Entity best = Entity.Null; float bestD = HandlerReachM * HandlerReachM;
+            for (int i = 0; i < _nHunters; i++)
+            {
+                float dx = _hunters[i].At.X - here.X, dy = _hunters[i].At.Y - here.Y, d = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; best = _hunters[i].Who; }
+            }
+            return best;
+        }
+
+        /// <summary>The nearest animal in FLIGHT (mode Flee) within <see cref="QuarryReachM"/> that is not a hunting dog — what the dog has flushed and may chase a short way.</summary>
+        private static Entity NearestQuarry(EntityRepository repo, Entity dog, System.Numerics.Vector3 here)
+        {
+            Entity best = Entity.Null; float bestD = QuarryReachM * QuarryReachM;
+            foreach (var o in repo.Query().With<Animals.AnimalState>().With<SimTransform>().Build())
+            {
+                if (o == dog) continue;
+                ref readonly var st = ref repo.GetComponentRO<Animals.AnimalState>(o);
+                if (st.Mode != Animals.AnimalMode.Flee || st.Species == Animals.AnimalSpecies.HuntingDog) continue;
+                var p = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(o).Position;
+                float dx = p.X - here.X, dy = p.Y - here.Y, d = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; best = o; }
+            }
+            return best;
+        }
+
         private int GatherThreats(EntityRepository repo)
         {
+            _nHunters = 0;
             if (!repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleParams>()) return 0;
             bool aboardKnown = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             bool velocities = repo.IsComponentTypeRegistered<SimVelocity>();
@@ -193,15 +231,24 @@ namespace Fdp.Toolkit.Civilians
             foreach (var e in repo.Query().With<global::CarKinem.Core.VehicleParams>().With<SimTransform>().Build())
             {
                 var cls = repo.GetComponentRO<global::CarKinem.Core.VehicleParams>(e).Class;
-                if (cls == global::CarKinem.Core.VehicleClass.Quadruped) continue;              // animals do not frighten animals (the dog: AB-5)
+                if (cls == global::CarKinem.Core.VehicleClass.Quadruped)                         // animals do not frighten animals (the dog: AB-5) — ⭐ CE-4649 part D (AN-21f): but a HUNTING dog frightens game
+                {
+                    if (!repo.IsComponentTypeRegistered<Animals.AnimalState>() || !repo.HasComponent<Animals.AnimalState>(e)
+                        || repo.GetComponentRO<Animals.AnimalState>(e).Species != Animals.AnimalSpecies.HuntingDog) continue;
+                }
                 if (aboardKnown && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;   // seated: his carrier counts
                 if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, e)) continue;                  // a body on the ground frightens nothing
+                if (cls == global::CarKinem.Core.VehicleClass.Pedestrian && Animals.Animals.IsHunter(repo, e))   // ⭐ CE-4649 part D — a hunting dog's handler
+                {
+                    if (_nHunters == _hunters.Length) Array.Resize(ref _hunters, _nHunters * 2);
+                    _hunters[_nHunters++] = (e, (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(e).Position);
+                }
                 if (n == _threats.Length) Array.Resize(ref _threats, n * 2);
                 _threats[n++] = new Animals.AnimalFear.Threat
                 {
                     Position = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(e).Position,
                     Velocity = velocities && repo.HasComponent<SimVelocity>(e) ? repo.GetComponentRO<SimVelocity>(e).Linear : default,
-                    IsVehicle = cls != global::CarKinem.Core.VehicleClass.Pedestrian,
+                    IsVehicle = cls != global::CarKinem.Core.VehicleClass.Pedestrian && cls != global::CarKinem.Core.VehicleClass.Quadruped,   // a hunting dog frightens like a man
                     Entity = e,
                 };
             }

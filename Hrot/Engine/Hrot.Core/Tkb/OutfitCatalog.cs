@@ -98,12 +98,15 @@ namespace Hrot.Core.Tkb
 
         // ── ⭐ OF-1 / §5 — the Middle-East wardrobes (the exact RGB is a first estimate; ui tunes it against the mockup) ───────────────
 
-        private static readonly string White = C(236, 234, 226), Cream = C(226, 212, 178), LightGrey = C(196, 196, 192), LightBlue = C(164, 190, 212),
+        private static readonly string White = C(244, 243, 238), Cream = C(226, 212, 178), LightGrey = C(196, 196, 192), LightBlue = C(164, 190, 212),
             Brown = C(122, 94, 66), DarkBrown = C(74, 52, 38), Navy = C(30, 36, 64), DarkGreen = C(30, 56, 42), Black = C(22, 22, 24),
             DarkGrey = C(50, 50, 54), RedWhiteCheck = C(200, 120, 116),   // a red-and-white shemagh, averaged to one tone
             CapWhite = C(240, 240, 236), HijabBlue = C(36, 44, 84), HijabBrown = C(96, 70, 52), HijabGrey = C(110, 110, 112), LightPink = C(230, 190, 200),
             Khaki = C(160, 148, 110), Olive = C(96, 104, 72), FieldGrey = C(110, 110, 112), FieldBlack = C(30, 30, 34), FieldGreen = C(92, 100, 64),
             Drab = C(84, 80, 64), ClothGrey = C(140, 140, 142), ClothBlack = C(80, 80, 84), CapOlive = C(84, 90, 64);
+
+        /// <summary>⭐ CE-4648 — the colour a Shemagh option uses to say "red-and-white check" (the presentation draws the check; any other colour is a plain cloth).</summary>
+        public static string CheckShemagh => RedWhiteCheck;
 
         private static OutfitOption O(string kind, float weight, params string[] colours) => new() { Kind = kind, Weight = weight, Colours = [.. colours] };
         private static OutfitSlot S(params OutfitOption[] options) => new() { Options = [.. options] };
@@ -209,13 +212,134 @@ namespace Hrot.Core.Tkb
             Top = S(O(nameof(OutfitTop.Shirt), 10f, Khaki), O(nameof(OutfitTop.Shirt), 10f, Olive), O(nameof(OutfitTop.Shirt), 10f, FieldGrey), O(nameof(OutfitTop.Shirt), 10f, FieldBlack),
                     O(nameof(OutfitTop.Jacket), 10f, Olive), O(nameof(OutfitTop.Jacket), 10f, Khaki), O(nameof(OutfitTop.Jacket), 10f, FieldGreen),
                     O(nameof(OutfitTop.Robe), 12f, White), O(nameof(OutfitTop.Robe), 10f, LightGrey), O(nameof(OutfitTop.Robe), 8f, Brown)),
-            Over = S(O(nameof(OutfitOver.ChestRig), 60f, Drab), O(nameof(OutfitOver.None), 40f)),
+            Over = S(O(nameof(OutfitOver.ChestRig), 75f, Drab), O(nameof(OutfitOver.None), 25f)),   // ⭐ CE-4648 polish: a rig in 75 % of fighters (was 60)
             Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(106, 100, 76), C(70, 72, 56), C(48, 48, 50), C(120, 112, 88))),
+            // ⭐ CE-4648 polish (user review): head cover — a shemagh (40), a face wrap (32) or a skullcap (8) — in 80 % of fighters, a cap in 8, bareheaded in 12
             Head = S(O(nameof(OutfitHead.Shemagh), 20f, RedWhiteCheck), O(nameof(OutfitHead.Shemagh), 12f, CapWhite), O(nameof(OutfitHead.Shemagh), 8f, ClothBlack),
-                     O(nameof(OutfitHead.ShemaghFaceWrap), 10f, CapWhite), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, ClothGrey), O(nameof(OutfitHead.ShemaghFaceWrap), 7f, FieldBlack),
-                     O(nameof(OutfitHead.Cap), 8f, CapOlive), O(nameof(OutfitHead.Cap), 7f, FieldBlack), O(nameof(OutfitHead.None), 20f)),
+                     O(nameof(OutfitHead.ShemaghFaceWrap), 14f, Khaki), O(nameof(OutfitHead.ShemaghFaceWrap), 10f, Drab), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, RedWhiteCheck),
+                     O(nameof(OutfitHead.Skullcap), 8f, CapWhite),
+                     O(nameof(OutfitHead.Cap), 4f, CapOlive), O(nameof(OutfitHead.Cap), 4f, FieldBlack), O(nameof(OutfitHead.None), 12f)),
             Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
             Beard = S(Dark(nameof(OutfitBeard.Beard), 70f), Dark(nameof(OutfitBeard.Moustache), 15f), Dark(nameof(OutfitBeard.None), 15f)),
+        };
+
+        // ── ⭐ CE-4648 (R-1065) — the Native American warrior's look, one wardrobe (backend's type 2xxx gives it to the warrior: NOTE_Ui_To_Backend_Native_American_Look.md) ──
+
+        private static readonly string BuckskinTan = C(201, 160, 106), BuckskinWarm = C(184, 140, 88), BuckskinPale = C(214, 180, 128), LeggingBrown = C(156, 118, 70), LeggingDark = C(130, 96, 58),
+            BandRed = C(140, 42, 36), BandBlack = C(24, 24, 26), BandBlue = C(40, 70, 130), BlackHair = C(20, 18, 18);
+
+        /// <summary>The Native American warrior: a buckskin shirt, breechcloth and leggings; ALWAYS long black hair with a braid on each side; a headband with feathers; face
+        /// paint in two of three; a beaded yoke and / or a bone hair-pipe breastplate; armbands and / or a bead necklace — all seeded inside these lists.</summary>
+        public static readonly OutfitDto NativeAmericanWarrior = new()
+        {
+            Skin = MiddleEastSkin(),
+            Top = S(O(nameof(OutfitTop.Buckskin), 1f, BuckskinTan, BuckskinWarm, BuckskinPale)),
+            Legs = S(O(nameof(OutfitLegs.Breechcloth), 1f, LeggingBrown, LeggingDark)),
+            Over = S(O(nameof(OutfitOver.BeadedYoke), 40f), O(nameof(OutfitOver.HairPipe), 25f), O(nameof(OutfitOver.YokeHairPipe), 15f), O(nameof(OutfitOver.None), 20f)),
+            Head = S(O(nameof(OutfitHead.Headband), 90f, BandRed, BandBlack, BandBlue), O(nameof(OutfitHead.None), 10f)),
+            Hair = S(O(nameof(OutfitHair.Braids), 1f, BlackHair)),
+            Beard = S(O(nameof(OutfitBeard.Paint), 65f), O(nameof(OutfitBeard.None), 35f)),
+            Extra = S(O(nameof(OutfitExtra.Armbands), 25f), O(nameof(OutfitExtra.Necklace), 25f), O(nameof(OutfitExtra.ArmbandsNecklace), 30f), O(nameof(OutfitExtra.None), 20f)),
+        };
+
+        // ── ⭐ CE-4648 (R-1066) — Afghan dress: perahan tunban (earthy), waistcoat, pakol, lungee, patu, chadari ────────────────────────────
+
+        private static readonly string AfWhite = C(240, 238, 230), AfGrey = C(150, 150, 148), AfBeige = C(200, 184, 150), AfBrown = C(122, 98, 70), AfPaleBlue = C(169, 184, 200), AfOlive = C(110, 112, 78),
+            PakolBeige = C(185, 165, 127), PakolBrown = C(110, 86, 60), PakolGrey = C(120, 120, 118), VestBlack = C(30, 30, 32), VestGrey = C(72, 72, 76), VestBrown = C(80, 58, 40),
+            PatuBrown = C(107, 91, 69), PatuGrey = C(120, 120, 118), PatuOlive = C(98, 100, 70), LungeeWhite = C(240, 238, 232), LungeeBlack = C(35, 35, 38), LungeeGrey = C(110, 110, 114),
+            ChadariBlue = C(111, 160, 218), ChadariWhite = C(232, 232, 236), ChadariGrey = C(150, 152, 158), HeadscarfBlack = C(28, 28, 30), HeadscarfBrown = C(90, 66, 50), HeadscarfGreen = C(40, 70, 52);
+        private static readonly string[] PerahanColours = [AfWhite, AfGrey, AfBeige, AfBrown, AfPaleBlue, AfOlive];
+
+        private static OutfitSlot AfghanSkin() => S(O("Skin", 1f, SkinTones[1], SkinTones[2], SkinTones[3]));
+
+        /// <summary>1111 — an Afghan man: perahan tunban (earth colours; the trousers follow the tunic), a pakol, a lungee or a skullcap, often a waistcoat or a patu, mostly bearded.</summary>
+        public static readonly OutfitDto AfghanMan = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Perahan), 1f, PerahanColours)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Pakol), 38f, PakolBeige, PakolBrown, PakolGrey), O(nameof(OutfitHead.Turban), 27f, LungeeWhite, LungeeBlack, LungeeGrey),
+                     O(nameof(OutfitHead.Skullcap), 10f, CapWhite), O(nameof(OutfitHead.None), 25f)),
+            Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
+            Beard = S(Dark(nameof(OutfitBeard.Beard), 55f), Dark(nameof(OutfitBeard.Moustache), 20f), Dark(nameof(OutfitBeard.None), 25f)),
+            Extra = S(O(nameof(OutfitExtra.Waistcoat), 40f, VestBlack, VestGrey, VestBrown), O(nameof(OutfitExtra.Patu), 20f, PatuBrown, PatuGrey, PatuOlive),
+                      O(nameof(OutfitExtra.WaistcoatPatu), 5f, PatuBrown, PatuGrey, PatuOlive), O(nameof(OutfitExtra.None), 35f)),
+        };
+
+        /// <summary>1115 — an Afghan elderly man: perahan tunban, mostly a large lungee, a patu round his shoulders, grey hair and a long beard.</summary>
+        public static readonly OutfitDto AfghanElderlyMan = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Perahan), 1f, AfWhite, AfGrey, AfBeige, AfBrown)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Turban), 70f, LungeeWhite, LungeeGrey, LungeeBlack), O(nameof(OutfitHead.Pakol), 15f, PakolBeige, PakolBrown, PakolGrey),
+                     O(nameof(OutfitHead.Skullcap), 5f, CapWhite), O(nameof(OutfitHead.None), 10f)),
+            Hair = S(O(nameof(OutfitHair.Short), 100f, GreyHair)),
+            Beard = S(O(nameof(OutfitBeard.Beard), 92f, GreyHair), O(nameof(OutfitBeard.Moustache), 8f, GreyHair)),
+            Extra = S(O(nameof(OutfitExtra.Patu), 70f, PatuBrown, PatuGrey, PatuOlive), O(nameof(OutfitExtra.Waistcoat), 10f, VestBlack, VestGrey, VestBrown), O(nameof(OutfitExtra.None), 20f)),
+        };
+
+        /// <summary>1112 — an Afghan woman: mostly the chadari (light blue, some white or grey), else a dark perahan tunban and a dark headscarf.</summary>
+        public static readonly OutfitDto AfghanWoman = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Chadari), 70f, ChadariBlue), O(nameof(OutfitTop.Chadari), 7f, ChadariWhite), O(nameof(OutfitTop.Chadari), 7f, ChadariGrey),
+                    O(nameof(OutfitTop.Perahan), 16f, AfBrown, AfOlive, AfGrey, HeadscarfBlack)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Hijab), 1f, HeadscarfBlack, HeadscarfBrown, HeadscarfGreen)),
+            Hair = S(Dark(nameof(OutfitHair.Long), 100f)),
+            Beard = S(O(nameof(OutfitBeard.None), 1f)),
+        };
+
+        /// <summary>1116 — an Afghan elderly woman: the chadari (70 %) or a dark perahan tunban and headscarf.</summary>
+        public static readonly OutfitDto AfghanElderlyWoman = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Chadari), 55f, ChadariBlue), O(nameof(OutfitTop.Chadari), 8f, ChadariWhite), O(nameof(OutfitTop.Chadari), 7f, ChadariGrey),
+                    O(nameof(OutfitTop.Perahan), 30f, AfBrown, AfGrey, HeadscarfBlack)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Hijab), 1f, HeadscarfBlack, HeadscarfBrown, HeadscarfGreen)),
+            Hair = S(O(nameof(OutfitHair.Long), 1f, GreyHair)),
+            Beard = S(O(nameof(OutfitBeard.None), 1f)),
+        };
+
+        /// <summary>1113 — an Afghan boy: a small perahan tunban, a pakol or a skullcap, sometimes a waistcoat.</summary>
+        public static readonly OutfitDto AfghanBoy = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Perahan), 1f, AfWhite, AfBeige, AfPaleBlue, AfGrey, AfOlive)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Pakol), 60f, PakolBeige, PakolBrown, PakolGrey), O(nameof(OutfitHead.Skullcap), 15f, CapWhite), O(nameof(OutfitHead.None), 25f)),
+            Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
+            Beard = S(O(nameof(OutfitBeard.None), 1f)),
+            Extra = S(O(nameof(OutfitExtra.Waistcoat), 25f, VestBlack, VestGrey, VestBrown), O(nameof(OutfitExtra.None), 75f)),
+        };
+
+        /// <summary>1114 — an Afghan girl: a bright dress over loose trousers and a coloured headscarf.</summary>
+        public static readonly OutfitDto AfghanGirl = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Perahan), 1f, ChildTops)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Head = S(O(nameof(OutfitHead.Hijab), 85f, C(62, 154, 143), C(230, 190, 60), C(214, 90, 130), C(110, 130, 200)), O(nameof(OutfitHead.None), 15f)),
+            Hair = S(Dark(nameof(OutfitHair.Long), 100f)),
+            Beard = S(O(nameof(OutfitBeard.None), 1f)),
+        };
+
+        /// <summary>2016–2018 — an Afghan FIGHTER: a perahan tunban, a lungee (black, dark grey or white), a pakol or a shemagh (head cover in 90 %), a chest rig in 75 %, often a waistcoat or a patu, almost always bearded. No camouflage.</summary>
+        public static readonly OutfitDto AfghanFighter = new()
+        {
+            Skin = AfghanSkin(),
+            Top = S(O(nameof(OutfitTop.Perahan), 1f, AfOlive, C(160, 148, 110), AfGrey, AfBrown, AfWhite, AfPaleBlue)),
+            Legs = S(O(nameof(OutfitLegs.Tunban), 1f)),
+            Over = S(O(nameof(OutfitOver.ChestRig), 75f, Drab), O(nameof(OutfitOver.None), 25f)),
+            Head = S(O(nameof(OutfitHead.Turban), 22f, LungeeBlack), O(nameof(OutfitHead.Turban), 12f, LungeeGrey), O(nameof(OutfitHead.Turban), 11f, LungeeWhite),
+                     O(nameof(OutfitHead.Pakol), 30f, PakolBeige, PakolBrown, PakolGrey), O(nameof(OutfitHead.Shemagh), 10f, RedWhiteCheck, CapWhite),
+                     O(nameof(OutfitHead.Skullcap), 5f, CapWhite), O(nameof(OutfitHead.None), 10f)),
+            Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
+            Beard = S(Dark(nameof(OutfitBeard.Beard), 75f), Dark(nameof(OutfitBeard.Moustache), 12f), Dark(nameof(OutfitBeard.None), 13f)),
+            Extra = S(O(nameof(OutfitExtra.Waistcoat), 25f, VestBlack, VestGrey, VestBrown), O(nameof(OutfitExtra.Patu), 25f, PatuBrown, PatuGrey, PatuOlive),
+                      O(nameof(OutfitExtra.WaistcoatPatu), 5f, PatuBrown, PatuGrey, PatuOlive), O(nameof(OutfitExtra.None), 45f)),
         };
     }
 }

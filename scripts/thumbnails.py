@@ -456,8 +456,34 @@ def type_table():
     return {int(r["tkbType"]): r["name"] for r in rows}
 
 
+def typical_seeds():
+    """⭐ CE-4648 — the entity ids (= the outfit seeds) whose dress is the TYPICAL one of a type (scripts/thumbnail-typical-seeds.json, written by
+    PersonOutfitsRail with HROT_GEN_THUMB_SEEDS=1): a thumbnail shows the usual look (a man in a thobe and shemagh, a fighter with head cover and a chest rig), not an arbitrary seed."""
+    path = os.path.join(HERE, "thumbnail-typical-seeds.json")
+    try:
+        return {int(k): set(v) for k, v in json.load(open(path)).items()}
+    except (OSError, ValueError):
+        return {}
+
+
+TYPICAL = typical_seeds()
+
+
 def spawn_one(tkb, origin):
-    """Spawn one entity of this type at origin and step until it exists; returns its net ids ([] when the request was never served)."""
+    """Spawn one entity of this type at origin and step until it exists; returns its net ids ([] when the request was never served).
+    ⭐ A type with a typical-seed list is respawned (the previous one deleted) until its id is on the list — at most 400 tries."""
+    wanted = TYPICAL.get(int(tkb))
+    for _ in range(400 if wanted else 1):
+        nids, why = _spawn_once(tkb, origin)
+        if not nids or not wanted or nids[0] in wanted:
+            return nids, why
+        for nid in nids:
+            udc.call("DELETE", f"/entities/{nid}")
+        wait_gone(nids)
+    return nids, why
+
+
+def _spawn_once(tkb, origin):
     before = {r["networkId"] for r in (body_of(udc.call("GET", "/entities")) or [])}
     r = udc.call("POST", "/entities/spawn", {"tkbType": tkb, "transform": {"position": {"x": origin[0], "y": origin[1], "z": origin[2]},
                                                                           "rotation": {"x": 0, "y": 0, "z": 0, "w": 1}}})
@@ -465,7 +491,8 @@ def spawn_one(tkb, origin):
         return None, "spawn: " + say(r)
     for _ in range(10):                                   # step until the request is served and the entity exists
         udc.call("POST", "/sim/step", {"count": 6})
-        nids = [x["networkId"] for x in (body_of(udc.call("GET", "/entities")) or []) if x["networkId"] not in before]
+        rows = [x for x in (body_of(udc.call("GET", "/entities")) or []) if x["networkId"] not in before]
+        nids = [x["networkId"] for x in rows]
         if nids:
             udc.call("POST", "/sim/step", {"count": 6})   # let it realise (its body, its size)
             return nids, ""

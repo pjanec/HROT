@@ -204,6 +204,9 @@ namespace Hrot.AI.Behaviors.Brains
             block.Plan = default;
             block.Keep = default;
             block.Plan.Position = authored.Position;
+            // ⭐ CE-8307 (R-8392) — the neutral AttackOrder's entity: the area round it when no place is given
+            if ((Vector3)authored.Position == Vector3.Zero && authored.Target.Ref.TryResolve(world, out var t) && world.HasComponent<Fdp.Core.SimTransform>(t))
+                block.Plan.Position = (Vector3)world.GetComponentRO<Fdp.Core.SimTransform>(t).Position;
             block.Plan.SearchRadius = authored.SearchRadius > 0f ? authored.SearchRadius : DefaultSearchRadius;
             block.Plan.Speed = authored.Speed;
             block.Plan.Preset = (byte)authored.Preset;
@@ -223,7 +226,7 @@ namespace Hrot.AI.Behaviors.Brains
         [HsmDefinition(BehaviorNames.ReactToFireFromBuilding, Curated = true, Group = "Library/Reactions", ParamsType = typeof(PlatoonAttackBlackboard))]
         public static StateMachineGraph BuildReactToFireFromBuilding() => Build("ReactToFireFromBuilding_HSM");
 
-        [Behavior(BehaviorNames.PlatoonAttack, Params = typeof(PlatoonAttackParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.PlatoonAttack, Params = typeof(PlatoonAttackParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.Attack), Categories = BehaviorCategory.Commander)]   // ⭐ CE-8307 (R-8392): it fulfils Attack (a split platoon re-resolves to it)
         [HsmDefinition(BehaviorNames.PlatoonAttack, Curated = true, Group = "Library/Orders", ParamsType = typeof(PlatoonAttackBlackboard))]
         public static StateMachineGraph BuildPlatoonAttack() => Build("PlatoonAttack_HSM");
 

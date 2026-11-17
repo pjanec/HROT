@@ -1,5 +1,5 @@
 {
-  "$doc": "\u00a723.6 ST-5 (\u00a723.6g). Bands: ResolutionBands.Default (400 m + 200 m lead, forced 300 m, merge beyond band + lead + 200 m = 800 m, F-23). The posts are UnitSplits.FallbackPosts (D-P5): D-P3 plans a SQUAD's posts (UnitPostPlanningSystem, echelon 0), so a platoon gets no PlannedPosts, the manager does not wait, and 'sensible positions' = the fallback rows round the unit. A rifle platoon (type 305) has no vehicles - the 'soldiers and vehicles' half of the Judge line is not exercised. The children are addressed by NAME, <platoon>/<composite slot> (F-22, R-8349), listed in `later`. No resolution policy: the default merge line lies past the trigger (F-23), so the old mergeMargin 250 workaround (R-8336) is gone (R-8350).",
+  "$doc": "\u00a723.6 ST-5 (\u00a723.6g), re-judged for CE-8307 (DESIGN_Split_One_Level.md): the split creates the composite's DIRECT subordinates. Bands: ResolutionBands.Default (400 m + 200 m lead, forced 300 m, merge beyond band + lead + 200 m = 800 m, F-23). The squads stand at the centroid of their men's fallback posts (D-P5: rows of 12 across the heading). A rifle platoon (305) has no vehicles. Children by NAME (F-22, R-8349; R-8385): squads <platoon>/<s>, men <platoon>/<s>/<n>, listed in `later`.",
   "runFor": 150,
   "golden": {
     "every": 25
@@ -8,33 +8,36 @@
     "Blue Stochastic Platoon/1",
     "Blue Stochastic Platoon/2",
     "Blue Stochastic Platoon/3",
-    "Blue Stochastic Platoon/4",
-    "Blue Stochastic Platoon/5",
-    "Blue Stochastic Platoon/6",
-    "Blue Stochastic Platoon/7",
-    "Blue Stochastic Platoon/8",
-    "Blue Stochastic Platoon/9",
-    "Blue Stochastic Platoon/10",
-    "Blue Stochastic Platoon/11",
-    "Blue Stochastic Platoon/12",
-    "Blue Stochastic Platoon/13",
-    "Blue Stochastic Platoon/14",
-    "Blue Stochastic Platoon/15",
-    "Blue Stochastic Platoon/16",
-    "Blue Stochastic Platoon/17",
-    "Blue Stochastic Platoon/18",
-    "Blue Stochastic Platoon/19",
-    "Blue Stochastic Platoon/20",
-    "Blue Stochastic Platoon/21",
-    "Blue Stochastic Platoon/22",
-    "Blue Stochastic Platoon/23",
-    "Blue Stochastic Platoon/24",
-    "Blue Stochastic Platoon/25",
-    "Blue Stochastic Platoon/26",
-    "Blue Stochastic Platoon/27",
-    "Blue Stochastic Platoon/28",
-    "Blue Stochastic Platoon/29",
-    "Blue Stochastic Platoon/30"
+    "Blue Stochastic Platoon/1/1",
+    "Blue Stochastic Platoon/1/2",
+    "Blue Stochastic Platoon/1/3",
+    "Blue Stochastic Platoon/1/4",
+    "Blue Stochastic Platoon/1/5",
+    "Blue Stochastic Platoon/1/6",
+    "Blue Stochastic Platoon/1/7",
+    "Blue Stochastic Platoon/1/8",
+    "Blue Stochastic Platoon/1/9",
+    "Blue Stochastic Platoon/1/10",
+    "Blue Stochastic Platoon/2/1",
+    "Blue Stochastic Platoon/2/2",
+    "Blue Stochastic Platoon/2/3",
+    "Blue Stochastic Platoon/2/4",
+    "Blue Stochastic Platoon/2/5",
+    "Blue Stochastic Platoon/2/6",
+    "Blue Stochastic Platoon/2/7",
+    "Blue Stochastic Platoon/2/8",
+    "Blue Stochastic Platoon/2/9",
+    "Blue Stochastic Platoon/2/10",
+    "Blue Stochastic Platoon/3/1",
+    "Blue Stochastic Platoon/3/2",
+    "Blue Stochastic Platoon/3/3",
+    "Blue Stochastic Platoon/3/4",
+    "Blue Stochastic Platoon/3/5",
+    "Blue Stochastic Platoon/3/6",
+    "Blue Stochastic Platoon/3/7",
+    "Blue Stochastic Platoon/3/8",
+    "Blue Stochastic Platoon/3/9",
+    "Blue Stochastic Platoon/3/10"
   ],
   "anchors": {
     "band": {
@@ -98,6 +101,16 @@
       "before": "band+20"
     },
     {
+      "name": "CE-8307: its roster is its 3 squads - not 30 men",
+      "on": "field",
+      "who": "Blue Stochastic Platoon",
+      "path": "UnitRoster.Count",
+      "op": "==",
+      "value": 3,
+      "after": "handover",
+      "before": "handover+3"
+    },
+    {
       "name": "the slot table is untouched by the split (30 men up)",
       "on": "field",
       "who": "Blue Stochastic Platoon",
@@ -138,277 +151,17 @@
       "after": "handover+1"
     },
     {
-      "name": "split: Blue Stochastic Platoon/1 carries the stable key uuid5(unit, child:1)",
+      "name": "split: the squad Blue Stochastic Platoon/1 carries the stable key uuid5(platoon, child:1)",
       "on": "field",
       "who": "Blue Stochastic Platoon/1",
       "path": "EntityGuid.Value",
       "op": "==",
       "value": "726543ee-8b76-5913-9a62-6888c64ed25d",
-      "after": "handover"
+      "after": "handover",
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/2 carries the stable key uuid5(unit, child:2)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/2",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "d973e6c5-2a6d-528a-a626-17e8bf31ac1f",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/3 carries the stable key uuid5(unit, child:3)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/3",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "9f61c165-e93f-5ec2-af32-90ade6f083ba",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/4 carries the stable key uuid5(unit, child:4)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/4",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "60fab220-84da-5480-996a-8bcfd1433977",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/5 carries the stable key uuid5(unit, child:5)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/5",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "84462d2c-d03e-5f27-942f-d074bfd09d15",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/6 carries the stable key uuid5(unit, child:6)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/6",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "afd8acfd-8241-56ac-b638-d8929fc03b32",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/7 carries the stable key uuid5(unit, child:7)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/7",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "30d34991-807e-58df-a005-3475be99e0ad",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/8 carries the stable key uuid5(unit, child:8)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/8",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "a8fc58b5-fec7-5b51-83b0-0c3162df32e7",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/9 carries the stable key uuid5(unit, child:9)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/9",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "bace6fa2-f63a-5ed1-bddf-6a220b3880cf",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/10 carries the stable key uuid5(unit, child:10)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/10",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "fb29822c-2a28-58f9-a6b0-95c27f07bb88",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/11 carries the stable key uuid5(unit, child:11)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/11",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "77b4c502-eb81-59cf-8048-1f317cb85ac5",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/12 carries the stable key uuid5(unit, child:12)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/12",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "4a3e7164-9d67-5774-a8ff-07824a812502",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/13 carries the stable key uuid5(unit, child:13)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/13",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "a7aadd40-2e62-5d26-862c-603e80c96973",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/14 carries the stable key uuid5(unit, child:14)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/14",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "205ddd90-ca59-5dbb-a5e3-ae615afb5997",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/15 carries the stable key uuid5(unit, child:15)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/15",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "8b88ad35-e01e-5d89-89d2-35b7e548288b",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/16 carries the stable key uuid5(unit, child:16)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/16",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "3e1d358a-3f22-55d8-b389-1ece7362b07f",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/17 carries the stable key uuid5(unit, child:17)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/17",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "16ceefea-f270-5052-85a3-9271329dda58",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/18 carries the stable key uuid5(unit, child:18)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/18",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "6b19706d-82c0-5eb1-ae88-bcdb6c9d925f",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/19 carries the stable key uuid5(unit, child:19)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/19",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "1891b9c5-8406-5d6b-88d4-f84d0176eaca",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/20 carries the stable key uuid5(unit, child:20)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/20",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "49920b64-55e7-5d62-a00c-85c83ded51fa",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/21 carries the stable key uuid5(unit, child:21)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/21",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "93eb5146-9f7e-5bea-9047-340d6fa3b622",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/22 carries the stable key uuid5(unit, child:22)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/22",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "fe2934b5-66bd-5111-a63b-b9812b547343",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/23 carries the stable key uuid5(unit, child:23)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/23",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "84928c97-3f59-55fc-920c-d625a89b0b00",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/24 carries the stable key uuid5(unit, child:24)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/24",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "a26b5616-6544-5104-9189-7959947b0c79",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/25 carries the stable key uuid5(unit, child:25)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/25",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "42a3f832-4ce5-5952-ba0f-986aafed4d5f",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/26 carries the stable key uuid5(unit, child:26)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/26",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "9e1678b6-853f-5506-bb16-17fd5c0ca765",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/27 carries the stable key uuid5(unit, child:27)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/27",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "244d3acc-2c99-5546-8602-3ca0284272f7",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/28 carries the stable key uuid5(unit, child:28)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/28",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "c26bd660-dde6-518d-9daa-15aa6487d58a",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/29 carries the stable key uuid5(unit, child:29)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/29",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "b103c605-4a87-51e1-98ff-db5d094da2d5",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/30 carries the stable key uuid5(unit, child:30)",
-      "on": "field",
-      "who": "Blue Stochastic Platoon/30",
-      "path": "EntityGuid.Value",
-      "op": "==",
-      "value": "98206cc5-408d-5b88-aa2e-1c2fc8c425c7",
-      "after": "handover"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/1 stands within 20 m of the unit's place",
+      "name": "split: Blue Stochastic Platoon/1 stands within 25 m of the platoon's place",
       "on": "near",
       "who": "Blue Stochastic Platoon/1",
       "point": [
@@ -416,12 +169,22 @@
         295,
         0
       ],
-      "within": 20,
+      "within": 25,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/2 stands within 20 m of the unit's place",
+      "name": "split: the squad Blue Stochastic Platoon/2 carries the stable key uuid5(platoon, child:2)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "d973e6c5-2a6d-528a-a626-17e8bf31ac1f",
+      "after": "handover",
+      "before": "handover+3"
+    },
+    {
+      "name": "split: Blue Stochastic Platoon/2 stands within 25 m of the platoon's place",
       "on": "near",
       "who": "Blue Stochastic Platoon/2",
       "point": [
@@ -429,12 +192,22 @@
         295,
         0
       ],
-      "within": 20,
+      "within": 25,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/3 stands within 20 m of the unit's place",
+      "name": "split: the squad Blue Stochastic Platoon/3 carries the stable key uuid5(platoon, child:3)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "9f61c165-e93f-5ec2-af32-90ade6f083ba",
+      "after": "handover",
+      "before": "handover+3"
+    },
+    {
+      "name": "split: Blue Stochastic Platoon/3 stands within 25 m of the platoon's place",
       "on": "near",
       "who": "Blue Stochastic Platoon/3",
       "point": [
@@ -442,360 +215,210 @@
         295,
         0
       ],
-      "within": 20,
+      "within": 25,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/4 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/4",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "CE-8307: the squad Blue Stochastic Platoon/1 is a STOCHASTIC unit at the handover",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "AggregateUnit.Echelon",
+      "op": "==",
+      "value": 0,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/5 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/5",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "CE-8307: the squad Blue Stochastic Platoon/2 is a STOCHASTIC unit at the handover",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "AggregateUnit.Echelon",
+      "op": "==",
+      "value": 0,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/6 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/6",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "CE-8307: the squad Blue Stochastic Platoon/3 is a STOCHASTIC unit at the handover",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "AggregateUnit.Echelon",
+      "op": "==",
+      "value": 0,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/7 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/7",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "... Blue Stochastic Platoon/1 carries its share: its 10 slots up",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 10,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/8 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/8",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "... Blue Stochastic Platoon/2 carries its share: its 10 slots up",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 10,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/9 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/9",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "... Blue Stochastic Platoon/3 carries its share: its 10 slots up",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": ">=",
+      "value": 0.5,
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      },
+      "elements": 10,
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+3"
     },
     {
-      "name": "split: Blue Stochastic Platoon/10 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/10",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "the cascade (D-P7): the patrol inside its band too, Blue Stochastic Platoon/1 splits into its men",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+15"
     },
     {
-      "name": "split: Blue Stochastic Platoon/11 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/11",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "the cascade (D-P7): the patrol inside its band too, Blue Stochastic Platoon/2 splits into its men",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/2",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+15"
     },
     {
-      "name": "split: Blue Stochastic Platoon/12 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/12",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
+      "name": "the cascade (D-P7): the patrol inside its band too, Blue Stochastic Platoon/3 splits into its men",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/3",
+      "path": "AggregateUnit.Resolution",
+      "op": "==",
+      "value": "Physical",
       "after": "handover",
-      "before": "handover+1"
+      "before": "handover+15"
     },
     {
-      "name": "split: Blue Stochastic Platoon/13 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/13",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/1 carries the stable key uuid5(squad 1, child:1)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/1",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "27f55ae3-f573-5678-aaad-732dafe8deca",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/14 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/14",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/2 carries the stable key uuid5(squad 1, child:2)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/2",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "ad49c02c-1db8-51c7-8b4d-2404404108dd",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/15 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/15",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/3 carries the stable key uuid5(squad 1, child:3)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/3",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "d405fc25-f258-52fe-8594-af086a48086b",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/16 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/16",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/4 carries the stable key uuid5(squad 1, child:4)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/4",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a53b4235-d88a-59d8-bd24-1e6fe06a946e",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/17 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/17",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/5 carries the stable key uuid5(squad 1, child:5)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/5",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "a5843b8c-6498-57c6-a31e-9d3de66df880",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/18 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/18",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/6 carries the stable key uuid5(squad 1, child:6)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/6",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "04044f1f-fdec-543b-a929-120f0bece545",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/19 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/19",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/7 carries the stable key uuid5(squad 1, child:7)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/7",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "97145b0f-2227-5d4d-8dc4-98ceb03cf15e",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/20 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/20",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/8 carries the stable key uuid5(squad 1, child:8)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/8",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "dfaedb8b-d8a7-5ae8-9c71-e46c5471b352",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/21 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/21",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/9 carries the stable key uuid5(squad 1, child:9)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/9",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "7f5a4935-7f3a-5f4e-9bbb-cac803c50a89",
+      "after": "handover"
     },
     {
-      "name": "split: Blue Stochastic Platoon/22 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/22",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/23 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/23",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/24 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/24",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/25 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/25",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/26 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/26",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/27 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/27",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/28 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/28",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/29 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/29",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
-    },
-    {
-      "name": "split: Blue Stochastic Platoon/30 stands within 20 m of the unit's place",
-      "on": "near",
-      "who": "Blue Stochastic Platoon/30",
-      "point": [
-        300,
-        295,
-        0
-      ],
-      "within": 20,
-      "after": "handover",
-      "before": "handover+1"
+      "name": "squad 1's men: Blue Stochastic Platoon/1/10 carries the stable key uuid5(squad 1, child:10)",
+      "on": "field",
+      "who": "Blue Stochastic Platoon/1/10",
+      "path": "EntityGuid.Value",
+      "op": "==",
+      "value": "6327e86d-7c97-5429-b87b-2323e86ff528",
+      "after": "handover"
     }
   ]
 }

@@ -19,5 +19,15 @@ namespace CarKinem.Spatial
         /// <summary>⭐ <c>CE-3209</c> (HL-2) — the largest collider radius placed in <see cref="Grid"/> this frame: a round's cell walk pads by
         /// it (an entity's grid point is its body's centre, its body reaches this far). 0 = not measured (a grid built by hand).</summary>
         public float MaxRadius;
+
+        /// <summary>
+        /// ⭐ CE-10006 (air combat AC-8, R-10029) — the AIRCRAFT the grid could not place (beyond the terrain it follows): a round still
+        /// meets them (<c>RaycastSolverSystem</c> tests these few beside the cells it walks). A ground unit off its terrain stays an
+        /// authoring error (W9, CE-2193). Entries [0, <see cref="AirOutsideCount"/>).
+        /// </summary>
+        public Fdp.Core.Collections.NativeArray<Entity> AirOutside;
+
+        /// <summary>How many of <see cref="AirOutside"/> are set this frame.</summary>
+        public int AirOutsideCount;
     }
 }

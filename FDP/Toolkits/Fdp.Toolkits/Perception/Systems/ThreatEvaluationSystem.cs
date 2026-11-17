@@ -205,7 +205,7 @@ namespace Fdp.Toolkit.Perception.Systems
                         //   16-slot memory like any man, so on a farm the cows, the hens and the two area entities evicted every enemy as fast
                         //   as he entered — measured: a Red rifleman's memory held 16 animals and villagers and no Blue man, and nobody fired.
                         //   A DANGEROUS animal (the guard dog attacking) stays one: self-defence needs it in memory (AR-6).
-                        if (Fdp.Toolkit.Animals.Animals.NotAContact(view, targetEntity)) continue;
+                        if (Fdp.Toolkit.Animals.Animals.NotAContact(view, targetEntity, entity)) continue;   // ⭐ CE-4649 part D — game is a contact for the hunter whose rule names it
                         if (view.IsAlive(targetEntity) && view.HasComponent<SimTransform>(targetEntity))
                         {
                             ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(targetEntity);
@@ -288,8 +288,8 @@ namespace Fdp.Toolkit.Perception.Systems
             //   remembers the civilians he sees, and counted as contacts the first civilian took the one FirstThreat (the SOP
             //   reacted, found nothing to engage, went idle) and a Hostile seen after it raised none — measured live on
             //   ua-civ-neutral-gate. ⛔ SUPERSEDED: countBefore == 0 && mem.Count > 0 (any contact).
-            int threatsBefore = _lastThreats.TryGetValue(entity, out int tb) ? tb : ThreatCount(view, in memRO);
-            threatsNow = ThreatCount(view, in mem);
+            int threatsBefore = _lastThreats.TryGetValue(entity, out int tb) ? tb : ThreatCount(view, in memRO, entity);
+            threatsNow = ThreatCount(view, in mem, entity);
             if (threatsBefore == 0 && threatsNow > 0)
                 ecb.PublishEvent(new SensorChangedEvent { Unit = entity, What = SensorChange.FirstThreat });
             else if (threatsBefore > 0 && threatsNow == 0)
@@ -312,11 +312,11 @@ namespace Fdp.Toolkit.Perception.Systems
             }
         }
 
-        public static unsafe int ThreatCount(ISimulationView view, in TargetMemory mem)
+        public static unsafe int ThreatCount(ISimulationView view, in TargetMemory mem, Entity observer = default)
         {
             int n = 0;
             for (int i = 0; i < mem.Count; i++)
-                if (TargetMemory.IsAnonymous(in mem, i) || !ThreatDanger.IsNeutral(view, new Entity((ulong)mem.EntityIds[i]))) n++;
+                if (TargetMemory.IsAnonymous(in mem, i) || !ThreatDanger.IsNeutralFor(view, observer, new Entity((ulong)mem.EntityIds[i]))) n++;
             return n;
         }
 

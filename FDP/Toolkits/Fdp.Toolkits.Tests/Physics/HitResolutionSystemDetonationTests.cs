@@ -143,6 +143,78 @@ namespace Fdp.Toolkit.Physics.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART C ③ (AN-20b) — a round into a FLOCK (ONE entity drawn as N birds): a chance PER DRAWN BIRD it passes (<c>FlockHits</c>) — a hit lowers the flock's count by ONE, requests ONE dead lone bird
+        /// at the strike (the flock's <c>LoneType</c>), consumes the round (TearDown) and publishes NO damage (no HitEvent, no detonation: the flock's own health is never the target); a miss lets the round fly on (not torn
+        /// down). The roll is deterministic (flock, count, round): the same rounds give the same birds, and the steady roll allocates nothing. 🔴 Red-proof: the flock branch removed ⇒ the flock entity takes the round's
+        /// damage and no bird is counted ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_ARoundIntoAFlock_HitsAtMostOneBird_ConsumesTheRound_ADeadBirdIsRequested_AndFlockHealthIsUntouched()
+        {
+            const long Duck = 713;
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            _world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
+            _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            _world.RegisterManagedEvent<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var lone = new Fdp.Interfaces.TkbTemplate("Duck", Duck); lone.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 6f }); db.Register(lone);
+            var flockT = new Fdp.Interfaces.TkbTemplate("DuckFlock", 714); flockT.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = 13, LoneType = Duck }); db.Register(flockT);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var flock = _world.CreateEntity();
+            _world.AddComponent(flock, new SimTransform { Position = new Vector3(0, 0, 25f), Rotation = Quaternion.Identity });
+            _world.AddComponent(flock, new PhysicsCollider { Radius = 3f, Height = 1f, CollisionLayer = 1 });
+            _world.AddComponent(flock, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 40f });
+            _world.AddComponent(flock, new Fdp.Toolkit.Animals.FlockState { Count = 40, InitialCount = 40 });
+            _world.AddComponent(flock, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)714 });
+
+            int expected = 0, count = 40;
+            var bullets = new Entity[40];
+            for (int i = 0; i < bullets.Length; i++)
+            {
+                var b = bullets[i] = _world.CreateEntity();
+                _world.AddComponent(b, new Fdp.Toolkit.Combat.Components.BallisticProjectile { Damage = 45f });
+                long key = PhysicsConstants.PackBulletRayId(b.Index);
+                float passed = Fdp.Toolkit.Animals.FlockHits.BirdsPassed(count, 3f, new Vector3(0, 0, 25f), new Vector3(-10, 0, 25f), new Vector3(10, 0, 25f));
+                if (Fdp.Toolkit.Animals.FlockHits.Roll(flock, count, key) < Fdp.Toolkit.Animals.FlockHits.Chance(passed)) { expected++; count--; }
+                _world.Bus.Publish(new RaycastResultEvent { Hit = new RaycastHit
+                {
+                    HasHit = 1, RayId = key, HitEntity = flock, Start = new Vector3(-10, 0, 25f), End = new Vector3(10, 0, 25f), T = 0.5f,
+                } });
+            }
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            _world.FlushCommandBuffers();
+
+            Assert.InRange(expected, 1, 39);                                        // a flock of 40 through its middle: most rounds hit a bird, not all
+            Assert.Equal(40 - expected, _world.GetComponentRO<Fdp.Toolkit.Animals.FlockState>(flock).Count);
+            Assert.Equal(40f, _world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(flock).Current);   // the flock itself is never the target
+            Assert.Equal(0, _world.Bus.Read<HitEvent>().Length);
+            Assert.Equal(0, _world.Bus.Read<DetonationNotification>().Length);
+            int requested = 0;
+            foreach (var r in ((Fdp.ModuleHost.Abstractions.ISimulationView)_world).ReadManagedEvents<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>())
+            {
+                requested++;
+                Assert.Equal((Fdp.Core.TkbTypeId)Duck, r.TkbType);
+                Assert.Contains(r.InitialComponents!, c => c is Fdp.Toolkit.Combat.Components.Health { Current: 0f, Max: 6f });
+            }
+            Assert.Equal(expected, requested);                                      // one dead bird per bird hit
+            int consumed = 0;
+            foreach (var b in bullets) if (_world.GetLifecycleState(b) == EntityLifecycle.TearDown) consumed++;
+            Assert.Equal(expected, consumed);                                       // a hit consumes the round; a miss flies on
+
+            // the steady roll allocates nothing
+            var from = new Vector3(-10, 0, 25f); var to = new Vector3(10, 0, 25f);
+            float sink = 0f;
+            for (int i = 0; i < 100; i++) sink += Fdp.Toolkit.Animals.FlockHits.Chance(Fdp.Toolkit.Animals.FlockHits.BirdsPassed(30, 3f, new Vector3(0, 0, 25f), from, to)) + Fdp.Toolkit.Animals.FlockHits.Roll(flock, 30, i);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++) sink += Fdp.Toolkit.Animals.FlockHits.Chance(Fdp.Toolkit.Animals.FlockHits.BirdsPassed(30, 3f, new Vector3(0, 0, 25f), from, to)) + Fdp.Toolkit.Animals.FlockHits.Roll(flock, 30, i);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(sink > 0f);
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-4649</c> (bows BW-11) — the RING an arrow scores: the distance of the strike from the scoring face's centre (a prop's position + FaceCentreZ), 10 rings of 6 cm
         /// (10 at the centre … 1 at the rim, 0 beyond), read from the prop's TKB <c>ArcheryTargetDto</c>; a prop with none is no target (−1). 🔴 Red-proof: ring width halved ⇒ red.
         /// </summary>

@@ -39,5 +39,22 @@ namespace Hrot.Map.Definitions.Behavior
         /// and fires, at all of it it commits its reserve. 0 = 480.</summary>
         [JsonPropertyName("DeadlineSeconds")]
         public float DeadlineSeconds;
+        /// <summary>⭐ <c>CE-8307</c> (R-8392; the neutral <c>AttackOrder</c>, R-8300) — the order's place: the first objective when
+        /// <see cref="Objective1"/> is zero.</summary>
+        [JsonPropertyName("Position")]
+        public PointLink Position;
+
+        /// <summary>⭐ <c>CE-8307</c> — the order's entity: the first objective (its place when the play starts) when neither objective nor position is given.</summary>
+        [JsonPropertyName("Target")]
+        public EntityLink Target;
+
+        /// <summary>⭐ <c>CE-8307</c> — the order's area radius: <see cref="Radius"/> when that is zero.</summary>
+        [JsonPropertyName("SearchRadius")]
+        public float SearchRadius;
+
+        /// <summary>⭐ <c>CE-8307</c> — support by fire (the neutral order's field). ⚠ The company's attack has none: the reconciler never re-resolves a
+        /// hold-back attack to this play (F-SOL-4).</summary>
+        [JsonPropertyName("HoldBack")]
+        public bool HoldBack;
     }
 }

@@ -488,4 +488,84 @@ public sealed class PerEntityRuleTests
         }
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelReadCheck.ClearDeclarations(); }
     }
+
+    // ── ⭐⭐ CE-9013 (DESIGN_Occurrence_Scoped_Storage §34.7) — an own component ADDED in the phase and WRITTEN before the merge ─────────────
+
+    [ComponentId(479)] private unsafe struct Blob { public fixed byte B[2048]; }
+
+    private unsafe struct OwnRawJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx)
+        {
+            if (index % 3 != 0) return;
+            byte* p = ctx.AllocateOwnRaw(e, ComponentType<Blob>.ID, sizeof(Blob));
+            for (int k = 0; k < sizeof(Blob); k++) if (p[k] != 0) throw new InvalidOperationException("not zeroed");
+            p[0] = (byte)index; p[2047] = (byte)(index >> 8);
+            if (ctx.OwnRaw(e.Index, ComponentType<Blob>.ID) != p) throw new InvalidOperationException("not found by address");
+            if (Repo.HasComponent<Blob>(e)) throw new InvalidOperationException("added inside the phase");
+            if (index % 9 == 0) Repo.DestroyEntity(e);   // a pending add on an entity destroyed in the same tick is dropped
+        }
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    private static unsafe string OwnRawAt(int threads, int n = 1200)
+    {
+        FdpWorkerPool.Resize(threads);
+        using var w = World(n, out var list);
+        w.RegisterComponent<Blob>();
+        ParallelEntities.Run(w, list, n, new OwnRawJob { Repo = w });
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < n; i++)
+        {
+            if (!w.IsAlive(list[i])) { sb.Append('x'); continue; }
+            if (!w.HasComponent<Blob>(list[i])) { sb.Append('-'); continue; }
+            var b = w.GetComponentRO<Blob>(list[i]);
+            sb.Append(b.B[0]).Append(':').Append(b.B[2047]).Append(',');
+        }
+        sb.Append('|');
+        foreach (var e in w.Query().With<Blob>().Build()) sb.Append(e.Index).Append(',');   // the per-type add order the merge left
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-9013 — <c>BatchContext.AllocateOwnRaw</c>: zeroed bytes the job writes and finds again by address; NOT a component during the
+    /// phase; at the merge it IS one, with the bytes the job wrote, the same at 1 / 2 / 4 / 8 threads; an entity destroyed in the same tick gets
+    /// nothing. 🔴 Red-proofs: <c>PlayOwnRaw</c> not called at the merge ⇒ no entity has the component; played after <c>Commands.Playback</c>
+    /// ⇒ unchanged here (the destroy wins either way), so the order rail is the 1 / 2 / 4 / 8 sameness.
+    /// </summary>
+    [Fact]
+    public void CE9013_AnOwnRawAdd_IsWritableInThePhase_AndLandsAtTheMerge_TheSameAt1_2_4_8Threads()
+    {
+        try
+        {
+            var one = OwnRawAt(1);
+            Assert.Contains("3:0,", one);                     // entity index 3 wrote (3, 0)
+            Assert.StartsWith("x", one);                      // index 0: destroyed in the tick (0 % 9 == 0) ⇒ no add
+            foreach (int t in new[] { 2, 4, 8 }) Assert.Equal(one, OwnRawAt(t));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
+
+    private unsafe struct OtherRawJob : IEntityBatchJob
+    {
+        public Entity Other;
+        public void Execute(Entity e, int index, BatchContext ctx) => ctx.AllocateOwnRaw(Other, ComponentType<Blob>.ID, sizeof(Blob));
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    /// <summary>⭐ CE-9013 — only the entity the job is processing: another entity's raw add throws (that one goes through the command buffer).</summary>
+    [Fact]
+    public void CE9013_AnOwnRawAdd_ForAnotherEntity_Throws()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(2);
+            using var w = World(4, out var list);
+            w.RegisterComponent<Blob>();
+            Assert.ThrowsAny<Exception>(() => ParallelEntities.Run(w, new[] { list[0] }, 1, new OtherRawJob { Other = list[1] }));
+            Assert.False(w.HasComponent<Blob>(list[1]));
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); }
+    }
 }

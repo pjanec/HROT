@@ -117,6 +117,23 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(entity, hit.HitEntity);
         }
 
+        /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a BIRD-sized body (radius 0.15, height 0.15) flying at 25 m: a round through its body band hits it, one 0.3 m above or 0.3 m to the side passes — the height
+        /// band follows the bird's z (feet = its position), so shooting at 25 m is not special. ✅ Red-proof: the 2.5 m fallback radius ⇒ the side round hits ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ARoundThroughAFlyingBirdsBody_HitsIt_BesideOrAboveItDoesNot()
+        {
+            var bird = SpawnCollider(new Vector2(40f, 0f), radius: 0.15f, layer: 1);
+            _world.GetComponentRW<PhysicsCollider>(bird).Height = 0.15f;
+            _world.GetComponentRW<SimTransform>(bird).Position = new Vector3(40f, 0f, 25f);
+            RaycastHit Ray(float y, float z, int id) => RunSolver(new RaycastRequestEvent
+            {
+                Start = new Vector3(0f, y, z), End = new Vector3(80f, y, z), RayId = PhysicsConstants.PackBulletRayId(id), LayerMask = 1,
+            });
+            Assert.Equal(bird, Ray(0.05f, 25.07f, 61).HitEntity);
+            Assert.Equal(0, Ray(0.3f, 25.07f, 62).HasHit);   // beside
+            Assert.Equal(0, Ray(0.05f, 25.4f, 63).HasHit);   // over
+        }
+
         /// <summary>A PERSON (a pedestrian-class unit) in <paramref name="stance"/>, standing on the ground at (10, 0).</summary>
         private Entity SpawnPerson(Hrot.MuscleCharacter.Animation.Components.StanceIntent? stance)
         {
@@ -383,6 +400,52 @@ namespace Fdp.Toolkit.Physics.Tests
             var hit = FireRound(new Vector3(0f, 0f, 1.5f), new Vector3(20f, 0f, 121.5f));   // climbing through (10, 0, 61.5)
             Assert.Equal(1, hit.HasHit);
             Assert.Equal(heli, hit.HitEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-10006</c> (air combat AC-8, R-10029) — a PLANE's position is its body's CENTRE, so its band is centred there: a round
+        /// level with the jet 1 m BELOW its position hits it; a round 4 m below passes under. A helicopter (its position is its skids) keeps
+        /// the band from its position up. 🔴 Red-proof (mutant, run): the band from the position up for a plane too ⇒ the 1 m-low round
+        /// misses ⇒ red (📐 ac-dogfight-2v2: 215 rounds a median 2.6 m from the bandit's centre, none hit).
+        /// </summary>
+        [Fact]
+        public void CE10006_APlanesHitBand_IsCentredOnItsBody_AHelicoptersStartsAtItsSkids()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var jet = SpawnCollider(new Vector2(10f, 0f), radius: 2f, layer: Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
+            _world.GetComponentRW<SimTransform>(jet).Position = new Vector3(10f, 0f, 2000f);
+            _world.GetComponentRW<PhysicsCollider>(jet).Height = 4.9f;
+            _world.AddComponent(jet, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 1999f), new Vector3(20f, 0f, 1999f)).HitEntity);   // 1 m under its centre
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 2002f), new Vector3(20f, 0f, 2002f)).HitEntity);   // 2 m over it
+            Assert.Equal(0, FireRound(new Vector3(0f, 0f, 1996f), new Vector3(20f, 0f, 1996f)).HasHit);       // 4 m under: past the band
+
+            _world.GetComponentRW<Fdp.Toolkit.Motion.Locomotion>(jet).Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+            Assert.Equal(0, FireRound(new Vector3(0f, 0f, 1999f), new Vector3(20f, 0f, 1999f)).HasHit);       // a helicopter: from its skids up
+            Assert.Equal(jet, FireRound(new Vector3(0f, 0f, 2001f), new Vector3(20f, 0f, 2001f)).HitEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-10006</c> (R-10029) — a jet beyond the collider grid, listed in <see cref="SpatialGridData.AirOutside"/>, is met by a round
+        /// passing through it; not listed, it is not (the grid alone cannot place it). 🔴 Red-proof (mutant, run): the solver's AirOutside loop
+        /// removed ⇒ no hit ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE10006_AJetBeyondTheGrid_IsStillMetByARound()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            var jet = _world.CreateEntity();
+            _world.AddComponent(jet, new SimTransform { Position = new Vector3(50_000f, 0f, 2000f), Rotation = Quaternion.Identity });
+            _world.AddComponent(jet, new SimVelocity());
+            _world.AddComponent(jet, new PhysicsCollider { Radius = 2f, Height = 4.9f, CollisionLayer = Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer });
+            _world.AddComponent(jet, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing });
+            _world.SetSingleton(new SpatialGridData { Grid = _grid });
+            Assert.Equal(0, FireRound(new Vector3(49_990f, 0f, 2000f), new Vector3(50_010f, 0f, 2000f)).HasHit);   // not listed: unseen
+            var outside = new Fdp.Core.Collections.NativeArray<Entity>(4, Fdp.Core.Collections.Allocator.Persistent);
+            outside[0] = jet;
+            _world.SetSingleton(new SpatialGridData { Grid = _grid, AirOutside = outside, AirOutsideCount = 1 });
+            Assert.Equal(jet, FireRound(new Vector3(49_990f, 0f, 2000f), new Vector3(50_010f, 0f, 2000f)).HitEntity);
+            outside.Dispose();
         }
 
         /// <summary>⭐ <c>CE-2182</c> — rounds still never meet each other: a round sits on the round's bit, which its own mask skips.</summary>

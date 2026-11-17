@@ -890,8 +890,13 @@ public sealed class TheUnitFormDrawsTests
         });
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-resolution.png"));
         var rows = view.View.Rows.ToList();
-        foreach (var want in new[] { "Resolution = Stochastic", "Echelon = Platoon", "Formation = Line", "Frontage = 200 m  ×  80 m", "Heading = 045°", "Prepared = Hasty" })
+        foreach (var want in new[] { "Resolution = Stochastic", "Echelon = Platoon", "Formation = Line", "Prepared = Hasty" })
             Assert.Contains(want, rows);
+        // ⭐ CE-8022 ① — frontage / depth / heading are NUMBER rows now (editable through the attribute path); ⛔ R-8008 — no Fusion anywhere in the form
+        Assert.Contains(rows, r => r.StartsWith("Frontage = 200", StringComparison.Ordinal));
+        Assert.Contains(rows, r => r.StartsWith("Depth = 80", StringComparison.Ordinal));
+        Assert.Contains(rows, r => r.StartsWith("Heading = 45", StringComparison.Ordinal));
+        Assert.DoesNotContain(rows, r => r.Contains("usion", StringComparison.OrdinalIgnoreCase));
         int res = rows.FindIndex(r => r.StartsWith("Resolution", StringComparison.Ordinal)), strength = rows.FindIndex(r => r.StartsWith("Strength", StringComparison.Ordinal));
         Assert.True(strength < 0 || res < strength, "the Resolution section comes before State");
         var shot = Raylib_cs.Raylib.LoadImageFromScreen();

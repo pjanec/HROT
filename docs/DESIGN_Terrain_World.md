@@ -376,7 +376,19 @@ classDiagram
   CognitiveSpatialModule --> TerrainWorldSource
   TerrainWorldLosStrategy --> TerrainWorldSource : same live source (R-174)
   SpatialHashSystem --> TerrainWorld : live repo singleton
+  SpatialHashSystem --> SpatialGridData : publishes Grid + AirOutside (CE-10006)
+  RaycastSolverSystem --> SpatialGridData : walks the cells + tests AirOutside
 ```
+
+⭐ **AS BUILT `2026-11-17` — AIRCRAFT beyond the grid (CE-10006, air lane R-10029; cross-lane).** A collider the grid cannot place stays the
+authoring error CE-2193 says — ⭐ **except an AIRCRAFT** (`Locomotions.InAir`): it is kept aside in `SpatialGridData.AirOutside` (≤ 64,
+`SpatialHashConstants.MaxAirOutside`; not counted in `Dropped`, not warned) and `RaycastSolverSystem` tests those few beside the cells it walks.
+📐 Why: aircraft legitimately fly beyond a small terrain (the air range is 2 × 2 km by R-10009; a dogfight arena is 4 km in radius; `sam-site`'s
+A-10 strikes from 5 km beyond the edge) — `ac-dogfight-2v2`'s 233 gun rounds passed within ~1–3 m of the bandit's centre and NONE hit, because the
+fight was outside this ±1 050 m grid. Rejected: widening the terrain (R-10009 — the navmesh bake; a prefilled cache is ~100 k files per 5 km,
+CE-3428); a separate air grid (a second index for ≤ a few dozen bodies). Ground units are unchanged. Rails:
+`SpatialHashSystemTests.CE10006_AnAircraftBeyondTheGrid_*`, `RaycastSolverSystemTests.CE10006_AJetBeyondTheGrid_*`. ⚠ The PERCEPTION grid
+(`LocalGridBuilderSystem`) is unchanged — the ground's eyes still see only inside it (air combat STATUS finding ⑥).
 
 *What the picture shows that the prose hid:* **each grid is rebased only by its own writer, on its own thread** —
 `SpatialHashSystem` (main) for the collider grid, `LocalGridBuilderSystem` (perception module) for the perception grid —
