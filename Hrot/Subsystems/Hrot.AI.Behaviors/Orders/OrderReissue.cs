@@ -36,7 +36,7 @@ namespace Hrot.AI.Behaviors.Orders
         public static string? BlockReason(EntityRepository repo, Entity unit, AggregateResolution target, Func<string, bool> isBehaviour)
         {
             // X2-I (R-8362) — the scope the reconciler re-resolves: a squad. A platoon / company keeps today's behaviour (its split flattens to men, F-X2-1)
-            if (!repo.HasComponent<AggregateUnit>(unit) || repo.GetComponentRO<AggregateUnit>(unit).Echelon != 0) return null;
+            if (!UnitSplits.RostersItsMen(repo, unit)) return null;   // ⭐ R-8372 — the echelon alone misreads an authored table (agg-merge-back)
             var order = CurrentOrders.Of(repo, unit);
             if (!order.Exists) return null;
             if (order.Kind == 0) return "its order has no kind (SV-10: an untyped order cannot switch)";

@@ -103,6 +103,15 @@ namespace Fdp.Toolkit.Aggregate
         public static float ToSoldier(float slotHealth, float max) => max <= 0f ? slotHealth : slotHealth / SlotFullHealth * max;
         public static float ToSlot(float current, float max) => max <= 0f ? current : MathF.Max(0f, current) / max * SlotFullHealth;
 
+        /// <summary>⭐⭐ <c>X-2</c> X2-I (R-8362, R-8372) — the scope of the order re-resolution: a SQUAD whose released men fit its roster —
+        /// <see cref="AggregateUnit.Echelon"/> 0 AND a slot table no larger than <see cref="UnitRoster.Capacity"/>. ⚠ The echelon alone is not
+        /// enough: the fill sets it only when it FILLS the table, so a unit with an AUTHORED table keeps 0 (📌 measured: <c>agg-merge-back</c>'s
+        /// 30-slot platoon). ONE rule for the switch's assigns, the manager's <c>SwitchBlocked</c> and the reconciler.</summary>
+        public static bool RostersItsMen(EntityRepository repo, Entity unit)
+            => repo.HasComponent<AggregateUnit>(unit) && repo.GetComponentRO<AggregateUnit>(unit).Echelon == 0
+               && (!repo.IsComponentTypeRegistered<UnitSlotTable>() || !repo.HasComponent<UnitSlotTable>(unit)
+                   || repo.GetComponentRO<UnitSlotTable>(unit).Count <= UnitRoster.Capacity);
+
         /// <summary>⭐ CE-8013 ② — a child that counts: HELD (Constructing, SV-6) or Active; ⛔ not one already in teardown (a merge's).</summary>
         public static bool Live(EntityRepository repo, Entity c)
         {
@@ -446,7 +455,7 @@ namespace Fdp.Toolkit.Aggregate
             ref readonly var slots = ref repo.GetComponentRO<UnitSlotTable>(unit);
             bool health = repo.IsComponentTypeRegistered<Health>();
             bool stress = repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>();
-            bool squad = repo.HasComponent<AggregateUnit>(unit) && repo.GetComponentRO<AggregateUnit>(unit).Echelon == 0;
+            bool squad = UnitSplits.RostersItsMen(repo, unit);   // ⭐ X2-I (R-8372) — a squad whose men fit its roster
             foreach (var c in Children(repo, unit))
             {
                 ref var tag = ref repo.GetComponentRW<AggregateChild>(c);

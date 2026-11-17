@@ -303,6 +303,7 @@ Parallel rule (X2-G): the S2–S4 rails under `HROT_PARALLEL_SIM=1 HROT_READ_CHE
 | `BlockReason`: an order with no kind / no row ⇒ wait | the same, **squad echelon only** (R-8369) | a platoon's Defend has no physical row (no `InfantryPlatoon` class) — unscoped, every automatic platoon split under a Defend would have waited forever (X2-I) |
 | the merge projects into "the kind's `[Order]` DTO" | into the TARGET play's own params DTO (`ParamsDtoRegistry.TryGetBehavior`) (R-8370) | kinds with no `[Order]` DTO (Bound, ClearBuilding, …) route to a play that has one; the target's DTO is what its strict read accepts |
 | X2-E: a stale reaction is "CLEARED at origin Reaction" | cleared at origin **Self**, and the same for a stale task at origin Sop / Self (R-8364) | a Reaction-origin clear is gated like a reaction — refused against a MORE urgent running one; a Self clear ends the reaction as if it ended itself (a paused task resumes) |
+| X2-I: "squad echelon only (`AggregateUnit.Echelon == 0`)" | ONE scope rule, `UnitSplits.RostersItsMen` = echelon 0 AND a slot table ≤ `UnitRoster.Capacity` — used by the switch's assigns, `BlockReason` and the reconciler (R-8372; cross-lane, `UnitResolution.cs`) | 📌 measured in the end-of-run sweep: `agg-merge-back`'s platoon has an AUTHORED 30-slot table, so the fill never set its echelon (0) — `BlockReason` held its split (no physical Defend for a platoon) and the scenario failed 62/64; with the rule it is out of scope again. Rails `X2I_*` ×2 |
 | `agg-merge-keeps-order` *or* re-judge `agg-merge-back` | a NEW scenario (R-8371) | `agg-merge-back` is a PLATOON — X-2 is squad-only (X2-I) |
 
 **Scenarios** (R-4277, editor tier, each in a fresh process, golden captured then SAME in a second; main design §23.6i): `agg-split-keeps-order` 6/6 ·
@@ -316,7 +317,7 @@ entity dump — judged by the men not leaving their posts instead. ⚠ A merge's
 
 **Findings while building:** F-X2-5, F-X2-6 (§10).
 
-**Lane decisions:** R-8364 … R-8371 (above) · R-8365 is the user's ruling.
+**Lane decisions:** R-8364 … R-8372 (above) · R-8365 is the user's ruling.
 
 ## 10. Findings *(measured while designing)*
 

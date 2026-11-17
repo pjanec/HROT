@@ -116,7 +116,7 @@ namespace Hrot.CGF.Systems
             {
                 ref readonly var a = ref repo.GetComponentRO<AggregateUnit>(unit);
                 // X2-I (R-8362) — squad echelon only (a platoon's split flattens to men, F-X2-1); mid-process the unit is still what it was
-                if (a.Echelon != 0 || a.Splitting != SplitStage.NotSplitting) continue;
+                if (a.Splitting != SplitStage.NotSplitting || !UnitSplits.RostersItsMen(repo, unit)) continue;   // R-8372: a squad whose men fit its roster
                 ref readonly var bs = ref repo.GetComponentRO<BehaviorState>(unit);
                 int run = bs.ActiveBehaviorHash;
                 if (run == BehaviorIds.None) continue;

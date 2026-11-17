@@ -298,5 +298,22 @@ namespace Hrot.SimHost.Tests
             Assert.False(asked, "a man standing on a planned post is never surveyed for windows");
             Assert.True(Reports(repo, u, Fdp.Toolkit.Squad.Command.ProgressKind.Set) >= 1, "PROGRESS Set: every man on his post");
         }
+
+        /// <summary>⭐ X-2 R-8372 (📌 <c>agg-merge-back</c>, measured) — an echelon-0 unit with an AUTHORED table larger than a roster is out of scope: the
+        /// manager's <c>SwitchBlocked</c> never holds it (its Defend has no physical play — a platoon), and the reconciler leaves its play alone after a split.
+        /// ✅ Red-proof: the echelon alone as the scope ⇒ BlockReason holds the platoon's split ⇒ red.</summary>
+        [Fact]
+        public void X2I_AnAuthoredPlatoonTable_AtEchelonZero_IsOutOfScope()
+        {
+            var (s, fit, hier, repo, u) = X2Squad(men: 20);
+            repo.SetDisType(u, UnitDis.Land(UnitArm.Infantry, UnitEchelon.Platoon, 225));
+            Assert.Null(OrderReissue.BlockReason(repo, u, AggregateResolution.Physical, fit.IsBehaviour));
+            X2Split(s, u, men: 16);
+            for (int i = 0; i < 6; i++) X2Frame(s, fit, hier);
+            Assert.Equal(ResolutionRoutingTable.Plays.Defend, s.TaskName);   // left alone (X2-I)
+            Assert.Equal(0, fit.Cleared);
+            Assert.Equal(0, fit.Reissued);
+        }
     }
 }
+

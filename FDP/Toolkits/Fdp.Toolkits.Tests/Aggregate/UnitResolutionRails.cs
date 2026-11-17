@@ -431,5 +431,21 @@ namespace Fdp.Toolkits.Tests.Aggregate
                 Assert.Equal(AggregateResolution.Stochastic, h.U.Resolution);  // and back, pinned
             }
         }
+
+        /// <summary>⭐ <c>X-2</c> R-8372 — the scope is a squad whose men FIT its roster: an echelon-0 unit with an AUTHORED 20-slot table (the fill never
+        /// set its echelon — 📌 <c>agg-merge-back</c>'s platoon) assigns nobody. ✅ Red-proof: <c>RostersItsMen</c> reading the echelon alone ⇒ 20 assigns ⇒ red.</summary>
+        [Fact]
+        public void X2I_AnEchelonZeroUnit_LargerThanARoster_AssignsNobody()
+        {
+            using var h = new Host(enemyAt: 500f);
+            var big = new UnitSlotTable { Count = 20 };
+            for (int i = 0; i < 20; i++) big.Slots[i] = new UnitSlot { Role = SlotRole.Rifleman, Health = (Half)25f, CompositeSlot = (byte)(i + 1) };
+            h.W.SetComponent(h.Unit, big);
+            Assert.False(UnitSplits.RostersItsMen(h.W, h.Unit));
+            h.Step(); h.Step(); h.Step();
+            Assert.Equal(AggregateResolution.Physical, h.U.Resolution);
+            Assert.Empty(h.W.Bus.Read<Fdp.Core.CommandHierarchy.CmdAssignSubordinate>().ToArray());
+        }
     }
 }
+
