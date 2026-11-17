@@ -39,6 +39,14 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 | does the weapon brain need more than numbers? | ✅ **numbers + switch arms only**: the category is read in `Armament` (armed look), `WeaponBrainProfiles` (profile, direct / indirect), `ArmorModel` (fire on the move), `BarrelHeat` — a `Bow` arm in each; no behaviors work | grep of `WeaponCategory.` outside catalogues |
 | where does a shot's report come from? | per SHOOTER (`AcousticEmitter.FiringAudibleRange`), with two exceptions already — a countermeasure release and a hand throw (`SoundEmissionSystem.cs:85-100`) | ⇒ R-3100 |
 
+## C — S0, measured live `2026-11-17` (farm, a rifleman ordered `attack` on a lone bird 708 at 30 m)
+
+| question | answer | where |
+|---|---|---|
+| can a round hit a lone bird today? | ⛔ **no round is ever fired**: the operator's attack order runs (`PersonAttack`, the bird in `TargetMemory`) but the weapon channel never acts — `ForceLevels.ConductPermits` holds a LETHAL round at any non-combatant not judged identified-lethal, an animal included (only an attacking, `Dangerous` animal passes) | `ForceLevels.cs:75-81` ⇒ R-3101 |
+| the bird's collider | `Radius 2.5`, `Height 0.15` — ⚠ a 5 m wide hit circle for a 0.3 m bird (the band test applies, the circle is far too wide) | `PhysicsCollider` on the live bird |
+| does a frightened lone bird fly? | ⚠ **no** — `Alert` (fear band 2), it moved 15 m along the GROUND (z = 0); the ~25 m flight was not seen in 15 s | the live probe |
+
 ## Lane decisions (backend block — for the user's review)
 
 | id | decision | what would change it |
@@ -46,6 +54,7 @@ Started at `c71fe5ede` (coordinator merged at `1b523513c`, a fast-forward).
 | R-3098 | the existing wardrobes (everyday, child, elderly, police, soldier) keep their EXACT draw sequence, reading every colour from `OutfitCatalog` data (no palette left in code); a type with an authored `OutfitDto` is dressed by the OF-6 fixed-order slot draw. ⭐ Why: today's dresser consumes its random stream conditionally (`Outfits.cs:156-177`: suit, sleeves, skirt/shorts rolls depend on earlier rolls), so one generic slot draw would reshuffle every existing crowd and break the design's own acceptance ("the existing frames pixel-identical", §6). The OF-2 sex fix still consumes the old 50 % roll, so nothing else shifts | the user accepting a one-time reshuffle of every crowd's clothes ⇒ the everyday set becomes ordinary slot data and one draw procedure remains |
 | R-3099 | an arrow / bolt that hits an ANIMAL wounds it as any round does, and leaves NO stuck mark — animals have no part boxes in the hit test (S0); the round is torn down | an animal part kit in `BodyPartRay` (sim + ui) — filed as a follow-up |
 | R-3100 | the bow's silence (BW-9) is a property of the MUNITION (`Silent` on the arrow / bolt rows), checked in `SoundEmissionSystem` beside the two existing exceptions — a man who carries a bow AND a rifle is still heard when he fires the rifle | the user wanting a quiet SHOOTER type instead |
+| R-3101 | the CONDUCT hold (and the neutral hold) protect PEOPLE: they never apply to an ANIMAL. Whether a unit shoots an animal is AN-12's targeting rule — an explicit order (an operator's attack, `FireAtTarget`) or a hunter's standing rule (AN-21g); an attacking animal stays self-defence (AB-5) | an animal-welfare rule the user wants on top (e.g. never a domestic animal unless ordered twice) |
 
 ## Stand-in looks left for ui
 
