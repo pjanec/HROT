@@ -580,10 +580,10 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 
 ## 16. Being built now *(added `2026-11-17` — every item judged by its scenarios when it lands)*
 
-- 🚧 **What a person wears comes from the catalogue** — each person type lists its garments, colours, hair and headwear, and every person is varied
-  only WITHIN that list (R-4287); fixes the "adult woman" type drawn as a man half the time. ⭐ **Middle-East civilians** — men in robes with a shemagh
-  or a skullcap, women in an abaya and hijab or niqab, boys and girls — and **Middle-East fighters** in local dress with chest rigs and face wraps; the
-  insurgent takes the fighter look. ▶ ⏳ `civ-middle-east-market` · ⏳ `me-fighters-ambush` ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md), CE-4648 — backend the data, ui the drawing)
+- ✅ / 🚧 **What a person wears comes from the catalogue** — BUILT and merged `2026-11-17` (the data by backend, the drawing by ui): see §3 —
+  Middle-East dress, the Native American warrior's look and ⭐ the **Afghan people** (civilians 1111–1116, fighters 2016–2018 in perahan tunban,
+  waistcoat, pakol, lungee, patu, chadari) ▶ `civ-afghan-village` ✅. ⏳ still to land: `civ-middle-east-market`, `me-fighters-ambush`
+  ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md) §10, CE-4648)
 - 🚧 **Bows and crossbows** — the arrow seen along its arc, STUCK where it lands (in a wall or the ground, at its angle) and in a body (it stays
   when he falls), SILENT to every AI ear, shot from horseback; an archery target that scores by ring. ▶ ⏳ `bw-arrow-arc` · `bw-unheard` ·
   `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` · `bw-archery-contest` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md), CE-4649)
