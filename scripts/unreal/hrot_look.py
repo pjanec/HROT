@@ -1,0 +1,268 @@
+"""hrot_look.py — runs INSIDE the Unreal editor (CE-4651, UL-10): builds a LOOK level from one exported terrain and renders its views.
+
+    UnrealEditor.exe <project> -ExecutePythonScript="<this file>" -unattended -nosplash -abslog=<log>    (driven by look.py)
+    HROT_LOOK_JOB = { "terrain", "unreal" (frame.json's "unreal", r16 made absolute), "cover", "trees", "views" (views.json),
+                      "level", "shots" (a folder), "out" (result json), "settleSeconds", "width", "height",
+                      "treeMesh", "treeMaterial" (optional asset paths; default: a placeholder cone) }
+
+Everything is OUR data: the ground (HrotTerrain.ImportHeights, exact), the ground's colour by our forest / water / open areas
+(<name>.cover.png) and by slope, the trees at our forest points (HrotTerrain.ScatterInstances), plus Unreal's own sky, sun, clouds,
+fog and Lumen. ⚠ The procedural colours and the cone trees are PLACEHOLDERS until real assets (Megascans / Megaplants) are in the project.
+"""
+import json, os, time, traceback
+import unreal
+
+JOB = json.load(open(os.environ["HROT_LOOK_JOB"], encoding="utf-8"))
+T0 = time.time()
+R = {"job": {k: v for k, v in JOB.items() if k != "views"}, "log": [], "shots": []}
+state = {"handle": None, "busy": False, "step": 0, "wait_until": 0.0, "pending": None}
+MEL = unreal.MaterialEditingLibrary
+ASSETS = unreal.AssetToolsHelpers.get_asset_tools()
+
+
+def log(msg):
+    unreal.log_warning(f"[HROT-LOOK] {msg}")
+    R["log"].append(f"{time.time() - T0:7.1f}s {msg}")
+
+
+def finish(ok, why=""):
+    R["ok"], R["why"], R["seconds"] = ok, why, round(time.time() - T0, 1)
+    with open(JOB["out"], "w", encoding="utf-8") as f:
+        json.dump(R, f, indent=1)
+    if state["handle"] is not None:
+        unreal.unregister_slate_post_tick_callback(state["handle"]); state["handle"] = None
+    if not os.environ.get("HROT_LOOK_KEEP_OPEN"):
+        unreal.EditorPythonScripting.set_keep_python_script_alive(False)
+
+
+def eas():
+    return unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+
+
+def spawn(cls, loc=(0, 0, 0), rot=(0, 0, 0), label=None):
+    a = eas().spawn_actor_from_class(cls, unreal.Vector(*loc), unreal.Rotator(roll=rot[2], pitch=rot[0], yaw=rot[1]))
+    if label: a.set_actor_label(label)
+    return a
+
+
+def asset_path(folder, name):
+    return f"{folder}/{name}"
+
+
+def fresh_asset(folder, name, cls, factory):
+    path = asset_path(folder, name)
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        unreal.EditorAssetLibrary.delete_asset(path)
+    return ASSETS.create_asset(name, folder, cls, factory)
+
+
+# ── the steps ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+def step_level():
+    les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if not les.new_level(JOB["level"]): raise RuntimeError("new_level failed: " + JOB["level"])
+
+
+def step_ground():
+    u = JOB["unreal"]
+    ls = unreal.HrotTerrainLibrary.import_heights(u["r16"], u["sizeX"], u["sizeY"], u["quadsPerSection"], u["sectionsPerComponent"],
+                                                  unreal.Vector(*u["locationCm"]), unreal.Vector(*u["scaleCm"]), JOB["terrain"])
+    if not ls: raise RuntimeError("HrotTerrain import failed")
+    state["landscape"] = ls
+    log("ground imported")
+
+
+def step_sky():
+    sun = spawn(unreal.DirectionalLight, (0, 0, 100000), (-32, 215, 0), "Sun")
+    lc = sun.light_component
+    lc.set_editor_property("atmosphere_sun_light", True)
+    lc.set_editor_property("intensity", 9.0)
+    lc.set_mobility(unreal.ComponentMobility.MOVABLE)
+    spawn(unreal.SkyAtmosphere, label="SkyAtmosphere")
+    sky = spawn(unreal.SkyLight, (0, 0, 100000), label="SkyLight")
+    sky.light_component.set_editor_property("real_time_capture", True)
+    sky.light_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    fog = spawn(unreal.ExponentialHeightFog, (0, 0, 20000), label="HeightFog")
+    fc = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
+    fc.set_editor_property("fog_density", 0.0015)   # pass 1 had 0.008: the overview washed out
+    fc.set_editor_property("fog_height_falloff", 0.2)
+    spawn(unreal.VolumetricCloud, label="Clouds")
+    ppv = spawn(unreal.PostProcessVolume, label="PostProcess")
+    ppv.set_editor_property("unbound", True)
+    log("sky, sun, clouds, fog")
+
+
+def step_ground_material():
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", JOB["cover"]); task.set_editor_property("destination_path", "/Game/Hrot")
+    task.set_editor_property("destination_name", "T_HrotCover"); task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True); task.set_editor_property("save", True)
+    ASSETS.import_asset_tasks([task])
+    tex = unreal.load_asset("/Game/Hrot/T_HrotCover")
+    tex.set_editor_property("srgb", False)
+    tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_VECTOR_DISPLACEMENTMAP)
+    tex.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+    tex.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP); tex.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+
+    m = fresh_asset("/Game/Hrot", "M_HrotGround", unreal.Material, unreal.MaterialFactoryNew())
+    E = lambda cls, x, y: MEL.create_material_expression(m, cls, x, y)
+    def c3(rgb, x, y):
+        e = E(unreal.MaterialExpressionConstant3Vector, x, y); e.set_editor_property("constant", unreal.LinearColor(*rgb, 1.0)); return e
+    def c1(v, x, y):
+        e = E(unreal.MaterialExpressionConstant, x, y); e.set_editor_property("r", v); return e
+    def c2(a, b, x, y):
+        e = E(unreal.MaterialExpressionConstant2Vector, x, y); e.set_editor_property("r", a); e.set_editor_property("g", b); return e
+    def link(a, b, pin, out=""):
+        MEL.connect_material_expressions(a, out, b, pin)
+    def op(cls, a, b, x, y, out_a="", out_b=""):
+        e = E(cls, x, y); link(a, e, "A", out_a); link(b, e, "B", out_b); return e
+    def lerp(a, b, alpha, x, y, out_alpha=""):
+        e = E(unreal.MaterialExpressionLinearInterpolate, x, y); link(a, e, "A"); link(b, e, "B"); link(alpha, e, "Alpha", out_alpha); return e
+
+    mask = JOB["mask"]
+    wp = E(unreal.MaterialExpressionWorldPosition, -1600, 0)
+    xy = E(unreal.MaterialExpressionComponentMask, -1400, 0)
+    xy.set_editor_property("r", True); xy.set_editor_property("g", True); xy.set_editor_property("b", False); xy.set_editor_property("a", False)
+    link(wp, xy, "")
+    uv = op(unreal.MaterialExpressionDivide, op(unreal.MaterialExpressionSubtract, xy, c2(*mask["northWestCm"], -1400, 120), -1200, 0),
+            c2(*mask["extentCm"], -1200, 160), -1000, 0)
+    ts = E(unreal.MaterialExpressionTextureSample, -800, 0)
+    ts.set_editor_property("texture", tex); ts.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    link(uv, ts, "UVs")
+
+    nrm = E(unreal.MaterialExpressionVertexNormalWS, -1000, 400)
+    nz = E(unreal.MaterialExpressionComponentMask, -800, 400)
+    for p, v in (("r", False), ("g", False), ("b", True), ("a", False)): nz.set_editor_property(p, v)
+    link(nrm, nz, "")
+    steep = E(unreal.MaterialExpressionSaturate, -400, 400)
+    link(op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, c1(0.86, -800, 500), nz, -600, 400), c1(9.0, -600, 520), -500, 400), steep, "")
+
+    noise = E(unreal.MaterialExpressionNoise, -800, -400)
+    noise.set_editor_property("scale", 0.0004); noise.set_editor_property("output_min", 0.0); noise.set_editor_property("output_max", 1.0)
+    noise.set_editor_property("levels", 6)
+    link(wp, noise, "Position")
+    grass = lerp(c3((0.075, 0.13, 0.035), -600, -500), c3((0.13, 0.16, 0.05), -600, -420), noise, -400, -450)   # pass 1: too yellow
+    forest = c3((0.045, 0.07, 0.03), -400, -300)
+    water = c3((0.02, 0.05, 0.06), -400, -200)
+    rock = c3((0.30, 0.28, 0.25), -400, -100)
+    col = lerp(grass, forest, ts, -200, -400, out_alpha="R")
+    col = lerp(col, water, ts, 0, -350, out_alpha="G")
+    col = lerp(col, rock, steep, 200, -300)
+    MEL.connect_material_property(col, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = lerp(c1(0.92, 0, 100), c1(0.06, 0, 160), ts, 200, 100, out_alpha="G")
+    MEL.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.recompile_material(m)
+    state["landscape"].set_editor_property("landscape_material", m)
+    log("ground material: our forest / water / open mask + slope")
+
+
+def tree_material():
+    path = JOB.get("treeMaterial")
+    if path: return unreal.load_asset(path)
+    m = fresh_asset("/Game/Hrot", "M_HrotTreePlaceholder", unreal.Material, unreal.MaterialFactoryNew())
+    c = MEL.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -300, 0)
+    c.set_editor_property("constant", unreal.LinearColor(0.035, 0.075, 0.025, 1.0))
+    MEL.connect_material_property(c, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    r = MEL.create_material_expression(m, unreal.MaterialExpressionConstant, -300, 120); r.set_editor_property("r", 0.85)
+    MEL.connect_material_property(r, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.recompile_material(m)
+    return m
+
+
+def step_trees():
+    mesh = unreal.load_asset(JOB.get("treeMesh") or "/Engine/BasicShapes/Cone")
+    placeholder = not JOB.get("treeMesh")
+    scale = unreal.Vector(5.5, 5.5, 13.0) if placeholder else unreal.Vector(1, 1, 1)
+    a = unreal.HrotTerrainLibrary.scatter_instances(JOB["trees"], mesh, tree_material(), "Trees", 800000.0, scale, 50.0 if placeholder else 0.0)
+    if not a: raise RuntimeError("ScatterInstances failed")
+    log("trees scattered" + (" (placeholder cones)" if placeholder else ""))
+
+
+def flat_material(name, rgb, rough, two_sided=True):
+    m = fresh_asset("/Game/Hrot", name, unreal.Material, unreal.MaterialFactoryNew())
+    c = MEL.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -300, 0)
+    c.set_editor_property("constant", unreal.LinearColor(*rgb, 1.0))
+    MEL.connect_material_property(c, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    r = MEL.create_material_expression(m, unreal.MaterialExpressionConstant, -300, 120); r.set_editor_property("r", rough)
+    MEL.connect_material_property(r, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    m.set_editor_property("two_sided", two_sided)
+    MEL.recompile_material(m)
+    return m
+
+
+def step_buildings():
+    """UL-11: OUR building shapes (the exporter's mesh tiles) — walls and roofs as placeholders until facade / roof materials arrive."""
+    spec = JOB.get("buildingMeshes")
+    if not spec: return
+    wall = unreal.load_asset(JOB["wallMaterial"]) if JOB.get("wallMaterial") else flat_material("M_HrotWallPlaceholder", (0.55, 0.51, 0.45), 0.85)
+    roof = unreal.load_asset(JOB["roofMaterial"]) if JOB.get("roofMaterial") else flat_material("M_HrotRoofPlaceholder", (0.30, 0.10, 0.06), 0.7)
+    n = 0
+    for t in spec["tiles"]:
+        a = unreal.HrotTerrainLibrary.build_mesh(os.path.join(JOB["exportDir"], t["file"]).replace("\\", "/"),
+                                                 f"/Game/Hrot/Buildings/SM_{JOB['terrain'].replace('-', '_')}_{t['tile'][0]}_{t['tile'][1]}",
+                                                 [wall, roof], unreal.Vector(*t["locationCm"]), f"Buildings_{t['tile'][0]}_{t['tile'][1]}")
+        if a: n += t["buildings"]
+    log(f"buildings: {n} shapes in {len(spec['tiles'])} tiles")
+
+
+def step_shots():
+    state["queue"] = list(JOB["views"])
+    state["first"] = True
+
+
+def shoot_next():
+    """One view per call: place a camera, let Lumen and streaming settle, take the shot, wait for the file."""
+    if state.get("pending"):
+        path, t = state["pending"]
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            R["shots"].append(path); log(f"shot {os.path.basename(path)}"); state["pending"] = None
+        elif time.time() - t > 120:
+            R["shots"].append(None); log(f"shot timed out: {path}"); state["pending"] = None
+        return True
+    if not state.get("queue"): return False
+    if time.time() < state["wait_until"]: return True
+    if not state.get("camera_for"):
+        v = state["queue"][0]
+        cam = spawn(unreal.CameraActor, tuple(v["unreal"]["locationCm"]), (v["unreal"]["pitch"], v["unreal"]["yaw"], 0), "View_" + v["name"])
+        cam.camera_component.set_editor_property("field_of_view", 60.0)
+        ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
+        ues.set_level_viewport_camera_info(cam.get_actor_location(), cam.get_actor_rotation())
+        state["camera_for"] = (v, cam)
+        state["wait_until"] = time.time() + (JOB.get("settleSeconds", 20) * (2 if state.get("first") else 1))
+        state["first"] = False
+        return True
+    v, cam = state.pop("camera_for")
+    state["queue"].pop(0)
+    path = os.path.join(JOB["shots"], f"{JOB['terrain']}-{v['name']}.png").replace("\\", "/")
+    if os.path.exists(path): os.remove(path)
+    unreal.AutomationLibrary.take_high_res_screenshot(JOB.get("width", 1920), JOB.get("height", 1080), path, cam)
+    state["pending"] = (path, time.time())
+    return True
+
+
+def step_save():
+    unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
+
+
+STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_shots, None, step_save]
+
+
+def tick(dt):
+    if state["busy"]: return
+    try:
+        state["busy"] = True
+        if state["step"] < len(STEPS) and STEPS[state["step"]] is None:   # the shots run over many ticks
+            if shoot_next(): return
+            state["step"] += 1; return
+        if state["step"] >= len(STEPS):
+            finish(True); return
+        s = STEPS[state["step"]]; state["step"] += 1
+        s()
+    except Exception:
+        state["step"] = len(STEPS) + 1
+        finish(False, traceback.format_exc())
+    finally:
+        state["busy"] = False
+
+
+unreal.EditorPythonScripting.set_keep_python_script_alive(True)   # F-1
+state["handle"] = unreal.register_slate_post_tick_callback(tick)

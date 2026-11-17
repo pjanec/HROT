@@ -189,6 +189,129 @@ def features(folder, terrain, world):
     return feats, counts
 
 
+def write_look(out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn, tree_spacing=5.0, mask_cell=2.0, seed=4651):
+    """UL-10, the LOOK inputs — all from OUR data, so the picture follows the simulation's map:
+    <name>.cover.png  RGB 8-bit, one pixel per `mask_cell` m over the whole (padded) landscape, the NORTH row first:
+                      R = forest, G = water, B = open (a surface of class open); the landscape material samples it by world position
+    <name>.trees.bin  float32 records X, Y, Z (Unreal cm), yaw, width scale, height scale — one tree per ~tree_spacing² m² of forest,
+                      jittered, Z = HROT's own ground (TerrainHeightGrid.Sample) — for HrotTerrain.ScatterInstances
+    <name>.views.json camera poses picked from the data (Unreal cm / degrees)"""
+    from PIL import Image, ImageDraw
+    W, H = (cols - 1) * cell, (rows - 1) * cell
+    mw, mh = int(round(W / mask_cell)), int(round(H / mask_cell))
+    layers = {}
+    for key, cls in (("R", "forest"), ("G", "water"), ("B", "open")):
+        img = Image.new("L", (mw, mh), 0); dr = ImageDraw.Draw(img)
+        for f in feats:
+            pr = f["properties"]
+            if pr["hrot_kind"] != "surface" or pr.get("class") != cls: continue
+            rings = f["geometry"]["coordinates"]
+            for k, ring_ in enumerate(rings):
+                px = [((x - de - x0) / mask_cell, (y0 + H - (y - dn)) / mask_cell) for x, y in ring_]
+                if len(px) >= 3: dr.polygon(px, fill=255 if k == 0 else 0)
+        layers[key] = img
+    Image.merge("RGB", (layers["R"], layers["G"], layers["B"])).save(os.path.join(out, f"{name}.cover.png"))
+    forest = np.asarray(layers["R"]) > 127   # row 0 = north
+
+    rng = np.random.default_rng(seed)
+    gx = np.arange(x0 + tree_spacing / 2, x0 + W, tree_spacing); gy = np.arange(y0 + tree_spacing / 2, y0 + H, tree_spacing)
+    X, Y = np.meshgrid(gx, gy)
+    X = X + rng.uniform(-0.45, 0.45, X.shape) * tree_spacing; Y = Y + rng.uniform(-0.45, 0.45, Y.shape) * tree_spacing
+    ci = np.clip(((X - x0) / mask_cell).astype(int), 0, mw - 1); ri = np.clip(((y0 + H - Y) / mask_cell).astype(int), 0, mh - 1)
+    keep = forest[ri, ci]
+    X, Y = X[keep], Y[keep]
+    fx = np.clip((X - x0) / cell, 0, cols - 1.000001); fy = np.clip((Y - y0) / cell, 0, rows - 1.000001)
+    c = fx.astype(int); r = fy.astype(int); u = fx - c; v = fy - r
+    z00, z10, z01, z11 = z[r, c], z[r, c + 1], z[r + 1, c], z[r + 1, c + 1]
+    Z = np.where(u >= v, z00 + u * (z10 - z00) + v * (z11 - z10), z00 + v * (z01 - z00) + u * (z11 - z01))
+    n = len(X)
+    rec = np.stack([X * 100, -Y * 100, Z * 100 - 30, rng.uniform(0, 360, n), rng.uniform(0.8, 1.25, n), rng.uniform(0.75, 1.3, n)], 1)
+    rec.astype("<f4").tofile(os.path.join(out, f"{name}.trees.bin"))
+
+    def ground(x, y):
+        return float(z[int(np.clip((y - y0) / cell, 0, rows - 1)), int(np.clip((x - x0) / cell, 0, cols - 1))])
+    views = []
+    bc = [np.mean(np.array(f["geometry"]["coordinates"][0]), 0) - [de, dn] for f in feats if f["properties"]["hrot_kind"] == "building"]
+    if bc:
+        bc = np.array(bc)
+        H2, xe, ye = np.histogram2d(bc[:, 0], bc[:, 1], bins=[max(1, int(W // 250)), max(1, int(H // 250))], range=[[x0, x0 + W], [y0, y0 + H]])
+        i, j = np.unravel_index(np.argmax(H2), H2.shape); tx, ty = (xe[i] + xe[i + 1]) / 2, (ye[j] + ye[j + 1]) / 2
+        views.append({"name": "village-aerial", "target": [tx, ty, ground(tx, ty)], "yaw": 35.0, "pitch": -22.0, "distance": 650.0})
+        views.append({"name": "village-low", "target": [tx, ty, ground(tx, ty)], "yaw": 200.0, "pitch": -6.0, "distance": 160.0})
+    if forest.any():
+        rr, cc = np.nonzero(forest); k = len(rr) // 2; fx_, fy_ = x0 + cc[k] * mask_cell, y0 + H - rr[k] * mask_cell
+        views.append({"name": "forest-aerial", "target": [fx_, fy_, ground(fx_, fy_)], "yaw": 120.0, "pitch": -25.0, "distance": 900.0})
+    views.append({"name": "overview", "target": [x0 + W / 2, y0 + H / 2, float(np.median(z))], "yaw": 30.0, "pitch": -35.0, "distance": max(W, H) * 0.9})
+    for vw in views:
+        tx, ty, tz = vw["target"]; d = vw["distance"]; yaw = np.radians(vw["yaw"]); pitch = np.radians(vw["pitch"])
+        # HROT local: the camera BEHIND the target along its heading (yaw 0 = looking north, clockwise), raised by the pitch
+        ex = tx - d * np.cos(pitch) * np.sin(yaw); ey = ty - d * np.cos(pitch) * np.cos(yaw); ez = tz - d * np.sin(pitch)
+        ez = max(ez, ground(ex, ey) + 2.0)
+        vw["eye"] = [ex, ey, ez]
+        vw["unreal"] = {"locationCm": [ex * 100, -ey * 100, ez * 100], "pitch": vw["pitch"], "yaw": vw["yaw"] - 90.0}   # UE yaw 0 = +X (east), clockwise in its left-handed frame
+    with open(os.path.join(out, f"{name}.views.json"), "w", encoding="utf-8") as f:
+        json.dump({"views": views, "mask": {"cell": mask_cell, "size": [mw, mh], "northWestCm": [x0 * 100, -(y0 + H) * 100], "extentCm": [W * 100, H * 100]},
+                   "trees": int(n), "treeSpacing": tree_spacing}, f, indent=1)
+    return {"trees": int(n), "views": [v["name"] for v in views], "mask": [mw, mh]}
+
+
+def write_buildings(out, name, feats, z, x0, y0, cell, rows, cols, tile_m=500.0):
+    """UL-11, OUR building shapes as meshes for HrotTerrain.BuildMesh — exact by construction: each footprint extruded from its base to
+    its height (slot 0 = wall, slot 1 = roof cap), each imported roof volume ("<id>-roof", base = the eaves) extruded as a roof (slot 1).
+    One file per tile_m × tile_m tile (culling), vertices relative to the tile's south-west corner at the tile's lowest base, Unreal cm.
+    The base: a template's baseZ when it has one, else the LOWEST ground under the footprint (HROT's TerrainHeightGrid.LowestUnder rule)."""
+    import mapbox_earcut as earcut
+    def lowest(ring_):
+        return min(float(z[int(np.clip(round((y - y0) / cell), 0, rows - 1)), int(np.clip(round((x - x0) / cell), 0, cols - 1))]) for x, y in ring_)
+    tiles = {}
+    for f in feats:
+        pr = f["properties"]
+        if pr["hrot_kind"] not in ("building", "roof"): continue
+        ring_ = np.array(f["geometry"]["coordinates"][0], dtype=float)[:, :2]
+        if len(ring_) > 1 and np.allclose(ring_[0], ring_[-1]): ring_ = ring_[:-1]
+        if len(ring_) < 3: continue
+        area2 = np.sum(ring_[:, 0] * np.roll(ring_[:, 1], -1) - np.roll(ring_[:, 0], -1) * ring_[:, 1])
+        if area2 < 0: ring_ = ring_[::-1]   # counter-clockwise in HROT (x east, y north)
+        base = pr.get("base_z")
+        base = float(base) if base is not None else lowest(ring_)
+        top = base + float(pr.get("height") or 3.0)
+        c = ring_.mean(0); key = (int((c[0] - x0) // tile_m), int((c[1] - y0) // tile_m))
+        tiles.setdefault(key, []).append((ring_, base, top, pr["hrot_kind"]))
+    written = []
+    for (tx, ty), items in tiles.items():
+        ox, oy = x0 + tx * tile_m, y0 + ty * tile_m
+        oz = min(b for _, b, _, _ in items)
+        V, T, M = [], [], []
+        def vtx(x, y, h):
+            V.append(((x - ox) * 100.0, -(y - oy) * 100.0, (h - oz) * 100.0)); return len(V) - 1
+        for ring_, base, top, kind in items:
+            n = len(ring_)
+            wall_slot = 0 if kind == "building" else 1
+            for i in range(n):   # walls: a quad per edge, outward-facing
+                ax, ay = ring_[i]; bx, by = ring_[(i + 1) % n]
+                a0, b0, b1, a1 = vtx(ax, ay, base), vtx(bx, by, base), vtx(bx, by, top), vtx(ax, ay, top)
+                T += [(a0, b0, b1), (a0, b1, a1)]; M += [wall_slot, wall_slot]
+            tri = earcut.triangulate_float64(ring_, np.array([n], dtype=np.uint32)).reshape(-1, 3)
+            first = len(V)
+            for x, y in ring_: vtx(x, y, top)
+            for a_, b_, c_ in tri:   # the top cap (earcut is counter-clockwise like the ring)
+                T.append((first + a_, first + b_, first + c_)); M.append(1)
+        path = os.path.join(out, f"{name}.bld_{tx}_{ty}.bin")
+        with open(path, "wb") as f:
+            f.write(struct.pack("<ii", len(V), len(T)))
+            f.write(np.array(V, dtype="<f4").tobytes()); f.write(np.array(T, dtype="<i4").tobytes()); f.write(np.array(M, dtype="u1").tobytes())
+        written.append({"file": os.path.basename(path), "locationCm": [ox * 100.0, -oy * 100.0, oz * 100.0], "buildings": len(items),
+                        "triangles": len(T), "tile": [tx, ty]})
+    with open(os.path.join(out, f"{name}.buildings-mesh.json"), "w", encoding="utf-8") as f:
+        json.dump({"tiles": written, "tileMetres": tile_m}, f, indent=1)
+    return {"tiles": len(written), "buildings": sum(w["buildings"] for w in written), "triangles": sum(w["triangles"] for w in written)}
+
+
+def _shift(c, de, dn):
+    if isinstance(c[0], (int, float)): return [c[0] + de, c[1] + dn]
+    return [_shift(x, de, dn) for x in c]
+
+
 def offset_geometry(geom, de, dn):
     def m(c):
         if isinstance(c[0], (int, float)): return [round(c[0] + de, 3), round(c[1] + dn, 3)]
@@ -203,6 +326,7 @@ def main():
     ap.add_argument("--crs", choices=("auto", "local"), default="auto")
     ap.add_argument("--component-quads", type=int, choices=(7, 15, 31, 63, 127, 255), default=None,
                     help="pad to whole components of this many quads (default: 255 above 2 000 quads, 127 above 400, else 63)")
+    ap.add_argument("--look", action="store_true", help="also the look inputs: the cover mask, the tree scatter, the views (UL-10)")
     ap.add_argument("--no-pad", action="store_true", help="write the grid as it is (Unreal may resample it - UL-7)")
     a = ap.parse_args()
     import rasterio
@@ -263,6 +387,10 @@ def main():
 
     feats, counts = features(folder, terrain, world)
     for f in feats: offset_geometry(f["geometry"], de, dn)
+    look = write_look(a.out, name, feats, z, x0, y0, cell, rows, cols, unreal, de, dn) if a.look else None
+    if a.look:
+        local = [{**f, "geometry": {"type": f["geometry"]["type"], "coordinates": _shift(f["geometry"]["coordinates"], -de, -dn)}} for f in feats]
+        look["buildingMeshes"] = write_buildings(a.out, name, local, z, x0, y0, cell, rows, cols)
     vec = {"type": "FeatureCollection", "name": name, "features": feats}
     if crs is not None:
         epsg = crs.to_epsg()
@@ -294,7 +422,7 @@ def main():
     info = {"terrain": name, "frame": what, "crsUserInput": user_input, "crs": crs.to_wkt() if crs else None, "epsg": crs.to_epsg() if crs else None,
             "localToProjected": [de, dn], "posts": [cols, rows], "hrotPosts": hrot_posts, "componentQuads": None if a.no_pad else comp,
             "components": None if a.no_pad else [(cols - 1) // comp, (rows - 1) // comp], "cell": cell, "southWestPost": [x0, y0],
-            "zMin": float(z.min()), "zMax": float(z.max()), "unreal": unreal, "features": counts}
+            "zMin": float(z.min()), "zMax": float(z.max()), "unreal": unreal, "features": counts, "look": look}
     with open(os.path.join(a.out, f"{name}.frame.json"), "w", encoding="utf-8") as f:
         json.dump(info, f, indent=1)
     print(json.dumps(info, indent=1)[:1500] if crs is None else json.dumps({k: v for k, v in info.items() if k != "crs"}, indent=1))

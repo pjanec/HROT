@@ -6,6 +6,8 @@
 #include "HrotTerrainLibrary.generated.h"
 
 class ALandscape;
+class UStaticMesh;
+class UMaterialInterface;
 
 /**
  * Imports HROT's ground into the editor world EXACTLY: one landscape vertex per HROT height post.
@@ -32,4 +34,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
 	static ALandscape* ImportHeights(const FString& R16Path, int32 SizeX, int32 SizeY, int32 QuadsPerSection, int32 SectionsPerComponent,
 		FVector LocationCm, FVector ScaleCm, const FString& Label);
+
+	/**
+	 * Spawns one actor holding a hierarchical instanced mesh with every instance of a scatter file — trees, bushes, rocks
+	 * (scripts/terrain-to-unreal.py writes it from OUR forest / open areas).
+	 * @param BinPath  little-endian float32 records of 6: X, Y, Z (Unreal cm, the base of the instance), yaw (degrees), width scale, height scale
+	 * @param Mesh     the mesh to instance; Material (optional) overrides its slot 0
+	 * @param CullDistanceCm  instances beyond it are not drawn (0 = never culled)
+	 * @param MeshScale       multiplies each record's (width, width, height) scale — sizes a unit mesh to a real tree
+	 * @param PivotUpCm       the mesh's base sits this far BELOW its pivot (a centred unit cone: 50) — lifted by the instance's height scale
+	 * @return the actor, or null (the reason is logged under LogHrotTerrain)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static AActor* ScatterInstances(const FString& BinPath, UStaticMesh* Mesh, UMaterialInterface* Material, const FString& Label,
+		float CullDistanceCm, FVector MeshScale = FVector(1, 1, 1), float PivotUpCm = 0.f);
+
+	/**
+	 * Builds a static mesh asset from a mesh file of the exporter (OUR building shapes — exact, nothing approximated) and places it.
+	 * @param BinPath    int32 vertex count, int32 triangle count; float32 X, Y, Z per vertex (Unreal cm, relative to LocationCm);
+	 *                   int32 a, b, c per triangle; uint8 material slot per triangle
+	 * @param AssetPath  e.g. /Game/Hrot/Buildings/SM_Stechovice_3_7 (created or replaced)
+	 * @param Materials  one per slot (e.g. 0 = wall, 1 = roof)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static AActor* BuildMesh(const FString& BinPath, const FString& AssetPath, const TArray<UMaterialInterface*>& Materials,
+		FVector LocationCm, const FString& Label);
 };
