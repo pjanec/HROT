@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-17
-build-state: DESIGN — OF-1…OF-12 carry leans, ⛔ NOT approved; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
+build-state: READY-TO-BUILD — OF-1…OF-12 ✅ APPROVED `2026-11-17` (R-4288; the Insurgent 2003 takes the fighter look); handoff HANDOFF_Coordinator_To_Ui_Person_Outfits.md; the direction is ruled (R-4287): the TKB says what a person wears, the seed varies only within the type's lists
 current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the catalogue content · §6 acceptance · §7 ids · §8 slices
 stale-below: none
 known-rot: none
@@ -58,7 +58,7 @@ descriptor**; `search_code "(?i)thobe|dishdasha|keffiyeh|kufiya|shemagh|abaya|hi
 | one place builds a type's look | ✅ `TypeLook` is built from the TKB once per type (`EntityBodyLayer3D.cs:2160-2186`) | ✅ "one implementation per concept" |
 | the proven solution | engines dress crowds from **authored wardrobes**: per character type, a set of slots (top, legs, head, hair) each with weighted options and colour palettes, picked by a seed (Unreal / Unity crowd systems, VBS's "random appearance" lists on a character class) | adopted: it is exactly the user's rule; we take the slot + weighted-option shape, ⛔ not mesh swapping (we draw block figures) |
 
-## 3. Decisions — ⭐ leans, NOT approved
+## 3. Decisions — ✅ approved `2026-11-17` (R-4288)
 
 | # | decision — ⭐ lean | why | rejected — one line |
 |---|---|---|---|
