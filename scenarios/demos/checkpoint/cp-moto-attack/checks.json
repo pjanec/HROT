@@ -1,0 +1,48 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4622 K-8 the two-up bike.",
+ "runFor": 45,
+ "golden": {
+  "every": 10
+ },
+ "expect": [
+  {
+   "name": "two men on one bike are an indicator",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Indicators",
+   "op": "==",
+   "value": 1
+  },
+  {
+   "name": "a threat",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.Threats",
+   "op": ">=",
+   "value": 1
+  },
+  {
+   "name": "the ladder reaches lethal",
+   "on": "field",
+   "who": "Checkpoint",
+   "path": "CheckpointWatch.MaxRung",
+   "op": "==",
+   "value": 4
+  },
+  {
+   "name": "never disabling fire at a bike",
+   "never": {
+    "on": "field",
+    "who": "Checkpoint",
+    "path": "CheckpointWatch.Rung",
+    "op": "==",
+    "value": 3
+   }
+  },
+  {
+   "name": "the Gunner fires",
+   "on": "shot",
+   "by": "Gunner"
+  }
+ ]
+}

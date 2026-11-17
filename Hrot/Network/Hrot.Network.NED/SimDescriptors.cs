@@ -274,6 +274,19 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsClearedLane> Lanes;
     }
 
+    // ⭐ CE-4622 K-2 — a hull's ram order (RamOrder), the Brain group's, applied on every other node (the node that moves the hull reads it): the MineClearing shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityRamOrder
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Active;
+        public byte Crowd;
+        public int TargetNetId;
+    }
+
     // ⭐ CE-4624 MS-T4 — a mine clearer's tool marker (MineClearing), the Brain group's, applied on every other node (the Muscle that clears reads it): the BladeCut shape.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]

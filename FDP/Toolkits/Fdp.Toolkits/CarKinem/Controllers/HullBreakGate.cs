@@ -13,15 +13,17 @@ namespace CarKinem.Controllers
     ///       every corner hold (V-4);</item>
     /// <item>no replay is running — the recording owns the world, a replayed possession re-decides nothing (V-14).</item>
     /// </list>
-    /// The bulldozer's order (§7.6) is the one AI exception and comes through its own marker (B-4), not through this gate.
+    /// The bulldozer's order (§7.6) comes through its own marker (B-4), not through this gate. ⭐ <c>CE-4622</c> K-2 (Checkpoint RM-5, amends B-D1): a hull on a
+    /// RAM order (<see cref="RamOrder"/>, the hull's own marker, active) MAY break a weak barrier too — still never in a replay.
     /// </summary>
     public static class HullBreakGate
     {
         /// <summary>May the hull <paramref name="entity"/>, moving with <paramref name="nav"/>, break what it meets this tick?</summary>
         public static bool MayBreak(EntityRepository repo, Entity entity, in NavState nav)
         {
-            if (nav.Mode != KinematicsMode.Manual) return false;
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) return false;
+            if (RamOrder.On(repo, entity, out _)) return true;   // ⭐ CE-4622 K-2 (RM-5)
+            if (nav.Mode != KinematicsMode.Manual) return false;
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>()
                 || !repo.HasComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(entity)) return false;
             var held = repo.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(entity);

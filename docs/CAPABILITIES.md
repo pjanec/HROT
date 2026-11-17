@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -348,8 +348,15 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   fires while riding, and run three plays — a drive-by, a parked bomb on a timer, and a swarm raid from all sides. A **grey-zone dash** past
   drones: riders listen for them (riding dulls their hearing), break hard when one dives, and dismount at the edge.
   ⏳ no live demo yet ([DESIGN_Motorcycle](designs/vehicle-tactics/DESIGN_Motorcycle.md), CE-4621)
-- 📐 **Checkpoints and ramming:** a vehicle checkpoint with its drill, and vehicles that ram through a barrier or another vehicle.
+- *(added `2026-11-17`)* **A vehicle checkpoint:** a squad mans it on an approach road — a stopper at the stop line, two searchers, a machine gun
+  and the rest behind at a stand-off worked out from the expected bomb. It judges each vehicle by its TIME to the stand-off: a car that slows on the
+  signal is routine; one that ignores it is a threat and is laddered — a warning shot, disabling fire at the engine, then lethal fire, skipping a rung
+  when time is short. A stopped car's people are told out, hands up, and they and the car (its boot) are searched, then let go — or held if something
+  is found. ▶ `cp-routine-car` ✅ · `cp-vbied` ✅ (a car bomb that will not stop is hit and stopped short) · `cp-compliant-bomber` ✅ (a bomber
+  who stops and sets it off as the searchers come — the price of a search) · `cp-moto-attack` ✅ (two men on one bike: a threat, no engine rung)
   ([DESIGN_Checkpoint_And_Ramming](designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md), CE-4622)
+- *(added `2026-11-17`)* **Vehicles hurt the people they hit,** by speed and weight; a ramming car does not swerve for its target, and its ram is a
+  lethal act once it is in its last 50 m. ▶ `cp-ram-barrier` ⚠ the car paths ROUND a weak barrier instead of through it (CE-2445, backend's direct move)
 
 ## 9b. Minefields *(🚧 being built now by the `terrain`, `behaviors` and `ui` lanes, `2026-11-16` — [DESIGN_Minefields](designs/minefields/DESIGN_Minefields.md), CE-4624)*
 

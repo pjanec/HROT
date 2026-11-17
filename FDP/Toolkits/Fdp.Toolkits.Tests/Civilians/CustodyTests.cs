@@ -25,7 +25,7 @@ namespace Fdp.Toolkit.Tests.Civilians
     [Collection(Fdp.Toolkit.Tests.Combat.ArmamentCounterCollection.Name)]
     public sealed class CustodyTests : IDisposable
     {
-        private const long ManType = 9811, PistolType = 9812, PistolAmmo = 9890;
+        private const long ManType = 9811, PistolType = 9812, PistolAmmo = 9890, CarType = 9813;
 
         private readonly EntityRepository _world = new();
         private readonly TkbDatabase _db = new();
@@ -63,6 +63,11 @@ namespace Fdp.Toolkit.Tests.Civilians
             pistol.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { InitialAmmunition = 12, AmmoGuid = (ulong)PistolAmmo, Category = WeaponCategory.SmallArms } } });
             _db.Register(pistol);
             _db.Register(new TkbTemplate("Pistol round", PistolAmmo));
+            var car = new TkbTemplate("Car", CarType);   // ⭐ CE-4622 K-6 — a driver's seat and a concealed boot
+            car.AddDescriptor(new CarrierDefDto { Seats = new() { new SeatDto(), new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Cargo },
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false } } });
+            _db.Register(car);
+            _world.RegisterComponent<global::CarKinem.Core.VehicleState>();
             _world.SetSingletonManaged<ITkbDatabase>(_db);
         }
 
@@ -176,6 +181,35 @@ namespace Fdp.Toolkit.Tests.Civilians
             CustodyRules.Ask(_world, man, soldier, CustodyVerb.ReleaseCustody);
             Step(0.1);
             Assert.False(CustodyRules.InCustody(_world, man));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4622</c> K-6 (Checkpoint CP-4) — a VEHICLE search: a soldier 3 m from a STOPPED car (its side — the vehicle reach is 4 m) searches it
+        /// for 3 s and what its concealed boot holds is put down (a charge stands in as the pistol); a MOVING car is refused.
+        /// ✅ Red-proof: the stopped-vehicle compliance dropped ⇒ the search is refused ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4622_K6_AVehicleSearch_OfAStoppedCar_RevealsItsBoot_AMovingCarIsRefused()
+        {
+            var car = Spawn(CarType, Vector3.Zero);
+            _world.AddComponent(car, new global::CarKinem.Core.VehicleState { Speed = 5f });
+            var charge = Spawn(PistolType, Vector3.Zero);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, charge, car));
+            Assert.True(CarryStations.Move(_world, car, charge, 2));   // the boot (station 2)
+            Assert.True(CarryStations.IsConcealed(_world, charge));
+            var soldier = _world.CreateEntity();
+            _world.AddComponent(soldier, new SimTransform { Position = new Vector3(0f, 3f, 0f), Rotation = Quaternion.Identity });
+
+            CustodyRules.Ask(_world, car, soldier, CustodyVerb.Search);
+            Step(0.1);
+            Assert.Equal(1, _system.Refused);                                      // it is moving
+            _world.GetComponentRW<global::CarKinem.Core.VehicleState>(car).Speed = 0f;
+            CustodyRules.Ask(_world, car, soldier, CustodyVerb.Search);
+            Step(0.1);
+            Assert.Equal((byte)1, Of(car).Searching);
+            Step(3.0);
+            Assert.Equal((byte)1, Of(car).Searched);
+            Assert.False(CarryStations.IsConcealed(_world, charge));               // the boot's charge is out
         }
     }
 }
