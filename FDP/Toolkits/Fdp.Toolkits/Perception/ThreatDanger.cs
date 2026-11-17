@@ -219,7 +219,10 @@ namespace Fdp.Toolkit.Perception
         /// ⭐ <c>CE-2155</c> (R-2011 I4), INCAPACITATED: down and bleeding, no longer a threat or a target. A unit with no Health, or one
         /// this node does not hold, is still in the fight (renamed from <c>IsDead</c>).</summary>
         public static bool IsOutOfTheFight(ISimulationView view, Entity target)
-            => Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated
+            // ⭐ agg-behaviors ST-3 (B-7) — a STOCHASTIC unit has no body to be injured: it is out of the fight when too few of its slots are up (the roster rule) — else a wiped-out
+            //   stochastic enemy would stay in its observer's SPOT for ever
+            => (Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(view, target) && !Fdp.Toolkit.Aggregate.AggregateUnits.InTheFight(view, target, standing: false))
+               || Fdp.Toolkit.Combat.Injury.StateOf(view, target) >= Fdp.Toolkit.Combat.InjuryState.Incapacitated
                // ⭐ CE-2241 ① (AW-21, R-2027; DESIGN_Civilians_And_Crowd_Control §5h.5) — or he SURRENDERED: every weapon laid down (B-10) AND
                //    his hands up; hands up alone (a feint, a weapon still up) is CV-13a's hold, not out of the fight
                || (Fdp.Toolkit.Combat.WeaponLaying.AllLaidDown(view, target) && ShowsHandsUp(view, target))

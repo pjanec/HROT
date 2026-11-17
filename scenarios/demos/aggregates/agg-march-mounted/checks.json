@@ -1,0 +1,52 @@
+{
+  "$doc": "\u00a723.6 ST-1. The design's 'mounted company' is a mounted PLATOON here: no TKB composite carries a company's vehicles, so the holdings (8 wheeled HMMWV, type 102) are authored - the fill keeps authored holdings and fills only the slot table. Wheeled in woods = M-1 forbids (UnitSpeedModel.WoodsWheeled); the prediction is computed offline from the measured route (the road polyline: UnitRoute.Length) with UnitSpeedModel (the TKB top speed of type 102 for BaseSpeed, factor 1 on the road). NO golden: a captured one differed once in five runs (the unit's position one 16.7 m/s step off from t = 15 s - a start-frame jitter, finding F-13), so the conditions judge it.",
+  "runFor": 150,
+  "golden": false,
+  "expect": [
+    {
+      "name": "it routes by the roads (a planner's route, not the straight leg)",
+      "on": "field",
+      "who": "Blue Mounted Platoon",
+      "path": "UnitRoute.Backend",
+      "op": "!=",
+      "value": "",
+      "before": 10
+    },
+    {
+      "name": "it never enters the wood (west half)",
+      "never": {
+        "on": "near",
+        "who": "Blue Mounted Platoon",
+        "point": [
+          70,
+          340,
+          0
+        ],
+        "within": 45
+      }
+    },
+    {
+      "name": "it never enters the wood (east half)",
+      "never": {
+        "on": "near",
+        "who": "Blue Mounted Platoon",
+        "point": [
+          130,
+          340,
+          0
+        ],
+        "within": 45
+      }
+    },
+    {
+      "name": "its tail arrives within +-10 % of the predicted time",
+      "on": "field",
+      "who": "Blue Mounted Platoon",
+      "path": "AggregateUnit.Move",
+      "op": "==",
+      "value": "Arrived",
+      "after": 39,
+      "before": 48
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: On demo-city, with SUMO background traffic (600 cars, seed 1), four APCs ('Escort 1'..'Escort 4') drive east as a road convoy (ConvoyOrder, Mode Traffic: the lead handed to SUMO) along the single-lane road e_axis_w_zip_d_0_3 (driving lane at y 148.4) from x −1180 toward (−700, 148.4). A 'Broken truck' (our vehicle, no brain — told to SUMO as an obstacle) stands on the lane at x −900; at t 60 it is cleared (moved off the road). One lane: nothing can pass it. Judge: (1) the lead runs PlatformConvoy and is handed to SUMO; (2) it stops behind the breakdown and never passes it before it is cleared; (3) the column waits as one — never split; (4) once it is cleared the column moves on (the tail past x −880); (5) the lead arrives. Check: scripts/scenario-regression.sh cv-blocked-road"
+  },
+  "entities": {
+    "c0900000-0000-4000-8000-000000000041": {
+      "SimTransform": {
+        "Position": [
+          -1180,
+          148.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 1",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            -700,
+            148.4,
+            0
+          ],
+          "Rank": 0,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 8
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000042": {
+      "SimTransform": {
+        "Position": [
+          -1195,
+          148.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 2",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            -700,
+            148.4,
+            0
+          ],
+          "Rank": 1,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000041"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000043": {
+      "SimTransform": {
+        "Position": [
+          -1210,
+          148.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 3",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            -700,
+            148.4,
+            0
+          ],
+          "Rank": 2,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000041"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000044": {
+      "SimTransform": {
+        "Position": [
+          -1225,
+          148.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Escort 4",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatformConvoy",
+        "Params": {
+          "Destination": [
+            -700,
+            148.4,
+            0
+          ],
+          "Rank": 3,
+          "Gap": 15,
+          "Mode": "Traffic",
+          "Speed": 8,
+          "Lead": "c0900000-0000-4000-8000-000000000041"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000048": {
+      "SimTransform": {
+        "Position": [
+          -900,
+          148.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2001
+      },
+      "EntityInfo": {
+        "Name": "Broken truck",
+        "ForceId": "Neutral"
+      }
+    },
+    "c0900000-0000-4000-8000-000000000049": {
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 600,
+        "Seed": 1,
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 0,
+        "CarSpawnPerStep": 40
+      }
+    }
+  }
+}

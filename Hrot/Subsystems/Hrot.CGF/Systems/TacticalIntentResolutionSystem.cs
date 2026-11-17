@@ -139,12 +139,16 @@ namespace Hrot.CGF.Systems
                 if (evt.IntentId.StartsWith(OrderAttribute.IntentPrefix, StringComparison.Ordinal))
                 {
                     string order = evt.IntentId.Substring(OrderAttribute.IntentPrefix.Length);
-                    var r = OrderResolver.Resolve(_classes, repo.GetDisType(evt.Entity), order, n => _behaviorRegistry.TryGetId(n, out _));
+                    // ⭐⭐ CE-8000 (SV-2, B-1) — the unit's RESOLUTION is an input: physical (and every entity with no AggregateUnit) is
+                    //   OrderResolver's rule untouched; a stochastic unit resolves through the (class, resolution, order) table or is refused.
+                    var r = ResolutionRoutingTable.Default.Resolve(_classes, repo.GetDisType(evt.Entity), ResolutionOf(repo, evt.Entity), order,
+                                                                   n => _behaviorRegistry.TryGetId(n, out _));
                     if (r.Outcome != OrderResolution.Resolved)
                     {
                         if (r.Outcome == OrderResolution.Tie) s_aiLog.Error("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | {Detail}", evt.Entity.Index, r.Detail);
                         else s_aiLog.Warn("Entity:[{EntityId}] Node:[TacticalIntentResolutionSystem] | refused: {Detail}", evt.Entity.Index, r.Detail);
                         Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Refused(repo, Fdp.Toolkit.Behavior.RequestIds.IsMinted(evt.RequestId) ? System.Guid.Empty : evt.RequestId, evt.Entity, r.Detail);   // ⭐ CE-4612 (R-2090): a station's request only   // ⭐ CE-4306 (F5): the station that asked is told why
+                        ReportRefusal(repo, evt);   // ⭐⭐ CE-8002 (B-8, RV-6) — and the COMMANDER that gave it hears TaskFailed
                         continue;
                     }
                     behaviorEvent = new AssignBehaviorEvent { Entity = evt.Entity, BehaviorName = r.Behaviour, JsonParams = evt.JsonParams };
@@ -184,6 +188,50 @@ namespace Hrot.CGF.Systems
                 behaviorEvent.RequestId = evt.RequestId;   // ⭐ CE-4306 (F5): the gate answers under the order's id
                 repo.Bus.PublishManaged(behaviorEvent);
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ agg-behaviors <c>ST-2</c> (RV-7, R-8311) — the SOP of a unit at its RESOLUTION, from the same table that resolves its orders: the <c>"Sop"</c> row
+        /// of <see cref="ResolutionRoutingTable.Default"/> for the unit's most specific class (<c>StochasticUnitSop</c> for a stochastic one); null = the table has no
+        /// row, so the template's own SOP stands. ⭐ This is what <c>CgfLogicPack</c> hands the ingress as <c>StochasticSopRouting.Resolver</c>.
+        /// </summary>
+        public static string? SopFor(EntityRepository repo, Entity e, Func<string, bool> isBehaviour)
+        {
+            var r = ResolutionRoutingTable.Default.Resolve(EntityClassTable.Default, repo.GetDisType(e), ResolutionOf(repo, e), ResolutionRoutingTable.SopOrder, isBehaviour);
+            return r.Outcome == OrderResolution.Resolved ? r.Behaviour : null;
+        }
+
+        /// <summary>⭐ <c>CE-8000</c> — the resolution an order is resolved at: the unit's <c>AggregateUnit</c>, else physical.</summary>
+        internal static Fdp.Toolkit.Aggregate.AggregateResolution ResolutionOf(EntityRepository repo, Entity e)
+            => repo.IsComponentTypeRegistered<Fdp.Toolkit.Aggregate.AggregateUnit>() && repo.HasComponent<Fdp.Toolkit.Aggregate.AggregateUnit>(e)
+                ? repo.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Effective
+                : Fdp.Toolkit.Aggregate.AggregateResolution.Physical;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8002</c> (B-8, RV-6; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md §19) — an order from a SUPERIOR
+        /// that the receiver cannot fulfil reports PROGRESS TaskFailed to that superior, through the receiver's own outbox — the SAME queue and
+        /// delay a play's failure takes (<c>StaffComposerSystem</c>, CC-5). ⛔ Before, a commander's minted request was refused to
+        /// <c>Guid.Empty</c> and the commander waited to its deadline. Generic: every unit, physical or not. A station's / operator's order is
+        /// answered by <c>InteractionOutcomes.Refused</c> only (it has no commander to report to).
+        /// </summary>
+        internal static void ReportRefusal(EntityRepository repo, AssignTacticalIntentEvent evt) => ReportRefusal(repo, evt.Entity, evt.Origin);
+
+        /// <summary>⭐ <c>X-2</c> X2-D — the same report for an order that cannot go on (the resolution-fit reconciler: no play at the new resolution).</summary>
+        internal static void ReportRefusal(EntityRepository repo, Entity entity, BehaviorOrigin origin)
+        {
+            var evt = (Entity: entity, Origin: origin);
+            if (evt.Origin != BehaviorOrigin.Superior) return;
+            if (!repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()
+                || !repo.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(evt.Entity)) return;
+            var up = repo.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(evt.Entity).Commander;
+            if (up.IsNull || !repo.IsAlive(up)) return;
+            var now = Fdp.Toolkit.Squad.Command.CommandPictureOps.Now(repo);
+            var at = repo.HasComponent<SimTransform>(evt.Entity) ? repo.GetComponentRO<SimTransform>(evt.Entity).Position : default;
+            Fdp.Toolkit.Squad.Command.ReportQueue.Enqueue(repo, evt.Entity, new Fdp.Toolkit.Squad.Command.CommandReport
+            {
+                Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
+                At = at, ObservedAt = now,
+            }, now + Fdp.Toolkit.Squad.Command.StaffComposerSystem.ReportDelaySeconds);
         }
 
         /// <summary>⭐ <c>CE-2141</c> — an ASSIGN to <paramref name="entity"/> follows event <paramref name="index"/> in this frame.</summary>

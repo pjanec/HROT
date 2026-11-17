@@ -790,6 +790,7 @@ public sealed class DetailsWindow
         "Scenario"   => NodeEditor.Core.Widgets.Icons.Get("tab/scenario"),
         "Event"      => NodeEditor.Core.Widgets.Icons.Get("tab/event"),
         "Components" => NodeEditor.Core.Widgets.Icons.Get("tab/components"),
+        "Slots"      => NodeEditor.Core.Widgets.Icons.Get("tab/slots"),       // ⭐ CE-8612 (UI-7, mockup ②) — a stochastic unit's slot table
         "Block"      => NodeEditor.Core.Widgets.Icons.Get("terrain/block"),   // ⭐ terrain authoring (mockup 2): the placed block's tab
         "Ground"     => NodeEditor.Core.Widgets.Icons.Get("earth/mound"),     // ⭐ CE-4592 (mockup ground-shaping C): a ground shape's tab
         _ => null,

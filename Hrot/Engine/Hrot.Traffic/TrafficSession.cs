@@ -222,6 +222,8 @@ public sealed class TrafficSession : IDisposable
 
     // ⭐ SumoSharp H13 (f252ddc): SpawnExternalVehicle routes "hrot:<id>" from the vehicle's lane to the destination's lane offset;
     //   DespawnExternalVehicle takes it back. Ownership never moves — the body's owner follows the shadow (TrafficShadowFollowSystem).
+    private readonly Dictionary<int, double> _capped = new();
+
     private void ApplyHandovers()
     {
         var want = _handovers;
@@ -239,10 +241,24 @@ public sealed class TrafficSession : IDisposable
             }
             if (_refused.TryGetValue(h.NetworkId, out var at) && _sim.Time - at < RetrySeconds) continue;
             string id = TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId);
-            bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t)
-                      || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY);   // an unmapped type: SUMO's default car
-            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); }
+            // ⭐ CE-9000 (C-2) — a PRIORITY handover (a convoy's escort, beacon and siren on) spawns the type's priority twin (SumoSharp H17,
+            //   `eb88338`): a blue light, red ignored at the front, approaching junction foes ignored; a queue at a red still holds it until green
+            bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t, h.Priority)
+                      || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, null, h.Priority);   // an unmapped type: SUMO's default car
+            if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId); }
             else _refused[h.NetworkId] = _sim.Time;
+        }
+        // ⭐ CE-9000 (C-6) — a convoy's escort slows while its column is stretched: its shadow's top speed is capped (H17 SetExternalVehicleMaxSpeed);
+        //   null restores what it had. Told only when the cap changed.
+        foreach (var h in want)
+        {
+            if (!_shadows.ContainsKey(h.NetworkId)) continue;
+            bool had = _capped.TryGetValue(h.NetworkId, out var told);
+            if (h.MaxSpeed is double cap ? had && Math.Abs(told - cap) < 0.05 : !had) continue;
+            if (_sim.SetExternalVehicleMaxSpeed(TrafficShadowFollowSystem.ShadowIdOf(h.NetworkId), h.MaxSpeed))
+            {
+                if (h.MaxSpeed is double c) _capped[h.NetworkId] = c; else _capped.Remove(h.NetworkId);
+            }
         }
         _drop.Clear();
         foreach (var id in _shadows.Keys) if (!_wanted.Contains(id)) _drop.Add(id);
@@ -251,6 +267,7 @@ public sealed class TrafficSession : IDisposable
         {
             if (_shadows.Remove(id)) _sim.DespawnExternalVehicle(TrafficShadowFollowSystem.ShadowIdOf(id));   // the intent changed: take it back
             _refused.Remove(id);
+            _capped.Remove(id);
         }
     }
 

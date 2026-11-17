@@ -375,6 +375,33 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Equal("Order.Hold", order.IntentId);
     }
 
+    /// <summary>⭐ CE-8615 (DESIGN_Stochastic_Unit_UI UI-9, mockup ⑤) — an AGGREGATE unit's menu has the Resolution › group while running: its state row, the
+    /// request rows greyed with their reason (already stochastic · not pinned · no fusion request); a click on Make physical now writes the unit's PIN through the
+    /// one edit path, and the menu (re-composed — the pin is part of its cache key) then says so. A unit without AggregateUnit has no such group.
+    /// 🔴 Red-proof (compiles): <c>PinFor</c> answering null ⇒ the click writes nothing ⇒ red.</summary>
+    [Fact]
+    public void CE8615_AnAggregateUnitsMenu_RequestsAResolution_AndThePinIsWritten()
+    {
+        var (mi, _) = Live();
+        Assert.DoesNotContain("Make physical now", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));   // not aggregate: no group
+        _w.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
+        _w.AddComponent(_unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1 });
+        var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
+        foreach (var want in new[] { "Resolution", "now: stochastic", "not pinned", "Make physical now", "Make fusion now", "Aggregate now", "already stochastic", "Pin - keep as it is", "Unpin (policy decides)" })
+            Assert.Contains(want, menu);
+        // the clicked unit has a network identity ⇒ the write is REQUESTED from its owner (the one edit path): the command carries the pin
+        Click(mi, GlobalActionIds.ResolutionPhysical);
+        _w.Bus.SwapBuffers();
+        var cmd = Assert.Single(_w.Bus.ReadManaged<Fdp.Toolkit.Replication.Events.UpdateEntityAttributeCommand>().ToArray());
+        Assert.Equal(UnitId, cmd.NetworkId);
+        var change = Assert.Single(cmd.AttributeChanges);
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.AttributeIds.AggregatePin, change.AttributeId);
+        Assert.Equal((int)Fdp.Toolkit.Aggregate.ResolutionPin.PinPhysical, change.Value.IntValue);
+        // the owner applied it ⇒ the re-composed menu says so (the pin is part of the menu's cache key)
+        _w.SetComponent(_unit, new Fdp.Toolkit.Aggregate.AggregateUnit { Resolution = Fdp.Toolkit.Aggregate.AggregateResolution.Stochastic, Echelon = 1, Pin = Fdp.Toolkit.Aggregate.ResolutionPin.PinPhysical });
+        Assert.Contains("pinned physical", ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit));
+    }
+
     /// <summary>⭐ CE-3174 (§8d) — the unit menu's Possess (FPS) asks to possess the unit for THIS station; the station's map then
     /// follows PossessedBy into first person (PossessionStationTests).</summary>
     [Fact]

@@ -1,0 +1,93 @@
+{
+  "$doc": "\u00a723.6 mixed. No enemy on purpose: a stochastic observer cannot yet target a physical unit (F-10) and a physical weapon cannot hit a stochastic unit before the handover (ST-5, C-7), so a fight would judge the engine, not the routing. CompanyAttack gives the assault to the first platoon on its roster, the base of fire to the second and holds the third: the stochastic platoon is created first so the physical play PlatoonAttack is not exercised here (the cc-battalion scenarios are its rails) - the physical platoons' plays are pinned as measured.",
+  "runFor": 230,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the company runs CompanyAttack",
+      "on": "task",
+      "who": "Blue Company",
+      "is": "CompanyAttack",
+      "before": 20
+    },
+    {
+      "name": "the stochastic platoon is ordered by KIND: the generic Attack play",
+      "on": "task",
+      "who": "Blue Stochastic Platoon",
+      "is": "StochasticUnitAttack",
+      "before": 100
+    },
+    {
+      "name": "the 1st physical platoon is the base of fire (its own physical play)",
+      "on": "task",
+      "who": "Blue 1st Platoon",
+      "is": "PlatoonSupportByFire",
+      "before": 20
+    },
+    {
+      "name": "the 2nd physical platoon holds (its own physical play)",
+      "on": "task",
+      "who": "Blue 2nd Platoon",
+      "is": "PlatoonDefend",
+      "before": 20
+    },
+    {
+      "name": "the stochastic platoon is never given a physical play",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Platoon",
+        "is": [
+          "PlatoonAttack",
+          "PlatoonDefend",
+          "PlatoonSupportByFire",
+          "CompanyAttack"
+        ]
+      }
+    },
+    {
+      "name": "a physical platoon is never given a stochastic play",
+      "never": {
+        "on": "task",
+        "who": "Blue 1st Platoon",
+        "is": [
+          "StochasticUnitAttack",
+          "StochasticUnitDefend",
+          "StochasticUnitMove"
+        ]
+      }
+    },
+    {
+      "name": "... nor the other",
+      "never": {
+        "on": "task",
+        "who": "Blue 2nd Platoon",
+        "is": [
+          "StochasticUnitAttack",
+          "StochasticUnitDefend",
+          "StochasticUnitMove"
+        ]
+      }
+    },
+    {
+      "name": "the stochastic platoon reaches Objective 1",
+      "on": "near",
+      "who": "Blue Stochastic Platoon",
+      "point": [
+        425,
+        425,
+        0
+      ],
+      "within": 80,
+      "before": 225
+    },
+    {
+      "name": "the objective is held (25 men inside)",
+      "on": "field",
+      "who": "Blue holds Objective 1",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "before": 225
+    }
+  ]
+}

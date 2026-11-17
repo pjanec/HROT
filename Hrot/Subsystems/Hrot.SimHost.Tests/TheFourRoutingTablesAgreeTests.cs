@@ -104,6 +104,15 @@ public class TheFourRoutingTablesAgreeTests
         ("Weather.FogTopM",                AttributeIds.WeatherFogTopM,                "{\"Weather\":{\"FogTopM\":300.0}}"),
         ("Weather.FogVisibilityM",         AttributeIds.WeatherFogVisibilityM,         "{\"Weather\":{\"FogVisibilityM\":150.0}}"),
         ("Weather.Precipitation",          AttributeIds.WeatherPrecipitation,          "{\"Weather\":{\"Precipitation\":2}}"),
+        ("Aggregate.Resolution",           AttributeIds.AggregateResolution,           "{\"Aggregate\":{\"Resolution\":3}}"),   // ⭐ CE-8015
+        ("Aggregate.Pin",                  AttributeIds.AggregatePin,                  "{\"Aggregate\":{\"Pin\":2}}"),
+        ("Aggregate.Echelon",              AttributeIds.AggregateEchelon,              "{\"Aggregate\":{\"Echelon\":1}}"),
+        ("Aggregate.Formation",            AttributeIds.AggregateFormation,            "{\"Aggregate\":{\"Formation\":1}}"),
+        ("Aggregate.Posture",              AttributeIds.AggregatePosture,              "{\"Aggregate\":{\"Posture\":1}}"),
+        ("Aggregate.Prepared",             AttributeIds.AggregatePrepared,             "{\"Aggregate\":{\"Prepared\":2}}"),
+        ("Aggregate.Width",                AttributeIds.AggregateWidth,                "{\"Aggregate\":{\"Width\":200}}"),     // ⭐ CE-8022 ①
+        ("Aggregate.Depth",                AttributeIds.AggregateDepth,                "{\"Aggregate\":{\"Depth\":80}}"),
+        ("Aggregate.Heading",              AttributeIds.AggregateHeading,              "{\"Aggregate\":{\"Heading\":45}}"),
         ("Weather.PrecipitationMmPerHour", AttributeIds.WeatherPrecipitationMmPerHour, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}"),
         ("Weather.FeatherM",               AttributeIds.WeatherFeatherM,               "{\"Weather\":{\"FeatherM\":500.0}}"),
     };
@@ -147,7 +156,7 @@ public class TheFourRoutingTablesAgreeTests
                            "\"Weapon\":{\"Posture\":2,\"AimPoint\":{\"0\":12.5},\"AimTarget\":1,\"HeldItem\":1}," +
                            "\"Damage\":{\"Part\":{\"3\":128},\"MobilityKill\":1}," +
                            "\"Proficiency\":0.8,\"Temperament\":{\"RiskAcceptance\":0.7,\"Obedience\":0.6,\"Nerve\":0.5,\"Resolve\":0.4}," +
-                           "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0}}";
+                           "\"Weather\":{\"GroundTemperatureC\":21.5,\"LapseRateKPerKm\":6.0,\"SeaLevelPressureHpa\":1008.0,\"RelativeHumidity\":0.4,\"VisibilityM\":9000.0,\"FogTopM\":300.0,\"FogVisibilityM\":150.0,\"Precipitation\":2,\"PrecipitationMmPerHour\":4.0,\"FeatherM\":500.0},\"Aggregate\":{\"Resolution\":3,\"Pin\":1,\"Echelon\":1,\"Formation\":2,\"Posture\":1,\"Prepared\":2,\"Width\":200.0,\"Depth\":80.0,\"Heading\":45.0}}";
 
         var emitter = Emit(AttributeCompilerFactory.BuildEdgeCompiler(), all);
 
@@ -476,6 +485,15 @@ public class TheFourRoutingTablesAgreeTests
         ("Weather.FogTopM", 0, "{\"Weather\":{\"FogTopM\":300.0}}", Want.Number, 300.0, ""),
         ("Weather.FogVisibilityM", 0, "{\"Weather\":{\"FogVisibilityM\":150.0}}", Want.Number, 150.0, ""),
         ("Weather.Precipitation", 0, "{\"Weather\":{\"Precipitation\":2}}", Want.Number, 2, ""),
+        ("Aggregate.Resolution", 0, "{\"Aggregate\":{\"Resolution\":3}}", Want.Number, 3, ""),   // ⭐ CE-8015
+        ("Aggregate.Pin", 0, "{\"Aggregate\":{\"Pin\":2}}", Want.Number, 2, ""),
+        ("Aggregate.Echelon", 0, "{\"Aggregate\":{\"Echelon\":1}}", Want.Number, 1, ""),
+        ("Aggregate.Formation", 0, "{\"Aggregate\":{\"Formation\":1}}", Want.Number, 1, ""),
+        ("Aggregate.Posture", 0, "{\"Aggregate\":{\"Posture\":1}}", Want.Number, 1, ""),
+        ("Aggregate.Prepared", 0, "{\"Aggregate\":{\"Prepared\":2}}", Want.Number, 2, ""),
+        ("Aggregate.Width", 0, "{\"Aggregate\":{\"Width\":200}}", Want.Number, 200.0, ""),   // ⭐ CE-8022 ①
+        ("Aggregate.Depth", 0, "{\"Aggregate\":{\"Depth\":80}}", Want.Number, 80.0, ""),
+        ("Aggregate.Heading", 0, "{\"Aggregate\":{\"Heading\":405}}", Want.Number, 45.0, ""),   // normalised 0..360
         ("Weather.PrecipitationMmPerHour", 0, "{\"Weather\":{\"PrecipitationMmPerHour\":4.0}}", Want.Number, 4.0, ""),
         ("Weather.FeatherM", 0, "{\"Weather\":{\"FeatherM\":500.0}}", Want.Number, 500.0, ""),
     };
@@ -610,6 +628,7 @@ public class TheFourRoutingTablesAgreeTests
         {
             "Name", "Affiliation", "Rule.Request", "Rule.Seq", "Rule.Origin", "Rule.Params", "Rule.EditSeq", "Rule.EditOrigin", "Health.Current",
             "Playable.Side", "Playable.SlotName", "SpawnArea.Side", "Stance", "Weapon.Posture", "Weapon.AimTarget", "Weapon.HeldItem", "Damage.MobilityKill", "Weather.Precipitation",
+            "Aggregate.Resolution", "Aggregate.Pin", "Aggregate.Echelon", "Aggregate.Formation", "Aggregate.Posture", "Aggregate.Prepared",   // ⭐ CE-8015 — codes
         };
         foreach (var d in AttributeVocabulary.All)
             Assert.True(unitless.Contains(d.JsonPath) == (d.Unit == null), $"'{d.JsonPath}': Unit = {d.Unit ?? "null"}");
@@ -685,6 +704,7 @@ public class TheFourRoutingTablesAgreeTests
         }
         AddOwned(repo, e, default(Fdp.Toolkit.Behavior.Components.CombatProficiency));   // ⭐ Initial state S6 — the AI character settings
         AddOwned(repo, e, default(Fdp.Toolkit.Behavior.Components.CombatTemperament));
+        AddOwned(repo, e, default(Fdp.Toolkit.Aggregate.AggregateUnit));   // ⭐ CE-8015 — a stochastic unit's six attributes
         if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
         var aimedAt = repo.CreateEntity();   // ⭐ S2 — a unit with network id 1, so Weapon.AimTarget = 1 resolves
         repo.AddComponent(aimedAt, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 1 });

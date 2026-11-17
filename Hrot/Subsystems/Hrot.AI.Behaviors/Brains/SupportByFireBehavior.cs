@@ -110,7 +110,7 @@ namespace Hrot.AI.Behaviors.Brains
             p.Posts++;
         }
 
-        [Behavior(BehaviorNames.SupportByFire, Params = typeof(SupportByFireParamsJsonDto), Categories = BehaviorCategory.Commander,
+        [Behavior(BehaviorNames.SupportByFire, Params = typeof(SupportByFireParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire), Categories = BehaviorCategory.Commander,
                   Description = "A squad's base of fire: holds at the support point and keeps the reported posts under sustained fire.")]
         [BTreeDefinition(BehaviorNames.SupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(SupportByFireBlackboard))]
         public static BTreeBuilder<SupportByFireBlackboard, BTreeContext> BuildTree()
@@ -205,7 +205,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.State = default;
         }
 
-        [Behavior(BehaviorNames.PlatoonSupportByFire, Params = typeof(PlatoonSupportByFireParamsJsonDto), Categories = BehaviorCategory.Commander,
+        [Behavior(BehaviorNames.PlatoonSupportByFire, Params = typeof(PlatoonSupportByFireParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire), Categories = BehaviorCategory.Commander,
                   Description = "A platoon's base of fire: every squad keeps the reported posts under sustained fire.")]
         [BTreeDefinition(BehaviorNames.PlatoonSupportByFire, Curated = true, Group = "Library/Combat", ParamsType = typeof(PlatoonSupportByFireBlackboard))]
         public static BTreeBuilder<PlatoonSupportByFireBlackboard, BTreeContext> BuildTree()
@@ -235,11 +235,16 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Dirty[i] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 ws.Dirty[i] = 0;
                 var at = p.Position + new Vector3(across * ((i - (n - 1) * 0.5f) * SpreadMetres), 0f);
-                CommandOrders.Assign(world, self, squad, BehaviorNames.SupportByFire, System.Text.Json.JsonSerializer.Serialize(new SupportByFireParamsJsonDto
+                var physical = System.Text.Json.JsonSerializer.Serialize(new SupportByFireParamsJsonDto
                 {
                     Position = at, Speed = p.Speed, CooldownSeconds = p.CooldownSeconds,
                     Post1 = p.Posts > 0 ? p.P0 : default, Post2 = p.Posts > 1 ? p.P1 : default, Post3 = p.Posts > 2 ? p.P2 : default, Post4 = p.Posts > 3 ? p.P3 : default,
-                }, json), newOrder: true);
+                }, json);
+                // ⭐ agg-behaviors R-8315 / CE-8302 (R-8341) — a stochastic squad is ordered SupportByFire by KIND: the neutral AttackOrder HoldBack on ITS support point
+                //   (the same `at` the physical squad gets) — it stands there; a HoldBack on the posts walked it to 100 m of them
+                var neutral = System.Text.Json.JsonSerializer.Serialize(new Hrot.AI.Behaviors.Orders.AttackOrder
+                    { Position = at, Speed = p.Speed, HoldBack = true }, json);
+                CommandOrders.Route(world, self, squad, Hrot.AI.Behaviors.Orders.OrderKind.SupportByFire, neutral, BehaviorNames.SupportByFire, physical, newOrder: true);
                 CommandOrders.AskSitrep(world, squad);
                 ws.Orders++;
             }

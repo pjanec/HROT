@@ -1,0 +1,37 @@
+{
+  "$doc": "CE-4649 BW-8 - the mounted archer, one row per Judge line.",
+  "runFor": 45,
+  "golden": {
+    "every": 5
+  },
+  "expect": [
+    {
+      "name": "the horse gallops",
+      "on": "field",
+      "who": "War horse",
+      "path": "VehicleState.Speed",
+      "op": ">",
+      "value": 8
+    },
+    {
+      "name": "the archer shoots from the saddle",
+      "on": "shot",
+      "by": "Rider archer",
+      "n": 2,
+      "after": "the horse gallops"
+    },
+    {
+      "name": "an arrow hits a target",
+      "on": "shot",
+      "by": "Rider archer",
+      "hit": "*Target"
+    },
+    {
+      "name": "the archer stays in the saddle",
+      "on": "embark",
+      "who": "Rider archer",
+      "is": true,
+      "atEnd": true
+    }
+  ]
+}

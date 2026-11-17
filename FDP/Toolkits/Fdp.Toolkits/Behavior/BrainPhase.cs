@@ -94,6 +94,7 @@ namespace Fdp.Toolkit.Behavior
             Fdp.Toolkit.Replication.Utilities.PartIndex.PrepareFrame(repo);   // a unit's parts (its sensors) — read by every brain
             Fdp.Toolkit.Motion.DroneJamming.PrepareFrame(repo);               // ⭐ CE-7014 — the jammer bubbles a drone's brain reads
             Fdp.Toolkit.Motion.AirArenaSystem.PrepareFrame(repo);             // ⭐ CE-10004 — the arenas a fighter's brain reads; the stalemate clock
+            Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.EnsureStandardLadder(repo);   // ⭐ CE-3467 (R-3103) — every brain unit carries 256 / 1024 / 4096: no block is appended inside the phase
         }
     }
 }

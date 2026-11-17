@@ -417,6 +417,78 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(_world.IsAlive(round));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-4) — an ARROW (a round whose look <c>Sticks</c>) that stops in a WALL keeps its POSE: not flat, not at the surface — its rotation takes +X onto its flight
+        /// direction, its point is pushed a THIRD of its length (0.75 m ⇒ 0.25 m) into the wall along the flight, and after the grace it LIES (<c>Landed</c>) for its 600 s instead of going.
+        /// 🔴 Red-proof: no <c>Stick</c> call ⇒ the rotation stays identity and the point stays at the surface ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_AnArrowStoppedByAWall_KeepsItsFlightRotation_ThirdOfItsLengthIn_AndLies()
+        {
+            SeedTerrain();
+            const long Arrow = 9066;
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var t = new Fdp.Interfaces.TkbTemplate("arrow", Arrow);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.MunitionVisualDto { Shape = Fdp.Toolkit.Tkb.Domain.MunitionShape.Arrow, Length = 0.75f, Diameter = 0.008f, Sticks = true });
+            db.Register(t);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var round = SpawnRound(new Vector3(5, 0, 1.6f), new Vector3(5, 15, 1.6f), damage: 45f, penetration: 4f);
+            ref var p = ref _world.GetComponentRW<BallisticProjectile>(round);
+            p.Ammo = Arrow; p.Warhead = (byte)(WarheadRound.Sticks | WarheadRound.Lingers | WarheadRound.Arc); p.FuzeRemaining = 600f;
+
+            RunAndReadEvents();
+            var at = _world.GetComponent<SimTransform>(round);
+            var nose = Vector3.Transform(Vector3.UnitX, at.Rotation);
+            Assert.Equal(1f, nose.Y, 3);                                     // along its flight (+Y), not flat-yawed from a seed
+            Assert.Equal(9.9f + 0.75f / 3f, at.Position.Y, 3);               // a third of its length into the wall
+            Assert.Equal(1.6f, at.Position.Z, 3);
+
+            for (uint tick = 1; tick <= CombatConstants.StoppedRoundGraceTicks + 1; tick++) { SetCurrentTick(tick); RunAndReadEvents(); }
+            Assert.True(_world.IsAlive(round));
+            Assert.NotEqual(0, _world.GetComponent<BallisticProjectile>(round).Warhead & WarheadRound.Landed);   // it lies, its 600 s
+            Assert.Equal(1, _sys.LyingCount);
+            Assert.Equal(1f, Vector3.Transform(Vector3.UnitX, _world.GetComponent<SimTransform>(round).Rotation).Y, 3);   // and keeps the pose
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> (BW-4) — the rotation helper: +X onto any direction (the shortest turn), also straight down / straight back.</summary>
+        [Fact]
+        public void CE4649_AlongX_TurnsTheShaftOntoTheFlight()
+        {
+            foreach (var d in new[] { Vector3.UnitY, -Vector3.UnitX, -Vector3.UnitZ, Vector3.Normalize(new Vector3(1f, 2f, -0.5f)), Vector3.UnitX })
+                Assert.True(Vector3.Distance(Vector3.Transform(Vector3.UnitX, BallisticsSystem.AlongX(d)), d) < 1e-4f, d.ToString());
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-4) — the CAP, for EVERY lying round: at most <see cref="BallisticsSystem.LyingCap"/> (256) lie on a node; the 257th that lands removes the OLDEST, and a
+        /// steady stream of more allocates NOTHING (R-2084). 🔴 Red-proof: no removal of the oldest ⇒ 257 alive ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_TheLyingCap_257thRemovesTheOldest_AndAllocatesNothing()
+        {
+            var lying = new Entity[BallisticsSystem.LyingCap + 40];
+            for (int i = 0; i < lying.Length; i++)
+            {
+                lying[i] = SpawnBullet(new Vector3(i, 0, 0), 0);
+                _world.GetComponentRW<BallisticProjectile>(lying[i]).Warhead = (byte)(WarheadRound.Landed | WarheadRound.Lingers);
+            }
+            for (int i = 0; i < BallisticsSystem.LyingCap; i++) _sys.NoteLying(_world, lying[i]);
+            Assert.Equal(BallisticsSystem.LyingCap, _sys.LyingCount);
+            Assert.True(_world.IsAlive(lying[0]));
+
+            _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap]);          // the 257th
+            Assert.False(_world.IsAlive(lying[0]));                             // the oldest is gone
+            Assert.True(_world.IsAlive(lying[1]));
+            Assert.True(_world.IsAlive(lying[BallisticsSystem.LyingCap]));
+            Assert.Equal(BallisticsSystem.LyingCap, _sys.LyingCount);
+
+            for (int i = 1; i <= 5; i++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + i]);   // warm
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 6; i < 40; i++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + i]);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            int alive = 0; foreach (var e in lying) if (_world.IsAlive(e)) alive++;
+            Assert.Equal(BallisticsSystem.LyingCap, alive);
+        }
+
         [Fact]
         public void R217_AWoodenFence_PassesARifleRound_TheFrontIsReduced_TheMuzzleValuesAreNot_TheSecondFenceStopsIt()
         {

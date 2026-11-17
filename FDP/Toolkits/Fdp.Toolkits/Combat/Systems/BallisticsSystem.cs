@@ -44,6 +44,68 @@ namespace Fdp.Toolkit.Combat.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public class BallisticsSystem : IEcsModuleSystem
     {
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-4) — at most this many rounds LIE (<see cref="WarheadRound.Landed"/>) on this node, oldest removed first. ⭐ For EVERY lying
+        /// round (a stone, a grenade, a thrown blade, an arrow), not only arrows: before, nothing capped them.</summary>
+        public const int LyingCap = 256;
+
+        // ⭐ CE-4649 — the lying rounds, oldest first (an array and a count: no allocation, no LINQ — R-2084). Per node: the system runs once on the shooter's node.
+        private readonly Entity[] _lying = new Entity[LyingCap];
+        private int _lyingCount;
+
+        /// <summary>How many rounds this node holds as lying (the rail reads it).</summary>
+        public int LyingCount => _lyingCount;
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (BW-4) — a round has just LANDED: remember it, and when that makes more than <see cref="LyingCap"/>, remove the OLDEST that still lies
+        /// (entries whose round is gone — picked up, burst, expired — are dropped first, so the cap counts rounds that exist). ⛔ No allocation.
+        /// </summary>
+        public void NoteLying(EntityRepository repo, Entity round)
+        {
+            if (_lyingCount == LyingCap)
+            {
+                int w = 0;
+                for (int i = 0; i < _lyingCount; i++)
+                    if (StillLies(repo, _lying[i])) _lying[w++] = _lying[i];
+                _lyingCount = w;
+                if (_lyingCount == LyingCap)
+                {
+                    var oldest = _lying[0];
+                    System.Array.Copy(_lying, 1, _lying, 0, LyingCap - 1);
+                    _lyingCount = LyingCap - 1;
+                    repo.DestroyEntity(oldest);   // StillLies ⇒ alive
+                }
+            }
+            _lying[_lyingCount++] = round;
+        }
+
+        private static bool StillLies(EntityRepository repo, Entity e)
+            => repo.IsAlive(e) && repo.HasComponent<BallisticProjectile>(e)
+               && (repo.GetComponentRO<BallisticProjectile>(e).Warhead & WarheadRound.Landed) != 0;
+
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (BW-4) — a round whose look STICKS has stopped on a surface: it keeps its POSE — rotation = its flight direction (the shaft's +X along
+        /// it), its point pushed a THIRD of its length into the surface along the flight — so every node's lying draw can show it stuck, not flat.
+        /// </summary>
+        internal static void Stick(EntityRepository repo, Entity round, in BallisticProjectile proj, System.Numerics.Vector3 flight)
+        {
+            if (flight.LengthSquared() < 1e-8f) return;
+            var dir = System.Numerics.Vector3.Normalize(flight);
+            float length = CombatTkb.VisualOf(repo, proj.Ammo)?.Length ?? 0.5f;
+            ref var at = ref repo.GetComponentRW<SimTransform>(round);
+            at.Position += dir * (length / 3f);
+            at.Rotation = AlongX(dir);
+        }
+
+        /// <summary>The rotation that takes +X onto <paramref name="dir"/> (a unit vector), by the shortest turn.</summary>
+        public static System.Numerics.Quaternion AlongX(System.Numerics.Vector3 dir)
+        {
+            float dot = System.Numerics.Vector3.Dot(System.Numerics.Vector3.UnitX, dir);
+            if (dot > 0.99999f) return System.Numerics.Quaternion.Identity;
+            if (dot < -0.99999f) return System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ, MathF.PI);
+            var axis = System.Numerics.Vector3.Normalize(System.Numerics.Vector3.Cross(System.Numerics.Vector3.UnitX, dir));
+            return System.Numerics.Quaternion.CreateFromAxisAngle(axis, MathF.Acos(dot));
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
@@ -101,7 +163,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         if ((proj.Warhead & WarheadRound.Lingers) == 0)
                         {
                             Detonate(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick, entity);
-                            if (BeginVenting(ref proj)) continue;   // ⭐ CE-3236 (B-14, VC-1) — a gas / smoke grenade vents where it lies
+                            if (BeginVenting(ref proj)) { NoteLying(repo, entity); continue; }   // ⭐ CE-3236 (B-14, VC-1) — a gas / smoke grenade vents where it lies (⭐ CE-4649: and counts as lying)
                         }
                         repo.DestroyEntity(entity);
                     }
@@ -118,7 +180,7 @@ namespace Fdp.Toolkit.Combat.Systems
                         && currentTick - proj.StoppedTick >= CombatConstants.ContactHitWaitTicks)
                     {
                         BurstWhereStopped(repo, in proj, repo.GetComponent<SimTransform>(entity).Position, shot, currentTick, entity);
-                        if (!BeginVenting(ref proj)) repo.DestroyEntity(entity);   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lies
+                        if (!BeginVenting(ref proj)) repo.DestroyEntity(entity); else NoteLying(repo, entity);   // ⭐ CE-3236 (B-14, VC-1) — a canister vents where it lies (⭐ CE-4649: and counts as lying)
                         continue;
                     }
                     if (currentTick - proj.StoppedTick >= CombatConstants.StoppedRoundGraceTicks)
@@ -128,7 +190,10 @@ namespace Fdp.Toolkit.Combat.Systems
                         // ⭐ CE-3235 (B-13, §7.10 PU-1) — an inert HAND ITEM (a stone) LIES where it stopped for its lying time (carried in
                         //   FuzeRemaining): a hand may pick it up (RoundPickUp) — the Landed branch above ends it without a burst.
                         if ((proj.Warhead & (WarheadRound.Lingers | WarheadRound.Spent)) == WarheadRound.Lingers && proj.FuzeRemaining > 0f)
+                        {
                             proj.Warhead |= WarheadRound.Landed;
+                            NoteLying(repo, entity);   // ⭐ CE-4649 (BW-4) — the cap: at most LyingCap lying rounds
+                        }
                         else
                             repo.DestroyEntity(entity);
                     }
@@ -178,6 +243,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   there — no unit beyond it is struck — and freezes the round at the wall. The damage a unit takes is NOT decided
                 //   here: HitResolutionSystem carries the round from its muzzle to the unit, whenever the raycast resolves.
                 var end = tf.Position;
+                var segment = tf.Position - proj.PreviousPosition;   // ⭐ CE-4649 — the way it was flying this segment (a sticking round keeps it)
                 if (terrain != null)
                 {
                     if ((proj.TerrainFlags & 1) == 0)
@@ -215,6 +281,10 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
                 if (impacts != null) PublishImpacts(cmd, in proj, impacts, end, groundStop);
+                // ⭐ CE-4649 (bows BW-4) — a round that STICKS and has just stopped freezes with its pose (the pushed-in point is read by nothing in the physics:
+                //   the raycast below ends at `end`, the stop point)
+                if ((proj.Warhead & WarheadRound.Sticks) != 0 && proj.StoppedTick == (currentTick == 0 ? 1u : currentTick))
+                    Stick(repo, entity, in proj, segment.LengthSquared() > 1e-8f ? segment : end - (System.Numerics.Vector3)proj.Muzzle);
 
                 // ── 2b′. ⭐⭐ Stage 6 (CE-1032, W-3/W-4) — a WARHEAD round that stops (on the terrain, or on the flat ground — which the
                 //   terrain query does not count) does not just end: on an impact fuze it BURSTS there, a little back along its flight
@@ -241,7 +311,10 @@ namespace Fdp.Toolkit.Combat.Systems
                         var burst = back.LengthSquared() > 1e-8f
                             ? end + System.Numerics.Vector3.Normalize(back) * AreaEffect.BurstStandOffMetres : end;
                         if ((proj.Warhead & WarheadRound.TimeFuze) != 0)
+                        {
                             proj.Warhead |= WarheadRound.Landed;
+                            NoteLying(repo, entity);   // ⭐ CE-4649 (BW-4) — a fuzed grenade that lands lies too
+                        }
                         // ⭐⭐ CE-2203 — an impact round waits at its burst point for the grace (the StoppedTick branch above bursts it):
                         //   ⛔ it burst HERE at once and was marked Spent, so the raycast of an EARLIER segment that crossed a unit —
                         //   resolving up to three ticks later — was dropped (HitResolutionSystem skips a Spent round). 📐 Live

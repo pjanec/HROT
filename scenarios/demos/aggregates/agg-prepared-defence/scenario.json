@@ -1,0 +1,160 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: on berlin two identical fights 7 km apart (out of each other's sight): a BLUE stochastic platoon (30 men) attacks a RED stochastic platoon (30 men) 500 m north of it. One Red defender has been in position long enough to be PREPARED (>= 600 s), the other FORTIFIED (>= 3600 s) - authored as the level they would have reached (no play: the cover factor is read from AggregateUnit.Prepared, 0.45 / 0.25; each defender DEFENDS in place and keeps its authored level, R-8342; the Defend play's own time-in-position ladder is its rail's, R-8306). Judge: the Fortified defender HOLDS LONGER - the Prepared one has lost half its men (15) by 70 s, the Fortified one has not. Check: scripts/scenario-regression.sh agg-prepared-defence"
+  },
+  "entities": {
+    "a9000012-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Prepared Defender",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic",
+        "Prepared": "Prepared"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            200,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000012-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          -150,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Attacker Prepared",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitAttack",
+        "Params": {
+          "Position": [
+            1000,
+            200,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000012-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          7200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Fortified Defender",
+        "ForceId": "Hostile"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic",
+        "Prepared": "Fortified"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitDefend",
+        "Params": {
+          "Position": [
+            1000,
+            7200,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "a9000012-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          1000,
+          6850,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 306
+      },
+      "EntityInfo": {
+        "Name": "Blue Attacker Fortified",
+        "ForceId": "Friend"
+      },
+      "AggregateUnit": {
+        "Resolution": "Stochastic"
+      },
+      "Behavior": {
+        "Name": "StochasticUnitAttack",
+        "Params": {
+          "Position": [
+            1000,
+            7200,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

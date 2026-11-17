@@ -180,8 +180,10 @@ namespace Fdp.Toolkit.Physics.Systems
 
                     // ⭐ CE-3210 (HL-8) — the mark the round left on the part, written here because this node resolved the hit (the
                     //   Muscle owns HitMarks). Added on the first hit; a body never struck carries none.
+                    //   ⭐ CE-4649 (bows BW-5) — an ARROW / a crossbow BOLT (a round whose look Sticks) leaves a mark of its own kind: the viewer draws the
+                    //   shaft out of the part, in the part's frame, so it stays in him when he falls. An animal has no part boxes (R-3099): no mark.
                     if (hit.HasBodyPart != 0) BodyParts.HitMarksWriter.Mark(repo, hit.HitEntity, hit.BodyPart, hit.LocalPoint, hit.Face,
-                        BodyParts.HitMarkKind.Bullet);
+                        MarkKindOf(repo, ammo));
 
                     // Transition the bullet to TearDown so BallisticsSystem's Active-filtered
                     // query drops it (preventing further raycasts), while its component memory
@@ -195,5 +197,11 @@ namespace Fdp.Toolkit.Physics.Systems
                 }
             }
         }
+
+        /// <summary>⭐ <c>CE-4649</c> (BW-5) — the mark a round of munition <paramref name="ammo"/> leaves: Arrow / Bolt for a round that sticks, else Bullet.</summary>
+        internal static BodyParts.HitMarkKind MarkKindOf(EntityRepository repo, long ammo)
+            => Fdp.Toolkit.Combat.CombatTkb.VisualOf(repo, ammo) is { Sticks: true } v
+                ? (v.Bolt ? BodyParts.HitMarkKind.Bolt : BodyParts.HitMarkKind.Arrow)
+                : BodyParts.HitMarkKind.Bullet;
     }
 }

@@ -177,7 +177,7 @@ namespace Hrot.Editor.Director
                 {
                     var units = UnitsNamed(a.Who!).ToList();
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => Compare(At(Components(id), c.Path!), c.Op, want));
+                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where));
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
@@ -190,7 +190,9 @@ namespace Hrot.Editor.Director
                     return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
                 case "far":
                 case "close":
-                    return _w.World is { } dw && DistanceHolds(dw, c) ? _rel : null;
+                    return DistanceHolds(c) ? _rel : null;
+                case "between":
+                    return BetweenHolds(c) ? _rel : null;
                 default:
                 {
                     // a task cue may name several behaviours: any of them
@@ -239,26 +241,21 @@ namespace Hrot.Editor.Director
         /// <summary>
         /// ⭐ CE-10002 (air combat RV-15, R-10012) — <c>far</c> / <c>close</c>: some unit <see cref="AnchorSpec.Who"/> names is more than (<c>far</c>) /
         /// within (<c>close</c>) <see cref="CheckCue.M"/> of the unit <see cref="CheckCue.From"/> names (3-D; the nearest of them) or of
-        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing.
+        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing. ⭐ CE-9009 — through <see cref="PositionOf"/>, so it holds in the
+        /// cluster tier too (⛔ before, it read only a live repository and never held there).
         /// </summary>
-        private bool DistanceHolds(EntityRepository world, CheckCue c)
+        private bool DistanceHolds(CheckCue c)
         {
             if (c.Spec.Who is not { } who) return false;
             bool far = c.On == "far";
             foreach (var id in UnitsNamed(who))
             {
-                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
-                if (e.IsNull || !world.HasComponent<SimTransform>(e)) continue;
-                var at = world.GetComponentRO<SimTransform>(e).Position;
+                if (PositionOf(id) is not { } at) continue;
                 float d = float.MaxValue;
                 if (c.From != null)
                 {
                     foreach (var fid in UnitsNamed(c.From))
-                    {
-                        var f = new Fdp.Toolkit.Replication.EntityRef(fid).Resolve(world);
-                        if (f.IsNull || f == e || !world.HasComponent<SimTransform>(f)) continue;
-                        d = MathF.Min(d, System.Numerics.Vector3.Distance(at, world.GetComponentRO<SimTransform>(f).Position));
-                    }
+                        if (fid != id && PositionOf(fid) is { } f) d = MathF.Min(d, System.Numerics.Vector3.Distance(at, f));
                     if (d == float.MaxValue) continue;
                 }
                 else if (c.Spec.Point is { } p) d = System.Numerics.Vector2.Distance(new System.Numerics.Vector2(at.X, at.Y), p);
@@ -266,6 +263,52 @@ namespace Hrot.Editor.Director
                 if (far ? d > c.M : d <= c.M) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-9009</c> (docs/DESIGN_Scenario_Regression.md §3; the convoy's "no cutting in", R-4277) — <c>between</c>: some unit <see cref="AnchorSpec.Who"/>
+        /// names lies in the CORRIDOR between the unit <see cref="CheckCue.From"/> names and the unit <see cref="CheckCue.To"/> names: strictly between them
+        /// along the line that joins them (its projection inside the segment, the two ends' own bodies excluded by <see cref="CheckCue.Margin"/> metres at
+        /// each end) and within <see cref="CheckCue.M"/> metres of that line (horizontal). A car in the next lane beside the column is OUTSIDE a corridor of
+        /// half a lane; a car in the gap is inside. The same reading in both tiers (<see cref="PositionOf"/>).
+        /// </summary>
+        private bool BetweenHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.From is null || c.To is null) return false;
+            foreach (var aid in UnitsNamed(c.From))
+            {
+                if (PositionOf(aid) is not { } a3) continue;
+                foreach (var bid in UnitsNamed(c.To))
+                {
+                    if (bid == aid || PositionOf(bid) is not { } b3) continue;
+                    var a = new System.Numerics.Vector2(a3.X, a3.Y); var b = new System.Numerics.Vector2(b3.X, b3.Y);
+                    var ab = b - a; float len = ab.Length();
+                    if (len <= 2f * c.Margin) continue;   // the two ends touch: no gap to cut into
+                    var dir = ab / len;
+                    foreach (var id in UnitsNamed(who))
+                    {
+                        if (id == aid || id == bid || PositionOf(id) is not { } p3) continue;
+                        var ap = new System.Numerics.Vector2(p3.X, p3.Y) - a;
+                        float along = System.Numerics.Vector2.Dot(ap, dir);
+                        if (along <= c.Margin || along >= len - c.Margin) continue;
+                        float side = MathF.Abs(ap.X * dir.Y - ap.Y * dir.X);
+                        if (side <= c.M) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>⭐ CE-9009 — a unit's position in either tier: the live repository's <c>SimTransform</c>, else its dumped components (the cluster tier).</summary>
+        private System.Numerics.Vector3? PositionOf(int id)
+        {
+            if (_w.World is { } world)
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                return e.IsNull || !world.HasComponent<SimTransform>(e) ? null : world.GetComponentRO<SimTransform>(e).Position;
+            }
+            return Components(id) is { } comps && At(comps, "SimTransform.Position") is JsonArray pos && pos.Count >= 3
+                ? new System.Numerics.Vector3((float)(Num(pos[0]) ?? 0), (float)(Num(pos[1]) ?? 0), (float)(Num(pos[2]) ?? 0)) : null;
         }
 
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;
@@ -307,6 +350,13 @@ namespace Hrot.Editor.Director
 
         private IEnumerable<int> UnitsNamed(string who)
         {
+            // ⭐ R-8335 (agg-behaviors, cross-lane) — a NETWORK ID names the unit too, as the near / task cues already read it (WorldUnits.Resolve): an
+            //   UNNAMED entity (a stochastic unit's split children, which carry no name) is otherwise out of every field cue's reach
+            if (who.Length > 0 && char.IsAsciiDigit(who[0]) && int.TryParse(who, NumberStyles.None, CultureInfo.InvariantCulture, out int networkId))
+            {
+                yield return networkId;
+                yield break;
+            }
             if (who.StartsWith('*'))
             {
                 var part = who[1..];
@@ -388,6 +438,20 @@ namespace Hrot.Editor.Director
         }
 
         /// <summary>The value at <c>A.B.C</c> (an array index is a number part).</summary>
+        /// <summary>⭐ R-8320 — a <c>field</c> cue's test on one unit: a plain path compares the value there; a path with a <c>*</c> part (<c>UnitSlotTable.Slots.*.Health</c>) holds when at
+        /// least <paramref name="elements"/> elements of that array satisfy the comparison — among those a <c>where</c> row passes (the unused slots of a fixed array are all zeros: <c>"where": {"CompositeSlot": [">", 0]}</c>) (the ONE wildcard: the first <c>*</c> walks an array, the rest of the path is read per element).</summary>
+        public static bool FieldHolds(JsonNode? comps, string path, string op, JsonNode? want, int elements, IReadOnlyList<(string Field, string Op, JsonNode? Value)>? where = null)
+        {
+            int star = path.IndexOf(".*.", StringComparison.Ordinal);
+            if (star < 0) return Compare(At(comps, path), op, want);
+            if (At(comps, path[..star]) is not JsonArray arr) return false;
+            string rest = path[(star + 3)..];
+            int n = 0;
+            for (int i = 0; i < arr.Count; i++)
+                if ((where == null || where.Count == 0 || (arr[i] is JsonObject elt && WhereOk(elt, where))) && Compare(At(arr[i], rest), op, want) && ++n >= elements) return true;
+            return false;
+        }
+
         public static JsonNode? At(JsonNode? node, string path) => Fdp.Toolkit.Scenario.ComponentJsonPath.Get(node, path);
 
         public static bool Compare(JsonNode? value, string op, JsonNode? want)

@@ -1,0 +1,100 @@
+{
+  "$doc": "\u00a723.6 / F-14 (R-8338, R-8339). F-14 measured: a defending stochastic unit fires whenever a reported contact is inside its weapons' MaxRange (StochasticFirePhase.Line, KvEntry.PHitAt = 0 past MaxRange; the rifleman's M4 Range 300 in NedTkbCatalog) - the squad that 'never fired' had been ordered to a position 400 m from the contact. The anchor 'in reach' = Red's centre past y 500 (300 m from the squad at y 200; both on x 1000). Measured: Blue sees Red at 2.25 s (500 m), Red crosses y 500 at 211.75 s, Blue's first fire line at 212.25 s, the first Red slot down at 212.25 s.",
+  "runFor": 240,
+  "golden": {
+    "every": 30
+  },
+  "anchors": {
+    "in reach": {
+      "on": "field",
+      "who": "Red Stochastic Squad",
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 500
+    }
+  },
+  "expect": [
+    {
+      "name": "the company runs CompanyDefend",
+      "on": "task",
+      "who": "Blue Company",
+      "is": "CompanyDefend",
+      "before": 10
+    },
+    {
+      "name": "the squad is ordered Defend by KIND: it runs the generic Defend play",
+      "on": "task",
+      "who": "Blue Stochastic Squad",
+      "is": "StochasticUnitDefend",
+      "before": 10
+    },
+    {
+      "name": "it sees the attacker long before it is in reach (a reported contact)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "UnitDetections.Pairs.0.Reported",
+      "op": "==",
+      "value": 1,
+      "before": 30
+    },
+    {
+      "name": "it does not fire while the attacker is beyond its riflemen's 300 m",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Squad",
+        "path": "FireAllocation.Count",
+        "op": ">",
+        "value": 0
+      },
+      "before": "in reach"
+    },
+    {
+      "name": "it FIRES once the attacker is inside 300 m (F-14)",
+      "on": "field",
+      "who": "Blue Stochastic Squad",
+      "path": "FireAllocation.Count",
+      "op": ">",
+      "value": 0,
+      "after": "in reach",
+      "before": "in reach+5"
+    },
+    {
+      "name": "... and its fire tells: a Red slot goes down",
+      "on": "field",
+      "who": "Red Stochastic Squad",
+      "path": "UnitSlotTable.Slots.*.Health",
+      "op": "<",
+      "value": 0.5,
+      "after": "in reach",
+      "before": "in reach+10",
+      "where": {
+        "CompositeSlot": [
+          ">",
+          0
+        ]
+      }
+    },
+    {
+      "name": "the defender holds: it never breaks contact",
+      "never": {
+        "on": "task",
+        "who": "Blue Stochastic Squad",
+        "is": [
+          "StochasticUnitBreakContact",
+          "PlatoonDefend",
+          "SquadDefend"
+        ]
+      }
+    },
+    {
+      "name": "... and never leaves its position (stays within 10 m of y 200)",
+      "never": {
+        "on": "field",
+        "who": "Blue Stochastic Squad",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 210
+      }
+    }
+  ]
+}

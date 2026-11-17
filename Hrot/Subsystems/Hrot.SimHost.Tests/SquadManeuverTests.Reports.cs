@@ -70,6 +70,132 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(StatusColour.Amber, c.Picture.Subordinates.Items[0].Ammo);
         }
 
+        /// <summary>A body-less platoon of <paramref name="slots"/> slots, stochastic, <paramref name="up"/> of them up.</summary>
+        private static Entity StochasticPlatoon(Fdp.Core.EntityRepository w, int slots, int up, int broken = 0, Vector3 at = default)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitEntity());
+            w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            AggregateTestUnits.Make(w, e, slots, up, broken);
+            return e;
+        }
+
+        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> (RV-5; design §23.7) — a STOCHASTIC unit has no roster and no bodies, so its strength is its SLOTS: N of M
+        /// up reads Present N / Authorized M, the SITREP colour from that share (46/48 GREEN, 20/48 not), a broken-stress slot is in the fight but not
+        /// standing, and every slot down is out of the fight and BLACK. ✅ Red-proof: the stochastic branch of <c>UnitStrength.Of</c> removed ⇒ Unknown ⇒ red;
+        /// of <c>CombatEffective.IsInTheFight</c> removed ⇒ the wiped-out unit stays in the fight ⇒ red; <c>StaffComposerSystem.StrengthOf</c>'s roster guard ⇒ Unknown ⇒ red.</summary>
+        [Fact]
+        public void ST0_AStochasticUnit_ReadsItsSlotsAsItsStrength_Colour_AndTheFight()
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
+            var u = StochasticPlatoon(w, slots: 48, up: 46);
+            var s = Fdp.Toolkit.Squad.UnitStrength.Of(w, u);
+            Assert.Equal((46f, 48, true), (s.Present, s.Authorized, s.Known));
+            Assert.Equal(StatusColour.Green, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, u));
+            Assert.Equal(StatusColour.Green, StaffComposerSystem.StrengthOf(w, u));                 // the SITREP path: no UnitRoster, still read
+            Assert.True(Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(w, u));
+            Assert.Equal(46, Fdp.Toolkit.Squad.CombatEffective.FightingMembers(w, u));
+
+            AggregateTestUnits.Make(w, u, slots: 48, up: 20);
+            Assert.NotEqual(StatusColour.Green, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, u));
+            Assert.Equal(StatusColour.Red, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, u));         // 0.42 < Amber, still fighting
+
+            // broken stress: in the fight (casualties only) but not standing
+            AggregateTestUnits.Make(w, u, slots: 48, up: 40, broken: 12);
+            Assert.Equal(40, Fdp.Toolkit.Squad.CombatEffective.FightingMembers(w, u));
+            Assert.Equal(28, Fdp.Toolkit.Squad.CombatEffective.StandingMembers(w, u));
+            Assert.Equal(40f, Fdp.Toolkit.Squad.UnitStrength.Of(w, u).Present);
+            Assert.Equal(28f, Fdp.Toolkit.Squad.UnitStrength.Of(w, u, standing: true).Present);
+            Assert.True(Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(w, u));
+            Assert.True(Fdp.Toolkit.Squad.CombatEffective.IsStanding(w, u));
+            AggregateTestUnits.Make(w, u, slots: 48, up: 40, broken: 40);                           // every man up is broken
+            Assert.True(Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(w, u));
+            Assert.False(Fdp.Toolkit.Squad.CombatEffective.IsStanding(w, u));
+
+            AggregateTestUnits.Make(w, u, slots: 48, up: 0);                                        // wiped out
+            Assert.False(Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(w, u));
+            Assert.Equal(StatusColour.Black, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, u));
+            Assert.Equal(StatusColour.Black, StaffComposerSystem.StrengthOf(w, u));
+
+            AggregateTestUnits.Make(w, u, slots: 48, up: 46, resolution: Fdp.Toolkit.Aggregate.AggregateResolution.Physical);
+            Assert.False(Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(w, u));                  // a physical unit keeps its bodies: no roster ⇒ Unknown, as before
+            Assert.False(Fdp.Toolkit.Squad.UnitStrength.Of(w, u).Known);
+        }
+
+        /// <summary>⭐⭐ agg-behaviors <c>ST-0 ①</c> — a stochastic PLATOON under a physical COMPANY's roster adds its men (its live slots), not "1 man, composition
+        /// unknown"; and (ST-3, R-8314) its ammunition is its SHARE of the TKB's basic load (<c>UnitAmmunition.TryShare</c>): ≥ ½ GREEN, ≥ ¼ AMBER, some RED, none BLACK —
+        /// the same thresholds as a roster's, alone and through the company's sum; UNKNOWN only when the share cannot be known (no TKB, nothing standing to measure).
+        /// ✅ Red-proof: the stochastic arm of <c>UnitStrength.Sum</c> removed ⇒ 1 man ⇒ red; <c>AmmoOf</c>'s stochastic arm back to "adds nothing" ⇒ Unknown ⇒ red.</summary>
+        [Fact]
+        public void ST0_AStochasticPlatoon_UnderAPhysicalCompany_AddsItsMen_AndItsAmmoIsItsShare()
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
+            var platoon = StochasticPlatoon(w, slots: 48, up: 40);
+            var company = w.CreateEntity();
+            w.AddComponent(company, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            roster.SubordinateEntities[roster.Count++] = platoon;
+            w.AddComponent(company, roster);
+            var s = Fdp.Toolkit.Squad.UnitStrength.Of(w, company);
+            Assert.Equal((40f, 48), (s.Present, s.Authorized));
+            Assert.Equal(1, Fdp.Toolkit.Squad.CombatEffective.FightingMembers(w, company) > 0 ? 1 : 0);   // the platoon is in the fight
+            Assert.Equal(StatusColour.Amber, Fdp.Toolkit.Squad.UnitStrength.ColourOf(w, company));      // 40/48 = 0.83
+            Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, platoon));          // no TKB ⇒ no basic load ⇒ the share cannot be known
+            Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, company));
+            Assert.Equal(0L, StaffComposerSystem.RoundsOf(w, company, out long max)); Assert.Equal(0L, max);
+
+            var was = AggregateTestUnits.GiveABasicLoad(w, basicLoad: 20);
+            try
+            {
+                void Rounds(ushort each) => AggregateTestUnits.Make(w, platoon, slots: 48, up: 40, ammoEach: each);
+                foreach (var (each, colour) in new[] { ((ushort)10, StatusColour.Green), ((ushort)5, StatusColour.Amber), ((ushort)4, StatusColour.Red), ((ushort)0, StatusColour.Black) })
+                {
+                    Rounds(each);
+                    Assert.Equal(colour, StaffComposerSystem.AmmoOf(w, platoon));
+                    Assert.Equal(colour, StaffComposerSystem.AmmoOf(w, company));                          // through the parent's sum
+                }
+                Rounds(20);
+                Assert.Equal(StatusColour.Green, StaffComposerSystem.AmmoOf(w, platoon));
+                Assert.Equal(StaffComposerSystem.StochasticAmmoWeight, StaffComposerSystem.RoundsOf(w, company, out max));
+                Assert.Equal(StaffComposerSystem.StochasticAmmoWeight, max);
+                AggregateTestUnits.Make(w, platoon, slots: 48, up: 0);                                       // wiped out: nothing to measure ⇒ unknown, not green
+                Assert.Equal(StatusColour.ColourUnknown, StaffComposerSystem.AmmoOf(w, platoon));
+            }
+            finally { Fdp.Toolkit.Aggregate.KillerVictimTkb.PersonalSoldiers = was; }
+        }
+
+        /// <summary>⭐ agg-behaviors <c>ST-0 ①</c> — the stochastic readers allocate NOTHING in the steady state (R-2084: 0 B per call). ✅ Red-proof: a
+        /// <c>new</c> / LINQ in <c>AggregateUnits.Slots</c> ⇒ bytes &gt; 0 ⇒ red.</summary>
+        [Fact]
+        public void ST0_TheStochasticReaders_Allocate_ZeroBytes()
+        {
+            using var w = new Fdp.Core.EntityRepository();
+            Hrot.SimHost.SimHostComponentRegistry.RegisterAll(w);
+            var platoon = StochasticPlatoon(w, slots: 48, up: 40, broken: 5);
+            var company = w.CreateEntity();
+            w.AddComponent(company, new Fdp.Core.CommandHierarchy.UnitEntity());
+            var roster = new Fdp.Core.CommandHierarchy.UnitRoster();
+            roster.SubordinateEntities[roster.Count++] = platoon;
+            w.AddComponent(company, roster);
+            long Run()
+            {
+                long x = 0;
+                x += (long)Fdp.Toolkit.Squad.UnitStrength.Of(w, platoon, standing: true).Present;
+                x += (long)Fdp.Toolkit.Squad.UnitStrength.Of(w, company).Present;
+                x += Fdp.Toolkit.Squad.CombatEffective.IsInTheFight(w, platoon) ? 1 : 0;
+                x += Fdp.Toolkit.Squad.CombatEffective.StandingMembers(w, platoon);
+                x += (int)StaffComposerSystem.StrengthOf(w, platoon);
+                x += StaffComposerSystem.RoundsOf(w, company, out _);
+                return x;
+            }
+            for (int i = 0; i < 5; i++) Run();                                  // warm
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) Run();
+            Assert.Equal(0L, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         /// <summary>⭐ <c>CE-4615</c> — a COMPANY asks every platoon it orders for a SITREP every 15 s (the one <c>CommandOrders.AskSitrep</c>), so its
         /// LOST / relief guards can read a block's colour. 📐 Live on cc-battalion-collapse: a block wiped out never read Black ⇒ no counter-attack.
         /// ✅ Red-proof: the company's AskSitrep calls removed ⇒ no requirement on the platoons ⇒ red.</summary>

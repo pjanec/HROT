@@ -146,6 +146,44 @@ public sealed class ScenarioChecksTests
         foreach (var v in book.Verdicts()) Assert.True(v.Ok, v.Name + " should hold on the dumped components");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-9009</c> (the convoy's "no cutting in", R-4277) — <c>between</c>: a unit IN the corridor between two others holds (a car in the convoy's
+    /// gap); a unit beside it — the next lane — does not, nor one past either end; it needs who, from, to and m. And <c>far</c> / <c>close</c> now hold on
+    /// DUMPED positions too (the cluster tier) — before, they read only a live repository and never held there. 🔴 Red-proofs: <c>BetweenHolds</c> ignoring
+    /// the lateral limit ⇒ the next-lane row holds ⇒ red; <c>DistanceHolds</c> back on a live repository only ⇒ the close row fails ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE9009_Between_HoldsForAUnitInTheGap_NotBesideIt_AndCloseHoldsOnDumpedPositions()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"a car cut in","on":"between","who":"*SUMO ","from":"Escort 1","to":"Escort 2","m":1.6},
+              {"name":"a car in the next lane is not in the gap","never":{"on":"between","who":"SUMO beside","from":"Escort 1","to":"Escort 2","m":1.6}},
+              {"name":"a car past the column is not in the gap","never":{"on":"between","who":"SUMO ahead","from":"Escort 1","to":"Escort 2","m":1.6}},
+              {"name":"close on dumped positions","on":"close","who":"Escort 2","from":"Escort 1","m":16}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        void At(string name, int id, double x, double y)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject { ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) } };
+        }
+        At("Escort 1", 1, 100, 0); At("Escort 2", 2, 85, 0);   // a 15 m gap on y 0
+        At("SUMO in gap", 3, 92.5, 0.4);                      // in the gap
+        At("SUMO beside", 4, 92.5, 3.2);                      // the next lane
+        At("SUMO ahead", 5, 120, 0);                          // past the lead
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        foreach (var v in book.Verdicts()) Assert.True(v.Ok, v.Name + " should hold");
+
+        Parse("""{"runFor":5,"expect":[{"name":"x","on":"between","who":"*SUMO ","from":"Escort 1","m":1.6}]}""", out var noTo);
+        Assert.Contains(noTo, p => p.Contains("needs from and to"));
+        Parse("""{"runFor":5,"expect":[{"name":"x","on":"near","who":"Escort 1","point":[0,0],"to":"Escort 2"}]}""", out var stray);
+        Assert.Contains(stray, p => p.Contains("belong to a between cue"));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
@@ -419,6 +457,49 @@ public sealed class ScenarioChecksTests
 
         var mood = ScenarioGolden.Compare(golden, Run(1.0, 2.0, "angry"));
         Assert.Contains(mood, l => l.Contains("units.B.components.Mood"));
+    }
+
+    /// <summary>⭐ R-8320 — a field path with a <c>*</c> part counts the ARRAY's elements that satisfy the comparison (the stochastic unit's slot table): <c>elements</c> is the least count.</summary>
+    [Fact]
+    public void R8320_AFieldPathWithAStar_CountsTheElementsThatHold()
+    {
+        var comps = JsonNode.Parse("""{"UnitSlotTable": {"Count": 3, "Slots": [{"Health": 25, "CompositeSlot": 1}, {"Health": 0, "CompositeSlot": 2}, {"Health": 0, "CompositeSlot": 3}, {"Health": 0, "CompositeSlot": 0}]}}""")!;
+        JsonNode Zero = JsonValue.Create(0)!;
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 3));          // the unused fourth slot is all zeros too
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 4));
+        var used = new List<(string, string, JsonNode?)> { ("CompositeSlot", ">", JsonValue.Create(0)) };   // where: only the slots a composite filled
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 2, used));
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Slots.*.Health", "<=", Zero, 3, used));
+        Assert.False(ConditionBook.FieldHolds(comps, "UnitSlotTable.Nope.*.Health", "<=", Zero, 1));
+        Assert.True(ConditionBook.FieldHolds(comps, "UnitSlotTable.Count", "==", JsonValue.Create(3), 1));   // no star: the plain read
+        var checks = Parse("""{"runFor": 5, "expect": [{"name": "two down", "on": "field", "who": "U", "path": "UnitSlotTable.Slots.*.Health", "op": "<=", "value": 0, "elements": 2}]}""", out var problems);
+        Assert.Empty(problems);
+        Assert.Equal(2, checks.Expect[0].Cue.Elements);
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.*.B", "elements": 0}]}""", out var bad);
+        Assert.Contains(bad, l => l.Contains("elements"));
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.B", "where": {"C": 1}}]}""", out var plain);
+        Assert.Contains(plain, l => l.Contains("where"));
+        Parse("""{"runFor": 5, "expect": [{"name": "x", "on": "field", "who": "U", "path": "A.*.B", "where": {"C": [">", 0]}}]}""", out var starred);
+        Assert.Empty(starred);
+    }
+
+    /// <summary>
+    /// ⭐ R-8335 (agg-behaviors) — a <c>field</c> cue's <c>who</c> may be a NETWORK ID (as the near / task cues read one): an UNNAMED entity — a
+    /// stochastic unit's split child — is judged by it. 🔴 Red-proof: drop the id branch of <c>UnitsNamed</c> ⇒ the unnamed child never holds.
+    /// </summary>
+    [Fact]
+    public void R8335_AFieldCueNamesAnUnnamedEntityByItsNetworkId()
+    {
+        var checks = Parse("""{"runFor": 1, "expect": [{"name": "the child's key", "on": "field", "who": "1007", "path": "EntityGuid.Value", "op": "==", "value": "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9"}, {"name": "a gone id", "on": "field", "who": "1099", "path": "EntityGuid.Value", "op": "==", "value": "x"}]}""", out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("A", 1, 100, 0);
+        w.Comps[1007] = new JsonObject { ["EntityGuid"] = new JsonObject { ["Value"] = "0b02c05f-cb97-5c94-b354-0ba5ec6c6ac9" } };   // no name: not in Named()
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(0.5);
+        book.Finish(1);
+        var v = book.Verdicts();
+        Assert.True(v.Single(x => x.Name == "the child's key").Ok);
+        Assert.False(v.Single(x => x.Name == "a gone id").Ok);
     }
 
     /// <summary>

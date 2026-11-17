@@ -122,6 +122,7 @@ namespace Fdp.Toolkit.Combat
             WeaponCategory.SmallArms or WeaponCategory.MachineGun or WeaponCategory.Atgm or WeaponCategory.Sam
                 or WeaponCategory.Unknown => ItemLook.Rifle,
             WeaponCategory.Grenade => ItemLook.SmallObject,
+            WeaponCategory.Bow => ItemLook.LongObject,   // ⭐ CE-4649 (BW-1) — a bow is seen as something long in the hand (ui's HeldLook names it)
             _ => ItemLook.None,
         };
 
