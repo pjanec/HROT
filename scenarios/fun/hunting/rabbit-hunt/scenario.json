@@ -1,0 +1,208 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "test-town",
+  "description": "What: the RABBIT HUNT (CE-4649 part D, AN-21a-h; docs/designs/animals/DESIGN_Animals.md 4c; the fun pack, R-4281) - on test-town two HUNTERS (type 214, the 12-gauge, a standing rule to engage rabbits and birds, never people) walk south from (198-203,300) to (198-203,346-352) in the field east of the North Wood (the wood's east edge is x 160, y 300-380); two HUNTING DOGS range ahead of them; three RABBITS sit at the wood's edge (x 176-179, y 358-376). The dogs flush the rabbits (a dog inside a rabbit's flight distance), the rabbits freeze crouched then bolt in zigzags for the wood, the hunters shoot. Judge: (1) at least two rabbits flee (mode Flee) (2) at least three rounds are fired at rabbits (3) at least one rabbit has health 0 (4) NEVER a round at a dog or at a person. All points are inside 0-400 m. The bag per hunter is not counted here (no Points / Best parent: CE-3468). Check: scripts/scenario-regression.sh rabbit-hunt"
+ },
+ "entities": {
+  "4649d0b1-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     198,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 214
+   },
+   "EntityInfo": {
+    "Name": "Hunter 1",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      198,
+      346,
+      0
+     ],
+     "speed": 1.4,
+     "arrivalRadius": 2
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     203,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 214
+   },
+   "EntityInfo": {
+    "Name": "Hunter 2",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      203,
+      352,
+      0
+     ],
+     "speed": 1.4,
+     "arrivalRadius": 2
+    },
+    "Origin": "Superior"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000030": {
+   "SimTransform": {
+    "Position": [
+     192,
+     296,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 716
+   },
+   "EntityInfo": {
+    "Name": "Dog 1",
+    "ForceId": "Neutral"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     197,
+     292,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 716
+   },
+   "EntityInfo": {
+    "Name": "Dog 2",
+    "ForceId": "Neutral"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     177,
+     358,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 715
+   },
+   "EntityInfo": {
+    "Name": "Rabbit 1",
+    "ForceId": "Neutral"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     179,
+     368,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 715
+   },
+   "EntityInfo": {
+    "Name": "Rabbit 2",
+    "ForceId": "Neutral"
+   }
+  },
+  "4649d0b1-0000-4000-8000-000000000022": {
+   "SimTransform": {
+    "Position": [
+     176,
+     376,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 715
+   },
+   "EntityInfo": {
+    "Name": "Rabbit 3",
+    "ForceId": "Neutral"
+   }
+  }
+ }
+}

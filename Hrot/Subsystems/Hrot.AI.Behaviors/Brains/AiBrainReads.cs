@@ -32,6 +32,7 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();        // SelectionMean.IsStandard — a child's parent / subject
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.ScenarioRules.RuleControl>();           // RuleCommands.Control — the target's last request seq
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.ScenarioRules.ExerciseResult>();        // ObjectiveHost.Enter — the exercise phase on the World Environment
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Animals.AnimalState>();                 // ⭐ CE-4649 part D (AN-21g) — a hunter asks whether a contact is game (Animals.MayEngage); every animal writes its own state in the phase ⇒ a tick-start read
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.EntityGuid>();                 // MemberEvaluation — a member's guid
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.MacroExpansionStatus>();       // InsertMacro — the expansion's state
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Scenario.RefKey>();                     // MemberEvaluation.Names — a member's key

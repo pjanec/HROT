@@ -1,0 +1,83 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "test-town",
+  "description": "What: CE-4649 part D (AN-21a/b/c/d; docs/designs/animals/DESIGN_Animals.md 4c) - on test-town, 15 m east of the North Wood's edge (x 160, y 300-380), a RABBIT sits at (175,340). A rifleman (Friend) walks west toward it along y 340 from (255,340). Judge: (1) the rabbit FREEZES: mode Crouch, its stance Crouched, while the man is still beyond its 12 m panic zone (2) it BOLTS (mode Flee) when he comes near (3) it flees in a ZIGZAG, jinking to both sides of its line (north of y 342 and south of y 338 during the run) (4) it ends INSIDE the wood (x below 160). The unit rail pins >= 4 direction changes of >= 30 degrees. All points are inside 0-400 m. Check: scripts/scenario-regression.sh an-rabbit-bolts"
+ },
+ "entities": {
+  "4649d0a1-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     255,
+     340,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     1,
+     0
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Rifleman",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      178,
+      340,
+      0
+     ],
+     "speed": 1.4,
+     "arrivalRadius": 2
+    },
+    "Origin": "Superior"
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "4649d0a1-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     175,
+     340,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 715
+   },
+   "EntityInfo": {
+    "Name": "Rabbit",
+    "ForceId": "Neutral"
+   }
+  }
+ }
+}

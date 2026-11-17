@@ -1,0 +1,61 @@
+{
+  "$doc": "CE-4649 part D AN-21d - the rabbit that freezes and bolts, one row per Judge line.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the rabbit freezes crouched",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "AnimalState.Mode",
+      "op": "==",
+      "value": "Crouch"
+    },
+    {
+      "name": "its stance is Crouched",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "StanceIntent.TargetStance",
+      "op": "==",
+      "value": "Crouched"
+    },
+    {
+      "name": "the rabbit bolts",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "AnimalState.Mode",
+      "op": "==",
+      "value": "Flee",
+      "after": "the rabbit freezes crouched"
+    },
+    {
+      "name": "it jinks north of its line",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 342,
+      "after": "the rabbit bolts"
+    },
+    {
+      "name": "it jinks south of its line",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 338,
+      "after": "the rabbit bolts"
+    },
+    {
+      "name": "it ends inside the wood",
+      "on": "field",
+      "who": "Rabbit",
+      "path": "SimTransform.Position.0",
+      "op": "<",
+      "value": 160,
+      "atEnd": true
+    }
+  ]
+}

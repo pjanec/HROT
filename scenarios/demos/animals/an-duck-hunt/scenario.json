@@ -7,21 +7,21 @@
   "subsystemType": "Hrot.Scenario",
   "schemaVersion": "1.0",
   "terrainName": "farm",
-  "description": "What: CE-4649 part C (AN-20a/b/c/d; docs/designs/animals/DESIGN_Animals.md 4b) - on the farm terrain two hunters (Friend, the anti-drone man) are ORDERED (a Superior's PersonAttack, R-3101: an explicit order lifts the neutral and conduct holds for that target only) to fire at a lone duck and into a duck flock (one entity drawn as 30 birds), each hovering 8 m up 45 m east of its hunter ('Hunter Lone' (85,100), 'Hunter Flock' (85,200)). Judge: (1) the lone duck's health is 0 and it lies on the ground (z near 0) (2) the flock's count drops by at least one (3) the flock flees (it flies). All points are inside 0-300 m. Check: scripts/scenario-regression.sh an-duck-hunt"
+  "description": "What: CE-4649 part C (AN-20a/b/c/d; docs/designs/animals/DESIGN_Animals.md 4b) re-authored for part D (AN-21g) - on the farm terrain two HUNTERS (Friend, type 214: the 12-gauge only, a STANDING rule to engage ducks, never people - no order is given) stand 30 m west of a lone duck and of a duck flock (one entity drawn as 30 birds), each hovering 8 m up ('Hunter Lone' (100,100) / duck (130,100); 'Hunter Flock' (100,200) / flock (130,200)). Judge: (1) the lone duck's health is 0 and it lies on the ground (z near 0) (2) the flock's count drops by at least one (3) a dead duck lies where the flock was hit (4) the flock flees (it flies). Pellets, not rifle rounds. All points are inside 0-300 m. Check: scripts/scenario-regression.sh an-duck-hunt"
  },
  "entities": {
   "4649c0d1-0000-4000-8000-000000000010": {
    "SimTransform": {
     "Position": [
-     85,
+     100,
      100,
      0
     ],
     "Rotation": [
      0,
      0,
-     0.7071,
-     0.7071
+     0,
+     1
     ]
    },
    "Health": {
@@ -29,7 +29,7 @@
     "Max": 100
    },
    "TkbIdentity": {
-    "TkbType": 212
+    "TkbType": 214
    },
    "EntityInfo": {
     "Name": "Hunter Lone",
@@ -37,32 +37,20 @@
    },
    "TargetMemory": {
     "Entries": []
-   },
-   "Behavior": {
-    "Name": "PersonAttack",
-    "Params": {
-     "Target": "4649c0d1-0000-4000-8000-000000000020"
-    },
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": {},
-    "Origin": "Superior"
    }
   },
   "4649c0d1-0000-4000-8000-000000000011": {
    "SimTransform": {
     "Position": [
-     85,
+     100,
      200,
      0
     ],
     "Rotation": [
      0,
      0,
-     0.7071,
-     0.7071
+     0,
+     1
     ]
    },
    "Health": {
@@ -70,7 +58,7 @@
     "Max": 100
    },
    "TkbIdentity": {
-    "TkbType": 212
+    "TkbType": 214
    },
    "EntityInfo": {
     "Name": "Hunter Flock",
@@ -78,18 +66,6 @@
    },
    "TargetMemory": {
     "Entries": []
-   },
-   "Behavior": {
-    "Name": "PersonAttack",
-    "Params": {
-     "Target": "4649c0d1-0000-4000-8000-000000000021"
-    },
-    "Origin": "Superior"
-   },
-   "Sop": {
-    "Name": "InertSop",
-    "Params": {},
-    "Origin": "Superior"
    }
   },
   "4649c0d1-0000-4000-8000-000000000020": {

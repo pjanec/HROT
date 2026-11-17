@@ -1146,6 +1146,10 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge ONLY (the weapon choice prefers a rifle when both are carried, 📌 measured in part C) and a STANDING hunting rule: animals of the listed species, never people
             //   (Gen.HuntingRules — read through Animals.MayEngage by the weapon brain's target choice; a dog is never listed).
             MachineGunner(builder, TkbEntityTypes.Infantry_Hunter, "Hunter (12-gauge)", AntiDroneShotgun(), UnitedStates, faction: 1);
+            {   // his standing orders are the hunter's own SOP (the soldier's reaction takes cover in the open and never fires at game)
+                var hunter = tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!;
+                hunter.AddDescriptor(hunter.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>()! with { DefaultSop = Hrot.Map.Definitions.Behavior.BehaviorNames.HunterSop });
+            }
             tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.HuntingRulesDto
             {
                 Species = new List<byte> { (byte)Fdp.Toolkit.Animals.AnimalSpecies.Rabbit, (byte)Fdp.Toolkit.Animals.AnimalSpecies.Bird, (byte)Fdp.Toolkit.Animals.AnimalSpecies.BirdFlock,

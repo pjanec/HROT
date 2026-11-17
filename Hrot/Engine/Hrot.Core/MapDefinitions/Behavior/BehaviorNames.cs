@@ -331,6 +331,8 @@ namespace Hrot.Map.Definitions.Behavior
         // ⭐ CE-1410 (R-1042) — the shipped library trees, C#-built since their JSON assets were converted (Hrot.AI.Behaviors/Brains/*Sop.cs,
         //   *Tactics*.cs). The SOPs (a unit's standing orders, CE-1019) first, then the tactics.
         public const string BasicInfantrySop = "BasicInfantrySop";
+        /// <summary>⭐ CE-4649 part D (AN-21g) — the hunter's standing orders (a SOP) and the reaction it starts: shoot the game in sight from where he stands.</summary>
+        public const string HunterSop = "HunterSop", Hunt = "Hunt";
         public const string BasicSquadSop = "BasicSquadSop";
         public const string BasicPlatoonSop = "BasicPlatoonSop";
         public const string BasicVehicleSop = "BasicVehicleSop";
