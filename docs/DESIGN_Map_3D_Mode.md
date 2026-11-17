@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - designs/person-looks/DESIGN_Person_Outfits.md — what a person wears moves into the TKB (`OutfitDto`, seeded within the type's lists); §6q's code palettes become data; Middle-East dress (CE-4648)
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the MiG body, missiles on rails, afterburner and vortex trails (§4d, ui)
   - docs/DESIGN_People_Display.md — OWNS the card's mind-state and health rows (§7e U20, §7f U21); §6am here makes every unit text a row of the card and hides the card behind terrain
   - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
