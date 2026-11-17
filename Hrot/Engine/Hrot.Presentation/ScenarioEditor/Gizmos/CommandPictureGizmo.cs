@@ -44,7 +44,7 @@ public sealed class CommandPictureAbsentGizmo : IStatelessGizmo
         if (!IsCommander(repo, entity)) return;
         // ⭐ CE-4582 (§6am D-7) — a row of the commander's card, never free text over his head
         int net = EntityCardRows.CardIdOf(view, entity);
-        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand).Row(EntityCardRows.PictureAbsent).Text(Text, Colour, 11f);
+        if (net != 0) draw.Card(net, DebugTraceLayers.SquadCommand, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(EntityCardRows.PictureAbsent).Text(Text, Colour, 11f);
     }
 
     /// <summary>True when some unit names <paramref name="unit"/> as its commander.</summary>
@@ -94,7 +94,7 @@ public sealed class CommandPictureGizmo : IStatelessGizmo
                 var s = repo.GetComponentRO<SimTransform>(sub).Position;
                 draw.DrawLine(at, s, SubordinateColour, 1f, style: LineStyle.Dashed, layer: DebugTraceLayers.SquadCommand);
                 // ⭐ CE-4582 (§6am D-7) — what the commander heard from a subordinate is about HIM: a row of the subordinate's card
-                draw.Card(row.UnitNetId, DebugTraceLayers.SquadCommand).Row(EntityCardRows.MemberProgress).Text(row.Progress.ToString(), ProgressColour, 11f);
+                draw.Card(row.UnitNetId, DebugTraceLayers.SquadCommand, Fdp.Toolkit.Squad.CombatEffective.IsUnit(repo, sub)).Row(EntityCardRows.MemberProgress).Text(row.Progress.ToString(), ProgressColour, 11f);
             }
 
         for (int i = 0; i < pic.Requests.Count && i < CommandPicture.MaxRequests; i++)

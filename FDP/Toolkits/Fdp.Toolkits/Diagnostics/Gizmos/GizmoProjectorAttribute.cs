@@ -29,6 +29,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public float MaxMetresPerPixel { get; set; }
 
         /// <summary>
+        /// ⭐ CE-8610 (docs/UX/DESIGN_Unit_Symbols.md P-3) — the FINEST map scale this gizmo still draws at, in metres per screen pixel; finer (zoomed in further)
+        /// ⇒ skipped for the frame, like <see cref="MaxMetresPerPixel"/>. With it a gizmo draws in a zoom BAND (a company's symbol only once the platoons' is
+        /// too dense). 0 = no lower bound (the default).
+        /// </summary>
+        public float MinMetresPerPixel { get; set; }
+
+        /// <summary>
         /// ⭐ CE-4388 (D-4) — this gizmo draws for entities OUTSIDE the view (a line from an off-screen unit to somewhere on screen, an area round an off-screen
         /// anchor): it is exempt from the view test and sees every matching entity, as before.
         /// </summary>
