@@ -32,6 +32,53 @@ namespace CarKinem.Systems
         /// <summary>The minimum gap: half the spacing (no field of its own — <c>FormationController</c>'s bytes are in 75 scenario goldens).</summary>
         public static float MinGapOf(in FormationController c) => c.Params.Spacing > 0f ? c.Params.Spacing * 0.5f : DefaultMinGap;
 
+        /// <summary>⭐ C-6 — the lead's speed cap as a fraction of its speed, from the tail's lag behind its place: 1 up to one gap of slack, 0 (stop) at three.
+        /// ONE formula for both measures of the lag — the trail's arc (the kinematic owner, mode 2) and the chords (<see cref="ChordLag"/>, the traffic node, mode 1).</summary>
+        public static float CapFactor(float lag, float gap)
+        {
+            if (gap <= 0f) return 1f;
+            float slack = SlackGaps * gap;
+            return Math.Clamp(1f - (lag - slack) / (2f * slack), 0f, 1f);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-9008</c> (C-6, mode 1) — the tail's lag of <paramref name="lead"/>'s road column measured on a node WITHOUT the trail (the traffic node): the
+        /// straight chords lead → slot 1 → … → the tail, minus the tail's slot × the gap. A chord is never longer than the path, so on a bend this reads a
+        /// little SHORT (the cap starts a little later) — the slack absorbs it. False when nobody follows <paramref name="lead"/>. 0 B (a stack buffer).
+        /// </summary>
+        public static bool ChordLag(EntityRepository repo, EntityQuery followers, Entity lead, float gap, out float lag)
+        {
+            lag = 0f;
+            if (!repo.HasComponent<SimTransform>(lead)) return false;
+            Span<Vector2> at = stackalloc Vector2[ConvoyTrail.MaxRanks];
+            uint valid = 1u;
+            int tail = 0;
+            var lp = repo.GetComponentRO<SimTransform>(lead).Position;
+            at[0] = new Vector2(lp.X, lp.Y);
+            foreach (var e in followers)
+            {
+                if (e == lead || !repo.HasComponent<SimTransform>(e)) continue;
+                ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
+                int slot = f.SlotIndex;
+                if (f.Leader != lead || f.IsInFormation == 0 || slot <= 0 || slot >= ConvoyTrail.MaxRanks) continue;
+                var p = repo.GetComponentRO<SimTransform>(e).Position;
+                at[slot] = new Vector2(p.X, p.Y);
+                valid |= 1u << slot;
+                if (slot > tail) tail = slot;
+            }
+            if (tail == 0) return false;
+            float along = 0f;
+            var prev = at[0];
+            for (int k = 1; k <= tail; k++)
+            {
+                if ((valid & (1u << k)) == 0) continue;
+                along += Vector2.Distance(prev, at[k]);
+                prev = at[k];
+            }
+            lag = MathF.Max(0f, along - tail * gap);
+            return true;
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
@@ -101,8 +148,7 @@ namespace CarKinem.Systems
                 {
                     float lag = (float)(trail.RankS[0] - trail.RankS[trail.LastRank]) - trail.LastRank * gap;
                     trail.TailLag = MathF.Max(0f, lag);
-                    float slack = SlackGaps * gap;
-                    trail.SpeedCapFactor = Math.Clamp(1f - (lag - slack) / (2f * slack), 0f, 1f);
+                    trail.SpeedCapFactor = CapFactor(lag, gap);
                 }
             }
         }

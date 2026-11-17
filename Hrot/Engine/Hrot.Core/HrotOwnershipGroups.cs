@@ -107,6 +107,9 @@ public static class HrotOwnershipGroups
         // ⭐ CE-4623 AB-3 — an animal's state and a flock's: written by its brain (the fear system, the animal HSM) on the node running it (dtAnimalState, dtFlockState).
         brain.SetBit(GlobalComponentIds.AnimalState);
         brain.SetBit(GlobalComponentIds.FlockState);
+        // ⭐ CE-9007 (R-9012) — a road column: the convoy behaviour writes the lead's controller and each follower's explicit-leader slot (dtFormationController, dtFormationFollower).
+        brain.SetBit(GlobalComponentIds.FormationController);
+        brain.SetBit(GlobalComponentIds.FormationFollower);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

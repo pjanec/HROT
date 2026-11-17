@@ -153,6 +153,50 @@ public sealed class AHandedOverVehicleFollowsItsShadowTests
         Assert.False(Assert.Single(Hand(Fdp.Toolkit.Navigation.RoadUse.InTraffic)).Priority);
     }
 
+    /// <summary>⭐ <c>CE-9008</c> (C-6, generic) — a shadow's top speed is the speed its brain ASKED (the intent's <c>TargetSpeed</c>; none ⇒ SUMO's own), and a
+    /// road column's lead is held lower while its tail lags — measured on the traffic node from the members' positions (no trail there on a cluster, C-8):
+    /// a tight column keeps the asked speed, a stretched one is capped, a lagging tail at three gaps stops it. 🔴 Red-proofs: <c>Gather</c> ignoring
+    /// <c>TargetSpeed</c> ⇒ the first row red; the column cap dropped ⇒ the stretched rows red.</summary>
+    [Fact]
+    public void CE9008_TheShadowsTopSpeed_IsTheAskedSpeed_AndAStretchedColumnsLeadIsHeldLower()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Navigation.NavigationIntent>();
+        world.RegisterComponent<CarKinem.Formation.FormationController>(); world.RegisterComponent<CarKinem.Formation.FormationFollower>();
+        var place = SumoNetPlacement.For(Sim.Ingest.NetworkParser.ParseXml("<net/>"), new Fdp.Toolkit.Terrain.TerrainSumoNet("x.net.xml", 0, 0), null);
+        Entity At(float x)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, 10, 0), Rotation = Quaternion.Identity });
+            world.AddComponent(e, new NetworkIdentity(7100 + e.Index));
+            return e;
+        }
+        var lead = At(100f);
+        world.AddComponent(lead, new Fdp.Toolkit.Navigation.NavigationIntent { Mode = Fdp.Toolkit.Navigation.NavigationMode.Traffic, IntentId = 1, TargetSpeed = 10f });
+        double? Cap() => Assert.Single(TrafficHandoverSystem.Gather(world, place)).MaxSpeed;
+
+        Assert.Equal(10.0, Cap()!.Value, 3);                                                  // the asked speed, no column
+
+        world.AddComponent(lead, new CarKinem.Formation.FormationController
+            { Type = CarKinem.Formation.FormationType.Column, Params = new CarKinem.Formation.FormationParams { Spacing = 15f } });
+        var f1 = At(85f); var f2 = At(70f);
+        world.AddComponent(f1, new CarKinem.Formation.FormationFollower { Leader = lead, SlotIndex = 1, IsInFormation = 1 });
+        world.AddComponent(f2, new CarKinem.Formation.FormationFollower { Leader = lead, SlotIndex = 2, IsInFormation = 1 });
+        Assert.Equal(10.0, Cap()!.Value, 3);                                                  // tight: 30 m for two gaps of 15
+
+        world.GetComponentRW<SimTransform>(f2).Position = new Vector3(45f, 10, 0);           // the tail 25 m behind its place: 1⅔ gaps
+        double held = Cap()!.Value;
+        Assert.InRange(held, 4.0, 8.0);                                                       // 1 − (25 − 15)/30 = ⅔ of 10
+
+        world.GetComponentRW<SimTransform>(f2).Position = new Vector3(10f, 10, 0);           // 60 m behind: past three gaps
+        Assert.Equal(0.0, Cap()!.Value, 3);
+
+        world.GetComponentRW<Fdp.Toolkit.Navigation.NavigationIntent>(lead).TargetSpeed = 0f;   // asked nothing: SUMO's own speed …
+        world.GetComponentRW<SimTransform>(f2).Position = new Vector3(70f, 10, 0);
+        Assert.Null(Cap());                                                                   // … and a tight column adds no cap
+    }
+
     private static TrafficCarPose Shadow(float x, float y, float yaw)
         => new(Owner: 800, Handle: new VehicleHandle(7, 1), Id: TrafficShadowFollowSystem.ShadowIdOf(Id), NetworkId: Id, TkbType: (Fdp.Core.TkbTypeId)(0), Color: 0,
                X: x, Y: y, Z: 0f, YawRad: yaw, Length: 5f, Width: 2f);

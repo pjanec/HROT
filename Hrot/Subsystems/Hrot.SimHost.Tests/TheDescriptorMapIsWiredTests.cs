@@ -315,7 +315,9 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtBladeCut),          // ⭐ CE-4601 (B-4) — the dozer's blade-cut marker (terrain lane)
                     D(Hrot.NED.Descriptors.EDescriptorType.dtRadarEmission),     // ⭐ CE-4617 (B-1, RS-10) — a radar's emission
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAnimalState),       // ⭐ CE-4623 AB-3 — an animal's state
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtFlockState) },      // ⭐ CE-4623 AB-3 — a bird flock's state
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFlockState),        // ⭐ CE-4623 AB-3 — a bird flock's state
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFormationController),   // ⭐ CE-9007 — a road column's lead
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFormationFollower) },   // ⭐ CE-9007 — a road column's explicit-leader slot
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

@@ -419,6 +419,8 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityBladeCut` | descriptor | yes: entity id | S | Hrot.Network.NED | A bulldozer's blade-cut marker (`dtBladeCut`, CE-4601; row added at CE-4623 — it was missing and the protocol rail was red) |
 | `Hrot.NED.Descriptors.EntityAnimalState` | descriptor | yes: entity id | S | Hrot.Network.NED | An animal's mode, fear band, species and flags (`dtAnimalState`, CE-4623) |
 | `Hrot.NED.Descriptors.EntityFlockState` | descriptor | yes: entity id | S | Hrot.Network.NED | A bird flock's birds left, seed and flying / landed / perched (`dtFlockState`, CE-4623) |
+| `Hrot.NED.Descriptors.EntityFormationController` | descriptor | yes: entity id | S | Hrot.Network.NED | A formation leader's controller — a road convoy's lead is a `Column` with a spacing (`dtFormationController`, CE-9007) |
+| `Hrot.NED.Descriptors.EntityFormationFollower` | descriptor | yes: entity id | S | Hrot.Network.NED | A follower's slot under an EXPLICIT leader (a road column's rank); `LeaderId 0` = it left (`dtFormationFollower`, CE-9007). Commander-led slots are not sent |
 | `Hrot.NED.Descriptors.EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
 | `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
 | `Hrot.NED.Descriptors.EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |
@@ -691,6 +693,8 @@ or its number differs.
 | 193 | `dtMinefieldKnowledge` | `Hrot.NED.Descriptors.EntityMinefieldKnowledge` |  |
 | 194 | `dtMinefieldLanes` | `Hrot.NED.Descriptors.EntityMinefieldLanes` |  |
 | 195 | `dtMineClearing` | `Hrot.NED.Descriptors.EntityMineClearing` |  |
+| 198 | `dtFormationController` | `Hrot.NED.Descriptors.EntityFormationController` |  |
+| 199 | `dtFormationFollower` | `Hrot.NED.Descriptors.EntityFormationFollower` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 

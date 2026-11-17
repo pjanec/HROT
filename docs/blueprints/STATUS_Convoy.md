@@ -10,8 +10,8 @@ related-designs:
 
 # STATUS — the `convoy` lane (CE-4631, R-4282)
 
-Branch `convoy`, started from `origin/coordinator` at `ea4c01af8` (handoff dispatched at `74c53dd69`). Ids: CE-9000…CE-9999 (next free **CE-9007**),
-R-9000…R-9999 (next free **R-9013**), components 108 / 109 / 157 / 158, descriptor ordinals 198–203.
+Branch `convoy`, started from `origin/coordinator` at `ea4c01af8` (handoff dispatched at `74c53dd69`). Ids: CE-9000…CE-9999 (next free **CE-9009**),
+R-9000…R-9999 (next free **R-9014**), components 108 / 109 / 157 / 158, descriptor ordinals 198–203.
 
 ## 1. Where we are — resume from the first open row
 
@@ -26,6 +26,9 @@ R-9000…R-9999 (next free **R-9013**), components 108 / 109 / 157 / 158, descri
 | 6 S-4 mode 2 lane (CE-9003) | ✅ (opt-in) | `RoadGraphRouter.KeepLane` for `RoadUse.StronglyPrefer` — `RoadGraphRouterLaneTests` red-proved; navigation neighbours 542/542. ⚠ global offset reddened 3 `CE-3128` rails ⇒ opt-in (design §6) | `4bfd1f57d` |
 | 7 S-5 order + switch (CE-9004) | ✅ (editor) | `OrderKind.Convoy` · `ConvoyOrder` · `PlatformConvoy` · `ConvoyMembershipSystem` (CgfLogicPack) — `PlatformConvoyTests` 3/3, both rails red-proved; SimHost neighbours 120/120. ⏳ `ConvoyMember` on the wire (descriptor 198, C-8) — the cluster tier; `PlatoonConvoyBehavior` assigning `ConvoyOrder` | `edbfc877d` |
 | 7b folded into formations (R-9012) | 🚧 | `ConvoyMember` withdrawn: lead = `FormationController{Column, Spacing}` (min gap = spacing/2: no new field — its bytes are in 75 scenario goldens), follower = `FormationFollower{SlotIndex = rank, Leader = lead}` (`Leader` new: `Entity.Null` = commander as before). Road columns are selected by the explicit `Leader`, so commander-led `Column` formations keep `FormationTargetSystem`'s slots. Commander-subordinates §2.2 amended. Gates: Toolkits convoy/formation/kinematics 182/182 (the legacy commander-led `Column` rails `FormationTargetSystemTests` caught the first, too-wide predicate), Traffic 90/90, SimHost 60/60; the sweep's two new rows red-proved. Agg lanes checked: their column is a stochastic unit's single point (no duplicate) — split seam in `NOTE_Convoy_To_AggLanes.md` | this commit |
+| 7c on the wire (CE-9007) | ✅ | `dtFormationController` 198 · `dtFormationFollower` 199, Brain group, every node; explicit-leader slots only (+ one left sample). `FormationWireTests` 4/4 (red-proved: left removes only the convoy's slot), NED 198/198, SimHost wire/replication 217/217, protocol checks OK | this commit |
+| 7d shadow top speed (CE-9008, R-9013) | ✅ | handover `MaxSpeed` = the intent's asked speed, lowered on the traffic node for a stretched column's lead (chords, one `CapFactor`). Rail `CE9008_…` red-proved ×2; Traffic 91/91. ⚠ deviates from the chat plan (brain lowers its intent): a cross-entity read in the parallel brain phase — design §6 | this commit |
+| 7e cluster tier | ⏳ | slice 3 (cars brake behind our bodies) and slice 4 (handover arrives) live on `--mode all`; `cv-offroad-join-leave` in the cluster tier | |
 | 8 S-6 scenarios (CE-9005) | 🚧 1 of 6 | ✅ **`cv-offroad-join-leave` PASS 7/7** (editor tier, 310 s; the never-splits row proven non-vacuous: at threshold −1 it fails at 0.25 s). Its first runs found four defects, all fixed or filed: a backed-up lead knotted the column (trail forward-only + a metres guard), the lane offset on lane-line nets (R-9011), the column facing away from the road, `city-battle`'s hedges cutting its roads (CE-9006 → terrain). ⏳ `cv-red-lights`, `cv-no-cut-in`, `cv-blocked-road`, `cv-ambush`, `cv-mode-1-to-2` | `986c9639b` |
 
 ## 2. Lane decisions (for the user's review) — R-9000…R-9010
@@ -36,7 +39,7 @@ Design §3 C-1…C-11 (each with its rejected alternatives and what would change
 
 | gate | result |
 |---|---|
-| `rulings-check.py` | 748/748 |
+| `rulings-check.py` | 749/749 |
 | `tracker-counts.py --check` | OK |
 | ✅ H17 upstream | pushed (`eb88338` on `hrot/slice2`), synced, `sync-sumosharp.sh --verify` OK; upstream full suite 0 failures, bench `A134ED3716DDE7BC` unchanged |
 | `design-digest.py --check` | fails identically at the base (pre-existing; none of this lane's files) |

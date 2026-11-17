@@ -956,6 +956,38 @@ namespace Hrot.NED.Descriptors
         public byte Mode;
     }
 
+    // ⭐ CE-9007 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md C-8) — a formation leader's FormationController as every node sees it (its brain node writes it):
+    //   a road convoy's lead is a Column with a spacing. Sent on change.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityFormationController
+    {
+        [DdsKey] public int EntityId;
+        public int TemplateId;
+        public byte Type;
+        public float Spacing;
+        public float WedgeAngleRad;
+        public float MaxCatchUpFactor;
+        public float BreakDistance;
+        public float ArrivalThreshold;
+        public float SpeedFilterTau;
+    }
+
+    // ⭐ CE-9007 — a follower's slot under an EXPLICIT leader (a road column's rank): the leader's network id, the slot, its state. LeaderId 0 = the slot was
+    //   removed (it left the column) — every node removes its copy. Sent on change.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityFormationFollower
+    {
+        [DdsKey] public int EntityId;
+        public int LeaderId;
+        public ushort SlotIndex;
+        public byte State;
+        public byte IsInFormation;
+    }
+
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]

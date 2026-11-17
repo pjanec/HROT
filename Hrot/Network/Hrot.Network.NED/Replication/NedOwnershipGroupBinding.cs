@@ -158,6 +158,8 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtSpawnLevel, GlobalComponentIds.SpawnLevelRequest);          // ⭐ CE-3271 — birth level
         map.RegisterMapping((long)EDescriptorType.dtAnimalState, GlobalComponentIds.AnimalState);               // ⭐ CE-4623 AB-3 — an animal's state (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtFlockState, GlobalComponentIds.FlockState);                 // ⭐ CE-4623 AB-3 — a bird flock's state (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFormationController, GlobalComponentIds.FormationController);   // ⭐ CE-9007 — a formation leader's controller (Brain group)
+        map.RegisterMapping((long)EDescriptorType.dtFormationFollower, GlobalComponentIds.FormationFollower);       // ⭐ CE-9007 — an explicit-leader slot (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtUnderFire, GlobalComponentIds.UnderFire);                   // ⭐ CE-1223 — when a man was last under fire
         // ⭐ CE-3219 part 3 — no group: the cloud's creator keeps it (the dtObstacleShape shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtAreaEffectCloud, GlobalComponentIds.AreaEffectCloud);
