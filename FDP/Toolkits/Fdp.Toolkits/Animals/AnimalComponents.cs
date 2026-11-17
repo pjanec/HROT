@@ -66,6 +66,8 @@ namespace Fdp.Toolkit.Animals
         public SimInstant NextZoneLookAt;
         /// <summary>⭐ AB-5 — a TERRITORIAL animal's intruder: the nearest person on its ground (the guard dog's bark and bite), Null = none.</summary>
         public Entity Intruder;
+        /// <summary>⭐ CE-4649 part D (AN-21f) — a HUNTING DOG's handler (the nearest hunter) and quarry (the nearest game animal in flight): written by the fear system's serial step, read by the dog's brain. Null = none.</summary>
+        public Entity Handler, Quarry;
         /// <summary>⭐ AB-5 — a ridden horse bolts until this sim time (0 = not bolting).</summary>
         public SimInstant BoltUntil;
         /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>

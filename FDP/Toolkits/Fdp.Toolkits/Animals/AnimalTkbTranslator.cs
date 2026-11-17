@@ -80,16 +80,27 @@ namespace Fdp.Toolkit.Animals
 
         /// <summary>⭐ <c>CE-3453</c> — a sensor track that must not enter a man's target memory: an animal AREA (an authored outline, no body) or an
         /// animal that is not attacking. ⛔ They crowded the 16 slots and evicted every enemy (the animal feature scenarios, `2026-11-16`).</summary>
-        public static bool NotAContact(ISimulationView view, Entity e)
-            => view.IsAlive(e) && (view.HasComponent<AnimalArea>(e) || (view.HasComponent<AnimalState>(e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) == 0));
+        public static bool NotAContact(ISimulationView view, Entity e, Entity observer = default)
+            => view.IsAlive(e) && !MayEngage(view, observer, e) && (view.HasComponent<AnimalArea>(e) || (view.HasComponent<AnimalState>(e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) == 0));
 
         /// <summary>An animal attacking right now (<see cref="AnimalFlags.Dangerous"/>) — self-defence covers firing at it (AR-6).</summary>
         public static bool IsDangerous(ISimulationView view, Entity e)
             => IsAnimal(view, e) && (view.GetComponentRO<AnimalState>(e).Flags & AnimalFlags.Dangerous) != 0;
 
         /// <summary>By DIS alone (a template, no entity): a life form in the animal categories 200…209.</summary>
-        /// <summary>⭐ CE-4649 part C ① — the SEAM for AN-21g's hunter: does <paramref name="unit"/> carry a STANDING order to engage animals of this species? Not built (part D); always false.</summary>
-        public static bool MayEngage(ISimulationView view, Entity unit, Entity animal) => false;
+        /// <summary>⭐ CE-4649 part C ① — AN-21g: does <paramref name="unit"/> carry a STANDING hunting rule (<c>HuntingRulesDto</c>) naming this animal's species? ⛔ People are never animals, so no rule can name one.</summary>
+        public static bool MayEngage(ISimulationView view, Entity unit, Entity animal)
+        {
+            if (view is not EntityRepository repo || unit.IsNull || animal.IsNull || !IsAnimal(view, animal)) return false;
+            if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(repo, unit, out var template) || template.GetDescriptor<HuntingRulesDto>() is not { } rules) return false;
+            var species = (byte)view.GetComponentRO<AnimalState>(animal).Species;
+            for (int i = 0; i < rules.Species.Count; i++) if (rules.Species[i] == species) return true;
+            return false;
+        }
+
+        /// <summary>⭐ CE-4649 part D (AN-21g) — does <paramref name="unit"/> carry a standing hunting rule (a hunter)?</summary>
+        public static bool IsHunter(EntityRepository repo, Entity unit)
+            => Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(repo, unit, out var template) && template.GetDescriptor<HuntingRulesDto>() != null;
 
         public static bool IsAnimalDis(DISEntityType dis) => dis.Kind == 3 && dis.Category >= 200 && dis.Category <= 209;
     }

@@ -33,7 +33,11 @@ namespace Hrot.SimHost.Tests
     [Collection("MeleeStrikes")]
     public sealed class AnimalHsmTests
     {
-        private const long CowType = 700, DogType = 705, FlockType = 707, RabbitType = 715;
+        private const long CowType = 700, DogType = 705, FlockType = 707, RabbitType = 715, HuntingDogType = 716;
+        private static readonly AnimalTemperamentDto HuntingDog = new()
+        {
+            Species = (byte)AnimalSpecies.HuntingDog, Fearless = true, Ranges = true, FlightZoneM = 30f, PanicZoneM = 8f, FleeSpeed = 8f, FleeDistanceM = 30f, Recovery = 15f, WalkSpeed = 2.5f,
+        };
         private static readonly AnimalTemperamentDto Rabbit = new()
         {
             Species = (byte)AnimalSpecies.Rabbit, FlightZoneM = 25f, PanicZoneM = 12f, FleeSpeed = 14f, FleeDistanceM = 70f, Recovery = 30f, WalkSpeed = 0.8f, FleeStyle = 1, Freezes = true,
@@ -81,6 +85,7 @@ namespace Hrot.SimHost.Tests
                 var dog = new TkbTemplate("Dog", DogType); dog.AddDescriptor(Dog); db.Register(dog);
                 var flock = new TkbTemplate("BirdFlock", FlockType); flock.AddDescriptor(Flock); db.Register(flock);
                 var rabbit = new TkbTemplate("Rabbit", RabbitType); rabbit.AddDescriptor(Rabbit); db.Register(rabbit);
+                var hdog = new TkbTemplate("HuntingDog", HuntingDogType); hdog.AddDescriptor(HuntingDog); db.Register(hdog);
                 Repo.SetSingletonManaged<ITkbDatabase>(db);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);
@@ -412,6 +417,47 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 1000; i++) sink += AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 5, i, i * 0.5, 14f, ref sd, out _).X;
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
             Assert.NotEqual(0f, sink);
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> part D (AN-21f) — the HUNTING DOG ranges AHEAD of its handler in sweeps (each point ≥ 15 m ahead of him, the side alternating), CHASES a flushed animal (its quarry, in flight) a short way — BARKING — and comes
+        /// back to its sweeps; and it NEVER attacks a person: a man standing against it draws no bite, no bark, no attack mode. ✅ Red-proof: the Ranges branch removed ⇒ it grazes ⇒ red.</summary>
+        [Fact]
+        public void CE4649_AHuntingDog_RangesAheadOfItsHandler_ChasesAFlushedAnimalBarking_AndNeverAttacksAPerson()
+        {
+            var w = new World();
+            var handler = w.Man(new Vector3(100, 0, 0));
+            var dog = w.Animal(HuntingDogType, new Vector3(100, 0, 0), AnimalSpecies.HuntingDog);
+            w.Repo.GetComponentRW<Fear>(dog).Handler = handler;
+            w.Start(dog);
+            var sides = new System.Collections.Generic.List<float>();
+            for (int i = 0; i < 6; i++)
+            {
+                w.Run(0.3);
+                var (to, _, moving) = w.Move(dog);
+                if (!moving) continue;
+                Assert.True(to.X > 100f + 10f, $"ahead of him: {to}");
+                sides.Add(to.Y);
+                w.Arrive(dog);
+            }
+            Assert.True(sides.Count >= 3 && sides.Exists(y => y > 5f) && sides.Exists(y => y < -5f), "sweeps to both sides");
+            // a rabbit flushed ahead: the dog chases it a short way, barking
+            var rabbit = w.Animal(RabbitType, new Vector3(140, 10, 0), AnimalSpecies.Rabbit);
+            w.Repo.GetComponentRW<AnimalState>(rabbit).Mode = AnimalMode.Flee;
+            w.Repo.GetComponentRW<Fear>(dog).Quarry = rabbit;
+            w.Run(0.4);
+            var chase = w.Move(dog);
+            Assert.True(chase.Moving && chase.Speed == HuntingDog.FleeSpeed, "it gives chase at its flee speed");
+            Assert.Equal(Fdp.Toolkit.Civilians.UtteranceKind.Bark, Fdp.Toolkit.Civilians.Utterances.Of(w.Repo, dog, w.Repo.SimulationTime, out _));
+            w.Repo.GetComponentRW<Fear>(dog).Quarry = Entity.Null;
+            w.Run(AnimalBehavior.ChaseSeconds + 1.0);
+            // back to the sweeps: ahead of the handler again
+            var (to2, _, m2) = w.Move(dog);
+            Assert.True(!m2 || to2.X > 100f + 10f, $"back to ranging: {to2}");
+            // never a person: a man at its nose draws no attack
+            var man = w.Man(new Vector3(100, 1, 0));
+            w.Run(3);
+            Assert.NotEqual(AnimalMode.Guard, w.Mode(dog));
+            Assert.Equal(100f, w.Repo.GetComponentRO<Health>(man).Current);
         }
 
         /// <summary>⭐ <c>CE-4623</c> AB-9 — an ENCLOSED pen holds its animals: a frightened one runs only to the pen's edge, where one in an open

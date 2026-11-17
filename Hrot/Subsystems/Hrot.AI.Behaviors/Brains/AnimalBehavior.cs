@@ -70,6 +70,9 @@ namespace Hrot.AI.Behaviors.Brains
             public int Legs;
             /// <summary>⭐ AB-8 — the last call number it made (the closed-form schedule's k), −1 none.</summary>
             public long LastCall;
+            /// <summary>⭐ CE-4649 part D (AN-21f) — the hunting dog's play: 0 ranging · 1 chasing a flushed animal · 2 coming back; when the chase ends; which side the next sweep runs.</summary>
+            public byte Phase, Side;
+            public SimInstant ChaseUntil;
             public SimInstant PauseUntil;
             public Vector3 Target, Origin;
         }
@@ -193,6 +196,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HasOrigin == 0) { ws.Origin = here; ws.HasOrigin = 1; ws.LastCall = -1; }
             CallAtRest(ref p, ref ws, self, world, now);   // ⭐ AB-8 — a moo, a baa, birdsong, on the closed-form schedule
             if (p.Bird != 0) { SetFlock(world, self, FlockMode.Perched); return NodeStatus.Running; }   // ⭐ AB-5 — a bird sits in its tree
+            if (p.Ranges != 0) return Range(ref p, ref ws, self, world, now, here);   // ⭐ CE-4649 part D (AN-21f) — the hunting dog does not graze: it works ahead of its handler
             if (ws.Walking != 0)
             {
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
@@ -206,6 +210,72 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Legs++;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.Walk, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
             else ws.PauseUntil = (SimInstant)(now + PauseMaxSeconds);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>The hunting dog sweeps this far ahead of its handler (m) and this far to either side; it chases a flushed animal this long (s) and this far (m), then comes back.</summary>
+        public const float RangeAheadMetres = 30f, RangeSideMetres = 25f, ChaseSeconds = 4f, ChaseMetres = 18f, RangeHandlerLeashMetres = 70f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART D (AN-21f) — the HUNTING DOG's play over the one brain (beside the guard dog): it RANGES AHEAD of its handler (<see cref="Fear.Handler"/>, the nearest hunter — the fear system's serial step) in
+        /// SWEEPS (a point <see cref="RangeAheadMetres"/> ahead and <see cref="RangeSideMetres"/> to a side, the side alternating); an animal it has FLUSHED (<see cref="Fear.Quarry"/>, in flight — the dog is a threat in the animal's
+        /// own fear) it chases a short way, BARKING, then comes back to its sweeps. ⛔ It never attacks a person: it is not <c>Territorial</c>, has no Bark/Attack state and nothing here targets a person.
+        /// </summary>
+        private static NodeStatus Range(ref AnimalParams p, ref GrazeState ws, Entity self, EntityRepository world, double now, Vector3 here)
+        {
+            var fear = FearOf(world, self);
+            var handler = fear.Handler;
+            if (ws.Phase == 1)
+            {
+                if (now >= (double)ws.ChaseUntil || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) { ws.Phase = 2; ws.Walking = 0; LocomotionMoveTo.Stop(world, self); }
+                else return NodeStatus.Running;
+            }
+            if (ws.Phase == 0 && !fear.Quarry.IsNull && Present(world, fear.Quarry))
+            {
+                var q = Here(world, fear.Quarry);
+                var d = q - here; d.Z = 0f;
+                float len = d.Length();
+                if (len > 3f && len <= RangeHandlerLeashMetres)
+                {
+                    var to = here + d / len * MathF.Min(len, ChaseMetres);
+                    Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.Bark, ChaseSeconds);   // ⭐ it gives voice as it goes
+                    if (LocomotionMoveTo.Issue(world, self, to, p.FleeSpeed, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander))
+                    {
+                        ws.Phase = 1; ws.ChaseUntil = (SimInstant)(now + ChaseSeconds); ws.Walking = 1;
+                        return NodeStatus.Running;
+                    }
+                }
+            }
+            if (ws.Phase == 2) ws.Phase = 0;   // back to its sweeps
+            if (ws.Walking != 0)
+            {
+                if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+                ws.Walking = 0;
+                ws.PauseUntil = (SimInstant)(now + 0.5);
+                return NodeStatus.Running;
+            }
+            if (now < ws.PauseUntil) return NodeStatus.Running;
+            // the next sweep: ahead of the handler (his heading), alternating sides; no handler ⇒ round where it stands
+            Vector3 centre = here, fwd = Vector3.UnitX;
+            if (!handler.IsNull && Present(world, handler))
+            {
+                centre = Here(world, handler);
+                var rot = world.GetComponentRO<SimTransform>(handler).Rotation;
+                fwd = Vector3.Transform(Vector3.UnitX, (Quaternion)rot); fwd.Z = 0f;
+                fwd = fwd.LengthSquared() > 1e-6f ? Vector3.Normalize(fwd) : Vector3.UnitX;
+            }
+            var left = new Vector3(-fwd.Y, fwd.X, 0f);
+            ws.Side = (byte)(ws.Side == 1 ? 2 : 1);
+            var rng = SimRng.FromSim((int)self.Index, 0x4630 + ws.Legs, (float)now);
+            ws.Legs++;
+            var target = centre + fwd * (RangeAheadMetres * (0.7f + 0.6f * rng.NextSingle())) + left * ((ws.Side == 1 ? 1f : -1f) * RangeSideMetres * (0.6f + 0.4f * rng.NextSingle()));
+            if (world.IsComponentTypeRegistered<AnimalHome>() && world.HasComponent<AnimalHome>(self))
+            {
+                var home = world.GetComponentRO<AnimalHome>(self);
+                if (home.Radius > 0f) target = KeepHome(world, self, target);
+            }
+            if (LocomotionMoveTo.Issue(world, self, target, p.Walk * 2f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
+            else ws.PauseUntil = (SimInstant)(now + 2.0);
             return NodeStatus.Running;
         }
 

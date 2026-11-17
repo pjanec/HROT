@@ -1143,6 +1143,14 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐ CE-2436 AU-7 (A-10a) — the anti-drone men: the rifleman with a shotgun as his second weapon, one a squad (Blue and the other side)
             MachineGunner(builder, TkbEntityTypes.Infantry_AntiDrone, "Rifleman (anti-drone shotgun)", M4Carbine(), UnitedStates, faction: 1, second: AntiDroneShotgun());
             MachineGunner(builder, TkbEntityTypes.Infantry_AntiDroneRed, "Rifleman (anti-drone shotgun, red)", M4Carbine(), Russia, faction: 2, second: AntiDroneShotgun());
+            // ⭐⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge ONLY (the weapon choice prefers a rifle when both are carried, 📌 measured in part C) and a STANDING hunting rule: animals of the listed species, never people
+            //   (Gen.HuntingRules — read through Animals.MayEngage by the weapon brain's target choice; a dog is never listed).
+            MachineGunner(builder, TkbEntityTypes.Infantry_Hunter, "Hunter (12-gauge)", AntiDroneShotgun(), UnitedStates, faction: 1);
+            tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.HuntingRulesDto
+            {
+                Species = new List<byte> { (byte)Fdp.Toolkit.Animals.AnimalSpecies.Rabbit, (byte)Fdp.Toolkit.Animals.AnimalSpecies.Bird, (byte)Fdp.Toolkit.Animals.AnimalSpecies.BirdFlock,
+                                           (byte)Fdp.Toolkit.Animals.AnimalSpecies.Duck, (byte)Fdp.Toolkit.Animals.AnimalSpecies.DuckFlock },
+            });
             
             // Tank Platoon (Composite)
             builder
