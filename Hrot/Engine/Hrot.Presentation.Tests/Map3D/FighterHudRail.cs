@@ -19,7 +19,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// ⭐⭐ <c>CE-4647</c> (AC-15 step 7; docs/designs/air-attack/DESIGN_Air_Combat.md §4d; mockup <c>air-combat-hud.svg</c>) — the FIGHTER HUD of a possessed F-16 / MiG: the gun pipper at the led point (<see cref="TargetLead.Point"/>), the missile cue
 /// (SEARCH / IN ZONE / LOCK), the radar warning (the existing <see cref="RadarWarning"/> / <see cref="MissileWarning"/>), the g. The MODEL rails run anywhere; the FRAME rail measures the mockup's anchors on the real frame (R-4146) and SKIPS without a display:
 /// <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~FighterHudRail</c> (PNGs to <c>HROT_RAIL_SHOTS</c> as <c>aircombat-hud-*.png</c>). 🔴 Red-proof: the pipper's lead removed (<c>PipperAt = target</c>) fails the lead rail.
-/// 🔧 The zone is a range band (<see cref="FighterHud"/>) until the air lane's S3; the jet is the real MiG-29 armed by <see cref="AirCombatLooksRail.ArmMig"/>.
+/// 🔧 The zone is a range band (<see cref="FighterHud"/>) until the air lane's S3; the jets are the real F-16 and MiG-29 with the air lane's real suites; mounts are found by what they hold, never by index.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class FighterHudRail
@@ -29,14 +29,14 @@ public sealed class FighterHudRail
     private sealed class Scene : IDisposable
     {
         public readonly EntityRepository World; public readonly Fdp.Toolkit.Tkb.TkbDatabase Tkb; public readonly Entity Me;
-        public Scene()
+        public Scene(long myType = AirCombatLooksRail.Mig)
         {
             World = new EntityRepository();
             World.RegisterComponent<SimTransform>(); World.RegisterComponent<TkbIdentity>(); World.RegisterComponent<SimVelocity>(); World.RegisterComponent<EntityInfo>();
             World.RegisterComponent<WeaponAmmo>(); World.RegisterComponent<MissileWarning>(); World.RegisterComponent<RadarWarning>(); World.RegisterComponent<Health>(); World.RegisterComponent<FighterPilotState>();
-            Tkb = HrotEnvironment.CreateTkb(); AirCombatLooksRail.ArmMig(Tkb);
+            Tkb = HrotEnvironment.CreateTkb();
             World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Tkb);
-            Me = Jet(AirCombatLooksRail.Mig, Vector3.Zero, Vector3.Zero, ForceId.Friend);
+            Me = Jet(myType, Vector3.Zero, Vector3.Zero, ForceId.Friend);
         }
 
         public Entity Jet(long type, Vector3 at, Vector3 velocity, ForceId side)
@@ -54,7 +54,11 @@ public sealed class FighterHudRail
         public void Dispose() => World.Dispose();
     }
 
-    private const int Ir = 0, Radar = 1, Gun = 2;   // the stand-in's mounts
+    private static readonly Fdp.Toolkit.Tkb.TkbDatabase Real = HrotEnvironment.CreateTkb();
+    /// <summary>The mounts of the MiG, found by what they hold (the suite's order is the air lane's).</summary>
+    private static readonly int Ir = AirCombatLooksRail.MountIndex(Real, AirCombatLooksRail.Mig, AirCombatLooksRail.IsIrMount),
+                                Radar = AirCombatLooksRail.MountIndex(Real, AirCombatLooksRail.Mig, AirCombatLooksRail.IsRadarMount),
+                                Gun = AirCombatLooksRail.MountIndex(Real, AirCombatLooksRail.Mig, AirCombatLooksRail.IsGun);
 
     [Fact]
     public void TheGunPipper_IsTheLedPoint_OnlyInsideFiveHundredMetres_NeverOnAFriend_AFallenJet_OrWithAMissileSelected()
@@ -63,7 +67,8 @@ public sealed class FighterHudRail
         var foe = s.Jet(TkbEntityTypes.Jet_F16, new Vector3(400f, 0f, 0f), new Vector3(0f, 120f, 0f), ForceId.Hostile);   // crossing to the left
         var m = s.Build(hud, Gun);
         Assert.True(m.Active && m.GunSelected && m.HasTarget && m.HasPipper);
-        var led = TargetLead.Point(Vector3.Zero, Vector3.Zero, 1050f, new Vector3(400f, 0f, 0f), new Vector3(0f, 120f, 0f));
+        var gunMount = Real.GetByType(AirCombatLooksRail.Mig).GetDescriptor<WeaponSuiteDto>()!.Mounts[Gun];
+        var led = TargetLead.Point(Vector3.Zero, Vector3.Zero, gunMount.MuzzleVelocity > 0f ? gunMount.MuzzleVelocity : FighterHud.DefaultMuzzleSpeed, new Vector3(400f, 0f, 0f), new Vector3(0f, 120f, 0f));
         Assert.Equal(led, m.PipperAt);                                         // ⭐ the ONE predictor
         Assert.True(m.PipperAt.Y > 20f, $"led ahead of a crosser: {m.PipperAt}");   // 🔴 the lead removed ⇒ PipperAt.Y == 0
         Assert.Equal(MissileCue.None, m.Missile);                              // a gun selected: no missile cue
@@ -137,10 +142,28 @@ public sealed class FighterHudRail
     }
 
     [Fact]
-    public void TheHud_IsOnlyForAFighter_AnF16WithNoMissileMountDrawsNothing_AndASteadyFrameAllocatesNothing()
+    public void TheHud_WorksForBothFighters_TheGunPipperAndTheMissileCue_EachFoundByWhatItsMountHolds()
+    {
+        foreach (long type in new[] { TkbEntityTypes.Jet_F16, AirCombatLooksRail.Mig })
+        {
+            int ir = AirCombatLooksRail.MountIndex(Real, type, AirCombatLooksRail.IsIrMount), radar = AirCombatLooksRail.MountIndex(Real, type, AirCombatLooksRail.IsRadarMount), gun = AirCombatLooksRail.MountIndex(Real, type, AirCombatLooksRail.IsGun);
+            using var s = new Scene(type); var hud = new FighterHud();
+            Assert.True(FighterHud.Applies(s.World, s.Me, s.Tkb), $"type {type}");
+            var foe = s.Jet(AirCombatLooksRail.Mig == type ? TkbEntityTypes.Jet_F16 : AirCombatLooksRail.Mig, new Vector3(400f, 0f, 0f), new Vector3(0f, 120f, 0f), ForceId.Hostile);
+            var m = s.Build(hud, gun);
+            Assert.True(m.GunSelected && m.HasPipper && m.PipperAt.Y > 20f, $"type {type}: the led pipper");
+            Assert.Equal(MissileCue.None, m.Missile);
+            s.World.SetComponent(foe, new SimTransform { Position = new Vector3(3000f, 0f, 0f), Rotation = Quaternion.Identity });
+            Assert.Equal(MissileCue.LockInZone, s.Build(hud, ir).Missile); Assert.Equal(MissileCue.LockInZone, s.Build(hud, radar).Missile);
+            Assert.False(s.Build(hud, ir).GunSelected);
+        }
+    }
+
+    [Fact]
+    public void TheHud_IsOnlyForAFighter_AnA10WithNoMissileMountDrawsNothing_AndASteadyFrameAllocatesNothing()
     {
         using var s = new Scene(); var hud = new FighterHud();
-        var f16 = s.Jet(TkbEntityTypes.Jet_F16, new Vector3(0f, 500f, 0f), Vector3.Zero, ForceId.Friend);
+        var f16 = s.Jet(TkbEntityTypes.Jet_AttackA10, new Vector3(0f, 500f, 0f), Vector3.Zero, ForceId.Friend);   // an attack plane carries no air-to-air missile: no fighter HUD
         Assert.False(hud.Build(s.World, f16, Vector3.UnitX, 0, s.Tkb, Now).Active);
         Assert.False(FighterHud.Applies(s.World, f16, s.Tkb)); Assert.True(FighterHud.Applies(s.World, s.Me, s.Tkb));
         s.Jet(TkbEntityTypes.Jet_F16, new Vector3(3000f, 0f, 0f), new Vector3(-200f, 0f, 0f), ForceId.Hostile);

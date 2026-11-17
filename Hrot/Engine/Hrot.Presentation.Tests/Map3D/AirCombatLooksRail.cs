@@ -24,7 +24,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// <summary>
 /// ⭐⭐ <c>CE-4647</c> (AC-15, <c>docs/designs/air-attack/DESIGN_Air_Combat.md</c> §4d; mockups <c>air-combat-{body,stores,hud,arena}.svg</c>; handoff <c>HANDOFF_Coordinator_To_Ui_Air_Combat_Visuals.md</c>) — the air combat LOOKS:
 /// the MiG's twin-fin body (step 2), the missiles on the rails with rounds left (step 3) and — in this file as they land — the AAM look / burn trail / launch flash (4), the afterburner, the vortex and the dead jet's smoke (5).
-/// <para>⭐ Re-bound (the air lane's contract is merged): the MiG is the REAL type 409 (class <c>TwinEngineFighter</c>), the missiles the real munitions 6060…; the rails arm the MiG with the weapon suite S3 will give it (<see cref="ArmMig"/>) and write the real <c>FighterPilotState</c>.</para>
+/// <para>⭐ Re-bound (the air lane's contract is merged): the MiG is the REAL type 409 (class <c>TwinEngineFighter</c>), the missiles the real munitions 6060…; the jets carry the air lane's REAL weapon suites (S3: gun · IR pair · radar pair · dispenser last) and the rails find each mount by what it holds, never by index; they write the real <c>FighterPilotState</c>.</para>
 /// ⛔ The frame tests SKIP without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~AirCombatLooksRail</c>. 🔴 Red-proofs: see each test.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
@@ -53,7 +53,6 @@ public sealed class AirCombatLooksRail
             PresentationComponentRegistry.RegisterEffects(World);
             World.RegisterComponent<SimTransform>(); World.RegisterComponent<TkbIdentity>(); World.RegisterComponent<SimVelocity>(); World.RegisterComponent<FighterPilotState>();
             Tkb = HrotEnvironment.CreateTkb();
-            ArmMig(Tkb);
             World.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Tkb);
             World.SetSingletonUnmanaged(new GlobalTime { TotalTime = Now });
             var query = WorldQuery.Of(World)!;
@@ -89,7 +88,7 @@ public sealed class AirCombatLooksRail
         public void Mirror(Entity e, int ir, int radar)
         {
             if (!World.IsComponentTypeRegistered<WeaponAmmo>()) World.RegisterComponent<WeaponAmmo>();
-            var a = new WeaponAmmo { Count = 2, Ammo0 = ir, Max0 = 2, Ammo1 = radar, Max1 = 2 };
+            var a = MirrorOf(Tkb, World.GetComponentRO<TkbIdentity>(e).TkbType, ir, radar);
             if (World.HasComponent<WeaponAmmo>(e)) World.SetComponent(e, a); else World.AddComponent(e, a);
         }
 
@@ -100,22 +99,29 @@ public sealed class AirCombatLooksRail
         public void Dispose() => Frame.Dispose();
     }
 
-    /// <summary>The real MiG-29 (409) armed with the weapon suite of §5a that S3 will give it (the air lane's catalogue row has no weapons yet): mount 0 the IR pair, mount 1 the radar pair, mount 2 the gun.</summary>
-    internal static void ArmMig(TkbDatabase db)
+    /// <summary>The index of the mount of <paramref name="type"/> that <paramref name="pick"/> chooses — rails never assume the suite's order.</summary>
+    internal static int MountIndex(TkbDatabase db, long type, Func<WeaponMountDto, bool> pick)
     {
-        var t = db.GetByType(Mig);
-        var suite = t.GetDescriptor<WeaponSuiteDto>();
-        if (suite != null)
-            foreach (var m in suite.Mounts) if (m.Category == WeaponCategory.AirToAir) return;   // S3 has armed it: use its suite
-        // ⭐ S1 already gives the jets a suite holding only the decoy dispenser (BS-1 §5.4c: the dispenser is the LAST mount) — the missiles and the gun go IN FRONT
-        //   of it, at the indices the rails read (0 IR, 1 radar, 2 gun)
-        if (suite == null) { suite = new WeaponSuiteDto(); t.AddDescriptor(suite); }
-        suite.Mounts.InsertRange(0, new[]
+        var mounts = db.GetByType(type).GetDescriptor<WeaponSuiteDto>()!.Mounts;
+        for (int i = 0; i < mounts.Count; i++) if (pick(mounts[i])) return i;
+        throw new InvalidOperationException($"type {type} has no such mount");
+    }
+
+    internal static bool IsGun(WeaponMountDto m) => m.Category == WeaponCategory.Autocannon;
+    internal static bool IsIrMount(WeaponMountDto m) => JetStores.IsIr(m.AmmoGuid);
+    internal static bool IsRadarMount(WeaponMountDto m) => JetStores.IsRadar(m.AmmoGuid);
+
+    /// <summary>The replicated ammunition mirror of a jet whose IR pair holds <paramref name="ir"/> rounds and radar pair <paramref name="radar"/>, in the REAL mount order (gun and dispenser full).</summary>
+    internal static WeaponAmmo MirrorOf(TkbDatabase db, long type, int ir, int radar)
+    {
+        var mounts = db.GetByType(type).GetDescriptor<WeaponSuiteDto>()!.Mounts;
+        var a = new WeaponAmmo { Count = (byte)Math.Min(mounts.Count, WeaponAmmo.MaxMounts) };
+        for (int i = 0; i < a.Count; i++)
         {
-            new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim9x, InitialAmmunition = 2 },
-            new WeaponMountDto { Category = WeaponCategory.AirToAir, AmmoGuid = Aim120, InitialAmmunition = 2 },
-            new WeaponMountDto { Category = WeaponCategory.Autocannon, MuzzleVelocity = 1050f, InitialAmmunition = 150 },   // the GSh-30-1 (the HUD rail's gun mount, index 2)
-        });
+            int rounds = IsIrMount(mounts[i]) ? ir : IsRadarMount(mounts[i]) ? radar : mounts[i].InitialAmmunition, max = IsIrMount(mounts[i]) || IsRadarMount(mounts[i]) ? 2 : mounts[i].InitialAmmunition;
+            switch (i) { case 0: a.Ammo0 = rounds; a.Max0 = max; break; case 1: a.Ammo1 = rounds; a.Max1 = max; break; case 2: a.Ammo2 = rounds; a.Max2 = max; break; default: a.Ammo3 = rounds; a.Max3 = max; break; }
+        }
+        return a;
     }
 
     private static DISEntityType Dis(string text) { Assert.True(DISEntityType.TryParse(text, out var t)); return t; }
@@ -207,26 +213,33 @@ public sealed class AirCombatLooksRail
     {
         var world = new EntityRepository();
         world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>(); world.RegisterComponent<WeaponAmmo>();
-        tkb = HrotEnvironment.CreateTkb(); ArmMig(tkb);
+        tkb = HrotEnvironment.CreateTkb();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         mig = world.CreateEntity(); world.AddComponent(mig, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(mig, new TkbIdentity { TkbType = (TkbTypeId)Mig });
         f16 = world.CreateEntity(); world.AddComponent(f16, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(f16, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Jet_F16 });
         return world;
     }
 
-    /// <summary>⭐ AC-15 step 3 — the missiles left are the replicated <c>WeaponAmmo</c> of the mounts that hold a missile: 4 → 2 after two shots (one IR, one radar), the full load where nothing is mirrored yet, nothing for a jet with no missile mount (an F-16 before the air lane armed it); 0 B.</summary>
+    /// <summary>⭐ AC-15 step 3 — the missiles left are the replicated <c>WeaponAmmo</c> of the mounts that hold a missile: 4 → 2 after two shots (one IR, one radar), the full load where nothing is mirrored yet, nothing for a type with no missile mount (the A-10); BOTH fighters carry their four; 0 B.</summary>
     [Fact]
     public void TheMissilesLeft_FollowTheRoundsOfTheirMounts_FourThenTwoThenNone_FullWithoutAMirror_NothingWithoutAMissileMount_AndAllocateNothing()
     {
         using var world = StoresWorld(out var mig, out var f16, out var tkb);
-        Assert.True(JetStores.Left(world, mig, tkb, out int ir, out int radar)); Assert.Equal((2, 2), (ir, radar));   // no mirror yet: the suite's full load
-        world.AddComponent(mig, new WeaponAmmo { Count = 2, Ammo0 = 2, Max0 = 2, Ammo1 = 2, Max1 = 2 });
-        JetStores.Left(world, mig, tkb, out ir, out radar); Assert.Equal(4, ir + radar);
-        world.SetComponent(mig, new WeaponAmmo { Count = 2, Ammo0 = 1, Max0 = 2, Ammo1 = 1, Max1 = 2 });   // two shots: one IR, one radar
-        JetStores.Left(world, mig, tkb, out ir, out radar); Assert.Equal((1, 1), (ir, radar));
-        world.SetComponent(mig, new WeaponAmmo { Count = 2, Ammo0 = 0, Max0 = 2, Ammo1 = 0, Max1 = 2 });
-        Assert.True(JetStores.Left(world, mig, tkb, out ir, out radar)); Assert.Equal((0, 0), (ir, radar));       // winchester: the rails stay, empty
-        Assert.False(JetStores.Left(world, f16, tkb, out _, out _));                                                // the F-16 carries none until the air lane arms it
+        foreach (var (jet, type) in new[] { (mig, Mig), (f16, TkbEntityTypes.Jet_F16) })   // ⭐ BOTH jets carry the real suite now
+        {
+            Assert.True(JetStores.Left(world, jet, tkb, out int ir, out int radar), $"type {type}"); Assert.Equal((2, 2), (ir, radar));   // no mirror yet: the suite's full load
+            world.AddComponent(jet, MirrorOf(tkb, type, 2, 2));
+            JetStores.Left(world, jet, tkb, out ir, out radar); Assert.Equal(4, ir + radar);
+            world.SetComponent(jet, MirrorOf(tkb, type, 1, 1));   // two shots: one IR, one radar
+            JetStores.Left(world, jet, tkb, out ir, out radar); Assert.Equal((1, 1), (ir, radar));
+            world.SetComponent(jet, MirrorOf(tkb, type, 0, 0));
+            Assert.True(JetStores.Left(world, jet, tkb, out ir, out radar)); Assert.Equal((0, 0), (ir, radar));       // winchester: the rails stay, empty
+            world.SetComponent(jet, MirrorOf(tkb, type, 2, 2));
+        }
+        // a type with no missile mount (the A-10) carries none
+        var a10 = world.CreateEntity(); world.AddComponent(a10, new SimTransform { Rotation = Quaternion.Identity }); world.AddComponent(a10, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Jet_AttackA10 });
+        Assert.False(JetStores.Left(world, a10, tkb, out _, out _));
+        world.SetComponent(mig, MirrorOf(tkb, Mig, 0, 0));
         long before = GC.GetAllocatedBytesForCurrentThread(); int sum = 0;
         for (int i = 0; i < 2000; i++) { JetStores.Left(world, mig, tkb, out int a, out int b); sum += a + b; }
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // ⭐ HOT PATH — 0 B
@@ -252,25 +265,28 @@ public sealed class AirCombatLooksRail
     }
 
     [SkippableFact]
-    public void TheRealFrame_ShowsTheMissilesOnTheRails_FourTwoNone_ASixPartDifferenceEachWay_AndTheF16DrawsNone()
+    public void TheRealFrame_ShowsTheMissilesOnTheRails_FourTwoNone_ASixPartDifferenceEachWay_ForBothJets()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         string shots = ShotsDir();
-        using var scene = new JetScene();
-        var mig = scene.Jet(Mig, 0f, 90f); var at = scene.Where(mig);
-        int Parts(int ir, int rd, string? shot = null)
+        foreach (var (type, tag) in new[] { (Mig, "mig"), (TkbEntityTypes.Jet_F16, "f16") })
         {
-            scene.Mirror(mig, ir, rd);
-            scene.Look(at + new Vector3(0f, 0f, -0.5f), 21f, MathF.PI * 0.5f + 0.8f, 0.22f); scene.Render();   // from BELOW the wing: that is where the rails are
-            if (shot != null) scene.Shot(shots, shot);
-            return scene.Bodies.PartsDrawn;
+            using var scene = new JetScene();
+            var jet = scene.Jet(type, 0f, 90f); var at = scene.Where(jet);
+            int Parts(int ir, int rd, string? shot = null)
+            {
+                scene.Mirror(jet, ir, rd);
+                scene.Look(at + new Vector3(0f, 0f, -0.5f), 21f, MathF.PI * 0.5f + 0.8f, 0.22f); scene.Render();   // from BELOW the wing: that is where the rails are
+                if (shot != null) scene.Shot(shots, shot);
+                return scene.Bodies.PartsDrawn;
+            }
+            int p4 = Parts(2, 2, $"aircombat-{tag}-stores-4.png"), p2 = Parts(1, 1, $"aircombat-{tag}-stores-2.png"), p0 = Parts(0, 0, $"aircombat-{tag}-stores-0.png");
+            Assert.Equal(6, p4 - p2);   // ⭐ two missiles gone (3 parts each) — one per shot
+            Assert.Equal(6, p2 - p0);
+            Assert.Equal(p4, Parts(2, 2));   // reloaded
+            var full = ScreenOf(scene); Parts(1, 1); var two = ScreenOf(scene);
+            Assert.True(Diff(full, two) > 150, $"{tag} 4 → 2: {Diff(full, two)} px");
         }
-        int p4 = Parts(2, 2, "aircombat-mig-stores-4.png"), p2 = Parts(1, 1, "aircombat-mig-stores-2.png"), p0 = Parts(0, 0, "aircombat-mig-stores-0.png");
-        Assert.Equal(6, p4 - p2);   // ⭐ two missiles gone (3 parts each) — one per shot
-        Assert.Equal(6, p2 - p0);
-        Assert.Equal(p4, Parts(2, 2));   // reloaded
-        var full = ScreenOf(scene); Parts(1, 1); var two = ScreenOf(scene);
-        Assert.True(Diff(full, two) > 150, $"4 → 2: {Diff(full, two)} px");
     }
 
     // ── step 4: the missile in flight, the launch ───────────────────────────────────────────────────────────────────────────────
@@ -293,13 +309,19 @@ public sealed class AirCombatLooksRail
     [Fact]
     public void TheAirMissiles_GetTheBoosterFlash_FromTheCatalog_AndAJetsShotIsALaunch()
     {
-        var db = HrotEnvironment.CreateTkb(); ArmMig(db);
+        var db = HrotEnvironment.CreateTkb();
         var set = EffectTkbCatalog.EffectsFor(db, MunitionTkbCatalog.TkbAim9x, 0f);
         Assert.Equal(EffectTkbCatalog.MissileLaunchFlash, set.MuzzleFlash);
         using var world = StoresWorld(out var mig, out var f16, out _);
-        var mount = ((WeaponSuiteDto)db.GetByType(Mig)!.GetDescriptor<WeaponSuiteDto>()!).Mounts[0];
+        var mount = db.GetByType(Mig).GetDescriptor<WeaponSuiteDto>()!.Mounts[MountIndex(db, Mig, IsIrMount)];
         Assert.Equal(FiringBlast.Launch, WeaponKits.BlastOf(world, db, mig, mount));          // the puff left at the rail
-        Assert.Equal(FiringBlast.None, WeaponKits.BlastOf(world, db, f16, new WeaponMountDto { Category = WeaponCategory.Autocannon }));   // the cannon: none, as before
+        foreach (var (jet, type) in new[] { (mig, Mig), (f16, TkbEntityTypes.Jet_F16) })   // both fighters, by what each mount holds
+        {
+            var suite = db.GetByType(type).GetDescriptor<WeaponSuiteDto>()!;
+            Assert.Equal(FiringBlast.Launch, WeaponKits.BlastOf(world, db, jet, suite.Mounts[MountIndex(db, type, IsIrMount)]));
+            Assert.Equal(FiringBlast.Launch, WeaponKits.BlastOf(world, db, jet, suite.Mounts[MountIndex(db, type, IsRadarMount)]));
+            Assert.Equal(FiringBlast.None, WeaponKits.BlastOf(world, db, jet, suite.Mounts[MountIndex(db, type, IsGun)]));   // the cannon: none, as before
+        }
     }
 
     [SkippableFact]
@@ -342,7 +364,7 @@ public sealed class AirCombatLooksRail
         var rail = at + new Vector3(-1.4f, 4.1f, -0.9f);                      // under the left wing, the outboard IR rail (the shot's origin)
         scene.World.Bus.Publish(new Fdp.Toolkit.Combat.Events.WeaponFireNotification
         {
-            Shooter = mig, WeaponIndex = 0, AmmoGuid = MunitionTkbCatalog.TkbAim9x, Quantity = 1, FiredAt = (SimInstant)scene.Now, Origin = rail, Velocity = new Vector3(250f, 0f, 0f),
+            Shooter = mig, WeaponIndex = MountIndex(scene.Tkb, Mig, IsIrMount), AmmoGuid = MunitionTkbCatalog.TkbAim9x, Quantity = 1, FiredAt = (SimInstant)scene.Now, Origin = rail, Velocity = new Vector3(250f, 0f, 0f),
         });
         scene.World.Bus.SwapBuffers();
         new Hrot.UI.Common.Effects.EffectSpawnSystem().Execute(scene.World, 0.016f);
@@ -440,7 +462,7 @@ public sealed class AirCombatLooksRail
         Assert.Contains(fx, r => r.Look.Kind == EffectKind.Fire); Assert.Contains(fx, r => r.Look.Kind == EffectKind.Smoke);
         var fire = fx.First(r => r.Look.Kind == EffectKind.Fire).At;
         Assert.True(Vector3.Distance(fire, at) < 6f, $"the fire is ON the jet: {fire} vs {at}");
-        scene.Render(); Assert.Equal(living - 1, scene.Bodies.PartsDrawn);                           // the wreck: the afterburner's flame is out (one part fewer)
+        scene.Render(); Assert.Equal(living - 1 - 16, scene.Bodies.PartsDrawn);                      // the wreck: the afterburner's flame is out (1) and its missiles and rails are gone (4 pylons + 4 × 3)
         // it falls 150 m: the fire went with it
         scene.World.SetComponent(jet, new SimTransform { Position = at - new Vector3(60f, 0f, 150f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f) });
         var down = scene.Effects.Resolve().First(r => r.Look.Kind == EffectKind.Fire).At;
