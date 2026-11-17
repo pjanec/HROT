@@ -23,6 +23,7 @@ Follow-up `63117180f`: the unit card reads `UnitStrength` / `UnitAmmunition.TryS
 the Brain descriptor lists gained `dtMineClearing` / `dtRamOrder` (missing on every branch: red on coordinator too).
 ⚠ **Not this lane's, reported:** `NedTkbBuilderCombatTests.CE3281_…` (the air lane's F-16C / MiG-29 fire unheard) and `CE4621_TheMotorcycle_…`
 (expected 2, got 3) — both from coordinator's air content, red on the merged tree, no file of this lane.
+⭐ **Agg scenarios re-run on the merged tree** (`scripts/scenario-regression.sh` over all 20 `agg-*`): **20 of 20 pass**, goldens unchanged.
 
 ## Slices
 
