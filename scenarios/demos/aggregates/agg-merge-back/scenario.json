@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 450 m north marches away north. The author's SetResolutionPolicy sets the quiet time to 20 s and the merge margin to 250 m (merge beyond 650 m - past the 600 m split trigger). Judge: (1) the platoon splits while the patrol is near (27 men: the dead are not created); (2) once the patrol is past 650 m and 20 s are quiet the men merge back - Stochastic; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact, a loss healed or invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back"
+    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 450 m north marches away north. The author's SetResolutionPolicy sets the quiet time to 20 s and the merge margin to 50 m (F-23, R-4286: the margin counts from the 600 m split trigger, so the merge is beyond 650 m). Judge: (1) the platoon splits while the patrol is near (27 men: the dead are not created); (2) once the patrol is past 650 m and 20 s are quiet the men merge back - Stochastic; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact, a loss healed or invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back"
   },
   "entities": {
     "a9000018-0000-4000-8000-000000000001": {
@@ -478,7 +478,7 @@
               "act": "SetResolutionPolicy",
               "args": {
                 "quietSeconds": 20,
-                "mergeMargin": 250
+                "mergeMargin": 50
               }
             }
           ]
