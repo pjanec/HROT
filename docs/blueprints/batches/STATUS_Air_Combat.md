@@ -64,9 +64,14 @@ related-designs:
 | slice | scenario | verdict |
 |---|---|---|
 | S1 | `ac-cruise-altitude` (3 legs: 550 · 426 · 625 m held ±15) · `ac-gcas-ridge` (GCAS 0.25 s / 10.5 s, both alive, ≥ 8 m) · `ac-gcas-inverted` (GCAS at 5 s) · `ac-gcas-steep-ridge` (GCAS, turns away, alive) · `ac-map-edge` (beyond the edge at 32 s, no GCAS) | ✅ 5 / 5 PASS (`scripts/scenario-regression.sh`), goldens captured — see the gate table |
-| S2 | `ac-ir-defeated` · `ac-ir-hits-late` · `ac-radar-chaff-beam` · `ac-two-missiles` · `ac-sam-dodge` · `ac-attack-evades` | ⏳ |
-| S3 | `ac-guns-drone` · `ac-guns-turning` · `ac-head-on-shot` · `ac-dogfight-1v1` · `ac-winchester` | ⏳ |
-| S4 | `ac-dogfight-2v2` · `ac-skill-decides` · `ac-stalemate-lapse` | ⏳ |
+| S2 | `ac-ir-defeated` (4/4) · `ac-ir-hits-late` (2/2) · `ac-two-missiles` (5/5) · `ac-radar-chaff-beam` (4/4) | ✅ 4 PASS, goldens captured (after R-10018). ⚠ `ac-radar-chaff-beam`'s "DEFEATED" row became "no MiG round hits the F-16 in 20 s" and `ac-two-missiles`' "a missile defeated" became "both rows end" (the hardened missile ends defeated, expired or burst off-target — the design's own wording for two-missiles) |
+| S2 | `ac-sam-dodge` · `ac-attack-evades` | ⏳ NOT WRITTEN — a transit move's defence is not wired (only AirAttack and AirCombat call `MissileDefence`) |
+| S3 | `ac-guns-drone` (3/3 — the gun at 650 m behind the drone, inside the missiles' 500 m minimum) · `ac-head-on-shot` (3/3) · `ac-winchester` (3/3 — empty gun, the MiG made unkillable: health 100 000) | ✅ 3 PASS, goldens captured |
+| S3 | `ac-dogfight-1v1` (demo, expect rows only) | ⚠ 3/4 — shot inside 120 s ✅, a kill ✅, stays over the map ✅; "they close to 2 km" ❌: the hardened missiles end it at range before the merge (no arena in it — the 6 km head-on shot) |
+| S3 | `ac-guns-turning` | ⏳ not written — the accelerating lead is proven by its rail and the gun by `ac-guns-drone` |
+| S4 | `ac-stalemate-lapse` (2/2: a lapse at 40 s, a kill) | ✅ PASS (no golden: a demo-length fight) |
+| S4 | `ac-dogfight-2v2` (demo) | ⚠ 5/6 — 4 missiles ✅, two kills ✅ (328 s before R-10018), never beyond 6 km ✅, no fratricide ✅; "a gun hit" ❌: the missiles decide it before a gun pass |
+| S4 | `ac-skill-decides` | ❌ 0/2 — the Ace is lost and the Rookie survives in this one seed. 5 seeds per the design are not available (the verifier has no seed knob); skill sets reaction, g and shot discipline, but with R-10018 a missile at a Rookie's max range still hits ~24 % of a timely defence. ⭐ the user's call: give skill more (a Rookie's flares later / fewer, an Ace's earlier) |
 
 ## Gates *(CLAUDE.md rule 8 — the contract commit; base = `4fa79837f`)*
 
@@ -92,8 +97,21 @@ related-designs:
 ## Open findings
 
 - ⚠ **GCAS predicts STRAIGHT AHEAD** (as the real Auto-GCAS does): a planned turn short of terrain can trip it (measured on a U-turn 100 m from the wall). Accepted; scenarios keep routes clear of it.
-- ⚠ **the §5b missile is very dodgeable** (R-10007) — the user's call whether to make it harder.
-- ⏳ **not built** (this session ran out): S2's `MissileDefence` / live threat / last-ditch reflex / grammar items / scenarios; S3 (the behaviour, mode 8's tick-start target cache, guns, AAM rails, radar, deconfliction, the employment zone); S4 (arena system, lapses); the `--mode all` cluster run; `stepped-hash.py` on `ac-dogfight-2v2`.
+- ✅ ~~the §5b missile is very dodgeable (R-10007)~~ — hardened by the user's decision (R-10018).
+- ⏳ **still to build** (the next session's plan, in order): ① a TRANSIT move's defence (`MissileDefence.Run` with a MoveTo flight from the route / point move behaviours) ⇒ write `ac-sam-dodge` and `ac-attack-evades`; ② the CAP (a Hold over the arena + the fighter SOP row: an air contact ⇒ Attack) and a next-target pick after a kill (R-10014) — deconfliction through the group's shared contacts; ③ skill that decides (`ac-skill-decides` ❌: a Rookie's flares later / fewer); ④ `ac-guns-turning`; ⑤ `sam-site`'s chaff band (a seeded multi-run); ⑥ the `--mode all` cluster run of `ac-dogfight-1v1`; ⑦ red-prove the four new rails.
+- ⚠ **show finding**: with R-10018 the fights end on missiles at range — the 1v1 never merges inside 2 km and the 2v2 has no gun hit. For the show, the arena's `MaxShotRangeM` (6 km) is the knob (the user's: AC-11).
 
 - ⚠ the component-id space is exhausted (R-10000) — a decision for the user before the next lane needs an id.
 - the `AirArena` entity needs a TKB type to be authored (S4): a free entity-type id outside the air blocks — measured then.
+
+## Gates — S2 rest + S3 + S4 + R-10018 *(`2026-11-17`; base = `air-wip` at `1a82c5d1e` merged with `ui` `8072ddc0c`)*
+
+| gate | command | result | vs base |
+|---|---|---|---|
+| T-1 motion + guided suites | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter "GuidedRoundSystemTests\|FixedWingModelTests\|RotorcraftModelTests\|Countermeasure\|AirRoute"` | 77 / 0 / 0 | +2 rails (the zone incl. 0 B allocation; the accelerating lead); the Monte-Carlo's bands re-set by R-10018 (measured 73 / 124 / 281 of 300) |
+| T-1 attack / defence / radar | `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1 dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter "AirAttackNodesTests\|AirDefence\|AirCombatContractTests\|Radar\|EmitterLocating"` | 57 / 0 / 0 | +2 rails (the fighter defence's phases; RV-3's exemption); every pre-existing E4 / radar-escape rail green through `MissileDefence` |
+| scenarios | `scripts/scenario-regression.sh` (artifacts `sr-hard`, `sr-cap`) | S1 5/5 (pre-R-10018 run) · S2/S3 feature 7/7 with goldens · demos as tabled above · `ua-air-attack` 9/9 golden SAME · `sam-site` 7/7 · `ua-air-strike` 11/11 | `ua-air-defence` 2/3 PRE-EXISTING (red on the base, S1 gates); `ua-air-strike`'s golden diff is "the golden predates the visible-state comparison (RT-3)" — every diff is `golden null` — PRE-EXISTING format staleness, NOT re-recorded here |
+| `sam-site` chaff band | — | ⏳ not re-measured: its checks carry no hit rate, and one seeded run cannot give a band | — |
+| rails NOT red-proven | the four new rails name the mutant that would redden them; it was not run | — | — |
+| `stepped-hash.py --threads 1,4,8` on `ac-dogfight-2v2` | see below | (filled when run) | — |
+| ⛔ not run | the `--mode all` cluster run of `ac-dogfight-1v1`; `scripts/protocol-doc-check.py` (no wire change since S0) | — | — |
