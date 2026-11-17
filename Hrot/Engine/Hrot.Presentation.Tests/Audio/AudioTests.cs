@@ -522,12 +522,12 @@ public sealed class AudioTests
     public void CE4623_TheAnimalSoundBlock_Is7800To7895_EveryOneDefinedWhenTheLayerOpens_HoovesLoop_TheClipsAreRealAndDistinct()
     {
         var all = AnimalSoundCatalog.All().ToList();
-        Assert.Equal(112, all.Count);   // ⭐ CE-4649 part C ④: +2 species (the duck and its flock)
-        Assert.Equal(7800, all.First().Type); Assert.Equal(7911, all.Last().Type);
+        Assert.Equal(128, all.Count);   // ⭐ CE-4649 part C ④ + part D: +4 species (the duck, its flock, the rabbit, the hunting dog)
+        Assert.Equal(7800, all.First().Type); Assert.Equal(7927, all.Last().Type);
         Assert.Equal(7800 + 9 * 8 + 2, AnimalSoundCatalog.TypeOf(9, 2));   // a hen's special (the crow)
         Assert.Equal((9, 2), (AnimalSoundCatalog.SpeciesOf(7800 + 9 * 8 + 2), AnimalSoundCatalog.LineOf(7800 + 9 * 8 + 2)));
-        Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7912)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7599));
-        Assert.Equal(0, AnimalSoundCatalog.SpeciesOfEntityType(700)); Assert.Equal(11, AnimalSoundCatalog.SpeciesOfEntityType(711)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOfEntityType(712)); Assert.Equal(12, AnimalSoundCatalog.SpeciesOfEntityType(713)); Assert.Equal(13, AnimalSoundCatalog.SpeciesOfEntityType(714));
+        Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7928)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOf(7599));
+        Assert.Equal(0, AnimalSoundCatalog.SpeciesOfEntityType(700)); Assert.Equal(11, AnimalSoundCatalog.SpeciesOfEntityType(711)); Assert.Equal(-1, AnimalSoundCatalog.SpeciesOfEntityType(712)); Assert.Equal(12, AnimalSoundCatalog.SpeciesOfEntityType(713)); Assert.Equal(13, AnimalSoundCatalog.SpeciesOfEntityType(714)); Assert.Equal(14, AnimalSoundCatalog.SpeciesOfEntityType(715)); Assert.Equal(15, AnimalSoundCatalog.SpeciesOfEntityType(716));
         Assert.All(all, a => Assert.NotNull(AnimalSoundCatalog.SoundOf(null, a.Type)));
         Assert.All(all.Where(a => a.Line is >= 3 and <= 6), a => Assert.True(AnimalSoundCatalog.SoundOf(null, a.Type)!.Loop));   // hooves and the wings loop
         Assert.All(all.Where(a => a.Line is 0 or 1 or 2 or 7), a => Assert.False(AnimalSoundCatalog.SoundOf(null, a.Type)!.Loop));

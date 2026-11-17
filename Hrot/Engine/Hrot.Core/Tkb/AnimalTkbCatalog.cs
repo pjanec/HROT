@@ -18,7 +18,7 @@ namespace Hrot.Core.Tkb
     public static class AnimalTkbCatalog
     {
         public const byte DisCategoryCattle = 200, DisCategorySheep = 201, DisCategoryHorse = 202, DisCategoryDog = 203, DisCategoryCat = 204,
-                          DisCategoryBird = 205, DisCategoryPoultry = 206, DisCategoryPig = 207, DisCategoryGoat = 208;
+                          DisCategoryBird = 205, DisCategoryPoultry = 206, DisCategoryPig = 207, DisCategoryGoat = 208, DisCategoryRabbit = 209;
 
         /// <summary>One species' row: the TKB type, name, DIS, body (m, kg), speed and the temperament (AR-21).</summary>
         public sealed record Row(long Type, string Name, byte Domain, byte Category, byte Sub, float Length, float Width, float Height, float Health,
@@ -42,16 +42,20 @@ namespace Hrot.Core.Tkb
             // ⭐ CE-4649 part C ④ (AN-20c) — the DUCK (~0.5 m, flies LOW: BirdFlightModel.CruiseOf) and its flock; the shootable birds' LoneType is what a hit leaves dead
             new(TkbEntityTypes.Animal_DuckFlock, "DuckFlock", 2, DisCategoryBird, 4, 6f, 6f, 1f, 40f, 14f, T(13, flight: 40f, panic: 15f, flee: 14f, fleeDist: 400f, recover: 120f, cohesion: 0.6f, call: 6f, callRange: 200f, alarmRange: 300f, walk: 6f, lone: TkbEntityTypes.Animal_Duck)),
             new(TkbEntityTypes.Animal_Duck, "Duck", 2, DisCategoryBird, 3, 0.5f, 0.3f, 0.2f, 6f, 14f, T(12, flight: 12f, panic: 5f, flee: 14f, fleeDist: 250f, recover: 90f, call: 12f, callRange: 200f, alarmRange: 300f, walk: 6f)),
+            // ⭐ CE-4649 part D (AN-21a) — the RABBIT: ~0.4 m, 3 health, bursts of 14 m/s, a lone animal; freezes crouched until the threat is inside 12 m, then bolts in ZIGZAGS toward the wood
+            new(TkbEntityTypes.Animal_Rabbit, "Rabbit", 1, DisCategoryRabbit, 1, 0.4f, 0.15f, 0.3f, 3f, 14f, T(14, flight: 25f, panic: 12f, flee: 14f, fleeDist: 70f, recover: 30f, walk: 0.8f, call: 0f, zigzag: true, freezes: true)),
+            // ⭐ CE-4649 part D (AN-21f) — the HUNTING DOG: a dog play over the one brain (follows its handler, ranges ahead, flushes game); fearless, never attacks a person
+            new(TkbEntityTypes.Animal_HuntingDog, "HuntingDog", 1, DisCategoryDog, 2, 0.9f, 0.3f, 0.6f, 80f, 10f, T(15, fearless: true, flee: 8f, fleeDist: 30f, recover: 15f, call: 120f, callRange: 400f, alarmRange: 600f, walk: 2.5f, ranges: true)),
         };
 
         private static AnimalTemperamentDto T(byte species, float flight = 0f, float panic = 0f, float flee = 0f, float fleeDist = 0f, float recover = 0f,
             float cohesion = 0f, bool fearless = false, bool territorial = false, bool breaks = false, bool jumps = false, float call = 0f,
-            float callRange = 0f, float alarmRange = 0f, float walk = 1f, float bolt = 0f, long lone = 0)
+            float callRange = 0f, float alarmRange = 0f, float walk = 1f, float bolt = 0f, long lone = 0, bool zigzag = false, bool freezes = false, bool ranges = false)
             => new()
             {
                 Species = species, FlightZoneM = flight, PanicZoneM = panic, FleeSpeed = flee, FleeDistanceM = fleeDist, Recovery = recover,
                 HerdCohesion = cohesion, Fearless = fearless, Territorial = territorial, Breaks = breaks, Jumps = jumps, CallInterval = call,
-                CallRangeM = callRange, AlarmRangeM = alarmRange, WalkSpeed = walk, BoltFear = bolt, LoneType = lone,
+                CallRangeM = callRange, AlarmRangeM = alarmRange, WalkSpeed = walk, BoltFear = bolt, LoneType = lone, FleeStyle = (byte)(zigzag ? 1 : 0), Freezes = freezes, Ranges = ranges,
             };
 
         public static void RegisterAll(ITkbDatabase tkb)

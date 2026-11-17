@@ -33,7 +33,11 @@ namespace Hrot.SimHost.Tests
     [Collection("MeleeStrikes")]
     public sealed class AnimalHsmTests
     {
-        private const long CowType = 700, DogType = 705, FlockType = 707;
+        private const long CowType = 700, DogType = 705, FlockType = 707, RabbitType = 715;
+        private static readonly AnimalTemperamentDto Rabbit = new()
+        {
+            Species = (byte)AnimalSpecies.Rabbit, FlightZoneM = 25f, PanicZoneM = 12f, FleeSpeed = 14f, FleeDistanceM = 70f, Recovery = 30f, WalkSpeed = 0.8f, FleeStyle = 1, Freezes = true,
+        };
         private static readonly AnimalTemperamentDto Cattle = new()
         {
             Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f,
@@ -76,6 +80,7 @@ namespace Hrot.SimHost.Tests
                 var cow = new TkbTemplate("Cattle", CowType); cow.AddDescriptor(Cattle); db.Register(cow);
                 var dog = new TkbTemplate("Dog", DogType); dog.AddDescriptor(Dog); db.Register(dog);
                 var flock = new TkbTemplate("BirdFlock", FlockType); flock.AddDescriptor(Flock); db.Register(flock);
+                var rabbit = new TkbTemplate("Rabbit", RabbitType); rabbit.AddDescriptor(Rabbit); db.Register(rabbit);
                 Repo.SetSingletonManaged<ITkbDatabase>(db);
                 CgfBehaviorSetup.LoadFromAiAssembly(Registry);
                 _ingress = new BehaviorIngressSystem(Registry);
@@ -337,6 +342,76 @@ namespace Hrot.SimHost.Tests
             ref readonly var col = ref repo.GetComponentRO<PhysicsCollider>(bird);
             Assert.Equal(0.15f, col.Radius, 3);
             Assert.Equal(0.15f, col.Height, 3);
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> part D (AN-21b/c) — a RABBIT: frightened from afar (fear 0.5, band 2) it FREEZES — mode Crouch, its stance Crouched (the signature a crouching man has), not moving; panicked (0.9) it BOLTS in a ZIGZAG:
+        /// leg after leg, ≥ 4 direction changes of ≥ 30° across the run, the legs 0.6–1.2 s long, ending when it has run its distance; standing again. ✅ Red-proof: the freeze branch removed ⇒ it walks off ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ARabbit_FreezesCrouched_ThenBoltsInAZigzag()
+        {
+            var w = new World();
+            var r = w.Animal(RabbitType, new Vector3(0, 0, 0), AnimalSpecies.Rabbit);
+            w.Repo.AddComponent(r, new StanceIntent { TargetStance = Fdp.Toolkit.Tkb.Domain.StanceId.Standing });
+            w.Start(r);
+            w.Run(0.5);
+            w.Repo.GetComponentRW<Fear>(r) = new Fear { Value = 0.5f, FrightFrom = new Vector3(-30, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
+            w.Run(0.5);
+            Assert.Equal(AnimalMode.Crouch, w.Mode(r));
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, w.Repo.GetComponentRO<StanceIntent>(r).TargetStance);
+            Assert.False(w.Move(r).Moving);                                              // frozen: no leg
+            w.Repo.GetComponentRW<Fear>(r) = new Fear { Value = 0.9f, FrightFrom = new Vector3(-8, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
+            var heading = new System.Collections.Generic.List<float>();
+            int turns = 0;
+            float? last = null;
+            for (int i = 0; i < 40; i++)
+            {
+                w.Run(0.1);
+                var (to, speed, moving) = w.Move(r);
+                if (!moving) { if (w.Mode(r) == AnimalMode.Flee && heading.Count > 2) break; continue; }
+                var from = w.Repo.GetComponentRO<SimTransform>(r).Position;
+                float a = MathF.Atan2(to.Y - from.Y, to.X - from.X);
+                if (last is { } l)
+                {
+                    float d = MathF.Abs(MathF.IEEERemainder(a - l, MathF.Tau));
+                    if (d >= 30f * MathF.PI / 180f - 1e-3f) turns++;
+                }
+                last = a; heading.Add(a);
+                Assert.Equal(Rabbit.FleeSpeed, speed);
+                w.Arrive(r);
+            }
+            Assert.Equal(AnimalMode.Flee, w.Mode(r));
+            Assert.True(turns >= 4, $"a zigzag: {turns} turns of ≥ 30° over {heading.Count} legs");
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Standing, w.Repo.GetComponentRO<StanceIntent>(r).TargetStance);
+        }
+
+        /// <summary>⭐ <c>CE-4649</c> part D (AN-21c) — the zigzag's leg is pure: 30–50° off the line, 0.6–1.2 s × speed long, the side flips each leg except for a seeded double jink; the same inputs give the same leg; and it allocates NOTHING.
+        /// ✅ Red-proof: the jink angle fixed at 0 ⇒ a straight line ⇒ red.</summary>
+        [Fact]
+        public void CE4649_TheZigzagLeg_IsDeterministic_BoundedAndAllocatesNothing()
+        {
+            var line = new Vector3(1, 0, 0);
+            byte side = 0;
+            float lo = 14f * AnimalBehavior.LegMinSeconds, hi = 14f * AnimalBehavior.LegMaxSeconds;
+            int flips = 0; byte prev = 0;
+            for (int leg = 0; leg < 40; leg++)
+            {
+                var to = AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 77, leg, leg * 0.8, 14f, ref side, out float len);
+                float ang = MathF.Abs(MathF.Atan2(to.Y, to.X));
+                Assert.InRange(ang, AnimalBehavior.JinkMinRad - 1e-3f, AnimalBehavior.JinkMaxRad + 1e-3f);
+                Assert.InRange(len, lo - 1e-3f, hi + 1e-3f);
+                if (prev != 0 && side != prev) flips++;
+                prev = side;
+                byte side2 = (byte)(leg == 0 ? 0 : 0);
+            }
+            Assert.InRange(flips, 20, 39);                                                    // mostly alternating, some double jinks
+            byte sa = 1, sb = 1;
+            Assert.Equal(AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 5, 3, 2.5, 14f, ref sa, out _), AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 5, 3, 2.5, 14f, ref sb, out _));
+            float sink = 0f; byte sd = 1;
+            for (int i = 0; i < 100; i++) sink += AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 5, i, i * 0.5, 14f, ref sd, out _).X;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++) sink += AnimalBehavior.ZigzagTarget(Vector3.Zero, line, 5, i, i * 0.5, 14f, ref sd, out _).X;
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.NotEqual(0f, sink);
         }
 
         /// <summary>⭐ <c>CE-4623</c> AB-9 — an ENCLOSED pen holds its animals: a frightened one runs only to the pen's edge, where one in an open

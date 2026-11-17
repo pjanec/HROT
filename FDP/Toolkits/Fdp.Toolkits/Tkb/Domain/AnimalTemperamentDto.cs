@@ -45,5 +45,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         public float BoltFear { get; init; }
         /// <summary>⭐ CE-4649 part C ③ — for a FLOCK: the TKB type of ONE of its birds (what a round that hits a bird of the flock leaves, dead); 0 = none.</summary>
         public long LoneType { get; init; }
+        /// <summary>⭐ CE-4649 part D (AN-21c) — how it flees: 0 = <c>Straight</c> (one leg away from the fright), 1 = <c>Zigzag</c> (a chain of short legs bending toward cover — the rabbit).</summary>
+        public byte FleeStyle { get; init; }
+        /// <summary>⭐ CE-4649 part D (AN-21b) — freezes (crouches, stays still) while frightened and the threat has not come inside its panic zone; the rabbit.</summary>
+        public bool Freezes { get; init; }
+        /// <summary>⭐ CE-4649 part D (AN-21f) — the hunting-dog play: follows its handler, ranges ahead, flushes game; never attacks a person.</summary>
+        public bool Ranges { get; init; }
     }
 }

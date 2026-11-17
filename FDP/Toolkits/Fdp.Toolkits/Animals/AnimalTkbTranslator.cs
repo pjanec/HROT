@@ -64,6 +64,9 @@ namespace Fdp.Toolkit.Animals
                 repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationIntent());
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.NavigationStatus>() && !repo.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(entity))
                 repo.AddComponent(entity, new Fdp.Toolkit.Navigation.NavigationStatus());
+            // ⭐ CE-4649 part D (AN-21b) — a FREEZER (the rabbit) has the stance a crouching man has: the brain writes it, the logical-stance readers (line of sight, the hit model) shrink its signature
+            if (dto.Freezes && repo.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() && !repo.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(entity))
+                repo.AddComponent(entity, new Hrot.MuscleCharacter.Animation.Components.StanceIntent { TargetStance = StanceId.Standing });
             if ((AnimalSpecies)dto.Species is AnimalSpecies.BirdFlock or AnimalSpecies.DuckFlock && repo.IsComponentTypeRegistered<FlockState>() && !repo.HasComponent<FlockState>(entity))
                 repo.AddComponent(entity, new FlockState { Count = DefaultFlockCount, InitialCount = DefaultFlockCount, Seed = (uint)template.TkbType, Mode = FlockMode.Perched });
         }
