@@ -82,10 +82,23 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Is <paramref name="self"/> the column's lead under <paramref name="p"/>?</summary>
         public static bool IsLead(in ConvoyParams p, Entity self) => p.Rank == 0 || p.LeadPacked == 0 || p.LeadPacked == (long)self.PackedValue;
 
-        /// <summary>⭐ C-9 — the lead's road use: SUMO for <c>Traffic</c> (with its beacon when priority), our own route otherwise (<c>Auto</c> = our route: it
-        /// ignores lights by construction while SumoSharp H17 is not synced).</summary>
-        public static RoadUse LeadRoadUse(in ConvoyParams p)
-            => (ConvoyMode)p.Mode == ConvoyMode.Traffic ? (p.Priority != 0 ? RoadUse.InTrafficPriority : RoadUse.InTraffic) : RoadUse.StronglyPrefer;
+        /// <summary>⭐ C-9 — the lead's road use: SUMO (with its beacon when priority) for <c>Traffic</c> and <c>Auto</c> WHEN the lead can be handed to SUMO
+        /// (<paramref name="trafficRuns"/>), else our own route (<see cref="RoadUse.StronglyPrefer"/>, the outer lane); <c>Route</c> is always our own route.
+        /// ⭐ CE-9010 — 📌 measured: a lead asked <c>InTraffic</c> on a scenario with no traffic settings (R-4047: SUMO does no work) is handed to nobody and
+        /// stands still for ever; so the order falls back to our route instead.</summary>
+        public static RoadUse LeadRoadUse(in ConvoyParams p, bool trafficRuns)
+            => (ConvoyMode)p.Mode == ConvoyMode.Route || !trafficRuns ? RoadUse.StronglyPrefer
+             : p.Priority != 0 ? RoadUse.InTrafficPriority : RoadUse.InTraffic;
+
+        /// <summary>⭐ CE-9010 — can a vehicle be handed to SUMO here: the terrain has a SUMO net AND the scenario carries the traffic settings (R-4047)?
+        /// One query, read once per order (when the lead issues its move).</summary>
+        public static bool TrafficRuns(EntityRepository world)
+        {
+            if (!world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>() || world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainDefinition>()?.SumoNet is null) return false;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Traffic.TrafficDemand>()) return false;
+            foreach (var _ in world.Query().With<Fdp.Toolkit.Traffic.TrafficDemand>().Build()) return true;
+            return false;
+        }
 
         public static NodeStatus Tick(ref ConvoyParams p, ref ConvoyState s, Entity self, EntityRepository world)
         {
@@ -107,8 +120,11 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 if (s.Issued == 0)
                 {
+                    bool traffic = TrafficRuns(world);
+                    if ((ConvoyMode)p.Mode == ConvoyMode.Traffic && !traffic)
+                        Hrot.AI.Behaviors.Logging.BehaviorLog.Warn(self, world, "PlatformConvoy: Mode Traffic, but no SUMO traffic runs here (a SUMO net and the scenario's traffic settings) — the lead drives our own route.");
                     if (!LocomotionMoveTo.Issue(world, self, p.Destination, p.Speed, ArrivalRadius * 0.5f, MoveGait.Keep,
-                            source: LocomotionMoveTo.OrderSource(world, self), roadUse: LeadRoadUse(in p)))
+                            source: LocomotionMoveTo.OrderSource(world, self), roadUse: LeadRoadUse(in p, traffic)))
                         return NodeStatus.Failure;
                     s.Issued = 1;
                 }

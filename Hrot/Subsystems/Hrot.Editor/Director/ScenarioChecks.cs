@@ -34,13 +34,17 @@ namespace Hrot.Editor.Director
         /// when within it. From a unit: 3-D; from a point: horizontal.</summary>
         public string? From { get; init; }
         public float M { get; init; }
+        /// <summary>⭐ <c>CE-9009</c> <c>between</c>: the corridor's far end (a name or <c>*part</c>); <see cref="From"/> is its near end, <see cref="M"/> its
+        /// half-width (m), <see cref="Margin"/> the length at each end left to the two units' own bodies (m, default 3).</summary>
+        public string? To { get; init; }
+        public float Margin { get; init; } = 3f;
 
         public string On => Spec.On;
 
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between" }).ToArray();
 
         /// <summary>⭐ <c>CE-4624</c> — what a <c>knowledge</c> cue's <c>is</c> may say.</summary>
         public static readonly IReadOnlyList<string> KnowledgeStates = new[] { "Marked", "Suspected", "KnownClear", "KnownMined", "Unknown" };
@@ -48,7 +52,8 @@ namespace Hrot.Editor.Director
         public static readonly IReadOnlyList<string> Ops = new[] { "==", "!=", "<", "<=", ">", ">=", "in", "contains" };
 
         public IEnumerable<string> Names() => Spec.Names().Concat(Hit != null ? new[] { Hit } : Array.Empty<string>())
-            .Concat(From != null ? new[] { From } : Array.Empty<string>());
+            .Concat(From != null ? new[] { From } : Array.Empty<string>())
+            .Concat(To != null ? new[] { To } : Array.Empty<string>());
     }
 
     /// <summary>⭐ One expectation: the cue holds once in [<see cref="After"/>, <see cref="Before"/>], NEVER in it, or at the end.</summary>
@@ -224,8 +229,8 @@ namespace Hrot.Editor.Director
             if (!CheckCue.Kinds.Contains(on)) problems.Add($"{where}: cue '{on}' is not one of {string.Join(", ", CheckCue.Kinds)}");
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
-            string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null;
-            float m = 0f;
+            string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null;
+            float m = 0f, margin = 3f;
             bool opGiven = false;
             JsonNode? value = null;
             foreach (var (k, v) in o)
@@ -241,6 +246,8 @@ namespace Hrot.Editor.Director
                     case "op": op = v?.ToString() ?? "=="; opGiven = true; break;
                     case "side": side = v?.ToString(); break;
                     case "from": from = v?.ToString(); break;
+                    case "to": to = v?.ToString(); break;
+                    case "margin": margin = v is JsonValue gv && gv.TryGetValue<double>(out var gd) ? (float)gd : -1f; break;
                     case "m": m = v is JsonValue mv && mv.TryGetValue<double>(out var md) ? (float)md : 0f; break;
                     case "value": value = v?.DeepClone(); break;
                     case "quantifier": quantifier = v?.ToString() ?? "any"; break;
@@ -257,7 +264,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between") || !p.Contains("is not one of", StringComparison.Ordinal)));
             parsed = parsed with { On = on };
             if (on == "field")
             {
@@ -281,14 +288,22 @@ namespace Hrot.Editor.Director
                 if (from == null && parsed.Point == null) problems.Add($"{where}: a {on} cue needs from (a unit) or point");
                 if (m <= 0f) problems.Add($"{where}: a {on} cue needs m (metres, > 0)");
             }
-            else if (from != null) problems.Add($"{where}: from belongs to a far / close cue");
+            else if (on == "between")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a between cue needs who (the units that must or must not be in the corridor)");
+                if (from == null || to == null) problems.Add($"{where}: a between cue needs from and to (the two units the corridor joins)");
+                if (m <= 0f) problems.Add($"{where}: a between cue needs m (the corridor's half-width, metres, > 0)");
+                if (margin < 0f) problems.Add($"{where}: a between cue's margin is metres (>= 0)");
+            }
+            else if (from != null) problems.Add($"{where}: from belongs to a far / close / between cue");
+            if (on != "between" && (to != null || margin != 3f)) problems.Add($"{where}: to and margin belong to a between cue");
             if (!CheckCue.Ops.Contains(op)) problems.Add($"{where}: op '{op}' is not one of {string.Join(" ", CheckCue.Ops)}");
             if (quantifier is not ("any" or "all") && !(quantifier.StartsWith("atLeast:", StringComparison.Ordinal)
                 && int.TryParse(quantifier[8..], NumberStyles.Integer, CultureInfo.InvariantCulture, out _)))
                 problems.Add($"{where}: quantifier is any, all or atLeast:n");
             if (where_.Count > 0 && on is not ("shot" or "blast")) problems.Add($"{where}: where filters a shot or a blast row");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Side = side, From = from, M = m };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Side = side, From = from, To = to, Margin = margin, M = m };
         }
     }
 }

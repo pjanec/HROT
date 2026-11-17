@@ -190,7 +190,9 @@ namespace Hrot.Editor.Director
                     return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
                 case "far":
                 case "close":
-                    return _w.World is { } dw && DistanceHolds(dw, c) ? _rel : null;
+                    return DistanceHolds(c) ? _rel : null;
+                case "between":
+                    return BetweenHolds(c) ? _rel : null;
                 default:
                 {
                     // a task cue may name several behaviours: any of them
@@ -239,26 +241,21 @@ namespace Hrot.Editor.Director
         /// <summary>
         /// ⭐ CE-10002 (air combat RV-15, R-10012) — <c>far</c> / <c>close</c>: some unit <see cref="AnchorSpec.Who"/> names is more than (<c>far</c>) /
         /// within (<c>close</c>) <see cref="CheckCue.M"/> of the unit <see cref="CheckCue.From"/> names (3-D; the nearest of them) or of
-        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing.
+        /// <see cref="AnchorSpec.Point"/> (horizontal). A dead or absent unit holds nothing. ⭐ CE-9009 — through <see cref="PositionOf"/>, so it holds in the
+        /// cluster tier too (⛔ before, it read only a live repository and never held there).
         /// </summary>
-        private bool DistanceHolds(EntityRepository world, CheckCue c)
+        private bool DistanceHolds(CheckCue c)
         {
             if (c.Spec.Who is not { } who) return false;
             bool far = c.On == "far";
             foreach (var id in UnitsNamed(who))
             {
-                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
-                if (e.IsNull || !world.HasComponent<SimTransform>(e)) continue;
-                var at = world.GetComponentRO<SimTransform>(e).Position;
+                if (PositionOf(id) is not { } at) continue;
                 float d = float.MaxValue;
                 if (c.From != null)
                 {
                     foreach (var fid in UnitsNamed(c.From))
-                    {
-                        var f = new Fdp.Toolkit.Replication.EntityRef(fid).Resolve(world);
-                        if (f.IsNull || f == e || !world.HasComponent<SimTransform>(f)) continue;
-                        d = MathF.Min(d, System.Numerics.Vector3.Distance(at, world.GetComponentRO<SimTransform>(f).Position));
-                    }
+                        if (fid != id && PositionOf(fid) is { } f) d = MathF.Min(d, System.Numerics.Vector3.Distance(at, f));
                     if (d == float.MaxValue) continue;
                 }
                 else if (c.Spec.Point is { } p) d = System.Numerics.Vector2.Distance(new System.Numerics.Vector2(at.X, at.Y), p);
@@ -266,6 +263,52 @@ namespace Hrot.Editor.Director
                 if (far ? d > c.M : d <= c.M) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-9009</c> (docs/DESIGN_Scenario_Regression.md §3; the convoy's "no cutting in", R-4277) — <c>between</c>: some unit <see cref="AnchorSpec.Who"/>
+        /// names lies in the CORRIDOR between the unit <see cref="CheckCue.From"/> names and the unit <see cref="CheckCue.To"/> names: strictly between them
+        /// along the line that joins them (its projection inside the segment, the two ends' own bodies excluded by <see cref="CheckCue.Margin"/> metres at
+        /// each end) and within <see cref="CheckCue.M"/> metres of that line (horizontal). A car in the next lane beside the column is OUTSIDE a corridor of
+        /// half a lane; a car in the gap is inside. The same reading in both tiers (<see cref="PositionOf"/>).
+        /// </summary>
+        private bool BetweenHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.From is null || c.To is null) return false;
+            foreach (var aid in UnitsNamed(c.From))
+            {
+                if (PositionOf(aid) is not { } a3) continue;
+                foreach (var bid in UnitsNamed(c.To))
+                {
+                    if (bid == aid || PositionOf(bid) is not { } b3) continue;
+                    var a = new System.Numerics.Vector2(a3.X, a3.Y); var b = new System.Numerics.Vector2(b3.X, b3.Y);
+                    var ab = b - a; float len = ab.Length();
+                    if (len <= 2f * c.Margin) continue;   // the two ends touch: no gap to cut into
+                    var dir = ab / len;
+                    foreach (var id in UnitsNamed(who))
+                    {
+                        if (id == aid || id == bid || PositionOf(id) is not { } p3) continue;
+                        var ap = new System.Numerics.Vector2(p3.X, p3.Y) - a;
+                        float along = System.Numerics.Vector2.Dot(ap, dir);
+                        if (along <= c.Margin || along >= len - c.Margin) continue;
+                        float side = MathF.Abs(ap.X * dir.Y - ap.Y * dir.X);
+                        if (side <= c.M) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>⭐ CE-9009 — a unit's position in either tier: the live repository's <c>SimTransform</c>, else its dumped components (the cluster tier).</summary>
+        private System.Numerics.Vector3? PositionOf(int id)
+        {
+            if (_w.World is { } world)
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                return e.IsNull || !world.HasComponent<SimTransform>(e) ? null : world.GetComponentRO<SimTransform>(e).Position;
+            }
+            return Components(id) is { } comps && At(comps, "SimTransform.Position") is JsonArray pos && pos.Count >= 3
+                ? new System.Numerics.Vector3((float)(Num(pos[0]) ?? 0), (float)(Num(pos[1]) ?? 0), (float)(Num(pos[2]) ?? 0)) : null;
         }
 
         private double Rel(JsonNode? firedAt) => (Num(firedAt) ?? _t0 + _rel) - _t0;

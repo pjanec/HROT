@@ -18,7 +18,7 @@ namespace Hrot.SimHost.Tests
     /// move with the convoy's road use (our route: <c>StronglyPrefer</c>; SUMO with the beacon: <c>InTrafficPriority</c>); a follower joins behind its lead, stops its own
     /// move, and is done when the lead is; a vehicle no longer running <c>PlatformConvoy</c> (contact, a new order) leaves the column at once.
     /// 🔴 Red-proofs: the membership sweep skipping the hash test ⇒ the "still running" vehicle loses its membership ⇒ red; <c>LeadRoadUse</c> always
-    /// <c>Unspecified</c> ⇒ the road-use rows red.
+    /// <c>Unspecified</c> ⇒ the road-use rows red; <c>TrafficRuns</c> always true ⇒ the no-traffic rows red (CE-9010).
     /// </summary>
     public sealed class PlatformConvoyTests
     {
@@ -56,10 +56,19 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheLead_JoinsAsRankZero_AndAsksItsMove_WithTheConvoysRoadUse()
         {
-            foreach (var (mode, priority, want) in new[] { (ConvoyMode.Route, false, RoadUse.StronglyPrefer), (ConvoyMode.Auto, false, RoadUse.StronglyPrefer),
-                                                           (ConvoyMode.Traffic, true, RoadUse.InTrafficPriority), (ConvoyMode.Traffic, false, RoadUse.InTraffic) })
+            // ⭐ CE-9010 — Traffic / Auto hand the lead to SUMO only where SUMO traffic runs (a SUMO net + the traffic settings); else our own route
+            foreach (var (mode, priority, traffic, want) in new[] {
+                         (ConvoyMode.Route, false, true, RoadUse.StronglyPrefer),
+                         (ConvoyMode.Auto, false, true, RoadUse.InTraffic), (ConvoyMode.Auto, false, false, RoadUse.StronglyPrefer),
+                         (ConvoyMode.Traffic, true, true, RoadUse.InTrafficPriority), (ConvoyMode.Traffic, false, true, RoadUse.InTraffic),
+                         (ConvoyMode.Traffic, true, false, RoadUse.StronglyPrefer) })
             {
                 var w = World();
+                if (traffic)
+                {
+                    w.SetSingletonManaged(new Fdp.Toolkit.Terrain.TerrainDefinition { Name = "t", SumoNet = new Fdp.Toolkit.Terrain.TerrainSumoNet("t.net.xml", 0, 0) });
+                    w.AddComponent(w.CreateEntity(), Fdp.Toolkit.Traffic.TrafficDemand.Default);
+                }
                 var lead = Vehicle(w, Vector3.Zero);
                 var p = Params(default, 0, mode, priority); var s = default(PlatformConvoyBehavior.ConvoyState);
                 Assert.Equal(NodeStatus.Running, PlatformConvoyBehavior.Tick(ref p, ref s, lead, w));
