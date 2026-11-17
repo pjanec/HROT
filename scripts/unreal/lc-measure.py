@@ -101,6 +101,7 @@ def main():
     ap.add_argument("--engine", default=r"C:\UE_5.8\UE_5.8"); ap.add_argument("--components", default="Auto")
     ap.add_argument("--max-points", type=int, default=4000); ap.add_argument("--keep-open", action="store_true")
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--importer", choices=("lc", "hrot"), default="lc", help="the landscape by Landscape Combinator, or by our own tools/unreal/HrotTerrain (UL-9)")
     ap.add_argument("--buildings", action="store_true", help="also build the buildings from <name>.buildings.geojson and measure them")
     a = ap.parse_args()
     folder = os.path.abspath(a.export); name = os.path.basename(folder)
@@ -142,6 +143,9 @@ def main():
            "origin": frame["localToProjected"], "components": a.components, "points": points,
            "out": os.path.join(folder, "lc-trace.json").replace("\\", "/"), "level": "/Game/Maps/" + name.replace("-", "_"), "timeout": a.timeout,
            "editorLog": os.path.join(folder, "lc-editor.log").replace("\\", "/")}
+    if a.importer == "hrot":
+        job["importer"] = "hrot"
+        job["unreal"] = dict(frame["unreal"], r16=os.path.join(folder, frame["unreal"]["r16"]).replace("\\", "/"))
     if a.buildings:
         job["buildings"] = os.path.join(folder, f"{name}.buildings.geojson").replace("\\", "/")
     job_path = os.path.join(folder, "lc-job.json"); json.dump(job, open(job_path, "w"), indent=1)

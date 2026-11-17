@@ -123,6 +123,19 @@ def step_landscape():
     start_generator(sp, "HrotLandscapeSpawner", sp.spawn_landscape)
 
 
+def step_landscape_hrot():
+    """UL-9: our own import (tools/unreal/HrotTerrain) — the exporter computed the 16-bit heights and the exact placement."""
+    u = JOB["unreal"]
+    t = time.time()
+    ls = unreal.HrotTerrainLibrary.import_heights(u["r16"], u["sizeX"], u["sizeY"], u["quadsPerSection"], u["sectionsPerComponent"],
+                                                  unreal.Vector(*u["locationCm"]), unreal.Vector(*u["scaleCm"]), JOB["terrain"])
+    if not ls: raise RuntimeError("HrotTerrain import failed — see LogHrotTerrain")
+    ls.tags = ["hrot_ground"]
+    state["landscape"] = ls
+    R.setdefault("generatorSeconds", {})["HrotTerrain"] = round(time.time() - t, 1)
+    log(f"HrotTerrain imported the landscape in {R['generatorSeconds']['HrotTerrain']} s")
+
+
 def trace(x, y):
     start, end = unreal.Vector(100 * x, -100 * y, 1_000_000), unreal.Vector(100 * x, -100 * y, -1_000_000)
     hit = unreal.SystemLibrary.line_trace_single(world(), start, end, unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, [],
@@ -139,8 +152,10 @@ def bounds_m(actor):
 
 
 def step_measure_landscape():
-    ls = state["spawner"].get_editor_property("spawned_landscape")
-    landscape = ls if isinstance(ls, unreal.Landscape) else (ls.get() if hasattr(ls, "get") else None)
+    landscape = state.get("landscape")
+    if landscape is None:
+        ls = state["spawner"].get_editor_property("spawned_landscape")
+        landscape = ls if isinstance(ls, unreal.Landscape) else (ls.get() if hasattr(ls, "get") else None)
     if not landscape: raise RuntimeError("the spawner reports no landscape")
     lo, hi = bounds_m(landscape)
     R["landscape"] = {"label": landscape.get_actor_label(), "bounds_min_m": lo, "bounds_max_m": hi,
@@ -227,7 +242,7 @@ def step_save():
     unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).save_current_level()
 
 
-STEPS = [step_level, step_landscape, step_measure_landscape]
+STEPS = [step_level, step_landscape_hrot if JOB.get("importer") == "hrot" else step_landscape, step_measure_landscape]
 if JOB.get("buildings"):
     STEPS += [step_building_splines, step_buildings, step_measure_buildings]
 STEPS += [step_save]

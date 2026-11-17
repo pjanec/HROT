@@ -15,6 +15,8 @@ Writes into <out-folder>:
                             lone trees (Point), roads (LineString, sampled from roads.json's Hermite segments: lanes, lane_width)
     <name>.<kind>s.geojson  the same features, one file per kind (buildings, roofs, walls, surfaces, prisms, trees, roads), in WGS84
                             lon / lat (UL-5: Landscape Combinator's spline importer reads every vector file as EPSG:4326)
+    <name>.height.r16       the same heights as uint16 for tools/unreal/HrotTerrain (UL-9), north row first; frame.json "unreal" holds
+                            its exact placement (location, scale, components)
     <name>.frame.json       the frame used: CRS, the local → projected offset, the grid size — what the import / the checks read
 
 The frame (local x east, y north, metres):
@@ -246,6 +248,19 @@ def main():
         ds.write(z[::-1], 1)   # north row first
         ds.update_tags(HROT_TERRAIN=name, HROT_VERTEX="pixel north-west corner = HROT post (UL-4)")
 
+    # ⭐ our own Unreal import (tools/unreal/HrotTerrain, UL-9): the 16-bit heights and the exact placement, computed HERE so nothing is
+    # resampled in Unreal. Unreal: X east, Y SOUTH, cm; a landscape vertex (i, j) sits at Location + (i·Sx, j·Sy) and its height is
+    # Location.Z + (h − 32768) / 128 · Sz. ⇒ the NORTH row first; Sz spreads the height range over the 16 bits.
+    zmin, zmax = float(z.min()), float(z.max())
+    rng = max(zmax - zmin, 0.01)
+    h16 = np.clip(np.rint((z - zmin) / rng * 65535.0), 0, 65535).astype("<u2")
+    h16[::-1].tofile(os.path.join(a.out, f"{name}.height.r16"))   # row 0 = south in z ⇒ reversed: the north row first
+    sz = rng * 100.0 * 128.0 / 65535.0
+    unreal = {"r16": f"{name}.height.r16", "sizeX": cols, "sizeY": rows, "quadsPerSection": comp if not a.no_pad else None,
+              "sectionsPerComponent": 1,
+              "locationCm": [x0 * 100.0, -(y0 + (rows - 1) * cell) * 100.0, zmin * 100.0 + 32768.0 * rng * 100.0 / 65535.0],
+              "scaleCm": [cell * 100.0, cell * 100.0, sz], "heightStep_m": rng / 65535.0}
+
     feats, counts = features(folder, terrain, world)
     for f in feats: offset_geometry(f["geometry"], de, dn)
     vec = {"type": "FeatureCollection", "name": name, "features": feats}
@@ -279,7 +294,7 @@ def main():
     info = {"terrain": name, "frame": what, "crsUserInput": user_input, "crs": crs.to_wkt() if crs else None, "epsg": crs.to_epsg() if crs else None,
             "localToProjected": [de, dn], "posts": [cols, rows], "hrotPosts": hrot_posts, "componentQuads": None if a.no_pad else comp,
             "components": None if a.no_pad else [(cols - 1) // comp, (rows - 1) // comp], "cell": cell, "southWestPost": [x0, y0],
-            "zMin": float(z.min()), "zMax": float(z.max()), "features": counts}
+            "zMin": float(z.min()), "zMax": float(z.max()), "unreal": unreal, "features": counts}
     with open(os.path.join(a.out, f"{name}.frame.json"), "w", encoding="utf-8") as f:
         json.dump(info, f, indent=1)
     print(json.dumps(info, indent=1)[:1500] if crs is None else json.dumps({k: v for k, v in info.items() if k != "crs"}, indent=1))
