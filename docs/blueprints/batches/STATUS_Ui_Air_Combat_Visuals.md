@@ -14,7 +14,7 @@ Started `4fa79837f` (merged `coordinator@369177d6d+`). Engine half (`air-wip`) N
 
 | step | state | evidence |
 |---|---|---|
-| 1 mockups | ⏳ | |
+| 1 mockups | ✅ | `scripts/gen-air-combat-mockup.py` → `docs/designs/air-attack/air-combat-{body,stores,hud,arena}.svg`, linked from DESIGN_Air_Combat §4d (one-line cross-lane doc edit, said in the commit); PNGs in the scratchpad `aircombat/`. The MiG numbers in the script ARE the kit table of step 2 |
 | 2 MiG body | ⏳ | |
 | 3 stores on rails | ⏳ | |
 | 4 AAM looks · burn trail · launch | ⏳ | |
