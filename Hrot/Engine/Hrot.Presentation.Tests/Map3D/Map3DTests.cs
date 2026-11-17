@@ -1422,6 +1422,108 @@ public sealed class Map3DTests
     /// <summary>⭐ CE-1099 (docs/DESIGN_Map_3D_Mode.md §6q O-1, O-2, O-5) — civilians of a type with no colour are NOT the family green and
     /// VARY: across sixty men every kind of clothes appears — long and short sleeves, trousers, shorts and skirts, a suit, long hair and
     /// none; each man's outfit is repeatable. A type WITH a colour dresses its men in that colour, lighter or darker.</summary>
+    // ── ⭐ CE-4648 (docs/designs/person-looks/DESIGN_Person_Outfits.md §6) — the dressing is IDENTICAL after the wardrobes moved to data ──
+
+    private const int BaselineSeeds = 500;
+
+    private static string BaselineFixture([System.Runtime.CompilerServices.CallerFilePath] string here = "")
+        => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(here)!, "Fixtures", "outfits-baseline.txt");
+
+    /// <summary>How the 3-D map dresses a man of <paramref name="look"/>'s type (the one call the layer makes).</summary>
+    private static Outfit DressedLike(in EntityBodyLayer3D.TypeLook look, long seed, long type, Fdp.Core.ForceId side, Raylib_cs.Color? own)
+        => Outfits.For(seed, type, look.Soldier, look.Child, own, side, look.Kit, look.Elderly);
+
+    private static void Fold(ref uint h, string text) { foreach (char c in text) h = (h ^ c) * 16777619u; }
+
+    private static string ColourText(Raylib_cs.Color c) => $"{c.R},{c.G},{c.B},{c.A}";
+
+    /// <summary>One man's whole dressing as text: every part colour, his face and the details drawn on his parts — what a frame is made of.</summary>
+    private static string DressingText(in Outfit o, System.Collections.Generic.List<PartDetail> details)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(ColourText(o.Top)).Append('|').Append(ColourText(o.Sleeve)).Append('|').Append(ColourText(o.Bottom)).Append('|').Append(ColourText(o.Shin)).Append('|')
+          .Append(ColourText(o.Skin)).Append('|').Append(ColourText(o.Hair)).Append('|').Append(o.HairStyle).Append('|').Append(o.Legwear).Append('|')
+          .Append(o.Suit).Append('|').Append(ColourText(o.Tie)).Append('|').Append(o.Camo).Append('|').Append(o.Child).Append('|').Append(o.Soldier).Append('|')
+          .Append(o.Face.EyeSpacing).Append(',').Append(o.Face.MouthHalfWidth).Append(',').Append(o.Face.BrowHalfHeight).Append(',').Append(o.Face.Beard).Append(',')
+          .Append(ColourText(o.Face.EyeColour)).Append(',').Append(ColourText(o.Face.Lips)).Append('|').Append(o.Police).Append('|').Append(o.Riot);
+        Outfits.Details(o, 0, details);
+        foreach (var d in details)
+            sb.Append(';').Append(d.Part).Append(d.Centre).Append(d.Extent).Append(ColourText(d.Colour)).Append(d.Turned);
+        return sb.ToString();
+    }
+
+    /// <summary>Every person type of the built-in catalogue, dressed as the 3-D map dresses it: seeds 1..500, each side where a side matters,
+    /// with and without the type's own colour. One line per (type, side, own): the hash of each seed's dressing, then a 0/1 per seed saying he was a woman.</summary>
+    private static System.Collections.Generic.List<string> DressingLines()
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        var details = new System.Collections.Generic.List<PartDetail>();
+        foreach (var t in BuiltIn().GetAll().OrderBy(x => x.TkbType))
+        {
+            if (VisualFamilies.Of(t) != VisualFamily.Person) continue;
+            var look = EntityBodyLayer3D.Resolve(t);
+            var sides = look.Soldier || look.Kit != PersonKit.Civilian
+                ? new[] { Fdp.Core.ForceId.Friend, Fdp.Core.ForceId.Hostile, Fdp.Core.ForceId.Neutral }
+                : new[] { Fdp.Core.ForceId.Neutral };
+            foreach (var side in sides)
+                foreach (bool own in look.TypeColoured ? new[] { false, true } : new[] { false })
+                {
+                    var hashes = new System.Text.StringBuilder();
+                    var women = new System.Text.StringBuilder();
+                    for (int seed = 1; seed <= BaselineSeeds; seed++)
+                    {
+                        var o = DressedLike(look, seed, t.TkbType, side, own ? look.Colour : null);
+                        uint h = 2166136261u;
+                        Fold(ref h, DressingText(o, details));
+                        hashes.Append(h.ToString("x8"));
+                        women.Append(o.Woman ? '1' : '0');
+                    }
+                    lines.Add($"{t.TkbType} {side} {(own ? "own" : "none")} {hashes} {women}");
+                }
+        }
+        return lines;
+    }
+
+    [Fact]
+    public void CE4648_EveryExistingPersonType_IsDressedExactlyAsBeforeTheWardrobesMovedToData()
+    {
+        var now = DressingLines();
+        if (System.Environment.GetEnvironmentVariable("HROT_OUTFITS_RECORD") == "1")
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(BaselineFixture())!);
+            System.IO.File.WriteAllLines(BaselineFixture(), now);
+            return;
+        }
+        var before = System.IO.File.ReadAllLines(BaselineFixture()).ToDictionary(l => string.Join(' ', l.Split(' ').Take(3)));
+        int compared = 0, moved = 0;
+        foreach (var line in now)
+        {
+            var f = line.Split(' ');
+            string key = string.Join(' ', f.Take(3));
+            if (!before.TryGetValue(key, out var was)) continue;   // a type that did not exist then: its own rails
+            long type = long.Parse(f[0]);
+            if (type == 2003) continue;   // OF-12 — the Insurgent's NEW wardrobe: its own rail
+            var w = was.Split(' ');
+            var tpl = BuiltIn().GetByType(type)!;
+            var sex = tpl.GetDescriptor<PersonDto>()?.Sex ?? PersonSex.Unspecified;
+            for (int s = 0; s < BaselineSeeds; s++)
+            {
+                bool wasWoman = w[4][s] == '1';
+                bool same = w[3].AsSpan(s * 8, 8).SequenceEqual(f[3].AsSpan(s * 8, 8));
+                compared++;
+                if (sex == PersonSex.Unspecified || wasWoman == (sex == PersonSex.Female))
+                    Assert.True(same, $"type {type} {f[1]} {f[2]} seed {s + 1}: the dressing moved");
+                else
+                {   // OF-2 — the type says who he is: only a seed whose old chance of sex DISAGREED with the type changes
+                    moved++;
+                    Assert.Equal(sex == PersonSex.Female, f[4][s] == '1');
+                }
+            }
+        }
+        Assert.True(compared > 5000, $"compared only {compared}");
+        Assert.True(moved > 0);   // the defect really was there to fix (1101 / 1102 drew the other sex half the time)
+    }
+
     [Fact]
     public void CE1099_Civilians_VaryInWhatTheyWear_AndATypesColourIsKept()
     {

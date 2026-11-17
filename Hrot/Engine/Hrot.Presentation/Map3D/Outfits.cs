@@ -20,7 +20,8 @@ public enum CamoPattern : byte { None, Woodland, Fleck, Desert }
 /// </summary>
 public readonly record struct Outfit(
     Color Top, Color Sleeve, Color Bottom, Color Shin, Color Skin, Color Hair, HairStyle HairStyle, Legwear Legwear,
-    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false);
+    bool Suit, Color Tie, CamoPattern Camo, bool Child, bool Soldier, FaceLook Face = default, bool Police = false, bool Riot = false,
+    bool Woman = false);
 
 /// <summary>⭐ CE-1101 (§6r S-3) — a moustache or a beard, or none.</summary>
 public enum BeardKind : byte { None, Moustache, Beard }
@@ -72,7 +73,7 @@ public static class Outfits
         var legs = woman && r.Chance(0.5f) ? Legwear.Skirt : Legwear.Trousers;
         var bottom = Bottoms[r.Pick(Bottoms.Length)];
         return new Outfit(top, top, bottom, legs == Legwear.Trousers ? bottom : skin, skin, hair, style, legs, false, default, CamoPattern.None,
-                          false, false, FaceOf(seed, type, woman, false));
+                          false, false, FaceOf(seed, type, woman, false), Woman: woman);
     }
 
     /// <summary>⭐ CE-1162 — a security-force officer's uniform (navy).</summary>
@@ -161,7 +162,7 @@ public static class Outfits
         {
             var cloth = Suits[r.Pick(Suits.Length)];
             return new Outfit(cloth, cloth, cloth, cloth, skin, hair, style, Legwear.Trousers, true, Ties[r.Pick(Ties.Length)],
-                              CamoPattern.None, false, false, FaceOf(seed, type, woman, false));
+                              CamoPattern.None, false, false, FaceOf(seed, type, woman, false), Woman: woman);
         }
 
         // O-1 — the top: his type's colour, a little lighter or darker; else an everyday colour (a child's brighter)
@@ -174,7 +175,7 @@ public static class Outfits
         var bottom = legs == Legwear.Skirt && r.Chance(0.5f) ? Tops[r.Pick(Tops.Length)] : Bottoms[r.Pick(Bottoms.Length)];
         var shin = legs == Legwear.Trousers ? bottom : skin;
         return new Outfit(top, shortSleeves ? skin : top, bottom, shin, skin, hair, style, legs, false, default, CamoPattern.None, child, false,
-                          FaceOf(seed, type, woman, child));
+                          FaceOf(seed, type, woman, child), Woman: woman);
     }
 
     /// <summary>
