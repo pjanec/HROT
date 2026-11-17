@@ -56,6 +56,7 @@ namespace Fdp.Toolkit.Combat
         public static IWeaponBrainProfile For(WeaponCategory category) => category switch
         {
             WeaponCategory.SmallArms or WeaponCategory.Grenade or WeaponCategory.Mortar => PerShot,
+            WeaponCategory.Bow => PerShot,   // ⭐ CE-4649 (BW-1, BW-7) — a bow / crossbow is direct fire, one arrow per intent (the draw is AimSeconds)
             WeaponCategory.Bomb => PerShot,
             WeaponCategory.Rocket => PerShot,
             WeaponCategory.Howitzer => PerShot,   // ⭐ IF-1 (I8) — a gun firing at a point by its fire solution   // ⭐ Air Ops 6a (AW-3) — a rocket pod: each round its own intent; the ripple is the round count   // ⭐ Air Ops slice 4 — the Release profile: the per-shot path, held by its cue (AimAndFireExecutor.HoldOf)
@@ -69,7 +70,8 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool FiresPerPress(WeaponCategory category)
             => category is WeaponCategory.TankGun or WeaponCategory.Atgm or WeaponCategory.Mortar or WeaponCategory.Grenade
-                         or WeaponCategory.Bomb or WeaponCategory.Howitzer or WeaponCategory.Sam;
+                         or WeaponCategory.Bomb or WeaponCategory.Howitzer or WeaponCategory.Sam
+                         or WeaponCategory.Bow;   // ⭐ CE-4649 — one arrow per press (the nock and the draw)
     }
 
     /// <summary>⭐ <c>CE-1127</c> (docs/DESIGN_Entity_Control.md §8g F-1) — how an OPERATOR's trigger works for a weapon.</summary>

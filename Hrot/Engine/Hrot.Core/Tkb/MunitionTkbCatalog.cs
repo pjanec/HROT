@@ -171,6 +171,14 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ CE-4624 — the mines' blast INJURY radii (m): an AP mine 5, an AT mine 12, a line-charge burst 15 (starter values).</summary>
         public const float MineApInjuryRadiusM = 5f, MineAtInjuryRadiusM = 12f, LineChargeInjuryRadiusM = 15f;
         public const string Mortar60mmSmokeName = "60mm mortar smoke", Mortar81mmSmokeName = "81mm mortar smoke", Mortar120mmSmokeName = "120mm mortar smoke";
+        /// <summary>⭐⭐ <c>CE-4649</c> (bows, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md BW-2…BW-6, BW-9, BW-12; R-4289) — an ARROW (6066) and a crossbow BOLT (6067): a
+        /// <c>Kinetic</c> round on the arc (the hatchet's <c>Indirect</c> path, launched on the LOW solution), SILENT (<c>WarheadDto.Silent</c>, R-3100), STICKING where it
+        /// stops (<c>MunitionVisualDto.Sticks</c>) and lying as a hand item for <see cref="ArrowLiesSeconds"/>. ⛔ Permanent wire values.</summary>
+        public const int TkbArrow = 6066, TkbCrossbowBolt = 6067;
+        public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
+        /// <summary>⭐ CE-4649 (BW-6, §5) — a bow arrow's penetration (mm RHA: a soft vest and a helmet stop it) and damage (0.45 of a soldier's 100 health), a bolt's 6 mm / 0.55;
+        /// how long a stuck round lies (BW-4).</summary>
+        public const float ArrowPenetrationMm = 4f, ArrowDamage = 45f, BoltPenetrationMm = 6f, BoltDamage = 55f, ArrowLiesSeconds = 600f;
         public const string ThrowingHatchetName = "throwing hatchet", ThrowingSpearName = "throwing spear", ThrowingStarName = "throwing star";
         /// <summary>⭐ <c>CE-3247</c> (TC-2) — their numbers: damage per hit (starter values) and a small penetration (body armour stops them),
         /// and how long one lies where it landed.</summary>
@@ -376,6 +384,11 @@ namespace Hrot.Core.Tkb
                      new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingHatchetDamage);
             Register(tkb, ThrowingSpearName, TkbThrowingSpear, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingSpearDamage);
+            // ⭐⭐ CE-4649 (bows BW-2, BW-4, BW-6, BW-9) — the arrow and the bolt: the hatchet's arc path, silent, sticking
+            Register(tkb, ArrowName, TkbArrow, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true, Silent = true }, penetrationMm: ArrowPenetrationMm, damage: ArrowDamage);
+            Register(tkb, CrossbowBoltName, TkbCrossbowBolt, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true, Silent = true }, penetrationMm: BoltPenetrationMm, damage: BoltDamage);
             Register(tkb, ThrowingStarName, TkbThrowingStar, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Kinetic, Indirect = true }, penetrationMm: ThrownBladePenetrationMm, damage: ThrowingStarDamage);
             // ⭐⭐ CE-3219 part 3 (§7.3b) — the CLOUD rounds: no blast, no fragments; the warhead's Cloud* fields make AreaEffectSystem ask
@@ -509,6 +522,7 @@ namespace Hrot.Core.Tkb
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
                 [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
+                [TkbArrow] = 1, [TkbCrossbowBolt] = 1.5f,                                         // ⭐ CE-4649 — the bow's and the crossbow's rounds
             };
 
         /// <summary>
@@ -524,6 +538,8 @@ namespace Hrot.Core.Tkb
                 // ⭐ CE-3247 (TC-2) — a thrown blade lies where it landed and is picked up again
                 [TkbThrowingHatchet] = new() { LiesSeconds = ThrownBladeLiesSeconds }, [TkbThrowingSpear] = new() { LiesSeconds = ThrownBladeLiesSeconds },
                 [TkbThrowingStar] = new() { LiesSeconds = ThrownBladeLiesSeconds },
+                // ⭐ CE-4649 (BW-4) — a stuck arrow lies 600 s
+                [TkbArrow] = new() { LiesSeconds = ArrowLiesSeconds }, [TkbCrossbowBolt] = new() { LiesSeconds = ArrowLiesSeconds },
             };
 
         /// <summary>⭐ P1 (docs/DESIGN_Visual_Effects.md §8 PR-A) — how the built-in munitions' rounds look: the M67 a small olive
@@ -588,6 +604,9 @@ namespace Hrot.Core.Tkb
                 [TkbThrowingHatchet] = new() { Shape = MunitionShape.Axe, Length = 0.4f, Diameter = 0.1f, ColorHex = "#6B5A45" },
                 [TkbThrowingSpear] = new() { Shape = MunitionShape.Spear, Length = 1.6f, Diameter = 0.03f, ColorHex = "#7A6A50" },
                 [TkbThrowingStar] = new() { Shape = MunitionShape.Star, Length = 0.1f, Diameter = 0.1f, ColorHex = "#9A9A9A" },
+                // ⭐ CE-4649 (BW-3 data, BW-4) — an arrow 0.75 m × Ø 8 mm, a bolt 0.40 m × Ø 10 mm: both STICK (ui draws them fletched, and along their stuck rotation)
+                [TkbArrow] = new() { Shape = MunitionShape.Arrow, Length = 0.75f, Diameter = 0.008f, ColorHex = "#8B7355", Sticks = true },
+                [TkbCrossbowBolt] = new() { Shape = MunitionShape.Arrow, Length = 0.40f, Diameter = 0.010f, ColorHex = "#5A4A3A", Sticks = true, Bolt = true },
             };
 
         /// <summary>⭐ LR-3 — one of the built-in munition types above (6001–6035), whether or not it has a look: a round, never a body.</summary>

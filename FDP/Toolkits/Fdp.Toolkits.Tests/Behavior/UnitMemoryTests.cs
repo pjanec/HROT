@@ -4,6 +4,7 @@ using Fbt;
 using Fbt.Kernel;
 using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Core.Jobs;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -17,6 +18,7 @@ namespace Fdp.Toolkit.Behavior.Tests;
 /// ⭐⭐⭐ <c>CE-3137</c> U-1 — rails for <see cref="UnitMemory"/> (<c>Q87</c> §5, <c>R-237</c>): a unit-scoped shared struct, one
 /// type-keyed slot of kind <see cref="OccurrenceKind.UnitMemory"/>, created on first touch, never swept by a switch.
 /// </summary>
+[Xunit.Collection("FdpWorkerPool")]
 public sealed unsafe class UnitMemoryTests
 {
     [UnitMemory]
@@ -193,5 +195,78 @@ public sealed unsafe class UnitMemoryTests
         var unit = world.CreateEntity();
         for (int k = 0; OccurrenceStoreAccess.TryAttachSlot(world, unit, 0x5000 + k, 8, 1, OccurrenceKind.BTree, out _, out _); k++) { }
         Assert.Throws<InvalidOperationException>(() => UnitMemory.Ref<Burned>(world, unit));
+    }
+
+    // ── ⭐⭐ CE-3467 (R-3103) — a unit memory attached INSIDE the parallel brain phase needs room that is already there ─────────────────────────
+
+    [UnitMemory]
+    private struct Mid3K
+    {
+        public fixed byte B[3000];
+    }
+
+    private struct AttachJob : IEntityBatchJob
+    {
+        public EntityRepository Repo;
+        public void Execute(Entity e, int index, BatchContext ctx) => UnitMemory.Ref<Mid3K>(Repo, e).B[0] = 7;
+        public void ApplyDeferred(EntityRepository repo, in Deferred d) { }
+    }
+
+    private static Entity BrainUnitWithOnlyTheSmallestTier(EntityRepository world)
+    {
+        var e = world.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        OccurrenceStoreAccess.AddBlock(world, e, BlueprintTierTable.Ascending[0]);   // 256 only
+        return e;
+    }
+
+    private static int Tiers(EntityRepository world, Entity e)
+    {
+        int n = 0;
+        foreach (var spec in BlueprintTierTable.Ascending) if (spec.Has(world, e)) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-3467</c> (R-3103) — a brain unit spawned with ONLY the 256 tier: the brains' serial pre-pass (<c>BrainPhase.Prepare</c> ⇒
+    /// <c>EnsureStandardLadder</c>) gives it the 1024 and 4096 tiers, so a 3 KB unit memory attaches INSIDE the parallel phase. Without the pre-pass the attach needs
+    /// a new block there — which the phase defers — and fails with a clear exception naming the unit and the size, not a crash in memory.
+    /// 🔴 Red-proof: <c>EnsureStandardLadder</c> not called ⇒ the "cannot be appended inside the parallel phase" exception.
+    /// </summary>
+    [Fact]
+    public void CE3467_AUnitWithOnlyTheSmallTier_IsGivenTheStandardLadder_SoA3KbMemoryAttachesInsideTheParallelPhase()
+    {
+        bool was = ParallelEntities.Enabled;
+        ParallelEntities.Enabled = true;
+        try
+        {
+            using var starved = CreateWorld();
+            var s = BrainUnitWithOnlyTheSmallestTier(starved);
+            var ex = Assert.Throws<InvalidOperationException>(() => ParallelEntities.Run(starved, new[] { s }, 1, new AttachJob { Repo = starved }));
+            Assert.Contains("cannot be appended inside the parallel phase", ex.Message);
+            Assert.Contains("3000", ex.Message);
+
+            using var world = CreateWorld();
+            var e = BrainUnitWithOnlyTheSmallestTier(world);
+            Assert.Equal(1, Tiers(world, e));
+            OccurrenceStoreAccess.EnsureStandardLadder(world);               // what BrainPhase.Prepare runs, serially
+            Assert.Equal(3, Tiers(world, e));                                 // 256 + 1024 + 4096
+            ParallelEntities.Run(world, new[] { e }, 1, new AttachJob { Repo = world });
+            Assert.Equal(7, UnitMemory.Ref<Mid3K>(world, e).B[0]);
+        }
+        finally { ParallelEntities.Enabled = was; }
+    }
+
+    /// <summary>⭐ <c>CE-3467</c> — the pre-pass is 0 bytes on a steady frame (a cached query and a mask read per unit; no LINQ).</summary>
+    [Fact]
+    public void CE3467_TheStandardLadderPrePass_AllocatesNothingOnASteadyFrame()
+    {
+        using var world = CreateWorld();
+        for (int i = 0; i < 50; i++) BrainUnitWithOnlyTheSmallestTier(world);
+        OccurrenceStoreAccess.EnsureStandardLadder(world);                   // the first frame adds the blocks
+        OccurrenceStoreAccess.EnsureStandardLadder(world);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int f = 0; f < 20; f++) OccurrenceStoreAccess.EnsureStandardLadder(world);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
     }
 }

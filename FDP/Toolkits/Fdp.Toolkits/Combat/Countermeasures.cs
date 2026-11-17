@@ -46,6 +46,17 @@ namespace Fdp.Toolkit.Combat
             return t.GetDescriptor<ExpendableDto>() ?? new ExpendableDto();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4649</c> (bows BW-9, R-3100) — is the munition type <paramref name="ammoGuid"/> SILENT: its <see cref="WarheadDto.Silent"/> says its shot makes no
+        /// report (an arrow, a crossbow bolt). The ONE check every <c>WeaponFireNotification</c> reader that hears or draws a GUN makes, beside
+        /// <see cref="IsExpendable(ITkbDatabase?, long)"/> and <c>PersonHands.Threw</c>. Per MUNITION: a man with a bow AND a rifle is loud with the rifle.
+        /// </summary>
+        public static bool IsSilent(ITkbDatabase? tkb, long ammoGuid)
+            => ammoGuid != 0 && tkb != null && tkb.TryGetByType(ammoGuid, out var t) && t != null && t.GetDescriptor<WarheadDto>() is { Silent: true };
+
+        /// <inheritdoc cref="IsSilent(ITkbDatabase?, long)"/>
+        public static bool IsSilent(EntityRepository world, long ammoGuid) => IsSilent(DbOf(world), ammoGuid);
+
         internal static ITkbDatabase? DbOf(EntityRepository? world)
             => world != null && world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
     }

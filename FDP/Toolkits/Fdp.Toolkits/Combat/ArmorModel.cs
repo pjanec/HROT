@@ -301,6 +301,15 @@ namespace Fdp.Toolkit.Combat
             return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<HandItemDto>() : null;
         }
 
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-4, BW-5) — the <see cref="MunitionVisualDto"/> of munition type <paramref name="ammo"/> from the TKB (its length,
+        /// whether it <see cref="MunitionVisualDto.Sticks"/>): null for none, an unknown type or no TKB.</summary>
+        public static MunitionVisualDto? VisualOf(EntityRepository world, long ammo)
+        {
+            if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;
+            var db = world.GetSingletonManaged<ITkbDatabase>();
+            return db != null && db.TryGetByType(ammo, out var t) && t != null ? t.GetDescriptor<MunitionVisualDto>() : null;
+        }
+
         public static MissileDto? MissileOf(EntityRepository world, long ammo)
         {
             if (ammo == 0 || world == null || !world.HasSingletonManaged<ITkbDatabase>()) return null;

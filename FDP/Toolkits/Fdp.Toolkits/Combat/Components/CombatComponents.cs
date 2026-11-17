@@ -200,6 +200,9 @@ namespace Fdp.Toolkit.Combat.Components
         /// go — it lies <see cref="Landed"/> + <see cref="Lingers"/> and VENTS its cloud for its burn (<c>BallisticProjectile.BurnSeconds</c>,
         /// counted down in <c>FuzeRemaining</c>); a hand may pick it up and throw it back.</summary>
         public const byte Vents = 64;
+        /// <summary>⭐ <c>CE-4649</c> (bows BW-4) — a round whose look <see cref="Fdp.Toolkit.Tkb.Domain.MunitionVisualDto.Sticks"/>: where it STOPS on the terrain it
+        /// keeps its pose (rotation = the flight, a third of its length in) and lies as a hand item. Set at firing.</summary>
+        public const byte Sticks = 128;
 
         /// <summary>
         /// ⭐ The ONE derivation of a fired round's bits from its warhead (<c>FireProcessingSystem</c>). ⭐⭐ <c>CE-3239</c> — a CLOUD warhead

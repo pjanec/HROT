@@ -292,6 +292,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     [Fact]
     public void S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences()
     {
+        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         var (run, midKeys, leafKey) = AssignChain(h => h.Parallel(0, p => p
             .Subtree(MidName, visualId: SiteA)
             .Subtree(MidName, visualId: SiteB)));
@@ -315,6 +316,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     [Fact]
     public void S5b_ResettingAChild_ResetsItsGrandchildToo()
     {
+        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         var (run, midKeys, leafKey) = AssignChain(h => h.Sequence(seq => seq.Subtree(MidName, visualId: SiteA)));
         using var _ = run.World;
 
@@ -354,6 +356,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     [Fact]
     public void S5b_AStatefulChildAtTwoSites_KeepsTwoWorkingStates()
     {
+        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         using var world = TestWorldFactory.Create();
         BlueprintTierTable.RegisterAll(world);
         var beh = new BehaviorRegistry();
@@ -736,6 +739,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     [Fact]
     public void CE3163_AFluentHsm_HostedAtTwoSites_KeepsTwoWorkingStates()
     {
+        using var _ladder = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.SuspendStandardLadder();   // ⭐ CE-3467 — this fixture pins a single-block layout
         using var world = TestWorldFactory.Create();
         BlueprintTierTable.RegisterAll(world);
         var beh = new BehaviorRegistry();

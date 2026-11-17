@@ -126,6 +126,41 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(0f, w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> (bows BW-9, R-3100) — an ARROW's shot (a munition whose warhead says <c>Silent</c>) is SILENT to the AI: no timer, no emission in the ring — while the SAME man's
+        /// rifle shot, fired next, is heard as ever (the flag is per MUNITION). 🔴 Red-proof: the <c>IsSilent</c> skip removed ⇒ the arrow is heard ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4649_AnArrowsShot_IsSilent_TheSameMansRifleShotIsStillHeard()
+        {
+            const long Arrow = 9066, Rifle = 9001;
+            var (w, e) = World();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var arrow = new Fdp.Interfaces.TkbTemplate("arrow", Arrow);
+            arrow.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Kinetic, Indirect = true, Silent = true });
+            db.Register(arrow);
+            var rifle = new Fdp.Interfaces.TkbTemplate("ball", Rifle);
+            rifle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Kinetic });
+            db.Register(rifle);
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var s = new SoundEmissionSystem();
+            var ring = SoundEmissionRing.Of(w);
+
+            w.Bus.Publish(new WeaponFireNotification { Shooter = e, AmmoGuid = Arrow });
+            w.Bus.SwapBuffers();
+            Step(w, s);
+            Assert.Equal(0f, w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft);
+            Assert.Equal(0, ring.Places);                                        // no shot sound for the AI's ring
+            Assert.True(Fdp.Toolkit.Combat.Munitions.IsSilent(w, Arrow));
+            Assert.False(Fdp.Toolkit.Combat.Munitions.IsSilent(w, Rifle));
+
+            w.Bus.Publish(new WeaponFireNotification { Shooter = e, AmmoGuid = Rifle });
+            w.Bus.SwapBuffers();
+            Step(w, s);
+            Assert.True(w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft > 0f);   // the rifle from the same man is loud
+            Assert.Equal(1, ring.Places);
+        }
+
         /// <summary>⭐ Q94 A-2 (R-3018) — a shot the muscle REFUSED never flew: nobody hears it. ✅ Red-proof: the <c>Fired</c> skip removed ⇒
         /// the refused shot is heard ⇒ red.</summary>
         [Fact]
