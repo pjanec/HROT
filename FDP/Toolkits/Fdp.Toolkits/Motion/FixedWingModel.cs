@@ -87,14 +87,39 @@ namespace Fdp.Toolkit.Motion
                 Track(ref f, ref pilot, 1f, dt);
                 return;
             }
-            // ⭐ AC-4 — a point: the floor from the point's height above its ground
+            // ⭐ AC-4 — a point: the floor from the point's height above its ground; a point ON the ground (an attack's aim point, a gun
+            //   run's target) leaves the minimum floor — measured: the 150 m default stopped ua-air-attack's A-10 gun run (the column lead lived)
             float pointAgl = intent.FinalDestination.Z - f.Ground(intent.FinalDestination.X, intent.FinalDestination.Y);
-            if (GcasHolds(ref f, in p, ref pilot, Gcas.FloorFor(pointAgl), dt)) return;
+            float pointFloor = pointAgl > Gcas.MinFloorM ? Gcas.FloorFor(pointAgl) : Gcas.MinFloorM;
+            // ⭐ R-10010 — the point order is KINEMATIC: it levels at its height by itself. GCAS watches only an order whose own flight meets the
+            //   ground (measured: a 50 m gun run, descending onto its height, tripped the recovery prediction and its rounds missed)
+            if ((pilot.GcasActive != 0 || !PointOrderSafe(in f, in intent, in p, pointFloor)) && GcasHolds(ref f, in p, ref pilot, pointFloor, dt)) return;
             ToPoint(ref f, in intent, in p, dt);
             Track(ref f, ref pilot, 1f, dt);
         }
 
         // ── ⭐⭐ CE-10001 — air combat (mode 8) and GCAS ─────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ R-10010 — does the point order's OWN flight (on along its heading at its speed, its height moving to the point's at the climb
+        /// rate — the kinematics <see cref="ToPoint"/> flies) stay above <paramref name="floor"/> for <see cref="Gcas.HorizonS"/>? Allocation-free.
+        /// </summary>
+        private static bool PointOrderSafe(in MotionFrame f, in NavigationIntent intent, in FlightParams p, float floor)
+        {
+            var pos = f.Transform.Position;
+            var hv = new Vector2(f.Velocity.Linear.X, f.Velocity.Linear.Y);
+            float v = hv.Length();
+            if (v < 1f) return true;
+            hv /= v;
+            float z = pos.Z, step = 0.25f;
+            for (float t = step; t <= Gcas.HorizonS; t += step)
+            {
+                z += Math.Clamp(intent.FinalDestination.Z - z, -p.ClimbMps * step, p.ClimbMps * step);
+                float x = pos.X + hv.X * v * t, y = pos.Y + hv.Y * v * t;
+                if (z - f.Ground(x, y) < floor) return false;
+            }
+            return true;
+        }
 
         /// <summary>A plane rejoining its route after GCAS is back on it within this (m); it aims this far ahead of the nearest path point.</summary>
         public const float RejoinM = 30f, RejoinLeadM = 1000f;
