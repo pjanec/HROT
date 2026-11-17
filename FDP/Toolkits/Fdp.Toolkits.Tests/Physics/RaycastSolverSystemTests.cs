@@ -117,6 +117,23 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(entity, hit.HitEntity);
         }
 
+        /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a BIRD-sized body (radius 0.15, height 0.15) flying at 25 m: a round through its body band hits it, one 0.3 m above or 0.3 m to the side passes — the height
+        /// band follows the bird's z (feet = its position), so shooting at 25 m is not special. ✅ Red-proof: the 2.5 m fallback radius ⇒ the side round hits ⇒ red.</summary>
+        [Fact]
+        public void CE4649_ARoundThroughAFlyingBirdsBody_HitsIt_BesideOrAboveItDoesNot()
+        {
+            var bird = SpawnCollider(new Vector2(40f, 0f), radius: 0.15f, layer: 1);
+            _world.GetComponentRW<PhysicsCollider>(bird).Height = 0.15f;
+            _world.GetComponentRW<SimTransform>(bird).Position = new Vector3(40f, 0f, 25f);
+            RaycastHit Ray(float y, float z, int id) => RunSolver(new RaycastRequestEvent
+            {
+                Start = new Vector3(0f, y, z), End = new Vector3(80f, y, z), RayId = PhysicsConstants.PackBulletRayId(id), LayerMask = 1,
+            });
+            Assert.Equal(bird, Ray(0.05f, 25.07f, 61).HitEntity);
+            Assert.Equal(0, Ray(0.3f, 25.07f, 62).HasHit);   // beside
+            Assert.Equal(0, Ray(0.05f, 25.4f, 63).HasHit);   // over
+        }
+
         /// <summary>A PERSON (a pedestrian-class unit) in <paramref name="stance"/>, standing on the ground at (10, 0).</summary>
         private Entity SpawnPerson(Hrot.MuscleCharacter.Animation.Components.StanceIntent? stance)
         {

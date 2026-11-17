@@ -92,6 +92,9 @@ namespace Fdp.Toolkit.World
         /// panels answers <see cref="SurfaceZ"/>.</summary>
         float HullSurfaceZ(float x, float y, float zHint) => SurfaceZ(x, y, zHint);
 
+        /// <summary>⭐ <c>CE-4649</c> part D (AN-21a/c) — the trees per hectare at (x, y) (<c>TerrainWoods</c>, 25 m cells); 0 outside every wood and for a world with none. Allocation-free.</summary>
+        float WoodDensityAt(float x, float y) => 0f;
+
         /// <summary>The walkable surfaces stacked at (x, y), lowest first; <paramref name="groundIndex"/> is the ground's entry.</summary>
         IReadOnlyList<float> SurfacesAt(float x, float y, out int groundIndex);
 

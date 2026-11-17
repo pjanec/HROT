@@ -37,6 +37,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CalmBelow = 0.1f;
         /// <summary>A frightened animal moves this far off (m).</summary>
         public const float MoveOffMetres = 15f;
+        /// <summary>⭐ CE-4649 part C ② — a frightened bird flies this far off (m): beyond <c>BirdFlightModel.DescendWithinM</c>, so it climbs to its cruise height.</summary>
+        public const float BirdTakeOffMetres = 90f;
         /// <summary>A lone animal grazes this far round where it was placed (m).</summary>
         public const float LoneGrazeMetres = 15f;
         /// <summary>A herd member stands this far round its herd's spot, plus up to <see cref="LooseSpreadMetres"/> × (1 − cohesion).</summary>
@@ -55,6 +57,8 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Fearless;
             /// <summary>⭐ AB-5 — guards its ground (the dog); a bird (a flock or a lone bird: perches, flies off).</summary>
             public byte Territorial, Bird;
+            /// <summary>⭐ CE-4649 part D — the flee style (1 = zigzag), freezes before it bolts (AN-21b), and the hunting-dog play (AN-21f).</summary>
+            public byte Zigzag, Freezes, Ranges;
             /// <summary>⭐ AB-8 — its mean interval between calls at rest (s); 0 = silent.</summary>
             public SimDuration CallInterval;
         }
@@ -66,6 +70,9 @@ namespace Hrot.AI.Behaviors.Brains
             public int Legs;
             /// <summary>⭐ AB-8 — the last call number it made (the closed-form schedule's k), −1 none.</summary>
             public long LastCall;
+            /// <summary>⭐ CE-4649 part D (AN-21f) — the hunting dog's play: 0 ranging · 1 chasing a flushed animal · 2 coming back; when the chase ends; which side the next sweep runs.</summary>
+            public byte Phase, Side;
+            public SimInstant ChaseUntil;
             public SimInstant PauseUntil;
             public Vector3 Target, Origin;
         }
@@ -76,6 +83,10 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Moving, Arrived;
             public SimInstant Since;
             public Vector3 Target;
+            /// <summary>⭐ CE-4649 part D (AN-21c) — the zigzag chain: legs run, the side of the last jink, the metres run, the bent line of the run.</summary>
+            public byte Legs, Side;
+            public float Run;
+            public Vector3 Base;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -119,8 +130,9 @@ namespace Hrot.AI.Behaviors.Brains
                     Cohesion = t?.HerdCohesion ?? 0f,
                     Fearless = (byte)(t is { Fearless: true } ? 1 : 0),
                     Territorial = (byte)(t is { Territorial: true } ? 1 : 0),
-                    Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird) ? 1 : 0),
+                    Bird = (byte)(t != null && (t.Species == (byte)AnimalSpecies.BirdFlock || t.Species == (byte)AnimalSpecies.Bird || t.Species == (byte)AnimalSpecies.Duck || t.Species == (byte)AnimalSpecies.DuckFlock) ? 1 : 0),
                     CallInterval = t?.CallInterval ?? SimDuration.Zero,
+                    Zigzag = (byte)(t is { FleeStyle: 1 } ? 1 : 0), Freezes = (byte)(t is { Freezes: true } ? 1 : 0), Ranges = (byte)(t is { Ranges: true } ? 1 : 0),
                 },
             };
         }
@@ -184,6 +196,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HasOrigin == 0) { ws.Origin = here; ws.HasOrigin = 1; ws.LastCall = -1; }
             CallAtRest(ref p, ref ws, self, world, now);   // ⭐ AB-8 — a moo, a baa, birdsong, on the closed-form schedule
             if (p.Bird != 0) { SetFlock(world, self, FlockMode.Perched); return NodeStatus.Running; }   // ⭐ AB-5 — a bird sits in its tree
+            if (p.Ranges != 0) return Range(ref p, ref ws, self, world, now, here);   // ⭐ CE-4649 part D (AN-21f) — the hunting dog does not graze: it works ahead of its handler
             if (ws.Walking != 0)
             {
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
@@ -197,6 +210,72 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Legs++;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.Walk, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
             else ws.PauseUntil = (SimInstant)(now + PauseMaxSeconds);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>The hunting dog sweeps this far ahead of its handler (m) and this far to either side; it chases a flushed animal this long (s) and this far (m), then comes back.</summary>
+        public const float RangeAheadMetres = 30f, RangeSideMetres = 25f, ChaseSeconds = 4f, ChaseMetres = 18f, RangeHandlerLeashMetres = 70f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4649</c> PART D (AN-21f) — the HUNTING DOG's play over the one brain (beside the guard dog): it RANGES AHEAD of its handler (<see cref="Fear.Handler"/>, the nearest hunter — the fear system's serial step) in
+        /// SWEEPS (a point <see cref="RangeAheadMetres"/> ahead and <see cref="RangeSideMetres"/> to a side, the side alternating); an animal it has FLUSHED (<see cref="Fear.Quarry"/>, in flight — the dog is a threat in the animal's
+        /// own fear) it chases a short way, BARKING, then comes back to its sweeps. ⛔ It never attacks a person: it is not <c>Territorial</c>, has no Bark/Attack state and nothing here targets a person.
+        /// </summary>
+        private static NodeStatus Range(ref AnimalParams p, ref GrazeState ws, Entity self, EntityRepository world, double now, Vector3 here)
+        {
+            var fear = FearOf(world, self);
+            var handler = fear.Handler;
+            if (ws.Phase == 1)
+            {
+                if (now >= (double)ws.ChaseUntil || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) { ws.Phase = 2; ws.Walking = 0; LocomotionMoveTo.Stop(world, self); }
+                else return NodeStatus.Running;
+            }
+            if (ws.Phase == 0 && !fear.Quarry.IsNull && Present(world, fear.Quarry))
+            {
+                var q = Here(world, fear.Quarry);
+                var d = q - here; d.Z = 0f;
+                float len = d.Length();
+                if (len > 3f && len <= RangeHandlerLeashMetres)
+                {
+                    var to = here + d / len * MathF.Min(len, ChaseMetres);
+                    Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.Bark, ChaseSeconds);   // ⭐ it gives voice as it goes
+                    if (LocomotionMoveTo.Issue(world, self, to, p.FleeSpeed, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander))
+                    {
+                        ws.Phase = 1; ws.ChaseUntil = (SimInstant)(now + ChaseSeconds); ws.Walking = 1;
+                        return NodeStatus.Running;
+                    }
+                }
+            }
+            if (ws.Phase == 2) ws.Phase = 0;   // back to its sweeps
+            if (ws.Walking != 0)
+            {
+                if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+                ws.Walking = 0;
+                ws.PauseUntil = (SimInstant)(now + 0.5);
+                return NodeStatus.Running;
+            }
+            if (now < ws.PauseUntil) return NodeStatus.Running;
+            // the next sweep: ahead of the handler (his heading), alternating sides; no handler ⇒ round where it stands
+            Vector3 centre = here, fwd = Vector3.UnitX;
+            if (!handler.IsNull && Present(world, handler))
+            {
+                centre = Here(world, handler);
+                var rot = world.GetComponentRO<SimTransform>(handler).Rotation;
+                fwd = Vector3.Transform(Vector3.UnitX, (Quaternion)rot); fwd.Z = 0f;
+                fwd = fwd.LengthSquared() > 1e-6f ? Vector3.Normalize(fwd) : Vector3.UnitX;
+            }
+            var left = new Vector3(-fwd.Y, fwd.X, 0f);
+            ws.Side = (byte)(ws.Side == 1 ? 2 : 1);
+            var rng = SimRng.FromSim((int)self.Index, 0x4630 + ws.Legs, (float)now);
+            ws.Legs++;
+            var target = centre + fwd * (RangeAheadMetres * (0.7f + 0.6f * rng.NextSingle())) + left * ((ws.Side == 1 ? 1f : -1f) * RangeSideMetres * (0.6f + 0.4f * rng.NextSingle()));
+            if (world.IsComponentTypeRegistered<AnimalHome>() && world.HasComponent<AnimalHome>(self))
+            {
+                var home = world.GetComponentRO<AnimalHome>(self);
+                if (home.Radius > 0f) target = KeepHome(world, self, target);
+            }
+            if (LocomotionMoveTo.Issue(world, self, target, p.Walk * 2f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
+            else ws.PauseUntil = (SimInstant)(now + 2.0);
             return NodeStatus.Running;
         }
 
@@ -221,6 +300,14 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiAction]
         public static NodeStatus Alert(ref AnimalParams p, ref FleeState ws, Entity self, EntityRepository world)
         {
+            // ⭐ CE-4649 part D (AN-21b) — a FREEZER crouches and stays still while the threat has not come inside its panic zone (the fear system panics it there): lower and harder to see
+            if (p.Freezes != 0)
+            {
+                SetMode(world, self, AnimalMode.Crouch);
+                SetStance(world, self, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched);
+                LocomotionMoveTo.Stop(world, self);
+                return NodeStatus.Running;
+            }
             SetMode(world, self, AnimalMode.Alert);
             if (ws.Moving != 0)
             {
@@ -231,7 +318,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Arrived != 0) return NodeStatus.Running;
             if (FearOf(world, self).Value < FrightenedAt) { LocomotionMoveTo.Stop(world, self); return NodeStatus.Running; }
             var here = Here(world, self);
-            ws.Target = here + Away(world, self, here) * MoveOffMetres;
+            // ⭐ CE-4649 part C ② (AN-20a) — a frightened BIRD takes off: the flight model cruises only while the point is farther than its descent distance, so a 15 m hop never left the ground
+            ws.Target = here + Away(world, self, here) * (p.Bird != 0 ? BirdTakeOffMetres : MoveOffMetres);
+            if (p.Bird != 0) SetFlock(world, self, FlockMode.Flying);
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.Walk * 1.6f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
             return NodeStatus.Running;
         }
@@ -240,6 +329,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Alert(ref AnimalParams p, ref FleeState ws, Entity self, EntityRepository world)
         {
             LocomotionMoveTo.Stop(world, self);
+            if (p.Freezes != 0) SetStance(world, self, Fdp.Toolkit.Tkb.Domain.StanceId.Standing);
             ws = default;
         }
 
@@ -253,6 +343,7 @@ namespace Hrot.AI.Behaviors.Brains
             double now = world.SimulationTime;
             var fear = FearOf(world, self);
             bool fresh = fear.LastFrightAt > (double)ws.Since && fear.Value >= PanicAt && ws.Arrived != 0;
+            if (p.Zigzag != 0) return FleeZigzag(ref p, ref ws, self, world, fresh, now);
             if (ws.Moving != 0)
             {
                 if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
@@ -270,6 +361,88 @@ namespace Hrot.AI.Behaviors.Brains
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.FleeSpeed, ArrivalMetres * 2f, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
             else ws.Arrived = 1;   // nothing to run with
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ CE-4649 part D (AN-21c) — the zigzag flee: a chain of short legs (0.6–1.2 s each), every one turned 30–50° off the run's line, the side alternating with a seeded chance of a double jink; the
+        /// line BENDS toward the nearest wood within reach and the run ends INSIDE it (after two legs), else when it has run its distance. Per-entity seeded, no allocation.</summary>
+        private static NodeStatus FleeZigzag(ref AnimalParams p, ref FleeState ws, Entity self, EntityRepository world, bool fresh, double now)
+        {
+            SetStance(world, self, Fdp.Toolkit.Tkb.Domain.StanceId.Standing);
+            if (ws.Moving != 0)
+            {
+                if (LocomotionMoveTo.Status(world, self) == NodeStatus.Running) return NodeStatus.Running;
+                ws.Moving = 0;
+            }
+            var here = Here(world, self);
+            var woods = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (ws.Legs > 0 && ws.Arrived == 0 && (ws.Run >= p.FleeMetres || (ws.Legs >= 2 && woods != null && woods.WoodDensityAt(here.X, here.Y) > 0f)))
+            {
+                ws.Arrived = 1;   // inside the wood, or it has run its distance
+                return NodeStatus.Running;
+            }
+            if (ws.Arrived != 0 && !fresh) return NodeStatus.Running;
+            if (ws.Arrived != 0 || ws.Legs == 0)   // a new run (the first, or a fresh fright after it stopped)
+            {
+                if ((double)ws.Since == 0) Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.AnimalAlarm, 2f);
+                ws.Since = (SimInstant)now; ws.Arrived = 0; ws.Legs = 0; ws.Run = 0f;
+                ws.Base = Away(world, self, here);
+            }
+            ws.Base = BendToWood(woods, here, ws.Base, p.FleeMetres);
+            ws.Target = ZigzagTarget(here, ws.Base, (int)self.Index, ws.Legs, now, p.FleeSpeed, ref ws.Side, out float length);
+            ws.Legs++; ws.Run += length;
+            if (LocomotionMoveTo.Issue(world, self, ws.Target, p.FleeSpeed, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
+            else ws.Arrived = 1;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>The jink angle range (rad) and the leg duration range (s) of the zigzag, and the chance that the next jink keeps the SAME side (a double jink).</summary>
+        public const float JinkMinRad = 30f * MathF.PI / 180f, JinkMaxRad = 50f * MathF.PI / 180f, LegMinSeconds = 0.6f, LegMaxSeconds = 1.2f, DoubleJinkChance = 0.25f;
+
+        /// <summary>⭐ The ONE leg of the zigzag: the point <paramref name="length"/> m on from <paramref name="here"/>, turned off <paramref name="baseDir"/> by a seeded 30–50° to <paramref name="side"/> (±1, alternating; a seeded chance keeps it).
+        /// Pure and allocation-free — a rail calls it directly.</summary>
+        public static Vector3 ZigzagTarget(Vector3 here, Vector3 baseDir, int entityIndex, int leg, double now, float speed, ref byte side, out float length)
+        {
+            var rng = SimRng.FromSim(entityIndex, 0x2163 + leg, (float)now);
+            float ang = JinkMinRad + (JinkMaxRad - JinkMinRad) * rng.NextSingle();
+            float dur = LegMinSeconds + (LegMaxSeconds - LegMinSeconds) * rng.NextSingle();
+            bool keep = leg > 0 && rng.NextSingle() < DoubleJinkChance;
+            side = (byte)(side == 0 ? (rng.NextSingle() < 0.5f ? 1 : 2) : keep ? side : (side == 1 ? 2 : 1));   // 1 = left, 2 = right
+            float a = side == 1 ? ang : -ang;
+            float c = MathF.Cos(a), s = MathF.Sin(a);
+            var d = new Vector3(baseDir.X * c - baseDir.Y * s, baseDir.X * s + baseDir.Y * c, 0f);
+            length = speed * dur;
+            return here + d * length;
+        }
+
+        /// <summary>⭐ The run's line bent toward the NEAREST wood within <paramref name="reach"/> (16 directions, stepping out in 12 m): 0.3 the old line + 0.7 toward the wood; unchanged when none is in reach or it is in the wood already.</summary>
+        public static Vector3 BendToWood(Fdp.Toolkit.World.IWorldQuery? woods, Vector3 here, Vector3 line, float reach)
+        {
+            if (woods == null || woods.WoodDensityAt(here.X, here.Y) > 0f) return line;
+            for (float r = 12f; r <= reach; r += 12f)
+            {
+                float bestScore = -2f; Vector3 best = default; bool found = false;
+                for (int i = 0; i < 16; i++)
+                {
+                    float a = i * (MathF.Tau / 16f);
+                    var d = new Vector3(MathF.Cos(a), MathF.Sin(a), 0f);
+                    if (woods.WoodDensityAt(here.X + d.X * r, here.Y + d.Y * r) <= 0f) continue;
+                    float score = Vector3.Dot(d, line);   // among the wood cells at this reach, the one most along the way it was running
+                    if (score > bestScore) { bestScore = score; best = d; found = true; }
+                }
+                if (!found) continue;
+                var bent = line * 0.3f + best * 0.7f;
+                float l = bent.Length();
+                return l > 1e-4f ? bent / l : best;
+            }
+            return line;
+        }
+
+        private static void SetStance(EntityRepository world, Entity self, Fdp.Toolkit.Tkb.Domain.StanceId stance)
+        {
+            if (!world.IsComponentTypeRegistered<Hrot.MuscleCharacter.Animation.Components.StanceIntent>() || !world.HasComponent<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(self)) return;
+            if (world.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(self).TargetStance == stance) return;
+            ref var si = ref world.GetComponentRW<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(self);
+            si.TargetStance = stance; si.Version++;
         }
 
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.AnimalBehavior.Flee")]
@@ -558,7 +731,21 @@ namespace Hrot.AI.Behaviors.Brains
                 var home = world.GetComponentRO<AnimalHome>(self);
                 if (home.Radius > 0f) { centre = home.Centre; radius = home.Radius; }
             }
-            return centre + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * radius * 0.85f);
+            var spot = centre + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * radius * 0.85f);
+            if (p.Zigzag == 0) return spot;
+            // ⭐ CE-4649 part D (AN-21a) — a wood dweller (the rabbit) nibbles at a WOOD EDGE or in the wood: a spot in or beside a wood cell (up to four tries, then the last)
+            var woods = Fdp.Toolkit.World.WorldQuery.Of(world);
+            for (int i = 0; i < 4 && woods != null && !NearWood(woods, spot); i++)
+            {
+                ang = rng.NextSingle() * MathF.Tau; u = MathF.Sqrt(rng.NextSingle());
+                spot = centre + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * radius * 0.85f);
+            }
+            return spot;
         }
+
+        /// <summary>A place in a wood cell or beside one (a wood's edge): the wood grid's 25 m cell, tried at the spot and one cell either way.</summary>
+        public static bool NearWood(Fdp.Toolkit.World.IWorldQuery woods, Vector3 at)
+            => woods.WoodDensityAt(at.X, at.Y) > 0f || woods.WoodDensityAt(at.X + 25f, at.Y) > 0f || woods.WoodDensityAt(at.X - 25f, at.Y) > 0f
+               || woods.WoodDensityAt(at.X, at.Y + 25f) > 0f || woods.WoodDensityAt(at.X, at.Y - 25f) > 0f;
     }
 }

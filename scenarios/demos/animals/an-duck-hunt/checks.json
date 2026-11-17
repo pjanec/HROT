@@ -1,0 +1,74 @@
+{
+  "$doc": "CE-4649 part C AN-20d - the duck hunt, one row per Judge line.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the hunter fires at the lone duck",
+      "on": "shot",
+      "by": "Hunter Lone"
+    },
+    {
+      "name": "the lone duck is dead",
+      "on": "field",
+      "who": "Lone duck",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "name": "the lone duck lies on the ground",
+      "on": "field",
+      "who": "Lone duck",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 0.5,
+      "atEnd": true
+    },
+    {
+      "name": "the hunter fires into the flock",
+      "on": "shot",
+      "by": "Hunter Flock"
+    },
+    {
+      "name": "the flock's count drops",
+      "on": "field",
+      "who": "Duck flock",
+      "path": "FlockState.Count",
+      "op": "<",
+      "value": 30
+    },
+    {
+      "name": "a dead duck lies where the flock was hit",
+      "on": "field",
+      "who": "Dead Duck",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 0,
+      "quantifier": "all"
+    },
+    {
+      "name": "it lies on the ground",
+      "on": "field",
+      "who": "Dead Duck",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 0.5,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "the flock flees",
+      "on": "field",
+      "who": "Duck flock",
+      "path": "FlockState.Mode",
+      "op": "==",
+      "value": "Flying"
+    }
+  ],
+  "later": [
+    "Dead Duck"
+  ]
+}

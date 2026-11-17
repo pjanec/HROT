@@ -77,6 +77,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
             f.Run = o.Run; f.Tally = o.Tally; f.Reports = o.Reports; f.ShownValue = o.ShownValue; f.ShownN = o.ShownN;
         }
 
+        [BehaviorStateKeeper(BehaviorNames.ArcheryScore)]
+        public static void KeepArcheryScore(ref ArcheryScoreBehavior.ArcheryScoreBlackboard fresh, in ArcheryScoreBehavior.ArcheryScoreBlackboard old)
+        {
+            ref var f = ref fresh.Block; ref readonly var o = ref old.Block;
+            f.Run = o.Run; f.Rings = o.Rings; f.Arrows = o.Arrows; f.ShownValue = o.ShownValue; f.ShownN = o.ShownN;
+        }
+
         [BehaviorStateKeeper(BehaviorNames.ReportLatency)]
         public static void KeepReportLatency(ref ReportLatencyBehavior.ReportLatencyBlackboard fresh, in ReportLatencyBehavior.ReportLatencyBlackboard old)
         {

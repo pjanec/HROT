@@ -244,7 +244,7 @@ namespace Fdp.Toolkit.Utility
                 // ⭐ CE-2233 (CIV-0) — nor is a NEUTRAL: a soldier who sees only a civilian takes no firing posture.
                 if (!TargetMemory.IsAnonymous(in mem, i) && ThreatFreshness.IsLive(ctx.Repo, ctx.Self, in mem, i)
                     && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))
-                    && !ThreatDanger.IsNeutral(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;
+                    && !ThreatDanger.IsNeutralFor(ctx.Repo, ctx.Self, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-4649 part D — game for a hunter is no neutral
             return 0f;
         }
 
@@ -275,7 +275,7 @@ namespace Fdp.Toolkit.Utility
                 for (int i = 0; i < mem.Count; i++)
                     if (mem.EntityIds[i] == tracks.EntityIds[t] && !TargetMemory.IsAnonymous(in mem, i)
                         && !ThreatDanger.IsOutOfTheFight(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))   // ⭐ CE-2120 — a corpse is no threat
-                        && !ThreatDanger.IsNeutral(ctx.Repo, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2233 — nor a neutral
+                        && !ThreatDanger.IsNeutralFor(ctx.Repo, ctx.Self, new Entity((ulong)mem.EntityIds[i]))) return 1f;   // ⭐ CE-2233 — nor a neutral (⭐ CE-4649 part D: but game is no neutral to a hunter)
             }
             return 0f;
         }

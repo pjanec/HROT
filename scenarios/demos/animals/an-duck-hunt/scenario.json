@@ -1,0 +1,122 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "farm",
+  "description": "What: CE-4649 part C (AN-20a/b/c/d; docs/designs/animals/DESIGN_Animals.md 4b) re-authored for part D (AN-21g) - on the farm terrain two HUNTERS (Friend, type 214: the 12-gauge only, a STANDING rule to engage ducks, never people - no order is given) stand 30 m west of a lone duck and of a duck flock (one entity drawn as 30 birds), each hovering 8 m up ('Hunter Lone' (100,100) / duck (130,100); 'Hunter Flock' (100,200) / flock (130,200)). Judge: (1) the lone duck's health is 0 and it lies on the ground (z near 0) (2) the flock's count drops by at least one (3) a dead duck lies where the flock was hit (4) the flock flees (it flies). Pellets, not rifle rounds. All points are inside 0-300 m. Check: scripts/scenario-regression.sh an-duck-hunt"
+ },
+ "entities": {
+  "4649c0d1-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     100,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 214
+   },
+   "EntityInfo": {
+    "Name": "Hunter Lone",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "4649c0d1-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     100,
+     200,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 214
+   },
+   "EntityInfo": {
+    "Name": "Hunter Flock",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "4649c0d1-0000-4000-8000-000000000020": {
+   "SimTransform": {
+    "Position": [
+     130,
+     100,
+     8
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 713
+   },
+   "EntityInfo": {
+    "Name": "Lone duck",
+    "ForceId": "Neutral"
+   }
+  },
+  "4649c0d1-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     130,
+     200,
+     8
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 714
+   },
+   "EntityInfo": {
+    "Name": "Duck flock",
+    "ForceId": "Neutral"
+   },
+   "FlockState": {
+    "Count": 30,
+    "InitialCount": 30,
+    "Seed": 714,
+    "Mode": "Perched"
+   }
+  }
+ }
+}
