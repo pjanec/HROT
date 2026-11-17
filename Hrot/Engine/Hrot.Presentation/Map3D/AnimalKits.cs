@@ -28,7 +28,9 @@ public static class AnimalReader
 }
 
 /// <summary>⭐ CE-4623 — the quadruped's gait by speed.</summary>
-public enum QuadGait : byte { Stand = 0, Walk, Trot, Canter, Gallop }
+public enum QuadGait : byte { Stand = 0, Walk, Trot, Canter, Gallop,
+    /// <summary>A rabbit's hop (appended): the fore pair together, then the hind pair together.</summary>
+    Hop }
 
 /// <summary>⭐ CE-4623 (AU-3, AR-13) — one species' gait: the speeds (m/s) where walk gives way to trot, trot to canter, canter to gallop, and the metres one full stride of each gait covers.</summary>
 public readonly record struct GaitBands(float WalkMax, float TrotMax, float CanterMax, float StrideWalk, float StrideTrot, float StrideCanter, float StrideGallop);
@@ -49,7 +51,7 @@ public static class QuadrupedGaits
     public const float HeadCounter = 0.45f;
 
     /// <summary>The swing amplitude (radians) of a stand, walk, trot, canter and gallop.</summary>
-    public static float Amplitude(QuadGait g) => g switch { QuadGait.Walk => 0.40f, QuadGait.Trot => 0.55f, QuadGait.Canter => 0.70f, QuadGait.Gallop => 0.95f, _ => 0f };
+    public static float Amplitude(QuadGait g) => g switch { QuadGait.Walk => 0.40f, QuadGait.Trot => 0.55f, QuadGait.Canter => 0.70f, QuadGait.Gallop => 0.95f, QuadGait.Hop => 0.85f, _ => 0f };
 
     /// <summary>The species' gait bands.</summary>
     public static GaitBands BandsOf(VisualFamily f) => f switch
@@ -61,6 +63,7 @@ public static class QuadrupedGaits
         VisualFamily.Pig => new(1.5f, 3.2f, 5.0f, 0.8f, 1.4f, 1.9f, 2.6f),
         VisualFamily.Dog => new(1.8f, 3.8f, 6.0f, 0.9f, 1.6f, 2.2f, 3.0f),
         VisualFamily.Cat => new(1.3f, 3.0f, 5.0f, 0.5f, 0.9f, 1.2f, 1.8f),
+        VisualFamily.Rabbit => new(0.8f, 3.0f, 6.0f, 0.25f, 0.5f, 0.5f, 0.5f),   // walks to 0.8 m/s, then hops (MotionTracker turns every faster gait into Hop): ~0.5 m a hop
         _ => new(1.5f, 3.5f, 5.5f, 1.0f, 1.8f, 2.4f, 3.4f),
     };
 
@@ -82,6 +85,8 @@ public static class QuadrupedGaits
         QuadGait.Canter => leg switch { 0 => 0.66f, 1 => 0.33f, 2 => 0.33f, _ => 0f },
         // gallop: the hind pair, then the fore pair — a pair each, the second of each a hair behind the first
         QuadGait.Gallop => leg switch { 0 => 0.62f, 1 => 0.50f, 2 => 0f, _ => 0.12f },
+        // hop: the fore pair together, the hind pair together a little behind (a bound)
+        QuadGait.Hop => leg < 2 ? 0f : 0.15f,
         _ => 0f,
     };
 
@@ -104,6 +109,7 @@ public static class AnimalCoats
     private static readonly Color[] Horse = [new(130, 82, 48, 255), new(150, 86, 44, 255), new(48, 44, 42, 255), new(160, 160, 158, 255), new(200, 164, 102, 255)];
     private static readonly Color[] Dog = [new(176, 128, 76, 255), new(52, 48, 46, 255), new(120, 84, 56, 255), new(204, 194, 170, 255)];
     private static readonly Color[] Cat = [new(200, 130, 60, 255), new(130, 130, 134, 255), new(40, 40, 44, 255), new(222, 220, 214, 255)];
+    private static readonly Color[] Rabbit = [new(130, 114, 96, 255), new(120, 84, 56, 255), new(190, 160, 112, 255)];   // grey-brown, brown, sandy
     private static readonly Color[] Pig = [new(226, 170, 160, 255), new(214, 156, 148, 255), new(150, 112, 102, 255)];
     private static readonly Color[] Goat = [new(226, 222, 212, 255), new(140, 104, 72, 255), new(150, 148, 144, 255)];
     private static readonly Color[] Hen = [new(150, 90, 52, 255), new(226, 222, 212, 255), new(60, 52, 48, 255), new(176, 120, 64, 255)];
@@ -113,7 +119,7 @@ public static class AnimalCoats
     public static Color[] Palette(VisualFamily f) => f switch
     {
         VisualFamily.Cattle => Cattle, VisualFamily.Sheep => Sheep, VisualFamily.Horse => Horse, VisualFamily.Dog => Dog, VisualFamily.Cat => Cat,
-        VisualFamily.Pig => Pig, VisualFamily.Goat => Goat, VisualFamily.Poultry => Hen, _ => Bird,
+        VisualFamily.Pig => Pig, VisualFamily.Goat => Goat, VisualFamily.Rabbit => Rabbit, VisualFamily.Poultry => Hen, _ => Bird,
     };
 
     /// <summary>The coat of an animal of <paramref name="f"/> with <paramref name="seed"/>.</summary>
@@ -180,7 +186,7 @@ internal readonly record struct QuadSpec(
     float LegT, float FrontX, float HindX, float LegY, float HoofH,
     float TailL, float TailDeg, ColourRole TailCol,
     ColourRole TorsoCol = ColourRole.Body, ColourRole HeadCol = ColourRole.Body, ColourRole LegCol = ColourRole.Body,
-    HornKind Horns = HornKind.None, bool Udder = false, bool Mane = false, bool Beard = false, bool FloppyEars = false, bool UprightEars = false, bool CurlyTail = false);
+    HornKind Horns = HornKind.None, bool Udder = false, bool Mane = false, bool Beard = false, bool FloppyEars = false, bool UprightEars = false, bool CurlyTail = false, bool Rabbit = false);
 
 /// <summary>⭐ CE-4623 (AU-2) — the animals' shape kits and their sizes: <see cref="For"/> / <see cref="SizeOf"/> by family; the lying quadrupeds, the perched bird, the hen.</summary>
 public static class AnimalKits
@@ -201,10 +207,14 @@ public static class AnimalKits
     internal static readonly QuadSpec GoatSpec = new(-0.45f, 0.32f, 0.32f, 0.45f, 0.38f, 45f, 0.30f, 0.14f, 0.16f, 35f, 0.24f, 0.12f, 0.16f, 0.06f, 0.09f, ColourRole.Dark,
                                                      0.06f, 0.22f, -0.30f, 0.12f, 0.05f, 0.12f, 150f, ColourRole.Body, Horns: HornKind.Back, Beard: true, LegCol: ColourRole.Dark, UprightEars: true);
 
+    // ⭐ AN-21e — the rabbit: ~0.40 m long, ~0.15 m wide, ~0.3 m tall to the ear tips; a round body, the haunches higher, big hind legs, long upright ears, a white puff of a tail (docs/designs/animals/DESIGN_Animals.md §4c)
+    internal static readonly QuadSpec RabbitSpec = new(-0.15f, 0.12f, 0.14f, 0.07f, 0.14f, 40f, 0.05f, 0.08f, 0.09f, 20f, 0.08f, 0.08f, 0.08f, 0.03f, 0.05f, ColourRole.Light,
+                                                       0.03f, 0.09f, -0.11f, 0.05f, 0.012f, 0.02f, 110f, ColourRole.Bone, LegCol: ColourRole.Body, Rabbit: true);
+
     internal static QuadSpec SpecOf(VisualFamily f) => f switch
     {
         VisualFamily.Cattle => CattleSpec, VisualFamily.Horse => HorseSpec, VisualFamily.Sheep => SheepSpec, VisualFamily.Dog => DogSpec,
-        VisualFamily.Cat => CatSpec, VisualFamily.Pig => PigSpec, _ => GoatSpec,
+        VisualFamily.Cat => CatSpec, VisualFamily.Pig => PigSpec, VisualFamily.Rabbit => RabbitSpec, _ => GoatSpec,
     };
 
     /// <summary>The withers (the point the neck pitches about) of a spec, in metres.</summary>
@@ -237,7 +247,13 @@ public static class AnimalKits
         var ears = n + h * (s.HeadL * 0.12f) + new Vector3(0f, 0f, s.HeadH * 0.35f);
         foreach (float sy in new[] { 1f, -1f })
         {
-            if (s.UprightEars) k.Add(ears.X, sy * (s.HeadW / 2f - 0.02f), ears.Z + 0.05f, 0.035f, 0.04f, 0.10f, s.HeadCol, role: skull, pivot: w, pivot2: n);
+            if (s.Rabbit)
+            {
+                // two LONG ears (~0.10 m): upright, leaning a little back; laid back along the neck when the rabbit lies / crouches
+                if (lying) k.Add(ears.X - 0.05f, sy * 0.03f, ears.Z + 0.015f, 0.03f, 0.035f, 0.10f, s.HeadCol, pitch: -80f, role: skull, pivot: w, pivot2: n);
+                else k.Add(ears.X - 0.01f, sy * 0.03f, ears.Z + 0.045f, 0.03f, 0.035f, 0.095f, s.HeadCol, pitch: -10f, role: skull, pivot: w, pivot2: n);
+            }
+            else if (s.UprightEars) k.Add(ears.X, sy * (s.HeadW / 2f - 0.02f), ears.Z + 0.05f, 0.035f, 0.04f, 0.10f, s.HeadCol, role: skull, pivot: w, pivot2: n);
             else if (s.FloppyEars) k.Add(ears.X - 0.02f, sy * (s.HeadW / 2f + 0.05f), ears.Z, 0.10f, 0.07f, 0.035f, s.HeadCol == ColourRole.Dark ? ColourRole.Dark : ColourRole.Body, pitch: 25f, role: skull, pivot: w, pivot2: n);
             if (s.Horns == HornKind.Short) k.Add(ears.X + 0.02f, sy * (s.HeadW / 2f - 0.01f), ears.Z + 0.08f, 0.04f, 0.04f, 0.14f, ColourRole.Bone, role: skull, pivot: w, pivot2: n);
             else if (s.Horns == HornKind.Back) k.Add(ears.X - 0.04f, sy * (s.HeadW / 2f - 0.02f), ears.Z + 0.09f, 0.035f, 0.035f, 0.20f, ColourRole.Bone, pitch: -40f, role: skull, pivot: w, pivot2: n);
@@ -252,7 +268,8 @@ public static class AnimalKits
             if (lying)
             {
                 // folded under the animal: a short thigh-and-shin lying along its flank, no swing
-                k.Add(xs[i] + (i < 2 ? 0.12f : -0.02f), ys[i] * 0.85f, s.LegT * 0.5f, 0.34f, s.LegT, s.LegT, s.LegCol);
+                float ll = s.Rabbit ? 0.13f : 0.34f;
+                k.Add(xs[i] + (i < 2 ? ll * 0.35f : -ll * 0.06f), ys[i] * 0.85f, s.LegT * 0.5f, ll, s.LegT, s.LegT, s.LegCol);
                 continue;
             }
             var role = (PartRole)((int)PartRole.QuadFrontLeft + i);
@@ -267,6 +284,11 @@ public static class AnimalKits
         var td = new Vector3(-MathF.Sin(th), 0f, -MathF.Cos(th));
         var tc = root + td * s.TailL / 2f;
         k.Add(tc.X, 0f, tc.Z, 0.05f, 0.05f, s.TailL, s.TailCol, pitch: s.TailDeg);
+        if (s.Rabbit)
+        {
+            k.Add(s.X0 - 0.015f, 0f, s.Z0 + s.BodyH * 0.72f, 0.065f, 0.06f, 0.06f, ColourRole.Bone);   // the white puff of a tail
+            k.Add(s.HindX + 0.02f, 0f, s.Z0 + s.BodyH * 0.62f, 0.16f, 0.16f, 0.17f, s.TorsoCol);          // the haunch: big hind quarters, higher than the back
+        }
         if (s.CurlyTail) k.Add(root.X - 0.07f, 0f, root.Z + 0.08f, 0.07f, 0.05f, 0.05f, s.TailCol);
         if (s.Udder && !lying) k.Add(s.X0 + 0.55f, 0f, s.Z0 - 0.03f, 0.30f, 0.22f, 0.12f, ColourRole.Skin);
         return k.Build(out size, out shiftX, 0f, sizeOverride, shiftOverride, originAhead);
@@ -331,7 +353,7 @@ public static class AnimalKits
 
     static AnimalKits()
     {
-        foreach (var f in new[] { VisualFamily.Cattle, VisualFamily.Sheep, VisualFamily.Horse, VisualFamily.Dog, VisualFamily.Cat, VisualFamily.Pig, VisualFamily.Goat })
+        foreach (var f in new[] { VisualFamily.Cattle, VisualFamily.Sheep, VisualFamily.Horse, VisualFamily.Dog, VisualFamily.Cat, VisualFamily.Pig, VisualFamily.Goat, VisualFamily.Rabbit })
         {
             var spec = SpecOf(f);
             var standing = BuildQuad(spec, false, out var size, out var shift, originAhead: OriginAhead(f));   // the box is the STANDING animal's, measured from its parts — never typed
@@ -354,7 +376,7 @@ public static class AnimalKits
     /// <summary>The kit of <paramref name="f"/> in <paramref name="mode"/>: a resting quadruped lies down, a landed or perched bird folds its wings.</summary>
     public static ShapeKit For(VisualFamily f, AnimalMode mode, bool perched = false)
         => f == VisualFamily.Bird ? (perched ? _perched.Kit : _flying.Kit)
-         : mode == AnimalMode.Rest && VisualFamilies.IsQuadruped(f) ? _quads[f].Lying
+         : (mode == AnimalMode.Rest || mode == AnimalMode.Crouch && f == VisualFamily.Rabbit) && VisualFamilies.IsQuadruped(f) ? _quads[f].Lying   // a rabbit freezes CROUCHED (AN-21b): the low kit, ears laid back
          : For(f);
 
     /// <summary>The kit's own box (m) — what the TKB's size replaces when it states one.</summary>

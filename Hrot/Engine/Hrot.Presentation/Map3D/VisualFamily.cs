@@ -72,6 +72,9 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-4647 (docs/designs/air-attack/DESIGN_Air_Combat.md §4d, AC-15) — a twin-engine fighter (class <c>TwinEngineFighter</c>, the MiG-29, type 409, DIS <c>1.2.*.1.&lt;sub&gt;</c>): two canted fins,
     /// two nozzles, intakes under the wings. More specific than <c>Fighter</c>/<c>Jet</c>, so the MiG is not an F-16. ⛔ Appended (a byte value others may store).</summary>
     TwinEngineJet,
+    /// <summary>⭐ CE-4649 part D (docs/designs/animals/DESIGN_Animals.md §4c, AN-21e) — a rabbit (class <c>Rabbit</c>, DIS <c>3.1.*.209</c>, TKB 715): a small hopping quadruped with long upright ears and a white tail.
+    /// ⛔ Appended (a byte value others may store), AFTER <see cref="TwinEngineJet"/> — so it is NOT inside the <c>Cattle..Goat</c> range: <see cref="VisualFamilies.IsAnimal"/> names it.</summary>
+    Rabbit,
 }
 
 /// <summary>
@@ -116,7 +119,7 @@ public static class VisualFamilies
         ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
         // ⭐ CE-4623 (AU-2, AR-19) — the animals: each class is more specific than `Person` (Kind 3), so a cow is never drawn as a man (rail)
         ["Cattle"] = VisualFamily.Cattle, ["Sheep"] = VisualFamily.Sheep, ["Horse"] = VisualFamily.Horse, ["Dog"] = VisualFamily.Dog, ["Cat"] = VisualFamily.Cat,
-        ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat,
+        ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat, ["Rabbit"] = VisualFamily.Rabbit,
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>
@@ -133,11 +136,11 @@ public static class VisualFamilies
     }
 
     /// <summary>⭐ CE-4623 (DESIGN_Animals §4a, AR-19) — true for the nine animal families: they take the animal kits and gaits, never the man's, and never burn.</summary>
-    public static bool IsAnimal(VisualFamily f) => f >= VisualFamily.Cattle && f <= VisualFamily.Goat;
+    public static bool IsAnimal(VisualFamily f) => (f >= VisualFamily.Cattle && f <= VisualFamily.Goat) || f == VisualFamily.Rabbit;
 
     /// <summary>⭐ CE-4623 — the four-legged families (<see cref="PartRole.QuadFrontLeft"/> …): everything animal but the birds.</summary>
     public static bool IsQuadruped(VisualFamily f) => f is VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat
-                                                          or VisualFamily.Pig or VisualFamily.Goat;
+                                                          or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit;
 
     /// <summary>The family of a DIS type, from its class chain (<see cref="VisualFamily.Unknown"/> when no class decides one).</summary>
     public static VisualFamily Of(DISEntityType dis)
@@ -158,7 +161,7 @@ public static class VisualFamilies
         VisualFamily.MineClearer => "_tank",   // ⭐ CE-4624 — a tracked body on the 2-D picker; its own glyph (assets/icons/_mineclearer, the mockup's) is a follow-up asset
         VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
         VisualFamily.Cattle => "_cattle", VisualFamily.Sheep => "_sheep", VisualFamily.Horse => "_horse", VisualFamily.Dog => "_dog", VisualFamily.Cat => "_cat",
-        VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat",   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)
+        VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat", VisualFamily.Rabbit => "_cat",   /* no _rabbit glyph yet: the closest small animal */   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)
         VisualFamily.WheeledCar or VisualFamily.WheeledUtility or VisualFamily.AirDefenceVehicle => "_wheeled",   // ⭐ CE-4618 — a SAM truck is a wheeled body on the 2-D picker too
         _ => null,
     };

@@ -243,6 +243,7 @@ namespace Hrot.Core.Tkb
             yield return C("Poultry", "Poultry (HROT)", "3.1.*.206");
             yield return C("Pig", "Pig (HROT)", "3.1.*.207");
             yield return C("Goat", "Goat (HROT)", "3.1.*.208");
+            yield return C("Rabbit", "Rabbit (HROT)", "3.1.*.209");   // ⭐ the rabbit (TKB 715, AN-21e): without a class of its own it fell back to Person and was drawn as a child
             yield return C("Bird", "Bird (HROT)", "3.2.*.205");
 
             // ⭐ CE-2139 (C3, R-278) — UNITS, under their own Kind (UnitDis): Category = arm, Subcategory = echelon. The Kind's

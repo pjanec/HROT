@@ -793,6 +793,7 @@ public sealed class EntityTypeCatalogTests
         3.1.*.206 Poultry (HROT)
         3.1.*.207 Pig (HROT)
         3.1.*.208 Goat (HROT)
+        3.1.*.209 Rabbit (HROT)
         3.2 Air
         3.2.*.205 Bird (HROT)
         3.3 Surface

@@ -875,7 +875,7 @@ public static class ShapeKits
         VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
-            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat => AnimalKits.For(family),   // ⭐ CE-4623
+            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit => AnimalKits.For(family),   // ⭐ CE-4623
         VisualFamily.Unit => None,
         _ => Unknown,
     };
@@ -901,7 +901,7 @@ public static class ShapeKits
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
-            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat => AnimalKits.SizeOf(family),   // ⭐ CE-4623 — the kit's own metres (the TKB's own wins)
+            or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit => AnimalKits.SizeOf(family),   // ⭐ CE-4623 — the kit's own metres (the TKB's own wins)
         _ => new Vector3(2f, 2f, 2f),
     };
 }

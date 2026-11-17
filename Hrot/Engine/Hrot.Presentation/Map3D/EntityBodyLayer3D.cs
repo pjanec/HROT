@@ -338,7 +338,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             //   bonnet, the wings, the barrel are in view. ⛔ SUPERSEDED CE-1131 ("not drawn: the airframe filled the view" — the eye was
             //   a fixed height above the reference point, inside the hull). A kind with no crew eye is still not drawn.
             Vector3? crewEye = null;
-            if (e == FirstPerson && look.Family != VisualFamily.Person)
+            // ⭐ CE-1974 — an OPEN carrier (a horse, any animal) has no cab to look out of: its rider sits ON it in plain view, so
+            //   it is always drawn. 🔒 User, 2026-11-17: "When a soldier which is possessed gets on a horse, it is rendered as sitting on the
+            //   horse, but the horse is not rendered at all". ⛔ It was dropped: no glass, no turret ⇒ no crew eye ⇒ not drawn.
+            if (e == FirstPerson && look.Family != VisualFamily.Person && !OpenCarrier(look.Family))
             {
                 crewEye = CrewEye(look.Family, size);
                 if (crewEye == null) { _drawn.Add(e); continue; }
@@ -1744,6 +1747,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// helicopter, a transport); else a commander's eye above its TURRET's roof, a quarter of its width to the left. Null: no crew eye.
     /// Pure — the rail runs it over every kind.
     /// </summary>
+    /// <summary>⭐ <c>CE-1974</c> — a carrier its rider sits ON in the open (an animal): drawn even while it is the operator's own body. (The motorcycle has a windscreen, so it
+    /// already has a crew eye and is drawn.)</summary>
+    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family);
+
     public static Vector3? CrewEye(VisualFamily family, Vector3 size)
     {
         var kit = ShapeKits.For(family);
@@ -2312,7 +2319,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
-        >= VisualFamily.Cattle and <= VisualFamily.Goat => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
+        (>= VisualFamily.Cattle and <= VisualFamily.Goat) or VisualFamily.Rabbit => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
         _ => new Color(180, 120, 200, 255),
     };
 

@@ -163,13 +163,14 @@ public sealed class MotionTracker
                 st.Swing = swing; st.Lean = lean; st.Stride = stride; st.Moving = moving; st.HasGait = true;
                 break;
             }
-            case VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Pig or VisualFamily.Goat:
+            case VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit:
             {
                 // ⭐ CE-4623 (AU-3) — a quadruped: the speed (smoothed over 0.12 s) picks the gait, the distance walked advances ITS cycle (feet do not slide), each leg has its own phase
                 //   (QuadrupedGaits.LegAngle); a paused clock (dt 0) keeps the speed and the phase, freezing it mid-stride; a jump (height above the ground) tucks the legs
                 if (dt > 1e-4) st.AnimalSpeed += ((float)(planar / dt) - st.AnimalSpeed) * (1f - MathF.Exp(-(float)dt / 0.12f));
                 var bands = QuadrupedGaits.BandsOf(family);
                 gaitKind = QuadrupedGaits.Classify(st.AnimalSpeed, bands);
+                if (family == VisualFamily.Rabbit && gaitKind > QuadGait.Walk) gaitKind = QuadGait.Hop;   // a rabbit walks, then HOPS (fore pair together, hind pair together)
                 if (gaitKind != QuadGait.Stand) st.Gait = Wrap(st.Gait + planar / QuadrupedGaits.Stride(gaitKind, bands) * MathF.PI * 2f);
                 swing = QuadrupedGaits.Amplitude(gaitKind);
                 moving = Math.Clamp(st.AnimalSpeed / MovingSpeed, 0f, 1f);
