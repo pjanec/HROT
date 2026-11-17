@@ -103,6 +103,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Aggregate.RunSeed>();
         world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateChild>();     // ⭐ CE-8012 — a split's children (SV-4 / SV-6)
         world.RegisterComponent<Fdp.Toolkit.Aggregate.ResolutionPolicy>();   // ⭐ CE-8300 (ST-5, §16b) — the resolution manager's policy, on the World Environment (saved, recorded)
+        world.RegisterComponent<Fdp.Toolkit.Aggregate.PlannedPosts>();       // ⭐ CE-8303 (D-P3, SV-5) — a splitting squad's planned posts (node-local, recorded, NoScenario)
         world.RegisterManagedComponent<Fdp.Toolkit.Aggregate.UnitRoute>();   // ⭐ CE-8004 — the follower's route (node-local, NoScenario | NoReplay)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
