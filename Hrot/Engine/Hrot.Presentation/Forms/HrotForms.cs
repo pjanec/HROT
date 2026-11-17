@@ -25,6 +25,7 @@ public static class HrotForms
             if (_registered) return;
             _registered = true;
             FormCatalogue.Register(Unit);
+            FormCatalogue.Register(SlotsForm.Decl);   // ⭐ CE-8612 (UI-7) — a stochastic unit's slot table
             FormCatalogue.Register(CrewAndCargo);
             FormCatalogue.Register(Shape);
             FormCatalogue.Register(Scenario);
@@ -41,6 +42,17 @@ public static class HrotForms
     private static AttributeValue SideChoiceValue(int i) => AttributeValue.FromString(i >= 0 && i < Affiliations.Length ? Affiliations[i] : null);
 
     private static readonly string[] Stances = { "Standing", "Crouched", "Prone" };
+
+    // ⭐ CE-8614 (UI-1) — the Resolution section's closed sets (AggregateComponents' enums, in their order)
+    private static readonly string[] Resolutions = { "Physical", "Fusion", "Stochastic" };
+    private static readonly string[] Formations = { "None", "Column", "Line", "Assault" };
+    private static readonly NodeEditor.Core.Widgets.IconGlyph[] ResolutionIcons =
+    {
+        new("\uf0c0", NodeEditor.Core.Widgets.IconPalette.Blue),     // Users — physical: every man an entity
+        new("\uf247", NodeEditor.Core.Widgets.IconPalette.Teal),     // ObjectGroup — fusion
+        new("\uf522", NodeEditor.Core.Widgets.IconPalette.Violet),   // Dice — stochastic
+    };
+    private static readonly string[] PreparedLevels = { "Unprepared", "Hasty", "Prepared", "Fortified" };
 
     // ⭐ before Unit: static fields initialise in textual order
     private static readonly string[] WeaponPostures = { "At ease", "Ready", "Aimed" };
@@ -120,6 +132,27 @@ public static class HrotForms
                 Label = "Side", Kind = FieldKind.Choice, Attribute = "Affiliation", Choices = Sides,
                 ChoiceValue = SideChoiceValue,
             },
+            // ⭐ CE-8614 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-1; the attribute rows are agg-backend's CE-8015, NOTE_AggBackend_To_Agg_Contract §3e) — the
+            //   RESOLUTION section of a unit that carries AggregateUnit: its AUTHORED start resolution (saved; live, the instructor changes it through the Pin —
+            //   UI-9), the echelon (read-only), the formation, the frontage × depth and heading (read-only: no attribute rows yet), the prepared level. Each row patches through the ONE attribute path (component + wire).
+            new FormField
+            {
+                Label = "Resolution", Section = "Resolution", Kind = FieldKind.Choice, Attribute = "Aggregate.Resolution", Choices = Resolutions,
+                Has = UnitFacts.IsAggregate,
+                ReadNumber = (w, e) => (int)w.GetComponentRO<Fdp.Toolkit.Aggregate.AggregateUnit>(e).Effective - 1,   // unset reads as Physical
+                ChoiceValue = i => AttributeValue.FromInt(i + 1),
+                ChoiceIcons = ResolutionIcons,   // mockup ①: three glyph toggles, the chosen word after them
+                ChoiceNote = UnitFacts.ResolutionNote,
+            },
+            new FormField { Label = "Echelon", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.EchelonText },
+            new FormField { Label = "Formation", Kind = FieldKind.Choice, Attribute = "Aggregate.Formation", Choices = Formations, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
+            new FormField { Label = "Frontage", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.FrontageText },
+            new FormField { Label = "Heading", Kind = FieldKind.Text, Has = UnitFacts.IsAggregate, ReadText = UnitFacts.HeadingText },
+            new FormField { Label = "Prepared", Kind = FieldKind.Choice, Attribute = "Aggregate.Prepared", Choices = PreparedLevels, Has = UnitFacts.IsAggregate, ChoiceValue = i => AttributeValue.FromInt(i) },
+            // ⭐ CE-8615 (UI-9, mockup ⑤) — while the unit CHANGES resolution: what to what and who asked, the stage in thirds, the men created and the deadline
+            new FormField { Label = "Changing", Kind = FieldKind.Text, Has = SplitProgress.IsChanging, ReadText = SplitProgress.ChangeText },
+            new FormField { Label = "Stage", Kind = FieldKind.Gauge, Has = SplitProgress.IsChanging, ReadText = (w, e) => SplitProgress.StageGauge(w, e).Text, ReadGauge = SplitProgress.StageGauge },
+            new FormField { Label = "Progress", Kind = FieldKind.Text, Has = SplitProgress.IsChanging, ReadText = SplitProgress.ProgressText },
             new FormField
             {
                 Label = "Posture", Section = "State", Kind = FieldKind.Choice, Attribute = "Stance", Choices = Stances,
@@ -147,6 +180,30 @@ public static class HrotForms
             {
                 Label = "Strength", Attribute = "Health.Current", Min = 0,
                 MaxOf = (w, e) => w.GetComponentRO<Health>(e).Max,   // derived: the max — no attribute reads it   // reads "80 / 100"; the write stays Health.Current
+            },
+            // ⭐ CE-8601 (exp/agg-ui, DESIGN_Stochastic_Unit_UI §4 UI-3) — a UNIT's strength and ammunition: men present / authorized + the SITREP colour (UnitStrength,
+            //   the ONE strength seam) and its rounds (the staff's RoundsOf / AmmoOf). Read-only, derived; a man keeps his Health row below.
+            //   ⭐ CE-8606 (UI-10) — drawn as GAUGES: the bar in the SITREP colour with the numbers on it, the thresholds as ticks, the word + glyph chip
+            new FormField
+            {
+                Label = "Strength", Kind = FieldKind.Gauge,
+                Has = UnitFacts.IsUnit,
+                ReadText = UnitFacts.StrengthText,
+                ReadGauge = UnitFacts.StrengthGauge,
+            },
+            new FormField
+            {
+                Label = "Ammunition", Kind = FieldKind.Gauge,
+                Has = (w, e) => UnitFacts.IsUnit(w, e) && !UnitFacts.AmmoText(w, e).IsEmpty,
+                ReadText = UnitFacts.AmmoText,
+                ReadGauge = UnitFacts.AmmoGauge,
+            },
+            new FormField
+            {
+                Label = "Vehicles", Kind = FieldKind.Gauge,
+                Has = UnitFacts.HasVehicles,
+                ReadText = UnitFacts.VehiclesText,
+                ReadGauge = UnitFacts.VehiclesGauge,
             },
             new FormField
             {

@@ -27,6 +27,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// INERT (its rows emit nothing) — one rule here, so no gizmo can forget it.</summary>
         public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer = 0)
             => new(draw, networkId, layer, inert: layer != LabelsLayer && !draw.IsLayerActive(LabelsLayer));
+
+        /// <summary>⭐ <c>CE-8605</c> (docs/UX/DESIGN_Unit_Symbols.md O-1, R-8602) — the layer of a UNIT's card (a squad, platoon, company): the map's
+        /// "Unit cards" row, split from "Men's cards" (<see cref="LabelsLayer"/>) so a commander's overview needs no men's cards.</summary>
+        public const byte UnitCardsLayer = 30;
+
+        /// <summary>⭐ <c>CE-8605</c> — the layer a card of this kind lives on: <see cref="UnitCardsLayer"/> for a unit, else <see cref="LabelsLayer"/>.</summary>
+        /// <summary>⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2) — the units' NATO symbols, in the card's cell or alone at the unit's point.</summary>
+        public const byte UnitSymbolsLayer = 31;
+
+        /// <summary>⭐ <c>CE-8613</c> (DESIGN_Stochastic_Unit_UI UI-8) — the stochastic units' detection levels (a debug overlay, off by default).</summary>
+        public const byte DetectionLevelsLayer = 32;
+
+        public static byte CardLayerOf(bool unitCard) => unitCard ? UnitCardsLayer : LabelsLayer;
+
+        /// <summary>⭐ <c>CE-8605</c> — the card of a UNIT (<paramref name="unitCard"/> true) or of a man / vehicle: a row asked on
+        /// <see cref="LabelsLayer"/> lands on the card's OWN layer (<see cref="CardLayerOf"/>), and the no-orphan rule follows that layer — a unit's
+        /// squad-phase row is drawn while Unit cards is on even with Men's cards off, and the other way round.</summary>
+        public static EntityCard Card(this IDebugDrawBuilder draw, int networkId, byte layer, bool unitCard)
+        {
+            byte own = CardLayerOf(unitCard);
+            byte effective = layer == LabelsLayer ? own : layer;
+            return new(draw, networkId, effective, inert: effective != own && !draw.IsLayerActive(own));
+        }
     }
 
     /// <summary>An entity's card (see <see cref="EntityCards"/>).</summary>
@@ -96,6 +119,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             p.TextY = 0f;
             p.TextContent = new CardText(text);
             p.ThicknessU16 = (ushort)System.Math.Clamp(sizePx, 6f, 64f);
+            _card.Draw.EmitRaw(in p);
+            return this;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-8610</c> (docs/UX/DESIGN_Unit_Symbols.md P-2; DESIGN_Stochastic_Unit_UI §6) — a unit's NATO symbol as the card's LEFT CELL: on row 0 (the
+        /// card-wide row) it spans the card's rows, which move right of it, and the card is at least as tall. An <c>Icon</c> primitive whose text is the symbol's
+        /// code, its thickness the frame height in pixels — nothing new on the wire. Formatted on the stack (0 B).
+        /// </summary>
+        public EntityCardRow Symbol(in GizmoMapContracts::GizmoMap.Contracts.Symbology.SymbolCode symbol, float heightPx = 22f)
+        {
+            if (_card.IsInert) return this;
+            var p = New(DebugPrimitiveShape.Icon);
+            System.Span<char> code = stackalloc char[GizmoMapContracts::GizmoMap.Contracts.Symbology.SymbolCode.MaxLength];
+            int n = symbol.Format(code);
+            p.Color = new Rgba32(255, 255, 255, 255);
+            p.TextContent = new CardText(code.Slice(0, n));
+            p.ThicknessU16 = (ushort)System.Math.Clamp(heightPx * 10f, 60f, 2560f);
             _card.Draw.EmitRaw(in p);
             return this;
         }
