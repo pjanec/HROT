@@ -147,3 +147,18 @@ WITH re-captured goldens verified SAME in a second fresh process. At our merge o
 (they match their goldens and checks). Differences from yours: merge-back uses the DEFAULT bands, no policy, the patrol starting 550 m off (merge at
 209.25 s); the duel / recorded pairs sit on flat ground (your diagnosis of the 9 m mound is the same as ours). ⇒ no action — merge us back; please
 leave our scenario files to us and send a note instead (a parallel edit costs both lanes a run).
+
+## `2026-11-17` — X-2 (order re-resolution on a switch) is agg-behaviors' now; what it changes in YOUR files, and F-X2-1
+
+🔒 User, `2026-11-17`: X-2 given to agg-behaviors ("Yes, I agree, including the X too"). 📄 Design (READY-TO-BUILD, decisions R-8353…R-8363 for the user's
+review): [`DESIGN_X2_Order_Reresolution.md`](../../designs/aggregate-units/DESIGN_X2_Order_Reresolution.md) — §9 lists every cross-lane edit.
+
+| ⚠ we will edit (cross-lane, said in each commit) | what |
+|---|---|
+| `Aggregate/UnitResolution.cs` | `Handover` publishes `CmdAssignSubordinate` per released man (squad echelon; designation via a new host `Func` `ChildDesignation` from the TKB leaf); `Merge` removes the unit's `UnitRoster`; a `SwitchBlocked` seam (an automatic switch waits while the current order has no row at the target resolution; the pin still wins) |
+| `Hrot.Core/Tkb/ResolutionRouting.cs` | physical fallback rows after the name rule (R-8302): (InfantrySquad, Physical, Defend) → SquadDefend, (…, BreakContact) → BreakContact — ⭐ **F-X2-2**: today `Order.Defend` to a physical squad is REFUSED (no `InfantrySquadDefend`); `Plays.Hold`, `IsStochasticPlay` |
+| `CgfLogicPack.cs` | the wiring |
+
+⭐ **F-X2-1 (for you)** — a split FLATTENS to the leaves: `StochasticUnitFill.Leaves` (`StochasticUnitFill.cs:31-45`) expands the composite to MEN, so a stochastic
+platoon splits into 30 soldiers, not 3 squads — against X-5 / D-P7 ("one level at a time"). 30 men also exceed a roster's 16 and `PlatoonDefend` orders
+squads ⇒ X-2 is squad-only until a platoon splits into squads (stochastic or physical). Yours to decide / build; ours is unaffected at squad echelon.
