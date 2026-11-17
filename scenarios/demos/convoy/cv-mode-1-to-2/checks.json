@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): mode 1 → 2, a convoy leaves the SUMO network mid-route and continues off-road. First run: the switch is measured before it is relied on. ⏳ FAILS on its feature today (CE-9020: SUMO refuses an off-network destination; the lead holds at its start).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 / CE-9020 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6, §6): mode 1 → 2, a convoy leaves the SUMO network next to an off-road destination and drives the rest on our own route. Inside demo-city's world [0, 800]² (our planner has no navmesh outside it). ✅ passes in both tiers since 2026-11-17.",
   "runFor": 90,
   "golden": false,
   "expect": [
