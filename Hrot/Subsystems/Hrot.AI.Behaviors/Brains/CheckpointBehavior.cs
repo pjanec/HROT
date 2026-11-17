@@ -414,7 +414,15 @@ namespace Hrot.AI.Behaviors.Brains
                     Vector3 to = ctx.World.GetComponentRO<SimTransform>(sv).Position + right * 2.5f;
                     var next = w.SearchMan != 0 ? new Entity((ulong)w.SearchMan) : Entity.Null;
                     if (slot == 0 && !next.IsNull && ctx.World.IsAlive(next) && ctx.World.HasComponent<SimTransform>(next))
-                        to = ctx.World.GetComponentRO<SimTransform>(next).Position;
+                    {
+                        // ⭐ K-7 — to ARM'S LENGTH of the man (0.7 m on the searcher's own side, 0.4 m arrival): 📐 cp-routine-car — sent onto him with a
+                        //   watch post (1 m arrival) he stood ~1.9 m off, outside custody's 1.5 m reach, and the search aborted and restarted for good
+                        var man = ctx.World.GetComponentRO<SimTransform>(next).Position;
+                        var from = new Vector2(at.X - man.X, at.Y - man.Y);
+                        var dir = from.LengthSquared() > 1e-4f ? Vector2.Normalize(from) : new Vector2(right.X, right.Y);
+                        return new MemberOrder { Kind = MemberOrderKind.AdvanceTo, Point = new Vector3(man.X + dir.X * 0.7f, man.Y + dir.Y * 0.7f, man.Z),
+                                                 Speed = p.Speed, ArrivalRadius = 0.4f, RoleId = role };
+                    }
                     return new MemberOrder { Kind = MemberOrderKind.Watch, Point = to, Speed = p.Speed, ArrivalRadius = 1f, Post = new MemberPost { Set = 1, Radius = 1f },
                                              RoleId = role };
                 }
