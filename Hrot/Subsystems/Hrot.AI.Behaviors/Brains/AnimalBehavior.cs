@@ -37,6 +37,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float CalmBelow = 0.1f;
         /// <summary>A frightened animal moves this far off (m).</summary>
         public const float MoveOffMetres = 15f;
+        /// <summary>⭐ CE-4649 part C ② — a frightened bird flies this far off (m): beyond <c>BirdFlightModel.DescendWithinM</c>, so it climbs to its cruise height.</summary>
+        public const float BirdTakeOffMetres = 90f;
         /// <summary>A lone animal grazes this far round where it was placed (m).</summary>
         public const float LoneGrazeMetres = 15f;
         /// <summary>A herd member stands this far round its herd's spot, plus up to <see cref="LooseSpreadMetres"/> × (1 − cohesion).</summary>
@@ -231,7 +233,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.Arrived != 0) return NodeStatus.Running;
             if (FearOf(world, self).Value < FrightenedAt) { LocomotionMoveTo.Stop(world, self); return NodeStatus.Running; }
             var here = Here(world, self);
-            ws.Target = here + Away(world, self, here) * MoveOffMetres;
+            // ⭐ CE-4649 part C ② (AN-20a) — a frightened BIRD takes off: the flight model cruises only while the point is farther than its descent distance, so a 15 m hop never left the ground
+            ws.Target = here + Away(world, self, here) * (p.Bird != 0 ? BirdTakeOffMetres : MoveOffMetres);
+            if (p.Bird != 0) SetFlock(world, self, FlockMode.Flying);
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.Walk * 1.6f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Flee)) ws.Moving = 1;
             return NodeStatus.Running;
         }

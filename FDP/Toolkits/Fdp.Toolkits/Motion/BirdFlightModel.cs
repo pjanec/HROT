@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Motion
 
         public void Autonomous(ref MotionFrame f, in NavigationIntent intent, float dt)
         {
+            if (Dead(in f)) { Fall(ref f, dt); return; }   // ⭐ CE-4649 part C ② (AN-20a) — a shot bird falls whatever it was told, and lies where it lands
             if (intent.Mode == NavigationMode.None || intent.Mode == NavigationMode.Manual || dt <= 0f)
             {
                 f.Velocity.Linear = Vector3.Zero;   // perched / landed: still
@@ -70,6 +71,28 @@ namespace Fdp.Toolkit.Motion
             f.Transform.Position = next;
             f.Transform.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
             Report(ref f, in intent, NavigationResult.InProgress, NavigationPhase.Following);
+        }
+
+        /// <summary>⭐ CE-4649 part C ② — a dead bird (<c>Health</c> ≤ 0): the same fall a dead rotorcraft takes (<see cref="RotorcraftModel.Gravity"/>, its forward speed decaying), then it lies on the ground still.</summary>
+        private static void Fall(ref MotionFrame f, float dt)
+        {
+            var here = f.Transform.Position;
+            float floor = f.Ground(here.X, here.Y);
+            if (dt <= 0f || here.Z <= floor + 1e-3f) { f.Velocity.Linear = Vector3.Zero; if (here.Z < floor) f.Transform.Position = new Vector3(here.X, here.Y, floor); return; }
+            var v = f.Velocity.Linear;
+            float decay = MathF.Max(0f, 1f - 1.5f * dt);
+            v = new Vector3(v.X * decay, v.Y * decay, v.Z - RotorcraftModel.Gravity * dt);
+            var next = here + v * dt;
+            if (next.Z <= floor) { next.Z = floor; v = Vector3.Zero; }
+            f.Velocity.Linear = v;
+            f.Transform.Position = next;
+        }
+
+        private static bool Dead(in MotionFrame f)
+        {
+            var w = f.World;
+            return w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(f.Self)
+                   && w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(f.Self).Current <= 0f;
         }
 
         /// <summary>A bird is never flown by hand (no possession of a bird).</summary>
