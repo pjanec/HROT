@@ -1,13 +1,16 @@
 <!--STATUS
-state: LIVE
+state: HISTORICAL
 updated: 2026-11-17
-current-answer: the whole note (a frame: goal, measured facts, lean, open question, acceptance)
+current-answer: the BUILT banner below; the build is recorded in ../Architect_Question_93_Sumo_Traffic_Node.md §14.6 (off-net destination)
+superseded-by: ../Architect_Question_93_Sumo_Traffic_Node.md §14.6
 stale-below: nothing
 related-designs:
   - ../Architect_Question_93_Sumo_Traffic_Node.md — §14 the hand-over (TrafficHandover, the shadow hrot:<id>): this frame extends it
   - ../../designs/navig-2/Navigation_Design_v2_0.md — the executor that plans the off-network leg
   - ../../designs/vehicle-tactics/DESIGN_Road_Convoy.md — §6 CE-9020 (the convoy needs nothing of its own)
 -->
+
+> ⭐ **BUILT `2026-11-17` by the convoy lane itself** (the user: *"keep fixing it … including the Issues related to the sumo handover"*), on the leans below: ① ② ③ as framed, and the open question resolved on its lean (the planner — `MoveToExecutor` re-writes the move as `PathToPoint`). As-built: AQ93 §14.6.
 
 # FRAME — convoy → the SUMO hand-over's owner: an `InTraffic` move whose destination is OFF the network (CE-9020, "mode 1 → 2")
 
