@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-17
 build-state: READY-TO-BUILD — BW-1…BW-13 ✅ APPROVED `2026-11-17` (R-4289); BW-14 withdrawn → Animals AN-20, ⛔ NOT approved
-current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices
+current-answer: §0 the ask · §1 inventory · §2 the claim table · §3 decisions · §4 UML · §5 the numbers · §6 scenarios · §7 ids · §8 slices · §9 the first fun content (NA-1…NA-7, not approved)
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -211,3 +211,22 @@ ring score from a mark; the held bow drawn while aiming (frame vs mockup).
 | **S2 it sticks** (backend) | BW-4 (the stuck pose, the cap), BW-5 (the `Arrow` / `Bolt` marks) | `bw-stuck-wall`, `bw-stuck-body` (rails for the kind) |
 | **S3 the looks** (ui, from S1) | BW-3, BW-10, the stuck draws — mockups first | the frame rails vs mockups |
 | **S4 riders and the contest** | BW-8 (+ the scenario), BW-11 (target prop + scoring) | `bw-mounted-archers`, `bw-archery-contest` |
+
+## 9. The first fun content — the Native American archer and the mounted archer *(coordinator, `2026-11-17`; ⛔ NOT approved; the fun pack, CE-4650)*
+
+🔒 User, `2026-11-17`: *"please add also an Indian guy with the bow. As one of the first funny items. and the one who can ride horse and shoot from his back."*
+
+📐 What it builds on: the bow (§3, BW-1…BW-13), the person outfits from the TKB (`DESIGN_Person_Outfits.md`, CE-4648 — a wardrobe per type), the riding
+horse and its firing seats (Animals, R-4269), the thrown hatchet (`TkbThrowingHatchet` 6044, CE-3247 — a tomahawk), the insurgent's soldier brain.
+
+| # | decision — ⭐ lean | why | rejected — one line |
+|---|---|---|---|
+| **NA-1** | ONE person type **Native American warrior** (fun pack): a **bow** (BW-1) + a **tomahawk** to throw (the existing thrown hatchet), a knife-range melee; no armour; the insurgent's brain and temperament | the user's ask; every piece exists | a new brain |
+| **NA-2** | **his look from the TKB** (CE-4648's `OutfitDto`): top — buckskin shirt with fringe 50 / bare chest 50 (skin tones of the type); legs — leggings + breechcloth (buckskin, dark); head — a headband with 1–3 feathers 60, a single feather 25, none 15; hair — long black, two braids 60 / loose 40; face paint stripes 30 (red, white, black); a quiver on the back (BW-10). ⭐ New garment kinds for ui: `Buckskin`, `Breechcloth`, `Headband` (+ feathers), hair `Braids`, a `FacePaint` detail | requirement — the look is data, seeded per man (R-4287) | a fixed figure (every warrior identical) |
+| **NA-3** | **riding**: the same type MOUNTS a riding horse (703) and shoots from its seat (R-4269, BW-8) — a mounted warrior is the person + his horse, no separate type; a scenario places them mounted | one type on foot and on horseback | a "mounted warrior" type (a second copy) |
+| **NA-4** | **the circle raid** (behaviors): a mounted group CIRCLES its target at a gallop at 40–80 m, each rider shooting inward while riding, breaking off when a rider is hit and rejoining — ONE new group play over the existing riders | the iconic picture and the reason to shoot from the horse | riders standing still to shoot |
+| **NA-5** | **fun pack placement** (R-4281): the type in a `FunTkbCatalog` file, the scenarios under `scenarios/fun/western/`: **`war-party`** (a mounted party circles a guarded camp and raids it; expect: the riders circle — ≥ 6 shots fired while galloping, ≥ 1 guard hit, no rider stops to shoot) and **`archer-ambush`** (warriors on foot ambush a patrol from cover; silent shots — the patrol reacts only on SEEING an archer or being hit) | the user's "first funny items" | — |
+| **NA-6** | **order**: after bows S1 + S3 and outfits S1 + S2; the circle raid in parallel by behaviors | dependencies | — |
+| **NA-7** | **ids**: the person type measured at step 0 (urban 2010–2012 are the Middle-East fighters; the bow design's Archer / Crossbowman take the next) | — | — |
+
+⚠ The covered wagon, the cowboys and the cavalry stay CE-4633's (the Western pack) — the war party raids a CAMP until the wagon exists.
