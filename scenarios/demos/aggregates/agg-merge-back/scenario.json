@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 450 m north marches away north. The author's SetResolutionPolicy sets the quiet time to 20 s and the merge margin to 250 m (merge beyond 650 m - past the 600 m split trigger). Judge: (1) the platoon splits while the patrol is near (27 men: the dead are not created); (2) once the patrol is past 650 m and 20 s are quiet the men merge back - Stochastic; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact, a loss healed or invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back"
+    "description": "What: on berlin a STOCHASTIC 'Blue Stochastic Platoon' (30 slots, 3 dead and 2 hurt - an authored table) holds (300,300); a PHYSICAL 'Red Patrol' 550 m north marches away north. The default resolution bands: split inside 600 m, merge beyond 800 m after 30 s unobserved with no man in contact. Judge: (1) the platoon splits while the patrol is near (27 men named <platoon>/<slot>: the dead are not created); (2) once the patrol is past 800 m and 30 s are quiet the men merge back - Stochastic - and never while the patrol is inside 800 m; (3) the slot table keeps every loss and every man: exactly 3 down (never a 4th), 27 up, the 2 hurt at half health; (4) the instructor's pin (PinPhysical at 250 s) splits it again and the SAME 27 identities come back (uuid5(<platoon>, child:<slot>)). Fail: a merge in contact or inside 800 m, a loss healed or invented, or a different key on the second split. Check: scripts/scenario-regression.sh agg-merge-back"
   },
   "entities": {
     "a9000018-0000-4000-8000-000000000001": {
@@ -292,7 +292,7 @@
       "SimTransform": {
         "Position": [
           300,
-          750,
+          850,
           0
         ],
         "Rotation": [
@@ -314,7 +314,7 @@
         "Params": {
           "Objective": [
             300,
-            1500,
+            1700,
             0
           ],
           "Shape": 0,
@@ -327,7 +327,7 @@
       "SimTransform": {
         "Position": [
           297,
-          748,
+          848,
           0
         ],
         "Rotation": [
@@ -360,7 +360,7 @@
       "SimTransform": {
         "Position": [
           299,
-          748,
+          848,
           0
         ],
         "Rotation": [
@@ -393,7 +393,7 @@
       "SimTransform": {
         "Position": [
           301,
-          748,
+          848,
           0
         ],
         "Rotation": [
@@ -426,7 +426,7 @@
       "SimTransform": {
         "Position": [
           303,
-          748,
+          848,
           0
         ],
         "Rotation": [
@@ -453,37 +453,6 @@
       "UnitSubordinate": {
         "CommanderGuid": "a9000018-0000-4000-8000-000000000003",
         "Designation": "Wingman"
-      }
-    },
-    "a9000018-0000-4000-8000-000000000008": {
-      "TkbIdentity": {
-        "TkbType": 8861
-      },
-      "EntityInfo": {
-        "Name": "Resolution policy",
-        "ForceId": "Friend"
-      },
-      "Behavior": {
-        "Name": "Trigger",
-        "Params": {
-          "common": {
-            "title": "Resolution policy"
-          },
-          "when": {
-            "$type": "ScenarioTime",
-            "fromSeconds": 1
-          },
-          "do": [
-            {
-              "act": "SetResolutionPolicy",
-              "args": {
-                "quietSeconds": 20,
-                "mergeMargin": 250
-              }
-            }
-          ]
-        },
-        "Origin": "Superior"
       }
     }
   }

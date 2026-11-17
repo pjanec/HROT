@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — agg-behaviors' part BUILT (DP3-A extract, DP3-C PlannedPosts 138, DP3-B the planner; CE-8303, §9); OPEN: DP3-B's manager wait (agg-backend — until it lands the posts are written but NOT consumed), DP3-D ② (after X-2), agg-squad-holds-house re-judged (waits on the wait)
-updated: 2026-11-17 (as-built §9)
+build-state: BUILT end to end (agg-behaviors' planner + PlannedPosts 138, agg-backend's wait `b0d53162e`; §9 verdict 2026-11-17: agg-squad-holds-house's 10 men land on the house's wall posts); OPEN: DP3-D ② (after X-2)
+updated: 2026-11-17 (§9 the end-to-end verdict)
 current-answer: §9 AS BUILT (read first) · §0 the decision · §2 the claim table · §3 classes (as built) · §4 sequence · §5 modules · §6 the sub-questions with leans · §7 acceptance
 stale-below: nothing.
 known-rot: none.
@@ -29,9 +29,23 @@ commander's sensors and live men. Links: [main design](https://github.com/pjanec
 | DP3-A | ✅ `DefencePlan.Step<TCrew>` + `RosterCrew` / `SlotCrew` / `DefenceAsk`; `SquadDefendPlay.Plan` calls it; `AskTerrainAll` / `DropSensor` gained a carrier + ask-state overload (the roster one delegates) | `Hrot.AI.Behaviors/Brains/DefencePlan.cs`, `SquadManeuverRunner.cs` |
 | DP3-C | ✅ `PlannedPosts` (138): 13 × point · watch · flags, `Count`, `Ready`, `Stage`, `PlannedAt`; `TryGet(k, out PlannedPost)` for the manager | `Fdp.Toolkits/Aggregate/PlannedPosts.cs`, `GlobalComponentIds`, `HrotSharedComponentRegistry` |
 | DP3-B (ours) | ✅ `UnitPostPlanningSystem`, registered in `CgfLogicPack` right before `ResolutionManagerSystem` | `Hrot.CGF/Systems/UnitPostPlanningSystem.cs` |
-| DP3-B (agg-backend) | ⏳ the manager's wait — NOT built (theirs). ⚠ Until it lands Planning lasts one manager step (≤ 1 s), so the plan usually is NOT Ready when `Materialise` runs, and nothing reads `PlannedPosts`: **the posts are written but not consumed** — the men still land on the fallback line | `UnitResolution.cs:245-252` |
-| DP3-D ① | ✅ our side: `PlannedPosts.TryGet` is the call `Materialise` makes per live slot (false ⇒ that slot's fallback point) | — |
+| DP3-B (agg-backend) | ✅ built by agg-backend `b0d53162e` (R-4286): Planning waits for `Ready` or `DeadlineSeconds` (10 s) for a unit that HAS `PlannedPosts`; forced never waits; a withdrawn trigger removes the component. ⛔ SUPERSEDED: *"not built — the posts are written but not consumed"* (true until the merge `6e4e3f1c0`) | `UnitResolution.cs:245-268` |
+| DP3-D ① | ✅ the manager writes `_posts[k] = post.Point` for each `TryGet(k)` over the first `Count` live slots, then `Materialise` (one struct, unified on ours at the merge `6e4e3f1c0`) | `UnitResolution.cs:259-266` |
 | DP3-D ② | ⛔ not built (waits on X-2) | — |
+
+### 9a. ⭐ The end-to-end verdict *(`2026-11-17`, `exp/agg-behaviors` after merging agg-backend `b0d53162e`; design §23.6g, R-8351)*
+
+✅ **DP3 places the men on real posts.** `agg-squad-holds-house` (cqb-village, a stochastic squad of 10 holding "OBJ" = house-3f, 10 × 8 m, footprint x 115–125 · y 153–161):
+
+| measured (editor tier, fresh processes) | value |
+|---|---|
+| Planning seen · `PlannedPosts.Ready` = 1 · `Count` | 0.25 s · by 0.25 s · 10 (every live slot posted) |
+| handover (Physical) | 2.25 s — unchanged: the plan is Ready before the manager's NEXT 1 Hz step, so the wait returns at once (⚠ the 10 s wait itself is not exercised by this scenario; agg-backend's `UnitResolutionRails` pins it) |
+| where the 10 men stand at the handover | all 0.5 m inside an outer wall: 5 at z 3 (upper storey), 5 at z 0; 5 on the north wall (the one facing the enemy, its windows and door — y 160.5), 2 on the south, 3 on the east / west. **No roof post** (z 6) chosen. Still all inside at 20 s |
+| before (the fallback line, `94ba2a698`) | one line across the heading at y 161 ± 1, x out to 134 — 5 of the 10 old line rows now FAIL (the men are inside the house) |
+
+⭐ The scenario now judges this (22 rows, golden): every man inside the footprint, ≥ 5 on the upper storey, ≥ 5 on the enemy-facing wall, the plan Ready (Count 10) before the men exist, still inside at 20 s. ⚠ The rows read the MEN, not `PlannedPosts`' flags: a fixed buffer is not in the entity dump (measured: `PlannedPosts.Flags.*` / `.Z.*` match nothing), so "a window post" is judged by position at the wall, not by the window bit.
+⭐ The `TryGet` unification at the merge is proved by the same run (the posts reach the men); no fix needed. Root-cause tree of the brief (planner / wait / unification) not needed: nothing failed.
 
 **Deviations from §3 / §4, each with its reason**
 
@@ -58,7 +72,7 @@ commander's sensors and live men. Links: [main design](https://github.com/pjanec
 
 **Lane decisions:** R-8346 (the order's position / radius from its start text) · R-8347 (the planner owns and clears `PlannedPosts`) · R-8348 (the planner's home, `Hrot.CGF/Systems`).
 
-**Scenarios** (`scripts/scenario-regression.sh`, editor tier, at `94ba2a698`): sq-defend-house 3/3 · pc-defend-house 7/7 · bc-house-defended 4/4 · ts-three-defenders 9/9 golden SAME · agg-prepared-defence 4/4 SAME · agg-squad-holds-house 42/42 SAME · agg-split-on-contact 66/66 SAME · ts-house-defenders 4/6 and ia-area-defend 3/6 — the rows already filed as CE-3462 / CE-3463 (open before this work, no golden). `agg-probe-defend` (§7) does not exist in the tree. ⏳ `agg-squad-holds-house` is NOT re-judged (§7 "the feature"): its men can stand on window posts only once agg-backend's wait consumes them.
+**Scenarios** (`scripts/scenario-regression.sh`, editor tier, at `94ba2a698`): sq-defend-house 3/3 · pc-defend-house 7/7 · bc-house-defended 4/4 · ts-three-defenders 9/9 golden SAME · agg-prepared-defence 4/4 SAME · agg-squad-holds-house 42/42 SAME · agg-split-on-contact 66/66 SAME · ts-house-defenders 4/6 and ia-area-defend 3/6 — the rows already filed as CE-3462 / CE-3463 (open before this work, no golden). `agg-probe-defend` (§7) does not exist in the tree. ⛔ SUPERSEDED by §9a: *"`agg-squad-holds-house` is NOT re-judged"* — it is, on the real posts.
 
 **Parallel safety:** `HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8 --scenario agg-squad-holds-house --dll <Debug runner>` — STATE EQUAL (0 types differ; the gate's window is 2 s, which covers the split: Planning at ~0.6 s, Materialising at the next manager step).
 
