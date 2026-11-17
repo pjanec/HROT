@@ -129,6 +129,25 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 new(4, KitShape.Box, new(-0.42f, 0f, 0.72f), new(0.14f, 0.012f, 0.44f), KitAxis.Z, -20f, 0f, KitRole.Hull),   // Tail
                 new(4, KitShape.Box, new(-0.45f, 0f, 0.56f), new(0.12f, 0.4f, 0.02f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Tail
             }),
+            new("TwinEngineJet", new(17.3f, 11.4f, 4.7f), new(0f, 0f), new(0f, 0f), new VehicleKitPart[]
+            {
+                new(0, KitShape.Cylinder, new(-0.02f, 0f, 0.44f), new(0.62f, 0f, 0.27f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(0, KitShape.Cone, new(0.38f, 0f, 0.45f), new(0.18f, 0f, 0.24f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(1, KitShape.Box, new(0.17f, 0f, 0.6f), new(0.16f, 0.05f, 0.09f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Cockpit
+                new(0, KitShape.Box, new(0f, 0f, 0.36f), new(0.46f, 0.2f, 0.025f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Fuselage
+                new(2, KitShape.Box, new(-0.1f, 0.25f, 0.37f), new(0.3f, 0.46f, 0.025f), KitAxis.Z, 0f, 28f, KitRole.Hull),   // Wing
+                new(2, KitShape.Box, new(-0.1f, -0.25f, 0.37f), new(0.3f, 0.46f, 0.025f), KitAxis.Z, 0f, -28f, KitRole.Hull),   // Wing
+                new(3, KitShape.Cylinder, new(-0.2f, 0.075f, 0.38f), new(0.46f, 0f, 0.22f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Engine
+                new(3, KitShape.Cylinder, new(-0.2f, -0.075f, 0.38f), new(0.46f, 0f, 0.22f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Engine
+                new(3, KitShape.Cylinder, new(-0.445f, 0.075f, 0.38f), new(0.07f, 0f, 0.19f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Engine
+                new(3, KitShape.Cylinder, new(-0.445f, -0.075f, 0.38f), new(0.07f, 0f, 0.19f), KitAxis.X, 0f, 0f, KitRole.Hull),   // Engine
+                new(3, KitShape.Box, new(0.06f, 0.075f, 0.25f), new(0.22f, 0.07f, 0.13f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Engine
+                new(3, KitShape.Box, new(0.06f, -0.075f, 0.25f), new(0.22f, 0.07f, 0.13f), KitAxis.Z, 0f, 0f, KitRole.Hull),   // Engine
+                new(4, KitShape.Box, new(-0.43f, 0.15f, 0.36f), new(0.12f, 0.26f, 0.02f), KitAxis.Z, 0f, 30f, KitRole.Hull),   // Tail
+                new(4, KitShape.Box, new(-0.43f, -0.15f, 0.36f), new(0.12f, 0.26f, 0.02f), KitAxis.Z, 0f, -30f, KitRole.Hull),   // Tail
+                new(4, KitShape.Box, new(-0.37f, 0.115f, 0.68f), new(0.17f, 0.012f, 0.4f), KitAxis.Z, -28f, 0f, KitRole.Hull, RollDegrees: -7f),   // Tail
+                new(4, KitShape.Box, new(-0.37f, -0.115f, 0.68f), new(0.17f, 0.012f, 0.4f), KitAxis.Z, -28f, 0f, KitRole.Hull, RollDegrees: 7f),   // Tail
+            }),
         };
     }
 }
