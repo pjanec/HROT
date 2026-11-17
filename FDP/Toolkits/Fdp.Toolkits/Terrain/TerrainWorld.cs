@@ -1018,6 +1018,8 @@ namespace Fdp.Toolkit.Terrain
                     float lo = t0, hi = t1;
                     // ⭐ CE-4598 (D-4) — for a HULL a wall panel or a door leaf reaches the band above its top: the hull's body under the line
                     bool banded = hull && pi >= 0 && (pi >= Prisms.Count || prism.Panel >= 0);
+                    // ⭐ R-4280 (R-5000 changed) — a panel lower than a kerb never meets a hull: it rolls over it
+                    if (hull && pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && prism.TopZ - prism.BaseZ < Fdp.Toolkit.World.HullTrace.MinPanelHeightM) continue;
                     float top = banded ? prism.TopZ + hullBand : prism.TopZ;
                     if (MathF.Abs(dz) < 1e-6f)
                     {

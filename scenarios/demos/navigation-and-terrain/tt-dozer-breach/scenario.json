@@ -1,0 +1,2286 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: CE-4629 / R-4280 feature scenario on bt-range - vehicles and men crossing or cutting walls. (1) 'Kerb Car' and 'Kerb Tank' drive north over a 10 cm kerb (y = 120; hulls roll over a wall panel under 0.25 m); 'Garden Car' drives at a 1 m garden wall (y = 128) and must stay south of it. (2) Three AI bulldozers (TKB 112) are ordered to clear a point of a wall: 'Dozer A' a straight 2 m free wall (y = 149), 'Dozer B' a 2 m wall made of one-metre pieces (y = 185; on this flat range one panel per segment, the multi-panel case of a wall stepping with a slope), 'Dozer Fence' bt-range's own 60 m fence row (y = 70); both free walls span the whole range, so only the cut lets a man through. After 45 s two riflemen are ordered through each A / B cut, to the point beyond it and to a point 2 m aside; 'Fence Rifle' through the fence row; a 'Probe' man per wall is ordered through where nothing was cut. (3) 'Dozer House' is ordered to clear a point of House A's west wall (its three doors Locked) and 'House Rifle' into the west room (103, 104). Judge: see checks.json. Fail: the car or tank held by the kerb, the garden car over its wall, a probe through an uncut wall, a man not through a cut, the room unreached. Check: scripts/scenario-regression.sh tt-dozer-breach"
+ },
+ "entities": {
+  "d0224000-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 2,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 0.1,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -10,
+     120,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 220,
+      "Y": 0
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "d0224000-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 2,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 1.0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -10,
+     128,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 220,
+      "Y": 0
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "d0224000-0000-4000-8000-000000000003": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 2,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 2.0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -10,
+     149,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 220,
+      "Y": 0
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "d0224000-0000-4000-8000-000000000004": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 2,
+    "Template": "",
+    "HeadingDeg": 0,
+    "Pad": 2.0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     -10,
+     185,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": 0,
+      "Y": 0
+     },
+     {
+      "X": 1,
+      "Y": 0
+     },
+     {
+      "X": 2,
+      "Y": 0
+     },
+     {
+      "X": 3,
+      "Y": 0
+     },
+     {
+      "X": 4,
+      "Y": 0
+     },
+     {
+      "X": 5,
+      "Y": 0
+     },
+     {
+      "X": 6,
+      "Y": 0
+     },
+     {
+      "X": 7,
+      "Y": 0
+     },
+     {
+      "X": 8,
+      "Y": 0
+     },
+     {
+      "X": 9,
+      "Y": 0
+     },
+     {
+      "X": 10,
+      "Y": 0
+     },
+     {
+      "X": 11,
+      "Y": 0
+     },
+     {
+      "X": 12,
+      "Y": 0
+     },
+     {
+      "X": 13,
+      "Y": 0
+     },
+     {
+      "X": 14,
+      "Y": 0
+     },
+     {
+      "X": 15,
+      "Y": 0
+     },
+     {
+      "X": 16,
+      "Y": 0
+     },
+     {
+      "X": 17,
+      "Y": 0
+     },
+     {
+      "X": 18,
+      "Y": 0
+     },
+     {
+      "X": 19,
+      "Y": 0
+     },
+     {
+      "X": 20,
+      "Y": 0
+     },
+     {
+      "X": 21,
+      "Y": 0
+     },
+     {
+      "X": 22,
+      "Y": 0
+     },
+     {
+      "X": 23,
+      "Y": 0
+     },
+     {
+      "X": 24,
+      "Y": 0
+     },
+     {
+      "X": 25,
+      "Y": 0
+     },
+     {
+      "X": 26,
+      "Y": 0
+     },
+     {
+      "X": 27,
+      "Y": 0
+     },
+     {
+      "X": 28,
+      "Y": 0
+     },
+     {
+      "X": 29,
+      "Y": 0
+     },
+     {
+      "X": 30,
+      "Y": 0
+     },
+     {
+      "X": 31,
+      "Y": 0
+     },
+     {
+      "X": 32,
+      "Y": 0
+     },
+     {
+      "X": 33,
+      "Y": 0
+     },
+     {
+      "X": 34,
+      "Y": 0
+     },
+     {
+      "X": 35,
+      "Y": 0
+     },
+     {
+      "X": 36,
+      "Y": 0
+     },
+     {
+      "X": 37,
+      "Y": 0
+     },
+     {
+      "X": 38,
+      "Y": 0
+     },
+     {
+      "X": 39,
+      "Y": 0
+     },
+     {
+      "X": 40,
+      "Y": 0
+     },
+     {
+      "X": 41,
+      "Y": 0
+     },
+     {
+      "X": 42,
+      "Y": 0
+     },
+     {
+      "X": 43,
+      "Y": 0
+     },
+     {
+      "X": 44,
+      "Y": 0
+     },
+     {
+      "X": 45,
+      "Y": 0
+     },
+     {
+      "X": 46,
+      "Y": 0
+     },
+     {
+      "X": 47,
+      "Y": 0
+     },
+     {
+      "X": 48,
+      "Y": 0
+     },
+     {
+      "X": 49,
+      "Y": 0
+     },
+     {
+      "X": 50,
+      "Y": 0
+     },
+     {
+      "X": 51,
+      "Y": 0
+     },
+     {
+      "X": 52,
+      "Y": 0
+     },
+     {
+      "X": 53,
+      "Y": 0
+     },
+     {
+      "X": 54,
+      "Y": 0
+     },
+     {
+      "X": 55,
+      "Y": 0
+     },
+     {
+      "X": 56,
+      "Y": 0
+     },
+     {
+      "X": 57,
+      "Y": 0
+     },
+     {
+      "X": 58,
+      "Y": 0
+     },
+     {
+      "X": 59,
+      "Y": 0
+     },
+     {
+      "X": 60,
+      "Y": 0
+     },
+     {
+      "X": 61,
+      "Y": 0
+     },
+     {
+      "X": 62,
+      "Y": 0
+     },
+     {
+      "X": 63,
+      "Y": 0
+     },
+     {
+      "X": 64,
+      "Y": 0
+     },
+     {
+      "X": 65,
+      "Y": 0
+     },
+     {
+      "X": 66,
+      "Y": 0
+     },
+     {
+      "X": 67,
+      "Y": 0
+     },
+     {
+      "X": 68,
+      "Y": 0
+     },
+     {
+      "X": 69,
+      "Y": 0
+     },
+     {
+      "X": 70,
+      "Y": 0
+     },
+     {
+      "X": 71,
+      "Y": 0
+     },
+     {
+      "X": 72,
+      "Y": 0
+     },
+     {
+      "X": 73,
+      "Y": 0
+     },
+     {
+      "X": 74,
+      "Y": 0
+     },
+     {
+      "X": 75,
+      "Y": 0
+     },
+     {
+      "X": 76,
+      "Y": 0
+     },
+     {
+      "X": 77,
+      "Y": 0
+     },
+     {
+      "X": 78,
+      "Y": 0
+     },
+     {
+      "X": 79,
+      "Y": 0
+     },
+     {
+      "X": 80,
+      "Y": 0
+     },
+     {
+      "X": 81,
+      "Y": 0
+     },
+     {
+      "X": 82,
+      "Y": 0
+     },
+     {
+      "X": 83,
+      "Y": 0
+     },
+     {
+      "X": 84,
+      "Y": 0
+     },
+     {
+      "X": 85,
+      "Y": 0
+     },
+     {
+      "X": 86,
+      "Y": 0
+     },
+     {
+      "X": 87,
+      "Y": 0
+     },
+     {
+      "X": 88,
+      "Y": 0
+     },
+     {
+      "X": 89,
+      "Y": 0
+     },
+     {
+      "X": 90,
+      "Y": 0
+     },
+     {
+      "X": 91,
+      "Y": 0
+     },
+     {
+      "X": 92,
+      "Y": 0
+     },
+     {
+      "X": 93,
+      "Y": 0
+     },
+     {
+      "X": 94,
+      "Y": 0
+     },
+     {
+      "X": 95,
+      "Y": 0
+     },
+     {
+      "X": 96,
+      "Y": 0
+     },
+     {
+      "X": 97,
+      "Y": 0
+     },
+     {
+      "X": 98,
+      "Y": 0
+     },
+     {
+      "X": 99,
+      "Y": 0
+     },
+     {
+      "X": 100,
+      "Y": 0
+     },
+     {
+      "X": 101,
+      "Y": 0
+     },
+     {
+      "X": 102,
+      "Y": 0
+     },
+     {
+      "X": 103,
+      "Y": 0
+     },
+     {
+      "X": 104,
+      "Y": 0
+     },
+     {
+      "X": 105,
+      "Y": 0
+     },
+     {
+      "X": 106,
+      "Y": 0
+     },
+     {
+      "X": 107,
+      "Y": 0
+     },
+     {
+      "X": 108,
+      "Y": 0
+     },
+     {
+      "X": 109,
+      "Y": 0
+     },
+     {
+      "X": 110,
+      "Y": 0
+     },
+     {
+      "X": 111,
+      "Y": 0
+     },
+     {
+      "X": 112,
+      "Y": 0
+     },
+     {
+      "X": 113,
+      "Y": 0
+     },
+     {
+      "X": 114,
+      "Y": 0
+     },
+     {
+      "X": 115,
+      "Y": 0
+     },
+     {
+      "X": 116,
+      "Y": 0
+     },
+     {
+      "X": 117,
+      "Y": 0
+     },
+     {
+      "X": 118,
+      "Y": 0
+     },
+     {
+      "X": 119,
+      "Y": 0
+     },
+     {
+      "X": 120,
+      "Y": 0
+     },
+     {
+      "X": 121,
+      "Y": 0
+     },
+     {
+      "X": 122,
+      "Y": 0
+     },
+     {
+      "X": 123,
+      "Y": 0
+     },
+     {
+      "X": 124,
+      "Y": 0
+     },
+     {
+      "X": 125,
+      "Y": 0
+     },
+     {
+      "X": 126,
+      "Y": 0
+     },
+     {
+      "X": 127,
+      "Y": 0
+     },
+     {
+      "X": 128,
+      "Y": 0
+     },
+     {
+      "X": 129,
+      "Y": 0
+     },
+     {
+      "X": 130,
+      "Y": 0
+     },
+     {
+      "X": 131,
+      "Y": 0
+     },
+     {
+      "X": 132,
+      "Y": 0
+     },
+     {
+      "X": 133,
+      "Y": 0
+     },
+     {
+      "X": 134,
+      "Y": 0
+     },
+     {
+      "X": 135,
+      "Y": 0
+     },
+     {
+      "X": 136,
+      "Y": 0
+     },
+     {
+      "X": 137,
+      "Y": 0
+     },
+     {
+      "X": 138,
+      "Y": 0
+     },
+     {
+      "X": 139,
+      "Y": 0
+     },
+     {
+      "X": 140,
+      "Y": 0
+     },
+     {
+      "X": 141,
+      "Y": 0
+     },
+     {
+      "X": 142,
+      "Y": 0
+     },
+     {
+      "X": 143,
+      "Y": 0
+     },
+     {
+      "X": 144,
+      "Y": 0
+     },
+     {
+      "X": 145,
+      "Y": 0
+     },
+     {
+      "X": 146,
+      "Y": 0
+     },
+     {
+      "X": 147,
+      "Y": 0
+     },
+     {
+      "X": 148,
+      "Y": 0
+     },
+     {
+      "X": 149,
+      "Y": 0
+     },
+     {
+      "X": 150,
+      "Y": 0
+     },
+     {
+      "X": 151,
+      "Y": 0
+     },
+     {
+      "X": 152,
+      "Y": 0
+     },
+     {
+      "X": 153,
+      "Y": 0
+     },
+     {
+      "X": 154,
+      "Y": 0
+     },
+     {
+      "X": 155,
+      "Y": 0
+     },
+     {
+      "X": 156,
+      "Y": 0
+     },
+     {
+      "X": 157,
+      "Y": 0
+     },
+     {
+      "X": 158,
+      "Y": 0
+     },
+     {
+      "X": 159,
+      "Y": 0
+     },
+     {
+      "X": 160,
+      "Y": 0
+     },
+     {
+      "X": 161,
+      "Y": 0
+     },
+     {
+      "X": 162,
+      "Y": 0
+     },
+     {
+      "X": 163,
+      "Y": 0
+     },
+     {
+      "X": 164,
+      "Y": 0
+     },
+     {
+      "X": 165,
+      "Y": 0
+     },
+     {
+      "X": 166,
+      "Y": 0
+     },
+     {
+      "X": 167,
+      "Y": 0
+     },
+     {
+      "X": 168,
+      "Y": 0
+     },
+     {
+      "X": 169,
+      "Y": 0
+     },
+     {
+      "X": 170,
+      "Y": 0
+     },
+     {
+      "X": 171,
+      "Y": 0
+     },
+     {
+      "X": 172,
+      "Y": 0
+     },
+     {
+      "X": 173,
+      "Y": 0
+     },
+     {
+      "X": 174,
+      "Y": 0
+     },
+     {
+      "X": 175,
+      "Y": 0
+     },
+     {
+      "X": 176,
+      "Y": 0
+     },
+     {
+      "X": 177,
+      "Y": 0
+     },
+     {
+      "X": 178,
+      "Y": 0
+     },
+     {
+      "X": 179,
+      "Y": 0
+     },
+     {
+      "X": 180,
+      "Y": 0
+     },
+     {
+      "X": 181,
+      "Y": 0
+     },
+     {
+      "X": 182,
+      "Y": 0
+     },
+     {
+      "X": 183,
+      "Y": 0
+     },
+     {
+      "X": 184,
+      "Y": 0
+     },
+     {
+      "X": 185,
+      "Y": 0
+     },
+     {
+      "X": 186,
+      "Y": 0
+     },
+     {
+      "X": 187,
+      "Y": 0
+     },
+     {
+      "X": 188,
+      "Y": 0
+     },
+     {
+      "X": 189,
+      "Y": 0
+     },
+     {
+      "X": 190,
+      "Y": 0
+     },
+     {
+      "X": 191,
+      "Y": 0
+     },
+     {
+      "X": 192,
+      "Y": 0
+     },
+     {
+      "X": 193,
+      "Y": 0
+     },
+     {
+      "X": 194,
+      "Y": 0
+     },
+     {
+      "X": 195,
+      "Y": 0
+     },
+     {
+      "X": 196,
+      "Y": 0
+     },
+     {
+      "X": 197,
+      "Y": 0
+     },
+     {
+      "X": 198,
+      "Y": 0
+     },
+     {
+      "X": 199,
+      "Y": 0
+     },
+     {
+      "X": 200,
+      "Y": 0
+     },
+     {
+      "X": 201,
+      "Y": 0
+     },
+     {
+      "X": 202,
+      "Y": 0
+     },
+     {
+      "X": 203,
+      "Y": 0
+     },
+     {
+      "X": 204,
+      "Y": 0
+     },
+     {
+      "X": 205,
+      "Y": 0
+     },
+     {
+      "X": 206,
+      "Y": 0
+     },
+     {
+      "X": 207,
+      "Y": 0
+     },
+     {
+      "X": 208,
+      "Y": 0
+     },
+     {
+      "X": 209,
+      "Y": 0
+     },
+     {
+      "X": 210,
+      "Y": 0
+     },
+     {
+      "X": 211,
+      "Y": 0
+     },
+     {
+      "X": 212,
+      "Y": 0
+     },
+     {
+      "X": 213,
+      "Y": 0
+     },
+     {
+      "X": 214,
+      "Y": 0
+     },
+     {
+      "X": 215,
+      "Y": 0
+     },
+     {
+      "X": 216,
+      "Y": 0
+     },
+     {
+      "X": 217,
+      "Y": 0
+     },
+     {
+      "X": 218,
+      "Y": 0
+     },
+     {
+      "X": 219,
+      "Y": 0
+     },
+     {
+      "X": 220,
+      "Y": 0
+     }
+    ],
+    "Version": 0
+   }
+  },
+  "d0224000-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     20,
+     114,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Kerb Car",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 300,
+    "Max": 300
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100001",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 6,
+        "arrivalRadius": 2,
+        "target": [
+         20,
+         124,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100002",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     45,
+     114,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 100
+   },
+   "EntityInfo": {
+    "Name": "Kerb Tank",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100003",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 6,
+        "arrivalRadius": 2,
+        "target": [
+         45,
+         124,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100004",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     70,
+     122,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 106
+   },
+   "EntityInfo": {
+    "Name": "Garden Car",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 300,
+    "Max": 300
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100005",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 6,
+        "arrivalRadius": 2,
+        "target": [
+         70,
+         134,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100006",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     150,
+     137,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer A",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100007",
+       "executingEngine": "",
+       "behaviorName": "ClearObstacle",
+       "behaviorParams": {
+        "At": [
+         150,
+         149,
+         0
+        ],
+        "PushSeconds": 3,
+        "Speed": 4
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100008",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000009": {
+   "SimTransform": {
+    "Position": [
+     142,
+     141,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "A Rifle 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100009",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100010",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         150,
+         153,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100011",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000010": {
+   "SimTransform": {
+    "Position": [
+     158,
+     141,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "A Rifle 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100012",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100013",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         152,
+         153,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100014",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     60,
+     146,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "A Probe",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100015",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100016",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         60,
+         153,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100017",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     150,
+     174,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer B",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100018",
+       "executingEngine": "",
+       "behaviorName": "ClearObstacle",
+       "behaviorParams": {
+        "At": [
+         150,
+         185,
+         0
+        ],
+        "PushSeconds": 3,
+        "Speed": 4
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100019",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     142,
+     177,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "B Rifle 1",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100020",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100021",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         150,
+         189,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100022",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000014": {
+   "SimTransform": {
+    "Position": [
+     158,
+     177,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "B Rifle 2",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100023",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100024",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         152,
+         189,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100025",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000015": {
+   "SimTransform": {
+    "Position": [
+     60,
+     182,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "B Probe",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100026",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100027",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         60,
+         189,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100028",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000016": {
+   "SimTransform": {
+    "Position": [
+     40,
+     60,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer Fence",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100029",
+       "executingEngine": "",
+       "behaviorName": "ClearObstacle",
+       "behaviorParams": {
+        "At": [
+         40,
+         70,
+         0
+        ],
+        "PushSeconds": 3,
+        "Speed": 4
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100030",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000017": {
+   "SimTransform": {
+    "Position": [
+     40,
+     66,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Fence Rifle",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100031",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100032",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         40,
+         74,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100033",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000018": {
+   "SimTransform": {
+    "Position": [
+     88,
+     104,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer House",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100034",
+       "executingEngine": "",
+       "behaviorName": "ClearObstacle",
+       "behaviorParams": {
+        "At": [
+         100,
+         104,
+         0
+        ],
+        "PushSeconds": 3,
+        "Speed": 4
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100035",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d0224000-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
+     84,
+     100,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "House Rifle",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100036",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "TimerElapsed",
+         "params": "45"
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100037",
+       "executingEngine": "",
+       "behaviorName": "MoveToLocation",
+       "behaviorParams": {
+        "speed": 2,
+        "arrivalRadius": 1,
+        "target": [
+         103,
+         104,
+         0
+        ]
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      },
+      {
+       "taskId": "d0224000-0000-4000-9000-000000100038",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ },
+ "TerrainObjects": {
+  "bt-range/House A/front": {
+   "door": "Locked"
+  },
+  "bt-range/House A/back": {
+   "door": "Locked"
+  },
+  "bt-range/House A/hall": {
+   "door": "Locked"
+  }
+ }
+}

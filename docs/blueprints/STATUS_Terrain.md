@@ -10,7 +10,7 @@ related-designs:
 
 # STATUS — `terrain` lane (dynamic terrain, CE-4604)
 
-## 1. Decisions taken — for the user's review
+## 1. Decisions taken — ✅ R-5001…R-5031 APPROVED (R-4280, `2026-11-16`); R-5004 / R-5012 / R-5029 / R-5031 and the dozer half of R-5008 accepted as NOT built; ⚠ R-5000 CHANGED (a kerb under 0.25 m is rolled over — built, `STATUS_Terrain_Breaching_And_Versions.md`)
 
 | ruling | decision | what would change it |
 |---|---|---|

@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Terrain
     /// <summary>
     /// ⭐ O-4 (CE-4415, DESIGN_Terrain_Authoring §18a) — a terrain's / an overlay's CONTENT identity (SHA-256, lowercase hex), so a NAME no longer stands for bytes:
     /// an overlay names the hash of the base it was compiled against and a node refuses a mismatch.
-    /// <para><see cref="OfTerrain"/>: every file of the terrain folder except <c>navtiles/</c>, <c>source/</c> and <c>terrain.hash</c>, in ordinal relative-path order (path, length, bytes);
+    /// <para><see cref="OfTerrain"/>: every file of the terrain folder except <c>navtiles/</c>, <c>source/</c>, <c>versions/</c> and <c>terrain.hash</c>, in ordinal relative-path order (path, length, bytes);
     /// cached in <c>&lt;folder&gt;/terrain.hash</c> keyed by each file's (length, mtime ticks) — a height store of 127 MB is hashed once, then re-read only if a file changed.
     /// <see cref="OfOverlay"/>: the world file and <c>buildings/*</c> (not <c>overlay.json</c>, which carries the hash; not <c>navtiles/</c>, a derived cache).</para>
     /// </summary>
@@ -66,7 +66,8 @@ namespace Fdp.Toolkit.Terrain
         }
 
         private static bool IsExcluded(string rel)
-            => rel == CacheFileName || rel.StartsWith("navtiles/", StringComparison.Ordinal) || rel.StartsWith("source/", StringComparison.Ordinal);
+            => rel == CacheFileName || rel.StartsWith("navtiles/", StringComparison.Ordinal) || rel.StartsWith("source/", StringComparison.Ordinal)
+            || rel.StartsWith(TerrainCatalog.VersionsDirectoryName + "/", StringComparison.Ordinal);   // ⭐ AQ112 A — the old versions are not part of the current one's identity
 
         private static string Hash(List<(string Rel, FileInfo Info)> files, string? prefix = null)
         {

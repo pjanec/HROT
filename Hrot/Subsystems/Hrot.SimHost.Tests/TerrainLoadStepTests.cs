@@ -469,6 +469,46 @@ public sealed class TerrainLoadStepTests : IDisposable
         Assert.Contains("torn", t.Message);
     }
 
+    /// <summary>Simulates what the importer's replace does (AQ112 A): the whole <c>base-t</c> folder moves to <c>versions/&lt;oldHash&gt;/</c>, and a NEW base-t (another world: one building "N") stands in its place. Returns the new hash.</summary>
+    private string ReImportBase(string oldHash)
+    {
+        string folder = Path.Combine(_terrainDir, "base-t"), moved = folder + "-moving";
+        Directory.Move(folder, moved);
+        Directory.CreateDirectory(Path.Combine(folder, TerrainCatalog.VersionsDirectoryName));
+        Directory.Move(moved, Path.Combine(folder, TerrainCatalog.VersionsDirectoryName, oldHash));
+        File.WriteAllText(Path.Combine(folder, TerrainCatalog.DefinitionFileName), """{"schemaVersion":2,"world":"w.geojson"}""", new UTF8Encoding(false));
+        File.WriteAllText(Path.Combine(folder, "w.geojson"), """
+            {"type":"FeatureCollection","features":[
+              {"type":"Feature","properties":{"kind":"building","label":"N","height":7},
+               "geometry":{"type":"Polygon","coordinates":[[[50,50],[60,50],[60,60],[50,60],[50,50]]]}}]}
+            """, new UTF8Encoding(false));
+        return TerrainContentHash.OfTerrain(Path.Combine(folder, TerrainCatalog.DefinitionFileName));
+    }
+
+    /// <summary>
+    /// ⭐⭐ AQ112 B (R-4280) — a scenario's overlay saved on the OLD base still loads after the terrain was re-imported: the residency resolves the kept version by the overlay's base hash (the staged world is the OLD base + the overlay, its
+    /// <c>BaseHash</c> the old one); with no kept version the refusal NAMES the missing version hash (and the resident one); a plain load (no overlay) takes the NEW terrain. 🔴 Red-proof: pass no hash to <c>ResolveDefinition</c> in <c>Prepare</c> ⇒ the C-5 refusal
+    /// where the old overlay used to load; drop the hash from the message ⇒ the last assertion fails.
+    /// </summary>
+    [Fact]
+    public void AnOverlaySavedOnAnOldBase_StillLoads_AfterTheTerrainIsReImported_AQ112B()
+    {
+        string oldHash = WriteBaseAndOverlay(out var overlay);
+        string newHash = ReImportBase(oldHash);
+        Assert.NotEqual(oldHash, newHash);
+        using var holder = new RoadNetworkHolder();
+        var residency = new TerrainResidency(new TerrainCatalog(new[] { _terrainDir }), holder);
+
+        var staged = residency.Prepare("base-t", overlay);
+        Assert.Equal(new[] { "B", "O" }, staged.World!.Prisms.Select(p => p.Label).ToArray());   // the OLD base (B), not the new one (N), plus the overlay
+        Assert.Equal(oldHash, staged.BaseHash);
+        Assert.Equal(new[] { "N" }, residency.Prepare("base-t").World!.Prisms.Select(p => p.Label).ToArray());   // no overlay: the current terrain
+
+        Directory.Delete(Path.Combine(_terrainDir, "base-t", TerrainCatalog.VersionsDirectoryName), true);       // nobody kept it
+        var e = Assert.Throws<InvalidOperationException>(() => residency.Prepare("base-t", overlay));
+        Assert.Contains(oldHash, e.Message); Assert.Contains(newHash, e.Message); Assert.Contains("versions", e.Message);
+    }
+
     /// <summary>
     /// ⭐ O-4 — the same overlay loaded by two FRESH residencies (two nodes, two processes) gives merged worlds whose part lists are identical element for element: labels, counts, door keys, panel indices.
     /// 🔴 Red-proof: have the merge (or the parse) order parts by a per-process value (a hash code / a dictionary order) ⇒ the lists differ between residencies.
