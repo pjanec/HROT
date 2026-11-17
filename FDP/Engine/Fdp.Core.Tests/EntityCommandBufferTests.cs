@@ -6,6 +6,32 @@ namespace Fdp.Tests
 {
     public class EntityCommandBufferTests
     {
+        /// <summary>⭐ CE-3467 — a unit's memory block (a 4096- or 16384-byte component) deferred by the parallel brain phase plays back byte-identical
+        /// (the buffer's old 1024-byte limit threw, so the process died).</summary>
+        [ComponentId(500)] public unsafe struct Block4096 { public fixed byte Bytes[4096]; }
+        [ComponentId(501)] public unsafe struct Block16384 { public fixed byte Bytes[16384]; }
+
+        [Fact]
+        public unsafe void CE3467_ALargeComponent_DeferredByAnEntity_PlaysBackByteIdentical()
+        {
+            using var repo = new EntityRepository();
+            repo.RegisterComponent<Block4096>();
+            repo.RegisterComponent<Block16384>();
+            using var ecb = new EntityCommandBuffer();
+            var e = repo.CreateEntity();
+            var big = new Block4096();
+            var huge = new Block16384();
+            for (int i = 0; i < 4096; i++) big.Bytes[i] = (byte)(i * 7 + 3);
+            for (int i = 0; i < 16384; i++) huge.Bytes[i] = (byte)(i * 13 + 1);
+            ecb.AddComponent(e, big);
+            ecb.AddComponent(e, huge);
+            ecb.Playback(repo);
+            var a = repo.GetComponentRO<Block4096>(e);
+            var b = repo.GetComponentRO<Block16384>(e);
+            for (int i = 0; i < 4096; i++) Assert.Equal((byte)(i * 7 + 3), a.Bytes[i]);
+            for (int i = 0; i < 16384; i++) Assert.Equal((byte)(i * 13 + 1), b.Bytes[i]);
+        }
+
         [Fact]
         public void CreateEntity_RecordsAndPlaysback()
         {

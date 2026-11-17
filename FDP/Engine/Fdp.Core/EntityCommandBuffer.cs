@@ -36,7 +36,11 @@ namespace Fdp.Core
         private byte[] _buffer;
         private int _position;
         private const int InitialCapacity = 4096;
-        private const int MaxComponentSize = 1024; // Sanity check
+        // ⭐ CE-3467 — was 1024 (a day-one sanity check). The largest unmanaged component that may be DEFERRED is a unit's memory block, up to
+        //   BlueprintBlackboard16384 (16 384 B): under the parallel brain phase its first block is added through this buffer, and 4096 / 16384
+        //   threw "Component size 4096 exceeds maximum 1024" (ua-rpg-window, exit 134). 32 KiB = that tier with one doubling of headroom. The
+        //   stream is int-sized and the buffer grows (EnsureCapacity), and Playback copies `size` bytes by pointer — any size plays back intact.
+        private const int MaxComponentSize = 32 * 1024; // Sanity check
         
         // Separate storage for managed component objects
         private System.Collections.Generic.List<object> _managedObjects;
