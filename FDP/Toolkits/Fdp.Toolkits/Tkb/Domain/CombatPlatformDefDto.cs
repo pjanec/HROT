@@ -75,5 +75,16 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// = derived</b>: a hull's collider silhouette, a man's stance area.
         /// </summary>
         public float PresentedAreaM2 { get; init; } = -1f;
+
+        /// <summary>⭐ CE-4670 (vehicle appearance VA-S1, VA-7) — the part ids holding the AMMUNITION: a killing hit there is a Catastrophic kill (the turret
+        /// thrown). <b>null (default) = the class's</b> (<c>bodies.json</c> <c>ammoStowage</c>).</summary>
+        public System.Collections.Generic.List<int>? AmmoStowage { get; init; }
+
+        /// <summary>⭐ CE-4670 (VA-S1) — the part ids holding the FUEL: a killing hit there burns the hull out. <b>null = the class's</b>.</summary>
+        public System.Collections.Generic.List<int>? FuelStowage { get; init; }
+
+        /// <summary>⭐ CE-4670 (VA-S1, VA-10) — how long the wreck smokes after its flames end. <b>−1 (default) = the class's</b>.</summary>
+        [EditUnit("s")]
+        public float SmoulderSeconds { get; init; } = -1f;
     }
 }

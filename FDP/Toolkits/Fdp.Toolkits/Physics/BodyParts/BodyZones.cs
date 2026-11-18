@@ -47,6 +47,16 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>⭐ <c>CE-3211</c> (S2-4) — which end of the main hull box holds the engine.</summary>
         public EngineEnd EngineEnd { get; init; }
 
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, VA-7) — the parts holding the AMMUNITION (a bit per part id): a killing hit there is a <c>Catastrophic</c>
+        /// kill. The class's (<c>bodies.json</c> <c>ammoStowage</c>), overridden by the type's <c>Combat.PlatformDef.AmmoStowage</c>.</summary>
+        public uint AmmoStowageMask { get; init; }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1) — the parts holding the FUEL: a killing hit there (and not in the ammunition) burns the vehicle out.</summary>
+        public uint FuelStowageMask { get; init; }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, VA-10) — how long a wreck SMOKES after its flames end (s); 0 = it does not.</summary>
+        public float SmoulderSeconds { get; init; }
+
         /// <summary>The zone <paramref name="part"/> belongs to, or null.</summary>
         public ResolvedZone? ZoneOf(byte part)
         {
@@ -74,7 +84,7 @@ namespace Fdp.Toolkit.Physics.BodyParts
     {
         private sealed record Profile(string Name, BodyPlan Plan, int?[][] Dis, List<BodyZoneDto> Zones, string? Kit = null,
                                       EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false, List<OpeningDto>? Openings = null,
-                                      List<LightDto>? Lights = null);
+                                      List<LightDto>? Lights = null, uint AmmoMask = 0, uint FuelMask = 0, float? Smoulder = null);
 
         /// <summary>
         /// ⭐ <c>CE-4670</c> (VA-8; HL-12's rule) — the hatches / doors / ramps of the CLASS <paramref name="dis"/> belongs to: the matched body profile's
@@ -178,7 +188,11 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 zones.Add(z);
             }
             return new ResolvedBody { Plan = plan, Profile = source, ProfileProvenance = prov, Zones = zones, Kit = profile?.Kit,
-                                      EngineEnd = profile?.EngineEnd ?? EngineEnd.None };
+                                      EngineEnd = profile?.EngineEnd ?? EngineEnd.None,
+                                      // ⭐ CE-4670 (VA-S1) — stowage and smoulder: the type's platform when it states them, else the class's (HL-12's rule)
+                                      AmmoStowageMask = platform?.AmmoStowage is { } am ? MaskOf(am) : profile?.AmmoMask ?? 0u,
+                                      FuelStowageMask = platform?.FuelStowage is { } fm ? MaskOf(fm) : profile?.FuelMask ?? 0u,
+                                      SmoulderSeconds = platform is { SmoulderSeconds: >= 0f } ps ? ps.SmoulderSeconds : profile?.Smoulder ?? 0f };
         }
 
         private static void Set(ResolvedZone z, string key, float? value, Action<float> set, ParameterProvenance prov, string source, float dflt,
@@ -328,12 +342,27 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 list.Add(new Profile(n["name"]!.GetValue<string>(), Enum.Parse<BodyPlan>(n["plan"]!.GetValue<string>(), ignoreCase: true),
                                      patterns.ToArray(), zones, n["kit"]?.GetValue<string>(),
                                      n["engine"] is { } en ? Enum.Parse<EngineEnd>(en.GetValue<string>(), ignoreCase: true) : EngineEnd.None,
-                                     n["inheritArmour"]?.GetValue<bool>() ?? false, openings, lights));
+                                     n["inheritArmour"]?.GetValue<bool>() ?? false, openings, lights,
+                                     MaskOf(n["ammoStowage"]), MaskOf(n["fuelStowage"]), F(n["smoulderSeconds"])));
             }
             return list.ToArray();
         }
 
         private static float? F(JsonNode? n) => n == null ? null : (float)n.GetValue<double>();
+
+        private static uint MaskOf(IReadOnlyList<int> parts)
+        {
+            uint mask = 0;
+            for (int i = 0; i < parts.Count; i++) if (parts[i] >= 0 && parts[i] < 32) mask |= 1u << parts[i];
+            return mask;
+        }
+
+        private static uint MaskOf(JsonNode? array)
+        {
+            uint mask = 0;
+            if (array is JsonArray a) foreach (var p in a) { int id = p!.GetValue<int>(); if (id >= 0 && id < 32) mask |= 1u << id; }
+            return mask;
+        }
 
         private static List<BodyZoneDto> DefaultPersonZones() => new()
         {

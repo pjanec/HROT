@@ -77,7 +77,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (view is EntityRepository ownerCheck && OwnsTheDamageDescriptor(ownerCheck, entity))
                 return;
 
-            cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max, StateSince = data.StateSince });
+            cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max, StateSince = data.StateSince, Destruction = KindOf(data.Destruction) });
         }
 
         public override void ScanAndPublish(ISimulationView view) { }
@@ -91,8 +91,12 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (OwnsTheDamageDescriptor(repo, entity))
                 return;
 
-            repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max, StateSince = health.StateSince });
+            repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max, StateSince = health.StateSince, Destruction = KindOf(health.Destruction) });
         }
+
+        /// <summary>⭐ CE-4670 (VA-S1) — the wire's own destruction byte (R-4295) to the engine's kind; an unknown value is None.</summary>
+        private static Fdp.Toolkit.Combat.Components.DestructionKind KindOf(byte wire)
+            => wire <= 3 ? (Fdp.Toolkit.Combat.Components.DestructionKind)wire : Fdp.Toolkit.Combat.Components.DestructionKind.None;
 
         /// <summary>
         /// True when this node holds the RECORDED ownership of <c>dtEntityDamage</c> for <paramref name="entity"/> — the

@@ -398,6 +398,68 @@ namespace Fdp.Toolkit.Physics.Tests
             Assert.Equal(ActorCapabilities.CanMove | ActorCapabilities.CanShoot, _world.GetComponentRO<ActorCapabilityState>(c).Capabilities);
         }
 
+        // ── ⭐⭐ CE-4670 (vehicle appearance VA-S1, VA-7) — the kill KIND, decided once on the hit that kills ─────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (VA-7) — the Health owner decides HOW a vehicle was destroyed from the killing hit's part and the class's stowage (the
+        /// <c>Tank</c> profile: ammunition in the turret, fuel at the engine): turret ⇒ Catastrophic, engine ⇒ BurntOut, hull ⇒ KnockedOut, a blast with
+        /// no part ⇒ KnockedOut; a wounding hit decides nothing, and a later hit on the wreck never changes it. A person stays None.
+        /// 🔴 Red-proof: with the decision removed every kind reads None.
+        /// </summary>
+        [Fact]
+        public void CE4670_TheKillKind_FollowsTheKillingHitsPart_AndIsDecidedOnce()
+        {
+            var turret = Armed(Tank);
+            Apply(turret, VehiclePart.Turret, 400f);
+            Assert.Equal(DestructionKind.None, _world.GetComponentRO<Health>(turret).Destruction);   // wounded: no kind yet
+            Apply(turret, VehiclePart.Turret, 700f);
+            Assert.Equal(DestructionKind.Catastrophic, _world.GetComponentRO<Health>(turret).Destruction);
+            Apply(turret, VehiclePart.Engine, 500f);                                                   // a hit on the wreck
+            Assert.Equal(DestructionKind.Catastrophic, _world.GetComponentRO<Health>(turret).Destruction);
+
+            var engine = Armed(Tank);
+            Apply(engine, VehiclePart.Engine, 1200f);
+            Assert.Equal(DestructionKind.BurntOut, _world.GetComponentRO<Health>(engine).Destruction);
+
+            var hull = Armed(Tank);
+            Apply(hull, VehiclePart.Hull, 1200f);
+            Assert.Equal(DestructionKind.KnockedOut, _world.GetComponentRO<Health>(hull).Destruction);
+
+            var blast = Armed(Tank);
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = blast, TotalDamage = 1200f });
+            _world.Bus.SwapBuffers();
+            new HealthApplicationSystem().Execute(_world, 0.016f);
+            Assert.Equal(DestructionKind.KnockedOut, _world.GetComponentRO<Health>(blast).Destruction);
+
+            var man = Body(Soldier);
+            Apply(man, PersonPart.Torso, 200f);
+            Assert.Equal(0f, _world.GetComponentRO<Health>(man).Current);
+            Assert.Equal(DestructionKind.None, _world.GetComponentRO<Health>(man).Destruction);
+        }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, HL-12's rule) — a TYPE overrides its class's stowage and smoulder on its platform: this tank keeps its
+        /// ammunition in the HULL, so a hull kill is Catastrophic and a turret kill only knocks it out.</summary>
+        [Fact]
+        public void CE4670_ATypesPlatform_OverridesItsClassesStowage()
+        {
+            const long HullAmmo = 60;
+            var t = Type(HullAmmo, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
+            t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 500f, ArmorSide = 80f, ArmorRear = 40f, ArmorTop = 30f,
+                                                       AmmoStowage = new() { VehiclePart.Hull }, SmoulderSeconds = 60f });
+            _db.Register(t);
+            var body = BodyZones.Of(_db.GetByType(HullAmmo))!;
+            Assert.Equal((1u << VehiclePart.Hull, 1u << VehiclePart.Engine, 60f), (body.AmmoStowageMask, body.FuelStowageMask, body.SmoulderSeconds));
+            var classTank = BodyZones.Of(_db.GetByType(Tank))!;
+            Assert.Equal((1u << VehiclePart.Turret, 1800f), (classTank.AmmoStowageMask, classTank.SmoulderSeconds));
+
+            var hull = Armed(HullAmmo);
+            Apply(hull, VehiclePart.Hull, 1200f);
+            Assert.Equal(DestructionKind.Catastrophic, _world.GetComponentRO<Health>(hull).Destruction);
+            var turret = Armed(HullAmmo);
+            Apply(turret, VehiclePart.Turret, 1200f);
+            Assert.Equal(DestructionKind.KnockedOut, _world.GetComponentRO<Health>(turret).Destruction);
+        }
+
         // ── ⭐⭐ CE-3214 (§11 S2b) — a weapon system's parts ─────────────────────────────────────────────────────────────────────────
 
         /// <summary>⭐ <c>CE-3214</c> (S2b-4, S2b-5) — a weapon type gets its kind's profile by DIS class (the HMG and the ATGM tripod), the

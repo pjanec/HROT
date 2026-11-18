@@ -14,7 +14,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// a seat whose occupant changed (a man boarded or left — embark, dismount, ejection, a re-carry) opens every opening of its type that serves that seat's ROLE
     /// (Opening since now, once); an opening nobody has used for its open seconds + <see cref="HoldSeconds"/> starts Closing. The animation is derived
     /// (<see cref="VehicleOpenings.Progress"/>), so a ramp writes twice per dismount. First sight (a scenario, a reload, a late join, a claim that moved here)
-    /// opens nothing. ⏳ A crewman's "head out" (observing, an order) — a request to this owner, not built (VA-S2 follow-up).
+    /// opens nothing. ⭐ A crewman's "head out" (<see cref="OpeningRequestEvent"/>, a request to this owner — the interaction transport carries one raised
+    /// elsewhere): his seat's HATCHES open and are marked <see cref="OpeningSlot.CrewExposed"/>, which the idle close never closes; head in closes them; his seat
+    /// changing hands clears it.
     /// ⭐ Parallel contract: serial, in the <c>Interactions</c> capability (after the appliers); writes only vehicles whose passenger list this node owns; the
     /// component is ADDED with its final value (D-31). 0 B per steady frame (a track is allocated on first sight).
     /// </summary>
@@ -39,6 +41,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>Openings this node opened (rails, diagnostics).</summary>
         public long Opened { get; private set; }
 
+        /// <summary>Head-out / head-in requests this node applied (rails, diagnostics).</summary>
+        public long Requests { get; private set; }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<PassengerBuffer>() || !repo.IsComponentTypeRegistered<VehicleOpenings>()
@@ -53,6 +58,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.HasSingletonUnmanaged<GlobalTime>() || !repo.HasSingletonManaged<ITkbDatabase>() || repo.GetSingletonManaged<ITkbDatabase>() is not { } tkb) return;
             double now = repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
             bool seatRoles = repo.IsComponentTypeRegistered<CarrierSeats>();
+            if (repo.Bus.IsRegistered<OpeningRequestEvent>()) ApplyRequests(repo, tkb, now, seatRoles);
 
             foreach (var v in _vehicles!)
             {
@@ -91,16 +97,79 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     bool open = cur.IsOpenOrOpening(i);
                     if ((used & (1 << i)) != 0) { if (!open) toOpen |= 1 << i; }
-                    else if (open && now - track.LastUse[i] >= openings[i].OpenSeconds + HoldSeconds) toClose |= 1 << i;
+                    else if (open && !cur.Slots[i].CrewExposed && now - track.LastUse[i] >= openings[i].OpenSeconds + HoldSeconds) toClose |= 1 << i;
                 }
-                if ((toOpen | toClose) == 0) continue;
+                int exposedUsed = 0;
+                for (int i = 0; i < openings.Length && i < cur.Count; i++) if ((used & (1 << i)) != 0 && cur.Slots[i].CrewExposed) exposedUsed |= 1 << i;
+                if ((toOpen | toClose | exposedUsed) == 0) continue;
                 ref var rw = ref repo.GetComponentRW<VehicleOpenings>(v);
                 for (int i = 0; i < openings.Length && i < rw.Count; i++)
                 {
+                    if ((used & (1 << i)) != 0) rw.Slots[i].CrewExposed = false;   // his seat changed hands: nobody's head is out now
                     if ((toOpen & (1 << i)) != 0) { rw.Slots[i] = new OpeningSlot { State = OpeningState.Opening, Since = now }; Opened++; }
                     else if ((toClose & (1 << i)) != 0) rw.Slots[i] = new OpeningSlot { State = OpeningState.Closing, Since = now };
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐ VA-4 — apply the head-out / head-in requests for vehicles this node arbitrates (others' were carried to their arbiter by the transport): the man must
+        /// sit in the vehicle; the HATCHES serving his seat's role open (Opening since now, unless already open) and are marked exposed, or — head in — close
+        /// (Closing since now) and are unmarked.
+        /// </summary>
+        private void ApplyRequests(EntityRepository repo, ITkbDatabase tkb, double now, bool seatRoles)
+        {
+            var events = repo.ReadEvents<OpeningRequestEvent>();
+            for (int e = 0; e < events.Length; e++)
+            {
+                ref readonly var req = ref events[e];
+                var v = req.Vehicle;
+                if (!Embarkation.OwnsVehicle(repo, v) || !repo.HasComponent<TkbIdentity>(v)
+                    || !tkb.TryGetByType(repo.GetComponentRO<TkbIdentity>(v).TkbType, out var type)) continue;
+                var openings = VehicleOpeningsCatalog.Of(type);
+                if (openings.Length == 0) continue;
+                int seat = SeatOf(repo.GetComponentRO<PassengerBuffer>(v), req.Man);
+                if (seat < 0) continue;   // not aboard: nothing of his to open
+                var role = seatRoles && repo.HasComponent<CarrierSeats>(v) ? repo.GetComponentRO<CarrierSeats>(v).Roles[seat] : SeatRole.Passenger;
+                int mask = VehicleOpeningsCatalog.ServingMask(openings, role);
+                for (int i = 0; i < openings.Length; i++) if (openings[i].Kind != OpeningKind.Hatch) mask &= ~(1 << i);
+                if (mask == 0) continue;   // his seat has no hatch (a passenger in the back, a car)
+
+                if (!repo.HasComponent<VehicleOpenings>(v))
+                {
+                    var fresh = new VehicleOpenings { Count = (byte)openings.Length };
+                    if (req.Verb == OpeningVerb.HeadOut)
+                        for (int i = 0; i < openings.Length; i++)
+                            if ((mask & (1 << i)) != 0) { fresh.Slots[i] = new OpeningSlot { State = OpeningState.Opening, Since = now, CrewExposed = true }; Opened++; }
+                    repo.AddComponent(v, fresh);   // with its final value (D-31)
+                    Requests++;
+                    continue;
+                }
+                ref var rw = ref repo.GetComponentRW<VehicleOpenings>(v);
+                for (int i = 0; i < openings.Length && i < rw.Count; i++)
+                {
+                    if ((mask & (1 << i)) == 0) continue;
+                    bool open = rw.IsOpenOrOpening(i);
+                    if (req.Verb == OpeningVerb.HeadOut)
+                    {
+                        if (!open) { rw.Slots[i] = new OpeningSlot { State = OpeningState.Opening, Since = now }; Opened++; }
+                        rw.Slots[i].CrewExposed = true;
+                    }
+                    else
+                    {
+                        rw.Slots[i].CrewExposed = false;
+                        if (open) rw.Slots[i] = new OpeningSlot { State = OpeningState.Closing, Since = now };
+                    }
+                }
+                Requests++;
+            }
+        }
+
+        private static int SeatOf(in PassengerBuffer list, Entity man)
+        {
+            if (man.IsNull) return -1;
+            for (int s = 0; s < PassengerBuffer.Capacity; s++) if (list.Passengers[s] == man) return s;
+            return -1;
         }
     }
 }

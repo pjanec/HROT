@@ -39,7 +39,8 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ A ramp mid-opening and a hatch closing reach a late joiner — every slot's state and time; <c>Matches</c> holds for the unchanged component and fails once a
-        /// slot changes; the owner keeps its newer state. 🔴 Red-proof: drop the <c>Since</c> copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// slot changes (a head going in included); the owner keeps its newer state. 🔴 Red-proof: drop the <c>Since</c> copy in <c>FromSample</c> ⇒ the bytes differ;
+        /// ✅ drop the <c>CrewExposed</c> copy ⇒ the bytes differ (VA-4).
         /// </summary>
         [Fact]
         public void CE4670_AVehiclesOpenings_AreOnEveryNode_ALateJoinerIncluded_ByteForByte()
@@ -48,7 +49,7 @@ namespace Hrot.SimHost.Tests
             var original = new VehicleOpenings { Count = 4 };
             original.Slots[0] = new OpeningSlot { State = OpeningState.Opening, Since = 1300.5 };
             original.Slots[1] = new OpeningSlot { State = OpeningState.Closing, Since = 1290.25 };
-            original.Slots[3] = new OpeningSlot { State = OpeningState.Open, Since = 12.0 };
+            original.Slots[3] = new OpeningSlot { State = OpeningState.Open, Since = 12.0, CrewExposed = true };   // ⭐ VA-4 — a commander's head out
             var sample = EntityVehicleOpeningsEgressTranslator.ToSample(7300, in original);
             Assert.True(EntityVehicleOpeningsEgressTranslator.Matches(in sample, in original));
 
@@ -61,6 +62,9 @@ namespace Hrot.SimHost.Tests
             var later = original;
             later.Slots[0] = new OpeningSlot { State = OpeningState.Closing, Since = 1320.0 };
             Assert.False(EntityVehicleOpeningsEgressTranslator.Matches(in sample, in later));
+            var headIn = original;
+            headIn.Slots[3].CrewExposed = false;
+            Assert.False(EntityVehicleOpeningsEgressTranslator.Matches(in sample, in headIn));   // head in alone is a change
 
             lateJoiner.AddComponent(ghost, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 3));
             lateJoiner.SetComponent(ghost, later);

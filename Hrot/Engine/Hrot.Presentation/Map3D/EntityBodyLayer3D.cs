@@ -545,8 +545,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
+            // ⭐ CE-4670 (VA-S1, backend — cross-lane) — the vehicle's partial damage from the ONE reader (VehicleLook): destroyed parts dark, a thrown turret
+            bool vehicleBody = look.Family != VisualFamily.Person && !animal;
+            _damageMask = vehicleBody ? VehicleDamageDraw.DestroyedMask(world, e) : (byte)0;
+            _turretThrown = vehicleBody && wreck && VehicleDamageDraw.TurretThrown(world, e);
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
+            _damageMask = 0; _turretThrown = false;
             _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
@@ -677,6 +682,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — ONE part loop for a body: an entity (<paramref name="e"/> — its weapon tip, its eyes, the
     /// first-person skip) or a body with no entity (null — SUMO's far agents), each part in its outfit or paint, its face, its details and
     /// its stains (<paramref name="stains"/>/<paramref name="details"/> of the shared lists).</summary>
+    private byte _damageMask;      // ⭐ CE-4670 (VA-S1) — the drawn vehicle's destroyed parts (VehicleDamageDraw), set around DrawParts
+    private bool _turretThrown;    // ⭐ CE-4670 — a Catastrophic wreck: its turret drawn thrown
+
     private void DrawParts(Entity? e, KitPart[] parts, in TypeLook look, Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion,
                            Matrix4x4 kitToBody, Matrix4x4 body, Outfit? outfit, FaceOn headFace, float camoSeed, Color colour, bool wreck,
                            int stains, int details, BodyGeometryDto? geometry, in FigureCarriage carriage, LitShader shader, int rounds = LauncherLoad.Full)
@@ -708,9 +716,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (who == FirstPerson && !ShowFirstPersonHead) continue;
             }
             var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
+            if (_turretThrown && VehicleDamageDraw.Thrown(part))   // ⭐ CE-4670 (VA-S1) — a Catastrophic kill: the turret and gun thrown off the hull
+                placed = part.BodyTransform(size, pivots, pose, motion) * VehicleDamageDraw.ThrownTransform(size) * kitToBody * body;
             var model = HrotToRaylib.ModelFromHrot(placed);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+            bool partWrecked = wreck || (_damageMask != 0 && VehicleDamageDraw.Destroyed(_damageMask, part));   // ⭐ CE-4670 — a destroyed part is drawn dark
+            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
             Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));

@@ -2111,6 +2111,51 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2450</c> (behaviors' note: a man inside a house held still on a short planned path) — a walker whose step avoidance bends INTO a
+        /// building's wall takes his PATH's step instead (the CE-6014 rule for a hull, now for a person): he walks on along his path, never through the
+        /// wall. 📌 Live (<c>pc-defend-house</c>): a rifleman 0.38 m from his path, beside a wall, was refused every step for minutes — speed 0 with
+        /// acceleration asked, turning on the spot — while his neighbour walked 14 m. 🔴 Red-proof: without the path-step retry he stands at the wall.
+        /// </summary>
+        [Fact]
+        public void CE2450_AWalkerAvoidanceBendsIntoAWall_TakesHisPathsStep_AndWalksOn()
+        {
+            var (openEast, _) = WalkPastAFileOfMen(house: false);
+            var (houseEast, north) = WalkPastAFileOfMen(house: true);
+            Assert.True(openEast > 1.5f, $"without the house the men only slow him ({openEast:F2} m in 10 s) — else this proves nothing");
+            Assert.True(north < 0.5f, $"pushed {north:F2} m north, through the wall at 0.5 m");
+            Assert.True(houseEast > 0.6f * openEast, $"he stood at the wall: {houseEast:F2} m along his path in 10 s (in the open: {openEast:F2} m)");
+        }
+
+        /// <summary>CE-2450's walk: 10 s on his path east along a file of men 0.45 m to his south; the house's south wall (when present) 0.5 m to his north.</summary>
+        private (float East, float North) WalkPastAFileOfMen(bool house)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            if (house)
+            {
+                const string walls = "\"walls\":[{\"from\":[0,0],\"to\":[30,0]},{\"from\":[30,0],\"to\":[30,10]},{\"from\":[30,10],\"to\":[0,10]},{\"from\":[0,10],\"to\":[0,0]}]";
+                repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+                repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                    "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                    "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[30,0],[30,10],[0,10]]," +
+                    "\"storeys\":[{\"height\":3," + walls + "}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-5,0.5]}}]}"));
+            }
+            for (float x = 1f; x <= 25f; x += 0.6f) Stander(repo, new Vector3(x, -0.45f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            float east = repo.GetComponent<SimTransform>(e).Position.X;
+            pool.Dispose();
+            repo.Dispose();
+            return (east, north);
+        }
+
         /// <summary>⭐ AQ104 I (R-2079; behaviors' handoff item 1) — a person ARRIVES only on the destination's level. 📐 Peek and Fire
         /// §12.7: the attacker stood on the ground floor under the window man (z 3) and was "arrived" for 160 s — arrival was 2-D. ⭐ The
         /// same point on his own floor still arrives (the control); on a path and driven direct.</summary>

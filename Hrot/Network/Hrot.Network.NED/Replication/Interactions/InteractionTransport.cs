@@ -301,8 +301,33 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new Fdp.Toolkit.Perception.Events.SeedTargetCommand { Perceiver = target, Target = actor, ScoreBoost = p.SeedTarget.ScoreBoost, RequestId = p.SeedTarget.RequestId, IsRemote = true });
 
+        /// <summary>⭐ CE-4670 (VA-4, 📄 docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6a) — a crewman's head out / in: to the vehicle's
+        /// boarding arbiter (the passenger list's owner), which writes the hatches.</summary>
+        public static readonly IInteractionCodec OpeningRequest = new InteractionCodec<Fdp.Toolkit.Behavior.OpeningRequestEvent>(
+            EInteractionKind.OpeningRequest,
+            target:      static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.Vehicle,
+            actor:       static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.Man,
+            isRemote:    static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Fdp.Toolkit.Behavior.Embarkation.OwnsVehicle(repo, vehicle),
+            toPayload:   static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => new InteractionPayload { OpeningRequest = new OpeningRequestInteractionPayload { Verb = (byte)e.Verb } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Behavior.OpeningRequestEvent { Vehicle = target, Man = actor, Verb = (Fdp.Toolkit.Behavior.OpeningVerb)p.OpeningRequest.Verb, IsRemote = true });
+
+        /// <summary>⭐ CE-4670 (VA-3, §6b) — a station's light switch: to the vehicle's lights owner (<c>dtVehicleLights</c>), which sets the discipline and the
+        /// mask by the rule.</summary>
+        public static readonly IInteractionCodec LightsRequest = new InteractionCodec<Fdp.Toolkit.Behavior.LightsRequestEvent>(
+            EInteractionKind.LightsRequest,
+            target:      static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.Vehicle,
+            actor:       static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.Actor,
+            isRemote:    static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Fdp.Toolkit.Behavior.Systems.LightRuleSystem.OwnsLights(repo, vehicle),
+            toPayload:   static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => new InteractionPayload { LightsRequest = new LightsRequestInteractionPayload { Discipline = (byte)e.Discipline } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Behavior.LightsRequestEvent { Vehicle = target, Actor = actor, Discipline = (Fdp.Toolkit.Behavior.Components.LightDiscipline)p.LightsRequest.Discipline, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody, SeedTarget };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody, SeedTarget,
+                    OpeningRequest, LightsRequest };
     }
 
     /// <summary>

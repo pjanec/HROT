@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-08 (§5i CE-4345 the turn falls with speed — one steer limit, possessed and AI; backend) · 2026-10-22 (§5f.1 a corner's rise is from its own ground — the hill attack's ramp, CE-4041; behaviors, cross-lane) · 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
+updated: 2026-11-18 (§5j CE-2450 a walker's bent step at a wall takes the path's step; backend) · 2026-11-08 (§5i CE-4345 the turn falls with speed — one steer limit, possessed and AI; backend) · 2026-10-22 (§5f.1 a corner's rise is from its own ground — the hill attack's ramp, CE-4041; behaviors, cross-lane) · 2026-10-21 (§5h.1 AQ99 C — a man down is stepped over where there is no way round; behaviors, cross-lane) · 2026-10-20 (§5h CE-2321 a man down is never pushed nor turned, R-3027 · §5g CE-3287 a wreck / a parked vehicle is never pushed · §5f CE-3286 decided and designed: the hull guard + the backing recovery, R-3025 · §5e measured) · 2026-10-16 (§5c CE-2206 a point inside the turning circle is reached · §5d CE-2211/CE-2213 the rotorcraft strike mode)
 build-state: BUILT (§5f, live 2026-10-20) · BUILT (v1) — 🔒 user, 2026-10-14: "MD-A to MD-H approved"; MD-B's ownership half AMENDED the same day (R-3005, CE-3199): ONE Muscle role, MuscleGround, owns every body's position (§5a)
-current-answer: ⭐ §5i (CE-4345: a vehicle turns wider at speed) · §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
+current-answer: ⭐ §5j (CE-2450: a walker's give-way never walks him into a wall — the path's step) · §5i (CE-4345: a vehicle turns wider at speed) · §5h (CE-2321: a man down lies where he fell, R-3027; §5h.1 stepped over where there is no way round, AQ99 C, R-2065) · §5g (CE-3287: a wreck never moves, a vehicle not driving is never pushed, R-3026) · §5f (CE-3286: a hull never enters a building and backs out of a wall, R-3025) · §5e (its measurement) · §3 (the proposal), §4 (decisions), §5 (as-built), §5a (the ownership decision, R-3005) and §5b (the ground model's arrival and walls, CE-2198) — §1 measured ground, §2 the requirement. · §5c (a point inside the turning circle, CE-2206) · §5d (the rotorcraft strike mode, CE-2211)
 stale-below: nothing.
 known-rot: §4 MD-B's "one ownership role per domain" is SUPERSEDED by R-3005 (one Muscle role) — the module-per-domain half stands.
 known-conflict: docs/designs/navig-2/Navigation_Design_v2_0.md §7.1 routes Naval / Flying as extra KinematicsMode values INSIDE CarKinematics ("impl TBD", never built); this proposal gives each domain its own module instead (MD-B) — reconcile on approval.
@@ -616,3 +616,38 @@ wheel angle, so it slewed to full lock at speed and braked afterwards. Now all t
 
 Rails: `CarKinematicsSystemTests.CE4345_APossessedVehicle_TurnsWiderAtSpeed_*` and `CE4345_AnAiVehicle_TurnsWiderAtSpeed_*` (red with the
 limit disabled). ⚠ A TRACKED hull (a tank) still uses the bicycle geometry; a pivot turn at standstill is not modelled — not asked.
+
+
+## 5j. A walker's give-way never walks him into a wall — he takes his path's step — `CE-2450` (`2026-11-18`, backend)
+
+📌 Behaviors' note (`NOTE_Behaviors_To_Backend_Person_Held_On_A_Short_Path`, measured in `pc-defend-house`): a rifleman 0.38 m off his planned path, beside
+a wall, stood still for minutes — `VehicleState.Speed` 0 with acceleration asked on every sample, turning on the spot, `FailedBlocked` every ~4 s and the
+posture re-sending the move — while his neighbour walked 14 m through the same house.
+
+```mermaid
+sequenceDiagram
+  participant K as CarKinematicsSystem (a person's tick)
+  participant A as avoidance
+  participant T as terrain trace (closed barriers)
+  K->>A: desired = the path's velocity
+  A-->>K: bent (a neighbour pushes him toward the wall)
+  K->>K: step from the BENT velocity (HumanGait)
+  K->>T: does the bent step cross a closed barrier?
+  alt it does (CE-2450)
+    K->>K: step again from the PATH's velocity · the step is no longer "bent"
+  end
+  K->>K: FinishMove — a still-bent step is traced again (CE-2304 N3) and refused at a wall
+```
+
+*Caption:* what the picture shows that the prose hid — ⛔ before, the ONLY answer to a bent step at a wall was the refusal (`FinishMove`), so a neighbour
+that kept pushing kept him standing; ⭐ now the path's step comes first, as CE-6014 already does for a hull (`docs/DESIGN_Vehicle_Breaching.md` §7.8).
+
+| rule | why |
+|---|---|
+| ⭐ a person's bent step that crosses a closed barrier is replaced by the path's step for that tick | the hull's rule (CE-6014), one shape for both movers; ⛔ the give-way is dropped only when it would walk him into a wall |
+| ⭐ ONE barrier trace (`CrossesClosedBarrier`) serves the retry and the final refusal | ⛔ not a second copy of the trace |
+| the final refusal stays (a path step that itself crosses is still held) | CE-2304 N3's guarantee is untouched: a walker is never pushed through a wall |
+
+Rail: `CarKinematicsSystemTests.CE2450_AWalkerAvoidanceBendsIntoAWall_TakesHisPathsStep_AndWalksOn` (📐 red before: −0.23 m along his path after 10 s;
+CE-2304's two wall rails unchanged).
+

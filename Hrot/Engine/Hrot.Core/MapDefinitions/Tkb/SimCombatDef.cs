@@ -220,6 +220,14 @@ namespace Hrot.Map.Definitions.Tkb
         public float BlastSusceptibility { get; set; } = -1f;
         public float PresentedAreaM2 { get; set; } = -1f;
         public float EyeHeight { get; set; }
+
+        /// <summary>⭐ CE-4670 (VA-S1, VA-7) — the part ids holding the AMMUNITION (null = the body class's); a killing hit there is a Catastrophic kill.
+        /// Goes to <c>CombatPlatformDefDto.AmmoStowage</c> only (not the frozen <see cref="SimCombatDef"/>).</summary>
+        public int[]? AmmoStowage { get; set; }
+        /// <summary>⭐ CE-4670 — the part ids holding the FUEL (null = the class's). <c>CombatPlatformDefDto.FuelStowage</c>.</summary>
+        public int[]? FuelStowage { get; set; }
+        /// <summary>⭐ CE-4670 — how long the wreck smokes after its flames (−1 = the class's). <c>CombatPlatformDefDto.SmoulderSeconds</c>.</summary>
+        public float SmoulderSeconds { get; set; } = -1f;
         public List<WeaponMount> Weapons { get; } = new();
         public float SensorRange { get; set; }
         public float ThermalRange { get; set; }

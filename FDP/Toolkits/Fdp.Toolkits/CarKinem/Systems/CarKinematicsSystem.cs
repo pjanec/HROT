@@ -636,16 +636,31 @@ namespace CarKinem.Systems
             Vector2 stepFrom = pos2D;
             float yawRate;
             Vector2 planarOut = default;
-            if (person && (aimedPerson || lookingPerson))
+            bool bent = avoidanceVelocity != desiredVelocity;
+            if (person)
             {
-                // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
-                Vector2 travel = avoidanceVelocity.LengthSquared() > 1e-6f ? Vector2.Normalize(avoidanceVelocity)
-                               : movedBefore.LengthSquared() > 1e-6f ? Vector2.Normalize(movedBefore) : fwd2D;
-                yawRate = HumanGait.IntegrateFacing(ref pos2D, ref fwd2D, ref state, travel, Vector2.Normalize(toAim), accel, dt, out planarOut);
-            }
-            else if (person)
-            {
-                yawRate = HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, avoidanceVelocity, targetSpeedAfterAvoidance > 0.01f, accel, dt);
+                var pos0 = pos2D; var fwd0 = fwd2D; var state0 = state;
+                yawRate = IntegratePerson(ref pos2D, ref fwd2D, ref state, out planarOut, avoidanceVelocity, movedBefore, toAim,
+                                          aimedPerson || lookingPerson, targetSpeedAfterAvoidance, accel, dt);
+                // ⭐⭐ CE-2450 (CE-6014's rule for a hull, now for a PERSON) — AVOIDANCE NEVER WALKS A MAN INTO A WALL: when avoidance bent his
+                //   step and the bent step crosses a closed barrier, his PATH's step is taken instead (the give-way is dropped for this tick).
+                //   📌 Live (pc-defend-house): a rifleman 0.38 m off his path beside a wall had every bent step refused below (FinishMove's
+                //   bentWalker trace) — speed 0, turning on the spot — for minutes, while his neighbour walked on.
+                if (bent && _terrain != null && dt > 0f
+                    && CrossesClosedBarrier(stepFrom, tf.Position.Z, pos2D, _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)))
+                {
+                    pos2D = pos0; fwd2D = fwd0; state = state0;
+                    // the PATH's speed target too (the bent one may say "turn first" and hold him at ~0): the same rule as above, for the desired velocity
+                    float pathSpeed = desiredVelocity.Length();
+                    float pathTarget = aimedPerson ? pathSpeed * HumanGait.FacingSpeedFactor(fwd0, desiredVelocity)
+                                                   : HumanGait.SpeedTarget(fwd0, desiredVelocity, pathSpeed);
+                    pathTarget = MathF.Min(pathTarget, @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);
+                    float pathAccel = SpeedController.CalculateAcceleration(state0.Speed, pathTarget, @params.AccelGain, @params.MaxAccel,
+                                                                            MathF.Max(@params.MaxDecel, HumanGait.StopDecel));
+                    yawRate = IntegratePerson(ref pos2D, ref fwd2D, ref state, out planarOut, desiredVelocity, movedBefore, toAim,
+                                              aimedPerson || lookingPerson, pathSpeed, pathAccel, dt);
+                    bent = false;
+                }
             }
             else
             {
@@ -691,7 +706,7 @@ namespace CarKinem.Systems
             //   sq-defend-house a rifleman ended 1 m outside the house he was posted in. Only a step avoidance bent is checked — the
             //   path-following step stays on the path (CE-3115, CE-3145), and that keeps the navmesh queries off the open-ground walkers.
             Vector2? keptPlanar = null;
-            if (person && dt > 0f && avoidanceVelocity != desiredVelocity
+            if (person && dt > 0f && bent
                 && repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()
                 && ManualMotion.KeepOnNavmesh(repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!,
                     (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0), stepFrom, ref pos2D, tf.Position.Z))
@@ -740,7 +755,7 @@ namespace CarKinem.Systems
             
             bool held = FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
                 keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt,
-                bentWalker: person && avoidanceVelocity != desiredVelocity, hull: @params);
+                bentWalker: person && bent, hull: @params);
 
             // ⭐⭐ CE-3286 — the wall held this hull: at its move's end it has ARRIVED (the nose met the wall); else, held HoldSeconds, it backs out
             if (recoverable)
@@ -806,6 +821,32 @@ namespace CarKinem.Systems
             repo.SetComponent(entity, ft);
         }
 
+        /// <summary>⭐ CE-2304 (N3) / CE-2450 — does a walker's step from <paramref name="from"/> to <paramref name="to"/> cross a CLOSED barrier (a building's
+        /// wall, a closed door — R-252's meaning) at hull-probe height? The ONE trace both the step's path-retry and the final refusal use. 0 B (a reused buffer).</summary>
+        private bool CrossesClosedBarrier(Vector2 from, float fromZ, Vector2 to, float toZ)
+        {
+            if (_terrain == null || Vector2.DistanceSquared(from, to) <= 1e-8f) return false;
+            var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            _terrain.Trace(new Vector3(from, fromZ + HullProbeM), new Vector3(to, toZ + HullProbeM), Fdp.Toolkit.World.TracePurpose.Fire, crossings);
+            for (int k = 0; k < crossings.Count; k++) if (crossings[k].ClosedBarrier) return true;
+            return false;
+        }
+
+        /// <summary>One step of a PERSON's gait toward <paramref name="velocity"/> — facing an aim (CE-3195 W-14d/e) or walking where he faces (CE-3145).</summary>
+        private static float IntegratePerson(ref Vector2 pos2D, ref Vector2 fwd2D, ref VehicleState state, out Vector2 planarOut, Vector2 velocity,
+                                             Vector2 movedBefore, Vector2 toAim, bool facingAim, float speed, float accel, float dt)
+        {
+            planarOut = default;
+            if (facingAim)
+            {
+                // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
+                Vector2 travel = velocity.LengthSquared() > 1e-6f ? Vector2.Normalize(velocity)
+                               : movedBefore.LengthSquared() > 1e-6f ? Vector2.Normalize(movedBefore) : fwd2D;
+                return HumanGait.IntegrateFacing(ref pos2D, ref fwd2D, ref state, travel, Vector2.Normalize(toAim), accel, dt, out planarOut);
+            }
+            return HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, velocity, speed > 0.01f, accel, dt);
+        }
+
         /// <summary>
         /// The output of a step, shared by the autonomous and the ⭐ CE-3173 manual integrators: the surface under the body, the
         /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe). Returns whether a WALL
@@ -858,12 +899,7 @@ namespace CarKinem.Systems
                 var barrier = wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f
                     ? new CarKinem.Controllers.BarrierHit(true, -1, pos2D, Vector2.Normalize(here - pos2D)) : default;   // ⭐ CE-4600 — the centre rose into a solid piece
                 if (!wall && person && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
-                {
-                    var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
-                    _terrain.Trace(new Vector3(here, tf.Position.Z + HullProbeM), new Vector3(pos2D, z + HullProbeM),
-                                   Fdp.Toolkit.World.TracePurpose.Fire, crossings);
-                    foreach (var c in crossings) if (c.ClosedBarrier) { wall = true; break; }
-                }
+                    wall = CrossesClosedBarrier(here, tf.Position.Z, pos2D, z);
                 else if (!wall && !person)
                 {
                     hereFwd = FacingOf(tf.Rotation);

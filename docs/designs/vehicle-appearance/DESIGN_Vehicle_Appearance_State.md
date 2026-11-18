@@ -2,11 +2,12 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Scenario_Rules.md — the trigger verbs (SR-74's action list) that HeadOut / SetVehicleLights join
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS `HeatSource` (engine Off / Idle / Running / Dead + Since) and `FireState` (fire spots, ignition, burn damage, the wreck's flames) — this design READS both for rotors, engine sound and burning parts, and adds nothing beside them
   - ../hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS `PartDamage` (per-part levels for vehicles and aircraft, HL-6), the part ids, the zones (HL-12 class templates) and the DERIVED mobility / firepower kill (S2-8, S2b-6) — this design only exposes them as a visible state
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS R-263 (mobility kill · firepower kill · destroyed)
@@ -250,7 +251,11 @@ renderer computes the animation from two samples per dismount.
 | the wire | `EntityVehicleOpenings` + `DdsOpening` (the wire's own byte for the state, R-4295), `dtVehicleOpenings` 243, Brain group (with `PassengerBuffer`); translators beside the thermal ones in `Hrot.Network.NED` — ⛔ deviation from VA-12's "the vehicle subsystem's bridge": the component lives in `Fdp.Toolkits`, which NED already references (no subsystem internals crossed) |
 | rails | `VehicleOpeningsTests` (the class template + an override; a dismount opens the ramp once and closes it; only the arbiter writes; 0 B; the progress rule) · `EntityVehicleOpeningsTranslatorTests` (ids; byte for byte to a late joiner; the owner keeps its own) |
 | scenario | `uc-convoy-hit` + 3 rows: the carrier's ramp opens as the squad dismounts, is closing by the end, the driver's hatch never opens |
-| ⏳ not built | a crewman's "head out" (a request to the arbiter) · opening BEFORE a man arrives (it opens on the boarding itself) · our 3D map drawing them (ui, with LK-S1) · reopening while Closing restarts from 0 |
+| ⭐ **head out** *(`2026-11-18`)* | `OpeningRequestEvent` { Vehicle · Man · `OpeningVerb` HeadOut / HeadIn } (event 5018), asked by `VehicleRequests.HeadOut`; carried to the arbiter by the interaction transport as kind **15 `OpeningRequest`** (owner test `Embarkation.OwnsVehicle`); `VehicleOpeningsSystem.ApplyRequests` opens the HATCHES serving the man's seat role and marks them `OpeningSlot.CrewExposed` (in what was padding — the slot stays 16 B); the idle close skips an exposed hatch; head in closes it; his seat changing hands clears the mark. A passenger (ramp, no hatch) or a man not aboard: nothing. The wire: `DdsOpening.CrewExposed` APPENDED (R-169) |
+| ⭐ **the reader** *(`2026-11-18`)* | `VehicleLook.OpeningProgress(world, v, id, now)` (Hrot.Look) — by the opening's TKB id, delegating to `VehicleOpenings.Progress` with the type's open seconds |
+| rails *(head out)* | `VehicleOpeningsTests.CE4670_ACrewmansHeadOut_HoldsHisHatchOpen_UntilHeGoesIn` · `InteractionTransportTests.CE4670_AHeadOutAndALightSwitch_CrossAsTheirUnionCases_ToTheVehiclesOwners` · the `CrewExposed` byte in `EntityVehicleOpeningsTranslatorTests` · `VehicleLookTests.CE4670_AnOpeningsProgress_IsReadByItsId` |
+| ⭐ **a trigger can ask** *(`2026-11-18`)* | the scenario verbs `HeadOut` { target = the VEHICLE, `role` (Commander by default — a preset crewman has no authored id), `out` } and `SetVehicleLights` { target, `discipline` } (`Hrot.AI.Behaviors/Brains/Objectives/Verbs/VehicleVerbs.cs`, behaviors' file — cross-lane); the seat is read in the serial follow-up (`RuleAfterPhase`). Scenario **`va-crew-switches`** |
+| ⏳ not built | WHO asks for a head out (an SOP, an observation behaviour, an order — behaviors) · opening BEFORE a man arrives (it opens on the boarding itself) · our 3D map drawing them and the exposed crewman (ui, with LK-S1) · reopening while Closing restarts from 0 |
 
 ## 6b. As built — lights *(VA-S3, CE-4670, backend, `2026-11-18`)*
 
@@ -263,6 +268,7 @@ graph TD
   LR -->|OnMask + Since, on change| VL[VehicleLights 291]
   VL -->|dtVehicleLights 244| N[every node, a late joiner too]
   SOP[SOP / ROE / order] -.->|not wired yet| D
+  ST[a station's switch - LightsRequestEvent, kind 16] -->|sets, mask at once| LR
 ```
 *What the picture shows that prose hid:* the discipline is an INPUT the rule never writes — today it is authored; the dashed edge (an SOP or an
 order setting it) is the open half.
@@ -275,7 +281,69 @@ order setting it) is the open half.
 | the wire | `EntityVehicleLights` (blittable, compared whole — the `EntityHeatSource` shape), the wire's own byte for the discipline (R-4295), `dtVehicleLights` 244, Brain group; `LightRuleSystem.DescriptorOrdinal` pinned to it by a rail |
 | rails | `VehicleLightsTests` (the rule over discipline × darkness × engine; owner-only, on change, an authored Blackout holds, 0 B) · `EntityVehicleLightsTranslatorTests`-in-`EntityVehicleOpeningsTranslatorTests` (byte for byte to a late joiner) |
 | scenario | `scenarios/demos/platoons-and-vehicles/va-lights-night` — two crewed T-72s idling at 00:30: the Normal one lit (head + tail, `OnMask` 3), the authored Blackout one never |
-| ⏳ not built | the discipline from an SOP / ROE / an order (behaviors) · a possessed vehicle's switches (a command to the owner) · the searchlight's aim · interior lights · landing lights near the ground · brake lights (a reader derives them from deceleration — ui's `VehicleLook`) |
+| ⭐ **a station's switch** *(`2026-11-18`)* | `LightsRequestEvent` { Vehicle · Actor · `LightDiscipline` } (event 5019), asked by `VehicleRequests.SwitchLights`; carried to the lights owner as interaction kind **16 `LightsRequest`** (owner test `LightRuleSystem.OwnsLights`); `LightRuleSystem.ApplyRequests` sets the discipline and the mask by the rule AT ONCE (not at the next 0.5 s step). ⛔ deviation from "the station's switches" as per-group switches: a switch sets the DISCIPLINE — the one input the rule reads — so the rule stays the one writer of the mask and an operator cannot light what the discipline forbids |
+| ⭐ **brake lights** *(`2026-11-18`)* | `VehicleLook.Lights(world, v, now, BrakeLights?)` — the stored mask + every `Brake` group while braking, under Normal only. ⛔ deviation from "a pure reader": the wire carries VELOCITY, not acceleration (`WorldPos`), so one sample cannot show a deceleration — each renderer owns ONE `BrakeLights` tracker (speed from `SimVelocity`, else the replica's `NetworkVelocity`; ≥ 0.8 m/s² over ≥ 0.25 s lights them, held 0.5 s; a seek back restarts it). 0 B steady |
+| rails *(switch, brakes)* | `VehicleLightsTests.CE4670_AStationsSwitch_SetsTheDiscipline_AndTheMaskFollowsAtOnce` · the transport rail above · `VehicleLookTests.CE4670_BrakeLights_AreDerivedFromDeceleration` / `_OnAReplica_ReadTheReceivedVelocity` / `CE4670_TheOpeningAndLightReaders_AllocateNothing` |
+| scenario *(switch)* | `va-crew-switches`: at 5 s a trigger blacks the lit T-72 out (OnMask 3 → 0), at 10 s switches the other to Convoy (OnMask 8) |
+| ⏳ not built | the discipline from an SOP / ROE / an order (behaviors — the order's executor calls `VehicleRequests.SwitchLights`) · the station's UI (ui) · the searchlight's aim · interior lights · landing lights near the ground — filed as `CE-3475` |
+
+## 6c. As built — partial damage and the kill kind *(VA-S1, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+classDiagram
+  class HealthApplicationSystem {
+    <<existing, the Health owner>>
+    on the hit that kills: Destruction = DestructionKinds.Decide
+  }
+  class DestructionKinds {
+    <<new, the ONE rule, pure>>
+    Decide(body, hasPart, part)
+  }
+  class ResolvedBody {
+    <<existing, gains>>
+    AmmoStowageMask FuelStowageMask SmoulderSeconds
+  }
+  class Health {
+    <<existing, gains Destruction byte>>
+  }
+  class HealthStateSinceSystem {
+    <<existing>>
+    clears Destruction when it lives again
+  }
+  class VehicleLook {
+    <<new, Hrot.Look, 0 B>>
+    PartState(part) PartState(part, centre, now)
+    Destruction() TurretThrown() Burning(now) Smoking(now)
+  }
+  class VehicleDamageDraw {
+    <<new, our 3D map - ui file, cross-lane>>
+    DestroyedMask BitOf ThrownTransform
+  }
+  class EntityDamage {
+    <<wire, gains Destruction byte>>
+  }
+  HealthApplicationSystem --> DestructionKinds
+  DestructionKinds ..> ResolvedBody : bodies.json class + platform override
+  HealthApplicationSystem --> Health
+  HealthStateSinceSystem --> Health
+  Health --> EntityDamage : egress, ingress
+  VehicleLook ..> Health
+  VehicleLook ..> ResolvedBody : zone thresholds, smoulder
+  VehicleDamageDraw ..> VehicleLook
+```
+*What it shows that prose hid: ONE decision site (the Health owner, on the killing hit) and ONE reader; the map and a gateway call the same reader.*
+
+| as built | why / deviation |
+|---|---|
+| ⭐ the kill kind: killing hit's part in the type's **ammunition** stowage ⇒ Catastrophic · **fuel** ⇒ BurntOut · any other part, or a blast with no part ⇒ KnockedOut · a person ⇒ None; decided once (a hit on the wreck never changes it); cleared by `HealthStateSinceSystem` when it lives again | ⭐ the stowage rides on the `bodies.json` class profiles (`ammoStowage`, `fuelStowage`, `smoulderSeconds` — Tank: ammunition turret, fuel engine, 1800 s; AFV: turret / hull + engine; wheeled: engine; aircraft: stores / wing), overridden per type on `Combat.PlatformDef` (`AmmoStowage`, `FuelStowage`, `SmoulderSeconds`; the NED catalogue's `SimCombatDefBuilder` passes them through) — HL-12's rule, the same profile match as the zones. 📌 First override: the **T-72** keeps its ammunition in the hull carousel under the turret (hull + turret) — 📐 measured in `va-tank-kill-kinds`: the M1's round lands on the T-72's HULL, which under the class rule was only a KnockedOut |
+| ⭐ `PartState` = Intact · Damaged · Destroyed by the part's ZONE threshold (the same number that makes the mobility / firepower kill); the hull (no effect) is Destroyed only at 255 | — |
+| ⚠ **deviation — Burning per part needs the renderer's part centre** (`PartState(part, centre, now)`, the vehicle's frame): the simulation keeps no part geometry it could send. `Burning(now)` answers for the whole vehicle | §3a said "a FireState spot covers the part" — true only where the part's position is known, which is the renderer |
+| ⭐ `Smoking(now)`: dead, no burning spot, within the type's smoulder seconds after its last spot went out (never lit: after its time of death) | VA-10 |
+| ⭐ the wire: `EntityDamage.Destruction` APPENDED (R-169), the wire's own byte (R-4295), copied by egress / ingress; an unknown value decodes to None | VA-12 |
+| ⚠ our map (`EntityBodyLayer3D`, ui's file — cross-lane, NOTE to ui): a kit part maps to a simulation part by ROLE (turret, gun), a running-gear part (track, wheels — Hull role) by being low on one side; a destroyed part draws wreck-dark; a Catastrophic wreck draws its turret and gun thrown beside the hull | kit parts carry no simulation part id; the thrown pose is a starter for ui to tune |
+
+Rails: `BodyPartDamageTests.CE4670_*` (2), `HealthStateSinceSystemTests.CE4670_*`, `VehicleLookTests` (4, 0 B), `EntityDamageEgressTranslatorTests.CE4670_*` (late joiner),
+`EntityDamageTranslatorTests.CE4670_*`, `VehicleDamageDrawTests` (3). Scenario: `scenarios/demos/platoons-and-vehicles/va-tank-kill-kinds`.
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 

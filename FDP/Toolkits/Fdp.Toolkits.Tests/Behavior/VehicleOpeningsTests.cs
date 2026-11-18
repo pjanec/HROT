@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _w.RegisterComponent<VehicleOpenings>();
             _w.RegisterComponent<TkbIdentity>();
             _w.RegisterComponent<NetworkAuthority>();
+            _w.RegisterEvent<OpeningRequestEvent>();
             var db = new TkbDatabase();
             db.Register(new TkbTemplate("IFV", Ifv) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 2 } });
             var truck = new TkbTemplate("Truck", Truck) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 6 } };
@@ -68,6 +69,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _t += s;
             _w.SetSingletonUnmanaged(new GlobalTime { TotalTime = _t });
             _sys.Execute(_w, (float)s);
+            _w.Bus.SwapBuffers();   // a frame ends: this frame's requests are read once
         }
 
         private OpeningSlot Slot(Entity v, int i) => _w.GetComponentRO<VehicleOpenings>(v).Slots[i];
@@ -156,6 +158,60 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1f, VehicleOpenings.Progress(OpeningState.Open, 10, 2f, 10));
             Assert.Equal(0.25f, VehicleOpenings.Progress(OpeningState.Closing, 10, 2f, 11.5), 4);
             Assert.Equal(1f, VehicleOpenings.Progress(OpeningState.Opening, 10, 0f, 10));
+        }
+
+        private void Ask(Entity v, Entity man, bool @out)
+        {
+            Assert.True(VehicleRequests.HeadOut(_w, v, man, @out));
+            _w.Bus.SwapBuffers();
+        }
+
+        /// <summary>
+        /// ⭐ VA-4 — a crewman's head out (a request to the arbiter): the HATCH serving his seat opens and is marked exposed, and the idle close never shuts it
+        /// while he is out; head in closes it at once. A passenger's head out (his seat has the ramp, no hatch), a man not aboard and a vehicle whose list another
+        /// node owns change nothing. His seat changing hands while he is out clears the mark, and the hatch then closes after the hold.
+        /// 🔴 Red-proof: drop <c>!CrewExposed</c> from the idle close ⇒ the hatch shuts 3.5 s after he put his head out ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4670_ACrewmansHeadOut_HoldsHisHatchOpen_UntilHeGoesIn()
+        {
+            var v = Vehicle(Ifv, SeatRole.Driver, SeatRole.Commander, SeatRole.Gunner, SeatRole.Passenger);
+            var cdr = _w.CreateEntity(); var pax = _w.CreateEntity(); var stranger = _w.CreateEntity();
+            Seat(v, 1, cdr); Seat(v, 3, pax);
+            Step();                                                        // first sight
+            Ask(v, cdr, true); Step();                                     // t = 1.0
+            Assert.Equal(OpeningState.Opening, Slot(v, 2).State);         // id 3, the commander's hatch
+            Assert.True(Slot(v, 2).CrewExposed);
+            Assert.Equal(OpeningState.Closed, Slot(v, 0).State);           // the ramp stays up
+            Assert.Equal(OpeningState.Closed, Slot(v, 1).State);           // the driver's hatch too
+            for (int i = 0; i < 20; i++) Step();                           // t = 11: far past 1.5 + 2
+            Assert.Equal(OpeningState.Opening, Slot(v, 2).State);
+            Assert.Equal(1f, _w.GetComponentRO<VehicleOpenings>(v).ProgressAt(2, 1.5f, _t));
+
+            Ask(v, pax, true); Step();                                     // a passenger: the ramp is no hatch
+            Ask(v, stranger, true); Step();                                // not aboard
+            Assert.Equal(OpeningState.Closed, Slot(v, 0).State);
+            Assert.Equal(1L, _sys.Requests);
+
+            Ask(v, cdr, false); Step();                                    // head in
+            Assert.Equal(OpeningState.Closing, Slot(v, 2).State);
+            Assert.Equal(_t, Slot(v, 2).Since);
+            Assert.False(Slot(v, 2).CrewExposed);
+            Assert.Equal(2L, _sys.Requests);
+
+            Ask(v, cdr, true); Step();                                     // out again — and then he dismounts
+            Assert.True(Slot(v, 2).CrewExposed);
+            Seat(v, 1, Entity.Null); Step();
+            Assert.False(Slot(v, 2).CrewExposed);
+            for (int i = 0; i < 8; i++) Step();                            // 4 s idle > 1.5 + 2
+            Assert.Equal(OpeningState.Closing, Slot(v, 2).State);
+
+            var theirs = Vehicle(Ifv, SeatRole.Commander);
+            _w.AddComponent(theirs, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+            var c2 = _w.CreateEntity();
+            Seat(theirs, 0, c2);
+            Ask(theirs, c2, true); Step();
+            Assert.False(_w.HasComponent<VehicleOpenings>(theirs));      // the transport carries it to its arbiter
         }
     }
 }
