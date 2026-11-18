@@ -324,7 +324,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Throws<ArgumentException>(() => Of(TerrainFeature.Row, 8f, 0, new Vector2(1, 1)));
             Assert.Throws<ArgumentException>(() => Of(TerrainFeature.Group, 5f, 0, new Vector2(1, 1), new Vector2(5, 5)));
             Assert.True(FeatureExpander.IsKnown(14) && FeatureExpander.IsKnown(15));
-            Assert.False(FeatureExpander.IsKnown(16));
+            Assert.True(FeatureExpander.IsKnown(TerrainFeature.Edit));   // ⭐ CE-5025 BE-1 — 16, the base edit
+            Assert.False(FeatureExpander.IsKnown(17));
             Assert.True(FeatureExpander.NeedsShape(TerrainFeature.Row) && FeatureExpander.NeedsShape(TerrainFeature.Group));
         }
 

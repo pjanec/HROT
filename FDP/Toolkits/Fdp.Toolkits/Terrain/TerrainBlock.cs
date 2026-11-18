@@ -41,6 +41,9 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ CE-5007 (S-2) — a ROW of lone trees along the polyline: <see cref="Template"/> = the item (<c>tree</c> in v1; empty = tree), <see cref="Pad"/> = the spacing in metres (0 = 8 m), <see cref="Seed"/> unused. Placed by the expander's ONE line placement.
         /// A GROUP of lone trees inside the polygon: <see cref="Pad"/> = the count (0 = 10), <see cref="Seed"/> = the placement seed (the scatter's in-polygon sampler). A build that predates them ignores both kinds.</summary>
         public const byte Row = 14, Group = 15;
+        /// <summary>⭐ CE-5024 / CE-5025 (📄 docs/DESIGN_Terrain_Base_Edits.md D-1) — an EDIT of a BAKED-IN building: <see cref="Target"/> = the building's label, <see cref="Template"/> = the
+        /// action (<c>remove</c> in BE-1; <c>enterable</c> / <c>door</c> in BE-3). The entity stands at the building. A build that predates it ignores the kind.</summary>
+        public const byte Edit = 16;
 
         /// <summary>One of the kind constants above; 0 and anything unknown are ignored.</summary>
         public byte Kind;
@@ -55,5 +58,8 @@ namespace Fdp.Toolkit.Terrain
         public float Pad;
         /// <summary>The seed of a wood, a scrub patch, a scatter or a group (it draws from it, deterministically).</summary>
         public uint Seed;
+        /// <summary>⭐ CE-5024 / CE-5025 (APPENDED, D-1) — an <see cref="Edit"/>'s target: the base building's LABEL (a stable key; an overlay label <c>&lt;guid&gt;/&lt;i&gt;</c> is 38 chars,
+        /// so 64). Empty for every other kind.</summary>
+        public FixedString64 Target;
     }
 }

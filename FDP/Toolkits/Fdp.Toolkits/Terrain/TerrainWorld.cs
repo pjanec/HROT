@@ -235,6 +235,10 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ <c>CE-4391</c> S-1 — the breach table this world was parsed with (the shared one overlaid by the terrain folder's own <c>breaches.json</c>; §8.2 B-6).</summary>
         public BreachTable Breaches { get; init; } = BreachTable.Shared;
 
+        /// <summary>⭐ <c>CE-5025</c> BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2) — an OVERLAY's removals: the labels of BASE buildings it takes away (its <c>"remove"</c>
+        /// parts). <see cref="TerrainWorldMerge.Merge"/> drops them from the base before it appends the overlay; empty on a base world.</summary>
+        public IReadOnlyList<string> RemovedBuildings { get; init; } = Array.Empty<string>();
+
         /// <summary>
         /// ⭐ <c>CE-4391</c> S-1 — true when this terrain can have LIVE state a view's <see cref="DoorStates"/> must carry: it has doors, or buildings
         /// whose walls can be breached. The gate every "build a <see cref="DoorStates"/> only when it matters" site reads (was <c>Doors.Count &gt; 0</c>).

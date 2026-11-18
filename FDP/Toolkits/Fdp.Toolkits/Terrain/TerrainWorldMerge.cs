@@ -31,6 +31,90 @@ namespace Fdp.Toolkit.Terrain
             return pads == null ? height : GroundPatches.Apply(height, pads);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-5025</c> BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2) — <paramref name="world"/> without the buildings named in <paramref name="labels"/>: a building RECORD of
+        /// that label goes with every part that belongs to it (its panels, the prisms of its panels and of it — roof caps, floors, a structure's blocks —, its walkables, the doors
+        /// in its panels, its baked collapse), and a SOLID BLOCK prism of that label (an imported solid house is only a prism, no record) goes too. Every remaining index is
+        /// re-pointed (−1 stays −1); a label the world does not have is a warning, never an error (the base may have been re-imported). Pure; allocates only here.
+        /// </summary>
+        public static TerrainWorld Without(TerrainWorld world, IReadOnlyCollection<string> labels)
+        {
+            var set = labels as ISet<string> ?? new HashSet<string>(labels, StringComparer.Ordinal);
+            var bMap = new int[world.Buildings.Count];
+            var buildings = new List<TerrainBuilding>(world.Buildings.Count);
+            var found = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < world.Buildings.Count; i++)
+            {
+                var b = world.Buildings[i];
+                if (set.Contains(b.Label)) { bMap[i] = -1; found.Add(b.Label); continue; }
+                bMap[i] = buildings.Count; buildings.Add(b);
+            }
+            int B(int i) => i < 0 ? i : (i < bMap.Length ? bMap[i] : i);
+
+            var pMap = new int[world.Panels.Count];
+            var panels = new List<TerrainWallPanel>(world.Panels.Count);
+            for (int i = 0; i < world.Panels.Count; i++)
+            {
+                var p = world.Panels[i];
+                if (p.Building >= 0 && B(p.Building) < 0) { pMap[i] = -1; continue; }
+                pMap[i] = panels.Count;
+                panels.Add(p.Building < 0 || B(p.Building) == p.Building ? p : new TerrainWallPanel
+                {
+                    A = p.A, B = p.B, Thickness = p.Thickness, BaseZ = p.BaseZ, TopZ = p.TopZ, Material = p.Material, Openings = p.Openings,
+                    Building = B(p.Building), Storey = p.Storey, Label = p.Label,
+                });
+            }
+            int P(int i) => i < 0 ? i : (i < pMap.Length ? pMap[i] : i);
+
+            var prisms = new List<TerrainPrism>(world.Prisms.Count);
+            foreach (var p in world.Prisms)
+            {
+                if (p.Building >= 0 && B(p.Building) < 0) continue;
+                if (p.Panel >= 0 && P(p.Panel) < 0) continue;
+                if (p.Building < 0 && p.Panel < 0 && p.Kind == TerrainPrismKind.Building && p.Label is { } solid && set.Contains(solid)) { found.Add(solid); continue; }   // an imported SOLID house: a block, no record
+                prisms.Add(B(p.Building) == p.Building && P(p.Panel) == p.Panel ? p : new TerrainPrism
+                {
+                    Kind = p.Kind, Footprint = p.Footprint, BaseZ = p.BaseZ, TopZ = p.TopZ, Floors = p.Floors, Label = p.Label, Triangles = p.Triangles,
+                    Min = p.Min, Max = p.Max, Material = p.Material, Panel = P(p.Panel), Building = B(p.Building),
+                });
+            }
+
+            var walkables = new List<TerrainWalkable>(world.Walkables.Count);
+            foreach (var w in world.Walkables)
+            {
+                if (w.Building >= 0 && B(w.Building) < 0) continue;
+                walkables.Add(B(w.Building) == w.Building ? w : new TerrainWalkable
+                {
+                    Kind = w.Kind, Vertices = w.Vertices, Triangles = w.Triangles, Min = w.Min, Max = w.Max, MinZ = w.MinZ, MaxZ = w.MaxZ, Building = B(w.Building),
+                });
+            }
+
+            var doors = new List<TerrainDoorDef>(world.Doors.Count);
+            foreach (var d in world.Doors)
+            {
+                if (P(d.Panel) < 0) continue;
+                doors.Add(P(d.Panel) == d.Panel ? d : new TerrainDoorDef { Key = d.Key, Panel = P(d.Panel), Opening = d.Opening, Initial = d.Initial, Center = d.Center, SillZ = d.SillZ });
+            }
+
+            var baked = new List<int>(world.BakedCollapsed.Count);
+            foreach (int c in world.BakedCollapsed) if (B(c) >= 0) baked.Add(B(c));
+
+            var warnings = new List<string>(world.Warnings);
+            foreach (var l in set)
+                if (!found.Contains(l)) warnings.Add($"[Terrain] an overlay removes building '{l}', which the terrain '{world.Name}' does not have — ignored.");
+
+            var result = new TerrainWorld
+            {
+                Name = world.Name, SourceFolder = world.SourceFolder, SeedFolders = world.SeedFolders, BoundsMin = world.BoundsMin, BoundsMax = world.BoundsMax,
+                GroundZ = world.GroundZ, Height = world.Height, Warnings = warnings, Prisms = prisms, Walkables = walkables, Surfaces = world.Surfaces,
+                GroundShapes = world.GroundShapes, Panels = panels, Buildings = buildings, Doors = doors, Materials = world.Materials, Breaches = world.Breaches,
+                BakedCollapsed = baked, RoadCorridors = world.RoadCorridors, BareHeight = world.BareHeight, HeightCraters = world.HeightCraters,
+                BakedPassages = world.BakedPassages, Minefields = world.Minefields,
+            };
+            if (world.Beyond is { } beyond) result.AttachBeyond(beyond);
+            return result;
+        }
+
         /// <summary>⭐ CE-4592 (V-28) — every building footprint of both worlds: a ground shape leaves them (and a margin) as islands, never pushing the ground into a house.</summary>
         private static List<Vector2[]>? IslandsOf(TerrainWorld @base, TerrainWorld overlay)
         {
@@ -84,6 +168,9 @@ namespace Fdp.Toolkit.Terrain
             foreach (var d in overlay.Doors)
                 if (doorKeys.Contains(d.Key))
                     throw new ArgumentException($"[Terrain] Cannot merge overlay into '{@base.Name}': door key '{d.Key}' exists in both the base terrain and the overlay '{overlay.SourceFolder}'.");
+            // ⭐ CE-5025 BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2) — the overlay REMOVES base buildings by label first: the base is compacted (the building
+            //   record with its panels, prisms, walkables and doors, or a solid block prism of that label) and every base index re-pointed; then the overlay appends
+            if (overlay.RemovedBuildings.Count > 0) @base = Without(@base, overlay.RemovedBuildings);
             int panb = @base.Panels.Count, bb = @base.Buildings.Count;
             static int Off(int index, int by) => index < 0 ? index : index + by;
 
