@@ -29,8 +29,8 @@ CE-3464 paused at a safe point (no code changes): measured — the editor-tier r
 | D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |
 | D-2 `SupportAsset.Engineers` (CE-2442) | ✅ DONE — Minefields §13 designed and built (recon when unknown, then Breach along the requester's line) | (this commit) | `SquadManeuverTests.CE2442_*` (2, red-proved; parallel env 5 / 0) | ✅ `mf-engineers-answer` 7 / 7 (new) |
 | CE-3462 the waverer never breaks | ⚠ Coward FIXED (the three insurgents were InertSop — no break; re-authored to the default SOP under StayOnTask, `ebdbe7348`); the Waverer is killed at stress 0.11 before he can break ⇒ **D-6 SKIPPED — needs decision** | ebdbe7348 | (rail `CE4652_AnInertSop…` stands; `8872a8478` tried + reverted `8d0524e10`) | ⚠ 4 / 6 → D-6 |
-| ⭐ CE-4665 crowd slots never released after a reload (STEER) | ▶ NEXT | | | reload ×4, ≥ 16 infantry |
-| ⭐ CE-4668 dead men still run behaviours (street fight) | TODO | | | `pc-street-fight` |
+| ⭐ CE-4665 crowd slots never released after a reload (STEER) | ⛔ premise REFUTED (the production crowd is a no-op stub; DtCrowd has no cap) and NOT reproduced (pc-defend-house ×4 in one editor: 16·15·13·14 movers) — asked the coordinator for real-1 / the exact steps (NOTE); no code | | | reload ×4 |
+| ⭐ CE-4668 dead men still run behaviours (street fight) | ▶ NEXT | | | `pc-street-fight` |
 | ⭐ CE-4667 SupportByFire / Suppress never exits | TODO | | | `pc-street-fight` |
 | ⭐ CE-4666 bunched in the open, no cover | TODO | | | `pc-street-fight` |
 | ⭐ CE-4669 squads idle; Locomotion "moving" while still | TODO | | | `pc-street-fight` |
