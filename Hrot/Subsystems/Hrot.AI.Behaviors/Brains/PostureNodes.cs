@@ -108,6 +108,8 @@ namespace Hrot.AI.Behaviors.Brains
     public struct FrameWatchState
     {
         public byte Moving, Failed, Leaned;
+        /// <summary>⭐ <c>CE-3463</c> — how many times his frame move was STOPPED from outside (not failed by the mover) and re-issued.</summary>
+        public byte Stopped;
     }
 
     /// <summary>⭐ <c>CE-3170</c> — the target an attack order named (<see cref="PostureNodes.UntilTargetDown"/>).</summary>
@@ -382,7 +384,12 @@ namespace Hrot.AI.Behaviors.Brains
                 var status = LocomotionMoveTo.Status(world, self);
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 ws.Moving = 0;
-                if (status != NodeStatus.Success) { ws.Failed = 1; return NodeStatus.Running; }
+                // ⭐⭐ CE-3463 — a move STOPPED from outside (the channel no longer runs a MoveTo: the branch he left stopped him as he came
+                //   in, 📐 live ia-area-defend: one NAV_NONE 0.8 s after the frame move, then never another) is not the mover failing: it is
+                //   sent again (a few times — never a ping-pong forever). Only the mover's own failure leaves him where he is.
+                bool stopped = world.HasComponent<LocomotionChannel>(self)
+                               && world.GetComponentRO<LocomotionChannel>(self).ActiveAction != NavigationConstants.ActionIdMoveTo;
+                if (status != NodeStatus.Success && !(stopped && ws.Stopped++ < FrameMoveRetries)) { ws.Failed = 1; return NodeStatus.Running; }
             }
             var at = world.GetComponentRO<SimTransform>(self).Position;
             if (Vector3.Distance(at, p.Anchor) > FrameWatchMetres)
@@ -409,6 +416,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ D-2l — farther than this from his frame point he walks to it before he leans (m) · at this pace (m/s).</summary>
         public const float FrameWatchMetres = 0.75f, FrameWatchSpeed = 1.5f;
+        /// <summary>⭐ <c>CE-3463</c> — how many times a frame move stopped from outside is sent again before he holds where he is.</summary>
+        public const int FrameMoveRetries = 5;
 
         private static void Straighten(ref FrameWatchState ws, Entity self, EntityRepository world)
         {
