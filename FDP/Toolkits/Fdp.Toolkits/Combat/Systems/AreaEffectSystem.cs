@@ -171,7 +171,9 @@ namespace Fdp.Toolkit.Combat.Systems
             };
 
             // ⭐⭐ CE-4654 D-3 (user 2026-11-18) — an anti-personnel mine MAIMS the man who stepped on it: his legs, not his whole body
-            var triggerMan = evt.Ammo == Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? TriggerManOf(repo, burst) : Entity.Null;
+            //   ⭐ the body the trigger NAMED (DetonationNotification.TriggeredBy); the nearest person only for a burst that names none (a scripted one)
+            var triggerMan = evt.Ammo != Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? Entity.Null
+                : !evt.TriggeredBy.IsNull && repo.IsAlive(evt.TriggeredBy) ? evt.TriggeredBy : TriggerManOf(repo, burst);
 
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {

@@ -347,6 +347,7 @@ namespace Fdp.Toolkit.Terrain
                 Penetration = anti ? _atPen : _apPen, Damage = anti ? _atDmg : _apDmg,
                 Ammo = anti ? Minefields.MunitionAntiTank : Minefields.MunitionAntiPersonnel,
                 TravelX = 0f, TravelY = 0f, TravelZ = anti ? 1f : 0f,
+                TriggeredBy = anti ? Entity.Null : body,   // ⭐ CE-4654 D-3 — the man who stepped on it: the area effect maims exactly him
             });
         }
 

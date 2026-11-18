@@ -80,5 +80,11 @@ namespace Fdp.Toolkit.Combat.Contracts
         /// threw it first). Copied from <c>BallisticProjectile.OriginalShooter</c>; the damage steps put it on <c>DamageAssessedEvent.OriginalSource</c>.
         /// Local to the node that flew the round (the area effect and the hit run there) — not on the munition-detonation wire.</summary>
         public Entity OriginalShooter;
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 (behaviors' answer, NOTE_Behaviors_To_Terrain_Mine_Maims_Review_Answer.md #1) — APPENDED: the body that SET OFF an
+        /// anti-personnel mine (the mine trigger fills it from <c>MineStruck.By</c>; the burst itself stays target-less). <c>AreaEffectSystem</c> maims exactly
+        /// this man; <see cref="Entity.Null"/> (a scripted burst) ⇒ it guesses the nearest person. Local to the node that runs the trigger and the area effect
+        /// (SimHost's core logic) — not on the munition-detonation wire.</summary>
+        public Entity TriggeredBy;
     }
 }
