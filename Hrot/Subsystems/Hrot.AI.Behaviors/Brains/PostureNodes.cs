@@ -542,6 +542,16 @@ namespace Hrot.AI.Behaviors.Brains
             => AtOpeningPost(ref p, self, world) == NodeStatus.Success && EqsTacticsNodes.TopAim(world, self, default, out _)
                 ? NodeStatus.Success : NodeStatus.Failure;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> — the man is posted at a FRAME post (D-2l): with nothing to fight he WATCHES from it (<see cref="HoldWatch"/>:
+        /// leaned out at the opening) whatever the decision says — the quiet twin of <see cref="PostedWithThreat"/> (CE-2366 A). 📐 The
+        /// decision cannot get him there: AdvanceAndAttack has no "anything to attack" input, so with no enemy it scores ≈ 1.0 against
+        /// Hold's 0.38 (live <c>ia-area-defend</c>) — and its branch never leans, so a frame-posted guard stood behind the wall, blind.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtFramePost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.Frame != 0 && p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
         public const float OccupiedMetres = 1.5f;
 

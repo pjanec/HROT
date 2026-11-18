@@ -2080,6 +2080,31 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> (D-2l DA-80; 📐 live <c>ia-area-defend</c>) — a man at a FRAME post with NOTHING to fight leans out to watch
+        /// (HoldWatch) whatever the posture decision chose: with no enemy its AdvanceAndAttack wins (≈ 1.0 against Hold's 0.38) and that branch
+        /// never leans — the guard stood behind his wall, blind. The winner is forced to Advance; he leans. 🔴 Red-proof: the quiet frame
+        /// branch removed ⇒ no lean. A plain WINDOW post (no frame) is not this branch (its quiet hold is the decision's, unchanged).
+        /// </summary>
+        [Fact]
+        public unsafe void CE3463_AQuietFramePost_LeansOutToWatch_EvenWithAdvanceChosen()
+        {
+            var w = new World();
+            w.Arm();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Lean>()) w.Repo.RegisterComponent<Fdp.Toolkit.Combat.Lean>();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // at his frame point, facing east
+            w.Order("CombatPosture", "{\"stay\":true,\"post\":{\"point\":[0,0,0],\"radius\":4,\"window\":true,\"frame\":true,"
+                                     + "\"frameA\":[0,0,0],\"frameB\":[0,-1.7,0],\"opening\":[0.5,-0.85,0]}}");
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            for (int i = 0; i < 30; i++)
+            {
+                if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack;
+                w.Tick();
+            }
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.NotEqual(Fdp.Toolkit.Combat.LeanSide.LeanNone, Fdp.Toolkit.Combat.Leans.Of(w.Repo, w.Unit));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2366</c> A (R-2077; Peek and Fire §12.2) — a man POSTED at a window with a threat runs PeekAndFire WHATEVER the posture
         /// decision chose, and the decision changing its winner does not reset the cycle. 📐 Live <c>bt-window-duel</c>: each switch between
         /// TakeCover / Suppress / Advance reset it, and on Advance a posted man only stood at his post. The decision's winner is forced through
