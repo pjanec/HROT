@@ -2977,6 +2977,33 @@ namespace Hrot.SimHost.Tests
             Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point.Local.Equals((Fdp.Core.WorldPoint)west), "an enemy in the area: no round");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> (📐 <c>ia-area-defend</c>) — an ALL-ROUND frame post faces OUT THROUGH ITS WINDOW (DA-79): the defended centre lies
+        /// in the open NORTH of a north-facing window, so "outward from the centre" would aim him SOUTH into his own house; his arc (where he
+        /// looks and may fire) covers the north. ✅ Red-proof: the outward arc ⇒ the north point is outside it.
+        /// </summary>
+        [Fact]
+        public void CE3463_AnAllRoundFramePost_FacesOutThroughItsWindow_NotOutwardFromTheCentre()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f));
+            s.Teleport(s.Members[0], new Vector3(2, 30, 0));
+            s.Order("{\"Position\":[2,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0));
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            var dto = PostureOf(s, s.Members[0]);
+            Assert.True(dto.Post.Frame, "a frame post");
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(s.Members[0]);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 60, 0)),
+                $"his arc faces out of the window, north (arc {arc.LeftBearing}..{arc.RightBearing})");
+            Assert.False(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 0, 0)),
+                "not south, into his own house");
+        }
+
         /// <summary>⭐ <c>CE-2373</c> D-2m — the pure greedy union and the round's next post: the post seeing most first, a post adding fewer than
         /// <see cref="CoveragePosts.MinRoundGain"/> is no round post; the next round post is the one whose probes were watched longest ago.</summary>
         [Fact]
@@ -3879,6 +3906,42 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4666</c> (Orders §15; 📐 live pc-defend-house: broken defenders cycled Break ⇄ CombatPosture every second) — an order a
+        /// REACTION paused (same request id, in the member's paused task) is still his: the phase change does not re-send it, so the reaction
+        /// runs its course and the order resumes after. 🔴 Red-proof: "not paused" back in <c>StillRunning</c> ⇒ a second order.
+        /// </summary>
+        [Fact]
+        public void CE4666_AnOrderAReactionPaused_IsNotSentAgain_TheReactionRunsItsCourse()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+            p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SupportByFire), Origin = BehaviorOrigin.Superior });
+            RunsHisOrder(p.S, p.Bravo);
+
+            var entry = SubordinateOrders.Of(p.S.Repo, p.S.Commander)!.Orders.Single(e => e.Member.Equals(p.Bravo));
+            if (!p.S.Repo.TryGetTable(typeof(PausedTask), out _)) p.S.Repo.RegisterManagedComponent<PausedTask>();
+            p.S.Repo.SetManagedComponent(p.Bravo, new PausedTask
+            {
+                BehaviorName = entry.Behavior, JsonParams = entry.Json, Origin = BehaviorOrigin.Superior,
+                Hash = BehaviorHash.FromName(BehaviorNames.SupportByFire), RequestId = entry.RequestId,
+            });
+            ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            reacting.Origin = BehaviorOrigin.Reaction;   // the reaction PAUSED his order (as the ingress records it)
+
+            p.ReportSet(p.Bravo);   // the phase changes and re-dirties every slot
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2277</c> (AT-2, AT-7, R-2060's area rule) — the AREA holds an enemy inside building 7 and another in the open 50 m
         /// beyond it: two objectives, nearest first — building 7 is CLEARED (`ClearBuilding` on its centre), its BuildingClear takes the
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
@@ -4047,6 +4110,25 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             int after = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) + p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
             Assert.True(after > before, "the failed assault is ordered forward again");
+        }
+
+        /// <summary>⭐⭐ <c>CE-4669</c> — the RESERVE that has reached its point (its bound reports Set) is ordered to DEFEND there, once; before it
+        /// arrives it only bounds. 📌 Live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at 160 s and the squad sat with no task
+        /// (`doing = nothing`) to the end. 🔴 Red-proof: the arrival guard off ⇒ no SquadDefend to the reserve.</summary>
+        [Fact]
+        public void CE4669_AReserveAtItsPoint_DefendsThere_NotIdleOnAFinishedBound()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);   // the base of fire is up ⇒ the approach
+            Assert.True(p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch) > 0, "the reserve bounds behind the assault");
+            Assert.Equal(0, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            p.ReportSet(p.Charlie); p.Ticks(4);   // its bound arrived
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
         }
 
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs

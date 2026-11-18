@@ -481,9 +481,17 @@ namespace Hrot.AI.Behaviors.Brains
             byte post = member < DefencePosts.Capacity ? p.Posts.PostOf[member] : DefencePosts.None;
             if (post != DefencePosts.None && post < p.Posts.Count && p.Posts.Authored[post] != 0 && p.Posts.Watch(post) != Vector3.Zero)
                 return MemberArc.Around(LookAt.BearingTo(spot, p.Posts.Watch(post)), ArcHalfWidth);
-            return EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)
-                ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
-                : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
+            if (EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)) return MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth);
+            // ⭐⭐ CE-3463 — all-round at a FRAME post: out through his window (DA-79 "his body is turned to face out"). ⛔ "Outward from the
+            //   centre" faced a window on the centre's side of its house INTO the house (📐 ia-area-defend: the guard at House A's south
+            //   frame looked and could fire only north, through the rooms, while Blue South walked up the open ground to the south)
+            if (post != DefencePosts.None && post < p.Posts.Count && p.Posts.Frame[post] != 0)
+            {
+                var mid = (p.Posts.FrameA(post) + p.Posts.FrameB(post)) * 0.5f;
+                var opening = p.Posts.Opening(post);
+                if (Flat(opening - mid) > 0.05f) return MemberArc.Around(LookAt.BearingTo(mid, opening), AllRoundHalfWidth);
+            }
+            return MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
         }
 
         // ── Posting: plan, manned, displace ─────────────────────────────────────────────────────────────────────────────────────

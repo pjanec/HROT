@@ -604,7 +604,7 @@ namespace Hrot.SimHost.Tests
         // ── ⭐ CE-2376 (AQ104 C + F) — the enemy heard behind the wall, the near miss in cover, panic flees ──────────────────────
 
         /// <summary>A memory slot for someone HEARD (acoustic) just now at (<paramref name="x"/>, 0), anonymous — an unknown sound.</summary>
-        private unsafe void Heard(Entity self, float x, bool acoustic = true)
+        private unsafe void Heard(Entity self, float x, bool acoustic = true, byte sourceClass = 0)
         {
             if (!_w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self)) _w.AddComponent(self, new Fdp.Toolkit.Perception.Components.TargetMemory());
             ref var mem = ref _w.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
@@ -614,7 +614,30 @@ namespace Hrot.SimHost.Tests
             mem.Freshness[i] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
             mem.Modalities[i] = (byte)(acoustic ? Fdp.Toolkit.Perception.Components.SensorModality.Acoustic : Fdp.Toolkit.Perception.Components.SensorModality.Visual);
             mem.PositionsX[i] = x;
+            mem.SourceClass[i] = sourceClass;
             mem.LastSeenTick[i] = Fdp.Toolkit.Perception.PerceptionClock.Now(_w);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4666</c> — a SHOT remembered 8 m off is not someone behind the wall: a shot is heard FROM the last opening on its way (AQ106 F),
+        /// so its place is his window, not the shooter (📐 live pc-defend-house: rifles 189 m off, heard 7 m off, every defender broke). He calms;
+        /// footsteps at the same place still raise him. 🔴 Red-proof: the fire-class skip dropped ⇒ the shot raises him.
+        /// </summary>
+        [Fact]
+        public void CE4666_AShotHeardThroughHisWindow_IsNotSomeoneBehindTheWall_StepsStillAre()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 0.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 600 });
+            var shot = Man(0f); Man(5f);
+            SetLevel(shot, 0.2f, 0.0);
+            Heard(shot, 8f, sourceClass: (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms);
+            StressModel.Step(_w, shot, 1.0);
+            Assert.True(Level(shot) < 0.2f, $"a shot through his window: he calms ({Level(shot)})");
+
+            var steps = Man(100f); Man(105f);
+            SetLevel(steps, 0.2f, 0.0);
+            Heard(steps, 108f, sourceClass: (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps);
+            StressModel.Step(_w, steps, 1.0);
+            Assert.True(Level(steps) > 0.2f, $"steps behind the wall: rises ({Level(steps)})");
         }
 
         /// <summary>

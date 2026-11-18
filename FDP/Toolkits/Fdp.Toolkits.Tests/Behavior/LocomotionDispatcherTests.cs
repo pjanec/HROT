@@ -384,5 +384,40 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+            /// <summary>
+        /// ⭐⭐ <c>CE-4669</c> — a move that STOPS (its action cleared from outside) or a man who loses CanMove leaves the LOCOMOTION row saying
+        /// nothing, never the last "moving" (📐 live real-1: still men read "moving"). A running move still reads "moving".
+        /// 🔴 Red-proof: the two clears dropped ⇒ "moving" stays.
+        /// </summary>
+        [Fact]
+        public void CE4669_AStoppedMoveOrALostCanMove_LeavesNoStaleMoving_ARunningOneReadsMoving()
+        {
+            var world = TestWorldFactory.Create();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>())
+                world.RegisterComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>();
+            var sys = new LocomotionDispatcherSystem();
+            sys.RegisterExecutor(1, new WritingSpyExecutor<LocomotionChannel>());
+            Entity Man()
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new LocomotionChannel { ActiveAction = 1, ActionInstanceId = 1, Status = NodeStatus.Running });
+                world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+                world.AddComponent(e, new Fdp.Toolkit.Behavior.Diagnostics.ActionStatus());
+                return e;
+            }
+            Fdp.Toolkit.Behavior.Diagnostics.ActionReason Row(Entity e) => world.GetComponentRO<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(e).Locomotion.Reason;
+
+            var stopped = Man(); var lame = Man(); var going = Man();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving, Row(stopped));
+
+            world.GetComponentRW<LocomotionChannel>(stopped).ActiveAction = 0;   // stopped from outside
+            world.GetComponentRW<ActorCapabilityState>(lame).Capabilities = ActorCapabilities.None;
+            sys.Execute(world, 0.016f);
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None, Row(stopped));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.None, Row(lame));
+            Assert.Equal(Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Moving, Row(going));
+            world.Dispose();
+        }
     }
 }
