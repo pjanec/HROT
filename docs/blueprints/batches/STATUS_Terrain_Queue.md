@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**Taken `2026-11-18` ~15:10 UTC: [`HANDOFF_Coordinator_To_Terrain_Moved_Rows.md`](HANDOFF_Coordinator_To_Terrain_Moved_Rows.md)** (three rows moved from backend; scenarios per row by §6a, R-4294) — in order: **CE-4664** ground heat marks (in progress) · CE-3471 a pig through its pen's wall · CE-3424 scale-1 movers. Earlier: CE-4662 ✅ DONE (§2).
+**Taken `2026-11-18` ~15:10 UTC: [`HANDOFF_Coordinator_To_Terrain_Moved_Rows.md`](HANDOFF_Coordinator_To_Terrain_Moved_Rows.md)** (three rows moved from backend; scenarios per row by §6a, R-4294) — in order: CE-4664 ground heat marks ✅ DONE · **CE-3471** a pig through its pen's wall (in progress) · CE-3424 scale-1 movers. Earlier: CE-4662 ✅ DONE (§2).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
@@ -27,6 +27,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | T2 | CE-3426 felling a lone tree, fragments in woods | ✅ DONE — fragments through a wood stopped like rounds (`× (1 − Stop)`); felling was CE-4603 | rail `TerrainWoodsTests.CE3426_*` (red-proved); toolkit Woods / AreaEffect / Crater / BuildingDamage 115 / 115 · ⚠ no scenario bursts in a wood |
 | T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | ✅ DONE — the QueryTimings rails flipped a process-wide switch in parallel with it; their collection now runs alone | rail `QueryTimingsTests.CE3440_*` (red-proved) · 5 / 5 timings runs, every full run green |
 | H | CE-4662 thermal drivers, environment half (TD-8/9/12) | ✅ DONE — materials + surfaces + export (R-5065), IR-blocking smoke on the cloud (R-5066), weather `Since` | gates: Fdp.Toolkits.Tests Weather/AreaEffectCloud/TerrainWorld 124/124 · Hrot.Core.Tests NonLethalMunition 14/14 · Hrot.SimHost.Tests BodyPartReplication + TheDescriptorMapIsWired 39/39 (the cloud and weather wire rails — rule 8) · export script 1 787 features / 11 terrains · every new rail red-proved (4 mutations) · DESIGN_Thermal_Drivers §4c |
+| H | CE-4664 ground heat marks (TD-14) | ✅ DONE `fbcb5ccb6` — the record, its writer, the entry point for backend, `MarkWarmth` | gates: Fdp.Toolkits.Tests GroundHeatMarks / WorldKeyframes / Crater / ThermalPerception 25/25 · Hrot.SimHost.Tests EntityGroundDamageTranslatorTests + TheDescriptorMapIsWired + SimHostCoreLogicPack 30/30 (the wire rails — rule 8) · 5 mutations, each red · no scenario: nothing writes a mark until backend's CE-4658 (§6a) · DESIGN_Thermal_Drivers §4c · NOTE to backend |
 
 ## 3. Taken from new handoffs
 - `HANDOFF_Coordinator_To_Terrain_Bug_Queue.md` at 2026-11-18 (merged coordinator at the run's start).
