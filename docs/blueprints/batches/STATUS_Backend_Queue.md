@@ -27,6 +27,9 @@ NEXT: **CE-4660** (TD-S4, fire: ignition in the damage path, `BurnSystem`, the W
 | CE-4661 TH TD-S5 Health.StateSince | TODO | | | |
 | CE-4664 TH TD-S8 ground heat marks | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | `th-vehicle-left-warm-spot` |
 | CE-4663 TH TD-S7 DIS mapping table (doc) | TODO | | | |
+| CE-4670 VA-S1 partial damage exposed + the kill kind (`VehicleLook` in ui's `Hrot.Look`; `Health.Destruction`) ([handoff](HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md)) | TODO — ⚠ needs ui's `Hrot.Look` (LK-S1); if absent, VA-S2 first | | | NEW scenario: an MBT track hit → part Destroyed + mobility kill; an ammunition hit → Catastrophic |
+| CE-4670 VA-S2 hatches, doors, ramps (`VehicleOpenings` 290, `dtVehicleOpenings` 243) | TODO | | | NEW scenario: an IFV dismount opens / closes its ramp |
+| CE-4670 VA-S3 lights (`VehicleLights` 291, `dtVehicleLights` 244) | TODO | | | NEW scenario: a convoy blacked out at night; a helicopter's anti-collision light |
 | CE-3468 T2 Points / Best blind under the parallel phase | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3469 T2 six SimHost rails red under the parallel env | TODO | | | |
 | CE-2440 T2 cc-battalion not thread-count independent | TODO | | | |
@@ -50,6 +53,7 @@ NEXT: **CE-4660** (TD-S4, fire: ignition in the damage path, `BurnSystem`, the W
 - ✅ `STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios.md` (`2026-11-18`) — ten rows moved (terrain: CE-3424, CE-3471, CE-4664; ui: CE-3468, CE-2438, CE-1473, CE-3451, CE-1475, CE-1038, CE-1046); from now §6a: per row its own scenarios + the touched feature's set, the wide family once per several rows. The 41-scenario run going for CE-3452 + CE-3473 counts as this batch's wide run.
 - ✅ `NOTE_Terrain_To_Backend_Ground_Heat_Marks.md` (origin/terrain merged `2026-11-18`) — CE-4664 built by terrain: `GroundHeatMarkRules.LeaveStand` is CE-4658's call when a stand ends; CE-4657 uses terrain's `ThermalPowerClass` / `HeatMarkEnd` for `ThermalSignatureDto` (one enum each, ruling 9) and adds `Signature` / `BarrelHeat` in its OWN file of the `ThermalDriversOps` partial class. Agreed.
 - ✅ `NOTE_Terrain_To_Backend_Thermal_Field_Names.md` — FYI for CE-4657 (smoke `AreaEffectCloud.BlocksInfrared`, weather `WeatherConditions.Since`, `TerrainMaterial.ThermalClass`, `SurfaceThermalClass`); names accepted, nothing to answer.
+- ✅ `HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md` (coordinator merged `2026-11-18`, `5a774253c`) — CE-4670 VA-S1…VA-S3 queued after the thermal rows, before T2 (its priority).
 - ✅ `HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md` (coordinator merged `2026-11-18`) — CE-4657…CE-4661, CE-4663, CE-4664 queued in §2 after the P1/P5 rows, before T2 (the handoff's priority).
 
 ## 4. Notes sent / received
