@@ -189,7 +189,7 @@ more detailed design for it?"*
 |---|---|
 | `ThermalDriversOps` | the ONE calculator, static and pure: `Signature(entity drivers, now, weather)`, `BarrelHeat(shotHistory, now)`, `MarkWarmth(mark, now, weather)` — 0 B, called by our sensor on its snapshot |
 | the translators | one egress / ingress pair per descriptor in the SHARED pack (every node role, the image-generator node included) |
-| ids | 3 component ids + 3 descriptor ordinals (`HeatSource`, `FireState`, `GroundHeatMarks`); `Health` / `EntityDamage` and `WeaponAmmo` / `EntityWeaponAmmo` gain fields (APPENDED, R-169) from the building lane's block, fixed at dispatch |
+| ids | ⭐ fixed at dispatch `2026-11-18`: components 487 `HeatSource` · 488 `FireState` · 493 `GroundHeatMarks`; descriptors 240 · 241 · 242 (`HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md`); `Health` / `EntityDamage` and `WeaponAmmo` / `EntityWeaponAmmo` gain fields (APPENDED, R-169) from the building lane's block, fixed at dispatch |
 
 ## 4b. Ground heat marks — `GroundHeatMarks` *(TD-14; the crater record's shape; unmanaged, ≤ 1024 B, recorded, replicated, `NoScenario` — a mark cools within hours)*
 
