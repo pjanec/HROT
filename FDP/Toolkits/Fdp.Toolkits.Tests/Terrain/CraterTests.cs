@@ -275,6 +275,30 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Empty(chain.W.Bus.Read<CraterEvent>().ToArray());
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-5019 (R-5064) — a demolition charge that breaches the wall it is TOUCHING spends itself on the wall: the passage, and NO crater at the wall's
+        /// foot (before: a 1.6 m × 0.7 m pit in front of the hole the breachers could not climb out of, bd-destruction). ⭐ The same charge 3 m off the wall
+        /// still craters the ground. 🔴 Red-proof: <c>wallContactM</c> 0 (or the <c>_spentOnWall</c> guard dropped in <c>Assess</c>) ⇒ a crater at the wall.
+        /// </summary>
+        [Fact]
+        public void CE5019_AChargeThatBreachesTheWallItTouches_MakesNoCrater_ButOneOffTheWallDoes()
+        {
+            const long Charge = 6101;
+            var terrain = BreachFixtures.HouseCollapsingAt(1e6f);
+            var chain = new Chain(terrain);
+            ((TkbDatabase)chain.W.GetSingletonManaged<ITkbDatabase>()).Register(new TkbTemplate("8 kg demolition charge", Charge) { DisType = new DISEntityType { Kind = 2 } });
+
+            var rec = chain.Burst(Charge, new Vector3(25f, 19.75f, 0.5f));   // 0.1 m off the south wall's face, at its foot
+            Assert.NotNull(rec);
+            Assert.NotEmpty(rec!.BuildingBreaches);                         // the passage
+            Assert.Empty(chain.W.Bus.Read<CraterEvent>().ToArray());        // ⛔ no pit in front of it
+            Assert.StartsWith("none: spent on the wall", rec.Crater);
+
+            var off = chain.Burst(Charge, new Vector3(25f, 16.85f, 0.1f));    // 3 m out on open ground
+            Assert.StartsWith("crater r ", off!.Crater);
+            Assert.Single(chain.W.Bus.Read<CraterEvent>().ToArray());
+        }
+
         /// <summary>⭐ Capacity: past <see cref="GroundDamage.Capacity"/> craters in one cell a second entity is asked for; the view unions them.</summary>
         [Fact]
         public void PastCapacity_ASecondEntityIsAskedFor_AndTheViewUnionsBoth()
