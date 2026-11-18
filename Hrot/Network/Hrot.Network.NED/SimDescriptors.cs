@@ -81,6 +81,10 @@ namespace Hrot.NED.Descriptors
         /// <summary>⭐ <c>CE-4661</c> (thermal TD-7) — APPENDED (R-169): the sim time the derived injury state last changed (a dead body's time of death),
         /// <c>Health.StateSince</c> as its owner stamped it. A late joiner gets it with the rest of the sample.</summary>
         public double StateSince;
+
+        /// <summary>⭐ <c>CE-4670</c> (vehicle appearance VA-7 / VA-12) — APPENDED (R-169): HOW the vehicle was destroyed, the wire's own enum (R-4295):
+        /// 0 none / not destroyed · 1 knocked out (hull intact) · 2 burnt out · 3 catastrophic (the ammunition went up, the turret thrown).</summary>
+        public byte Destruction;
     }
 
     // ⭐ Buildings Stage 5b — a terrain DOOR's live state, published by the door's owner, applied on every other node, and mirrored

@@ -1064,6 +1064,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.MaxHealth = 2500;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
+                    // ⭐ CE-4670 (VA-S1) — the autoloader's carousel sits in the HULL under the turret: a hull or turret kill sets the ammunition off (the turret thrown)
+                    c.AmmoStowage = new[] { (int)Fdp.Toolkit.Physics.BodyParts.VehiclePart.Hull, (int)Fdp.Toolkit.Physics.BodyParts.VehiclePart.Turret };
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
                         AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds),   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1

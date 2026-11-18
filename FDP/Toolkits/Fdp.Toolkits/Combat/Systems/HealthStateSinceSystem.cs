@@ -33,7 +33,9 @@ namespace Fdp.Toolkit.Combat.Systems
             {
                 ref readonly var hp = ref repo.GetComponentRO<Health>(e);
                 if (!_states.Changed(e, (byte)Injury.StateOf(repo, e, in hp)) || !HealthOwnership.AppliesHere(repo, e)) continue;
-                repo.GetComponentRW<Health>(e).StateSince = now;
+                ref var rw = ref repo.GetComponentRW<Health>(e);
+                rw.StateSince = now;
+                if (rw.Current > 0f) rw.Destruction = DestructionKind.None;   // ⭐ CE-4670 (VA-S1) — alive again (an edit, a repair): no kill kind
                 Stamped++;
             }
         }
