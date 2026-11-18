@@ -1,0 +1,52 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · docs/DESIGN_Glass_Windows.md §7 (CE-5033 GW-2) — a man firing OUT through a closed window breaks its pane with his first shot. The window is read by the window cue (the nearest glazed pane of House A to the point). Golden off until a measured run shows it repeats.",
+  "runFor": 40,
+  "golden": false,
+  "anchors": {
+    "first": {
+      "on": "shot",
+      "n": 1
+    },
+    "out": {
+      "on": "shot",
+      "by": "Window Rifleman"
+    }
+  },
+  "expect": [
+    {
+      "name": "the pane is whole before anyone fires",
+      "on": "window",
+      "building": "bt-range/House A",
+      "point": [
+        107.1,
+        100
+      ],
+      "within": 1,
+      "is": "intact",
+      "before": "first"
+    },
+    {
+      "name": "the Window Rifleman fires",
+      "on": "shot",
+      "by": "Window Rifleman"
+    },
+    {
+      "name": "his first shot out breaks the pane he fires through",
+      "on": "window",
+      "building": "bt-range/House A",
+      "point": [
+        107.1,
+        100
+      ],
+      "within": 1,
+      "is": "broken",
+      "after": "out",
+      "before": "out+1"
+    },
+    {
+      "name": "the Street Rifleman fires",
+      "on": "shot",
+      "by": "Street Rifleman"
+    }
+  ]
+}

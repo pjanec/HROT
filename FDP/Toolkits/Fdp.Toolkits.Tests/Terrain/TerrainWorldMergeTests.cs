@@ -382,6 +382,75 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(TerrainWorldMerge.PadHeights(b.Height, o)!.Sample(24f, 43f), m.Height.Sample(24f, 43f));   // the same answer every merge
         }
     
+
+        // ── ⭐ CE-5025 BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2, D-3) — an overlay REMOVES a base building ─────────────────────────────────────────
+
+        private static TerrainWorld SlopeBaseWith(params string[] features)
+        {
+            var sb = new System.Text.StringBuilder("ncols 101\nnrows 101\nxllcenter 0\nyllcenter 0\ncellsize 1\nNODATA_value -9999\n");
+            for (int row = 0; row < 101; row++)
+                for (int c = 0; c < 101; c++) sb.Append((0.2f * c).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(c < 100 ? " " : "\n");
+            string grid = sb.ToString();
+            string geojson = "{ \"type\": \"FeatureCollection\", \"hrot\": { \"schemaVersion\": 1, \"bounds\": [0, 0, 100, 100], \"groundZ\": 0, \"heightGrid\": \"s.height.asc\" }, \"features\": [" + string.Join(",", features) + "] }";
+            return TerrainWorldParser.Parse(geojson, "slope", new TerrainAssets { ReadFile = n => n == "s.height.asc" ? grid : null });
+        }
+
+        private const string SolidBlock = "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"S\",\"height\":4},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[70,10],[76,10],[76,16],[70,16],[70,10]]]}}";
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5025</c> BE-1 — <see cref="TerrainWorldMerge.Without"/> drops a building RECORD with every part of it (panels, their prisms, its walkables, the doors in its panels) and a
+        /// SOLID BLOCK prism by its label (an imported solid house has no record), re-points every remaining index (the kept house's panels, prisms and door still name ITS parts), and only
+        /// WARNS for a label the world lacks. 🔴 Red-proof: leave the panel indices un-remapped ⇒ the kept house's door names a panel of the removed one ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5025_Without_DropsTheBuildingWithItsParts_AndASolidBlockByLabel_ReindexingTheRest()
+        {
+            var two = TerrainWorldMerge.Merge(BaseWorld(), OverlayWorld());   // B (base) then O (overlay) — two houses with doors, panels and prisms
+            var withBlock = TerrainWorldMerge.Merge(two, TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,120,60],\"groundZ\":0},\"features\":[" + SolidBlock + "]}", "range"));
+            Assert.Contains(withBlock.Prisms, p => p.Label == "S");
+
+            var w = TerrainWorldMerge.Without(withBlock, new[] { "B", "S", "Z" });
+            var o = Assert.Single(w.Buildings);
+            Assert.Equal("O", o.Label);
+            Assert.DoesNotContain(w.Prisms, p => p.Label == "S");
+            Assert.All(w.Panels, p => Assert.Equal(0, p.Building));                                      // only O's panels, pointing at O (index 0)
+            Assert.All(w.Prisms, p => Assert.True(p.Panel < 0 || w.Panels[p.Panel].Building == 0, $"prism {p.Label} names panel {p.Panel}"));
+            Assert.All(w.Prisms, p => Assert.True(p.Building < 0 || p.Building == 0));
+            var door = Assert.Single(w.Doors);
+            Assert.Equal(0, w.Panels[door.Panel].Building);
+            Assert.Equal(withBlock.Doors.Single(d => d.Key == door.Key).Center, door.Center);
+            Assert.Contains(w.Warnings, x => x.Contains("'Z'"));
+            Assert.Equal(withBlock.Panels.Count(p => withBlock.Buildings[p.Building].Label == "O"), w.Panels.Count);
+            // ⭐ every prism of B is gone — its floors and roof caps (Building, no panel) as well as its walls: a kept one would remap to "no building" and slip past the
+            //   index checks above (📐 red-proof found that blind spot)
+            bool OfB(TerrainPrism p) => (p.Building >= 0 && withBlock.Buildings[p.Building].Label == "B")
+                                        || (p.Panel >= 0 && withBlock.Panels[p.Panel].Building >= 0 && withBlock.Buildings[withBlock.Panels[p.Panel].Building].Label == "B");
+            Assert.Equal(withBlock.Prisms.Count(p => !OfB(p) && p.Label != "S"), w.Prisms.Count);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5025</c> BE-1 (🔒 user: "removed building leaves bare flattened ground") — an EDIT (<see cref="TerrainFeature.Edit"/>, <c>remove</c>) of a base house on a slope, merged:
+        /// the house and its parts are gone, its footprint is LEVELLED at its floor height (no longer an island), the slope away from it is untouched, and the other house stays.
+        /// 🔴 Red-proof: drop the edit's level ground part ⇒ the footprint keeps the natural slope ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5025_AnEditRemovingABaseHouse_LeavesItsFootprintLevelledAtItsFloor()
+        {
+            var b = SlopeBaseWith(House("B", 20f, 4f, pad: false), House("C", 60f, 12f, pad: false));
+            Assert.Equal(2, b.Buildings.Count);
+            var parts = FeatureExpander.OfKind(TerrainFeature.Edit, "e1", "remove", 0f, 0f, 0u, new Vector2(24f, 43f), Array.Empty<Vector2>(), b, new TerrainAssets(), Array.Empty<string?>(), target: "B");
+            Assert.Equal(2, parts.Count);                                                                 // the remove and the levelled ground
+            var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(b, parts).ToJsonString(), "slope", new TerrainAssets(), b.Height);
+            Assert.Equal(new[] { "B" }, overlay.RemovedBuildings);
+
+            var m = TerrainWorldMerge.Merge(b, overlay);
+            Assert.Equal("C", Assert.Single(m.Buildings).Label);
+            Assert.InRange(m.Height!.Sample(24f, 43f), 3.99f, 4.01f);   // the footprint's middle: its floor (natural 4.8)
+            Assert.InRange(m.Height.Sample(27.5f, 45.5f), 3.99f, 4.01f); // its uphill corner (natural 5.5)
+            Assert.InRange(m.Height.Sample(50f, 10f), 9.99f, 10.01f);    // away from it: the slope as it was
+            Assert.InRange(b.Height!.Sample(24f, 43f), 4.79f, 4.81f);    // the base is unchanged
+        }
+
         // ── ⭐ CE-4592 (P-5; docs/DESIGN_Ground_Patches_And_Road_Blockage.md §4a G-14, G-18, V-28) — authored ground shapes ─────────────────────────────
 
         private static TerrainWorld FlatBase()

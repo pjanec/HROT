@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Terrain
         /// entity's position (a house, a tree, a clutter item). <paramref name="template"/>, <paramref name="pad"/> and <paramref name="seed"/> mean what <see cref="TerrainFeature"/> says per kind.
         /// </summary>
         public static IReadOnlyList<JsonObject> OfKind(byte kind, string key, string template, float headingDeg, float pad, uint seed, Vector2 at, IReadOnlyList<Vector2> points,
-                                                       TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots)
+                                                       TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, string? target = null)
         {
             string where = $"feature '{key}'";
             switch (kind)
@@ -61,6 +61,8 @@ namespace Fdp.Toolkit.Terrain
                     return new[] { Ditch(key + "/0", template, pad > 0f ? pad : preset.Depth, preset.Width, seed, at, headingDeg, points, where) };   // ⭐ CE-4593 (P-6)
                 case TerrainFeature.Ground:
                     return new[] { Ground(key + "/0", template, pad, seed, points, where) };
+                case TerrainFeature.Edit:
+                    return Edit(key, template, target ?? "", baseWorld, where);   // ⭐ CE-5025 BE-1
                 default:
                     throw new ArgumentException($"[Terrain] {where}: unknown feature kind {kind}.");
             }
@@ -71,7 +73,41 @@ namespace Fdp.Toolkit.Terrain
                                                        or TerrainFeature.Bridge or TerrainFeature.Scatter or TerrainFeature.Ground or TerrainFeature.Row or TerrainFeature.Group;
 
         /// <summary>True when <paramref name="kind"/> is one this expander knows (the others are ignored by a caller, as before).</summary>
-        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Group;
+        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Edit;
+
+        /// <summary>The draw order of an edit's levelled ground: above every authored shape (a removed footprint is levelled whatever was drawn there before).</summary>
+        public const uint EditGroundOrder = uint.MaxValue;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5025</c> BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2, D-3) — an EDIT of the baked-in building <paramref name="target"/>. <c>remove</c>: a <c>"remove"</c> part (the merge drops the
+        /// building — its record with its parts, or its solid block) and a <c>level</c> ground part over its footprint at its floor height (🔒 user: "removed building leaves bare flattened
+        /// ground"; no longer an island once it is gone). A target the base does not have: the remove part alone (the merge warns), no ground change.
+        /// </summary>
+        private static IReadOnlyList<JsonObject> Edit(string key, string action, string target, TerrainWorld baseWorld, string where)
+        {
+            if (target.Length == 0) throw new ArgumentException($"[Terrain] {where}: an edit names no building (Target).");
+            if (action.Length == 0 || action == "remove")
+            {
+                // the remove part covers the footprint, so the live bake's dirty rectangle is the building's (a part's box is its geometry's)
+                bool found = BaseFootprint(baseWorld, target, out var footprint, out float floorZ);
+                var geometry = found ? new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(footprint)) } : new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(0.0, 0.0) };
+                var remove = Feature(new JsonObject { ["kind"] = "remove", ["target"] = target, ["label"] = key + "/0" }, geometry);
+                if (!found) return new[] { remove };
+                return new[] { remove, Ground(key + "/1", "level", floorZ, EditGroundOrder, footprint, where) };
+            }
+            throw new ArgumentException($"[Terrain] {where}: unknown building edit '{action}' (remove).");
+        }
+
+        /// <summary>The footprint and floor height of the base building <paramref name="label"/>: a building record, else a solid block prism of that label (its outer ring).</summary>
+        public static bool BaseFootprint(TerrainWorld world, string label, out Vector2[] footprint, out float floorZ)
+        {
+            foreach (var b in world.Buildings)
+                if (b.Label == label && b.Footprint.Length >= 3) { footprint = b.Footprint; floorZ = b.BaseZ; return true; }
+            foreach (var p in world.Prisms)
+                if (p.Kind == TerrainPrismKind.Building && p.Building < 0 && p.Panel < 0 && p.Label == label && p.Footprint.Length >= 3) { footprint = p.Footprint; floorZ = p.BaseZ; return true; }
+            footprint = Array.Empty<Vector2>(); floorZ = 0f;
+            return false;
+        }
 
         // ── lines ─────────────────────────────────────────────────────────────────────────────────────────────────
 

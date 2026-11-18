@@ -341,6 +341,53 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-5033</c> (glass windows, docs/DESIGN_Glass_Windows.md §7) — the <c>window</c> cue reads a building's glazed window as every reader of the world does
+    /// (<c>DoorStates.Windows</c>): the one nearest a point (or any of the building's) is <c>intact</c>, <c>cracked</c> (at least <c>n</c> hits) or <c>broken</c>.
+    /// The grammar names a window cue with no building or an unknown state. 🔴 Red-proof: judge "broken" by <c>Hits &gt;= 1</c> ⇒ the cracked window reads broken.
+    /// </summary>
+    [Fact]
+    public void CE5033_TheWindowCue_ReadsAPanesState()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "the west window is cracked twice", "on": "window", "building": "range/H", "point": [22.6, 20], "within": 1, "is": "cracked", "n": 2},
+                {"name": "the west window is broken", "on": "window", "building": "range/H", "point": [22.6, 20], "within": 1, "is": "broken"},
+                {"name": "the east window is broken", "on": "window", "building": "range/H", "point": [27.6, 20], "within": 1, "is": "broken"},
+                {"name": "some window of H is broken", "on": "window", "building": "range/H", "is": "broken"},
+                {"name": "the east window is intact", "on": "window", "building": "range/H", "point": [27.6, 20], "within": 1, "is": "intact"}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""
+            { "type": "FeatureCollection", "features": [ { "type": "Feature", "properties": { "kind": "building", "label": "H",
+                "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]], "storeys": [ { "height": 3, "walls": [
+                  { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "window", "at": 2, "width": 1.2 }, { "kind": "window", "at": 7, "width": 1.2 } ] },
+                  { "from": [10,0], "to": [10,8] }, { "from": [10,8], "to": [0,8] }, { "from": [0,8], "to": [0,0] } ] } ] } },
+              "geometry": { "type": "Point", "coordinates": [20, 20] } } ] }
+            """, "range");
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.WindowDamage>();
+        world.SetSingletonManaged(terrain);
+        var (panel, west) = terrain.Panes[0];
+        var d = new Fdp.Toolkit.Terrain.WindowDamage { Building = 0 };
+        Fdp.Toolkit.Terrain.WindowDamages.Hit(ref d, panel, west, 0.5f, 0.5f);
+        Fdp.Toolkit.Terrain.WindowDamages.Hit(ref d, panel, west, 0.2f, 0.2f);
+        Fdp.Toolkit.Terrain.WindowDamages.Break(ref d, terrain.Panes[1].Panel, terrain.Panes[1].Opening);
+        world.AddComponent(world.CreateEntity(), d);
+        var book = new ConditionBook(checks, new FakeWorld { World = world }, 0);
+        book.Finish(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["the west window is cracked twice"].Ok);
+        Assert.False(v["the west window is broken"].Ok);
+        Assert.True(v["the east window is broken"].Ok);
+        Assert.True(v["some window of H is broken"].Ok);
+        Assert.False(v["the east window is intact"].Ok);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "window", "is": "shattered"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("needs building", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("is is one of", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ A <c>hit</c> cue sees a burst that STRUCK the unit (a drone diving onto a tank), as the take's <c>AnchorBook.Hit</c> does — 📌
     /// measured on <c>ua-drone-shelter</c>: without it, "the deck tank is never hit" was vacuous. 🔴 Red-proof: drop the <c>struck</c> term.
     /// </summary>

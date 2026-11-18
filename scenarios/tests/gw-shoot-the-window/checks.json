@@ -1,0 +1,81 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · docs/DESIGN_Glass_Windows.md §7 (CE-5033 GW-2) — rounds through a closed window crack its pane (two kept cracks), the third breaks it. The window is read by the window cue (the nearest glazed pane of House A to the point). Golden off until a measured run shows it repeats. Three riflemen, so three rounds cross the glass in the first seconds: 📐 measured with one, the man stepped 0.9 m aside after the second crack and every later round struck brick. Sampled every 0.05 s: three riflemen put the second and third rounds through the glass within a quarter second (📐 measured: one crack at 2.5 s, broken at 2.75 s).",
+  "runFor": 60,
+  "golden": false,
+  "anchors": {
+    "first": {
+      "on": "shot",
+      "n": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "the pane is whole before the first shot",
+      "on": "window",
+      "is": "intact",
+      "before": "first",
+      "building": "bt-range/House A",
+      "point": [
+        110,
+        103.6
+      ],
+      "within": 1
+    },
+    {
+      "name": "the Street Rifleman fires",
+      "on": "shot",
+      "by": "Street Rifleman"
+    },
+    {
+      "name": "a round through the glass cracks the pane",
+      "on": "window",
+      "is": "cracked",
+      "n": 1,
+      "building": "bt-range/House A",
+      "point": [
+        110,
+        103.6
+      ],
+      "within": 1
+    },
+    {
+      "name": "a second round leaves two cracks, the pane still whole",
+      "on": "window",
+      "is": "cracked",
+      "n": 2,
+      "building": "bt-range/House A",
+      "point": [
+        110,
+        103.6
+      ],
+      "within": 1,
+      "after": "a round through the glass cracks the pane"
+    },
+    {
+      "name": "the pane breaks",
+      "on": "window",
+      "is": "broken",
+      "building": "bt-range/House A",
+      "point": [
+        110,
+        103.6
+      ],
+      "within": 1,
+      "after": "a second round leaves two cracks, the pane still whole"
+    },
+    {
+      "name": "he keeps firing at the man behind the glass (the glass hides nothing)",
+      "on": "shot",
+      "by": "Street Rifleman",
+      "n": 4
+    },
+    {
+      "name": "the Window Man never fires",
+      "never": {
+        "on": "shot",
+        "by": "Window Man"
+      }
+    }
+  ],
+  "sampleEvery": 0.05
+}

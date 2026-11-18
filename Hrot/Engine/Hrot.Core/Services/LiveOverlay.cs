@@ -14,7 +14,7 @@ using Hrot.Map.Common.Components;
 namespace Hrot.Map.Common.Services;
 
 /// <summary>One placed terrain block / feature as the live overlay reads it from the world (a snapshot, taken only when the set changed).</summary>
-public readonly record struct OverlaySource(string Key, byte Kind, string Name, uint Seed, float HeadingDeg, byte Fit, float Pad, Vector2 At, Vector2[]? Points = null)
+public readonly record struct OverlaySource(string Key, byte Kind, string Name, uint Seed, float HeadingDeg, byte Fit, float Pad, Vector2 At, Vector2[]? Points = null, string Target = "")
 {
     /// <summary><see cref="Kind"/> of a block (a recipe expansion); a feature uses its <see cref="TerrainFeature"/> kind (1 and up). <see cref="Points"/> are a line / area feature's vertices in WORLD coordinates (T-2).</summary>
     public const byte BlockKind = 0;
@@ -25,7 +25,7 @@ public readonly record struct OverlaySource(string Key, byte Kind, string Name, 
         ulong h = 1469598103934665603UL;
         void Mix(long v) { h ^= (ulong)v; h *= 1099511628211UL; }
         void MixF(float f) => Mix((long)MathF.Round(f * 100f));
-        Mix(Kind); Mix(Fdp.Core.StableHash.Fnv1a32(Name)); Mix(Seed); MixF(HeadingDeg); Mix(Fit); MixF(Pad); MixF(At.X); MixF(At.Y);
+        Mix(Kind); Mix(Fdp.Core.StableHash.Fnv1a32(Name)); Mix(Fdp.Core.StableHash.Fnv1a32(Target ?? "")); Mix(Seed); MixF(HeadingDeg); Mix(Fit); MixF(Pad); MixF(At.X); MixF(At.Y);
         if (Points != null) foreach (var p in Points) { MixF(p.X); MixF(p.Y); }
         return h;
     }
@@ -208,7 +208,7 @@ public sealed class LiveOverlay
                     points = new Vector2[poly.Points.Count];
                     for (int i = 0; i < points.Length; i++) points[i] = at + poly.Points[i];
                 }
-                list.Add(new OverlaySource(KeyOf(world, e), f.Kind, f.Template.ToString() ?? "", f.Seed, f.HeadingDeg, 0, f.Pad, at, points));
+                list.Add(new OverlaySource(KeyOf(world, e), f.Kind, f.Template.ToString() ?? "", f.Seed, f.HeadingDeg, 0, f.Pad, at, points, f.Target.ToString() ?? ""));
             }
         return list;
     }
@@ -288,7 +288,7 @@ public sealed class LiveOverlay
                 foreach (var (tn, tj) in bx.Templates) entry.Templates[tn] = tj;
             }
             else
-                entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>()), baseWorld, _assets!, _roots!));
+                entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>(), s.Target ?? ""), baseWorld, _assets!, _roots!));
             foreach (var f in entry.Features)
             {
                 var (min, max) = OverlayExpansion.BoundsOf(f);

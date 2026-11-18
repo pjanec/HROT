@@ -205,6 +205,17 @@ node that loads a scenario with an edit never creates the removed building's doo
 | **BE-4** ([CE-5030](blueprints/Blueprint_Issues_Tracker.md)) the tools | the Buildings family, the terrain pick (2-D / 3-D), hover, ghost, the edit's Details, one undo step | frame rails measured against the mockup (R-4146) |
 | **BE-5** ([CE-5031](blueprints/Blueprint_Issues_Tracker.md)) Save terrain as | delete the removed buildings' features from `world.json` before the append; write the templates | a saved terrain reloaded without the scenario has no building there, flat ground, the new house enterable |
 
+### 6a. As built — BE-1 *(terrain, `2026-11-18`)*
+
+| design said | as built — and why |
+|---|---|
+| D-2 `Merge(base, overlay, removed)` — a third input | ⭐ the removals ride IN the overlay world: an `Edit` expands to a `"remove"` part (`target`), the parser collects them into `TerrainWorld.RemovedBuildings`, and `Merge(base, overlay)` calls `TerrainWorldMerge.Without(base, overlay.RemovedBuildings)` first — the signature is unchanged and a SAVED (compiled) overlay carries its removals by construction, so every node that loads it removes the same buildings |
+| D-2 "the building, its prisms incl. roof caps and floors, panels, walkables, doors dropped" | ⭐ and a SOLID BLOCK by its label: 📐 measured, an imported solid house (`"kind":"building"` with a polygon, `TerrainWorldParser.cs:175-193`) is ONE prism with no `TerrainBuilding` record — so a target is a record's label OR a solid block prism's; a label the world lacks is a warning (the base may have been re-imported) |
+| D-3 a `Level` part at `BaseZ` | as designed — `FeatureExpander.Edit`: the target's footprint (`FeatureExpander.BaseFootprint`: the record's, else the block's ring) at its floor height, draw order `uint.MaxValue` (above every authored shape); the `remove` part carries the footprint as its geometry so the live bake's dirty rectangle is the building's |
+| D-1 `TerrainFeature.Target` (FixedString64, appended) | as designed; `OverlaySource` / `FeatureSpec` / `OfKind` carry it (both expansion paths, live and compiled — one expansion, ruling 9) |
+
+Rails: `TerrainWorldMergeTests.CE5025_Without_DropsTheBuildingWithItsParts_AndASolidBlockByLabel_ReindexingTheRest`, `CE5025_AnEditRemovingABaseHouse_LeavesItsFootprintLevelledAtItsFloor`.
+
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
 | scenario | expect rows |

@@ -145,7 +145,8 @@ namespace Fdp.Toolkit.Combat.Tests
             // Damage (2×float) = 40, ⭐ CE-1032 + Ammo (long) = 48, ⭐ M1 + TravelX/Y/Z (3×float) = 60. A LOCAL event — the wire
             // message (MunitionDetonation) is mapped field by field, so the travel never reaches the wire. ⭐ CE-3209 + HasBodyPart,
             // BodyPart, Face (3×byte, Pack = 1) = 63. ⭐ CE-3236 + Round (Entity, local only) = 71.
-            Assert.Equal(79, Marshal.SizeOf<DetonationNotification>());   // ⭐ CE-4155 — + OriginalShooter (Entity, 8)
+            // ⭐ CE-4155 — + OriginalShooter (Entity, 8) = 79. ⭐ CE-4654 (D-3) — + TriggeredBy (Entity, 8, local only — the AP mine's trigger man) = 87.
+            Assert.Equal(87, Marshal.SizeOf<DetonationNotification>());
         }
 
         /// <summary>

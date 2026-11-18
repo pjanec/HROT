@@ -98,7 +98,8 @@ public static class OverlayCompiler
             var at = PositionOf(e, guid);
             var points = FeatureExpander.NeedsShape(kind) ? PolylineOf(e, guid, at) : Array.Empty<Vector2>();
             // ⭐ T-2 — ONE expansion entry for every kind, the live overlay's too (OverlayExpansion.Feature)
-            var parts = OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(guid, kind, template, heading, pad, seed, at, points), baseWorld, assets, roots);
+            string target = (string?)tf["Target"] ?? "";   // ⭐ CE-5025 BE-1 — an edit's base building
+            var parts = OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(guid, kind, template, heading, pad, seed, at, points, target), baseWorld, assets, roots);
             features.AddRange(parts);
             if (kind == TerrainFeature.House) houses += parts.Count;
             if (kind == TerrainFeature.Bridge && points.Length >= 2) bridgeEnds.Add((guid, points[0], points[^1]));
