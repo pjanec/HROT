@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §4g fire as built (CE-4660) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §4g fire as built (CE-4660) · §4h the time of the last injury-state change as built (CE-4661) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -171,7 +171,7 @@ more detailed design for it?"*
 | **`HeatSource`** | a vehicle, an aircraft, a generator, a person, an animal | `State` (engine: Off · Idle · Running · Dead; body: Standing · Moving) · `Since` · `MotionSince` | ≈ 20 B | the node that moves the entity · `HeatSourceSystem` (serial, the rule with hysteresis) · on a change of state or motion (the engine-on seconds of the current stand are the writer's PRIVATE state, reaching the wire only in a ground mark, §4b) | a descriptor, owner → every node · recorded · ⭐ the authored start `State` SAVED (a convoy already running), the times reset at load |
 | **`WeaponAmmo`** *(EXISTING, per unit — §3d)* | the unit owning the weapons | gains per mount (≤ 4): `BurstRounds` · `BurstStartedAt` · `LastShotAt` · `HeatAtLastShot`; ⛔ the sampled `Heat0..3` retire | + ≈ 52 B | the brain node (`WeaponAmmoMirrorSystem`, mirroring `WeaponState`) · at a burst's END | the existing `EntityWeaponAmmo` descriptor (on change) · recorded |
 | **`FireState`** | a vehicle / wagon (later a ship), a building's damage-record entity, a terrain cell's record entity (§3c) | `Count` + up to 8 spots `{X, Y, Z, Radius, Since, Seconds, Intensity}` in the holder's coordinates; ADDED at the first ignition (rare) | ≤ 228 B | the Health owner · the damage path when it ignites (TD-16 ①: a fuelled type destroyed, an incendiary hit, later an engine / fuel part) · `BurnSystem` drains Health while Burning (TD-16 ②) | a descriptor · recorded · not saved |
-| **`Health.StateSince`** *(a field on the existing `Health`, replicated as `EntityDamage`)* | a person, an animal, anything with Health | `StateSince` — when the derived injury band last changed | + 8 B | the Health owner · `HealthApplicationSystem` / `BleedOutSystem` · when the band changes | rides the existing `EntityDamage` descriptor |
+| **`Health.StateSince`** *(a field on the existing `Health`, replicated as `EntityDamage`)* | a person, an animal, anything with Health | `StateSince` — when the derived injury band last changed | + 8 B | the Health owner · ~~`HealthApplicationSystem` / `BleedOutSystem`~~ ⛔ SUPERSEDED as built: ONE watcher, `HealthStateSinceSystem`, after every writer (§4h) · when the band changes | rides the existing `EntityDamage` descriptor |
 | **`GroundHeatMarks`** | a per-cell TERRAIN record entity (§4b) | `Count` + up to N items `{Kind, X, Y, Heading, Length, Width, HotEnd, StandSince, LeftAt, EngineOnSeconds, PowerClass}` | ≤ 1024 B | SimHost · `HeatSourceSystem` when a stand ends | a descriptor · recorded · not saved |
 
 | ⭐ changed, not new | |
@@ -286,7 +286,7 @@ by construction; and the speed the sensor's load reads is the same rule cover us
 | TD-3 *"ordered to move / ordered engine on / silent watch"* | ⏳ no such order exists yet: the authored state stands in for silent watch (edge-triggered, it holds), and an order starts the engine when the move starts. Follow-up when an order needs it |
 | TD-3 *"the possessed vehicle by the player's ignition"* | ⏳ possession counts as crewed (Idle when stopped); an ignition KEY is a UI input (ui lane) — not built here |
 | TD-S2's *"a man who just ran reads warmer"* | proved by the rail (`ThermalHeatSystemTests.CE4658_ABody_*`), not by the scenario: a standing person is always above the observer's 0.3, so the scenario cannot tell the two apart by sight |
-| a body has no Dead state | its death time is TD-7's `Health.StateSince` (CE-4661) |
+| a body has no Dead state | its death time is TD-7's `Health.StateSince` — ✅ built, §4h (CE-4661) |
 
 ## 4f. As built — the weapons' last burst *(CE-4659, TD-S3, backend, `2026-11-18`)*
 
@@ -338,6 +338,38 @@ own guess from a Health crossing it may never have seen.
 | *"an incendiary hit"* ignites | ⏳ no incendiary weapon exists yet (flamethrower CE-4635, napalm CE-4637) — they call the same ignition |
 | *"a late-joining node sees the wreck burning"* | proved by the CE-4657 replication rail (`FireState` byte for byte to a late joiner) and the W3 rule above; the editor's verify runs one node |
 | the three holders | the vehicle is built; a building's damage record / a terrain cell record hold `FireState` the same way when their igniters exist |
+
+## 4h. As built — the time of the last injury-state change *(CE-4661, TD-S5, backend, `2026-11-18`)*
+
+```mermaid
+sequenceDiagram
+  participant W as any Health writer (damage, bleeding, fire)
+  participant S as HealthStateSinceSystem (Health owner, last in HealthApplication)
+  participant E as EntityDamage (dtEntityDamage 30, + StateSince)
+  participant R as a replica / a late joiner
+  participant T as ThermalDriversOps.SourceHeat
+  W->>W: Health.Current changes
+  S->>S: Injury.StateOf seen to change? (DeathCrossings.Changed — first sight: no)
+  S->>S: Health.StateSince = now
+  S-->>E: the sample (Current, Max, StateSince)
+  E-->>R: Health verbatim (TransientLocal: a late joiner too)
+  R->>T: a dead BODY: heat × e^(−(now − StateSince)/30 min)
+```
+*What the picture shows that prose hid:* nobody tells the stamp that a state changed — it WATCHES the result of every writer, so a new Health writer
+needs no wiring; and the replicas never compute the time, they receive it.
+
+| piece | as built |
+|---|---|
+| `Health.StateSince` (double, s) | appended to the component (recorded, saved) and to `EntityDamage` (R-169); egress sends it, both ingress paths copy it. 0 = since the start |
+| **`HealthStateSinceSystem`** (`HealthApplication`, LAST) | per entity with Health: `DeathCrossings.Changed(e, (byte)Injury.StateOf(…))` — the CE-4660 crossing rule generalised (a byte per entity; `Crossed` is its alive/dead form) — and on the Health owner (`HealthOwnership.AppliesHere`) stamps `now`. A writer that runs after it in the frame is stamped next frame. First sight, a reload, a replay stamp nothing. 0 B per steady frame |
+| a bird a hit spawns dead (`FlockHits`) | created with `StateSince` = now — first sight would leave 0 ("long dead") |
+| the thermal consumer | `SourceHeat(…, diedAt)`: a dead BODY's own heat × `Cool(now − StateSince, CorpseCoolPerSecond` = 1/1800 s⁻¹, starter); the sensor (`SignatureFilterTest.HeatOf`) passes `StateSince` when `Health.Current` ≤ 0. An engine's `Dead` keeps `HeatSource.Since` |
+| rails | `HealthStateSinceSystemTests` (once per change, a loaded corpse keeps its time, owner only, 0 B; a corpse cools) · `EntityDamageEgressTranslatorTests.CE4661_*` (a reader created after the write gets it; a `StateSince`-only change republishes) · `EntityDamageTranslatorTests.CE4661_*` (ingress) |
+| scenario | `th-burning-wreck` + 4 expect rows: the T-72's and the Bystander's time of death, the Onlooker's 0 |
+
+| ⛔ deviation — and why | |
+|---|---|
+| a corpse's BASE signature stays | ⏳ the passive base (`BaseSignature × contrast`) is the surface against its background, unchanged by death — only the body's own heat fades. A corpse long cold reads like a cold hull: its base |
 
 ## 5. UML
 

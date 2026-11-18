@@ -20,5 +20,13 @@ namespace Fdp.Toolkit.Combat.Components
     {
         public float Current;
         public float Max;
+
+        /// <summary>
+        /// ⭐ <c>CE-4661</c> (thermal drivers TD-7; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4h) — the sim time (s) the DERIVED injury state
+        /// (<see cref="Fdp.Toolkit.Combat.Injury.StateOf(Fdp.ModuleHost.Abstractions.ISimulationView, Entity)"/>: ok / wounded / incapacitated / dead) last changed —
+        /// for a dead body, its TIME OF DEATH. Stamped by the Health owner (<c>HealthStateSinceSystem</c>), replicated in <c>EntityDamage</c>, so every node and a
+        /// late joiner read the same. ⛔ The state itself is never stored (CE-2155) — only its time. 0 = since the start (a body a scenario starts dead with).
+        /// </summary>
+        public double StateSince;
     }
 }

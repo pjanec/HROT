@@ -72,13 +72,15 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
         // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.BurnSystem _burn = new();
+        // ⭐ CE-4661 (thermal drivers TD-7) — LAST: the time the derived injury state changed (a body's time of death), stamped by the Health owner.
+        private readonly Fdp.Toolkit.Combat.Systems.HealthStateSinceSystem _stateSince = new();
 
         public string Key => CapabilityKeys.HealthApplication;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _burn };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _burn, _stateSince };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -92,6 +94,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
             simulation.Add(_burn);
+            simulation.Add(_stateSince);
         }
     }
 

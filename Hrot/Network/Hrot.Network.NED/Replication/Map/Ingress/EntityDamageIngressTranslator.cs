@@ -77,7 +77,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (view is EntityRepository ownerCheck && OwnsTheDamageDescriptor(ownerCheck, entity))
                 return;
 
-            cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max });
+            cmd.SetComponent(entity, new Health { Current = data.Current, Max = data.Max, StateSince = data.StateSince });
         }
 
         public override void ScanAndPublish(ISimulationView view) { }
@@ -91,7 +91,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (OwnsTheDamageDescriptor(repo, entity))
                 return;
 
-            repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max });
+            repo.SetComponent(entity, new Health { Current = health.Current, Max = health.Max, StateSince = health.StateSince });
         }
 
         /// <summary>

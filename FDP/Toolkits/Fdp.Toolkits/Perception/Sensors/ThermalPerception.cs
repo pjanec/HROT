@@ -110,7 +110,12 @@ namespace Fdp.Toolkit.Perception.Sensors
                 float speed = Fdp.Toolkit.Motion.Locomotions.SpeedOf(view, target);
                 if (speed < HeatSourceSystem.MoveOffSpeed && hs.State is HeatSourceState.Running or HeatSourceState.Moving)
                     speed = ts.ReferenceSpeed > 0f ? ts.ReferenceSpeed : 5f;
-                heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in hs, speed, now));
+                // ⭐ CE-4661 (TD-7) — a dead body cools from its time of death (Health.StateSince, replicated)
+                double diedAt = double.NaN;
+                if (!hs.IsEngine && (view is not EntityRepository hr || hr.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                    && view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(target)
+                    && view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(target) is { Current: <= 0f } hp) diedAt = hp.StateSince;
+                heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in hs, speed, now, diedAt));
             }
             if (fires && view.HasComponent<FireState>(target))
                 heat = MathF.Max(heat, view.GetComponentRO<FireState>(target).Intensity01(now));

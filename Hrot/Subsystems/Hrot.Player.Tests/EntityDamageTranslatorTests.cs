@@ -45,6 +45,23 @@ namespace Hrot.Player.Tests
             Assert.Equal(50f,   cmd.LastHealth!.Value.Max);
         }
 
+        /// <summary>⭐ <c>CE-4661</c> (thermal TD-7) — the receiver's Health carries the owner's <c>StateSince</c> (a body's time of death) verbatim.
+        /// 🔴 Red-proof: drop <c>StateSince = data.StateSince</c> in <c>Decode</c> ⇒ 0.</summary>
+        [Fact]
+        public void CE4661_Decode_CarriesTheTimeOfDeath()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(KnownId, repo.CreateEntity());
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, new GhostCreationSystem(entityMap));
+            var cmd = new RecordingCommandBuffer();
+
+            translator.DecodeForTest(new EntityDamage { EntityId = KnownId, Current = 0f, Max = 50f, StateSince = 41.5 }, cmd, repo);
+
+            Assert.Equal(41.5, cmd.LastHealth!.Value.StateSince);
+        }
+
         [Fact]
         public void Decode_UnknownEntity_CreatesGhostAndWritesHealth()
         {

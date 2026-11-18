@@ -33,8 +33,15 @@ namespace Fdp.Toolkit.Perception.Signatures
             return type.BaseSignature + hottest * (1f - type.BaseSignature);
         }
 
-        /// <summary>The heat source's own heat, 0..1 (see <see cref="Signature"/>).</summary>
-        public static float SourceHeat(in ThermalState type, in HeatSource source, float speed, double now)
+        /// <summary>
+        /// ⭐ <c>CE-4661</c> (TD-7) — how fast a dead BODY's own heat fades, per second: a time constant of 30 min (starter; a corpse loses its warmth over hours,
+        /// not over the ~50 s a living body sheds a run). ⛔ An engine's Dead keeps its own <see cref="HeatSource.Since"/> and rate.
+        /// </summary>
+        public const double CorpseCoolPerSecond = 1.0 / 1800.0;
+
+        /// <summary>The heat source's own heat, 0..1 (see <see cref="Signature"/>). ⭐ <c>CE-4661</c> — <paramref name="diedAt"/>: a BODY's time of death
+        /// (<c>Health.StateSince</c> of a dead one; NaN = alive): its heat at death fades from then at <see cref="CorpseCoolPerSecond"/>.</summary>
+        public static float SourceHeat(in ThermalState type, in HeatSource source, float speed, double now, double diedAt = double.NaN)
         {
             float idle = type.IdleHeat, running = type.RunningHeat;
             float reference = type.ReferenceSpeed > 0f ? type.ReferenceSpeed : 5f;
@@ -66,6 +73,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                     heat = 0f;
                     break;
             }
+            if (!source.IsEngine && !double.IsNaN(diedAt)) heat *= Cool(now - diedAt, CorpseCoolPerSecond);
             return Math.Clamp(heat, 0f, 1f);
         }
 

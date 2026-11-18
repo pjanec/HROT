@@ -111,6 +111,7 @@ namespace Hrot.Map.Common.Replication.Egress
                     EntityId = netId.Value,
                     Current  = current,
                     Max      = max,
+                    StateSince = health.StateSince,   // ⭐ CE-4661 — the time of the last injury-state change (a body's time of death)
                 };
                 if (_instances.Unchanged(netId.Value, sample)) continue;
 
