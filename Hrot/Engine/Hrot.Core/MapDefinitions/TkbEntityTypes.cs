@@ -125,6 +125,10 @@ namespace Hrot.Map.Common
         public const long Infantry_AntiDroneRed = 213;
         /// <summary>⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge only, a standing rule to engage listed animals, never people (214 free on every lane 2026-11-17).</summary>
         public const long Infantry_Hunter = 214;
+        /// <summary>⭐ <c>CE-4658</c> (thermal drivers TD-S2) — a rifleman with a hand-held THERMAL sight (1 500 m, resolves a signature ≥ 0.3: a cold hull no, an idling
+        /// engine and a body yes) — the observer of <c>th-idling-tank</c>; the M1 / Bradley carriage stays withdrawn (CE-2349). ⛔ PERMANENT WIRE VALUE.
+        /// 215 free on every lane 2026-11-18 (origin/behaviors, ui, coordinator, terrain, backend).</summary>
+        public const long Infantry_ThermalObserver = 215;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;

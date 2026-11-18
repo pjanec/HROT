@@ -1,0 +1,27 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4658 (thermal drivers TD-S2): an idling, crewed tank is seen by a thermal sight at night; a parked, cold one is not.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "Observer Idle sees the idling tank by its heat",
+      "on": "field",
+      "who": "Observer Idle",
+      "path": "TargetMemory.Entries.0.Score",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "Observer Parked never sees the cold parked tank",
+      "never": {
+        "on": "field",
+        "who": "Observer Parked",
+        "path": "TargetMemory.Entries.0.Score",
+        "op": ">",
+        "value": 0
+      }
+    }
+  ]
+}

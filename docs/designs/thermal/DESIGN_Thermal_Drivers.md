@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -248,6 +248,44 @@ more detailed design for it?"*
 | TD-S1 listed *"the sensor re-based, `ThermalHeatSystem` retired"* | ⭐ moved into **CE-4658 (TD-S2)**: until `HeatSourceSystem` WRITES `HeatSource`, a sensor re-based on it would read every entity as cold — the thermal scenarios would go blind for a slice. Re-basing with its writer keeps the sensor working at every commit. `ThermalState.Heat` / `BarrelHeat` / `LastX..` stay until then |
 | `MotionSince` read as *"when the last motion STARTED (moving) / STOPPED (standing, idling)"* | the same field TD-4 names; the calculator needs the run's start while moving and the stop while at rest — one time each way, nothing more on the wire |
 | ⚠ ids 487 / 488 — the handoff's "move the test fixtures first" | ✅ Fdp.ModuleHost.Tests `RPos` / `RVel` MOVED to 500 / 501 (R-44's test-only range, unused there). ⚠ Fdp.Core.Tests `Tiny2` / `Tiny3` KEPT: the test-only range 500–511 is full in that project, and their siblings `Tiny4…6` already sit on production 489–491 — the suite never registers the toolkit's types (terrain's `TwClock`-on-493 precedent). Both suites re-run green |
+
+## 4e. As built — the writer, the defaults, the sensor *(CE-4658, TD-S2, backend, `2026-11-18`)*
+
+📐 **Measured first** (`search_graph` `.*(Ignition|Engine(On|Off|State)|PowerPlant|SilentWatch|Crewed).*` Class ⇒ **0**; `search_code` `SignaturesDto` / grep `ThermalRange`):
+**no engine-on concept existed, NO shipped type set `SignaturesDto.Thermal` and NO shipped type carries a thermal sight** (the M1 / Bradley carriage was withdrawn, CE-2349,
+DESIGN_Thermal_And_Acoustic_Sensing §8.7) ⇒ thermal sensing was dormant in all shipped content, and this slice also had to give every body its type data.
+
+```mermaid
+graph TD
+  TKB["TKB: LocomotionDto (every built type)"] -->|"no SignaturesDto.Thermal"| DEF["ThermalDefaults.For(class)"]
+  DEF --> STAMP["SignatureTkbTranslator → ThermalState (type data)"]
+  STAMP --> HSS["HeatSourceSystem (Muscle, serial)"]
+  HSS -->|"on a change"| HS["HeatSource (dtHeatSource 240) → every node"]
+  HSS -->|"a stand ends"| GHM["GroundHeatMarkRules.LeaveStand (terrain, TD-14)"]
+  HS --> SF["SignatureFilterTest.HeatOf → ThermalDriversOps.SourceHeat"]
+  SPD["Locomotions.SpeedOf (ONE rule; VehicleCover.IsStanding reads it)"] --> SF
+  THS["ThermalHeatSystem — barrel only (retires CE-4659)"] --> SF
+```
+*What the picture shows that prose hid:* the type data comes from the BODY, not from a per-type list — every built type has a `LocomotionDto`, so a new type is warm
+by construction; and the speed the sensor's load reads is the same rule cover uses (CE-2313), not a third copy.
+
+| piece | as built |
+|---|---|
+| **`ThermalDefaults.For(LocomotionClass)`** | person / rope / parachute: base 0.5, rest 0.2, run 0.7 (ref 3 m/s) · animal: 0.45 / 0.15 / 0.6 · wheeled: base 0.2, idle 0.35, run 0.75, Car, hot end front · tracked / amphibious: 0.2 / 0.4 / 0.85, Tank, rear · boat: Truck · aircraft: 0.25 / 0.5 / 0.9, Aircraft · engines warm in ~100 s (`RunningHeatPerSecond` 0.01) and cool over ~8 min (0.002); bodies ~20 s / ~50 s. A type that authors its own keeps it |
+| **`HeatSourceSystem`** (`EqsSolverStartup.PopulateSystems`, every perception host) | EDGE-triggered (an authored state holds): first sight keeps an authored state, else Dead / Idle (crewed) / Off or Standing — times −∞ ("always so": a convoy authored running reads warm, a parked one cold). Moving above 0.5 m/s ⇒ Running / Moving at once; below 0.2 m/s for 3 s (a body 1 s) ⇒ Idle / Off / Standing **stamped when it stopped**; a crew change held 2 s ⇒ Idle / Off; destroyed ⇒ Dead. Speed MEASURED from the position step. Writes only on a change; 0 B steady |
+| **crewed** | `BehaviorState` (an AI unit is ONE entity with its own brain) or `PossessedBy` |
+| ground heat mark | leaving a stand it idled at ⇒ `LeaveStand` with the stand's place, heading, hull (`VehicleParams` L × W, else the collider's diameter), the engine seconds there, hot end and power class (`ThermalState.PowerClass` / `HotEnd`, appended) |
+| **the sensor** | `SignatureFilterTest`: `Base × contrast + HeatOf × (1 − Base)`; `HeatOf` = max(`SourceHeat(HeatSource, SpeedOf, now)`, `BarrelHeat`, `FireState.Intensity01`). A target the state says moves but whose speed this node cannot read counts at full load |
+| `ThermalHeatSystem` | TRIMMED to the barrel (CE-1358) — the per-frame body heat and the per-shot heat retired; it retires whole with CE-4659 |
+| a thermal sight to test it with | `Infantry_ThermalObserver` (TKB **215**): a rifleman with a hand-held sight, 1 500 m, `ThermalMinSignature` 0.3 (`SimCombatDef` → `ThermalSensorDto.MinSignature`). ⛔ The M1 / Bradley stay without one (CE-2349) |
+| scenario | `scenarios/demos/sensing-and-weather/th-idling-tank` — an idling crewed T-72 seen at 600 m at night (0.52), the same tank authored Off never (0.2) |
+
+| ⛔ deviation from §3 / §7 — and why | |
+|---|---|
+| TD-3 *"ordered to move / ordered engine on / silent watch"* | ⏳ no such order exists yet: the authored state stands in for silent watch (edge-triggered, it holds), and an order starts the engine when the move starts. Follow-up when an order needs it |
+| TD-3 *"the possessed vehicle by the player's ignition"* | ⏳ possession counts as crewed (Idle when stopped); an ignition KEY is a UI input (ui lane) — not built here |
+| TD-S2's *"a man who just ran reads warmer"* | proved by the rail (`ThermalHeatSystemTests.CE4658_ABody_*`), not by the scenario: a standing person is always above the observer's 0.3, so the scenario cannot tell the two apart by sight |
+| a body has no Dead state | its death time is TD-7's `Health.StateSince` (CE-4661) |
 
 ## 5. UML
 

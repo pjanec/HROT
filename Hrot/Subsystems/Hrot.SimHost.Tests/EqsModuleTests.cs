@@ -1062,11 +1062,15 @@ namespace Hrot.SimHost.Tests
             var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m, in range and in sight
             _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.ThermalState
             {
-                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f,
+                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f, IdleHeat = 0.2f, RunningHeat = 0.8f,   // a body
             });
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>()) _world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
 
             var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
-            var heat   = new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem();
+            // ⭐ CE-4658 — the heat is the writer's DECISION (HeatSourceSystem) + the sensor's computation (ThermalDriversOps), not an integrated Heat
+            var heat   = new Fdp.Toolkit.Perception.Signatures.HeatSourceSystem();
+            double clock = 0.0;
+            void Heat() { clock += 0.1; _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = clock }); heat.Execute(view, 0.1f); }
             unsafe bool Sensed()
             {
                 if (!_world.HasComponent<SensorContactList>(sensor)) return false;
@@ -1089,16 +1093,18 @@ namespace Hrot.SimHost.Tests
                 Solve();
                 Assert.False(Sensed(), "a cold target (signature 0.3 < 0.5) is not seen");
 
-                heat.Execute(view, 0.1f);                                         // first position sample
+                Heat();                                                           // first sight: standing (rest heat 0.2 ⇒ 0.44 < 0.5)
+                Solve();
+                Assert.False(Sensed(), "a man at rest (0.3 + 0.2 × 0.7 = 0.44 < 0.5) is not seen");
                 for (int i = 0; i < 10; i++)                                      // 1 s running at 5 m/s, staying in range
                 {
                     ref var t = ref _world.GetComponentRW<SimTransform>(enemy);
                     t.Position += new Vector3(0f, (i % 2 == 0) ? 0.5f : -0.5f, 0f);
-                    heat.Execute(view, 0.1f);
+                    Heat();
                 }
-                Assert.True(_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature >= 0.5f);
+                Assert.Equal(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Moving, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.HeatSource>(enemy).State);
                 Solve();
-                Assert.True(Sensed(), $"the running target is hot enough to be seen (signature {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy).Signature}, " +
+                Assert.True(Sensed(), $"the running target is hot enough to be seen (state {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.HeatSource>(enemy).State}, " +
                     $"buffer {(_world.HasComponent<EqsCognitiveBuffer>(sensor) ? _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count : -1)}, " +
                     $"contacts {(_world.HasComponent<SensorContactList>(sensor) ? _world.GetComponentRO<SensorContactList>(sensor).Count : -1)}, " +
                     $"suspended {_world.GetComponentRO<EqsSensor>(sensor).Suspended}, last schedule {solver.LastSchedule.Count})");

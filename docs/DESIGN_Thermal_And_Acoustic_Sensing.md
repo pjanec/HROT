@@ -882,6 +882,8 @@ predicate (ten copies of one rule) · `OfClass(Explosion) = 0` (it is also the c
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 
+⭐ **`2026-11-18`, CE-4658 (backend):** every body now HAS a heat signature — `ThermalDefaults` by its locomotion class, stamped by `SignatureTkbTranslator` where a type authors none — and the sensor computes the heat from the replicated drivers (`HeatSource`); a dedicated **thermal observer (TKB 215)** carries the sight, the M1 / Bradley carriage stays withdrawn. 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md).
+
 ⛔ **`2026-10-22`, later the same day — the catalogue no longer gives the M1 / Bradley a `ThermalRange`.** 📐 A/B live on `ua-hill-attack`
 (same build, only the two ranges changed): with the sight **4 tanks on the slope at once, 4 checks red**; without it **2 at once, all green**
 — twice deterministic. The sight saw nothing (no `ThermalState` exists without `SignaturesDto.Thermal`), so the change came from carrying
