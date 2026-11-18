@@ -155,13 +155,14 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.ChargeSystem                  _charges   = new();   // ⭐ CE-3233 (B-11b) — a charge set off on its position owner
         private readonly Fdp.Toolkit.Civilians.CustodySystem              _custody   = new();   // ⭐ CE-3256 (BR-4) — search / detain / restrain on the man's owner
         private readonly Fdp.Toolkit.Perception.Systems.SeedTargetSystem  _seed      = new();   // ⭐ B-5 S3 (R-4137) — a seeded target lands on the node that owns the perceiver's TargetMemory
+        private readonly Fdp.Toolkit.Behavior.Systems.VehicleOpeningsSystem _openings = new();  // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps follow the passenger list, on its owner (LAST: sees every boarding of the frame)
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -183,6 +184,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_charges);
             simulation.Add(_custody);
             simulation.Add(_seed);
+            simulation.Add(_openings);
         }
     }
 

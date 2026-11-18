@@ -987,6 +987,30 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsFireSpot> Spots;
     }
 
+    /// <summary>⭐ CE-4670 (VA-4) — one opening of <see cref="EntityVehicleOpenings"/>, in the type's opening order. The wire's OWN enum (R-4295).</summary>
+    [DdsStruct]
+    public partial struct DdsOpening
+    {
+        /// <summary>0 Closed · 1 Opening · 2 Open · 3 Closing — the animation is derived from <c>Since</c> and the type's open seconds.</summary>
+        public byte State;
+        /// <summary>Seconds of sim time the state began.</summary>
+        public double Since;
+    }
+
+    // ⭐ CE-4670 (vehicle appearance VA-S2, VA-4 / VA-12; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4) — a vehicle's hatches, doors and
+    //   ramps, the boarding arbiter (the passenger list's owner, brain group) → every node (an image generator included). Reliable + TransientLocal + KeepLast(1)
+    //   keyed by entity (the EntityFireState shape): a late joiner sees a ramp mid-opening right. Sent on change (a dismount writes twice).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityVehicleOpenings
+    {
+        [DdsKey]
+        public int EntityId;
+        [DdsManaged] public List<DdsOpening> Openings;
+    }
+
     // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) — a stochastic unit's state,
     //   the unit's brain owner → every node (a display node draws the footprint, the staff reads strength). Reliable + TransientLocal +
     //   KeepLast 1, like EntityRadarEmission: a late joiner must know every unit. Sent on change. Instants as doubles (SimInstant's memory).

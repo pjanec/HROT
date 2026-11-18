@@ -247,6 +247,8 @@ namespace Hrot.NED.Descriptors
         //   its fire spots (the Health owner, the Brain group → every node). 240 / 241 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md).
         dtHeatSource                  = 240,
         dtFireState                   = 241,
+        // ⭐ CE-4670 (vehicle appearance VA-S2, VA-12) — a vehicle's hatches / doors / ramps (the boarding arbiter → every node). 244 dtVehicleLights reserved (VA-S3).
+        dtVehicleOpenings             = 243,
         // etc., all known descriptor types here
     }
 

@@ -373,7 +373,7 @@ All **144** production wire types carry a bare `[DdsTopic]` — the topic name o
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
 §Excluded roots. Family counts are informational; `--check` compares the full names only (and fails on an explicit topic name anywhere in HROT-owned code).
 
-### A. Entity descriptors (keyed state of an entity) — 69
+### A. Entity descriptors (keyed state of an entity) — 70
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -445,6 +445,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityHeatSource` | descriptor | yes: entity id | S | Hrot.Network.NED | An engine's or a body's heat DECISION and its times — `State` 1 Off · 2 Idle · 3 Running · 4 Dead · 5 Standing · 6 Moving, `Since`, `MotionSince` (s; −∞ = never) — the node that moves it → every node, sent on a change; heat is computed from it (`dtHeatSource` 240, CE-4657) |
 | `Hrot.NED.Descriptors.EntityFireState` | descriptor | yes: entity id | S | Hrot.Network.NED | The fire spots on a burning holder (≤ 8: position in the holder's frame, radius, `Since`, `Seconds` it burns, intensity 0…1) — its Health owner → every node; a spot is out at `Since + Seconds` (`dtFireState` 241, CE-4657 / CE-4660) |
 | `Hrot.NED.Descriptors.EntityGroundHeatMarks` | descriptor | yes: entity id | S | Hrot.Network.NED | One ground cell's warm vehicle STANDS (where an engine idled: place, heading, hull, the time it stood and left, engine seconds, power class) — the node that moves the vehicles → every node (`dtGroundHeatMarks` 242, CE-4664) |
+| `Hrot.NED.Descriptors.EntityVehicleOpenings` | descriptor | yes: entity id | S | Hrot.Network.NED | A vehicle's hatches / doors / ramps, in its type's opening order (≤ 8): `State` 0 Closed · 1 Opening · 2 Open · 3 Closing + `Since` (s) — the boarding arbiter (the passenger list's owner) → every node, on change; the animation's progress is computed from `Since` and the type's open seconds (`dtVehicleOpenings` 243, CE-4670 VA-S2) |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 13
@@ -713,6 +714,7 @@ or its number differs.
 | 240 | `dtHeatSource` | `Hrot.NED.Descriptors.EntityHeatSource` |  |
 | 241 | `dtFireState` | `Hrot.NED.Descriptors.EntityFireState` |  |
 | 242 | `dtGroundHeatMarks` | `Hrot.NED.Descriptors.EntityGroundHeatMarks` |  |
+| 243 | `dtVehicleOpenings` | `Hrot.NED.Descriptors.EntityVehicleOpenings` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 
@@ -831,6 +833,7 @@ SISO-REF-010 (the Entity Appearance record), **not checked in this repo** — co
 | **Smoking** (platform) | `EntityFireState` | while flaming ⇒ smoking (black, the "engine and hull" value); ⏳ smoke after the fire is out is not modelled |
 | engine / body heat for an IR image generator | `EntityHeatSource` + the type's thermal data | the closed-form calculator `ThermalDriversOps.Signature` (`FDP/Toolkits/Fdp.Toolkits/Perception/Signatures/ThermalDriversOps.Signature.cs`) — the generator solves its own physics from the same drivers |
 | a barrel's heat | `EntityWeaponAmmo` (per mount, the last burst) | `BarrelHeat.At(HeatAtLastShot, LastShotAt, CoolPerSecond, now)` — linear cooling from the last shot |
+| **Hatch / ramp / door** (platform; hatch closed · popped · open, ramp up / down) | `EntityVehicleOpenings` + the type's openings (TKB / class template: kind, open seconds, socket) | progress `p = Progress(State, Since, OpenSeconds, now)` (0 closed … 1 open): a `Hatch` p = 0 ⇒ closed, 0 < p < 1 ⇒ popped, 1 ⇒ open; a `Ramp` p ≥ 0.5 ⇒ down; doors have no DIS bit (a direct reader maps the opening id → its model) — VA-11, CE-4670 |
 | warm ground where a vehicle stood | `EntityGroundHeatMarks` | ⛔ no DIS appearance field — an image generator's own input |
 
 ### SimNetGateway simplified model → real HROT types
