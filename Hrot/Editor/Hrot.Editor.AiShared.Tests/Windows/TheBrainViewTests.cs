@@ -288,6 +288,52 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(2, view.Running(w, e).Count);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-1281</c> (Behaviour Debugging DBG-10) — Recent changes: each row names the behaviour it is about (the row menu's "Open graph of …"),
+    /// and the list is SHORT — 24 entries take the same height as 8 (it scrolls on its own, the header frozen), so the panel no longer grows with
+    /// the journal. 🔒 User: <i>"Recent changes should be a shorter list scrollable independently"</i> · <i>"context menu … at least to open the graph
+    /// for the behavior"</i>. ✅ Red-proof: the old <c>BeginGrid</c> (no height, no ScrollY) ⇒ the two heights differ.
+    /// </summary>
+    [SkippableFact]
+    public void CE1281_RecentChanges_NameTheirBehaviour_AndScrollInAShortList()
+    {
+        var w = World();
+        var e = Soldier(w);
+        var b = BrainSnapshot.Read(w, e, Names)!;
+        Assert.Equal("Duck", b.Changes[0].Behaviour);                                         // started Duck
+        Assert.Equal("Patrol", b.Changes[1].Behaviour);                                       // paused Patrol for Duck
+        Assert.Equal(0, BrainJournalText.BehaviourOf(new BrainJournalEntry { Kind = BrainJournalKind.MoveStarted, A = 5 }));
+
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        float HeightWith(int entries)
+        {
+            var wl = World();
+            var u = Soldier(wl);
+            for (int i = 3; i < entries; i++) BrainJournalOf.Write(wl, u, BrainJournalKind.TaskResumed, a: Patrol);
+            var view = new EntityBrainView(() => wl, Names, null, null, null);
+            var ctx = DetailsContext.Empty("Scenario") with { Entities = new[] { u } };
+            float y = 0f;
+            EntityBrainView.ExpandForRail = true;
+            try
+            {
+                using var frame = UiFrameHarness.Begin(760, 2400);
+                frame.StepN(3, () =>
+                {
+                    ImGui.SetNextWindowPos(new Vector2(0, 0));
+                    ImGui.SetNextWindowSize(new Vector2(740, 2380));
+                    ImGui.Begin("Brain##ce1281");
+                    view.Draw(ctx, "details_ce1281");
+                    y = ImGui.GetCursorPosY();
+                    ImGui.End();
+                });
+            }
+            finally { EntityBrainView.ExpandForRail = false; wl.Dispose(); }
+            return y;
+        }
+        float eight = HeightWith(EntityBrainView.ChangesVisibleRows), full = HeightWith(BrainJournal.Capacity);
+        Assert.Equal(eight, full, 1);
+    }
+
     // ── CE-1327 — the Knows table: each contact, how it was sensed, where, how old ────────────────────────────────────────────────
 
     /// <summary>Two contacts in <paramref name="e"/>'s memory: a rifleman SEEN 40 m north, and gunfire HEARD (unidentified) 120 m east.</summary>
