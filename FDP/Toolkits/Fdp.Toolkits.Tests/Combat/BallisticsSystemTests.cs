@@ -306,6 +306,56 @@ namespace Fdp.Toolkit.Combat.Tests
             finally { grid.Dispose(); }
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4652</c> — ONE near miss per man per pass, whatever the frame boundaries: two men 1.5 m apart beside the round's path, the
+        /// tick boundary falling BETWEEN them. 📐 Before: the one <c>LastNearMiss</c> slot flipped between the two and the clamp to the segment's
+        /// end reported a man the round had not reached yet ⇒ the first man was reported TWICE (and a team of four more often, the count moving with
+        /// the frame rate) ⇒ regulars broke under fire meant to leave them standing (<c>ts-fire-discipline</c>). 🔴 Red-proof: the old clamped
+        /// test ⇒ the first man gets 2.
+        /// </summary>
+        [Fact]
+        public void CE4652_TwoMenCloseTogether_EachGetOneNearMissPerPass_AcrossATickBoundary()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterEvent<Fdp.Toolkit.Combat.Events.NearMissEvent>();
+            var grid = global::CarKinem.Spatial.SpatialHashGrid.Create(100, 100, 5f, 100, Fdp.Core.Collections.Allocator.Persistent);
+            try
+            {
+                grid.Clear();
+                _world.SetSingleton(new global::CarKinem.Spatial.SpatialGridData { Grid = grid });
+                Entity Unit(Vector2 at, ForceId force)
+                {
+                    var e = _world.CreateEntity();
+                    _world.AddComponent(e, new SimTransform { Position = new Vector3(at, 0f), Rotation = Quaternion.Identity });
+                    _world.AddComponent(e, new EntityInfo { ForceId = force });
+                    grid.Add(e, at);
+                    return e;
+                }
+                var shooter = Unit(new Vector2(0f, 0f), ForceId.Friend);
+                var first  = Unit(new Vector2(30f, 1f), ForceId.Hostile);
+                var second = Unit(new Vector2(31.5f, 1f), ForceId.Hostile);
+                var bullet = SpawnBullet(new Vector3(30.5f, 0f, 0f), 0, shooter, previousPosition: new Vector3(10f, 0f, 0f));
+
+                int a = 0, b = 0;
+                void Tick()
+                {
+                    _sys.Execute(_world, 0.016f);
+                    ((EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+                    _world.Bus.SwapBuffers();
+                    foreach (var ev in _world.Bus.Read<Fdp.Toolkit.Combat.Events.NearMissEvent>())
+                    { if (ev.Unit == first) a++; else if (ev.Unit == second) b++; }
+                }
+                Tick();                                                                   // 10 → 30.5: the boundary between the two
+                ref var tf = ref _world.GetComponentRW<SimTransform>(bullet);
+                tf.Position = new Vector3(51f, 0f, 0f);
+                _world.GetComponentRW<BallisticProjectile>(bullet).PreviousPosition = new Vector3(30.5f, 0f, 0f);
+                Tick();                                                                   // 30.5 → 51
+                Assert.Equal(1, a);
+                Assert.Equal(1, b);
+            }
+            finally { grid.Dispose(); }
+        }
+
         // ── ⭐ Buildings §3d P2 (R-217) — rounds through the terrain ─────────────────────────────────────────────
 
         /// <summary>A concrete wall at y = 10 (0.2 m), two wooden fences at y = 20 and y = 30 (0.05 m — 3 mm RHA each), a chain-link

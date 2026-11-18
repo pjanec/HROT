@@ -439,7 +439,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 if ((int)repo.GetComponentRO<EntityInfo>(unit).ForceId == shooterForce) continue;   // own side's rounds are not "shot at"
                 var p = near[i].pos;
                 var ab = b - a;
-                float t = ab.LengthSquared() > 0f ? Math.Clamp(System.Numerics.Vector2.Dot(p - a, ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+                if (ab.LengthSquared() <= 0f) continue;
+                // ⭐⭐ CE-4652 — ONE near miss per man per pass: only the tick whose segment holds his CLOSEST approach (the unclamped projection in
+                //   (0, 1]) reports him. 📐 Before: the projection was clamped to the segment, so a man just beyond this tick's end was reported now AND
+                //   again next tick, and the one LastNearMiss slot flipped between men standing close together — a team got 2+ per round, the count
+                //   moving with the frame rate (R-2076's "moves with the host's load"); regulars broke under over-head fire (ts-fire-discipline).
+                float t = System.Numerics.Vector2.Dot(p - a, ab) / ab.LengthSquared();
+                if (t <= 0f || t > 1f) continue;
                 var closest = a + ab * t;
                 if (System.Numerics.Vector2.DistanceSquared(p, closest) > CombatConstants.NearMissRadius * CombatConstants.NearMissRadius) continue;
                 float z = start.Z + (end.Z - start.Z) * t;
