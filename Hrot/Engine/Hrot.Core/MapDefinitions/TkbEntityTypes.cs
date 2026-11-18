@@ -125,6 +125,10 @@ namespace Hrot.Map.Common
         public const long Infantry_AntiDroneRed = 213;
         /// <summary>⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge only, a standing rule to engage listed animals, never people (214 free on every lane 2026-11-17).</summary>
         public const long Infantry_Hunter = 214;
+        /// <summary>⭐ <c>CE-4658</c> (thermal drivers TD-S2) — a rifleman with a hand-held THERMAL sight (1 500 m, resolves a signature ≥ 0.3: a cold hull no, an idling
+        /// engine and a body yes) — the observer of <c>th-idling-tank</c>; the M1 / Bradley carriage stays withdrawn (CE-2349). ⛔ PERMANENT WIRE VALUE.
+        /// 215 free on every lane 2026-11-18 (origin/behaviors, ui, coordinator, terrain, backend).</summary>
+        public const long Infantry_ThermalObserver = 215;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;
@@ -167,9 +171,13 @@ namespace Hrot.Map.Common
         public const long Obstacle_Barrel        = 8820;
         public const long Obstacle_JerseyBarrier = 8821;
         public const long Obstacle_GuardBooth    = 8822;
+        // ⭐ CE-3473 (user 2026-11-18) — a barrel's FILL decides its protection and how hard it is to ram: 8820 is the EMPTY drum; these two are filled.
+        //   ⛔ PERMANENT WIRE VALUES; 8823–8824 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree, 2026-11-18.
+        public const long Obstacle_BarrelWater   = 8823;
+        public const long Obstacle_BarrelSand    = 8824;
 
         /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
-        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth };
+        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth, Obstacle_BarrelWater, Obstacle_BarrelSand };
 
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 (R-3012, W-0) — the WORLD ENVIRONMENT: one per scenario, the FIRST entity with
         //   no SimTransform (presence of SimTransform is the engine's "is this spatial?" predicate, docs/designs/tkb-1/DESIGN.md

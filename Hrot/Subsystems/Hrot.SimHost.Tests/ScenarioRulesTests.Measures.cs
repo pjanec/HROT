@@ -92,6 +92,39 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Archer 1 — 10", w.S(best).Reason.ToString());
         }
 
+        /// <summary>⭐⭐ <c>CE-3468</c> — the same contest with the strikes LATE (the rules asleep on their cadence by then, as in the scenario): the root still
+        /// sums its children and the Best names the winner — under the parallel brain phase too (the product default).</summary>
+        [Fact]
+        public void CE3468_ArcheryScore_LateStrikes_TheRootStillSums()
+        {
+            var w = new ObjWorld(); w.WithHistory();
+            var db = new TkbDatabase();
+            Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(db);
+            Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(db);
+            w.Repo.SetSingletonManaged<ITkbDatabase>(db);
+            if (!w.Repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Contracts.DetonationNotification>()) w.Repo.Bus.Register<Fdp.Toolkit.Combat.Contracts.DetonationNotification>();
+            var a1 = w.Man(new Vector3(0, 0, 0), ForceId.Friend); w.Repo.GetComponentRW<EntityInfo>(a1).Name = "Archer 1";
+            var a2 = w.Man(new Vector3(5, 0, 0), ForceId.Friend); w.Repo.GetComponentRW<EntityInfo>(a2).Name = "Archer 2";
+            var target = w.Man(new Vector3(30, 0, 0), ForceId.Hostile);
+            w.Repo.AddComponent(target, new TkbIdentity { TkbType = (TkbTypeId)Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbArcheryTarget });
+            var root = w.Objective("Points", $"{{\"common\":{{\"title\":\"Contest\",\"subject\":{w.Net(a1)},\"scored\":false}}}}");
+            string Child(Entity who) => $"{{\"common\":{{\"title\":\"Archery score\",\"subject\":{w.Net(who)},\"parent\":{w.Net(root)},\"group\":\"score\"}}}}";
+            w.Objective("ArcheryScore", Child(a1));
+            w.Objective("ArcheryScore", Child(a2));
+            var best = w.Objective("Best", $"{{\"common\":{{\"title\":\"Best\",\"parent\":{w.Net(root)},\"scored\":false}},\"among\":{w.Net(root)},\"measure\":\"Archery score\",\"min\":1}}");
+            w.Run(5);
+            void Strike(Entity by, float dz)
+                => w.Repo.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.DetonationNotification { Shooter = by, Target = target, HitX = 30f, HitY = 0f, HitZ = 1.0f + dz, Ammo = Hrot.Core.Tkb.MunitionTkbCatalog.TkbArrow });
+            Strike(a1, 0f); Strike(a2, 0.18f);
+            w.Tick();
+            w.Run(5);
+            Strike(a1, 0f);
+            w.Tick();
+            w.Run(5);
+            Assert.Equal(27f, w.S(root).Value);        // 10 + 7 + 10
+            Assert.Equal("Archer 1 — 20", w.S(best).Reason.ToString());
+        }
+
         /// <summary>HitRatio — shots by the men ÷ hits on a hostile, per the CE-4155 attribute: <c>last</c> counts a hit whose Source is a man, <c>original</c> one whose OriginalSource is, <c>both</c> either;
         /// a shot by a stranger and a hit on a friend are no part of it; 0 shots ⇒ Value 0, Active, Score 0; default target 0.30. ✅ Red-proof: <c>NoHarmBehavior.Sources</c> returning the
         /// <c>Source</c> for every attribute ⇒ the <c>original</c> ratio is wrong ⇒ red.</summary>

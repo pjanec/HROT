@@ -30,28 +30,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         /// <summary>True when the vehicle moves slower than <see cref="StandingSpeed"/>: on a node that does not own its motion, the velocity
         /// replicated to it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/>); else its <c>VehicleState.Speed</c>, else its velocity.</summary>
-        public static bool IsStanding(ISimulationView view, Entity e)
-        {
-            var repo = view as EntityRepository;
-            // ⭐ CE-2313 — a REPLICA first: a brain node's VehicleState is the copy the vehicle was created with (its Speed stays 0), so
-            //   it read every moving vehicle as standing there — measured live (uc-convoy-hit-ifv: CGF Speed 0, NetworkVelocity 8 m/s,
-            //   SimHost Speed 8.0): no hit carrier could push through (CE-2307) and its squad got out at speed.
-            if (repo != null && !repo.HasAuthority<SimTransform>(e)
-                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkVelocity>()
-                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>(e)
-                && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var replicated))
-                return replicated.Length() < StandingSpeed;
-            if ((repo == null || repo.IsComponentTypeRegistered<global::CarKinem.Core.VehicleState>())
-                && view.HasComponent<global::CarKinem.Core.VehicleState>(e))
-                return MathF.Abs(view.GetComponentRO<global::CarKinem.Core.VehicleState>(e).Speed) < StandingSpeed;
-            // ⭐ CE-2173 (Dead Reckoning R6) — the motion as THIS node knows it: on a brain node a vehicle SimHost moves keeps the zero
-            //   SimVelocity it was given, so every vehicle read as standing there.
-            if (repo != null && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var velocity))
-                return velocity.Length() < StandingSpeed;
-            if (repo == null && view.HasComponent<SimVelocity>(e))
-                return view.GetComponentRO<SimVelocity>(e).Linear.Length() < StandingSpeed;
-            return true;
-        }
+        public static bool IsStanding(ISimulationView view, Entity e) => Fdp.Toolkit.Motion.Locomotions.SpeedOf(view, e) < StandingSpeed;
 
         /// <summary>
         /// Every live vehicle's box on <paramref name="view"/> (<paramref name="standingOnly"/>: only the standing ones), or null when there

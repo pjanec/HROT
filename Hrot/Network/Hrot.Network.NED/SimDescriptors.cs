@@ -77,6 +77,14 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Maximum hit points — the scenario's value when it authored one, else the TKB default.</summary>
         public float Max;
+
+        /// <summary>⭐ <c>CE-4661</c> (thermal TD-7) — APPENDED (R-169): the sim time the derived injury state last changed (a dead body's time of death),
+        /// <c>Health.StateSince</c> as its owner stamped it. A late joiner gets it with the rest of the sample.</summary>
+        public double StateSince;
+
+        /// <summary>⭐ <c>CE-4670</c> (vehicle appearance VA-7 / VA-12) — APPENDED (R-169): HOW the vehicle was destroyed, the wire's own enum (R-4295):
+        /// 0 none / not destroyed · 1 knocked out (hull intact) · 2 burnt out · 3 catastrophic (the ammunition went up, the turret thrown).</summary>
+        public byte Destruction;
     }
 
     // ⭐ Buildings Stage 5b — a terrain DOOR's live state, published by the door's owner, applied on every other node, and mirrored
@@ -316,6 +324,43 @@ namespace Hrot.NED.Descriptors
         public int CellY;
         /// <summary>X0, Y0, X1, Y1, … — each felled trunk's centre in centimetres.</summary>
         [DdsManaged] public List<int> Trunks;
+    }
+
+    /// <summary>⭐ CE-4664 (thermal drivers TD-14) — one warm stand of <see cref="EntityGroundHeatMarks"/>: the footprint (terrain-local), the hot end, when it stood, the engine time, the power class.</summary>
+    [DdsStruct]
+    public partial struct DdsHeatMark
+    {
+        /// <summary><c>HeatMarkKind</c>: 1 VehicleStand · 2 BurnedArea · 3 BodyImprint.</summary>
+        public byte Kind;
+        public float X;
+        public float Y;
+        /// <summary>Radians.</summary>
+        public float Heading;
+        public float Length;
+        public float Width;
+        /// <summary><c>HeatMarkEnd</c>: 0 none · 1 front · 2 rear.</summary>
+        public byte HotEnd;
+        /// <summary>Seconds of sim time.</summary>
+        public double StandSince;
+        public double LeftAt;
+        public float EngineOnSeconds;
+        /// <summary><c>ThermalPowerClass</c>: 1 car · 2 truck · 3 tank · 4 aircraft.</summary>
+        public byte PowerClass;
+    }
+
+    // ⭐ CE-4664 (thermal drivers TD-14; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b) — one ground cell's warm vehicle stands, the node that moves the vehicles →
+    //   every node (an image generator included). Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every mark still warm. The crater shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityGroundHeatMarks
+    {
+        [DdsKey]
+        public int EntityId;
+        public int CellX;
+        public int CellY;
+        [DdsManaged] public List<DdsHeatMark> Marks;
     }
 
     // ⭐ CE-10000 (air lane, AC-2; DESIGN_Air_Combat §4b) — a fighter's air-combat ORDER (AirCombatSteer), its brain → the motion node; the target, the
@@ -817,10 +862,33 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat as a 0…1 FRACTION of "too hot"
         //   (⭐ AQ107 I — was a byte percent 0..100; the ECS WeaponAmmo keeps the percent byte, the translator converts)
         public byte Hot;
+        // ⛔ CE-4659: RETIRED — sent as 0 (kept for the layout, R-169); a reader computes the heat from the last burst below
         public float Heat0;
         public float Heat1;
         public float Heat2;
         public float Heat3;
+        // ⭐ CE-4659 (appended; thermal drivers TD-5, DESIGN_Thermal_Drivers.md §3d / §4f) — each mount's LAST BURST: rounds, when it began, the last shot
+        //   (seconds of sim time; −∞ = never), the heat (0…1 of too hot) just after it, and the barrel's cooling per second. Changes on a shot only.
+        public int BurstRounds0;
+        public int BurstRounds1;
+        public int BurstRounds2;
+        public int BurstRounds3;
+        public double BurstStartedAt0;
+        public double BurstStartedAt1;
+        public double BurstStartedAt2;
+        public double BurstStartedAt3;
+        public double LastShotAt0;
+        public double LastShotAt1;
+        public double LastShotAt2;
+        public double LastShotAt3;
+        public float HeatAtLastShot0;
+        public float HeatAtLastShot1;
+        public float HeatAtLastShot2;
+        public float HeatAtLastShot3;
+        public float CoolPerSecond0;
+        public float CoolPerSecond1;
+        public float CoolPerSecond2;
+        public float CoolPerSecond3;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by
@@ -879,6 +947,93 @@ namespace Hrot.NED.Descriptors
         public int TrackedTarget;
         public float RangeM;
         public double OnSince;
+    }
+
+    // ⭐ CE-4657 (thermal drivers TD-3, TD-4; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4) — an entity's HEAT SOURCE: the decision (engine Off · Idle ·
+    //   Running · Dead; body Standing · Moving) and its times — the node that moves it → every node (an image generator included), sent on a change. Reliable +
+    //   TransientLocal + KeepLast 1 keyed by entity (the EntityRadarEmission shape): a late joiner knows how long every engine has run. Instants as doubles.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityHeatSource
+    {
+        [DdsKey] public int EntityId;
+        /// <summary><c>HeatSourceState</c>: 1 Off · 2 Idle · 3 Running · 4 Dead · 5 Standing · 6 Moving.</summary>
+        public byte State;
+        public double Since;
+        public double MotionSince;
+    }
+
+    /// <summary>⭐ CE-4657 (TD-6, §3c) — one fire spot of <see cref="EntityFireState"/>, in the holder's coordinates; it goes out at <c>Since + Seconds</c>.</summary>
+    [DdsStruct]
+    public partial struct DdsFireSpot
+    {
+        public float X;
+        public float Y;
+        public float Z;
+        public float Radius;
+        /// <summary>Seconds of sim time.</summary>
+        public double Since;
+        public float Seconds;
+        public float Intensity;
+    }
+
+    // ⭐ CE-4657 (thermal drivers TD-6, TD-16; DESIGN_Thermal_Drivers.md §3c, §4) — the fire spots on a vehicle, a building's damage record or a terrain cell's record,
+    //   the Health owner → every node. Reliable + TransientLocal + KeepLast(1) keyed by entity (the EntityGroundHeatMarks shape): a late joiner sees a wreck burning.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityFireState
+    {
+        [DdsKey]
+        public int EntityId;
+        [DdsManaged] public List<DdsFireSpot> Spots;
+    }
+
+    /// <summary>⭐ CE-4670 (VA-4) — one opening of <see cref="EntityVehicleOpenings"/>, in the type's opening order. The wire's OWN enum (R-4295).</summary>
+    [DdsStruct]
+    public partial struct DdsOpening
+    {
+        /// <summary>0 Closed · 1 Opening · 2 Open · 3 Closing — the animation is derived from <c>Since</c> and the type's open seconds.</summary>
+        public byte State;
+        /// <summary>Seconds of sim time the state began.</summary>
+        public double Since;
+        /// <summary>⭐ VA-4 — 1 = a crewman's head is out of this hatch (it stays open; he rides exposed). APPENDED (R-169).</summary>
+        public byte CrewExposed;
+    }
+
+    // ⭐ CE-4670 (vehicle appearance VA-S2, VA-4 / VA-12; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4) — a vehicle's hatches, doors and
+    //   ramps, the boarding arbiter (the passenger list's owner, brain group) → every node (an image generator included). Reliable + TransientLocal + KeepLast(1)
+    //   keyed by entity (the EntityFireState shape): a late joiner sees a ramp mid-opening right. Sent on change (a dismount writes twice).
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityVehicleOpenings
+    {
+        [DdsKey]
+        public int EntityId;
+        [DdsManaged] public List<DdsOpening> Openings;
+    }
+
+    // ⭐ CE-4670 (vehicle appearance VA-S3, VA-3 / VA-12) — a vehicle's or aircraft's lights, its Brain group (the light rule) → every node. Reliable +
+    //   TransientLocal + KeepLast(1) keyed by entity (the EntityHeatSource shape — blittable, compared whole): a late joiner sees a convoy blacked out. On change.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityVehicleLights
+    {
+        [DdsKey] public int EntityId;
+        /// <summary>Bit i = the type's light group i is on (the type's light-group order).</summary>
+        public uint OnMask;
+        /// <summary>The wire's own enum (R-4295): 0 Normal · 1 Convoy · 2 Blackout · 3 Off.</summary>
+        public byte Discipline;
+        /// <summary>Seconds of sim time the mask last changed.</summary>
+        public double Since;
+        /// <summary>A searchlight's azimuth / elevation relative to the hull (rad).</summary>
+        public float SearchAz;
+        public float SearchEl;
     }
 
     // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) — a stochastic unit's state,

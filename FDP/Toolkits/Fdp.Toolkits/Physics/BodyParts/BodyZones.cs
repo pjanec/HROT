@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
@@ -46,6 +47,16 @@ namespace Fdp.Toolkit.Physics.BodyParts
         /// <summary>⭐ <c>CE-3211</c> (S2-4) — which end of the main hull box holds the engine.</summary>
         public EngineEnd EngineEnd { get; init; }
 
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, VA-7) — the parts holding the AMMUNITION (a bit per part id): a killing hit there is a <c>Catastrophic</c>
+        /// kill. The class's (<c>bodies.json</c> <c>ammoStowage</c>), overridden by the type's <c>Combat.PlatformDef.AmmoStowage</c>.</summary>
+        public uint AmmoStowageMask { get; init; }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1) — the parts holding the FUEL: a killing hit there (and not in the ammunition) burns the vehicle out.</summary>
+        public uint FuelStowageMask { get; init; }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, VA-10) — how long a wreck SMOKES after its flames end (s); 0 = it does not.</summary>
+        public float SmoulderSeconds { get; init; }
+
         /// <summary>The zone <paramref name="part"/> belongs to, or null.</summary>
         public ResolvedZone? ZoneOf(byte part)
         {
@@ -72,7 +83,18 @@ namespace Fdp.Toolkit.Physics.BodyParts
     public static class BodyZones
     {
         private sealed record Profile(string Name, BodyPlan Plan, int?[][] Dis, List<BodyZoneDto> Zones, string? Kit = null,
-                                      EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false);
+                                      EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false, List<OpeningDto>? Openings = null,
+                                      List<LightDto>? Lights = null, uint AmmoMask = 0, uint FuelMask = 0, float? Smoulder = null);
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (VA-8; HL-12's rule) — the hatches / doors / ramps of the CLASS <paramref name="dis"/> belongs to: the matched body profile's
+        /// <c>openings</c> (MBT, APC / IFV, truck, car, helicopter, jet …), null when none. The ONE class match (ruling 9) — openings ride on the same profile as
+        /// the zones; a type overrides them with <c>Gen.Openings</c> (<c>VehicleOpeningsCatalog</c>). ⛔ No combat-platform gate: a truck with no armour has doors.
+        /// </summary>
+        public static IReadOnlyList<OpeningDto>? ClassOpeningsOf(DISEntityType dis) => Match(dis).Profile?.Openings;
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S3, VA-8) — the light groups of <paramref name="dis"/>'s class (the same profile match), null when none.</summary>
+        public static IReadOnlyList<LightDto>? ClassLightsOf(DISEntityType dis) => Match(dis).Profile?.Lights;
 
         private static readonly Lazy<Profile[]> s_profiles = new(LoadProfiles);
         private static readonly ConditionalWeakTable<TkbTemplate, ResolvedBody?[]> s_cache = new();
@@ -166,7 +188,11 @@ namespace Fdp.Toolkit.Physics.BodyParts
                 zones.Add(z);
             }
             return new ResolvedBody { Plan = plan, Profile = source, ProfileProvenance = prov, Zones = zones, Kit = profile?.Kit,
-                                      EngineEnd = profile?.EngineEnd ?? EngineEnd.None };
+                                      EngineEnd = profile?.EngineEnd ?? EngineEnd.None,
+                                      // ⭐ CE-4670 (VA-S1) — stowage and smoulder: the type's platform when it states them, else the class's (HL-12's rule)
+                                      AmmoStowageMask = platform?.AmmoStowage is { } am ? MaskOf(am) : profile?.AmmoMask ?? 0u,
+                                      FuelStowageMask = platform?.FuelStowage is { } fm ? MaskOf(fm) : profile?.FuelMask ?? 0u,
+                                      SmoulderSeconds = platform is { SmoulderSeconds: >= 0f } ps ? ps.SmoulderSeconds : profile?.Smoulder ?? 0f };
         }
 
         private static void Set(ResolvedZone z, string key, float? value, Action<float> set, ParameterProvenance prov, string source, float dflt,
@@ -283,15 +309,60 @@ namespace Fdp.Toolkit.Physics.BodyParts
                         WoundedAt = z["woundedAt"] is { } w ? w.GetValue<int>() : null,
                     });
                 }
+                List<OpeningDto>? openings = null;   // ⭐ CE-4670 (VA-8) — the class's hatches, doors and ramps
+                if (n["openings"] is JsonArray oa)
+                {
+                    openings = new List<OpeningDto>();
+                    foreach (var o in oa)
+                    {
+                        var roles = new List<SeatRole>();
+                        foreach (var r in o!["roles"]?.AsArray() ?? new JsonArray()) roles.Add(Enum.Parse<SeatRole>(r!.GetValue<string>(), ignoreCase: true));
+                        openings.Add(new OpeningDto
+                        {
+                            Id = (byte)o["id"]!.GetValue<int>(),
+                            Kind = Enum.Parse<OpeningKind>(o["kind"]!.GetValue<string>(), ignoreCase: true),
+                            Roles = roles,
+                            OpenSeconds = F(o["openSeconds"]) ?? 1f,
+                            Socket = o["socket"]?.GetValue<string>(),
+                        });
+                    }
+                }
+                List<LightDto>? lights = null;   // ⭐ CE-4670 (VA-S3) — the class's light groups
+                if (n["lights"] is JsonArray la)
+                {
+                    lights = new List<LightDto>();
+                    foreach (var l in la)
+                        lights.Add(new LightDto
+                        {
+                            Id = (byte)l!["id"]!.GetValue<int>(),
+                            Kind = Enum.Parse<LightKind>(l["kind"]!.GetValue<string>(), ignoreCase: true),
+                            Socket = l["socket"]?.GetValue<string>(),
+                        });
+                }
                 list.Add(new Profile(n["name"]!.GetValue<string>(), Enum.Parse<BodyPlan>(n["plan"]!.GetValue<string>(), ignoreCase: true),
                                      patterns.ToArray(), zones, n["kit"]?.GetValue<string>(),
                                      n["engine"] is { } en ? Enum.Parse<EngineEnd>(en.GetValue<string>(), ignoreCase: true) : EngineEnd.None,
-                                     n["inheritArmour"]?.GetValue<bool>() ?? false));
+                                     n["inheritArmour"]?.GetValue<bool>() ?? false, openings, lights,
+                                     MaskOf(n["ammoStowage"]), MaskOf(n["fuelStowage"]), F(n["smoulderSeconds"])));
             }
             return list.ToArray();
         }
 
         private static float? F(JsonNode? n) => n == null ? null : (float)n.GetValue<double>();
+
+        private static uint MaskOf(IReadOnlyList<int> parts)
+        {
+            uint mask = 0;
+            for (int i = 0; i < parts.Count; i++) if (parts[i] >= 0 && parts[i] < 32) mask |= 1u << parts[i];
+            return mask;
+        }
+
+        private static uint MaskOf(JsonNode? array)
+        {
+            uint mask = 0;
+            if (array is JsonArray a) foreach (var p in a) { int id = p!.GetValue<int>(); if (id >= 0 && id < 32) mask |= 1u << id; }
+            return mask;
+        }
 
         private static List<BodyZoneDto> DefaultPersonZones() => new()
         {

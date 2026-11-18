@@ -35,6 +35,26 @@
       "value": 0,
       "quantifier": "all",
       "atEnd": true
+    },
+    {
+      "name": "the contest total sums the archers (CE-3468)",
+      "on": "field",
+      "who": "Archery contest",
+      "path": "ObjectiveStatus.Value",
+      "op": ">",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    },
+    {
+      "name": "a best archer is named (CE-3468)",
+      "on": "field",
+      "who": "Best archer",
+      "path": "ObjectiveStatus.Value",
+      "op": ">",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
     }
   ]
 }

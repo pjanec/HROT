@@ -1,0 +1,98 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "farm",
+  "description": "What: a horse standing on the farm lane stops a car (CE-3457; docs/designs/animals/DESIGN_Animals.md AR-17; Navigation v2 the CE-2059 rule's as-built). On the farm terrain a 'Horse' area (an ENCLOSED 6 x 6 m area on the lane at (100, 10) \u2014 its home keeps the horse within ~1.5 m of the centre) holds one war horse. A war horse is FEARLESS (it does not flee a vehicle), so it stays on the lane. A civilian car ('Car') drives east along the lane (y = 10) at 6 m/s toward (250, 10). The car YIELDS: it slows so it can stop 3 m short of an animal in its lane, stands there, and never touches it; the no-progress watchdog does not fail a vehicle standing for an animal. (A cow is the wrong animal for this test: measured, even a quiet car frightens cattle off the lane first \u2014 ua-animal-herd-road judges that.) Judge: (1) the horse is on the lane (2) the car gets under way (3) then the car stands (4) it stops short of the horse (its centre never past x 96 before it stands \u2014 the horse at ~99) (5) the horse is never hurt. When the horse grazes ~2 m off the lane's line the car drives past it (as measured: it waits ~35 s). Check: scripts/scenario-regression.sh ua-animal-horse-blocks-car"
+ },
+ "entities": {
+  "34570000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     10,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 712
+   },
+   "EntityInfo": {
+    "Name": "Horse",
+    "ForceId": "Neutral"
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": -3,
+      "Y": -3
+     },
+     {
+      "X": 3,
+      "Y": -3
+     },
+     {
+      "X": 3,
+      "Y": 3
+     },
+     {
+      "X": -3,
+      "Y": 3
+     }
+    ],
+    "Version": 0
+   },
+   "AnimalArea": {
+    "Species": "HorseWar",
+    "Enclosed": 1,
+    "Count": 1,
+    "Seed": 3457
+   }
+  },
+  "34570000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     20,
+     10,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1002
+   },
+   "EntityInfo": {
+    "Name": "Car",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      250,
+      10,
+      0
+     ],
+     "speed": 6,
+     "arrivalRadius": 3
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

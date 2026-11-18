@@ -125,6 +125,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
                 // Apply damage with a floor of 0.
                 ref var health = ref repo.GetComponentRW<Health>(targetEntity);
+                bool wasAlive = health.Current > 0f;   // ⭐ CE-4670 (VA-S1) — for the kill kind, decided below on the hit that kills
                 health.Current = MathF.Max(NonLethalFloor(repo, targetEntity, in health, evt.Effect), health.Current - evt.TotalDamage);
 
                 // ⭐⭐ CE-3210 (hit location HL-6) — the part it landed on keeps a damage level (its share of the body's health × 255),
@@ -144,6 +145,11 @@ namespace Fdp.Toolkit.Combat.Systems
                         && Fdp.Toolkit.Physics.BodyParts.Wounds.Has(repo, targetEntity, Fdp.Toolkit.Tkb.Domain.WoundEffect.Catastrophic))
                         health.Current = 0f;
                 }
+
+                // ⭐⭐ CE-4670 (vehicle appearance VA-7, VA-S1) — HOW it was destroyed, decided ONCE, by this owner, on the hit that kills it: the part it
+                //   landed on against the type's stowage (DestructionKinds, the one rule). A person stays None; HealthStateSinceSystem clears it when it lives again.
+                if (wasAlive && health.Current <= 0f && health.Destruction == DestructionKind.None)
+                    health.Destruction = DestructionKinds.Decide(Fdp.Toolkit.Physics.BodyParts.BodyZones.Of(repo, targetEntity), evt.HasBodyPart != 0, evt.BodyPart);
 
                 // ⭐⭐ CE-3219 (civilians B-1, CV-6 ⓑ) — the hit's non-lethal effect is STORED beside Health by the same owner (never derived
                 //   from Health, rule I1): until when the man is knocked down, irritated, stunned. Replicated as dtEffectState.

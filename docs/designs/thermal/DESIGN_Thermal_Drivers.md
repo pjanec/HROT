@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half as built (CE-4662) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §4g fire as built (CE-4660) · §4h the time of the last injury-state change as built (CE-4661) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -171,7 +171,7 @@ more detailed design for it?"*
 | **`HeatSource`** | a vehicle, an aircraft, a generator, a person, an animal | `State` (engine: Off · Idle · Running · Dead; body: Standing · Moving) · `Since` · `MotionSince` | ≈ 20 B | the node that moves the entity · `HeatSourceSystem` (serial, the rule with hysteresis) · on a change of state or motion (the engine-on seconds of the current stand are the writer's PRIVATE state, reaching the wire only in a ground mark, §4b) | a descriptor, owner → every node · recorded · ⭐ the authored start `State` SAVED (a convoy already running), the times reset at load |
 | **`WeaponAmmo`** *(EXISTING, per unit — §3d)* | the unit owning the weapons | gains per mount (≤ 4): `BurstRounds` · `BurstStartedAt` · `LastShotAt` · `HeatAtLastShot`; ⛔ the sampled `Heat0..3` retire | + ≈ 52 B | the brain node (`WeaponAmmoMirrorSystem`, mirroring `WeaponState`) · at a burst's END | the existing `EntityWeaponAmmo` descriptor (on change) · recorded |
 | **`FireState`** | a vehicle / wagon (later a ship), a building's damage-record entity, a terrain cell's record entity (§3c) | `Count` + up to 8 spots `{X, Y, Z, Radius, Since, Seconds, Intensity}` in the holder's coordinates; ADDED at the first ignition (rare) | ≤ 228 B | the Health owner · the damage path when it ignites (TD-16 ①: a fuelled type destroyed, an incendiary hit, later an engine / fuel part) · `BurnSystem` drains Health while Burning (TD-16 ②) | a descriptor · recorded · not saved |
-| **`Health.StateSince`** *(a field on the existing `Health`, replicated as `EntityDamage`)* | a person, an animal, anything with Health | `StateSince` — when the derived injury band last changed | + 8 B | the Health owner · `HealthApplicationSystem` / `BleedOutSystem` · when the band changes | rides the existing `EntityDamage` descriptor |
+| **`Health.StateSince`** *(a field on the existing `Health`, replicated as `EntityDamage`)* | a person, an animal, anything with Health | `StateSince` — when the derived injury band last changed | + 8 B | the Health owner · ~~`HealthApplicationSystem` / `BleedOutSystem`~~ ⛔ SUPERSEDED as built: ONE watcher, `HealthStateSinceSystem`, after every writer (§4h) · when the band changes | rides the existing `EntityDamage` descriptor |
 | **`GroundHeatMarks`** | a per-cell TERRAIN record entity (§4b) | `Count` + up to N items `{Kind, X, Y, Heading, Length, Width, HotEnd, StandSince, LeftAt, EngineOnSeconds, PowerClass}` | ≤ 1024 B | SimHost · `HeatSourceSystem` when a stand ends | a descriptor · recorded · not saved |
 
 | ⭐ changed, not new | |
@@ -210,7 +210,7 @@ more detailed design for it?"*
 | read by | the external image generator (it solves the ground's temperature from the stand, the engine time, the soil's thermal class TD-9 and the weather) · our AI thermal sensor through `ThermalDriversOps.MarkWarmth(mark, now, weather)` (an observer may later report *"a recent vehicle position"* into the per-side place knowledge, `PlaceKnowledge`) · an instructor's thermal-marks map layer |
 | ⛔ never | drawn in the normal views; saved into a scenario |
 
-## 4c. As built — the environment half *(CE-4662, terrain, `2026-11-18`)*
+## 4c. As built — the environment half and the ground heat marks *(CE-4662, CE-4664, terrain, `2026-11-18`)*
 
 | driver | as built | where |
 |---|---|---|
@@ -220,11 +220,156 @@ more detailed design for it?"*
 | **TD-12** smoke | `WarheadDto.SmokeBlocksInfrared` (starter: the 60 / 81 / 120 mm mortar smoke bombs — phosphorus screens — true; the hand smoke grenade, a signal smoke, false); the cloud carries it as **`AreaEffectCloud.BlocksInfrared`** (byte, APPENDED, on `dtAreaEffectCloud`), set once by `AreaEffectSystem` when the burst asks for the cloud; tear gas never | `WarheadDto.cs`, `AreaEffectClouds.cs`, `EntityAreaEffectCloudTranslators.cs` |
 | **TD-8** weather | **`WeatherConditions.Since`** (SimInstant, APPENDED; `EntityWeather.Since`, seconds) — the ONE rule `Restamp(previous, now)`: a value that differs in any other field began now, an identical one keeps its start. Called by the owner's whole-value writes: `WeatherEdit.Set` and `UpdateEntityDescriptorRequestSystem` (a remote edit applied by the owner) | `WeatherConditions.cs` |
 
+| **TD-14** ground heat marks *(CE-4664)* | **`GroundHeatMarks`** (component 493, `dtGroundHeatMarks` 242, TKB 7209) — the crater record's cell (64 m) and writer: `GroundHeatMarkSystem : CellRecordSystem` in SimHost's `DamageAssessmentModule`; ≤ 16 marks / entity (≈ 700 B), another entity past it; a mark COLD at `ColdAfterSeconds(PowerClass)` (car 1 h · truck 1.5 h · tank / aircraft 2 h, starter) is dropped by the next write to its cell. ⭐ The WRITER ENTRY POINT backend's `HeatSourceSystem` calls: `GroundHeatMarkRules.LeaveStand(repo, in HeatMark)` (ignores a stand < 60 s or engine-off). `ThermalDriversOps.MarkWarmth(mark, now, weather)`: warmed by `1 − e^(−on/600 s)`, cooling to ~0.05 at the cold time, faster in wind (+10 % per m/s) and rain (× 2) | `GroundHeatMarks.cs`, `ThermalDriversOps.MarkWarmth.cs`, `EntityGroundHeatMarksTranslators.cs` · NOTE_Terrain_To_Backend_Ground_Heat_Marks.md |
+
 | ⛔ deviation from §3 / §4 — and why | |
 |---|---|
 | TD-12 said the cloud carries the flag *"by its type"* | ⛔ every cloud is the ONE bare TKB type 7202 (`AreaEffectCloudTkb`), so a type cannot tell two smokes apart ⇒ a FIELD on the cloud, copied from the munition at creation (R-5066) |
 | TD-9 named only materials | ⭐ the ground the image generator paints is mostly SURFACES (fields, forest, water), which have no material ⇒ the surface map (R-5065) |
+| §4b typed the footprint as Half | floats: the record still fits (≈ 700 B of 1024) and the wire carries floats like the craters — no Half conversion on either side |
+| `PowerClass` / `HotEnd` had no type | terrain declares `ThermalPowerClass` and `HeatMarkEnd` (the mark needs them first); backend's `ThermalSignatureDto` is asked to use them (one enum, ruling 9) |
+| `ThermalDriversOps` was one class | a `static partial class`: terrain's `MarkWarmth` and backend's `Signature` / `BarrelHeat` in separate files of the one calculator |
 | ⚠ the per-attribute weather patch (`FormAttributeInstaller`, one field at a time) does NOT restamp | its patch context has no clock; the editor and HTTP send the whole value (CE-4346), which does. A reader takes `max(0, now − Since)`; a saved scenario keeps the time it was saved with |
+
+## 4d. As built — the components, the wire and the calculator *(CE-4657, TD-S1, backend, `2026-11-18`)*
+
+| piece | as built | where |
+|---|---|---|
+| **`HeatSource`** (487) | `{State : HeatSourceState, Since, MotionSince}` (`None` · `Off` · `Idle` · `Running` · `Dead` · `Standing` · `Moving`), `DataPolicy.Default` (the authored start state saved) | `Perception/Signatures/HeatSource.cs` |
+| **`FireState`** (488) | `Count` + 8 fixed-buffer spots `{X, Y, Z, Radius, Since (double), Seconds, Intensity}`; `Get` / `Set` / `TryAdd(spot, now)` (reuses a slot whose spot went out; false when all 8 burn) / `IsBurning(now)` / `Intensity01(now)`; `NoScenario` | same file |
+| wire | `dtHeatSource` 240 = `EntityHeatSource {EntityId, State, Since, MotionSince}` · `dtFireState` 241 = `EntityFireState {EntityId, List<DdsFireSpot>}`; both Reliable + TransientLocal + KeepLast 1; egress on change (`HeatSource` compared whole, `FireState` compared BEFORE converting — a steady tick builds nothing); ingress makes a GHOST for an unknown id (the heat-marks shape — the driver may arrive before the entity's master) and never overwrites the recorded owner | `EntityThermalDriverTranslators.cs`, the shared pack |
+| groups | `HeatSource` → Muscle (the node that moves it), `FireState` → Brain (the Health owner) | `HrotOwnershipGroups.cs`, `NedOwnershipGroupBinding.cs` |
+| type data | `ThermalSignatureDto` += `HasPowerPlant` · `PowerClass` · `HotEnd` (terrain's enums) · `IdleHeat` (0.35) · `RunningHeat` (0.8) · `FireSeconds` · `ClothingClass`; `ThermalState` += `IdleHeat` · `RunningHeat` · `HasPowerPlant` (stamped by `SignatureTkbTranslator`) | `SignaturesDto.cs`, `ThermalState.cs` |
+| **`ThermalDriversOps.Signature(type, source, speed, now, barrel, fire)`** | `Base + max(source, barrel, fire) × (1 − Base)` in CLOSED form; warm-up `1 − e^(−t·RunningHeatPerSecond)`, cooling `e^(−t·CooldownPerSecond)` (the TKB's existing rates read as time constants). Engine: Off / Dead cool from idle heat since `Since`; Idle warms to idle heat and keeps the last drive's residue cooling since `MotionSince` (when it stopped); Running warms to idle → running by speed / reference speed. Body: Standing = rest heat, or the last run's residue cooling since `MotionSince`; Moving warms by exertion since `MotionSince` (when it started). ⭐ a time of −∞ means **never** (an engine that never ran, a body that never moved) ⇒ nothing | `ThermalDriversOps.Signature.cs` |
+| **`ThermalDriversOps.BarrelHeat(heatAtLastShot, lastShotAt, coolPerSecond, now)`** | the existing per-frame barrel rule (`Combat.BarrelHeat.Tick`, linear) in closed form | same file |
+| rails | `EntityThermalDriverTranslatorTests` (ids 240 / 241 / 487 / 488; both drivers byte-for-byte to a late joiner, owner-guard, `Matches`, slot reuse) · `ThermalDriversOpsTests` (idle / off / running / body / hottest source / barrel / 0 B) | SimHost.Tests, Toolkits.Tests |
+
+| ⛔ deviation from §7 TD-S1 — and why | |
+|---|---|
+| TD-S1 listed *"the sensor re-based, `ThermalHeatSystem` retired"* | ⭐ moved into **CE-4658 (TD-S2)**: until `HeatSourceSystem` WRITES `HeatSource`, a sensor re-based on it would read every entity as cold — the thermal scenarios would go blind for a slice. Re-basing with its writer keeps the sensor working at every commit. `ThermalState.Heat` / `BarrelHeat` / `LastX..` stay until then |
+| `MotionSince` read as *"when the last motion STARTED (moving) / STOPPED (standing, idling)"* | the same field TD-4 names; the calculator needs the run's start while moving and the stop while at rest — one time each way, nothing more on the wire |
+| ⚠ ids 487 / 488 — the handoff's "move the test fixtures first" | ✅ Fdp.ModuleHost.Tests `RPos` / `RVel` MOVED to 500 / 501 (R-44's test-only range, unused there). ⚠ Fdp.Core.Tests `Tiny2` / `Tiny3` KEPT: the test-only range 500–511 is full in that project, and their siblings `Tiny4…6` already sit on production 489–491 — the suite never registers the toolkit's types (terrain's `TwClock`-on-493 precedent). Both suites re-run green |
+
+## 4e. As built — the writer, the defaults, the sensor *(CE-4658, TD-S2, backend, `2026-11-18`)*
+
+📐 **Measured first** (`search_graph` `.*(Ignition|Engine(On|Off|State)|PowerPlant|SilentWatch|Crewed).*` Class ⇒ **0**; `search_code` `SignaturesDto` / grep `ThermalRange`):
+**no engine-on concept existed, NO shipped type set `SignaturesDto.Thermal` and NO shipped type carries a thermal sight** (the M1 / Bradley carriage was withdrawn, CE-2349,
+DESIGN_Thermal_And_Acoustic_Sensing §8.7) ⇒ thermal sensing was dormant in all shipped content, and this slice also had to give every body its type data.
+
+```mermaid
+graph TD
+  TKB["TKB: LocomotionDto (every built type)"] -->|"no SignaturesDto.Thermal"| DEF["ThermalDefaults.For(class)"]
+  DEF --> STAMP["SignatureTkbTranslator → ThermalState (type data)"]
+  STAMP --> HSS["HeatSourceSystem (Muscle, serial)"]
+  HSS -->|"on a change"| HS["HeatSource (dtHeatSource 240) → every node"]
+  HSS -->|"a stand ends"| GHM["GroundHeatMarkRules.LeaveStand (terrain, TD-14)"]
+  HS --> SF["SignatureFilterTest.HeatOf → ThermalDriversOps.SourceHeat"]
+  SPD["Locomotions.SpeedOf (ONE rule; VehicleCover.IsStanding reads it)"] --> SF
+  THS["ThermalHeatSystem — barrel only (retires CE-4659)"] --> SF
+```
+*What the picture shows that prose hid:* the type data comes from the BODY, not from a per-type list — every built type has a `LocomotionDto`, so a new type is warm
+by construction; and the speed the sensor's load reads is the same rule cover uses (CE-2313), not a third copy.
+
+| piece | as built |
+|---|---|
+| **`ThermalDefaults.For(LocomotionClass)`** | person / rope / parachute: base 0.5, rest 0.2, run 0.7 (ref 3 m/s) · animal: 0.45 / 0.15 / 0.6 · wheeled: base 0.2, idle 0.35, run 0.75, Car, hot end front · tracked / amphibious: 0.2 / 0.4 / 0.85, Tank, rear · boat: Truck · aircraft: 0.25 / 0.5 / 0.9, Aircraft · engines warm in ~100 s (`RunningHeatPerSecond` 0.01) and cool over ~8 min (0.002); bodies ~20 s / ~50 s. A type that authors its own keeps it |
+| **`HeatSourceSystem`** (`EqsSolverStartup.PopulateSystems`, every perception host) | EDGE-triggered (an authored state holds): first sight keeps an authored state, else Dead / Idle (crewed) / Off or Standing — times −∞ ("always so": a convoy authored running reads warm, a parked one cold). Moving above 0.5 m/s ⇒ Running / Moving at once; below 0.2 m/s for 3 s (a body 1 s) ⇒ Idle / Off / Standing **stamped when it stopped**; a crew change held 2 s ⇒ Idle / Off; destroyed ⇒ Dead. Speed MEASURED from the position step. Writes only on a change; 0 B steady |
+| **crewed** | `BehaviorState` (an AI unit is ONE entity with its own brain) or `PossessedBy` |
+| ground heat mark | leaving a stand it idled at ⇒ `LeaveStand` with the stand's place, heading, hull (`VehicleParams` L × W, else the collider's diameter), the engine seconds there, hot end and power class (`ThermalState.PowerClass` / `HotEnd`, appended) |
+| **the sensor** | `SignatureFilterTest`: `Base × contrast + HeatOf × (1 − Base)`; `HeatOf` = max(`SourceHeat(HeatSource, SpeedOf, now)`, `BarrelHeat`, `FireState.Intensity01`). A target the state says moves but whose speed this node cannot read counts at full load |
+| `ThermalHeatSystem` | TRIMMED to the barrel (CE-1358) — the per-frame body heat and the per-shot heat retired; it retires whole with CE-4659 |
+| a thermal sight to test it with | `Infantry_ThermalObserver` (TKB **215**): a rifleman with a hand-held sight, 1 500 m, `ThermalMinSignature` 0.3 (`SimCombatDef` → `ThermalSensorDto.MinSignature`). ⛔ The M1 / Bradley stay without one (CE-2349) |
+| scenario | `scenarios/demos/sensing-and-weather/th-idling-tank` — ONE thermal observer, two T-72s ~500 m out at night (basic-desert is 600 m square): the idling crewed one is his contact (0.52), the one authored Off never a second (0.2). ⚠ Three drafts put a tank OFF the map (basic-desert's height grid is 600 m square; the perception grid [0..1000]²): 4 km away, then at y = −150, then at x = 700 — "never seen" passed even with it idling, and once the idling tank was not seen either. The red-proof caught every one |
+
+| ⛔ deviation from §3 / §7 — and why | |
+|---|---|
+| TD-3 *"ordered to move / ordered engine on / silent watch"* | ⏳ no such order exists yet: the authored state stands in for silent watch (edge-triggered, it holds), and an order starts the engine when the move starts. Follow-up when an order needs it |
+| TD-3 *"the possessed vehicle by the player's ignition"* | ⏳ possession counts as crewed (Idle when stopped); an ignition KEY is a UI input (ui lane) — not built here |
+| TD-S2's *"a man who just ran reads warmer"* | proved by the rail (`ThermalHeatSystemTests.CE4658_ABody_*`), not by the scenario: a standing person is always above the observer's 0.3, so the scenario cannot tell the two apart by sight |
+| a body has no Dead state | its death time is TD-7's `Health.StateSince` — ✅ built, §4h (CE-4661) |
+
+## 4f. As built — the weapons' last burst *(CE-4659, TD-S3, backend, `2026-11-18`)*
+
+| piece | as built |
+|---|---|
+| **`WeaponAmmo`** (appended, R-169) | per mount: `BurstRounds` · `BurstStartedAt` · `LastShotAt` (s, −∞ = never) · `HeatAtLastShot` (0..1) · ⚠ **`CoolPerSecond`** — beyond §3d's four: the closed form needs the rate, and a reader on another node has no `WeaponState`. `HeatAt(m, now)`, `HeatPercentAt`, `HottestBarrelAt(now)` |
+| the writer | `WeaponAmmoMirrorSystem` (the brain node, unchanged home): a mount whose round count FELL since the last record took a shot ⇒ last shot = now, heat = `WeaponState.Heat` just after it; shots under `BurstGapSeconds` (1 s) apart are one burst, a longer pause opens a new one. ⭐ On a shot only — the round count already makes a shot a sample, so the burst adds none |
+| ⛔ retired | `WeaponAmmo.Heat0..3` (the sampled percent, re-sent for every percent a barrel cooled) — never written; on the wire `EntityWeaponAmmo.Heat0..3` go as 0 (kept for the layout). `HeatPercentOf` removed; the station HUD reads `HeatPercentAt(m, now)` (ui's file — NOTE_Backend_To_Ui_Barrel_Heat_Computed.md) |
+| ONE barrel rule | `Combat.BarrelHeat.At(heatAtLastShot, lastShotAt, cool, now)` — `Tick`'s linear cooling in closed form; `ThermalDriversOps.BarrelHeat` forwards to it |
+| the sensor | `HeatOf` = max(`WeaponAmmo.HottestBarrelAt(now)`, a station weapon's `ThermalState.BarrelHeat`, the source, a fire) — the unit's own barrels now right on EVERY node (`WeaponAmmo` replicates; `ThermalState.BarrelHeat` never did) |
+| `ThermalHeatSystem` | TRIMMED to a STATION weapon carried in a vehicle (a door gun: `IsEmbarkedTag`), which has no `WeaponAmmo` of its own. ⏳ It retires when a station weapon carries its own burst record |
+| rails | `WeaponAmmoMirrorSystemTests.CE4659_*` (one burst of 4, no sample while cooling, computed = the barrel, a new burst after a pause) · `BodyPartReplicationTests.CE4659_*` (field for field across the wire, the same heat at any time) · `ThermalHeatSystemTests.CE1358_AHotStationWeapon_*` |
+
+| ⛔ deviation from the handoff — and why | |
+|---|---|
+| *"a burst sends ONE sample"* | the record changes on every SHOT (the HUD shows the heat climbing while firing) — but a shot was already a sample (its round count), so the burst adds none; what is saved is the per-percent samples while a barrel cools |
+| *"retire Heat0..3"* | retired in the ECS; the wire keeps the fields as 0 (append-only) |
+
+## 4g. As built — fire *(CE-4660, TD-S4, backend, `2026-11-18`)*
+
+```mermaid
+sequenceDiagram
+  participant D as DamageAssessment (Health owner)
+  participant B as BurnSystem (Health owner)
+  participant F as FireState (dtFireState 241)
+  participant W as WreckSpawnSystem (every map host)
+  D->>D: the killing hit: Health 0
+  B->>B: DeathCrossings: seen alive, now dead?
+  B->>F: ADD one spot (hull half-length + 1.5 m, FireSeconds, intensity 1)
+  F-->>W: replicated (a late joiner included)
+  W->>W: burning (or first seen burning) ⇒ flames + smoke
+  loop every whole second
+    B->>B: a body inside a burning spot (Health owned here) −10 % of max
+  end
+```
+*What the picture shows that prose hid:* the fire is decided ONCE, on one node, and every host only READS it — the flames are no longer each host's
+own guess from a Health crossing it may never have seen.
+
+| piece | as built |
+|---|---|
+| **`BurnSystem`** (`HealthApplication` capability, after the wreck obstacle) | ① ignites at the DEATH CROSSING (`DeathCrossings` — the rule `WreckObstacleSystem` used, now shared): a type with `FireSeconds` > 0 gets ONE spot (0, 0, 1 m, radius = hull half-length + `ReachM` 1.5, its `FireSeconds`, intensity 1), ADDED with its final value. A wreck loaded dead is never lit. ② every whole `StepSeconds` (1 s) of sim time a BODY (Pedestrian / Quadruped) inside a burning spot — and a holder still alive — loses `BurnPerSecond` (10 %) × intensity of its max, only where its Health is owned (one sample per step); 0 ⇒ `CombatLife.ApplyHitCapabilities` |
+| **`ThermalDefaults.Of(template)`** — ONE rule for the stamp and the fire | its own `SignaturesDto.Thermal`, else the body's default from `LocomotionDto`, else from `VehicleParametersDto.VehicleClass`, else — a hull that MOVES (`MaxSpeedFwd` > 0) and states no class — `PersonalCar`, the kinematics' own default (`VehicleKinematicsTkbTranslator`); a zero-speed prop stays cold. 📐 Measured: the urban catalogue's hand-built types (the civilian car, the APC) carry no `LocomotionDto` — CE-4658's stamp had left them cold, and the wreck rail caught the car never burning |
+| the W3 flames (ui's file — NOTE_Backend_To_Ui_Wreck_Reads_Fire.md) | `WreckSpawnSystem` READS `FireState`: flames when it starts burning or is first seen burning; `Burns(type)` retired |
+| rails | `BurnSystemTests` (once at the crossing, never a loaded wreck; whole 10 % steps inside, nothing outside, nothing for a body owned elsewhere) · `WreckObstacleTests` (through `DeathCrossings`) · ui's W3 rails through `BurningWrecks` |
+| scenario | `scenarios/demos/weapons-and-fires/th-burning-wreck` |
+
+| ⛔ deviation from §7 TD-S4 — and why | |
+|---|---|
+| *"an incendiary hit"* ignites | ⏳ no incendiary weapon exists yet (flamethrower CE-4635, napalm CE-4637) — they call the same ignition |
+| *"a late-joining node sees the wreck burning"* | proved by the CE-4657 replication rail (`FireState` byte for byte to a late joiner) and the W3 rule above; the editor's verify runs one node |
+| the three holders | the vehicle is built; a building's damage record / a terrain cell record hold `FireState` the same way when their igniters exist |
+
+## 4h. As built — the time of the last injury-state change *(CE-4661, TD-S5, backend, `2026-11-18`)*
+
+```mermaid
+sequenceDiagram
+  participant W as any Health writer (damage, bleeding, fire)
+  participant S as HealthStateSinceSystem (Health owner, last in HealthApplication)
+  participant E as EntityDamage (dtEntityDamage 30, + StateSince)
+  participant R as a replica / a late joiner
+  participant T as ThermalDriversOps.SourceHeat
+  W->>W: Health.Current changes
+  S->>S: Injury.StateOf seen to change? (DeathCrossings.Changed — first sight: no)
+  S->>S: Health.StateSince = now
+  S-->>E: the sample (Current, Max, StateSince)
+  E-->>R: Health verbatim (TransientLocal: a late joiner too)
+  R->>T: a dead BODY: heat × e^(−(now − StateSince)/30 min)
+```
+*What the picture shows that prose hid:* nobody tells the stamp that a state changed — it WATCHES the result of every writer, so a new Health writer
+needs no wiring; and the replicas never compute the time, they receive it.
+
+| piece | as built |
+|---|---|
+| `Health.StateSince` (double, s) | appended to the component (recorded, saved) and to `EntityDamage` (R-169); egress sends it, both ingress paths copy it. 0 = since the start |
+| **`HealthStateSinceSystem`** (`HealthApplication`, LAST) | per entity with Health: `DeathCrossings.Changed(e, (byte)Injury.StateOf(…))` — the CE-4660 crossing rule generalised (a byte per entity; `Crossed` is its alive/dead form) — and on the Health owner (`HealthOwnership.AppliesHere`) stamps `now`. A writer that runs after it in the frame is stamped next frame. First sight, a reload, a replay stamp nothing. 0 B per steady frame |
+| a bird a hit spawns dead (`FlockHits`) | created with `StateSince` = now — first sight would leave 0 ("long dead") |
+| the thermal consumer | `SourceHeat(…, diedAt)`: a dead BODY's own heat × `Cool(now − StateSince, CorpseCoolPerSecond` = 1/1800 s⁻¹, starter); the sensor (`SignatureFilterTest.HeatOf`) passes `StateSince` when `Health.Current` ≤ 0. An engine's `Dead` keeps `HeatSource.Since` |
+| rails | `HealthStateSinceSystemTests` (once per change, a loaded corpse keeps its time, owner only, 0 B; a corpse cools) · `EntityDamageEgressTranslatorTests.CE4661_*` (a reader created after the write gets it; a `StateSince`-only change republishes) · `EntityDamageTranslatorTests.CE4661_*` (ingress) |
+| scenario | `th-burning-wreck` + 4 expect rows: the T-72's and the Bystander's time of death, the Onlooker's 0 |
+
+| ⛔ deviation — and why | |
+|---|---|
+| a corpse's BASE signature stays | ⏳ the passive base (`BaseSignature × contrast`) is the surface against its background, unchanged by death — only the body's own heat fades. A corpse long cold reads like a cold hull: its base |
 
 ## 5. UML
 

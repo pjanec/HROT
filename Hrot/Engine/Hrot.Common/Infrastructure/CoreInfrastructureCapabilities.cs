@@ -70,13 +70,17 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.ObstacleRemovalSystem _obstacles = new();
         // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
+        // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
+        private readonly Fdp.Toolkit.Combat.Systems.BurnSystem _burn = new();
+        // ⭐ CE-4661 (thermal drivers TD-7) — LAST: the time the derived injury state changed (a body's time of death), stamped by the Health owner.
+        private readonly Fdp.Toolkit.Combat.Systems.HealthStateSinceSystem _stateSince = new();
 
         public string Key => CapabilityKeys.HealthApplication;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _burn, _stateSince };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -89,6 +93,8 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_bleedOut);
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
+            simulation.Add(_burn);
+            simulation.Add(_stateSince);
         }
     }
 
@@ -149,13 +155,15 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.ChargeSystem                  _charges   = new();   // ⭐ CE-3233 (B-11b) — a charge set off on its position owner
         private readonly Fdp.Toolkit.Civilians.CustodySystem              _custody   = new();   // ⭐ CE-3256 (BR-4) — search / detain / restrain on the man's owner
         private readonly Fdp.Toolkit.Perception.Systems.SeedTargetSystem  _seed      = new();   // ⭐ B-5 S3 (R-4137) — a seeded target lands on the node that owns the perceiver's TargetMemory
+        private readonly Fdp.Toolkit.Behavior.Systems.VehicleOpeningsSystem _openings = new();
+        private readonly Fdp.Toolkit.Behavior.Systems.LightRuleSystem _lights = new();   // ⭐ CE-4670 (VA-S3) — the light rule, on the lights' owner (the Brain group)  // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps follow the passenger list, on its owner (LAST: sees every boarding of the frame)
 
         public string Key => CapabilityKeys.Interactions;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings, _lights };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -177,6 +185,8 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_charges);
             simulation.Add(_custody);
             simulation.Add(_seed);
+            simulation.Add(_openings);
+            simulation.Add(_lights);
         }
     }
 

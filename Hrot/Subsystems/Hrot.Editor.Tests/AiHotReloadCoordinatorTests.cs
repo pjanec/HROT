@@ -96,6 +96,42 @@ namespace Hrot.Editor.Tests
             Assert.True(reloadFired, "OnReloadCompleted should fire after initial load.");
         }
 
+        /// <summary>⭐⭐ CE-3468 — the copy the coordinator LOADS runs its own load hook: the brains' phase then prepares THAT copy's rules tree (the copy the
+        /// behaviours run from). 📐 Measured: without it the phase prepared the default copy's tree and, in the parallel phase, a <c>Points</c> root of the
+        /// archery contest summed no children (0 for 126). 🔴 Red-proof: drop <c>RunLoadHook</c> from the commit ⇒ the copy's tree is never built (0).</summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void CE3468_TheLoadedCopy_RunsItsLoadHook_ThePhasePreparesItsRulesTree()
+        {
+            if (!File.Exists(DllPath)) return; // DLL not in test output, skip.
+            try
+            {
+                using var coordinator = CreateCoordinator();
+                bool loaded = false; string? failureMsg = null;
+                coordinator.OnReloadCompleted += _ => loaded = true;
+                coordinator.OnReloadFailed    += (_, ex) => failureMsg = ex.ToString();
+                coordinator.TriggerInitialLoad();
+                WaitAndDrain(coordinator, ref loaded, ref failureMsg);
+                Assert.Null(failureMsg);
+                Assert.True(loaded);
+
+                var copy = AssemblyLoadContext.All
+                    .Where(c => c != AssemblyLoadContext.Default)
+                    .SelectMany(c => c.Assemblies)
+                    .Last(a => a.GetName().Name == "Hrot.AI.Behaviors");
+                Assert.NotSame(typeof(Hrot.AI.Behaviors.Brains.AiAssemblyLoad).Assembly, copy);
+                var buildsOf = copy.GetType("Hrot.AI.Behaviors.Brains.Objectives.RuleTree")!
+                    .GetMethod("BuildsOf", BindingFlags.Public | BindingFlags.Static)!;
+
+                using var world = new EntityRepository();
+                world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveLinks>();
+                world.RegisterComponent<Fdp.Toolkit.ScenarioRules.ObjectiveStatus>();
+                BrainPhase.Prepare(world);
+                Assert.True((int)buildsOf.Invoke(null, new object[] { world })! > 0, "the brains' phase must prepare the LOADED copy's rules tree");
+            }
+            finally { Hrot.AI.Behaviors.Brains.AiAssemblyLoad.OnLoad(); }   // the default copy's contribution back for the rest of the run
+        }
+
         [Fact]
         [Trait("Category", "Integration")]
         public void TriggerInitialLoad_ReloadCompletedInfo_HasFileWatcherSource()

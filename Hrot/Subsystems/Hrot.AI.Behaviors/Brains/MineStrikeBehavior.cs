@@ -305,7 +305,7 @@ namespace Hrot.AI.Behaviors.Brains
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.Bus.IsRegistered<MineStruck>()) return;
-            var strikes = repo.Bus.Read<MineStruck>();
+            var strikes = repo.ReadEvents<MineStruck>();
             if (strikes.Length == 0) return;
             for (int i = 0; i < strikes.Length; i++)
             {

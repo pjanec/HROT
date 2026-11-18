@@ -451,7 +451,7 @@ public sealed class AirCombatLooksRail
         var jet = scene.Jet(TkbEntityTypes.Jet_F16, 0f, 400f);
         scene.World.AddComponent(jet, new Health { Current = 400f, Max = 400f });
         scene.World.AddComponent(jet, new FighterPilotState { Throttle = 1f, GLoad = 2f });                                   // its engine was at full throttle when it was hit
-        var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
+        var wrecks = new Hrot.Presentation.Tests.BurningWrecks(scene.World);   // ⭐ CE-4660 — the kill lights the hull, the flames read its FireState
         void Tick() { var cmd = ((Fdp.ModuleHost.Abstractions.ISimulationView)scene.World).GetCommandBuffer(); wrecks.Execute(scene.World, 0.016f); ((Fdp.Core.EntityCommandBuffer)cmd).Playback(scene.World); }
         Tick();                                                                                    // alive: the crossing is not yet
         var at = scene.Where(jet);

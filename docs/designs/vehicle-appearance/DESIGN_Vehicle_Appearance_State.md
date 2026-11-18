@@ -2,11 +2,12 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §7 the shared look library (CE-4671) · §7a effect categories
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Scenario_Rules.md — the trigger verbs (SR-74's action list) that HeadOut / SetVehicleLights join
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS `HeatSource` (engine Off / Idle / Running / Dead + Since) and `FireState` (fire spots, ignition, burn damage, the wreck's flames) — this design READS both for rotors, engine sound and burning parts, and adds nothing beside them
   - ../hit-location/DESIGN_Body_Parts_And_Hit_Location.md — OWNS `PartDamage` (per-part levels for vehicles and aircraft, HL-6), the part ids, the zones (HL-12 class templates) and the DERIVED mobility / firepower kill (S2-8, S2b-6) — this design only exposes them as a visible state
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — §10.1 D1 OWNS R-263 (mobility kill · firepower kill · destroyed)
@@ -221,6 +222,129 @@ graph TD
 | 5 | **VA-S5 smoke launchers** | the `SmokeDischarger` mount + its salvo; the "pop smoke" behaviour (behaviors) | a tank under ATGM threat fires its smoke; the clouds block sight and IR |
 | 6 | **VA-S6 the gateway mapping** | VA-11's rows in the protocol reference | the table |
 
+## 6a. As built — hatches, doors and ramps *(VA-S2, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+sequenceDiagram
+  participant E as Embarkation (any path: embark, dismount, eject, re-carry)
+  participant W as VehicleOpeningsSystem (the passenger list's owner)
+  participant C as VehicleOpeningsCatalog (class template by DIS + Gen.Openings)
+  participant N as dtVehicleOpenings 243 (every node, a late joiner too)
+  participant R as a renderer
+  E->>E: PassengerBuffer seat 3 changes hands
+  W->>W: seat changed? (a per-vehicle snapshot, first sight: none)
+  W->>C: openings serving that seat's ROLE
+  W-->>N: ramp Opening since now (once)
+  Note over W: idle for open seconds + 2 s hold
+  W-->>N: ramp Closing since now
+  N-->>R: VehicleOpenings.Progress(state, since, openSeconds, now)
+```
+*What the picture shows that prose hid:* nothing calls the opening writer — it WATCHES the passenger list, so a new boarding path needs no wiring; and a
+renderer computes the animation from two samples per dismount.
+
+| piece | as built |
+|---|---|
+| **`VehicleOpenings`** (component 290, NoScenario) | `Count` + ≤ 8 × (`OpeningState` Closed · Opening · Open · Closing, `Since`); `Progress(state, since, openSeconds, now)` — the ONE progress rule every reader calls (ui's `VehicleLook.OpeningProgress` delegates to it when LK-S1 lands) |
+| **the class templates** | ⛔ deviation from "`Gen.Openings` per class": the class template rides on the EXISTING body profiles of `bodies.json` (matched by DIS class — the one class match, ruling 9): MBT / SP artillery 3 hatches · AFV (APC / IFV) a rear ramp + 3 hatches · wheeled utility 2 doors + a cargo door · car 3 doors · helicopter cockpit + cabin door · jets / attack helicopter a canopy · cargo plane a ramp + crew door. `Gen.Openings` (`VehicleOpeningsDto`) is the type's SPARSE override by id (replace · `Remove` · add) — HL-12's rule. `VehicleOpeningsCatalog.Of(template)`, cached per type, in id order = slot order |
+| an opening serves seat ROLES | ⛔ deviation from "seats": a class template cannot know a type's seat INDICES, so an opening names `SeatRole`s; a seat's role comes from `CarrierSeats.Roles` |
+| **`VehicleOpeningsSystem`** (`Interactions` capability, last) | on the passenger list's owner (`Embarkation.OwnsVehicle`): a seat whose occupant changed opens every opening serving its role (Opening since now, once — a second man out keeps it); idle `OpenSeconds` + `HoldSeconds` (2 s) ⇒ Closing. First sight / a reload / a replay: nothing. The component is ADDED on first sight, all closed (D-31). 0 B per steady frame |
+| the wire | `EntityVehicleOpenings` + `DdsOpening` (the wire's own byte for the state, R-4295), `dtVehicleOpenings` 243, Brain group (with `PassengerBuffer`); translators beside the thermal ones in `Hrot.Network.NED` — ⛔ deviation from VA-12's "the vehicle subsystem's bridge": the component lives in `Fdp.Toolkits`, which NED already references (no subsystem internals crossed) |
+| rails | `VehicleOpeningsTests` (the class template + an override; a dismount opens the ramp once and closes it; only the arbiter writes; 0 B; the progress rule) · `EntityVehicleOpeningsTranslatorTests` (ids; byte for byte to a late joiner; the owner keeps its own) |
+| scenario | `uc-convoy-hit` + 3 rows: the carrier's ramp opens as the squad dismounts, is closing by the end, the driver's hatch never opens |
+| ⭐ **head out** *(`2026-11-18`)* | `OpeningRequestEvent` { Vehicle · Man · `OpeningVerb` HeadOut / HeadIn } (event 5018), asked by `VehicleRequests.HeadOut`; carried to the arbiter by the interaction transport as kind **15 `OpeningRequest`** (owner test `Embarkation.OwnsVehicle`); `VehicleOpeningsSystem.ApplyRequests` opens the HATCHES serving the man's seat role and marks them `OpeningSlot.CrewExposed` (in what was padding — the slot stays 16 B); the idle close skips an exposed hatch; head in closes it; his seat changing hands clears the mark. A passenger (ramp, no hatch) or a man not aboard: nothing. The wire: `DdsOpening.CrewExposed` APPENDED (R-169) |
+| ⭐ **the reader** *(`2026-11-18`)* | `VehicleLook.OpeningProgress(world, v, id, now)` (Hrot.Look) — by the opening's TKB id, delegating to `VehicleOpenings.Progress` with the type's open seconds |
+| rails *(head out)* | `VehicleOpeningsTests.CE4670_ACrewmansHeadOut_HoldsHisHatchOpen_UntilHeGoesIn` · `InteractionTransportTests.CE4670_AHeadOutAndALightSwitch_CrossAsTheirUnionCases_ToTheVehiclesOwners` · the `CrewExposed` byte in `EntityVehicleOpeningsTranslatorTests` · `VehicleLookTests.CE4670_AnOpeningsProgress_IsReadByItsId` |
+| ⭐ **a trigger can ask** *(`2026-11-18`)* | the scenario verbs `HeadOut` { target = the VEHICLE, `role` (Commander by default — a preset crewman has no authored id), `out` } and `SetVehicleLights` { target, `discipline` } (`Hrot.AI.Behaviors/Brains/Objectives/Verbs/VehicleVerbs.cs`, behaviors' file — cross-lane); the seat is read in the serial follow-up (`RuleAfterPhase`). Scenario **`va-crew-switches`** |
+| ⏳ not built | WHO asks for a head out (an SOP, an observation behaviour, an order — behaviors) · opening BEFORE a man arrives (it opens on the boarding itself) · our 3D map drawing them and the exposed crewman (ui, with LK-S1) · reopening while Closing restarts from 0 |
+
+## 6b. As built — lights *(VA-S3, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+graph TD
+  W[weather RelativeLight - CE-3229 curve] --> LR[LightRuleSystem - the lights owner, Brain group]
+  H[HeatSource Idle or Running] --> LR
+  D[VehicleLights.Discipline - authored, saved] --> LR
+  C[VehicleLightsCatalog - class groups by DIS + Gen.Lights] --> LR
+  LR -->|OnMask + Since, on change| VL[VehicleLights 291]
+  VL -->|dtVehicleLights 244| N[every node, a late joiner too]
+  SOP[SOP / ROE / order] -.->|not wired yet| D
+  ST[a station's switch - LightsRequestEvent, kind 16] -->|sets, mask at once| LR
+```
+*What the picture shows that prose hid:* the discipline is an INPUT the rule never writes — today it is authored; the dashed edge (an SOP or an
+order setting it) is the open half.
+
+| piece | as built |
+|---|---|
+| **`VehicleLights`** (component 291, DataPolicy Default — saved) | `OnMask` (bit i = the type's light group i) · `Discipline` (Normal · Convoy · Blackout · Off) · `Since` (the mask's last change) · `SearchAz` / `SearchEl` |
+| the class templates | `lights` on the same body profiles as the openings: road vehicles head · tail · brake · convoy; a car interior instead of convoy; helicopter nav · anti-collision · landing · searchlight; jets / cargo nav · anti-collision · landing. `Gen.Lights` the sparse override; `VehicleLightsCatalog` merges with the SAME `MergeById` as the openings (one copy) |
+| **`LightRuleSystem`** (`Interactions` capability, on the `dtVehicleLights` owner) | every 0.5 s: `MaskOf(lights, discipline, dark, engine)` — head + tail when dark (relative light < 0.3) under Normal, the convoy marker under Convoy, an aircraft's nav + anti-collision whenever its engine runs (day too); nothing blacked out / off / engine off; writes only on a change (`Since` = then); the component ADDED on first sight (D-31). 0 B steady |
+| the wire | `EntityVehicleLights` (blittable, compared whole — the `EntityHeatSource` shape), the wire's own byte for the discipline (R-4295), `dtVehicleLights` 244, Brain group; `LightRuleSystem.DescriptorOrdinal` pinned to it by a rail |
+| rails | `VehicleLightsTests` (the rule over discipline × darkness × engine; owner-only, on change, an authored Blackout holds, 0 B) · `EntityVehicleLightsTranslatorTests`-in-`EntityVehicleOpeningsTranslatorTests` (byte for byte to a late joiner) |
+| scenario | `scenarios/demos/platoons-and-vehicles/va-lights-night` — two crewed T-72s idling at 00:30: the Normal one lit (head + tail, `OnMask` 3), the authored Blackout one never |
+| ⭐ **a station's switch** *(`2026-11-18`)* | `LightsRequestEvent` { Vehicle · Actor · `LightDiscipline` } (event 5019), asked by `VehicleRequests.SwitchLights`; carried to the lights owner as interaction kind **16 `LightsRequest`** (owner test `LightRuleSystem.OwnsLights`); `LightRuleSystem.ApplyRequests` sets the discipline and the mask by the rule AT ONCE (not at the next 0.5 s step). ⛔ deviation from "the station's switches" as per-group switches: a switch sets the DISCIPLINE — the one input the rule reads — so the rule stays the one writer of the mask and an operator cannot light what the discipline forbids |
+| ⭐ **brake lights** *(`2026-11-18`)* | `VehicleLook.Lights(world, v, now, BrakeLights?)` — the stored mask + every `Brake` group while braking, under Normal only. ⛔ deviation from "a pure reader": the wire carries VELOCITY, not acceleration (`WorldPos`), so one sample cannot show a deceleration — each renderer owns ONE `BrakeLights` tracker (speed from `SimVelocity`, else the replica's `NetworkVelocity`; ≥ 0.8 m/s² over ≥ 0.25 s lights them, held 0.5 s; a seek back restarts it). 0 B steady |
+| rails *(switch, brakes)* | `VehicleLightsTests.CE4670_AStationsSwitch_SetsTheDiscipline_AndTheMaskFollowsAtOnce` · the transport rail above · `VehicleLookTests.CE4670_BrakeLights_AreDerivedFromDeceleration` / `_OnAReplica_ReadTheReceivedVelocity` / `CE4670_TheOpeningAndLightReaders_AllocateNothing` |
+| scenario *(switch)* | `va-crew-switches`: at 5 s a trigger blacks the lit T-72 out (OnMask 3 → 0), at 10 s switches the other to Convoy (OnMask 8) |
+| ⏳ not built | the discipline from an SOP / ROE / an order (behaviors — the order's executor calls `VehicleRequests.SwitchLights`) · the station's UI (ui) · the searchlight's aim · interior lights · landing lights near the ground — filed as `CE-3475` |
+
+## 6c. As built — partial damage and the kill kind *(VA-S1, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+classDiagram
+  class HealthApplicationSystem {
+    <<existing, the Health owner>>
+    on the hit that kills: Destruction = DestructionKinds.Decide
+  }
+  class DestructionKinds {
+    <<new, the ONE rule, pure>>
+    Decide(body, hasPart, part)
+  }
+  class ResolvedBody {
+    <<existing, gains>>
+    AmmoStowageMask FuelStowageMask SmoulderSeconds
+  }
+  class Health {
+    <<existing, gains Destruction byte>>
+  }
+  class HealthStateSinceSystem {
+    <<existing>>
+    clears Destruction when it lives again
+  }
+  class VehicleLook {
+    <<new, Hrot.Look, 0 B>>
+    PartState(part) PartState(part, centre, now)
+    Destruction() TurretThrown() Burning(now) Smoking(now)
+  }
+  class VehicleDamageDraw {
+    <<new, our 3D map - ui file, cross-lane>>
+    DestroyedMask BitOf ThrownTransform
+  }
+  class EntityDamage {
+    <<wire, gains Destruction byte>>
+  }
+  HealthApplicationSystem --> DestructionKinds
+  DestructionKinds ..> ResolvedBody : bodies.json class + platform override
+  HealthApplicationSystem --> Health
+  HealthStateSinceSystem --> Health
+  Health --> EntityDamage : egress, ingress
+  VehicleLook ..> Health
+  VehicleLook ..> ResolvedBody : zone thresholds, smoulder
+  VehicleDamageDraw ..> VehicleLook
+```
+*What it shows that prose hid: ONE decision site (the Health owner, on the killing hit) and ONE reader; the map and a gateway call the same reader.*
+
+| as built | why / deviation |
+|---|---|
+| ⭐ the kill kind: killing hit's part in the type's **ammunition** stowage ⇒ Catastrophic · **fuel** ⇒ BurntOut · any other part, or a blast with no part ⇒ KnockedOut · a person ⇒ None; decided once (a hit on the wreck never changes it); cleared by `HealthStateSinceSystem` when it lives again | ⭐ the stowage rides on the `bodies.json` class profiles (`ammoStowage`, `fuelStowage`, `smoulderSeconds` — Tank: ammunition turret, fuel engine, 1800 s; AFV: turret / hull + engine; wheeled: engine; aircraft: stores / wing), overridden per type on `Combat.PlatformDef` (`AmmoStowage`, `FuelStowage`, `SmoulderSeconds`; the NED catalogue's `SimCombatDefBuilder` passes them through) — HL-12's rule, the same profile match as the zones. 📌 First override: the **T-72** keeps its ammunition in the hull carousel under the turret (hull + turret) — 📐 measured in `va-tank-kill-kinds`: the M1's round lands on the T-72's HULL, which under the class rule was only a KnockedOut |
+| ⭐ `PartState` = Intact · Damaged · Destroyed by the part's ZONE threshold (the same number that makes the mobility / firepower kill); the hull (no effect) is Destroyed only at 255 | — |
+| ⚠ **deviation — Burning per part needs the renderer's part centre** (`PartState(part, centre, now)`, the vehicle's frame): the simulation keeps no part geometry it could send. `Burning(now)` answers for the whole vehicle | §3a said "a FireState spot covers the part" — true only where the part's position is known, which is the renderer |
+| ⭐ `Smoking(now)`: dead, no burning spot, within the type's smoulder seconds after its last spot went out (never lit: after its time of death) | VA-10 |
+| ⭐ the wire: `EntityDamage.Destruction` APPENDED (R-169), the wire's own byte (R-4295), copied by egress / ingress; an unknown value decodes to None | VA-12 |
+| ⚠ our map (`EntityBodyLayer3D`, ui's file — cross-lane, NOTE to ui): a kit part maps to a simulation part by ROLE (turret, gun), a running-gear part (track, wheels — Hull role) by being low on one side; a destroyed part draws wreck-dark; a Catastrophic wreck draws its turret and gun thrown beside the hull | kit parts carry no simulation part id; the thrown pose is a starter for ui to tune |
+
+Rails: `BodyPartDamageTests.CE4670_*` (2), `HealthStateSinceSystemTests.CE4670_*`, `VehicleLookTests` (4, 0 B), `EntityDamageEgressTranslatorTests.CE4670_*` (late joiner),
+`EntityDamageTranslatorTests.CE4670_*`, `VehicleDamageDrawTests` (3). Scenario: `scenarios/demos/platoons-and-vehicles/va-tank-kill-kinds`.
+
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
 🔒 Request (`2026-11-18`, the same lane): *"Move these rules (kinds, anchors, timings, which munition gives which effect) into a shared library with no
@@ -272,3 +396,135 @@ effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
 small / medium / large, water blast, building hit, air burst, smoke …). ⚠ The exact code list is pinned by the gateway slice (VA-S6) against the
 SISO reference — not verified here.
 
+
+### 7b. LK-S1 — the effect rules in `Hrot.Look` *(ui, `2026-11-18`; UML drawn before the build, folded to the as-built after)*
+
+```mermaid
+graph TD
+  FT[Fdp.Toolkits] --> LK[Hrot.Look]
+  HC[Hrot.Core: EffectTkbCatalog, EffectAnchor, EntityClassTable] --> LK
+  LK --> HP[Hrot.Presentation: the map]
+  LK --> GW[a gateway on a node - future]
+  HP -->|MapInteraction.InteractionSystems, node side| K[each map host's kernel, PostSimulation]
+  HP -->|ReplayBrowserSubsystem runs them itself| RB[the Replay Browser]
+```
+*What the picture shows that prose hid:* `Hrot.Look` sits BELOW the presentation (no Raylib / ImGui / `Hrot.UI` reference), so a gateway can call the
+same rules; the map still reaches its kernel only through `MapInteraction`, and the Replay Browser runs the same two systems by hand — both callers
+get the HUD-feed system next to the spawner, or the feeds go dark there.
+
+```mermaid
+classDiagram
+  class EffectRules {
+    <<static, Hrot.Look>>
+    +ForShot(fire, world, tkb, now, into) int
+    +ForDetonation(hit, world, tkb, now, into) int
+    +ForImpact(impact, world, tkb, now, into) int
+    +ForContactBreach(breach, tkb, now, into) int
+    +ForFrame(world, tkb, now, into) int
+    +IsInertHandItem(tkb, ammo) bool
+    +ImpactDamage(world, tkb, impact) float
+    +SurfaceOf(impact) Vector3
+    +MarkRotation(normal) Quaternion
+  }
+  class EffectSpec {
+    <<struct>>
+    +EffectKind Kind
+    +CalibreClass SizeClass
+    +EffectSurface Surface
+    +DISEntityType MunitionDis
+    +long EffectType
+    +Vector3 At
+    +Quaternion Rotation
+    +EffectAnchor? Anchor
+    +float Lifetime
+    +float Size
+  }
+  class EffectSurface { <<enum>> Ground Water Building Vehicle Person Air }
+  class FiringBlasts { <<static, Hrot.Look>> +BlastOf() FiringBlast +BackblastPoint() Vector3 +TypeOf() +KindOf() }
+  class VisualFamilies { <<moved to Hrot.Look, namespace kept>> +Of(template) VisualFamily }
+  class EffectSpawnSystem { <<Hrot.Presentation>> -Spawn(spec) ; keeps decoys, sounds, recent shots, hit memory, housekeeping }
+  class HudFeedSystem { <<Hrot.Presentation, NEW>> player messages ; kill feed }
+  class WeaponKits { <<Hrot.Presentation>> BlastOf / KindOf / TypeOf forward to FiringBlasts }
+  EffectRules --> EffectSpec : appends
+  EffectSpec --> EffectSurface
+  EffectRules --> FiringBlasts
+  FiringBlasts --> VisualFamilies
+  EffectSpawnSystem --> EffectRules : one rule per event
+  WeaponKits ..> FiringBlasts : forwards
+```
+*What the picture shows that prose hid:* the RULE (which effects, where, how long) and the SPAWN (an entity per spec) are two classes now; the blast
+rule pulls the type classifier (`VisualFamilies`, `WeaponKind`) down with it — moved with its namespace so no presentation caller changes; the
+HUD feeds leave the effect system for their own.
+
+```mermaid
+sequenceDiagram
+  participant K as kernel PostSimulation
+  participant H as HudFeedSystem
+  participant S as EffectSpawnSystem
+  participant R as EffectRules
+  K->>H: Execute (also in a replay)
+  H->>H: messages, kill feed (feature-gated)
+  K->>S: Execute
+  S->>S: strikes and hit memory, then stop if a replay
+  S->>R: ForContactBreach(each breach)
+  R-->>S: dust spec
+  S->>R: ForShot(each fire) after recent shots and the sound
+  R-->>S: flash spec, blast spec
+  S->>R: ForImpact / ForDetonation
+  R-->>S: puff + mark / explosion + ground mark
+  S->>S: Spawn(spec) = entity, SimTransform, TkbIdentity, Lifespan, EffectAnchor?, ScenarioIgnoreTag
+```
+*What the picture shows that prose hid:* the specs come back in the order the old inline code spawned them, so the effect entities are created in the
+same order — the goldens and frames cannot move.
+
+**As built (LK-S1, `2026-11-18`) — where it differs from LK-2 / §7a, and why**
+
+| | as built | why |
+|---|---|---|
+| the signature | per event: `ForShot` · `ForDetonation` · `ForImpact` · `ForContactBreach`, and `ForFrame` (all four, in the map's order) — each APPENDS `EffectSpec`s to a caller's list and returns the count | ⛔ not `→ EffectSpec[]`: an array per event allocates; a reused list keeps the steady path at 0 B (rail `LKS1_AFrameWithNoEvents_AllocatesNothing`) |
+| `EffectSurface` | Ground · Water · Building · Vehicle · **Person** · Air | a body that is not a vehicle needed its own (§7a had none); ⚠ Water is not told apart yet (reads Ground); Building = an impact more than 0.25 m off the ground — the category only, the map draws by `EffectType` |
+| the classifier | `VisualFamily` / `VisualFamilies`, `WeaponKind`, `FiringBlast`, `FiringBlasts`, `AirMissiles` live in `Hrot.Look` UNDER THEIR OLD NAMESPACE `Hrot.UI.Common.Map3D` | the blast rule needs them; keeping the namespace made it a move with no caller edited (`WeaponKits` / `JetStores` forward). ⚠ known-rot: a `Hrot.UI.*` namespace in a non-UI assembly — rename when a renderer-facing name is chosen |
+| the HUD feeds | `HudFeedSystem` (presentation), scheduled right before the spawner on every map host and in the Replay Browser | the two HUD rails changed ONE line each (the system they build), their assertions unchanged |
+| unchanged | every effect type, position, anchor, lifetime and the creation ORDER | the map's effect rails pass unchanged (`EffectTests` 66 / 66 with the self-check) |
+
+### 7c. LK-S2 — `PersonLook` in `Hrot.Look` *(ui, `2026-11-18`; the plan, drawn before the build)*
+
+**INVENTORY** *(grep + the files read; `search_graph` for `PersonLook|Outfit|Wardrobe` found no look library — `2026-11-18`)*: the outfit RULES are
+`Outfits.cs` (624 lines: `Outfit`, `FaceLook`, `PartDetail`, `Outfits.For / FaceOf / Details / ColourOfPart / CarColour`), `OutfitPalettes.cs` (53) and
+`Wardrobe.cs` (107) — Raylib only through `Color`; but the INPUTS a gateway needs live in the map's `EntityBodyLayer3D` (2 300 lines): `SeedOf`
+(network id, else index), `SideOf`, `OwnColourOf` / `ColourOf` / `HasEntityColour` / `ParseHex`, and the PERSON half of `TypeLook Resolve(template)`
+(soldier, child — which reads the kit catalogue's default person height —, kit, elderly, sex, wardrobe, the type's colour). `KitFromTkb` (56) is a
+vehicle's turret geometry over `ShapeKit`'s type head (`ShapeKit.cs` lines 1–308, Raylib-free) — moved with LK-S2 as the handoff lists it, but it is
+`VehicleLook`'s material, not a person's.
+
+```mermaid
+classDiagram
+  class Rgba { <<struct, Hrot.Look>> +byte R G B A ; +FromHex(hex) Rgba? }
+  class PersonLook {
+    <<static, Hrot.Look.People>>
+    +Of(world, entity, tkb) PersonAppearance
+    +FactsOf(template) PersonFacts
+    +SeedOf(world, entity) long
+    +OwnColourOf(world, entity, facts) Rgba?
+  }
+  class PersonFacts { <<struct>> Soldier Child Kit Elderly Sex Wardrobe TypeColour? }
+  class PersonAppearance { <<struct>> Outfit Outfit ; long Seed ; ForceId Side }
+  class Outfits { <<moved, namespace kept>> For / FaceOf / Details / ColourOfPart }
+  class Outfit { <<record struct, colours Rgba>> }
+  class EntityBodyLayer3D { <<Hrot.Presentation>> Resolve takes the person half from PersonLook.FactsOf ; draws with Rgba.ToColor() }
+  PersonLook --> PersonFacts
+  PersonLook --> PersonAppearance
+  PersonLook --> Outfits
+  Outfits --> Outfit
+  Outfit --> Rgba
+  EntityBodyLayer3D --> PersonLook
+```
+*What the picture shows that prose hid:* the outfit rules alone are not enough for a gateway — the FACTS (who the type is) and the seed / side / own-colour
+reads move too, or a gateway would dress a man differently; the map's `Resolve` then TAKES its person half from `PersonLook.FactsOf` (one owner).
+
+| ⭐ step | | the check |
+|---|---|---|
+| 1 | `Rgba` in `Hrot.Look`; the map's `ToColor()` / `ToRgba()` conversions in the presentation | — |
+| 2 | move `Outfits`, `OutfitPalettes`, `Wardrobe` (namespace kept), their `Color` → `Rgba`; the person part indices `BlockFigure` names → `PersonParts` (forwarded) | the outfit / wardrobe rails, changed only where a test builds a `Raylib.Color` literal to compare (named in the report) |
+| 3 | `PersonLook.FactsOf` = the person half of `Resolve`; `Of` = `SeedOf` + `SideOf` + `OwnColourOf` + `Outfits.For` | a `Hrot.Look.Tests` rail: `PersonLook.Of` on a world with no presentation equals what the map draws for the same entity (the same `Outfit`) |
+| 4 | `KitFromTkb` + `ShapeKit`'s type head to `Hrot.Look/Kits` (namespace kept) | the kit rails unchanged |

@@ -19,11 +19,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Audit
     // ⇒ Before reserving a test id, grep BOTH GlobalComponentIds.cs AND the per-toolkit *ComponentIds
     //   classes — a comment reserving an id is a claim about the whole process, not about this file.
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    [ComponentId(290)]
+    [ComponentId(506)]   // ⭐ CE-4670 — was 290, now VehicleOpenings in production (the registry is process-wide; see the warning above)
     internal struct AuditCompA { public int Value; }
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    [ComponentId(291)] // was 201; 201 = GlobalComponentIds.ZoneEnvironmentData (production conflict)
+    [ComponentId(507)] // was 201 (ZoneEnvironmentData), then 291 — now VehicleLights in production (CE-4670)
     internal struct AuditCompB { public float Value; }
 
     // Event IDs 99001-99002 reserved for this file
