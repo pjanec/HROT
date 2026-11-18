@@ -492,6 +492,8 @@ sequenceDiagram
 | **AW-5** **406 AH-64-class** (`Heli_AH64`): DIS 1.2.225.20 (attack helicopter) so the air classes resolve; Rotorcraft flight like 404; mount 0 a chin **M134** on turret 0 (traverse ±110°, elevation −60…+11°), mount 1 the **Hydra pod** (fixed forward, cone 8°) | a 30 mm M230 chin gun — the handoff asks for the minigun the demo shows |
 | **F4** ⭐ the passenger list widens to **12** seats (🔒 user, `2026-10-14`: *"extend the wire capacity … No problem extending"* — the list is sent only on change) so 404 keeps 8 riders and gains 2 door stations + 2 door gunners | ~~4 of the 8 seats become door stations~~ (404 would carry 4 riders) |
 
+⭐ **`2026-11-18` (ui, CE-1960) — "the operator is never held" now means he points the AIRCRAFT, never the gun:** an operator's round at a point outside the cone goes ALONG THE BORE at the aim's distance (`BodyAim.IntoFixedCone`, applied in `FireAtPointExecutor.ShootAtPoint` when `obeyArc` is false). ⛔ Before, it flew straight to the point — 📐 measured in the editor: a possessed Viper aimed behind fired every M61 round toward its tail. Rail: the same `F1_…` (extended).
+
 ⭐ **As built (backend, `2026-10-14`) — AW-1…AW-5 exactly as above.** Rails: `AimAndFireExecutorTests.F1_AFixedForwardMount_FiresOnlyInsideItsNoseCone`
 · `FireProcessingSystemTests.F3_FromTheAir_TheShellAndTheRocket_KeepTheCarriersVelocity_TheRocketFliesUnguided_ARippleScatters` ·
 `NedTkbBuilderCombatTests.F1_TheAttackPlane_CarriesTheRackAndAFixedForwardGau8_HeiAndAPenetrator` · `…F2_TheAttackHelicopter_HasAChinMinigunTurret_AndAFixedRocketPod`
