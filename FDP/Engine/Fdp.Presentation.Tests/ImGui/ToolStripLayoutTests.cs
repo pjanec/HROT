@@ -32,6 +32,21 @@ public class ToolStripLayoutTests
         Assert.Equal(new Vector2(20, 116), extent);
     }
 
+    /// <summary>⭐ CE-1965 — each cell its OWN width (a split button: face + ▾ bar, 35 wide here): a ROW steps by each width; a COLUMN is as wide as its widest
+    /// cell and the next column starts after it. 🔴 Mutation: step by <c>cell.X</c> again ⇒ the third icon overlaps the split.</summary>
+    [Fact]
+    public void CellsOfTheirOwnWidth_StackInRowsAndColumns()
+    {
+        var pos = new Vector2[3];
+        ReadOnlySpan<float> widths = stackalloc float[] { 20f, 35f, 20f };
+        ToolStripLayout.Compute(3, Cell, 4f, new Vector2(200, 30), pos, out var row, widths);
+        Assert.Equal(new Vector2(24, 0), pos[1]); Assert.Equal(new Vector2(63, 0), pos[2]);     // 24 + 35 + 4
+        Assert.Equal(new Vector2(83, 20), row);
+        ToolStripLayout.Compute(3, Cell, 4f, new Vector2(40, 50), pos, out var col, widths);    // tall: two fit in a column of 50
+        Assert.Equal(new Vector2(0, 24), pos[1]); Assert.Equal(new Vector2(39, 0), pos[2]);     // the next column after the widest (35 + 4)
+        Assert.Equal(new Vector2(59, 44), col);
+    }
+
     /// <summary>Out of room ⇒ it WRAPS: a row of width 70 holds three icons (0, 24, 48) and the fourth starts the next row; a column wraps to the next column the same way. 🔴 Mutation: never wrap ⇒ red.</summary>
     [Fact]
     public void RunningOutOfRoom_Wraps_InBothOrientations()
