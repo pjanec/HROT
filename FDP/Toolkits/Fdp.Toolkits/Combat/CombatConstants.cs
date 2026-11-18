@@ -79,6 +79,11 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ <c>CE-3364</c> — <see cref="Events.ManDownedEvent"/>: a hit took a man out of the fight (the one kill authority). Measured free 2026-11-03.</summary>
         public const int ManDownedEventId = 5017;
 
+        /// <summary>⭐ <c>CE-4670</c> (VA-4) — <c>OpeningRequestEvent</c>: a crewman puts his head out / in (interaction kind 15). Free on every lane, <c>2026-11-18</c>.</summary>
+        public const int OpeningRequestEventId = 5018;
+        /// <summary>⭐ <c>CE-4670</c> (VA-3) — <c>LightsRequestEvent</c>: a station's light switch (interaction kind 16). Free on every lane, <c>2026-11-18</c>.</summary>
+        public const int LightsRequestEventId = 5019;
+
 
         /// <summary>⭐ <c>CE-3064</c> (R-206) — a bullet passing within this distance (m) of a unit it was not fired by is a near miss.</summary>
         public const float NearMissRadius = 3f;

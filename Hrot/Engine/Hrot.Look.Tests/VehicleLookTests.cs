@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Signatures;
 using Fdp.Toolkit.Physics.BodyParts;
@@ -28,6 +29,10 @@ namespace Hrot.Look.Tests
             _w.RegisterComponent<TkbIdentity>();
             _w.RegisterComponent<PartDamage>();
             _w.RegisterComponent<FireState>();
+            _w.RegisterComponent<VehicleOpenings>();
+            _w.RegisterComponent<VehicleLights>();
+            _w.RegisterComponent<SimVelocity>();
+            _w.RegisterComponent<NetworkVelocity>();
             var t = new TkbTemplate("T1", Tank) { DisType = new DISEntityType { Kind = 1, Domain = 1, Category = 1 } };
             t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = 1000f, ArmorFront = 500f, ArmorSide = 80f, ArmorRear = 40f, ArmorTop = 30f });
             _db.Register(t);
@@ -115,6 +120,92 @@ namespace Hrot.Look.Tests
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 1000; i++) Read(v);
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        /// <summary>⭐ VA-4 — an opening's progress is read BY ITS TKB ID (a renderer's key), through THE one progress rule with the type's open seconds: the
+        /// MBT class's driver hatch (id 2, slot 1, 1.5 s) half open 0.75 s after it began opening; an unknown id and a vehicle without openings read 0.
+        /// 🔴 Red-proof: reading slot <c>id</c> instead of the slot whose id matches reads the gunner's closed hatch (slot 2).</summary>
+        [Fact]
+        public void CE4670_AnOpeningsProgress_IsReadByItsId()
+        {
+            var v = Vehicle();
+            Assert.Equal(0f, VehicleLook.OpeningProgress(_w, v, 2, 10.0));   // no VehicleOpenings yet
+            var o = new VehicleOpenings { Count = 3 };
+            o.Slots[1] = new OpeningSlot { State = OpeningState.Opening, Since = 10.0 };
+            _w.AddComponent(v, o);
+            Assert.Equal(0.5f, VehicleLook.OpeningProgress(_w, v, 2, 10.75), 3);
+            Assert.Equal(1f, VehicleLook.OpeningProgress(_w, v, 2, 20.0));
+            Assert.Equal(0f, VehicleLook.OpeningProgress(_w, v, 3, 20.0));   // the gunner's, closed
+            Assert.Equal(0f, VehicleLook.OpeningProgress(_w, v, 9, 20.0));   // no such opening
+        }
+
+        /// <summary>⭐ VA-3 — brake lights are DERIVED, never stored: the MBT class's Brake group (bit 2) joins the stored mask while the vehicle decelerates
+        /// (10 → 8 m/s over 0.5 s = 4 m/s²), stays lit for the hold, goes out when it drives steadily, never lights while coasting gently (0.2 m/s²) or under a
+        /// Blackout discipline, and the stored mask is all a reader without a tracker sees. A seek backwards restarts the sample.
+        /// 🔴 Red-proof: testing <c>speed - previous</c> (acceleration) instead of <c>previous - speed</c> never lights the stop lights.</summary>
+        [Fact]
+        public void CE4670_BrakeLights_AreDerivedFromDeceleration()
+        {
+            var v = Vehicle();
+            _w.AddComponent(v, new VehicleLights { OnMask = 0b11, Discipline = LightDiscipline.Normal });
+            _w.AddComponent(v, new SimVelocity { Linear = new Vector3(10f, 0f, 0f) });
+            var brakes = new BrakeLights();
+            Assert.Equal(0b11u, VehicleLook.Lights(_w, v, 0.0, brakes));          // first sight: no history
+            Assert.Equal(0b11u, VehicleLook.Lights(_w, v, 0.5, brakes));          // steady
+            _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(8f, 0f, 0f);
+            Assert.Equal(0b111u, VehicleLook.Lights(_w, v, 1.0, brakes));         // 4 m/s² ⇒ the stop lights
+            Assert.Equal(0b11u, VehicleLook.Lights(_w, v, 1.0, null));            // no tracker ⇒ the stored mask only
+            Assert.Equal(0b111u, VehicleLook.Lights(_w, v, 1.3, brakes));         // held
+            Assert.Equal(0b11u, VehicleLook.Lights(_w, v, 1.6, brakes));          // steady again, the hold over
+            _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(7.9f, 0f, 0f);
+            Assert.Equal(0b11u, VehicleLook.Lights(_w, v, 2.1, brakes));          // 0.2 m/s²: coasting
+            _w.GetComponentRW<VehicleLights>(v).Discipline = LightDiscipline.Blackout;
+            _w.GetComponentRW<VehicleLights>(v).OnMask = 0;
+            _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(4f, 0f, 0f);
+            Assert.Equal(0u, VehicleLook.Lights(_w, v, 2.6, brakes));             // blacked out: no stop light
+            _w.GetComponentRW<VehicleLights>(v).Discipline = LightDiscipline.Normal;
+            _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(1f, 0f, 0f);
+            Assert.Equal(0u, VehicleLook.Lights(_w, v, 0.5, brakes));             // a seek back: the sample restarts, nothing lit
+        }
+
+        /// <summary>⭐ A replica has no SimVelocity: the tracker reads the received <see cref="NetworkVelocity"/>.</summary>
+        [Fact]
+        public void CE4670_BrakeLights_OnAReplica_ReadTheReceivedVelocity()
+        {
+            var v = Vehicle();
+            _w.AddComponent(v, new VehicleLights { Discipline = LightDiscipline.Normal });
+            _w.AddComponent(v, new NetworkVelocity { Value = new Vector3(0f, 12f, 0f) });
+            var brakes = new BrakeLights();
+            VehicleLook.Lights(_w, v, 5.0, brakes);
+            _w.GetComponentRW<NetworkVelocity>(v).Value = new Vector3(0f, 10f, 0f);
+            Assert.Equal(0b100u, VehicleLook.Lights(_w, v, 5.5, brakes));
+        }
+
+        /// <summary>⭐ The opening and light readers allocate nothing in the steady state (a renderer calls them per vehicle per frame).</summary>
+        [Fact]
+        public void CE4670_TheOpeningAndLightReaders_AllocateNothing()
+        {
+            var v = Vehicle();
+            _w.AddComponent(v, new VehicleOpenings { Count = 3 });
+            _w.AddComponent(v, new VehicleLights { OnMask = 1, Discipline = LightDiscipline.Normal });
+            _w.AddComponent(v, new SimVelocity { Linear = new Vector3(10f, 0f, 0f) });
+            var brakes = new BrakeLights();
+            double t = 0.0;
+            for (int i = 0; i < 20; i++)   // warm: the type's catalogues resolve once, on the first brake
+            {
+                _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(10f - i * 0.5f, 0f, 0f);
+                VehicleLook.OpeningProgress(_w, v, 2, t); VehicleLook.Lights(_w, v, t, brakes); t += 0.1;
+            }
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            uint n = 0;
+            for (int i = 0; i < 1000; i++)
+            {
+                _w.GetComponentRW<SimVelocity>(v).Linear = new Vector3(10f - (i % 20) * 0.5f, 0f, 0f);
+                n += (uint)VehicleLook.OpeningProgress(_w, v, 2, t) + VehicleLook.Lights(_w, v, t, brakes);
+                t += 0.1;
+            }
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(n > 0);
         }
 
         private int Read(Entity v)

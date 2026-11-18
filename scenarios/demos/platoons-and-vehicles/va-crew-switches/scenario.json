@@ -1,0 +1,242 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a crew's switches, asked by triggers (CE-4670, vehicle appearance VA-3 / VA-4; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6a / §6b). On basic-desert at 00:30 local, a T-72 and an M109 howitzer (whose seats hold its crew: driver, gunner, commander) idle 200 m apart: 'Lit Tank' at (550, 250) under Normal discipline, 'Blacked-out Howitzer' at (550, 450) authored Blackout. At 5 s a trigger switches the Lit Tank to Blackout (SetVehicleLights) and puts the Blacked-out Howitzer's commander's head out of his hatch (HeadOut, role Commander); at 10 s another switches the Blacked-out Howitzer to Convoy. Judge: the Lit Tank is lit (head + tail, OnMask 3) until the switch, then dark with its discipline Blackout; the Blacked-out Howitzer's commander's hatch (its first opening) opens and stays open with the crewman exposed to the end, its driver's hatch never opens; under Convoy it shows only the convoy marker (group 3, OnMask 8). Fail: a switch that does not change the lights, a hatch that closes while he is out, or a wrong hatch.",
+    "world": {
+      "ScenarioClock": {
+        "Start": "2025-06-22T00:30:00+02:00"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "entities": {
+    "c4658000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          550,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Lit Tank",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c4658000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          550,
+          450,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 107
+      },
+      "EntityInfo": {
+        "Name": "Blacked-out Howitzer",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "VehicleLights": {
+        "OnMask": 0,
+        "Discipline": "Blackout",
+        "Since": 0,
+        "SearchAz": 0,
+        "SearchEl": 0
+      }
+    },
+    "c4670c00-0000-4000-8000-000000000011": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Lights out and heads up",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {
+          "common": {
+            "title": "Lights out and heads up"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 5
+          },
+          "do": [
+            {
+              "act": "SetVehicleLights",
+              "args": {
+                "target": "c4658000-0000-4000-8000-000000000003",
+                "discipline": "Blackout"
+              }
+            },
+            {
+              "act": "HeadOut",
+              "args": {
+                "target": "c4658000-0000-4000-8000-000000000004",
+                "role": "Commander",
+                "out": true
+              }
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c4670c00-0000-4000-8000-000000000012": {
+      "TkbIdentity": {
+        "TkbType": 8861
+      },
+      "EntityInfo": {
+        "Name": "Convoy lights",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "Trigger",
+        "Params": {
+          "common": {
+            "title": "Convoy lights"
+          },
+          "when": {
+            "$type": "ScenarioTime",
+            "fromSeconds": 10
+          },
+          "do": [
+            {
+              "act": "SetVehicleLights",
+              "args": {
+                "target": "c4658000-0000-4000-8000-000000000004",
+                "discipline": "Convoy"
+              }
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

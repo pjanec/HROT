@@ -1,0 +1,90 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4670 (vehicle appearance VA-3 / VA-4): a station's light switch and a crewman's head out, asked by triggers.",
+  "runFor": 20,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Lit Tank is lit before the switch (head + tail)",
+      "on": "field",
+      "who": "Lit Tank",
+      "path": "VehicleLights.OnMask",
+      "op": "==",
+      "value": 3
+    },
+    {
+      "name": "switched to Blackout, it ends dark",
+      "on": "field",
+      "who": "Lit Tank",
+      "path": "VehicleLights.OnMask",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "... with its discipline Blackout",
+      "on": "field",
+      "who": "Lit Tank",
+      "path": "VehicleLights.Discipline",
+      "op": "in",
+      "value": [
+        "Blackout",
+        2
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "the Blacked-out Howitzer's commander's hatch is open at the end (it never closed while he was out)",
+      "on": "field",
+      "who": "Blacked-out Howitzer",
+      "path": "VehicleOpenings.Slots.0.State",
+      "op": "in",
+      "value": [
+        "Opening",
+        "Open",
+        1,
+        2
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "... and he rides exposed",
+      "on": "field",
+      "who": "Blacked-out Howitzer",
+      "path": "VehicleOpenings.Slots.0.CrewExposed",
+      "op": "in",
+      "value": [
+        true,
+        "True",
+        "true",
+        1
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "its driver's hatch never opens",
+      "never": {
+        "on": "field",
+        "who": "Blacked-out Howitzer",
+        "path": "VehicleOpenings.Slots.1.State",
+        "op": "in",
+        "value": [
+          "Opening",
+          "Open",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "under Convoy it shows only the convoy marker",
+      "on": "field",
+      "who": "Blacked-out Howitzer",
+      "path": "VehicleLights.OnMask",
+      "op": "==",
+      "value": 8,
+      "atEnd": true
+    }
+  ]
+}

@@ -745,5 +745,63 @@ namespace Hrot.SimHost.Tests
             new InteractionEgressTranslator(ownersWriter, ownerMap).ScanAndPublish(owner);
             Assert.Empty(ownersWriter.Written);
         }
+
+        /// <summary>⭐ <c>CE-4670</c> (vehicle appearance VA-4 / VA-3) — a crewman's head out raised on his brain's node crosses as the <c>OpeningRequest</c>
+        /// case (target = the vehicle, actor = the man, the verb) to the vehicle's boarding arbiter, and a station's light switch as the <c>LightsRequest</c> case
+        /// (the discipline) to its lights owner; both arrive as the same events marked remote. On the owner nothing goes out (applied where raised).
+        /// ✅ Red-proof: <c>OpeningRequest</c> / <c>LightsRequest</c> left out of <c>InteractionCodecs.All</c> ⇒ nothing is written ⇒ red.</summary>
+        [Fact]
+        public void CE4670_AHeadOutAndALightSwitch_CrossAsTheirUnionCases_ToTheVehiclesOwners()
+        {
+            static EntityRepository Node()
+            {
+                var w = new EntityRepository();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.OpeningRequestEvent>();
+                w.RegisterEvent<Fdp.Toolkit.Behavior.LightsRequestEvent>();
+                w.RegisterComponent<NetworkAuthority>();
+                w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+                return w;
+            }
+            using var brain = Node();
+            using var owner = Node();
+            var brainMap = new NetworkEntityMap();
+            var ownerMap = new NetworkEntityMap();
+            Entity brainsTank = brain.CreateEntity(), brainsCdr = brain.CreateEntity();   // a replica tank: no list, lights node 2's
+            Entity ownersTank = owner.CreateEntity(), ownersCdr = owner.CreateEntity();
+            owner.AddComponent(ownersTank, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            brainMap.Register(840, brainsTank); brainMap.Register(841, brainsCdr);
+            ownerMap.Register(840, ownersTank); ownerMap.Register(841, ownersCdr);
+            brain.AddComponent(brainsTank, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            Assert.True(Fdp.Toolkit.Behavior.VehicleRequests.HeadOut(brain, brainsTank, brainsCdr, @out: true));
+            Assert.True(Fdp.Toolkit.Behavior.VehicleRequests.SwitchLights(brain, brainsTank, Fdp.Toolkit.Behavior.Components.LightDiscipline.Convoy, brainsCdr));
+            brain.Bus.SwapBuffers();
+            new InteractionEgressTranslator(writer, brainMap).ScanAndPublish(brain);
+            Assert.Equal(2, writer.Written.Count);
+            var head = Assert.Single(writer.Written, w => w.Payload.Kind == EInteractionKind.OpeningRequest);
+            Assert.Equal((840L, 841L, (byte)Fdp.Toolkit.Behavior.OpeningVerb.HeadOut), (head.TargetId, head.ActorId, head.Payload.OpeningRequest.Verb));
+            var lights = Assert.Single(writer.Written, w => w.Payload.Kind == EInteractionKind.LightsRequest);
+            Assert.Equal((840L, (byte)Fdp.Toolkit.Behavior.Components.LightDiscipline.Convoy), (lights.TargetId, lights.Payload.LightsRequest.Discipline));
+            using (var cmd = new EntityCommandBuffer())
+            {
+                var ingress = new InteractionIngressTranslator(participant: null, ownerMap);
+                ingress.ProcessSample(in head, cmd);
+                ingress.ProcessSample(in lights, cmd);
+                cmd.Playback(owner);
+            }
+            owner.Bus.SwapBuffers();
+            var h = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.OpeningRequestEvent>().ToArray());
+            Assert.Equal((ownersTank, ownersCdr, Fdp.Toolkit.Behavior.OpeningVerb.HeadOut, true), (h.Vehicle, h.Man, h.Verb, h.IsRemote));
+            var l = Assert.Single(owner.Bus.Read<Fdp.Toolkit.Behavior.LightsRequestEvent>().ToArray());
+            Assert.Equal((ownersTank, ownersCdr, Fdp.Toolkit.Behavior.Components.LightDiscipline.Convoy, true), (l.Vehicle, l.Actor, l.Discipline, l.IsRemote));
+
+            var ownersWriter = new CapturingWriter<EntityInteractionRequest>();
+            Fdp.Toolkit.Behavior.VehicleRequests.HeadOut(owner, ownersTank, ownersCdr, @out: false);
+            Fdp.Toolkit.Behavior.VehicleRequests.SwitchLights(owner, ownersTank, Fdp.Toolkit.Behavior.Components.LightDiscipline.Normal);
+            owner.Bus.SwapBuffers();
+            new InteractionEgressTranslator(ownersWriter, ownerMap).ScanAndPublish(owner);
+            Assert.Empty(ownersWriter.Written);
+        }
     }
 }

@@ -63,7 +63,7 @@ namespace Hrot.Map.Common.Replication.Egress
         {
             int n = Math.Min((int)c.Count, VehicleOpenings.Capacity);
             var list = new List<DdsOpening>(n);
-            for (int i = 0; i < n; i++) list.Add(new DdsOpening { State = (byte)c.Slots[i].State, Since = c.Slots[i].Since });
+            for (int i = 0; i < n; i++) list.Add(new DdsOpening { State = (byte)c.Slots[i].State, Since = c.Slots[i].Since, CrewExposed = (byte)(c.Slots[i].CrewExposed ? 1 : 0) });
             return new EntityVehicleOpenings { EntityId = netId, Openings = list };
         }
 
@@ -75,7 +75,7 @@ namespace Hrot.Map.Common.Replication.Egress
             for (int i = 0; i < n; i++)
             {
                 var y = prev.Openings![i];
-                if (y.State != (byte)c.Slots[i].State || y.Since != c.Slots[i].Since) return false;
+                if (y.State != (byte)c.Slots[i].State || y.Since != c.Slots[i].Since || (y.CrewExposed != 0) != c.Slots[i].CrewExposed) return false;
             }
             return true;
         }
@@ -191,7 +191,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         {
             var c = new VehicleOpenings();
             int n = Math.Min(d.Openings?.Count ?? 0, VehicleOpenings.Capacity);
-            for (int i = 0; i < n; i++) c.Slots[i] = new OpeningSlot { State = (OpeningState)d.Openings![i].State, Since = d.Openings[i].Since };
+            for (int i = 0; i < n; i++) c.Slots[i] = new OpeningSlot { State = (OpeningState)d.Openings![i].State, Since = d.Openings[i].Since, CrewExposed = d.Openings[i].CrewExposed != 0 };
             c.Count = (byte)n;
             return c;
         }

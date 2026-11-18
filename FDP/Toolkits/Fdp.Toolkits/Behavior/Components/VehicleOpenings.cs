@@ -20,6 +20,9 @@ namespace Fdp.Toolkit.Behavior.Components
     public struct OpeningSlot
     {
         public OpeningState State;
+        /// <summary>⭐ VA-4 — a crewman has his head out of this hatch (a request to the arbiter, <c>OpeningRequestEvent</c>): it stays open, and he rides
+        /// exposed. Cleared when he goes in or his seat changes hands. ⚠ Sits in what was padding — the slot stays 16 B.</summary>
+        public bool CrewExposed;
         public double Since;
     }
 
