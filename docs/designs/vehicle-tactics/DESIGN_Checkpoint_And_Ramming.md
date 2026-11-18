@@ -62,7 +62,7 @@ so the two are ONE design: the attack is the checkpoint's test.
 | **RM-2** | **`RamTarget`**: ONE unmanaged replicated **`RamOrder { EntityRef Target }`** on the hull — the avoidance skips the target (all PERSONS when the target is a crowd), the breach gate reads it, the contact branch pushes; the pursuit re-issued every 0.5 s to a `TargetLead` point; inside ~50 m a direct move (no path round a weak barrier) | KV-6 |
 | **RM-3** | a ram is a **LETHAL** hostile act (AW-19) — `RamTarget` commits it on its OWN entity, the CAR; the driver's act a `BatchContext.Later` follow-up; no enum, wire or recording change | KV-5 |
 | **RM-4** | the **VBIED driver** = `RamTarget` at the checkpoint / the crowd + detonate ON CONTACT or WHEN STOPPED (the boot charge by phone, `Charges.Ask`); ⛔ "when shot" DROPPED (no dead-man switch) | KV-12 |
-| **RM-5** | a car with a `RamOrder` breaches a WEAK barrier through `ContactBreach` (`HullBreakGate.MayBreak` reads the marker) — amends Breaching B-D1 | KV-6 |
+| **RM-5** | a car with a `RamOrder` breaches a WEAK barrier through `ContactBreach` (`HullBreakGate.MayBreak` reads the marker) — amends Breaching B-D1 | KV-6 ⭐ **AS-BUILT `2026-11-18` (CE-3473, user: *"follow your lean; also realistic bullet stopping power"*):** K-2 built RM-5 for TRACKED hulls only — no `contact-breach.json` row took a wheeled car, and a barrel was a solid steel box (540). Now: the `ramming-car` row (`"ram": true`, taken ONLY by a hull with an active `RamOrder`; ≥ 800 kg, small barriers ≤ 40, a ram at ≥ 4 m/s, no push, keeps 0.7 of its speed); a barrel's FILL is its material, read by fire and by the breach alike — **empty** `drum-empty` (8820, 2.7: a rifle round goes through, a ramming car knocks it aside), **water** `drum-water` (8823, 65), **sand** `drum-sand` (8824, 86): a filled drum stops small arms and HOLDS a ramming car (an IFV / a tank still break it). And the hull trace meets a narrow obstacle at the NOSE (the front and rear edges' middles), not the centre. Rails: `CarKinematicsSystemTests.CE3473_ARammingCar_BreaksAnEmptyDrum_IsHeldByAFilledOne`, `CE4594_WhatAHullBreaks_…` (the drum rows). |
 
 ## 3. UML *(as folded)*
 
@@ -259,7 +259,7 @@ recorded; SUMO cars carry nobody (search own cars only); the car already has a m
 | **RM-2** | **`RamTarget`**: an AI vehicle drives AT an entity (or the middle of a crowd) with the lead pursuit, its avoidance switched off for its TARGET only (it still avoids everything else) | ⛔ no ground pursuit exists; one lead predictor |
 | **RM-3** | **`HostileActKind.Vehicle`** — a vehicle driven at people (RM-2, or CP-2's threat crossing the stand-off) is a hostile act of the DRIVER; every soldier's ROE answers it | AW-19 rules it; nothing raised it |
 | **RM-4** | the **VBIED driver** = `RamTarget` at the checkpoint / the crowd + detonate on contact, or when stopped, or when shot (his boot charge, `Charges.Ask` — carried) | composes what exists |
-| **RM-5** | a `RamTarget` vehicle breaches a WEAK barrier through `ContactBreach`'s own rules (amends Breaching B-D1) | the classic truck attack |
+| **RM-5** | a `RamTarget` vehicle breaches a WEAK barrier through `ContactBreach`'s own rules (amends Breaching B-D1) | the classic truck attack ⭐ AS-BUILT `2026-11-18`: see the RM-5 row above (CE-3473). |
 
 ### 3. UML
 

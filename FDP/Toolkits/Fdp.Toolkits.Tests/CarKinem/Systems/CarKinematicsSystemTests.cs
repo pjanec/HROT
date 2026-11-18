@@ -2963,6 +2963,40 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3452</c> (P1, the bug queue; 📌 live <c>ua-moto-parked-bomb</c>) — a vehicle whose path STARTS with a short join segment pointing away from
+        /// its heading (here 2 m back and south onto the lane, then 80 m east along it) drives on along the lane and its progress follows it: it never turns
+        /// back to the path's start, and the no-progress watchdog has nothing to see. 🔴 Red-proof: drop the <c>PathProgress.OnPathAhead</c> line ⇒ progress
+        /// stays ~0 while it drives east, and it loops back west.
+        /// </summary>
+        [Theory]
+        [InlineData(VehicleClass.Truck)]
+        [InlineData(VehicleClass.PersonalCar)]
+        public void CE3452_APathStartingAtAnAngle_IsFollowedAlongTheLane_NeverBackToItsStart(VehicleClass cls)
+        {
+            var (repo, e, pool) = TrajectoryWorld(10f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(cls));
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(-1.5f, -1f, 0f), new Vector3(0f, -1.5f, 0f), new Vector3(80f, -1.5f, 0f) }, 13);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.TrajectoryId = 13; nav.FinalDestination = new Vector3(80f, -1.5f, 0f); nav.ArrivalRadius = 3f;
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float farthest = 0f, turnedBack = 0f;
+            for (int i = 0; i < 12 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float x = repo.GetComponent<SimTransform>(e).Position.X;
+                farthest = MathF.Max(farthest, x);
+                turnedBack = MathF.Max(turnedBack, farthest - x);
+            }
+            var end = repo.GetComponent<NavState>(e);
+            Assert.True(turnedBack < 3f, $"{cls}: it turned back {turnedBack:F1} m toward the path's start");
+            Assert.True(end.ProgressS > 50f && farthest > 50f, $"{cls}: progress {end.ProgressS:F1} at x {farthest:F1}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
         private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
@@ -3253,24 +3287,74 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
-        /// ⭐ <c>CE-4594</c> item 3 (B-3, MEASURED) — which obstacle materials a hull breaks, for each of the seven obstacle types (strength = the material's resistance × the box's short side × its height, against the hull row's limit): a TANK (60 t, limit 2000) breaks ALL SEVEN
-        /// (concrete block 1500, jersey barrier 720, barrel 540, guard booth 374, car 324, crate 60, sandbag wall 60); an IFV (25 t, limit 150) breaks ONLY the sandbag wall and the crate (60 each) — a concrete block, a jersey barrier, a barrel, a booth and a car are TooStrong for it.
+        /// ⭐ <c>CE-4594</c> item 3 (B-3, MEASURED) — which obstacle materials a hull breaks, for each of the obstacle types (strength = the material's resistance × the box's short side × its height, against the hull row's limit): a TANK (60 t, limit 2000) breaks ALL
+        /// (concrete block 1500, jersey barrier 720, guard booth 374, car 324, crate 60, sandbag wall 60, the barrels); an IFV (25 t, limit 150) breaks the sandbag wall, the crate and EVERY BARREL — a concrete block, a jersey barrier, a booth and a car are TooStrong for it.
+        /// ⭐ CE-3473 (user 2026-11-18) — a barrel's FILL: the empty drum 2.7 (was a solid steel box, 540), water-filled 65, sand-filled 86.
         /// 🔴 Red-proof: the tank row's limit lowered to 1000 ⇒ the concrete block holds ⇒ red.
         /// </summary>
         [Theory]
         [InlineData("Car", 60000f, true)] [InlineData("Sandbag wall", 60000f, true)] [InlineData("Concrete block", 60000f, true)] [InlineData("Crate", 60000f, true)]
         [InlineData("Barrel", 60000f, true)] [InlineData("Jersey barrier", 60000f, true)] [InlineData("Guard booth", 60000f, true)]
         [InlineData("Car", 25000f, false)] [InlineData("Sandbag wall", 25000f, true)] [InlineData("Concrete block", 25000f, false)] [InlineData("Crate", 25000f, true)]
-        [InlineData("Barrel", 25000f, false)] [InlineData("Jersey barrier", 25000f, false)] [InlineData("Guard booth", 25000f, false)]
+        [InlineData("Barrel", 25000f, true)] [InlineData("Jersey barrier", 25000f, false)] [InlineData("Guard booth", 25000f, false)]
+        [InlineData("Barrel, water-filled", 60000f, true)] [InlineData("Barrel, sand-filled", 60000f, true)] [InlineData("Barrel, water-filled", 25000f, true)] [InlineData("Barrel, sand-filled", 25000f, true)]
         public void CE4594_WhatAHullBreaks_ByTheMaterialTable_ForEachObstacleType(string type, float massKg, bool breaks)
         {
-            var box = Fdp.Toolkit.Terrain.ClutterTypes.All.Single(t => t.Name == type);
+            var box = ObstacleBox(type);
             var (repo, e) = Possessed(VehicleClass.Tank, massKg, 1f, "");
             var row = ObstacleRow(repo, box, 100f, 15f, -box.Length * 0.5f, 1, 92u);   // one member across the hull's centre line
             var (damage, _) = DriveCollectingDamage(repo, e, 8f);
             Assert.Equal(breaks, damage.Count > 0);
             if (breaks) Assert.Equal(row[0], damage[0].HitEntity);
             repo.Dispose();
+        }
+
+        /// <summary>The obstacle box of <paramref name="name"/>: the generated clutter's, or a filled barrel (an obstacle type only — CE-3473).</summary>
+        private static Fdp.Toolkit.Terrain.ClutterTypes.Type ObstacleBox(string name)
+            => name == Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater.Name ? Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater
+             : name == Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand.Name ? Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand
+             : Fdp.Toolkit.Terrain.ClutterTypes.All.Single(t => t.Name == name);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3473</c> (Checkpoint RM-5; user 2026-11-18: <i>"follow your lean; also realistic bullet stopping power (if barrel is full of liquid, it might be a serious/resistive
+        /// obstacle for both the ramming car as well as for bullets"</i>) — a WHEELED CAR (1.5 t) on a RAM ORDER breaks an EMPTY drum by driving into it, and is HELD by a water- or
+        /// sand-filled one; the same car WITHOUT the order breaks nothing (a car takes no breach row — Breaching B-D1). 📌 Found by <c>cp-ram-barrier</c>: no row took a wheeled hull, and
+        /// the drum was a solid steel box (540) — its old pass was the car going round the row. 🔴 Red-proof: drop the <c>ramming-car</c> row ⇒ the empty drum holds the ramming car.
+        /// </summary>
+        [Theory]
+        [InlineData("Barrel", true, true)]
+        [InlineData("Barrel, water-filled", true, false)]
+        [InlineData("Barrel, sand-filled", true, false)]
+        [InlineData("Barrel", false, false)]
+        public void CE3473_ARammingCar_BreaksAnEmptyDrum_IsHeldByAFilledOne(string type, bool ramming, bool breaks)
+        {
+            var (repo, e) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, "");
+            repo.RegisterComponent<CarKinem.Core.RamOrder>();
+            if (ramming) repo.AddComponent(e, new CarKinem.Core.RamOrder { Active = 1 });
+            var box = ObstacleBox(type);
+            var row = ObstacleRow(repo, box, 100f, 15f, -box.Length * 0.5f, 1, 93u);   // one drum across the car's centre line
+            var (damage, nose) = DriveCollectingDamage(repo, e, 8f);
+            Assert.Equal(breaks, damage.Count > 0);
+            if (breaks) { Assert.Equal(row[0], damage[0].HitEntity); Assert.True(nose > 16f, $"through the drum: nose x={nose:F2}"); }
+            else Assert.True(nose < 15f, $"held at the drum: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3452</c> — the progress resync takes a point ahead only on a segment the vehicle TRAVELS along: on a U-turn path (east 6 m, back west 3 m south)
+        /// a vehicle near the return leg but heading NORTH (across it, turning) keeps its progress; heading WEST (along the return leg) it takes the point there.
+        /// 📌 Found by <c>ua-technical-scoot</c>: the jump skipped the technical's turn at its scoot point. 🔴 Red-proof: drop the travel test ⇒ the north case jumps.
+        /// </summary>
+        [Fact]
+        public void CE3452_TheProgressResync_NeverJumpsOntoALegItCrosses()
+        {
+            var wps = new[] { new Vector3(0f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(6f, -3f, 0f), new Vector3(0f, -3f, 0f) };
+            var pool = new TrajectoryPoolManager();
+            int id = pool.RegisterTrajectory(wps, new[] { 5f, 5f, 5f, 5f });
+            Assert.True(pool.TryGetTrajectory(id, out var traj));
+            var near = new Vector2(3f, -2.5f);   // beside the return leg (y = -3), 6 m + 3 m + 3 m = s 12 along it
+            Assert.Equal(1f, CarKinem.Controllers.PathProgress.OnPathAhead(in traj, 1f, near, 15f, new Vector2(0f, 1f)));              // crossing it
+            Assert.Equal(12f, CarKinem.Controllers.PathProgress.OnPathAhead(in traj, 1f, near, 15f, new Vector2(-1f, 0f)), 1);         // along it
         }
 
         private static bool CarKem_MayBreak(EntityRepository repo, Entity e)

@@ -107,7 +107,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (Vector2.Distance(new Vector2(here.X, here.Y), new Vector2(at.X, at.Y)) <= p.PassMetres)
                 {
-                    var beyond = PassPoint(here, world.GetComponentRO<SimTransform>(self).Rotation, at);
+                    var beyond = PassPoint(here, world.GetComponentRO<SimTransform>(self).Rotation, at, p.Escape);
                     if (!LocomotionMoveTo.Issue(world, self, beyond, p.PassSpeed, ArrivalRadius, MoveGait.Keep, source: source)) return NodeStatus.Failure;
                     if (p.Throw == 0) OrderThePillion(world, self, p.Target, null);
                     s.Phase = Passing;
@@ -138,11 +138,22 @@ namespace Hrot.AI.Behaviors.Brains
         /// heading to <see cref="BeyondMetres"/> past the point abeam of the target (design §5: "2–5 m/s alongside"). ⛔ It used to aim
         /// <see cref="BeyondMetres"/> past the target along the bike→target bearing, so a post 14 m off the road pulled the bike off the road and up to
         /// the post at the pass speed — a slow charge at the sentries, not a drive-by.
+        /// ⭐ <c>CE-3452</c> — the line is toward the pre-chosen ESCAPE point when that lies past the target (design IM-1: "alongside → the
+        /// pre-chosen escape route"); the heading when none is set or the escape is back the way the bike came. 📌 Once the bike drove its ride-up path (CE-3452), the path to the post left the road ~55 m short and the heading
+        /// at the 40 m switch pointed at the buildings beside the post: the pass drove into them and the bike stood there until shot
+        /// (<c>ua-moto-drive-by-grenade</c>). The heading only worked while the bike looped back onto the road first (the CE-3452 bug).
         /// </summary>
-        public static Vector3 PassPoint(Vector3 here, Quaternion rotation, Vector3 at)
+        public static Vector3 PassPoint(Vector3 here, Quaternion rotation, Vector3 at, Vector3 escape = default)
         {
-            var f = Vector3.Transform(Vector3.UnitX, rotation);
-            var fwd = new Vector2(f.X, f.Y);
+            var fwd = new Vector2(escape.X - here.X, escape.Y - here.Y);
+            var toAt = new Vector2(at.X - here.X, at.Y - here.Y);
+            // the escape line only when the escape lies PAST the target along it (an escape back the way the bike came ⇒ its heading)
+            float escapeLength = fwd.Length();
+            if (escape == default || escapeLength < 1f || Vector2.Dot(toAt, fwd / escapeLength) <= 0f || Vector2.Dot(toAt, fwd / escapeLength) >= escapeLength)
+            {
+                var f = Vector3.Transform(Vector3.UnitX, rotation);
+                fwd = new Vector2(f.X, f.Y);
+            }
             if (fwd.LengthSquared() < 1e-4f) fwd = new Vector2(at.X - here.X, at.Y - here.Y);
             fwd = fwd.LengthSquared() > 1e-4f ? Vector2.Normalize(fwd) : Vector2.UnitX;
             float along = MathF.Max(0f, Vector2.Dot(new Vector2(at.X - here.X, at.Y - here.Y), fwd)) + BeyondMetres;

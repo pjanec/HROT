@@ -295,6 +295,30 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(200f + Hrot.AI.Behaviors.Brains.DriveByBehavior.BeyondMetres, pass.Destination.X, 1); // past the post's abeam point
             Assert.Equal(Hrot.AI.Behaviors.Brains.DriveByBehavior.DefaultPassSpeed, pass.Speed, 2);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-3452</c> (found by <c>ua-moto-drive-by-grenade</c> once the bike drove its ride-up path) — the bike reaches the pass distance HEADING
+        /// OFF THE ROAD toward the post (its path to the post leaves the road); the pass still runs along the line to its ESCAPE point (the road), not
+        /// along that heading into the buildings beside the post. 🔴 Red-proof: the heading as the line ⇒ the pass point lands ~40 m off the road.
+        /// </summary>
+        [Fact]
+        public void CE3452_DriveBy_HeadingAtThePost_PassesAlongTheEscapeLine_NotIntoThePost()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new SimTransform { Position = new Vector3(200f, 14f, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(target, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = TargetNetId });
+            w.Start(BehaviorNames.DriveBy, "{\"Target\":" + TargetNetId + ",\"Escape\":[400,0,0]}");
+            for (int i = 0; i < 4; i++) w.Tick();
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(165f, 2f, 0f);
+            repo.GetComponentRW<SimTransform>(w.Man).Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4f);   // north-east, at the post
+            for (int i = 0; i < 3; i++) w.Tick();
+            var pass = Move(repo, w.Man);
+            Assert.InRange(pass.Destination.Y, -1f, 3f);                                                      // on the road (the escape line)
+            Assert.InRange(pass.Destination.X, 200f + Hrot.AI.Behaviors.Brains.DriveByBehavior.BeyondMetres - 1f, 240f);   // past the post's abeam point
+        }
     }
 
     /// <summary>

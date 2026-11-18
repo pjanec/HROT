@@ -1582,6 +1582,9 @@ namespace Hrot.Map.Definitions.Tkb
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Barrel,        TkbEntityTypes.Obstacle_Barrel,        feature, maxHealth: 50f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.JerseyBarrier, TkbEntityTypes.Obstacle_JerseyBarrier, feature, maxHealth: 400f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.GuardBooth,    TkbEntityTypes.Obstacle_GuardBooth,    feature, maxHealth: 120f);
+            // ⭐ CE-3473 — the FILLED drums (the empty one is 8820): ~200 kg of water / ~350 kg of sand absorb a blast better than an empty shell. ⚠ Starter values.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater,   TkbEntityTypes.Obstacle_BarrelWater,   feature, maxHealth: 150f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand,    TkbEntityTypes.Obstacle_BarrelSand,    feature, maxHealth: 250f);
             // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.

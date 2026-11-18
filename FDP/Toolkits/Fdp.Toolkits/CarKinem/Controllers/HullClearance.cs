@@ -97,6 +97,13 @@ namespace CarKinem.Controllers
                 float along = (i & 1) == 0 ? a : -a, side = (i & 2) == 0 ? b : -b;
                 if (Enters(world, Corner(from, fromFwd, along, side), fromZ, Corner(to, toFwd, along, side), toZ, out hit)) return true;
             }
+            // ⭐ CE-3473 — and the NOSE and the TAIL (the front and rear edges' middles): an obstacle narrower than the hull, on its line (a drum, a post),
+            //   passes between the corners and met only the centre — 📌 measured: a car held at a 0.6 m drum with its nose 2.25 m inside it
+            for (int i = 0; i < 2; i++)
+            {
+                float along = i == 0 ? a : -a;
+                if (Enters(world, Corner(from, fromFwd, along, 0f), fromZ, Corner(to, toFwd, along, 0f), toZ, out hit)) return true;
+            }
             return false;
         }
 

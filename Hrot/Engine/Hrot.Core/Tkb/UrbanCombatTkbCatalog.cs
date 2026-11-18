@@ -214,7 +214,9 @@ namespace Hrot.Core.Tkb
                 //   is seen by nobody and fired by nobody), appended after the seats
                 car.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false });
                 t.AddDescriptor(car);
-                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
+                // ⭐ CE-3473 — its MASS (a sedan, 1.4 t): it was 0 ("unknown"), so the contact rule's ramming row (≥ 800 kg) never took a car on RamTarget. Below the
+                //   AT mine's 1500 kg and the crush 3500 kg, so neither changes; a strike's harm is × √(1400/1500) ≈ 0.97 of the unknown-mass default.
+                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f, Mass = 1400f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
