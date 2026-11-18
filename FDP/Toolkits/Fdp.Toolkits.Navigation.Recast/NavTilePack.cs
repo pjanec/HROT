@@ -42,28 +42,81 @@ public static class NavTilePack
     public static int Pack(string folder)
     {
         if (!Directory.Exists(folder)) return 0;
-        int packs = 0;
+        return WriteFolder(folder, ReadFolder(folder));
+    }
+
+    /// <summary>
+    /// ⭐ CE-3428 (the T-6 rule of CE-3435, kept) — lays <paramref name="overlay"/>'s tiles OVER <paramref name="target"/>'s: where the overlay holds a tile of a
+    /// layer + square, the target's tiles of that square are dropped (their hash can no longer match), then the overlay's are added; the result is written to
+    /// <paramref name="target"/> as packs. Either side may be packed or loose. The terrain save (<c>TerrainBake</c>) is its caller. Returns the pack count.
+    /// </summary>
+    public static int MergeOver(string target, string overlay)
+    {
+        var merged = ReadFolder(target);
+        foreach (var (layer, entries) in ReadFolder(overlay))
+        {
+            var squares = new HashSet<(int, int)>();
+            foreach (var e in entries) squares.Add((e.X, e.Z));
+            if (!merged.TryGetValue(layer, out var list)) merged[layer] = list = new List<Entry>();
+            list.RemoveAll(e => squares.Contains((e.X, e.Z)));
+            list.AddRange(entries);
+        }
+        Directory.CreateDirectory(target);
+        return WriteFolder(target, merged);
+    }
+
+    /// <summary>Every tile key under <paramref name="folder"/> — packed or loose — as (layer folder name, tile x, tile z, hash). Cold (a tool, a rail).</summary>
+    public static List<(string Layer, int X, int Z, string Hash)> ListTiles(string folder)
+    {
+        var list = new List<(string, int, int, string)>();
+        foreach (var (layer, entries) in ReadFolder(folder))
+            foreach (var e in entries) list.Add((layer, e.X, e.Z, e.Hash));
+        return list;
+    }
+
+    /// <summary>Every tile under <paramref name="folder"/> by layer folder name: packs first, then loose files (a loose tile of the same key wins).</summary>
+    private static Dictionary<string, List<Entry>> ReadFolder(string folder)
+    {
+        var layers = new Dictionary<string, List<Entry>>(StringComparer.Ordinal);
+        if (!Directory.Exists(folder)) return layers;
         foreach (var layerDir in Directory.GetDirectories(folder))
         {
-            var byRegion = new Dictionary<(int, int), List<Entry>>();
+            var byKey = new Dictionary<(int, int, string), Entry>();
             foreach (var pack in Directory.GetFiles(layerDir, "*" + Extension))
-                foreach (var e in ReadAll(pack)) Add(byRegion, e);
-            var loose = Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories);
-            foreach (var file in loose)
+                foreach (var e in ReadAll(pack)) byKey[(e.X, e.Z, e.Hash)] = e;
+            foreach (var file in Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories))
             {
-                var name = Path.GetFileNameWithoutExtension(file);   // <x>_<z>_<hash>
-                var parts = name.Split('_', 3);
+                var parts = Path.GetFileNameWithoutExtension(file).Split('_', 3);   // <x>_<z>_<hash>
                 if (parts.Length != 3 || !int.TryParse(parts[0], out int x) || !int.TryParse(parts[1], out int z)) continue;
-                Add(byRegion, new Entry(x, z, parts[2], File.ReadAllBytes(file)));
+                byKey[(x, z, parts[2])] = new Entry(x, z, parts[2], File.ReadAllBytes(file));
             }
-            foreach (var ((rx, rz), entries) in byRegion)
+            layers[Path.GetFileName(layerDir)] = new List<Entry>(byKey.Values);
+        }
+        return layers;
+    }
+
+    /// <summary>Writes <paramref name="layers"/> under <paramref name="folder"/> as packs, replacing every pack and loose tile there. Returns the pack count.</summary>
+    private static int WriteFolder(string folder, Dictionary<string, List<Entry>> layers)
+    {
+        int packs = 0;
+        foreach (var (layer, entries) in layers)
+        {
+            string layerDir = Path.Combine(folder, layer);
+            Directory.CreateDirectory(layerDir);
+            var byRegion = new Dictionary<(int, int), List<Entry>>();
+            foreach (var e in entries) Add(byRegion, e);
+            var old = new HashSet<string>(Directory.GetFiles(layerDir, "*" + Extension), StringComparer.Ordinal);
+            foreach (var ((rx, rz), list) in byRegion)
             {
-                Write(Path.Combine(layerDir, $"{rx}_{rz}{Extension}"), entries);
+                string path = Path.Combine(layerDir, $"{rx}_{rz}{Extension}");
+                Write(path, list);
+                old.Remove(path);
                 packs++;
             }
-            foreach (var file in loose) File.Delete(file);
+            foreach (var stale in old) File.Delete(stale);   // a region with no tile left
+            foreach (var file in Directory.GetFiles(layerDir, "*.navtile", SearchOption.AllDirectories)) File.Delete(file);
             foreach (var dir in Directory.GetDirectories(layerDir))
-                if (Directory.GetFileSystemEntries(dir).Length == 0) Directory.Delete(dir);
+                if (Directory.GetFileSystemEntries(dir, "*", SearchOption.AllDirectories).All(e => Directory.Exists(e))) Directory.Delete(dir, recursive: true);
         }
         return packs;
     }
@@ -99,17 +152,19 @@ public static class NavTilePack
         File.Move(temp, path, overwrite: true);
     }
 
-    private static IEnumerable<Entry> ReadAll(string path)
+    private static List<Entry> ReadAll(string path)
     {
+        var list = new List<Entry>();
         var index = ReadIndex(path);
-        if (index == null) yield break;
+        if (index == null) return list;
         using var handle = File.OpenHandle(path);
         foreach (var ((x, z, hash), (offset, length)) in index)
         {
             var bytes = new byte[length];
             if (length > 0) RandomAccess.Read(handle, bytes, offset);
-            yield return new Entry(x, z, hash, bytes);
+            list.Add(new Entry(x, z, hash, bytes));
         }
+        return list;
     }
 
     /// <summary>A pack's index (tile x, z, hash → offset, length), or null when the file is not a readable pack (a miss, never a failure).</summary>

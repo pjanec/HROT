@@ -1207,11 +1207,12 @@ round trips (⏳ the Windows / NAS number is the user's measurement).
 classDiagram
   class NavTileKey { <<existing, unchanged>> Layer · TileX · TileZ · Hash }
   class NavTileCache { <<existing, grows>> Mode: Normal | Seed | Prefill · TryGet(key, seed) · Put · Seal() NEW · ReadSeedOwn NEW }
-  class NavTilePack { <<NEW, static>> RegionTiles = 32 · PathOf(folder, key) · Pack(folder) · ReadIndex(path) }
+  class NavTilePack { <<NEW, static>> RegionTiles = 32 · PathOf(folder, key) · Pack(folder) · MergeOver(target, overlay) · ListTiles(folder) · ReadIndex(path) }
   class NavTilePackReader { <<NEW>> Read(key): bytes? (index per pack, lazy, thread-safe) }
   class RecastNavmeshFactory { <<existing>> Build(world) — calls TileCache.Seal() after the bake }
   class NavmeshPrefill { <<existing>> the importer's bake into tmp/navtiles }
   class OverlayCompiler { <<existing>> an overlay's bake into part/navtiles }
+  class TerrainBake { <<existing>> SaveAs: the base's navtiles + the overlay's, merged }
   NavTileCache --> NavTilePackReader : a seed / prefill folder reads packs first, then loose files
   NavTileCache ..> NavTilePack : Seal() = Pack(Folder) when Prefill
   RecastNavmeshFactory --> NavTileCache : Seal() after every bake
@@ -1220,8 +1221,9 @@ classDiagram
   NavTilePackReader ..> NavTileKey : same keys
 ```
 
-*What the picture shows that prose hid: the packing has ONE caller — the factory, after a bake into a PREFILL cache — so both writers of a terrain's
-`navtiles/` (the importer and the overlay compiler) pack by construction; the per-machine cache (`Normal`) never packs (it prunes per square), and the
+*What the picture shows that prose hid: the packing has ONE caller per kind of write — the factory, after a bake into a PREFILL cache (so both bakers,
+the importer and the overlay compiler, pack by construction), and `MergeOver` for the terrain SAVE, which merges two folders (📐 found by the full suite:
+the save's old per-file merge overwrote one pack with the other and its load baked 542 tiles — `TerrainBakeTests.TheSavedTerrainsNavmesh_BakesNothing_AtLoad`); the per-machine cache (`Normal`) never packs (it prunes per square), and the
 keys never change.*
 
 ```mermaid
@@ -1244,6 +1246,7 @@ sequenceDiagram
 graph TD
   IMP["hrot-terrain-import / OSM wizard / random pipeline<br/>→ NavmeshPrefill"] --> FAC["RecastNavmeshFactory.Build"]
   OVL["editor overlay save<br/>→ OverlayCompiler"] --> FAC
+  SAVE["Save terrain as …<br/>→ TerrainBake.SaveAs"] -->|"NavTilePack.MergeOver(base, overlay)"| PACK
   FAC -->|"Seal() — Prefill only"| PACK["navtiles/<layer>/<rx>_<rz>.navpack"]
   STG["Artifact Staging (per-file copy)"] -->|"~100 files instead of 106 260 entries"| NODE["each node's staged terrain"]
   PACK --> STG
