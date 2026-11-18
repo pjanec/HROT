@@ -23,9 +23,15 @@ namespace CarKinem.Controllers
         /// <summary>The speed (m/s) above which a vehicle counts as moving for <see cref="StuckAlong"/>.</summary>
         public const float StuckSpeed = 0.5f;
 
+        /// <summary>How well the vehicle's travel must agree with a segment's direction (cos ~45°) for it to be ON that segment.</summary>
+        public const float AlongAgree = 0.7f;
+
         /// <summary>The progress at the first point of <paramref name="traj"/> ahead of <paramref name="progress"/> (within <paramref name="window"/> m) that
-        /// <paramref name="pos"/> is on; <paramref name="progress"/> when there is none (a looped path, or off the path). 0 B.</summary>
-        public static float OnPathAhead(in CustomTrajectory traj, float progress, Vector2 pos, float window)
+        /// <paramref name="pos"/> is on, TRAVELLING along it (<paramref name="travel"/>, a unit vector, within <see cref="AlongAgree"/> of the segment's direction);
+        /// <paramref name="progress"/> when there is none (a looped path, off the path, or moving across it). 0 B.
+        /// ⭐ The travel test: 📌 a technical manoeuvring slowly at its scoot point (<c>ua-technical-scoot</c>) passed within 2 m of a LATER leg of its
+        /// turning path while heading across it, and the progress jumped there — skipping the turn; it crept away and never edged out to fire.</summary>
+        public static float OnPathAhead(in CustomTrajectory traj, float progress, Vector2 pos, float window, Vector2 travel)
         {
             int n = traj.Waypoints.Length;
             if (traj.IsLooped != 0 || n < 2 || window <= 0f) return progress;
@@ -43,7 +49,7 @@ namespace CarKinem.Controllers
                 float t = Math.Clamp(Vector2.Dot(pos - pa, ab) / len2, 0f, 1f);
                 float s = a.CumulativeDistance + t * (b.CumulativeDistance - a.CumulativeDistance);
                 if (s < progress || s > limit) continue;
-                if (Vector2.DistanceSquared(pos, pa + ab * t) <= onPath2) return s;
+                if (Vector2.DistanceSquared(pos, pa + ab * t) <= onPath2 && Vector2.Dot(travel, ab) >= AlongAgree * MathF.Sqrt(len2)) return s;
             }
             return progress;
         }
