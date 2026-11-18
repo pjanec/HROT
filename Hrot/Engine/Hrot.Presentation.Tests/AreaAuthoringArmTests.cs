@@ -427,8 +427,8 @@ public sealed class AreaAuthoringArmTests
             if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) { anchor = prim.StructNetworkId; json = buffer.InternMap.TryResolve(prim.StringHash); }
         Assert.Equal(arm.ActiveGizmoId, anchor);
         var rows = System.Text.Json.JsonSerializer.Deserialize<ContextMenuItemDto[]>(json!, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!;
-        Assert.Equal(new[] { "Finish", "Remove last point", "Cancel" }, rows.Select(r => r.Label).ToArray());
-        Assert.Equal(new[] { Hrot.Common.Constants.GlobalActionIds.FinishDrawing, Hrot.Common.Constants.GlobalActionIds.RemoveLastPoint, Hrot.Common.Constants.GlobalActionIds.CancelDrawing },
+        Assert.Equal(new[] { "Finish", "Remove last point", "Cancel", "Stop drawing" }, rows.Select(r => r.Label).ToArray());   // ⭐ CE-1977 — the way out
+        Assert.Equal(new[] { Hrot.Common.Constants.GlobalActionIds.FinishDrawing, Hrot.Common.Constants.GlobalActionIds.RemoveLastPoint, Hrot.Common.Constants.GlobalActionIds.CancelDrawing, Hrot.Common.Constants.GlobalActionIds.StopDrawing },
                      rows.Select(r => r.Id).ToArray());
     }
 

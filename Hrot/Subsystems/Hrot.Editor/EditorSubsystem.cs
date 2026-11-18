@@ -5688,6 +5688,12 @@ namespace Hrot.Editor
             try { scatterRecipes = Hrot.UI.Common.AddEntity.TerrainPickCatalog.ScatterRecipes(new[] { Fdp.Toolkit.Orchestration.ContentLayout.TerrainRecipeAssets(Fdp.Toolkit.Orchestration.ContentLayout.NasRoot) }); }
             catch (Exception e) when (e is InvalidOperationException or System.IO.IOException or UnauthorizedAccessException) { }
             var terrainTools = new TerrainToolsWindow(() => _world, () => _spawnAdapter, () => _editorToolController?.ActiveModal?.Id, terrainPicks, scatterRecipes);
+            // ⭐ CE-1977 — every strip: the Select tile first and a click on the lit tool's icon turns it off — through the ONE disarm
+            foreach (var strip in new Fdp.Presentation.WindowManager.ToolStripWindow[] { scenarioTools, terrainTools })
+            {
+                strip.DisarmTool = () => ((Hrot.ScenarioEditor.Tools.IToolController?)_editorToolController)?.DisarmAll();
+                strip.AnyToolArmed = () => _editorToolController?.ActiveModal is { } t && t.Id != Hrot.ScenarioEditor.Tools.ScenarioToolIds.Select && t.Id != Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand;
+            }
             windowManager.RegisterWindow(scenarioTools);
             windowManager.RegisterWindow(terrainTools);
             windowManager.RegisterFrameOverlay(() => terrainTools.UpdateLock(windowManager.CurrentPerspective));   // 🔑 the lock's ONE writer (TE-17)

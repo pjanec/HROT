@@ -19,7 +19,11 @@ namespace Hrot.ScenarioEditor.Gizmos
     {
         /// <summary>Below the cursor's crosshair, in screen pixels.</summary>
         public const float BelowCursorPx = 22f;
+        /// <summary>⭐ CE-1977 — the hint line under the tool's name.</summary>
+        public const float LinePx = 17f;
         private static readonly Rgba32 Colour = new(232, 232, 238, 235);
+        /// <summary>⭐ CE-1977 — the tool's name, in the status line's tool colour.</summary>
+        public static readonly Rgba32 TitleColour = new(64, 196, 196, 255);
 
         // ⭐ B-17 P7 ⑥ — no hint says ✓ any more (Roboto has no ✓, so the map drew "tick"): the hint says "Done", as the on-map button does, and the map's text is
         //   drawn on a backdrop. The hint is the descriptor's constant string, so the steady frame still allocates nothing.
@@ -30,7 +34,14 @@ namespace Hrot.ScenarioEditor.Gizmos
             if (MapUiStates.ToolsOf(world) is not { ActiveModal: { } tool } tools || tool.Id == ScenarioToolIds.Select) return;
             if (tools.CursorHintClaimed || tools.ActiveHint is not { Length: > 0 } hint) return;
             if (MapUiStates.CanvasOf(world)?.Get<MapCursorReadout>()?.Latest is not { } at) return;
-            draw.DrawTextLong(at.Local.X, at.Local.Y, hint, Colour, lineOffsetPx: BelowCursorPx, style: GizmoTextStyle.Backdrop);
+            // ⭐ CE-1977 — TWO lines under the cursor: the armed tool's NAME (Ditch) and what the next click does — a ⭐ Cursor-style label, never hidden by the
+            //   3-D ground. 🔒 User, 2026-11-18: "before I start clicking, I'd like to have an indicator for clicking tool especially". Two primitives, no string built.
+            if (tools.ActiveTitle is { Length: > 0 } title)
+            {
+                draw.DrawTextLong(at.Local.X, at.Local.Y, title, TitleColour, lineOffsetPx: BelowCursorPx, style: GizmoTextStyle.Cursor);
+                draw.DrawTextLong(at.Local.X, at.Local.Y, hint, Colour, lineOffsetPx: BelowCursorPx + LinePx, style: GizmoTextStyle.Cursor);
+            }
+            else draw.DrawTextLong(at.Local.X, at.Local.Y, hint, Colour, lineOffsetPx: BelowCursorPx, style: GizmoTextStyle.Cursor);
         }
     }
 }

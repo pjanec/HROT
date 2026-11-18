@@ -363,6 +363,9 @@ namespace Hrot.UI.Common.Adapters
             => StartAreaAuthoringMode(TkbEntityTypes.TacGraphic_Area, styleOverrideJson);
 
         /// <inheritdoc/>
+        /// <inheritdoc/>
+        public void NameArmedTool(string? title) => _tools?.SetTitle(title);   // ⭐ CE-1977
+
         public void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "")
         {
             _pendingStyleJson = styleOverrideJson;

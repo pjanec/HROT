@@ -133,9 +133,11 @@ public static class PlacementToolRegistry
         if (pick.Kind == TerrainPickKind.Feature && pick.Shape != TerrainShape.Point)
         {
             spawn.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+            spawn.NameArmedTool(pick.Name);   // ⭐ CE-1977 — the cursor label says "Ditch", not "Draw Area"
             return true;
         }
         spawn.StartPlacementMode(pick.Kind == TerrainPickKind.Block ? TkbEntityTypes.TerrainBlock : TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(pick));
+        spawn.NameArmedTool(pick.Name);
         return true;
     }
 

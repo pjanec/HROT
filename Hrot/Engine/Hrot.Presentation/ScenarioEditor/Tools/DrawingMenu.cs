@@ -34,6 +34,7 @@ namespace Hrot.ScenarioEditor.Tools
             GlobalActionIds.FinishDrawing => ShapeCommand.Finish,
             GlobalActionIds.RemoveLastPoint => ShapeCommand.RemoveLast,
             GlobalActionIds.CancelDrawing => ShapeCommand.Cancel,
+            GlobalActionIds.StopDrawing => ShapeCommand.Stop,   // ⭐ CE-1977
             _ => null,
         };
 
@@ -43,7 +44,7 @@ namespace Hrot.ScenarioEditor.Tools
         /// </summary>
         public static void Attach(ShapeEditSession session, ToolController? tools = null, bool editing = false)
         {
-            session.Menu = new ShapeMenu(DrawingActions.Json(editing), CommandOf);
+            session.Menu = new ShapeMenu(DrawingActions.Json(editing), CommandOf) { EmptyJson = editing ? null : DrawingActions.StopOnlyJson() };   // ⭐ CE-1977
             if (tools != null) session.ReasonChanged += reason => tools.SetHint(reason);
         }
     }

@@ -16,6 +16,8 @@ namespace Hrot.Common.Actions
         public const string FinishLabel = "Finish";
         public const string RemoveLastLabel = "Remove last point";
         public const string CancelLabel = "Cancel";
+        /// <summary>⭐ CE-1977 — the way out of an armed drawing tool (the shape dropped, the tool disarmed; Esc twice does the same).</summary>
+        public const string StopLabel = "Stop drawing";
 
         /// <summary>The shortcuts the menu shows (the keys the gizmos honour — Enter, Backspace, Esc).</summary>
         public const string FinishKey = "Enter", RemoveLastKey = "Backspace", CancelKey = "Esc";
@@ -26,11 +28,20 @@ namespace Hrot.Common.Actions
             catalogue.Declare(new ActionDecl(GlobalActionIds.FinishDrawing, FinishLabel, ActionGroup.Tool, 10, Both) { Shortcut = FinishKey });
             catalogue.Declare(new ActionDecl(GlobalActionIds.RemoveLastPoint, RemoveLastLabel, ActionGroup.Tool, 20, ActionTarget.Drawing) { Shortcut = RemoveLastKey });
             catalogue.Declare(new ActionDecl(GlobalActionIds.CancelDrawing, CancelLabel, ActionGroup.Tool, 30, Both) { Shortcut = CancelKey });
+            catalogue.Declare(new ActionDecl(GlobalActionIds.StopDrawing, StopLabel, ActionGroup.Tool, 40, ActionTarget.Drawing) { Shortcut = "Esc Esc" });
         }
 
         /// <summary>The menu rows for an armed drawing tool (<paramref name="editing"/> false) or the editor of a drawn shape / route (true), as JSON.</summary>
         public static string Json(bool editing, ActionCatalogue? catalogue = null)
             => MenuComposer.Json(ActionContext.ForTool(editing ? ActionTarget.ShapeEdit : ActionTarget.Drawing, EditingMode.Edit), catalogue);
+
+        /// <summary>⭐ CE-1977 — the drawing tool's menu while NO point is placed: only <i>Stop drawing</i>.</summary>
+        public static string StopOnlyJson()
+        {
+            var rows = MenuComposer.Compose(ActionContext.ForTool(ActionTarget.Drawing, EditingMode.Edit));   // the catalogue's own row (its words, its shortcut)
+            var stop = System.Array.FindAll(rows, r => r.Id == GlobalActionIds.StopDrawing);
+            return System.Text.Json.JsonSerializer.Serialize(stop, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+        }
 
         /// <summary>
         /// The menu of an EDITOR (a drawn shape's vertices, a route's waypoints): its own rows first (Insert point after …), a separator, then the

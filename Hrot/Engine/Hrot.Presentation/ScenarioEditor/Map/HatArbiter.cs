@@ -75,8 +75,7 @@ namespace Hrot.ScenarioEditor.Map
             _last = now;
             if (first) return;   // ⛔ the first frame is not a hat change — a tool armed before it stays
             // ⭐ disarm: no placement / paste / pick tool survives a hat change; RTS is the Command hat itself (sticky, R-4163)
-            for (int guard = 0; guard < 8 && _tools.ActiveModal is { } top && top.Id != Hrot.ScenarioEditor.Tools.ScenarioToolIds.RtsCommand; guard++)
-                _tools.Cancel();
+            _tools.DisarmAll();   // ⭐ CE-1977 — the ONE disarm (IToolController)
         }
     }
 }

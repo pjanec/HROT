@@ -53,6 +53,31 @@ public sealed class EditorToolStripsTests : IDisposable
     // ── Scenario tools ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The strip has ONE family, Add Entity (Friendly · Hostile · Neutral · Map graphic), and Measure; each member runs ITS existing handler (203…206, 200) from the host registry with the editor's world and no target. 🔴 Red-proof: map Hostile to 203 ⇒ red.</summary>
+    /// <summary>⭐ CE-1977 — with the host's disarm, a strip's SELECT tile (first) is lit while no tool is armed and its click disarms; a click on a LIT tool's
+    /// icon turns the tool off instead of running it again; an unlit icon runs its tool. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the
+    /// toolbar is a great idea. Clicking the tool icon again to deactivate it is also approved." ✅ Red-proof: FaceClicked ignoring <c>lit</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1977_TheSelectTile_AndAClickOnTheLitTool_DisarmIt()
+    {
+        var w = Scenario();
+        int disarmed = 0;
+        bool armed = false;
+        w.DisarmTool = () => { disarmed++; armed = false; };
+        w.AnyToolArmed = () => armed;
+        Assert.True(w.SelectEntry.IsLit!());                                  // nothing armed: Select is lit
+        armed = true;
+        Assert.False(w.SelectEntry.IsLit!());
+        ToolStripWindow.FaceClicked(w.SelectEntry, false, null);              // the Select tile's own click
+        Assert.Equal(1, disarmed);
+        var measure = w.StripEntries[1];
+        _ran.Clear();
+        ToolStripWindow.FaceClicked(measure, lit: true, w.DisarmTool);        // Measure is the lit one: off
+        Assert.Equal(2, disarmed);
+        Assert.Empty(_ran);
+        ToolStripWindow.FaceClicked(measure, lit: false, w.DisarmTool);       // not lit: it arms
+        Assert.Equal(new[] { 200 }, _ran.Select(r => r.Action).ToArray());
+    }
+
     /// <summary>⭐ CE-1965 — a dropdown entry IS the shared split button (the main toolbar's): picking from its menu makes that member the face, and the
     /// face's click (<c>Pick(Selected)</c>) runs it again. 🔒 User, 2026-11-17: "whatever I click in the menu it will be remembered for the next click of the icon".</summary>
     [Fact]
@@ -192,6 +217,7 @@ public sealed class EditorToolStripsTests : IDisposable
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var scenario = Scenario(); var (terrain, _) = Terrain(); terrain.IsOpen = true;
+        foreach (var strip in new ToolStripWindow[] { scenario, terrain }) { strip.DisarmTool = () => { }; strip.AnyToolArmed = () => _armed != null; }   // ⭐ CE-1977 — the Select tile first
         terrain.StripEntries.Single(e => e.Id == "##ts_t_walls").Pick(0); _armed = ScenarioToolIds.Spawn;   // Walls lit, as in panel A
         using var frame = UiFrameHarness.Begin();
         frame.StepN(3, () =>

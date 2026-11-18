@@ -55,7 +55,24 @@ public abstract class ToolStripWindow : ManagedWindow
     private Vector2[] _positions = new Vector2[16];
     private float[] _widths = new float[16];
 
-    protected ToolStripWindow(string id, string title, string perspective, WindowScope scope) : base(id, title, perspective, scope) { }
+    protected ToolStripWindow(string id, string title, string perspective, WindowScope scope) : base(id, title, perspective, scope)
+    {
+        SelectEntry = new ToolStripEntry("##ts_select_" + id, new IconGlyph(Fdp.Presentation.Fonts.IconsFontAwesome6.ArrowPointer, new Vector4(0.92f, 0.92f, 0.95f, 1f)),
+                                         "Select — no tool (stop the armed tool)") { OnClick = () => DisarmTool?.Invoke(), IsLit = () => !(AnyToolArmed?.Invoke() ?? false) };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1977</c> — the way back to plain selection, set by the host: with it, the strip draws a SELECT (arrow) tile at its start — lit while no tool is
+    /// armed, a click disarms — and a click on a LIT tool's icon turns that tool off. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the toolbar
+    /// is a great idea. Clicking the tool icon again to deactivate it is also approved." Null ⇒ neither (a host with no tools).
+    /// </summary>
+    public Action? DisarmTool { get; set; }
+
+    /// <summary>⭐ CE-1977 — is any tool armed now (the Select tile is lit when not)?</summary>
+    public Func<bool>? AnyToolArmed { get; set; }
+
+    /// <summary>⭐ CE-1977 — the Select tile (drawn first when <see cref="DisarmTool"/> is set).</summary>
+    public ToolStripEntry SelectEntry { get; }
 
     /// <summary>The icons, in order. Read every frame — return a stable list.</summary>
     protected abstract IReadOnlyList<ToolStripEntry> Entries { get; }
@@ -66,19 +83,23 @@ public abstract class ToolStripWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         var entries = Entries;
-        if (entries.Count > _positions.Length) _positions = new Vector2[Math.Max(entries.Count, _positions.Length * 2)];
+        int lead = DisarmTool is not null ? 1 : 0;   // ⭐ CE-1977 — the Select tile first
+        int count = entries.Count + lead;
+        if (count > _positions.Length) _positions = new Vector2[Math.Max(count, _positions.Length * 2)];
+        if (count > _widths.Length) _widths = new float[_positions.Length];
         float scale = Gui.GetFontSize() / 14f;   // ⭐ the tile is the mockup's 30 × 26 px at the default font size
         var tile = new Vector2(TileWidth * scale, TileHeight * scale);
         float spacing = Gui.GetStyle().ItemSpacing.X;
-        if (entries.Count > _widths.Length) _widths = new float[_positions.Length];
         float split = tile.X + Fdp.Presentation.Icons.SplitArrow.BarGap + Fdp.Presentation.Icons.SplitArrow.BarWidthNow;   // ⭐ CE-1965 — a dropdown is face + bar
-        for (int i = 0; i < entries.Count; i++) _widths[i] = entries[i].Family is { Count: > 0 } ? split : tile.X;
-        LastOrientation = ToolStripLayout.Compute(entries.Count, tile, spacing, Gui.GetContentRegionAvail(), _positions, out _, _widths);
+        if (lead == 1) _widths[0] = tile.X;
+        for (int i = 0; i < entries.Count; i++) _widths[lead + i] = entries[i].Family is { Count: > 0 } ? split : tile.X;
+        LastOrientation = ToolStripLayout.Compute(count, tile, spacing, Gui.GetContentRegionAvail(), _positions, out _, _widths);
         var origin = Gui.GetCursorPos();
+        if (lead == 1) { Gui.SetCursorPos(origin + _positions[0]); DrawEntry(SelectEntry, tile, scale, null); }
         for (int i = 0; i < entries.Count; i++)
         {
-            Gui.SetCursorPos(origin + _positions[i]);
-            DrawEntry(entries[i], tile, scale);
+            Gui.SetCursorPos(origin + _positions[lead + i]);
+            DrawEntry(entries[i], tile, scale, DisarmTool);
         }
     }
 
@@ -113,7 +134,7 @@ public abstract class ToolStripWindow : ManagedWindow
         return clicked;
     }
 
-    private static void DrawEntry(ToolStripEntry e, Vector2 tile, float scale)
+    private static void DrawEntry(ToolStripEntry e, Vector2 tile, float scale, Action? disarm)
     {
         bool lit = e.IsLit?.Invoke() ?? false;
         if (e.Family is { Count: > 0 } fam)
@@ -121,7 +142,7 @@ public abstract class ToolStripWindow : ManagedWindow
             int sel = Math.Clamp(e.Selected, 0, fam.Count - 1);
             // ⭐ CE-1965 — a SPLIT button, the SAME as the main toolbar's: the square face runs the member chosen last; the narrow ▾ bar beside it (or a
             //   right-click on the face) opens the members — two hit zones, each lit on its own hover (SplitArrow.Bar)
-            if (Tile(e.Id, fam[sel].Glyph, lit, fam[sel].Tooltip, tile, scale)) e.Pick(sel);
+            if (Tile(e.Id, fam[sel].Glyph, lit, fam[sel].Tooltip, tile, scale)) FaceClicked(e, lit, disarm);
             bool open = Fdp.Presentation.Icons.SplitArrow.Begin(e.BarId, e.MenuId, "Choose…");   // the ONE split arrow (the main toolbar's too)
             e.LastFace = Fdp.Presentation.Icons.SplitArrow.LastFace;
             e.LastBar = Fdp.Presentation.Icons.SplitArrow.LastBar;
@@ -141,6 +162,17 @@ public abstract class ToolStripWindow : ManagedWindow
                 Gui.EndPopup();
             }
         }
-        else if (Tile(e.Id, e.Glyph, lit, e.Tooltip, tile, scale)) e.OnClick?.Invoke();
+        else if (Tile(e.Id, e.Glyph, lit, e.Tooltip, tile, scale)) FaceClicked(e, lit, disarm);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1977</c> — a click on an entry's icon: a LIT tool's icon turns the tool off (<paramref name="disarm"/>, when the host gave one — never the Select
+    /// tile, whose own click is the disarm); otherwise a dropdown runs the member chosen last and a plain entry its action.
+    /// </summary>
+    public static void FaceClicked(ToolStripEntry e, bool lit, Action? disarm)
+    {
+        if (lit && disarm is not null) { disarm(); return; }
+        if (e.Family is { Count: > 0 } fam) e.Pick(Math.Clamp(e.Selected, 0, fam.Count - 1));
+        else e.OnClick?.Invoke();
     }
 }

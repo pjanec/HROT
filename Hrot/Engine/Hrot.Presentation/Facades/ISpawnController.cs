@@ -27,6 +27,10 @@ public interface ISpawnController
     /// </summary>
     void StartAreaAuthoringMode(long tkbType, string styleOverrideJson = "");
 
+    /// <summary>⭐ <c>CE-1977</c> — the tool just armed is named <paramref name="title"/> on the cursor label (a terrain pick arms the one area tool as a <i>Ditch</i>).
+    /// Default: nothing (a host with no cursor label).</summary>
+    void NameArmedTool(string? title) { }
+
     /// <summary>
     /// Activates route authoring mode, allowing the operator to draw a polyline route on the map.
     /// </summary>

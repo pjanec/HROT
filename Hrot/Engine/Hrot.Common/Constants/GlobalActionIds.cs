@@ -146,6 +146,7 @@ namespace Hrot.Common.Constants
         public const int FinishDrawing      = 2410;
         public const int RemoveLastPoint    = 2411;
         public const int CancelDrawing      = 2412;
+        public const int StopDrawing        = 2424;   // ⭐ CE-1977 — leave the armed drawing tool (the shape dropped, the tool disarmed)
 
         // --- ⭐ CE-2423 / A6b (DESIGN_Action_Catalogue §9) — the RULE target (a rule row / track): the instructor's controls, the edit-mode rows, show on map / history (RuleMenuActions)
         public const int RuleFire        = 2413;
