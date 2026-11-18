@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (2026-11-18). Last: HANDOFF_Coordinator_To_Ui_Look_Library — LK-S1 + LK-S2 done; a map-heavy scenario (ua-posture) runs once at the end.
+IN PROGRESS: CE-5034 (HANDOFF_Coordinator_To_Ui_Waiting_Work row 1, via HANDOFF_Terrain_To_UI_Glass_Look frozen at terrain 36a1ad8f3) — the look of glass. Merged coordinator 3f4a9e66d (contains backend + terrain).
 
 ## 2. The queue (in order)
 
@@ -53,3 +53,12 @@ idle — waiting for a handoff (2026-11-18). Last: HANDOFF_Coordinator_To_Ui_Loo
 
 ## 5. Gates (rule 8)
 - CE-1133/1978: `Hrot.Presentation.Tests` RtsCommandToolTests · TheMenusAreGolden · MenuOrdersTests · Keymap · OrderMenu 63/0; `Hrot.Editor.Tests` OrderVocabularyTests 10/0. Goldens re-captured: only order ids + Convoy rows.
+
+
+## Queue 3 — HANDOFF_Coordinator_To_Ui_Waiting_Work.md (taken 2026-11-18 23:05)
+
+| row | state | finding | gates | design |
+|---|---|---|---|---|
+| CE-5034 GW-3 the look of glass | IN PROGRESS | | | |
+| CE-4670 drawing — openings, lights, head out, light switches | TODO | | | |
+| CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | TODO | | | |
