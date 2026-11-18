@@ -40,7 +40,19 @@ namespace Fdp.Toolkit.Vis3D
         public bool Is3D => ReferenceEquals(_canvas.Camera, Camera3D);
 
         /// <summary>True while an animated switch runs (a second request is ignored until it ends).</summary>
-        public bool IsSwitching => _toggling;
+        public bool IsSwitching => Switching();
+
+        /// <summary>
+        /// ⭐ <c>CE-1970</c> — a switch is running only while its animation runs: the camera DROPS an animation's end callback when a driver takes it
+        /// (possession, a follow, the film) or another animation replaces it (a focus) — so <c>_toggling</c> was never cleared and every later request
+        /// (Ctrl+M, View ▸ 2-D / 3-D Map) was ignored for good. 🔒 User, 2026-11-17: "pressing Ctrl-M did not switch the map from 3D to 2D or back …
+        /// there was no way to switch back to 2D map". A switch whose animation is gone is over.
+        /// </summary>
+        private bool Switching()
+        {
+            if (_toggling && !Camera3D.IsAnimating) _toggling = false;
+            return _toggling;
+        }
 
         /// <summary>
         /// ⭐ <c>R-1046</c> (CE-4078, DESIGN_Cluster_Load_Phase §11.9 ③) — the map's 3-D build. A request for 3-D while it is NOT built starts it and leaves the map in 2-D (<see cref="Pending3D"/>) — the camera is not swapped, so the
@@ -75,7 +87,7 @@ namespace Fdp.Toolkit.Vis3D
         public void Set(bool on, bool animate = true, Vector3? centreOn = null)
         {
             if (!on && Pending3D) Pending3D = false;   // ⭐ R-1046 — going back to 2-D cancels a waiting 3-D request
-            if (_toggling || on == Is3D) return;
+            if (Switching() || on == Is3D) return;
             if (on && Build is { IsBuilt: false } build)
             {
                 // ⭐ R-1046 — the 3-D map is not built: start it, stay in 2-D (no camera swap), and complete in Update
@@ -126,7 +138,7 @@ namespace Fdp.Toolkit.Vis3D
         /// restored. Ignored while a switch animates.</summary>
         public void ShowPose(CameraPose pose)
         {
-            if (_toggling) return;
+            if (Switching()) return;
             Camera3D.Pose = pose;
             if (IsTwoDPose(pose))
             {

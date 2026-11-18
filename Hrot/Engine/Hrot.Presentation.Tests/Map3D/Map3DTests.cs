@@ -2774,6 +2774,39 @@ public sealed class Map3DTests
         Assert.Equal(256, Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView);
     }
 
+    private sealed class StillDriver : Fdp.Toolkit.Vis3D.ICameraDriver
+    {
+        public void Update(Fdp.Toolkit.Vis3D.MapCamera3D camera, float dt) { }
+        public bool HandleInput(Fdp.Toolkit.Vis3D.MapCamera3D camera, Fdp.Toolkit.Vis2D.Abstractions.IInputProvider input) => false;
+    }
+
+    /// <summary>⭐ CE-1970 — a driver (possession, a follow, the film) taking the camera DURING a 2-D ↔ 3-D switch, or the switch's animation replaced, used
+    /// to leave the switch "switching" for good: the camera drops the animation's end callback, so every later Ctrl+M / View ▸ 2-D / 3-D Map was
+    /// ignored. 🔒 User, 2026-11-17: "pressing Ctrl-M did not switch the map from 3D to 2D or back … there was no way to switch back to 2D map".
+    /// ✅ Red-proof: <c>Switching()</c> returning <c>_toggling</c> alone ⇒ the map stays 3-D.</summary>
+    [Fact]
+    public void CE1970_ADriverTakingTheCameraMidSwitch_NeverLocksTheSwitch()
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = new Fdp.Toolkit.Vis2D.Components.MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Set(true);                                          // animated: mid-switch
+        Assert.True(sw.Is3D && sw.IsSwitching);
+        sw.Camera3D.Driver = new StillDriver();                // a follow / the station takes the camera: the end callback is dropped
+        sw.Camera3D.Driver = null;                             // and lets go
+        sw.Toggle();                                           // Ctrl+M / View ▸ 2-D / 3-D Map
+        for (int i = 0; i < 60; i++) sw.Camera3D.Update(0.05f);
+        Assert.False(sw.Is3D);                                 // back in 2-D
+
+        sw.Set(true);
+        sw.Camera3D.AnimateTo(sw.Camera3D.Pose, 0.1f);         // a focus replaces the switch's animation (and its callback)
+        for (int i = 0; i < 10; i++) sw.Camera3D.Update(0.05f);
+        sw.Toggle();
+        for (int i = 0; i < 60; i++) sw.Camera3D.Update(0.05f);
+        Assert.False(sw.Is3D);
+    }
+
     /// <summary>
     /// ⭐ CE-1119 U-2 (Map 3-D §6w; airborne §7 U-2) — the EJECTION: on the seat he sits (the seat's pan under him, its back behind), its
     /// rocket's flame under it for the first second, shrinking; once his canopy deploys the empty seat falls away beneath him, tumbling,

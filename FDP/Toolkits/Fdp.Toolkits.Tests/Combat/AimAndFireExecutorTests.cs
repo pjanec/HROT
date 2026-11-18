@@ -2420,6 +2420,13 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount! with { FixedConeDeg = 0f }, new Vector3(0f, 1000f, 0f)));
             Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount with { TurretIndex = 0 }, new Vector3(0f, 1000f, 0f)));
             Assert.True(BodyAim.OutsideFixedCone(_world, plane, mount, new Vector3(0f, 1000f, 300f)));
+
+            // ⭐ CE-1960 — the OPERATOR's round from the fixed gun aimed BEHIND the plane goes along the bore (never toward the tail); inside the cone unchanged.
+            //   🔒 User, 2026-11-17: "the tracers and the fire is directed behind the aircraft". ✅ Red-proof: IntoFixedCone returning `at` ⇒ red.
+            var behind = BodyAim.IntoFixedCone(_world, plane, mount, new Vector3(-800f, 0f, 300f));
+            Assert.Equal(new Vector3(800f, 0f, 300f), behind);
+            var near = new Vector3(1000f, 30f, 300f);   // ~1.7° off the nose: inside the 5° cone
+            Assert.Equal(near, BodyAim.IntoFixedCone(_world, plane, mount, near));
         }
 
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────

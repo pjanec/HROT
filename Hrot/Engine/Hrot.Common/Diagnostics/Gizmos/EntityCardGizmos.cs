@@ -66,10 +66,37 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (IsAircraft(view, entity)) return;   // ⭐ CE-1971 — an aircraft's name is AircraftNameGizmo's (no zoom limit)
+            DrawName(view, entity, draw);
+        }
+
+        internal static void DrawName(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239
             string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
             draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
+        }
+
+        /// <summary>⭐ CE-1971 — a fixed-wing or rotary-wing aircraft (never a bird, a rope or a canopy).</summary>
+        internal static bool IsAircraft(ISimulationView view, Entity entity)
+            => view.HasComponent<Fdp.Toolkit.Motion.Locomotion>(entity)
+               && view.GetComponentRO<Fdp.Toolkit.Motion.Locomotion>(entity).Class is Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing or Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+    }
+
+    /// <summary>
+    /// ⭐ CE-1971 — an AIRCRAFT's name, at EVERY zoom: the card zoom limit (<see cref="CardZoom"/>) suits ground units — under a pixel they pile into a band —
+    /// but an aircraft is small, far and high, few in number, and without its name nothing on the map says where it is. 🔒 User, 2026-11-17: <i>"for the
+    /// aircraft we might force different turn of distance, or maybe eliminate it whatsoever, so the label is always shown"</i>. Same row, same card.
+    /// </summary>
+    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo), typeof(Fdp.Toolkit.Motion.Locomotion))]
+    public sealed class AircraftNameGizmo : IStatelessGizmo
+    {
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(NetworkIdentity), typeof(EntityInfo));
+
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
+            if (EntityNameGizmo.IsAircraft(view, entity)) EntityNameGizmo.DrawName(view, entity, draw);
         }
     }
 

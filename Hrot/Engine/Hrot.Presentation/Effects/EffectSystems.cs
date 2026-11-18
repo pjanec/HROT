@@ -367,11 +367,25 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// </summary>
     public static Vector3 StreamToward(Vector3 target, Vector3 posture, Vector3 origin, Vector3 velocity, float range)
     {
-        if (target != Vector3.Zero) return target;
-        if (posture != Vector3.Zero) return posture;
+        // ⭐ CE-1960 — a point the round did NOT fly toward is stale (a fighter's AI attack point it has flown past, a target behind it): when the launch is
+        //   known, the target / posture point is taken only inside StreamCone of it. 🔒 User, 2026-11-17: "the tracers and the fire is directed behind the
+        //   aircraft, not from the nose in front, but from the cockpit to somewhere behind the aircraft, completely opposite direction".
+        if (target != Vector3.Zero && Along(target)) return target;
+        if (posture != Vector3.Zero && Along(posture)) return posture;
         if (velocity.LengthSquared() < 1e-4f) return Vector3.Zero;   // nothing known: no stream (FireStreams draws none toward zero)
         return origin + Vector3.Normalize(velocity) * (range > 0f ? Math.Clamp(range, 50f, 1000f) : 300f);
+
+        bool Along(Vector3 point)
+        {
+            var to = point - origin;
+            if (velocity.LengthSquared() < 1e-4f || to.LengthSquared() < 1e-4f) return true;   // no launch known: the point is all there is
+            return Vector3.Dot(Vector3.Normalize(to), Vector3.Normalize(velocity)) >= StreamConeCos;
+        }
     }
+
+    /// <summary>⭐ <c>CE-1960</c> — the cosine of the widest angle (45°) between a shot's launch and the point its stream is drawn to: a fighter's lead or a
+    /// rifle's spread stays inside it; a stale aim point behind the shooter does not.</summary>
+    public const float StreamConeCos = 0.7071f;
 
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;

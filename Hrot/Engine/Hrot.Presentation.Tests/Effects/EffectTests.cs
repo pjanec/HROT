@@ -1401,6 +1401,22 @@ public sealed partial class EffectTests
     /// stream along its rounds' launch, and a stream with no aim known runs along the gun — never to the map's origin. 🔒 User, 2026-10-25:
     /// "the majority of the stream of tracers is rendered to the corner of the terrain". ✅ Red-proof: StreamToward's launch fallback
     /// dropped ⇒ (0,0,0); Dashes' zero guard dropped ⇒ dashes toward the origin.</summary>
+    /// <summary>⭐ <c>CE-1960</c> — a possessed fighter's gun stream runs along its rounds, ahead of the nose, even while its weapon posture still holds the AI
+    /// attack point it has flown past (behind it) and the target it passed: a point outside 45° of the launch is stale. 🔒 User, 2026-11-17: "the tracers
+    /// and the fire is directed behind the aircraft". 📐 Reproduced in the editor (ac-guns-drone, possessed Viper): the round left the nose forward
+    /// (GET /combat/shots: muzzle ahead, aim ahead) while the posture point was the scenario's attack point behind it. ✅ Red-proof: drop <c>Along</c> ⇒ the stream ends behind.</summary>
+    [Fact]
+    public void CE1960_AFightersStream_RunsAheadOfTheNose_NeverToAStaleAimBehindIt()
+    {
+        var origin = new Vector3(486f, -52f, 1625f);
+        var velocity = new Vector3(1000f, 150f, 0f);                    // the round leaves the nose
+        var behind = new Vector3(0f, 0f, 1300f);                        // the AI's attack point, flown past
+        var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(behind, behind, origin, velocity, 1500f);
+        Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f, $"ahead along the rounds ({toward})");
+        var ahead = origin + new Vector3(600f, 120f, 30f);              // a target in front, off by its lead: kept
+        Assert.Equal(ahead, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, ahead, origin, velocity, 1500f));
+    }
+
     [Fact]
     public void CE1357_AStationGunsStream_FollowsItsRounds_NeverTheOrigin()
     {
@@ -1409,7 +1425,7 @@ public sealed partial class EffectTests
         var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
         Assert.True(Vector3.Distance(origin, toward) > 900f, $"out along the launch ({toward})");
         Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f);
-        var target = new Vector3(1f, 2f, 3f);
+        var target = origin + Vector3.Normalize(velocity) * 400f + new Vector3(0f, 0f, 20f);   // ⭐ CE-1960 — a unit along the launch (a point behind it no longer wins)
         Assert.Equal(target, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
         Assert.Equal(Vector3.Zero, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
 

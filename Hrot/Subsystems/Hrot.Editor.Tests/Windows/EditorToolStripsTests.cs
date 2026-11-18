@@ -53,6 +53,25 @@ public sealed class EditorToolStripsTests : IDisposable
     // ── Scenario tools ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The strip has ONE family, Add Entity (Friendly · Hostile · Neutral · Map graphic), and Measure; each member runs ITS existing handler (203…206, 200) from the host registry with the editor's world and no target. 🔴 Red-proof: map Hostile to 203 ⇒ red.</summary>
+    /// <summary>⭐ CE-1965 — a dropdown tile is a SPLIT button: its bottom-right ▾ zone opens the members, the rest of the tile (the icon) runs the member
+    /// chosen last (<c>Pick(Selected)</c>). 🔒 User, 2026-11-17: "when I click the arrow part of the split icon it will open the menu … when I click the
+    /// icon not on the down arrow but on the icon image, I would basically be activating the feature that I last time selected". ✅ Red-proof: OnArrow
+    /// always true ⇒ the centre assert red.</summary>
+    [Fact]
+    public void CE1965_ADropdownTile_IsASplitButton_TheArrowCornerOpens_TheFaceRunsTheLastChoice()
+    {
+        var size = new Vector2(40f, 40f);
+        Assert.False(ToolStripWindow.OnArrow(new Vector2(20f, 20f), size));   // the icon: runs the last choice
+        Assert.False(ToolStripWindow.OnArrow(new Vector2(36f, 6f), size));    // the top-right: still the face
+        Assert.True(ToolStripWindow.OnArrow(new Vector2(36f, 36f), size));    // the ▾ corner: the menu
+        var w = Scenario();
+        var add = w.StripEntries[0];
+        add.Pick(2);                                                          // chosen from the menu
+        _ran.Clear();
+        add.Pick(add.Selected);                                               // what the face's click does
+        Assert.Equal(new[] { 205 }, _ran.Select(r => r.Action).ToArray());     // the same member again
+    }
+
     [Fact]
     public void TheScenarioStrip_HasAddEntityAndMeasure_AndEachMemberRunsItsOwnHandler()
     {

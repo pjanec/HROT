@@ -293,6 +293,8 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ Air Ops slice 6a (AW-1, §7a) — the AI's fixed gun / rocket pod: only inside its nose cone (the operator points it himself)
             if (obeyArc && BodyAim.OutsideFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
+            // ⭐ CE-1960 — the operator's round from a fixed mount goes along the bore when he aims outside its cone (never behind the nose)
+            if (!obeyArc && firing == unit) point = BodyAim.IntoFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point);
             if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
             // ⭐ CE-3255 (BR-2) — a stunned man fires nothing at a point either (the AI's; an operator's own stun is his screen's, not this gate)
             if (obeyRoe && Effects.IsStunned(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldStunned;
