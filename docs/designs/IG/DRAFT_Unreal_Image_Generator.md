@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — a DRAFT (recorded direction, not a buildable design)
 updated: 2026-11-17
-current-answer: the whole file
+current-answer: the whole file; the measured results in "Measured on Windows `2026-11-17`"
 stale-below: none
 known-rot: none
 known-conflict: none
@@ -137,6 +137,58 @@ Sources: [StreetMap](https://github.com/MikeFricker/StreetMap) · [OSM importer 
 [Road Generator (OSM to Unreal), Fab](https://www.fab.com/listings/f205fd21-1428-4a4b-b067-a46d1a2fe86f) · [City Generator thread](https://forums.unrealengine.com/t/yazan-hanna-city-generator/2719107) ·
 [Miami City Environment](https://forums.unrealengine.com/t/miami-city-environment/2856143) · [Cesium photorealistic tiles](https://cesium.com/learn/unreal/unreal-photorealistic-3d-tiles/) ·
 [Cesium collision](https://community.cesium.com/t/enabling-collision-sun-shadows/27862) · [Landscape Combinator docs](https://landscapecombinator.github.io/LandscapeCombinator/) · [its GitHub](https://github.com/LandscapeCombinator/LandscapeCombinator) · [City Generator, Fab](https://www.fab.com/listings/657d0a1d-dd2f-4016-a3df-821560216c78) · [TopoFetch docs](https://topofetch.com/docs)
+
+## ⭐ Measured on Windows `2026-11-17` — our terrain through Landscape Combinator (CE-4651, branch `unreal-ig`)
+
+Unreal 5.8.4, Landscape Combinator 0.9.0 (GitHub `main`, compiled into a C++ project outside the repo, `D:\Work\HrotUnreal`), driven headless-ish
+by the editor's own Python (`scripts/unreal/lc-measure.py` → `hrot_lc_import.py`); the export is `scripts/terrain-to-unreal.py`. Machine,
+timings and every run: [`STATUS_Windows_Unreal_Terrain.md`](../../blueprints/batches/STATUS_Windows_Unreal_Terrain.md).
+
+| measured | `basic-desert` (61 × 61 posts, 10 m) | `city-battle` (1 501 × 1 501, 1 m, UTM 32N) |
+|---|---|---|
+| ⭐ ground height at the posts, Unreal line trace − HROT `TerrainHeightGrid.Sample` | mean 1.1 mm, max 1.8 mm (2 000 posts) | mean 0.4 mm, max 2.3 mm (2 000 posts) |
+| between the posts | max 0.47 m — ⚠ Unreal splits a cell along the OTHER diagonal (UL-6) | max 2.6 mm (2 000 cell centres) |
+| placement | exactly 0…600 m (after UL-4) | exactly 0…1 500 m |
+| landscape build | 1–24 s, 16 components | 18–26 s, ⚠ 10 000 components (UL-7) |
+| buildings | — | ✅ all 472 built in 26 s, each on the ground (base − ground 0.0 m); ⭐ **footprints exact** (median edge 0.00 m per template); ⚠ **heights = 3 m × floors + ~1.2 m** (UL-8): +0.9…+1.7 m above ours, −0.3 m on the barn |
+
+| # | decision / finding | why (measured) |
+|---|---|---|
+| UL-1 | the plugin from GitHub compiles against 5.8.4 with no change (431 actions, 333 s), its own GDAL bundled | — |
+| UL-2 | drive the editor with its Python: `-ExecutePythonScript` + `EditorPythonScripting.set_keep_python_script_alive(True)`, a Slate tick callback, and the plugin's "Generation for … finished / failed" log line as the completion signal | without keep-alive the editor closes one tick after the script returns; the plugin's status is not readable from Python |
+| UL-3 | the CRS handed to the plugin is its SHORT form (`EPSG:n`, or a PROJ string) — never WKT | it names a working folder after the CRS; WKT is not a valid path |
+| UL-4 | the GeoTIFF's pixel north-west CORNER sits on the HROT post | the plugin puts a landscape vertex there; pixel-is-area put the landscape half a cell (5 m) off |
+| UL-5 | the vector files it reads are WGS84 lon / lat | its spline importer reads every vector file as EPSG:4326, whatever the file declares |
+| UL-6 | ⚠ OPEN: Unreal's landscape triangulates each cell along the other diagonal than HROT (south-west → north-east) | harmless at 1 m posts (below the 16-bit step); up to ~0.5 m between 10 m posts on a slope. Either HROT adopts Unreal's diagonal (a sim change: `TerrainHeightGrid.Sample`) or coarse terrains are exported resampled to 1–2 m |
+| UL-7 | ⚠ OPEN: pad the export to an efficient component size (e.g. 127 quads) by repeating the edge posts | 1 500 quads divide only by the 15-quad component ⇒ 10 000 components (Unreal advises ~1 000); the frame-time cost not yet measured |
+| UL-8 | ⚠ OPEN: building HEIGHTS do not follow ours | the plugin's height is floors × its style's `LevelHeight` (+ a wall top): no per-building metres. Options: one style per height class · scale each generated building to our height afterwards · our own generator on our footprints (the footprint half already matches exactly) |
+
+⇒ **U-5 answered for the ground** (the frame, the padding question as UL-7, sizes); **U-9 verified in Unreal**: GeoTIFF + vectors ✅, building footprints ✅,
+building heights ⚠ (UL-8). Not yet measured: road splines, walls, forests, the frame time in the viewport, the large tiled terrains (no Stechovice
+package on this machine).
+
+## ⭐ The look in Unreal — built `2026-11-17/18` (UL-9 … UL-14), and what the user asked for next
+
+🔒 User, `2026-11-18`: *"so far it looks amazing. note we would like to have some windows transparent so that we can place character behind them -
+maybe stechovice as OSM imported terrain is missing opened windows but that would be nice (later) adding to HROT as imported building post-process
+to include internal floors to selected houses so that we can really place characters inside and they see outside."*
+
+| built | how (all from OUR terrain package) |
+|---|---|
+| UL-9 the ground | `tools/unreal/HrotTerrain` `ImportHeights` — exact (≤ one 16-bit step) in seconds; Landscape Combinator dropped |
+| UL-10 the look | `scripts/unreal/look.py` + `hrot_look.py`: sky / sun / clouds / fog / Lumen; a ground material placing Megascans surfaces by OUR cover mask (forest / water / open) and slope; soil patches |
+| UL-11 trees | European beech (Nanite, Fab) at points inside OUR forests, on HROT's ground (`ScatterInstances`) |
+| UL-12 roads | the ground's roads mask by OSM class (asphalt / dirt) + SUMO's junction polygons |
+| UL-13 houses | each house from ITS template (`scripts/terrain_look.py`): walls by storey, the template's windows (frame + glass) and doors, a pitched roof from the imported roof volume, wall / roof materials varied; grass and ferns near the cameras |
+| UL-14 road meshes | `hrot-roadscene` → HROT's own `TrafficRoadScene` (SumoSharp `Sim.Scene`: lanes, junction fills, sidewalks, markings, crosswalks) |
+
+| # | open — the user's list |
+|---|---|
+| U-11 | ⭐ **transparent windows** a character can stand behind — the glass is opaque today (UL-13 draws a frame and a pane on a solid wall) ⇒ cut the wall at the template's openings and use a translucent glass |
+| U-12 | ⭐ **enterable houses**: an import post-process in HROT that gives SELECTED imported houses their internal floors (and the opened windows OSM does not carry), so characters stand inside and see out — the HROT side first (the building template's storeys / slabs / openings), then Unreal draws what the template says |
+| U-13 | asphalt reads brown (darkened gravel) — a grey asphalt surface; the street view a little dark |
+| U-14 | conifers: the Megaplants trees are SKELETAL (not instanceable) — a static Megascans spruce / pine set |
+| U-15 | lane markings on rural roads: Sim.Scene draws dividers only between same-direction lanes — a centre line would be a SumoSharp change (read-only in HROT, R-4046): the user decides |
 
 ## ⛔ HISTORY — the first open list
 
