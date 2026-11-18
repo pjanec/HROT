@@ -27,6 +27,7 @@ related-designs:
 
 | gate | result |
 |---|---|
-| the seven convoy scenarios (`scripts/scenario-regression.sh cv-ambush,cv-blocked-road,cv-mode-1-to-2,cv-no-cut-in,cv-offroad-join-leave,cv-red-lights,cv-traffic-fire`) | **7 / 7** (the coarser grids break nothing) |
+| the seven convoy scenarios (`scripts/scenario-regression.sh cv-ambush,cv-blocked-road,cv-mode-1-to-2,cv-no-cut-in,cv-offroad-join-leave,cv-red-lights,cv-traffic-fire`) | **7 / 7** with CE-1959 (the coarser grids break nothing), and **7 / 7 again with CE-1972** (`cv-no-cut-in` PASSES: the squares at rest still keep SUMO cars out of the column) |
 | `Fdp.Toolkits.Tests` TerrainWorld / SpatialHash / RaycastSolver | 107 / 107 |
 | `Hrot.Traffic.Tests` PedestriansPanicIntoCivilians | 11 / 11 |
+| `Hrot.Traffic.Tests` TrafficBodyFeed + AVehicleHandedToSumoArrives (incl. `CE1972_*`) | 10 / 10 |
