@@ -19,6 +19,13 @@ IN PROGRESS: **CE-3452** (a bike from a standstill reports FailedBlocked while i
 | CE-3452 P1 bike from a standstill reports FailedBlocked | IN PROGRESS | | | |
 | CE-9023 P1 disabled vehicle runs its route forever (the locomotion half) | ✅ DONE (locomotion half) | (this commit) | `MoveToLocationRoadUseTests.CE9023_AnImmobilisedVehicle_StopsRunningItsRoute` — the REAL dispatcher: CanMove lost (the IED) ⇒ the channel Failure (CE-3091) ⇒ the FollowRoute node Failure every tick, never re-issued (CE-3458); red-proved (no OwnRouteFailed ⇒ red); the class 8/8 | `uc-urban-battle` stays red AT THE BASE TOO — the play half (back to CMove in `runFor` 200) is behaviors' (NOTE_Convoy_To_Behaviors_UrbanBattle_MovesOn) |
 | CE-3457 P5 vehicles never yield to animals | TODO | | | |
+| CE-4657 TH TD-S1 thermal drivers: components, ops, perception re-based ([handoff](HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md)) | TODO | | | |
+| CE-4658 TH TD-S2 HeatSourceSystem (hysteresis, possessed ignition) | TODO | | | `th-idling-tank` |
+| CE-4659 TH TD-S3 burst barrel heat on WeaponAmmo | TODO | | | |
+| CE-4660 TH TD-S4 fire: ignition, BurnSystem, wreck reads FireState | TODO | | | `th-burning-wreck` |
+| CE-4661 TH TD-S5 Health.StateSince | TODO | | | |
+| CE-4664 TH TD-S8 ground heat marks | TODO | | | `th-vehicle-left-warm-spot` |
+| CE-4663 TH TD-S7 DIS mapping table (doc) | TODO | | | |
 | CE-3468 T2 Points / Best blind under the parallel phase | TODO | | | |
 | CE-3469 T2 six SimHost rails red under the parallel env | TODO | | | |
 | CE-2440 T2 cc-battalion not thread-count independent | TODO | | | |
@@ -39,7 +46,7 @@ IN PROGRESS: **CE-3452** (a bike from a standstill reports FailedBlocked while i
 | CE-167 T2 re-check, close if stale | TODO | | | |
 
 ## 3. Taken from new handoffs
-(none yet)
+- ✅ `HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md` (coordinator merged `2026-11-18`) — CE-4657…CE-4661, CE-4663, CE-4664 queued in §2 after the P1/P5 rows, before T2 (the handoff's priority).
 
 ## 4. Notes sent / received
 - ⬅ `NOTE_Behaviors_To_Backend_NearMiss_And_LyingCap.md` ② (my `CE4649` lying-cap allocation rail red under the strict guards) — ✅ DONE: the process-wide AccessTrace growing inside the one window; three windows, cheapest 0 B; guarded 4/4, red-proved. ➡ answered in `NOTE_Backend_To_Behaviors_LyingCapRail.md`.
