@@ -99,13 +99,13 @@ namespace Fdp.Toolkit.Terrain.Tests
             using var f = new OverlayFixture();
             string baseTiles = Path.Combine(f.TerrainFolder, NavTileCache.TerrainFolderName);
             new RecastNavmeshFactory { TileCache = NavTileCache.ForPrefill(baseTiles) }.Build(f.BaseWorld());
-            var baseFiles = Directory.GetFiles(baseTiles, "*.navtile", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(baseTiles, p)).ToHashSet();
+            var baseFiles = NavTilePack.ListTiles(baseTiles).ToHashSet();   // ⭐ CE-3428 — packed: read by key, not by file
             Assert.NotEmpty(baseFiles);
 
             var r = f.Compile(Dom(f), navtiles: true);
             string ovTiles = Path.Combine(f.Overlay, NavTileCache.TerrainFolderName);
-            var ovFiles = Directory.Exists(ovTiles) ? Directory.GetFiles(ovTiles, "*.navtile", SearchOption.AllDirectories).Select(p => Path.GetRelativePath(ovTiles, p)).ToList() : new System.Collections.Generic.List<string>();
-            _out.WriteLine($"merged world {r.NavTiles} tiles: {r.NavtilesSeedHits} seed hits, {r.NavtilesWritten} baked; base seed {baseFiles.Count} files, overlay folder {ovFiles.Count} files");
+            var ovFiles = NavTilePack.ListTiles(ovTiles);
+            _out.WriteLine($"merged world {r.NavTiles} tiles: {r.NavtilesSeedHits} seed hits, {r.NavtilesWritten} baked; base seed {baseFiles.Count} tiles, overlay folder {ovFiles.Count} tiles");
             Assert.Equal(r.NavTiles, r.NavtilesSeedHits + r.NavtilesWritten);
             Assert.True(r.NavtilesSeedHits > 0, "the base's tiles are hits");
             Assert.True(r.NavtilesWritten > 0 && ovFiles.Count > 0);

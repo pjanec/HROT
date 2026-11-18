@@ -1188,7 +1188,79 @@ sequenceDiagram
 | what | value |
 |---|---|
 | the prefill at import | ⭐ **289 s** of a 293 s import (without it 18 s) — the whole bake, both layers |
-| `navtiles/` | 106 260 tiles (each layer counted) = 106 260 files in 106 263 folders; **115.5 MB of data, 788 MB on disk** (4 KB blocks) ⇒ ⚠ a staging cost by FILE COUNT — CE-3428 |
+| `navtiles/` | 106 260 tiles (each layer counted) = 106 260 files in 106 263 folders; **115.5 MB of data, 788 MB on disk** (4 KB blocks) ⇒ ⚠ a staging cost by FILE COUNT — CE-3428 ✏ PACKED, §12.4 |
 | the first load's navmesh (from `navtiles/`, `--verify`) | ⭐ **17.1 s, 0 tiles baked** (+ 1.4 s to parse the world) — inside R-4192's 30 s here; ⏳ `real-1`'s first open in the editor on Windows is the user's measurement |
 
 **Rails:** `NavmeshPrefillTests` (4: the first load bakes 0 tiles and reads the seed without touching or copying it; a stale seed is a miss where the geometry changed and the result's tile keys equal a seedless bake; a cancel during the bake leaves no folder; no prefill ⇒ no `navtiles/`) — red-proved (the baker ignoring the seed; the seed's files touched) · `UtmTransformTests` (7) · `TerrainLoadStepTests.CE4394_…` (red-proved: Commit not passing the frame).
+
+
+### 12.4 ✅ AS BUILT `2026-11-18` — the prefilled tiles PACKED (CE-3428, terrain)
+
+**INVENTORY** — `scripts/cbm.sh search_graph '{"name_pattern":".*(NavTile|Navpack|NavPack|TilePack|Prefill).*","label":"Class"}'` ⇒ **total 5**, `has_more` false: `NavTileCache`, `NavTileKey`, `NavmeshPrefill`, `NavmeshPrefillReport`, `NavmeshPrefillTests` — ⛔ no pack, no packed reader existed (grep `navtiles` agrees: the cache's loose files, the factory's seed folders, `NavmeshPrefill`, `OverlayCompiler`). ⚠ `check_index_coverage` is not available through the CLI.
+
+📐 **Measured first** (`full-1`, synth full seed 1, re-imported here: 542 s, of it 493 s the prefill): `navtiles/` = **106 260 files in 106 263 folders,
+142.8 MB of data, 847 MB on disk**. Staging (Artifact Staging ③, the per-file copier with its `(length, lastWriteTimeUtc)` skip) pays per ENTRY on every
+node: locally a stat walk of the folder alone is **0.94 s**, a copy **4.7 s** against **0.1 s** for one file of the same bytes; over a share it is per-file
+round trips (⏳ the Windows / NAS number is the user's measurement).
+
+```mermaid
+classDiagram
+  class NavTileKey { <<existing, unchanged>> Layer · TileX · TileZ · Hash }
+  class NavTileCache { <<existing, grows>> Mode: Normal | Seed | Prefill · TryGet(key, seed) · Put · Seal() NEW · ReadSeedOwn NEW }
+  class NavTilePack { <<NEW, static>> RegionTiles = 32 · PathOf(folder, key) · Pack(folder) · MergeOver(target, overlay) · ListTiles(folder) · ReadIndex(path) }
+  class NavTilePackReader { <<NEW>> Read(key): bytes? (index per pack, lazy, thread-safe) }
+  class RecastNavmeshFactory { <<existing>> Build(world) — calls TileCache.Seal() after the bake }
+  class NavmeshPrefill { <<existing>> the importer's bake into tmp/navtiles }
+  class OverlayCompiler { <<existing>> an overlay's bake into part/navtiles }
+  class TerrainBake { <<existing>> SaveAs: the base's navtiles + the overlay's, merged }
+  NavTileCache --> NavTilePackReader : a seed / prefill folder reads packs first, then loose files
+  NavTileCache ..> NavTilePack : Seal() = Pack(Folder) when Prefill
+  RecastNavmeshFactory --> NavTileCache : Seal() after every bake
+  NavmeshPrefill --> RecastNavmeshFactory
+  OverlayCompiler --> RecastNavmeshFactory
+  NavTilePackReader ..> NavTileKey : same keys
+```
+
+*What the picture shows that prose hid: the packing has ONE caller per kind of write — the factory, after a bake into a PREFILL cache (so both bakers,
+the importer and the overlay compiler, pack by construction), and `MergeOver` for the terrain SAVE, which merges two folders (📐 found by the full suite:
+the save's old per-file merge overwrote one pack with the other and its load baked 542 tiles — `TerrainBakeTests.TheSavedTerrainsNavmesh_BakesNothing_AtLoad`); the per-machine cache (`Normal`) never packs (it prunes per square), and the
+keys never change.*
+
+```mermaid
+sequenceDiagram
+  participant W as a writer (importer / overlay compiler)
+  participant F as RecastNavmeshFactory
+  participant C as NavTileCache (Prefill)
+  participant P as NavTilePack
+  participant L as a node's load (Seed)
+  W->>F: Build(world)  — TileCache = ForPrefill(folder/navtiles)
+  F->>C: Put(key, tile) ×N  (loose files, as before)
+  F->>C: Seal()
+  C->>P: Pack(folder) — per layer, per 32×32 region: one .navpack (index + bytes) · loose files and their folders deleted
+  L->>C: TryGet(key, seed)
+  C->>P: NavTilePackReader.Read(key) — the pack's index once, then a positional read
+  C-->>L: bytes, else the loose file (a terrain prefilled before the packs), else a miss (bake)
+```
+
+```mermaid
+graph TD
+  IMP["hrot-terrain-import / OSM wizard / random pipeline<br/>→ NavmeshPrefill"] --> FAC["RecastNavmeshFactory.Build"]
+  OVL["editor overlay save<br/>→ OverlayCompiler"] --> FAC
+  SAVE["Save terrain as …<br/>→ TerrainBake.SaveAs"] -->|"NavTilePack.MergeOver(base, overlay)"| PACK
+  FAC -->|"Seal() — Prefill only"| PACK["navtiles/<layer>/<rx>_<rz>.navpack"]
+  STG["Artifact Staging (per-file copy)"] -->|"~100 files instead of 106 260 entries"| NODE["each node's staged terrain"]
+  PACK --> STG
+  NODE -->|"Seed: packs, then loose"| LOAD["every node's first load (TerrainResidency → RecastNavmeshFactory)"]
+```
+
+*Caption: the module view — who calls the pack each time (only the two prefill writers, through the factory) and who reads it (every node's load); the
+per-machine cache (`HROT_NAVTILE_CACHE`) is not on this picture: it stays loose.*
+
+| decision | why | rejected |
+|---|---|---|
+| one pack per layer per **32 × 32 tiles** | `full-1` ⇒ about a hundred files (from 106 260 entries); a pack stays a few MB, and a re-bake of one region rewrites one file | ⛔ one file per terrain: a 143 MB rewrite for any change; ⛔ zip: a compressor's cost on 143 MB for a copy problem |
+| **packs first, then loose** in the seed | a terrain prefilled before this keeps working with no re-import | ⛔ requiring a re-import of every terrain |
+| `Seal()` called by **the factory** | both writers pack by construction (the shared-and-unified rule) | ⛔ each writer remembering to pack |
+
+Rails: `NavmeshPrefillTests.APrefilledTerrains_FirstLoad_*` (now also: no loose tile, packs ≪ tiles, the report counts the packs; 🔴 no `Seal()` ⇒ loose files) and
+`NavmeshPrefillTests.CE3428_ATerrainPrefilledLoose_*` (🔴 no loose fallback ⇒ every tile bakes).

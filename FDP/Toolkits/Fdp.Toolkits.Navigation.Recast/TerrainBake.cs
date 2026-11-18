@@ -180,18 +180,9 @@ public static class TerrainBake
 
                 // ④ navtiles: the base's (copied above) + the overlay's
                 string overlayTiles = Path.Combine(overlayFolder, NavTileCache.TerrainFolderName);
-                if (Directory.Exists(overlayTiles))
-                {
-                    // ⭐ T-6 (CE-3435) — a tile is <navtiles>/<layer>/<x>_<z>/<x>_<z>_<hash>.navtile: where the overlay re-baked a square (it holds a tile at that layer + x + z) the BASE's tile of the same square is stale (its hash can no longer match) — dropped, not copied beside it
-                    foreach (var layerDir in Directory.GetDirectories(overlayTiles))
-                        foreach (var squareDir in Directory.GetDirectories(layerDir))
-                        {
-                            if (Directory.GetFiles(squareDir, "*.navtile").Length == 0) continue;
-                            string stale = Path.Combine(part, NavTileCache.TerrainFolderName, Path.GetFileName(layerDir), Path.GetFileName(squareDir));
-                            if (Directory.Exists(stale)) Directory.Delete(stale, true);
-                        }
-                    CopyTree(overlayTiles, Path.Combine(part, NavTileCache.TerrainFolderName), _ => false);
-                }
+                // ⭐ T-6 (CE-3435) — where the overlay re-baked a square (it holds a tile at that layer + x + z) the BASE's tile of the same square is stale (its hash can no longer match) — dropped,
+                //   not kept beside it. ⭐ CE-3428 — ONE merge in the pack layer (either side packed or loose), the saved terrain's navtiles written as packs
+                if (Directory.Exists(overlayTiles)) NavTilePack.MergeOver(Path.Combine(part, NavTileCache.TerrainFolderName), overlayTiles);
                 summaryParts.Read(overlayJson, JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)))!.AsObject());
 
                 // ④b ⭐ CE-6001 (§18k T-7a, "a bridge is road in BOTH nets", for every SAVED terrain): the overlay's bridge segments are appended to the saved road network (base segment indices stay),

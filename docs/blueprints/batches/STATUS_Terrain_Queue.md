@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: **CE-3428** (pack the prefilled navmesh tiles) — step ① MEASURING: the 5.5 km synthetic set + a full import with prefill running in the background (scratchpad `c3428/`); **CE-3440** next while it runs.
+IN PROGRESS: the queue's 11 rows are done or recorded. ⭐ TAKEN from a note: **CE-4655's second half — a route round a KNOWN / SUSPECTED field keeps a clearance outside it** (behaviors' `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md`; their CE-2447 `mf-no-way-round` is blocked on it).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292, coordinator `12ce6cebb`).
 
 ## 2. The queue (in order)
@@ -23,9 +23,9 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | P4 | CE-4655 after a strike the squad skirts the field along its edge | ✅ DONE — mines keep `max(spacing/2, 1 m)` inside the outline; ONE `MinePattern.Laid` test (pattern, trigger, clearing, behaviors' recon — cross-lane) | rail `MineTriggerTests.CE4655_*` (red-proved) · NEW scenario `mf-way-round` 4/4 (inset off: blast at 56.5 s) · DESIGN_Minefields MF-2 |
 | T2 | CE-4656 a grey block over a baked static car | ✅ DONE — a platform-typed baked obstacle (the parked car) is `DrawnByEntity`; the terrain mesh neither draws it nor cuts the ground under it | rail `StaticObstacleBakeTests.CE4656_*` (red-proved) · NOTE to ui: do the feature obstacles draw twice? |
 | T2 | CE-4401 scale-rig roads at height 0 | ✅ DONE — the surface was fixed by ui's CE-1494; the Roads debug gizmo drew at z 0 ⇒ now on the ground (cross-lane, ui's gizmo) | rail `RoadNetworkGizmoTests.CE4401_*` (red-proved) · ⚠ filed **CE-5020** (E2b_V: 9 asphalt vertices ≤ 1.13 m off on a random terrain) |
-| T2 | CE-3428 pack the prefilled navmesh tiles | TODO | |
+| T2 | CE-3428 pack the prefilled navmesh tiles | ✅ DONE — measured on `full-1` (106 260 files → about a hundred packs); `NavTilePack` (prefill seals, save merges, seed reads packs then loose) | rails `NavmeshPrefillTests` (2 red-proved) · UTM §12.4 · ⏳ the NAS / Windows staging time is the user's to measure |
 | T2 | CE-3426 felling a lone tree, fragments in woods | ✅ DONE — fragments through a wood stopped like rounds (`× (1 − Stop)`); felling was CE-4603 | rail `TerrainWoodsTests.CE3426_*` (red-proved); toolkit Woods / AreaEffect / Crater / BuildingDamage 115 / 115 · ⚠ no scenario bursts in a wood |
-| T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | TODO | |
+| T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | ✅ DONE — the QueryTimings rails flipped a process-wide switch in parallel with it; their collection now runs alone | rail `QueryTimingsTests.CE3440_*` (red-proved) · 5 / 5 timings runs, every full run green |
 
 ## 3. Taken from new handoffs
 - `HANDOFF_Coordinator_To_Terrain_Bug_Queue.md` at 2026-11-18 (merged coordinator at the run's start).
@@ -36,6 +36,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | R-5064 | a burst that breaches a wall within 0.5 m of its face makes NO crater (a contact charge spends itself on the wall) | a big bomb landing at a wall should still crater ⇒ scale the skip by kg (e.g. only below the breach table's collapse mass) |
 
 ## 4. Notes sent / received
+- received: `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md` (behaviors, 2026-11-18) — taken: the route clearance (above)
 - none yet
 
 ## 5. Gates (rule 8)
@@ -54,4 +55,6 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | CE-4656 / CE-4401 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --filter Map3D\|TheDynamicTerrainLooks` | 713 / 724 — 5 red: `CE4388_*`, `CE4582_*`, 2 × `MotorcycleModelRail` (pre-existing, §1 of STATUS_Terrain_User_Observations) and `E2b_V_*` (needs netconvert, ui reported it red before ⇒ CE-5020) |
 | CE-4401 | `Hrot.Presentation.Tests` RoadNetworkGizmoTests | 3 / 3 (mutation: red) |
 | post-merge | `mf-way-round,mf-strike-and-halt,mf-recon-and-mark` (after the recon edit, behaviors + ui merged) | 4/4 · 7/7 · 6/6 |
+| CE-3440 | `QueryTimings` × 5; `Fdp.Toolkits.Tests` Terrain / Recast / Diagnostics (+ OverlayCompiler, StaticObstacle) | 6 / 6 × 5; 937 / 937 |
+| CE-3428 | the same toolkit run · `Hrot.Terrain.Import.Tests` · `Hrot.SimHost.Tests` TerrainLoad / Overlay / Bake | 937 / 937 · 54 / 55 (⚠ `ImporterTests.TheHeightStore_AtAFewPosts_*`: red only WITH SUMO installed — the synth then builds roads and the importer levels them; green at `6c2788ed3` in a clean worktree without SUMO ⇒ filed **CE-5021**, a rail gap, not CE-3428) · 97 / 97 |
 | CE-5018 | live `--mode all`, bt-doors, a possessed TKB 112 rams House A | breach entity 1201 on all three perspectives (before: none) |

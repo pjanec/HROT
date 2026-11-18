@@ -7,16 +7,45 @@ using Xunit;
 namespace Fdp.Toolkits.Tests.Diagnostics
 {
     /// <summary>
+    /// ⭐ CE-3440 — the timer's switch is PROCESS-WIDE, and these rails turn it on: no other test may run meanwhile. 📐 While it was on, a parallel class's
+    /// zero-allocation rail (<c>BuildingBreachTests.HotPath_ThroughABreachedWall_*</c>) saw the timer's first <c>End</c> on its thread register a buffer
+    /// (four arrays) inside its measured loop ⇒ red in 1 of 3 full runs, green alone.
+    /// </summary>
+    [CollectionDefinition(Name, DisableParallelization = true)]
+    public sealed class QueryTimingsCollection { public const string Name = "QueryTimings"; }
+
+    /// <summary>
     /// ⭐ <c>CE-3427</c> (docs/DESIGN_Scale_Rig.md §6) — the world-query timer: a call is counted on its slot from any thread, a steady
     /// call allocates nothing (R-2084), and a reset zeroes the counts but keeps the names.
     /// </summary>
-    [Collection("QueryTimings")]   // process-wide counters: never two of these at once
+    [Collection(QueryTimingsCollection.Name)]   // process-wide counters and switch: never alongside ANY other test (CE-3440)
     public class QueryTimingsTests : IDisposable
     {
         // ⭐ R-4213 — the timer is OFF by default; these rails test the timer itself, so they switch it on for their own duration
         private readonly bool _wasEnabled = QueryTimings.Enabled;
         public QueryTimingsTests() => QueryTimings.Enabled = true;
         public void Dispose() => QueryTimings.Enabled = _wasEnabled;
+
+        /// <summary>
+        /// ⭐ CE-3440 — the mechanism, pinned: the timer switched on while another thread is in a measured loop makes that thread's FIRST timed call register its
+        /// buffer — bytes on the measuring thread that its code did not cause. ⇒ the collection above runs alone. 🔴 Red-proof: <c>DisableParallelization</c> false ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3440_SwitchingTheTimerOn_AllocatesOnAThreadsFirstTimedCall_SoTheseRailsRunAlone()
+        {
+            var def = (CollectionDefinitionAttribute)Attribute.GetCustomAttribute(typeof(QueryTimingsCollection), typeof(CollectionDefinitionAttribute))!;
+            Assert.True(def.DisableParallelization);
+            int slot = QueryTimings.Slot("test.ce3440");
+            long bytes = 0;
+            var fresh = new System.Threading.Thread(() =>   // ⭐ a NEW thread (a pool thread may have registered already)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                QueryTimings.End(slot, QueryTimings.Begin());   // its first timed call
+                bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            });
+            fresh.Start(); fresh.Join();
+            Assert.True(bytes > 0, "a thread's first timed call registers a buffer");
+        }
 
         /// <summary>⭐ R-4213 (CE-4450 K-4) — off by default: with <c>HROT_QUERY_TIMINGS</c> unset, a host starts with the timer OFF, and an off
         /// timer counts nothing. 🔴 Red-proof: the default back to <c>!= "0"</c> ⇒ the default reads on.</summary>
