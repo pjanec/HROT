@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-1038 (row 5b) — SimHost suite executes a varying test count. A --blame full run is going.
+IN PROGRESS: none — HANDOFF_Coordinator_To_Ui_Moved_Rows worked through (CE-3468 done, CE-2438 not reproduced, CE-1473 done, CE-3451 6/9 + DECISIONS, CE-1475 done, CE-1046 partly, CE-1038 not reproduced). Open for decision: CE-3451 ②③④, CE-1147 (parked).
 
 ## 2. The queue (in order)
 
@@ -39,7 +39,7 @@ IN PROGRESS: CE-1038 (row 5b) — SimHost suite executes a varying test count. A
 | CE-2438 paused-preview + run-to does not repeat (pc-defend-house) | DONE — not reproduced | stepped-hash 4,4 at 2 s and 60 s: STATE EQUAL; F-3 predates the report; a mid-run hot reload (a build into the runner bin) is the measured way to part a pair | stepped-hash pair ×2 (clean: 1 hot-swap per log) | RUNBOOK §9.0 |
 | CE-1473 + CE-3451 ClusterRunner.Tests does not build; six rails drifted | 6 / 9 DONE, ②③④ SKIPPED → DECISIONS_Ui | it builds; 9 reds measured (6 stale ledgers / expectations / declarations + 3 world-boundary audits grown to 21 systems / 480 fields / 45 caches) | ClusterRunner.Tests 434 / 437 (the 3 = ②③④); touched suites: Toolkits mines/embarked/convoy/aggregate/air 149, SimHost mine/resolution 34, Core shared registry 4; mf-strike-and-halt, cv-blocked-road | DESIGN_Replay_Time_Axis §12l table |
 | CE-1475 SumoNetPlacementTests F5/E1 on a Czech Windows | DONE | the fixture wrote culture commas; one invariant helper | Traffic SumoNetPlacementTests 19/19 + a cs-CZ rail (red-proved) | — (test only) |
-| CE-1046 + CE-1038 LiveFromReplay under load; SimHost test count varies | CE-1046 PARTLY (frame waits; still 1/11 red under load, stays FlakyFact); CE-1038 TODO | | LiveFromReplayTests 3/3 ×4 alone, 10/11 under full load | |
+| CE-1046 + CE-1038 LiveFromReplay under load; SimHost test count varies | CE-1046 PARTLY (frame waits; still 1/11 red under load, stays FlakyFact) · CE-1038 DONE — not reproduced | 2 full --blame runs: 3064/3064 reported, same failures; 9+1 pre-existing reds → CE-1980 (red at 1bc1cc911^) | LiveFromReplayTests 10/11 under full load | — |
 
 ## 3. Taken from new handoffs
 - HANDOFF_Coordinator_To_Ui_Moved_Rows.md at 2026-11-18 15:20 (merged coordinator `fa5748b18`): CE-3468 · CE-2438 · CE-1473+CE-3451 · CE-1475 · CE-1046+CE-1038, in that order; §6a scenarios per row proportionate.
