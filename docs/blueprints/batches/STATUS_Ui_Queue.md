@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-1286 (DECIDED A) — a Watch row section `Occurrence` for a C# behaviour's fields (OccurrenceSlotCatalog read, R-1041 write), Add to Watch in the dump's row menu.
+IN PROGRESS: the loop (§2), then §7 (open RW-M rows of the ui area).
 
 ## 2. The queue (in order)
 
@@ -26,6 +26,7 @@ IN PROGRESS: CE-1286 (DECIDED A) — a Watch row section `Occurrence` for a C# b
 | CE-1241 15 seeded takes the scout cannot complete | PARTLY — 54/58 found (was 40/55); cc-platoon-bound fixed; the 4 left are scenario content (note to behaviors; casualty-care / police-line need the beat in the scenario) | (this push) | `scripts/director-check.py scout-all --headless` ×2 | the five scenarios' regressions: 3 PASS, 2 FAIL (behaviors) |
 | CE-1280 Brain tab: why-this-choice one line | DONE — superseded by CE-1325 W5 (one line per decision by name, the sheet inside) | `b461d8fca` | `UtilityDecisionViewTests.CE1325_*` (existing) | n/a |
 | CE-1281 Brain tab: Recent changes scroll / menu | DONE — 8-row scrolling grid, row menu Open graph of … / Copy | `b461d8fca` | `TheBrainViewTests.CE1281_…` (red-proved); TheBrainViewTests 26/0 (xvfb) | n/a |
+| CE-1286 (taken while dry) a C# behaviour's fields in the Watch | DONE — DECIDED A: section `Occurrence`, read by the slot reader, written by R-1041's writer; Add to Watch in the dump | (this push) | `TheBrainViewTests.CE1286_…` (red-proved); AiShared Watch/Variable/Brain 597/0; Editor live-value 20/2 — the 2 reds (`LiveBlackboardValueProviderTests.CE1412_…`, `CE1430_…`) expect the shipped SOP's sense list WITHOUT `AirSense`, which CE-7029 (another lane, already in the tree) added | n/a |
 | CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs

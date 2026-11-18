@@ -57,6 +57,20 @@ public static class OccurrenceSlotWriter
         return new SlotWriteResult(address, null, record);
     }
 
+    /// <summary>⭐ <c>CE-1286</c> (Brain View §12t) — one field from its RAW bytes (the Watch's edit, which commits a value image of the
+    /// field's own type): the same address resolution and staging as <see cref="WriteField"/>, the width checked exactly.</summary>
+    public static SlotWriteResult WriteFieldBytes(
+        EntityRepository world, Entity unit, BehaviorRegistry registry, BlueprintRegistry? blueprints, FieldStager stage,
+        SlotOwnerKind owner, string? behaviour, string? part, OccurrenceSlotCatalog.SlotFieldRole role, string path, ReadOnlySpan<byte> bytes)
+    {
+        ArgumentNullException.ThrowIfNull(stage);
+        var address = OccurrenceSlotCatalog.ResolveField(world, unit, registry, blueprints, owner, behaviour, part, role, path, out var error);
+        if (address is null) return new SlotWriteResult(null, error, false);
+        if (bytes.Length != address.Size) return new SlotWriteResult(address, $"{bytes.Length} bytes for a {address.Size}-byte {address.FieldType.Name}.", false);
+        stage(unit, address.ComponentType, address.ComponentOffset, bytes);
+        return new SlotWriteResult(address, null, false);
+    }
+
     /// <summary>
     /// A behaviour's (or attached blueprint's) whole parameter set from <paramref name="json"/> — THE behaviour's own parser
     /// (<c>ParseParams</c>, exactly as an assignment runs it) into a scratch region, staged over the live params; the task's start
