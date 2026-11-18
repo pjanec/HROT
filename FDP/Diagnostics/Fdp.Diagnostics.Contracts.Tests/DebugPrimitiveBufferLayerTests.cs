@@ -128,5 +128,27 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Line(b, Hidden);                                  // the mask holds until the layer control hands over a new one
             Assert.Empty(b.GetFrame().ToArray());
         }
+
+        /// <summary>⭐ CE-1470 — a frame that overflows GROWS the buffer at its reset, so the next frame of the same load drops nothing; the drop is reported
+        /// (<c>LastFrameDropped</c>, the frame-stats peak) instead of being silent. 📐 Windows, scale-1 + 1 000 men: all 16 384 slots full, the rest dropped by
+        /// draw order. ✅ Red-proof: <c>GrowAfterOverflow</c> not called ⇒ the second frame still drops.</summary>
+        [Fact]
+        public void CE1470_AnOverflowingFrame_GrowsTheBuffer_SoTheNextFrameKeepsEverything()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            void Frame() { for (int i = 0; i < 20; i++) b.DrawLine(Vector3.Zero, Vector3.One, new Rgba32(255, 255, 255)); }
+            Frame();
+            Assert.Equal(12, b.DroppedCount);
+            b.EndFrame(0.016f);
+            Assert.Equal(12, b.LastFrameDropped);
+            Assert.True(b.Capacity >= 20, $"grown to {b.Capacity}");
+            Assert.True(DebugPrimitiveBuffer.PeakDropped >= 12);
+            Frame();
+            Assert.Equal(0, b.DroppedCount);
+            Assert.Equal(20, b.GetFrame().Length);
+            b.Clear();
+            Assert.Equal(0, b.LastFrameDropped);
+            Assert.True(b.Capacity <= DebugPrimitiveBuffer.MaxCapacity);
+        }
     }
 }
