@@ -46,6 +46,8 @@ def step_level():
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label="Sky")
     sky = spawn(unreal.SkyLight, (0, 0, 500), label="SkyLight"); sky.light_component.set_editor_property("real_time_capture", True)
     for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0"): unreal.SystemLibrary.execute_console_command(None, c)
+    try: LES().editor_set_viewport_realtime(True)
+    except Exception as e: log(f"viewport realtime: {e}")
 
 
 def step_index():
@@ -68,14 +70,57 @@ def resolve(rx):
     return None, None
 
 
+def person(g, spec, x, y, row):
+    """One state-driven person: base (stance + gait), upper (weapon + state), action (additive), aim yaw / pitch."""
+    clips = {}
+    for k in ("base", "upper", "action"):
+        if spec.get(k):
+            n, a = resolve(spec[k]); clips[k] = a
+            if not a: row.append({"want": spec[k], "found": None}); return
+    row.append({"want": spec["label"], "found": spec["label"]})
+    p = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, float(spec.get("facing", 140)), 0), f"{g['name']}_{spec['label']}")
+    sk = p.skeletal_mesh_component
+    sk.set_skeletal_mesh_asset(S["manny"])
+    sk.set_animation_mode(unreal.AnimationMode.ANIMATION_BLUEPRINT)
+    sk.set_anim_instance_class(unreal.HrotPersonAnimInstance.static_class())
+    sk.set_update_animation_in_editor(True)
+    sk.set_editor_property("visibility_based_anim_tick_option", unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+    ai = unreal.HrotTerrainLibrary.add_person_state(p)   # the STATE on the actor (persists)
+    if ai is None: raise RuntimeError("cannot add HrotPersonState to " + spec["label"])
+    ai.set_editor_property("base_anim", clips.get("base"))
+    if clips.get("upper"): ai.set_editor_property("upper_anim", clips["upper"])
+    if clips.get("action"):
+        ai.set_editor_property("action_anim", clips["action"])
+        ai.set_editor_property("action_time", float(spec.get("actionTime", 0.35 * clips["action"].get_play_length())))
+    ai.set_editor_property("aim_yaw", float(spec.get("yaw", 0))); ai.set_editor_property("aim_pitch", float(spec.get("pitch", 0)))
+    ai.set_editor_property("time_offset", 0.3)
+    S.setdefault("rows", {}).setdefault(g["name"], []).append(p)
+    weapon = {"rifle": S["rifle"], "pistol": S["pistol"]}.get(spec.get("weapon"))
+    if weapon:
+        w = spawn(unreal.StaticMeshActor, (x, y, 100), label=f"W_{spec['label']}")
+        w.static_mesh_component.set_static_mesh(weapon); w.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+        w.attach_to_component(sk, "weapon_r", unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.SNAP_TO_TARGET,
+                              unreal.AttachmentRule.KEEP_WORLD, False)
+        w.set_actor_relative_rotation(unreal.Rotator(roll=0, pitch=0, yaw=-90), False, True)
+        S["rows"][g["name"]].append(w)
+    t = spawn(unreal.TextRenderActor, (x, y, 205), (0, -90, 0), f"L_{spec['label']}")
+    tc = t.text_render
+    tc.set_editor_property("text", spec["label"]); tc.set_editor_property("world_size", 11.0)
+    tc.set_editor_property("horizontal_alignment", unreal.HorizTextAligment.EHTA_CENTER)
+    tc.set_editor_property("text_render_color", unreal.Color(20, 20, 20, 255))
+    S["rows"][g["name"]].append(t)
+
+
 def step_build():
     S["shots_todo"] = []
     for gi, g in enumerate(JOB["groups"]):
         y = gi * 2500.0
         row = []
         for ai, rx in enumerate(g["anims"]):
-            name, anim = resolve(rx)
             x = ai * 160.0
+            if isinstance(rx, dict):   # a COMBINATION through UHrotPersonAnimInstance (the state-driven person)
+                person(g, rx, x, y, row); continue
+            name, anim = resolve(rx)
             row.append({"want": rx, "found": name})
             if not anim: continue
             p = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, 140, 0), f"{g['name']}_{name}")   # the mannequin mesh faces its +Y: yaw 180 faces the camera (−Y)
@@ -124,9 +169,16 @@ def shoot():
             R["shots"].append(path if os.path.exists(path) else None); S["pending"] = None
         return True
     if not S["shots_todo"]: return False
-    sh = S["shots_todo"].pop(0)
-    for row, actors in S.get("rows", {}).items():   # only this row visible
-        for a in actors: a.set_is_temporarily_hidden_in_editor(row != sh["name"])
+    sh = S["shots_todo"][0]
+    if not sh.get("shown"):   # only this row visible — then give its poses a few frames before the shot (a hidden mesh is not posed)
+        for row, actors in S.get("rows", {}).items():
+            for a in actors: a.set_is_temporarily_hidden_in_editor(row != sh["name"])
+        for a in S["rows"].get(sh["name"], []):   # pose every person of this row now (deterministic; the editor's own tick is not)
+            if isinstance(a, unreal.SkeletalMeshActor) and a.skeletal_mesh_component.get_animation_mode() == unreal.AnimationMode.ANIMATION_BLUEPRINT:
+                unreal.HrotTerrainLibrary.pose_now(a.skeletal_mesh_component, 0.6, 12)
+        sh["shown"] = True; S["wait_until"] = time.time() + 3
+        return True
+    S["shots_todo"].pop(0)
     cam = spawn(unreal.CameraActor, sh["loc"], sh["rot"], "Cam_" + sh["name"])
     cam.camera_component.set_editor_property("field_of_view", 50.0)
     unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).set_level_viewport_camera_info(cam.get_actor_location(), cam.get_actor_rotation())

@@ -22,6 +22,29 @@ GROUPS = [
     {"name": "actions", "anims": ["MM_Rifle_Fire", "MM_Pistol_Fire", "MM_Rifle_GrenadeToss", "MM_Rifle_Reload", "MM_Rifle_Equip",
                                   "MM_Pistol_Equip", "MM_Rifle_Melee"]},
     {"name": "hits", "anims": ["MM_HitReact_Front_Hvy_01", "MM_HitReact_Left_Med_01", "MM_Death_Front_01", "MM_Death_Back_01"]},
+    # ⭐ U-16 step 1: the STATE-DRIVEN person (UHrotPersonAnimInstance): base = stance + gait, upper = weapon + state, action = additive
+    {"name": "layers", "anims": [
+        {"label": "stand rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle"},
+        {"label": "stand rifle aimed", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+        {"label": "walk rifle aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+        {"label": "jog rifle aimed", "base": "MF_Rifle_Jog_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+        {"label": "crouch-walk rifle aimed", "base": "MM_Rifle_Crouch_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+        {"label": "walk pistol aimed", "base": "MM_Pistol_Walk_Fwd", "upper": "MM_Pistol_Idle_ADS", "weapon": "pistol"},
+        {"label": "walk unarmed", "base": "MM_Unarmed_Walk_Fwd"}]},
+    {"name": "actions-aim", "anims": [
+        {"label": "aimed + fire", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Fire", "weapon": "rifle"},
+        {"label": "jog + reload", "base": "MF_Rifle_Jog_Fwd", "upper": "MM_Rifle_Idle_Hipfire", "action": "MM_Rifle_Reload_Additive", "weapon": "rifle"},
+        {"label": "walk + grenade toss", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_Hipfire", "action": "MM_Rifle_GrenadeToss_Additive", "weapon": "rifle"},
+        {"label": "aim yaw +45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": 45, "weapon": "rifle"},
+        {"label": "aim yaw -45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": -45, "weapon": "rifle"},
+        {"label": "aim pitch +25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 25, "weapon": "rifle"},
+        {"label": "aim pitch -25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": -25, "weapon": "rifle"}]},
+    # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
+    {"name": "pitch-side", "anims": [
+        {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},
+        {"label": "pitch +10", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 10, "facing": 90, "weapon": "rifle"},
+        {"label": "pitch +25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 25, "facing": 90, "weapon": "rifle"},
+        {"label": "pitch -25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": -25, "facing": 90, "weapon": "rifle"}]},
 ]
 
 

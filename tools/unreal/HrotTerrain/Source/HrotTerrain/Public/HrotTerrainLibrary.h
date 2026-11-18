@@ -64,6 +64,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
 	static UClass* BlueprintFromActor(AActor* Actor, const FString& AssetPath);
 
+	/** Advances a skeletal mesh's animation by Seconds (in Steps) and poses it NOW — an editor world does not reliably tick animation
+	 *  (an unattended editor's viewport is not realtime), so a shot taken after this shows the evaluated pose. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static void PoseNow(class USkeletalMeshComponent* Mesh, float Seconds = 0.5f, int32 Steps = 10);
+
+	/** Adds (or returns) the HROT person state component on an actor — an instance component, saved with the level. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static class UHrotPersonState* AddPersonState(AActor* Actor);
+
 	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
 	static AActor* BuildMesh(const FString& BinPath, const FString& AssetPath, const TArray<UMaterialInterface*>& Materials,
 		FVector LocationCm, const FString& Label);

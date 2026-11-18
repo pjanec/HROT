@@ -17,6 +17,8 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Engine/Blueprint.h"
+#include "HrotPersonAnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Modules/ModuleManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogHrotTerrain, Log, All);
@@ -212,4 +214,27 @@ UClass* UHrotTerrainLibrary::BlueprintFromActor(AActor* Actor, const FString& As
 		return nullptr;
 	}
 	return Bp->GeneratedClass;
+}
+
+UHrotPersonState* UHrotTerrainLibrary::AddPersonState(AActor* Actor)
+{
+	if (!Actor) return nullptr;
+	if (UHrotPersonState* Existing = Actor->FindComponentByClass<UHrotPersonState>()) return Existing;
+	UHrotPersonState* St = NewObject<UHrotPersonState>(Actor, TEXT("HrotPersonState"), RF_Transactional);
+	Actor->AddInstanceComponent(St);
+	St->RegisterComponent();
+	return St;
+}
+
+void UHrotTerrainLibrary::PoseNow(USkeletalMeshComponent* Mesh, float Seconds, int32 Steps)
+{
+	if (!Mesh) return;
+	if (!Mesh->GetAnimInstance()) Mesh->InitAnim(true);
+	const int32 N = FMath::Max(1, Steps);
+	for (int32 I = 0; I < N; ++I)
+	{
+		Mesh->TickAnimation(Seconds / N, false);
+		Mesh->RefreshBoneTransforms();
+	}
+	Mesh->MarkRenderDynamicDataDirty();
 }
