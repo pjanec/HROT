@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**idle — waiting for a handoff** (`2026-11-18` ~12:05 UTC; re-checked after the user's message: CE-4656 · CE-4401 · CE-3428 · CE-3426 · CE-3440 are all DONE above) — the 11-row queue is done or recorded, behaviors' clearance note is done, and no open `RW-M`+ terrain row is unheld: CE-4630 waits on the user's re-check; CE-5004's rest is a cross-lane slice (a storage op — backend — + the wizard page — ui) and the deferred prune; CE-5020 / CE-5021 are `RW-S`. The self-wake-up stays (R-4292) and takes any new handoff.
+**idle — waiting for a handoff** (`2026-11-18` ~13:00 UTC wake-up: behaviors' D-3 note reviewed, nothing else new; earlier ~12:05: re-checked after the user's message: CE-4656 · CE-4401 · CE-3428 · CE-3426 · CE-3440 are all DONE above) — the 11-row queue is done or recorded, behaviors' clearance note is done, and no open `RW-M`+ terrain row is unheld: CE-4630 waits on the user's re-check; CE-5004's rest is a cross-lane slice (a storage op — backend — + the wizard page — ui) and the deferred prune; CE-5020 / CE-5021 are `RW-S`. The self-wake-up stays (R-4292) and takes any new handoff.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
@@ -36,7 +36,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | R-5064 ✅ APPROVED as built (`DECISIONS_Terrain.md`, user via coordinator `2026-11-18`) | a burst that breaches a wall within 0.5 m of its face makes NO crater (a contact charge spends itself on the wall) | a big bomb landing at a wall should still crater ⇒ scale the skip by kg (e.g. only below the breach table's collapse mass) |
 
 ## 4. Notes sent / received
-- ⏳ expected: behaviors' note on D-3 — a "trigger man is maimed in the legs" rule in the mine's area effect; review it when it lands
+- received + reviewed: `NOTE_Behaviors_To_Terrain_Mine_Maims.md` (D-3, `3418dd0c8`) — ✅ accepted; 3 small findings sent: `NOTE_Terrain_To_Behaviors_Mine_Maims_Review.md` (the trigger man guessed vs `MineStruck.By` — terrain offers to carry it on the burst; no `IsHidden` skip; a misplaced doc comment)
 - received: `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md` (behaviors, 2026-11-18) — taken: the route clearance (above)
 - sent: `NOTE_Terrain_To_Behaviors_Route_Clearance.md` — the ring is built; `mf-no-way-round` goes round now (theirs to re-author)
 - sent: `NOTE_Terrain_To_Behaviors_Mine_Edge_Inset.md` · `NOTE_Terrain_To_Ui_Obstacle_Drawing.md`
