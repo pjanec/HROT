@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — created 2026-11-18 09:02, no approval asked.
 
 ## 1. Now
-IN PROGRESS: CE-1239 — an .ogg clip is missing from a film's sound track. Built: `OggReader` (raylib LoadWave) beside WavReader; rail `AudioTests.CE1239_…` building.
+IN PROGRESS: CE-1241 — 15 seeded takes the scout does not complete. Start: re-scout what remains (the coordinator fixed the take side for 4).
 
 ## 2. The queue (in order)
 
@@ -22,8 +22,8 @@ IN PROGRESS: CE-1239 — an .ogg clip is missing from a film's sound track. Buil
 | CE-1298 FPS bare-hand fire does nothing | DONE — empty hands: SIGHT (no lock box) and the press strikes the crosshair's unit (`Melee.Strike`); Entity Control §8s | `640d30871` | `EmbarkNodesTests.CE1298_…` (red-proved); SimHost EmbarkNodes 28/0; Toolkits fire-mode 153/0; PossessionStation 83/0 | n/a (no scenario holds a possessed bare hand) |
 | CE-1283 Debug this unit on a commander | DONE — ①③ superseded (CE-1317 / CE-1329); ② one global "Observe all brain units" switch (DBG-2) | `640d30871` | `UnitDebugSettingsTests.CE1283_…` (red-proved); Editor brain routes 7/0 | n/a |
 | CE-1067 remote terminal panel → global gizmo | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: not a defect today) | | | |
-| CE-1239 .ogg clip missing from a film | IN PROGRESS | | | |
-| CE-1241 15 seeded takes the scout cannot complete | TODO | | | |
+| CE-1239 .ogg clip missing from a film | DONE — `OggReader` (raylib LoadWave) for the track | (this push) | `AudioTests.CE1239_…` (red-proved); Audio + FilmDirector 80/0 (3 skips pre-existing) | n/a |
+| CE-1241 15 seeded takes the scout cannot complete | IN PROGRESS | | | |
 | CE-1280 Brain tab: why-this-choice one line | TODO | | | |
 | CE-1281 Brain tab: Recent changes scroll / menu | TODO | | | |
 | CE-1246 Stride mode 2 host actions | TODO | | | |

@@ -236,7 +236,7 @@ namespace Hrot.UI.Common.Audio
 
         public bool DefineFile(long clip, string path)
         {
-            if (WavReader.TryRead(path, out var samples, out var rate)) _track.Keep(clip, samples, rate);
+            if (WavReader.TryRead(path, out var samples, out var rate) || OggReader.TryRead(path, out samples, out rate)) _track.Keep(clip, samples, rate);   // ⭐ CE-1239
             return _inner.DefineFile(clip, path);
         }
 
@@ -270,7 +270,37 @@ namespace Hrot.UI.Common.Audio
         public void Dispose() => _inner.Dispose();
     }
 
-    /// <summary>Mono 16-bit samples of a PCM WAV file (the first channel); OGG is not decoded here (the sound track then leaves the clip out).</summary>
+    /// <summary>
+    /// ⭐ <c>CE-1239</c> (FPS Audio §8.2, Film Director §8.4) — mono 16-bit samples of an OGG Vorbis file, decoded by raylib's own file loader
+    /// (<c>LoadWave</c>: stb_vorbis, a pure decode — no window and no audio device needed), downmixed to one channel at the file's rate. ⛔ Before,
+    /// an <c>.ogg</c> clip played live but was left out of a film's sound track. False for anything else, or a file raylib cannot decode.
+    /// </summary>
+    internal static class OggReader
+    {
+        public static unsafe bool TryRead(string path, out short[] samples, out int rate)
+        {
+            samples = Array.Empty<short>();
+            rate = 0;
+            if (!path.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) || !File.Exists(path)) return false;
+            try
+            {
+                var wave = Raylib_cs.Raylib.LoadWave(path);
+                try
+                {
+                    if (!Raylib_cs.Raylib.IsWaveValid(wave) || wave.SampleCount == 0) return false;
+                    Raylib_cs.Raylib.WaveFormat(ref wave, (int)wave.SampleRate, 16, 1);
+                    var data = new ReadOnlySpan<short>(wave.Data, (int)wave.SampleCount);   // raylib-cs names raylib's frameCount SampleCount (one per frame, mono now)
+                    samples = data.ToArray();
+                    rate = (int)wave.SampleRate;
+                    return rate > 0;
+                }
+                finally { Raylib_cs.Raylib.UnloadWave(wave); }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException) { return false; }   // no native raylib on this host
+        }
+    }
+
+    /// <summary>Mono 16-bit samples of a PCM WAV file (the first channel); OGG is <see cref="OggReader"/>'s.</summary>
     internal static class WavReader
     {
         public static bool TryRead(string path, out short[] samples, out int rate)

@@ -36,4 +36,8 @@
     <Compile Include="..\..\..\FDP\TestShared\TestRepo.cs" Link="Shared\TestRepo.cs" />   <!-- CE-3343: the ONE test-side repository-root walk-up (built on ContentLayout.TryFindSourceTree) -->
     <Compile Include="..\Hrot.Terrain.Import.Tests\MiniSet.cs" Link="Shared\MiniSet.cs" />   <!-- ⭐ CE-4378 — the importer's own tiny input set, written through the shared writers -->
   </ItemGroup>
+  <!-- ⭐ CE-1239 — a 0.25 s 440 Hz OGG Vorbis tone (3.7 KB) the film's track decodes -->
+  <ItemGroup>
+    <None Include="Audio/Fixtures/*.ogg" CopyToOutputDirectory="PreserveNewest" LinkBase="Audio/Fixtures" />
+  </ItemGroup>
 </Project>
