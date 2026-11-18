@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "basic-desert",
-    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - on open basic-desert two fire teams of four hold their spots facing south (CombatPosture, stay, a post; ROE StayOnTask): 'Regular 1-4' (Friend riflemen, the default temperament - obedience 0.8, nerve 0.5) at x 410-414.5 and 'Militia 1-4' (Friend riflemen, obedience 0.3, nerve 0.3) at x 480-484.5, y 300. Each is under the SAME fire: 'Gunner Regular' / 'Gunner Militia' (Hostile automatic riflemen, InertSop) 120 m south (inside a rifleman's 150 m sight) fire 22 rounds, one every 1.3 s (28.6 s; D-1, user 2026-11-18: the stress model stays (R-2076), the fire is what the Judge means - measured, a centre regular rises ~0.021/s to his 0.70 line at ~33 s, the slowest militia man ~0.017/s to his 0.43 at ~25 s), at a point 10 m behind the team, 4 m up - every round passes over the team's heads (near misses, no hits). All immortal. Judge (100 s): (1) no regular breaks and the regulars fire back; (2) at least half the militia break (the Break reaction - down, no fire); (3) every man who broke recovers once the fire stops and is back on his task by the end; (4) printed per man: his peak stress, when he broke and recovered. Check: python3 scripts/utility-demo-check.py --launch ts-fire-discipline. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76"
+    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - on open basic-desert two fire teams of four hold their spots facing south (CombatPosture, stay, a post; ROE StayOnTask): 'Regular 1-4' (Friend riflemen, the default temperament - obedience 0.8, nerve 0.5) at x 410-414.5 and 'Militia 1-4' (Friend riflemen, obedience 0.3, nerve 0.3) at x 480-484.5, y 300. Each is under the SAME fire: 'Gunner Regular' / 'Gunner Militia' (Hostile automatic riflemen, InertSop) 120 m south (inside a rifleman's 150 m sight) fire 22 rounds, one every 1.3 s (28.6 s; D-1, user 2026-11-18: the stress model stays (R-2076), the fire is what the Judge means - measured, a centre regular rises ~0.021/s to his 0.70 line at ~33 s, the slowest militia man ~0.017/s to his 0.43 at ~25 s), at a point 10 m behind the team, 4 m up - every round passes over the team's heads (near misses, no hits). All immortal. Judge (100 s): (1) no regular breaks and the regulars fire back; (2) at least half the militia break (the Break reaction - down, no fire); (3) every man who broke recovers once the fire stops and is back on his task by the end; (4) printed per man: his peak stress, when he broke and recovered. Check: python3 scripts/utility-demo-check.py --launch ts-fire-discipline. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76 The fixed fire source(s) 'Gunner Regular', 'Gunner Militia' are authored STEADY (Temperament resolve 1, nerve 1; CE-3462): under TS-6 a man breaks whatever his SOP, so a gunner that must keep firing is steady, not exempted."
   },
   "entities": {
     "a1040001-0000-4000-8000-000000000001": {
@@ -194,7 +194,7 @@
       "EntityInfo": {
         "Name": "Gunner Regular",
         "ForceId": "Hostile"
-      },
+      }, "Temperament": {"resolve": 1.0, "nerve": 1.0},
       "TargetMemory": {
         "Entries": []
       },
@@ -409,7 +409,7 @@
       "EntityInfo": {
         "Name": "Gunner Militia",
         "ForceId": "Hostile"
-      },
+      }, "Temperament": {"resolve": 1.0, "nerve": 1.0},
       "TargetMemory": {
         "Entries": []
       },
