@@ -195,21 +195,12 @@ namespace Hrot.AI.Behaviors.Brains
                     var w = MinePattern.At(in s.Field, s.Anchor, r, c);
                     var uv = MinePattern.ToField(w, s.Anchor, s.Field.OrientationDeg);
                     if (uv.X < u0 || uv.X >= u0 + s.Cell || uv.Y < v0 || uv.Y >= v0 + s.Cell) continue;
-                    if (!InOutline(ref s, w) || MinePattern.InLane(in s.Field, w)) continue;
+                    // ⭐ CE-4655 (terrain, cross-lane edit) — the ONE "does this lattice point hold a mine" test, edge inset included
+                    fixed (float* ox = s.OX, oy = s.OY)
+                        if (!MinePattern.Laid(in s.Field, new ReadOnlySpan<float>(ox, s.OutlineCount), new ReadOnlySpan<float>(oy, s.OutlineCount), w)) continue;
                     return true;
                 }
             return false;
-        }
-
-        private static unsafe bool InOutline(ref ReconMinefieldState s, Vector2 p)
-        {
-            bool inside = false;
-            for (int i = 0, j = s.OutlineCount - 1; i < s.OutlineCount; j = i++)
-            {
-                float ax = s.OX[i], ay = s.OY[i], bx = s.OX[j], by = s.OY[j];
-                if ((ay > p.Y) != (by > p.Y) && p.X < (bx - ax) * (p.Y - ay) / (by - ay) + ax) inside = !inside;
-            }
-            return inside;
         }
 
         private static unsafe void Report(EntityRepository world, Entity self, Entity field, ref ReconMinefieldState s, int col, int row, bool mined)
