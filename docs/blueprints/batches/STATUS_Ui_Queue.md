@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — running HANDOFF_Coordinator_To_Ui_Bug_Queue.md under PROTOCOL_Autonomous_Lanes.md
-updated: 2026-11-18 09:05 UTC
+updated: 2026-11-18 10:00 UTC
 current-answer: §1
 -->
 
@@ -9,14 +9,14 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — created 2026-11-18 09:02, no approval asked.
 
 ## 1. Now
-IN PROGRESS: CE-1133 — RTS right-click orders units no longer selected. Start: `RtsCommandToolTests` (4 reds at `bac61259d`, CE-1978) — reproduce, root-cause.
+IN PROGRESS: CE-1954 — a press on an unselected unit drags it on the threaded editor. Start: reproduce with HROT_THREADED_KERNEL on vs off.
 
 ## 2. The queue (in order)
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
-| CE-1133 RTS right-click orders deselected units | IN PROGRESS | | | |
-| CE-1954 press on an unselected unit drags it (threaded) | TODO | | | |
+| CE-1133 RTS right-click orders deselected units | NOT REPRODUCED (original); the RTS right-click found BROKEN at the merge (Convoy took the ground-click gesture) — FIXED under CE-1978 | (this push) | `RtsCommandToolTests` 13/13 incl. `CE1133_EachClickGesture_…` (red-proved) | n/a (editor input) |
+| CE-1954 press on an unselected unit drags it (threaded) | IN PROGRESS | | | |
 | CE-1470 gizmo buffer overflow drops primitives | TODO | | | |
 | CE-1955 three Presentation reds | TODO | | | |
 | CE-1298 FPS bare-hand fire does nothing | TODO | | | |
@@ -32,7 +32,7 @@ IN PROGRESS: CE-1133 — RTS right-click orders units no longer selected. Start:
 - HANDOFF_Coordinator_To_Ui_Bug_Queue.md at 2026-11-18 09:00 (merged coordinator `5c0…` into ui)
 
 ## 4. Notes sent / received
-(none yet)
+- sent `NOTE_Ui_To_Convoy_Order_Gesture.md` — ConvoyOrder's GroundClick gesture removed (cross-lane), letter V
 
 ## 5. Gates (rule 8)
-(per row, above)
+- CE-1133/1978: `Hrot.Presentation.Tests` RtsCommandToolTests · TheMenusAreGolden · MenuOrdersTests · Keymap · OrderMenu 63/0; `Hrot.Editor.Tests` OrderVocabularyTests 10/0. Goldens re-captured: only order ids + Convoy rows.
