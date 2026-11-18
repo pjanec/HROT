@@ -2,11 +2,11 @@
 state: LIVE
 updated: 2026-11-18
 tracker: CE-5026 (row) · slices CE-5032…CE-5034
-build-state: READY-TO-BUILD — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
+build-state: BUILDING — GW-1 BUILT `2026-11-18` (D-2 as-built: a pane LEAF, not a prism — §3 D-2); GW-2, GW-3 to build — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
 current-answer: §0 the user's rulings · §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the look · §6 slices · §7 acceptance
 stale-below: nothing
 known-rot: none
-superseded-inline: D-3's first lean (window entries APPENDED to `BuildingDamage`) — moved to §⛔ HISTORY
+superseded-inline: D-2's first form (a `TerrainPrismKind.Pane` prism) and D-3's first lean (window entries APPENDED to `BuildingDamage`) — moved to §⛔ HISTORY
 known-conflict: none
 related-designs:
   - DESIGN_Building_Interiors.md — OWNS the *.building.json template and its openings (doors, windows); this adds the window's `glazed` flag and the PANE
@@ -61,7 +61,7 @@ related-designs:
 | # | question | ⭐ lean | why |
 |---|---|---|---|
 | **D-1** | which windows have glass | a `glazed` flag on a window opening, ⭐ default **true** for a `Window` (templates, the importer's and the editor's generator), never for a `Door` / `Gap`; a template may say `"glazed": false` (a broken-out ruin, a barn) | static terrain: every node's copy has it, nothing to replicate |
-| **D-2** | what IS the pane | a thin PRISM piece (`TerrainPrismKind.Pane`, 1 cm, the `glass` material) in the window opening, emitted by `ExpandPanelPieces`, carrying its `Panel` and `Opening` | ⭐ every existing query sees it with no change of its own (sight, fire, sound, thermal); one more prism kind |
+| **D-2** | what IS the pane | ⭐ **AS BUILT (GW-1):** a thin pane LEAF (1 cm, the `glass` material) per glazed window, built by `TerrainWorld.PaneLeaves` beside the door leaves — ⛔ NOT in `Prisms`; the queries walk `QueryLeaves` (door leaves, then panes) and label the crossing `pane` (`TerrainWorld.PaneKind`), `Panes[i]` names its (panel, opening) | ⭐ only the sight / fire / sound traces see it: a prism would have reached 26 prism readers (the navmesh hash, Bepu physics, cover, the chunk mesh…), each needing to ignore it. The leaf costs the same as a door's. ⭐ A `pane` crossing is no barrier, never meets a hull, casts no blast shadow (`AreaEffect.TerrainShadow`), spares no wall or door (`AreaEffectSystem`) and leaves no decal (`TerrainPenetration.Carry`) |
 | **D-3** ✏ *revised `2026-11-18` (user: "there is almost 100 free component ids … is it better to reuse damage component for windows? are the records different or similar?")* | where the window state lives | ⭐ a SEPARATE unmanaged component **`WindowDamage`** on the SAME per-building damage entity: `Building` + `Count` + up to **64** entries `{Panel (int), Opening (byte), Hits (byte: 0..2, 3 = broken), U0 V0 U1 V1 (Half)}` ≈ 14 B each (≈ 900 B); its own descriptor `dtWindowDamage` in the shared pack; saved in the building's existing `terrainObjects` entry as a `"windows"` field | the two records share IDENTITY (key building → panel → opening, the deciding node, the label save, the lifecycle — a removed building takes both, Base Edits D-4) but not MEANING (a breach is geometry: navmesh, obstacles, cover, the wall drawing; a window is a 3-level state + two points: the pane skip and its drawing) nor RHYTHM (breaches at blasts; windows at every round through glass). One record would re-send every breach (≈ 900 B) and rebuild the breach view per glass hit, and the two capacities would compete under 1024 B. Cost: one component id + one ordinal, fixed at dispatch |
 | **D-4** ✏ *revised `2026-11-18`* | the rules (SimHost only, Node Roles §3.0a) | a round crossing an unbroken pane ⇒ **+1 hit, its crack (u, v) kept**; the **3rd hit ⇒ broken**; a round whose MUZZLE is within **1.5 m** of the pane ⇒ **broken at once** (a man firing out); ⭐ an EXPLOSION breaks every unbroken pane within EITHER radius (🔒 user: *"shattered from nearby bigger explosion (pressure) or nearby little fragmentation explosion (grenade)"*): ① **pressure** — `blastPerCbrtKg × ∛kg` of the warhead's explosive (the cube-root scaling the crater and the felled-tree rules use; a big charge reaches far, through walls — the pressure wave), ② **fragments** — within `fragmentShatterM` of a fragmenting warhead (`FragmentRadiusM > 0`) AND with a clear line from the burst to the pane (a fragment must reach it); starter values in `glass.json` beside `trees.json` (e.g. 6 m × ∛kg ⇒ a 0.2 kg grenade 3.5 m, a 89 kg bomb 27 m; fragments 8 m) | 🔒 the user's rules; ONE place decides (the area effect step that already measures blast and fragment radii — `AreaEffectSystem`) |
 | **D-5** ✏ *revised `2026-11-18`* | what an unbroken pane changes | ⛔ **no visibility** (🔒 user) — sight passes it as air (`glass` sight 1.0); a round passes, losing ≈ 0.3 mm; ⭐ **SOUND**: the room-to-room solver (AQ106, R-3050, BUILT — `SoundPaths.ThroughOpenings`, `SoundPaths.cs:56-80`) already treats every opening as a PORTAL node that is either CLOSED (pays the door material's dB) or OPEN (free); a glazed window becomes a portal that is CLOSED while its pane is intact (paying `glass`'s 20 dB) and OPEN once broken ⇒ 🔒 *"any broken window would let sound into a building"* holds BY CONSTRUCTION — the solver finds the cheapest way in, and one broken window is it; the straight line (v1) pays the pane's 20 dB too, and nothing once broken | one sound path, the portal graph that already exists; ⛔ no special case for glass |
@@ -84,10 +84,10 @@ classDiagram
     Glazed
   }
   class TerrainBuildingExpander {
-    <<existing, ExpandPanelPieces emits a Pane>>
+    <<existing, parses glazed>>
   }
   class TerrainPrism {
-    <<existing, kind Pane, carries Panel and Opening>>
+    <<existing, a pane leaf is one, not in Prisms>>
   }
   class BuildingDamage {
     <<existing component, unchanged>>
@@ -118,7 +118,7 @@ classDiagram
     <<existing view, gains PaneBroken and the cracks>>
   }
   class TerrainWorld {
-    <<existing, QueryFire skips a broken pane>>
+    <<existing, PaneLeaves Panes QueryLeaves, skips a broken pane>>
   }
   class TerrainChunkMesh {
     <<existing chunk build, draws panes and cracks>>
@@ -201,7 +201,7 @@ window state is not authored; the building damage's existing views list it).
 
 | slice | lane | builds | rails |
 |---|---|---|---|
-| **GW-1** ([CE-5032](blueprints/Blueprint_Issues_Tracker.md)) the pane | terrain | `TerrainOpening.Glazed` (template + generators, default true); `TerrainPrismKind.Pane` from `ExpandPanelPieces` | a glazed window's trace crosses a 1 cm `glass` pane; sight transmittance unchanged; sound −20 dB; a `Gap` has none |
+| **GW-1** ([CE-5032](blueprints/Blueprint_Issues_Tracker.md)) the pane | terrain | ✅ BUILT `2026-11-18`: `TerrainOpening.Glazed` (default true for a window); `TerrainWorld.PaneLeaves` / `Panes` / `QueryLeaves` (D-2 as built); the spatial index covers the panes | ✅ `GlassPaneTests`: a glazed window's trace crosses a 1 cm `glass` pane; sight unchanged; sound −20 dB; a gap, a door, `glazed: false` have none; no hull, no shadow, no decal; a breach over the window or a collapse takes it, a breach beside does not; the index finds it |
 | **GW-2** ([CE-5033](blueprints/Blueprint_Issues_Tracker.md)) the state + rules | terrain | `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a breach over a window removes its pane and marks it broken (D-10); a collapse removes every pane; a replica receives the same entries byte for byte; save → load keeps them |
 | **GW-3** ([CE-5034](blueprints/Blueprint_Issues_Tracker.md)) the look | ui | panes and cracks in the chunk build from the table; the shatter burst + the glass sound's playback | frame rails against the mockup (R-4146) |
 
@@ -218,3 +218,6 @@ window state is not authored; the building damage's existing views list it).
 - **D-3, first lean (`2026-11-18`, superseded the same day):** the window entries APPENDED to `BuildingDamage` (40 entries, ≈ 900 B with the breaches),
   argued by "no new component id: the space is nearly full" (the header of `GlobalComponentIds.cs:35`). ⛔ Overturned: ids are free (user), and the two
   records differ in meaning and write rate — see D-3.
+- **D-2, first form (`2026-11-18`, superseded by the GW-1 build the same day):** the pane as a `TerrainPrismKind.Pane` PRISM emitted by `ExpandPanelPieces`.
+  ⛔ Measured at build: 26 files read `Prisms` (navmesh damage hashes, Bepu physics, cover, the chunk mesh), each would have had to ignore it; a leaf beside the door
+  leaves reaches only the traces.

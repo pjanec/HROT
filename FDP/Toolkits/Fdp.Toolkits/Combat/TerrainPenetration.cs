@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Combat
                 }
                 // a piece the round was already inside at the segment's start was marked by the segment that entered it (its exit too:
                 // the far face lies on the same straight line, past that segment's end)
-                if (impacts != null && c.T > 1e-5f && c.Stop <= 0f)   // ⭐ CE-4369 — a wood is no surface: no entry / exit mark
+                if (impacts != null && c.T > 1e-5f && c.Stop <= 0f && c.Kind != Fdp.Toolkit.Terrain.TerrainWorld.PaneKind)   // ⭐ CE-5032 — no decal on glass: its cracks are its window's state (GW-2/3)   // ⭐ CE-4369 — a wood is no surface: no entry / exit mark
                 {
                     impacts.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Entry));
                     float exitT = length > 0f ? c.T + c.PathMetres / length : c.T;

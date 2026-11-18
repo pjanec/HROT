@@ -28,6 +28,9 @@ namespace Fdp.Toolkit.Terrain
         public float HeadZ { get; init; }
         /// <summary>The door's terrain-object key (§3b K2, <c>"&lt;terrain&gt;/&lt;building&gt;/&lt;doorId&gt;"</c>); null = a plain opening.</summary>
         public string? DoorKey { get; init; }
+        /// <summary>⭐ <c>CE-5032</c> GW-1 (📄 docs/DESIGN_Glass_Windows.md D-1) — a WINDOW with glass: the world puts a thin pane across it (<see cref="TerrainWorld.PaneLeaves"/>),
+        /// seen by the sight / fire / sound queries only. True by default for a window (a template says <c>"glazed": false</c> for a broken-out one); never a door or a gap.</summary>
+        public bool Glazed { get; init; }
     }
 
     /// <summary>

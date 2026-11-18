@@ -278,6 +278,79 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public IReadOnlyList<TerrainPrism> DoorLeaves => _doorLeaves.Value;
 
+        /// <summary>The material a window pane is (sight 1.0 — no visibility change, a round loses ≈ 0.3 mm through 1 cm, 20 dB of sound).</summary>
+        public const string PaneMaterial = "glass";
+        /// <summary>A pane's thickness (m), centred in its wall.</summary>
+        public const float PaneThickness = 0.01f;
+
+        /// <summary>
+        /// ⭐ <c>CE-5032</c> GW-1 (📄 docs/DESIGN_Glass_Windows.md D-2) — one thin PANE per GLAZED window (<see cref="TerrainOpening.Glazed"/>), index-aligned with
+        /// <see cref="Panes"/>: across the opening from its sill to its head, in the window's wall. ⛔ NOT in <see cref="Prisms"/> — exactly as the door leaves: the navmesh,
+        /// physics, cover and every other reader of prisms never see it; only the sight / fire / sound queries do (<see cref="QueryLeaves"/>). A pane is gone where its wall is
+        /// breached or its building collapsed (D-10), and — GW-2 — once its window is broken.
+        /// </summary>
+        public IReadOnlyList<TerrainPrism> PaneLeaves => _paneLeaves.Value;
+
+        /// <summary>The window of each pane: (its panel, the opening on it) — index-aligned with <see cref="PaneLeaves"/>.</summary>
+        public IReadOnlyList<(int Panel, int Opening)> Panes { get { _ = _paneLeaves.Value; return _panes!; } }
+
+        /// <summary>The extra thin pieces the sight / fire / sound queries add after the prisms: the door leaves, then the panes (the order the spatial index uses).</summary>
+        public IReadOnlyList<TerrainPrism> QueryLeaves => _queryLeaves.Value;
+
+        private Lazy<IReadOnlyList<TerrainPrism>> _paneLeaves => _paneLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(BuildPaneLeaves);
+        private Lazy<IReadOnlyList<TerrainPrism>>? _paneLeavesLazy;
+        private List<(int Panel, int Opening)>? _panes;
+        private Lazy<IReadOnlyList<TerrainPrism>> _queryLeaves => _queryLeavesLazy ??= new Lazy<IReadOnlyList<TerrainPrism>>(() =>
+        {
+            var doors = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            var panes = PaneLeaves;
+            if (panes.Count == 0) return doors;
+            var all = new List<TerrainPrism>(doors.Count + panes.Count); all.AddRange(doors); all.AddRange(panes); return all;
+        });
+        private Lazy<IReadOnlyList<TerrainPrism>>? _queryLeavesLazy;
+
+        private IReadOnlyList<TerrainPrism> BuildPaneLeaves()
+        {
+            var leaves = new List<TerrainPrism>();
+            var panes = new List<(int Panel, int Opening)>();
+            Materials.TryGet(PaneMaterial, out var material);
+            for (int pi = 0; pi < Panels.Count; pi++)
+            {
+                var panel = Panels[pi];
+                for (int oi = 0; oi < panel.Openings.Count; oi++)
+                {
+                    var o = panel.Openings[oi];
+                    if (!o.Glazed) continue;
+                    var dir = panel.B - panel.A;
+                    float len = dir.Length();
+                    dir = len > 0f ? dir / len : Vector2.UnitX;
+                    var n = new Vector2(-dir.Y, dir.X) * (PaneThickness * 0.5f);
+                    var p0 = panel.A + dir * o.At;
+                    var p1 = panel.A + dir * (o.At + o.Width);
+                    var fp = new[] { p0 - n, p1 - n, p1 + n, p0 + n };
+                    leaves.Add(new TerrainPrism
+                    {
+                        Kind = TerrainPrismKind.Wall, Footprint = fp, BaseZ = o.SillZ, TopZ = o.HeadZ, Label = $"{panel.Label}/pane{oi}",
+                        Min = Vector2.Min(Vector2.Min(fp[0], fp[1]), Vector2.Min(fp[2], fp[3])),
+                        Max = Vector2.Max(Vector2.Max(fp[0], fp[1]), Vector2.Max(fp[2], fp[3])),
+                        Material = material, Panel = pi, Building = panel.Building, Triangles = new[] { 0, 1, 2, 0, 2, 3 },
+                    });
+                    panes.Add((pi, oi));
+                }
+            }
+            _panes = panes;
+            return leaves;
+        }
+
+        /// <summary>True when query leaf <paramref name="leaf"/> (an index into <see cref="QueryLeaves"/>) is a pane, not a door leaf.</summary>
+        private bool IsPaneLeaf(int leaf) => leaf >= (Doors.Count > 0 ? DoorLeaves.Count : 0);
+
+        /// <summary>
+        /// A query leaf the query passes: a door leaf whose door is not closed (R-219: the caller's <paramref name="doors"/>), or — GW-2 — a pane whose window is broken.
+        /// </summary>
+        private bool LeafOpen(int leaf, DoorStates? doors)
+            => IsPaneLeaf(leaf) ? false : !DoorBlocks(leaf, doors);
+
         /// <summary>⭐ R-220 — the most vertices any prism or door leaf has: sizes the queries' stack scratch, computed once.</summary>
         private int MaxFootprintVertices => _maxFootprintVertices >= 0 ? _maxFootprintVertices : (_maxFootprintVertices = ComputeMaxFootprintVertices());
         private int _maxFootprintVertices = -1;
@@ -555,7 +628,7 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         private CandidateSet PointCandidates(float x, float y)
             => new(this, new Vector3(x, y, -PointQueryReach), new Vector3(x, y, PointQueryReach),
-                   Prisms.Count + (Doors.Count > 0 ? DoorLeaves.Count : 0));
+                   Prisms.Count + QueryLeaves.Count);
 
         /// <summary>
         /// ⭐ CE-1035 Q0 (<c>docs/DESIGN_World_Query_Seam.md</c> WQ-D) — an optional spatial index that narrows the pieces and
@@ -660,7 +733,7 @@ namespace Fdp.Toolkit.Terrain
             var segMax = Vector2.Max(a, b);
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
-            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
@@ -675,7 +748,7 @@ namespace Fdp.Toolkit.Terrain
                 if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
                 else
                 {
-                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
                     if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
@@ -687,7 +760,7 @@ namespace Fdp.Toolkit.Terrain
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
                     if (MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)
                     {
-                        if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: the line passes
+                        if (pi >= 0 && (pi < Prisms.Count || IsPaneLeaf(pi - Prisms.Count)) && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: the line passes
                         {
                             float blo = t0, bhi = t1;
                             ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
@@ -797,6 +870,8 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>⭐ CE-1034 H2 — the crossing kind and material name a hill in the way reports (descriptive).</summary>
         public const string GroundKind = "ground", GroundMaterial = "earth";
+        /// <summary>⭐ <c>CE-5032</c> GW-1 — the crossing kind of a window pane: no barrier, no blast shadow, no decal (its cracks are its window's state).</summary>
+        public const string PaneKind = "pane";
 
         /// <summary>⭐ CE-1034 H2 — the resistance a hill presents to a round or a fragment: it stops anything.</summary>
         public const float GroundResistanceMmRha = 1_000_000f;
@@ -846,7 +921,7 @@ namespace Fdp.Toolkit.Terrain
             }
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
-            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
@@ -861,7 +936,7 @@ namespace Fdp.Toolkit.Terrain
                 if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
                 else
                 {
-                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
                     if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
@@ -872,7 +947,7 @@ namespace Fdp.Toolkit.Terrain
                     float z0 = from.Z + ((to.Z - from.Z) * t0);
                     float z1 = from.Z + ((to.Z - from.Z) * t1);
                     if (!(MathF.Min(z0, z1) < prism.TopZ && MathF.Max(z0, z1) > prism.BaseZ)) continue;
-                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: no crossing
+                    if (pi >= 0 && (pi < Prisms.Count || IsPaneLeaf(pi - Prisms.Count)) && prism.Panel >= 0 && doors?.Damage != null)   // ⭐ CE-4391 B-8 — a breach in this wall: no crossing
                     {
                         float blo = t0, bhi = t1;
                         ClipToHeight(prism, from.Z, to.Z - from.Z, ref blo, ref bhi);
@@ -880,7 +955,7 @@ namespace Fdp.Toolkit.Terrain
                     }
                     var panel = prism.Panel >= 0 && prism.Panel < Panels.Count ? Panels[prism.Panel] : null;
                     string? building = panel != null && panel.Building >= 0 && panel.Building < Buildings.Count ? Buildings[panel.Building].Label : null;
-                    crossed.Add(new Crossing(t0 * length, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
+                    crossed.Add(new Crossing(t0 * length, pi >= Prisms.Count ? (IsPaneLeaf(pi - Prisms.Count) ? PaneKind : "door") : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, prism.Material?.SightTransmittance ?? 0f,
                         building, panel?.Storey ?? -1));
                     break;   // one entry per piece
@@ -997,7 +1072,7 @@ namespace Fdp.Toolkit.Terrain
                     { TopZ = crest, EntryNormal = Vector3.UnitZ });
 
             // ⭐ Stage 5 — the prisms, then the leaves of doors that are shut (a closed/locked door is a panel; open = a gap)
-            var leaves = Doors.Count > 0 ? DoorLeaves : Array.Empty<TerrainPrism>();
+            var leaves = QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the panes
             int maxV = MaxFootprintVertices;
             Span<float> ts = maxV + 2 <= 256 ? stackalloc float[maxV + 2] : new float[maxV + 2];
             Span<(float T0, float T1)> iv = maxV + 1 <= 256 ? stackalloc (float, float)[maxV + 1] : new (float, float)[maxV + 1];
@@ -1012,7 +1087,7 @@ namespace Fdp.Toolkit.Terrain
                 if (pi < 0) prism = dmg!.RubbleArray[k - cand.PieceCount];
                 else
                 {
-                    if (pi >= Prisms.Count && !DoorBlocks(pi - Prisms.Count, doors)) continue;
+                    if (pi >= Prisms.Count && LeafOpen(pi - Prisms.Count, doors)) continue;
                     prism = pi < Prisms.Count ? Prisms[pi] : leaves[pi - Prisms.Count];
                     if (dmg != null && prism.Building >= 0 && dmg.Collapsed(prism.Building)) continue;
                     if (felled != null && felled.Felled(prism)) continue;   // ⭐ CE-4603 (B-6) — a felled trunk is gone for this view
@@ -1038,7 +1113,8 @@ namespace Fdp.Toolkit.Terrain
                         hi = MathF.Min(hi, MathF.Max(ta, tb));
                     }
                     if (hi <= lo) continue;
-                    if (pi >= 0 && pi < Prisms.Count && prism.Panel >= 0)
+                    if (hull && pi >= Prisms.Count && IsPaneLeaf(pi - Prisms.Count)) continue;   // ⭐ CE-5032 GW-1 — glass never stops a hull (its wall does)
+                    if (pi >= 0 && (pi < Prisms.Count || (!hull && IsPaneLeaf(pi - Prisms.Count))) && prism.Panel >= 0)
                     {
                         if (!hull) { if (CrossingBreached(doors, prism.Panel, from, to, lo, hi)) continue; }   // ⭐ CE-4391 B-8
                         else if (HullBreachOpen(doors, prism, from, to, lo, hi)) continue;                    // ⭐ CE-4598 (V-5)
@@ -1051,7 +1127,7 @@ namespace Fdp.Toolkit.Terrain
                     var dir = to - from;
                     var entryN = lo > t0 + 1e-6f ? new Vector3(0f, 0f, dz > 0f ? -1f : 1f) : SideNormal(prism.Footprint, a + (b - a) * lo, dir, entering: true);
                     var exitN = hi < t1 - 1e-6f ? new Vector3(0f, 0f, dz > 0f ? 1f : -1f) : SideNormal(prism.Footprint, a + (b - a) * hi, dir, entering: false);
-                    into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? "door" : panel != null ? "panel" : "prism", prism.Label,
+                    into.Add(new FireCrossing(lo, path, perMetre * path, pi >= Prisms.Count ? (IsPaneLeaf(pi - Prisms.Count) ? PaneKind : "door") : panel != null ? "panel" : "prism", prism.Label,
                         prism.Material?.Name ?? TerrainMaterialLibrary.DefaultMaterial, building, panel?.Storey ?? -1)
                         { TopZ = prism.TopZ, EntryNormal = entryN, ExitNormal = exitN, Piece = pi });
                 }

@@ -172,6 +172,7 @@ namespace Fdp.Toolkit.Combat
             {
                 var c = crossingsToTop[i];
                 if (IsClosedBarrier(c)) continue;
+                if (c.Kind == Fdp.Toolkit.Terrain.TerrainWorld.PaneKind) continue;   // ⭐ CE-5032 GW-1 — a pane sits IN its wall's opening: no shadow of its own
                 best = MathF.Min(best, ShadowFactor(c.TopZ - targetBaseZ, (1f - c.T) * horizontalLength));
             }
             return best;

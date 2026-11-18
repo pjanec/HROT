@@ -423,7 +423,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (state == TerrainDoorState.Destroyed || state == TerrainDoorState.Open) continue;
                 terrain.QueryFire(burst, centre, _crossings, doors);
                 bool clear = true;
-                foreach (var c in _crossings) if (c.Kind != "door") { clear = false; break; }
+                foreach (var c in _crossings) if (c.Kind != "door" && c.Kind != TerrainWorld.PaneKind) { clear = false; break; }   // ⭐ CE-5032 — glass spares nothing
                 if (!clear) continue;
                 var door = TerrainObjects.Find(repo, d.Key);
                 if (!repo.IsAlive(door)) continue;
@@ -591,7 +591,8 @@ namespace Fdp.Toolkit.Combat.Systems
             if (dh <= panel.Thickness * 0.5f + 0.03f) return true;   // against (or inside) the wall
             var face = onWall + toward / dh * (panel.Thickness * 0.5f + 0.02f);
             terrain.QueryFire(burst, new Vector3(face, z), _crossings, doors);
-            return _crossings.Count == 0;
+            for (int i = 0; i < _crossings.Count; i++) if (_crossings[i].Kind != TerrainWorld.PaneKind) return false;   // ⭐ CE-5032 GW-1 — glass spares no wall
+            return true;
         }
 
         /// <summary>
