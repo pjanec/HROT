@@ -10,7 +10,7 @@ Handoff: [`HANDOFF_Coordinator_To_Backend_Bug_Queue.md`](HANDOFF_Coordinator_To_
 Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC`; its message is the §1a text verbatim (updated 12:04). ⛔ NEVER deleted (R-4292): on an empty queue it takes new HANDOFF/STEER/NOTE files addressed to backend and DECIDED answers in `DECISIONS_Backend.md` (a DECIDED answer is new work), else writes "idle — waiting for a handoff".
 
 ## 1. Now
-NEXT: **CE-3457** (vehicles never slow or yield for animals on their road).
+NEXT: **CE-4657** (TD-S1, thermal drivers: `HeatSource`, `FireState`, `ThermalDriversOps`, `ThermalPerception` re-based).
 
 ## 2. The queue (in order)
 | row | state | sha | rail | scenario |
@@ -19,7 +19,7 @@ NEXT: **CE-3457** (vehicles never slow or yield for animals on their road).
 | CE-3452 P1 bike from a standstill reports FailedBlocked | ✅ DONE | (this commit) | `CarKinematicsSystemTests.CE3452_*` 3 + `DriveByBehaviorTests.CE3452_*`, red-proved; CarKinematics 171 / 0, kinematics + obstacle suites 197 / 0, DriveBy 5 / 0 | own: `ua-moto-parked-bomb`, `ua-moto-drive-by-grenade`, `ua-technical-scoot` PASS · WIDE RUN (41, with CE-3473): 35 PASS; 6 RED AT THE BASE TOO (same rows): bt-window-duel, ia-area-defend, ia-house-hunt, rf-car-squads, rf-house-obstacle, ts-aggression |
 | CE-3473 the ramming car never breaks the barrels (DECIDED: lean A + the barrel's fill) | ✅ DONE | (this commit) | `CarKinematicsSystemTests.CE3473_*` 4 (red-proved: no ram row ⇒ 1 red; no nose trace ⇒ 3 red), `CE4594_WhatAHullBreaks_*` drum rows; Presentation obstacle snapshots 74 / 0 | `cp-ram-barrier` PASS (in the wide run) |
 | CE-9023 P1 disabled vehicle runs its route forever (the locomotion half) | ✅ DONE (locomotion half) | (this commit) | `MoveToLocationRoadUseTests.CE9023_AnImmobilisedVehicle_StopsRunningItsRoute` — the REAL dispatcher: CanMove lost (the IED) ⇒ the channel Failure (CE-3091) ⇒ the FollowRoute node Failure every tick, never re-issued (CE-3458); red-proved (no OwnRouteFailed ⇒ red); the class 8/8 | `uc-urban-battle` stays red AT THE BASE TOO — the play half (back to CMove in `runFor` 200) is behaviors' (NOTE_Convoy_To_Behaviors_UrbanBattle_MovesOn) |
-| CE-3457 P5 vehicles never yield to animals | TODO | | | |
+| CE-3457 P5 vehicles never yield to animals | ✅ DONE | (this commit) | `CarKinematicsSystemTests.CE3457_*` (red-proved: no cap ⇒ the car runs into the cow); kinematics + NavigationExecution + Animal suites 194 / 0 | own: NEW `ua-animal-horse-blocks-car` 5 / 5 + the animal set (`ua-animal-herd-road`, `farm-under-fire`, `-guard-dog`, `-village-fight`, `-flock-flush`) 5 / 5, all under the parallel checks |
 | CE-4657 TH TD-S1 thermal drivers: components, ops, perception re-based ([handoff](HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md)) | TODO | | | |
 | CE-4658 TH TD-S2 HeatSourceSystem (hysteresis, possessed ignition) | TODO | | | `th-idling-tank` |
 | CE-4659 TH TD-S3 burst barrel heat on WeaponAmmo | TODO | | | |

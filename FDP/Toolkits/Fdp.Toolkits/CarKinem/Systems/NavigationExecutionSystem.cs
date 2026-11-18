@@ -272,7 +272,7 @@ namespace CarKinem.Systems
                 //   to resolve; a shadow that is really gone ends the mode itself (TrafficShadowFollowSystem). 📌 cv-blocked-road (traced): FailedBlocked
                 //   6 s behind a broken truck with the shadow still driving — and every re-issue then lost the new shadow.
                 if (repo.HasComponent<NavState>(entity) && (repo.GetComponent<NavState>(entity).IsBlocked != 0 || repo.GetComponent<NavState>(entity).Mode == KinematicsMode.Traffic)
-                    || frustration.RecoverDir != 0)
+                    || frustration.RecoverDir != 0 || frustration.YieldingToAnimal != 0)   // ⭐ CE-3457 — standing for an animal in the way
                 {
                     if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
                     {
