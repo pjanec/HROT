@@ -23,7 +23,7 @@ fire and movement is tested against; runFor stays 120. Cost: two entities re-aut
 
 ## D-3 · CE-4654 — an AP mine now KILLS the man on it; should it maim him instead (alive, legs gone)? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator): ① — the trigger man is MAIMED, not killed: the burst's share on him goes to the Leg zone so he lands incapacitated, alive, and the casualty drill carries him. Terrain's area effect gets the trigger-man rule (cross-lane edit allowed, say it); goldens move.**
+**✅ DONE `2026-11-18` (behaviors): `AreaEffectSystem.Maim` — the man on an AP mine left at 0.75 of his incapacitation line, the damage on his shins; `mf-strike-and-halt` 8 / 8.** **DECIDED `2026-11-18` (user, via coordinator): ① — the trigger man is MAIMED, not killed: the burst's share on him goes to the Leg zone so he lands incapacitated, alive, and the casualty drill carries him. Terrain's area effect gets the trigger-man rule (cross-lane edit allowed, say it); goldens move.**
 
 **Measured** (`mf-strike-and-halt` live after terrain's CE-2446): the burst leaves the struck man at Health 0 — dead, no move, no fire; the three
 others untouched. The user's complaint (no health, no mobility lost) is answered. But MF-5 says *"the casualty cared for in place"* and the
@@ -62,7 +62,7 @@ not added to the request.
 
 ## D-1 · `ts-fire-discipline` (CE-3461 follow-up): the REGULARS break under the scenario's 40 over-head rounds — re-tune what? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator): ③ — keep the stress model (R-2076); change `ts-fire-discipline`'s fire to what the Judge means (e.g. 25 rounds or one every 2 s) and edit its description + checks. The militia must still break.**
+**✅ DONE `2026-11-18` (behaviors): 22 rounds at 1.3 s; `ts-fire-discipline` 7 / 7.** **DECIDED `2026-11-18` (user, via coordinator): ③ — keep the stress model (R-2076); change `ts-fire-discipline`'s fire to what the Judge means (e.g. 25 rounds or one every 2 s) and edit its description + checks. The militia must still break.**
 
 **The question:** the scenario (and `DESIGN_Temperament_And_Stress.md` §6) says *no regular breaks* under 40 rounds passing over a team every 1.3 s from
 120 m. Measured now, the two CENTRE regulars break at ~29–33 s. Which number moves: the near-miss stimulus, the calming, or the scenario's fire?

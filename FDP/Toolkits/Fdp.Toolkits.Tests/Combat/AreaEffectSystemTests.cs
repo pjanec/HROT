@@ -832,5 +832,32 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(0f, Seconds(beyond));
             Assert.All(hits, d => Assert.Equal(0f, d.TotalDamage));
         }
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 (user 2026-11-18: the trigger man is MAIMED, not killed) — an AP mine's burst leaves the man standing on it
+        /// at 0.75 of his incapacitation line, the damage on his two shins; a man 3 m off still gets the ordinary blast. 📐 Before: the
+        /// whole-body blast killed him (mf-strike-and-halt, Health 0).</summary>
+        [Fact]
+        public void CE4654_AnApMine_MaimsTheManOnIt_HisLegs_Alive_AndTheManNearbyGetsTheOrdinaryBlast()
+        {
+            long Ap = Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            var mine = new TkbTemplate("AP mine", Ap) { DisType = new DISEntityType { Kind = 2 } };
+            mine.AddDescriptor(new WarheadDto { Kind = WarheadKind.HighExplosive, ExplosiveKg = 0.2f, BlastLethalDamage = 400f, BlastLethalRadiusM = 1.5f, BlastInjuryRadiusM = 6f });
+            db.Register(mine);
+            _w.SetSingletonManaged(new TerrainWorld { BoundsMin = new Vector2(-50, -50), BoundsMax = new Vector2(50, 50) });
+            var onIt = Soldier(0.3f, 0f);
+            var near = Soldier(3f, 0f);
+
+            _w.Bus.Publish(new DetonationNotification { HitX = 0, HitY = 0, HitZ = 0f, Ammo = Ap });
+            _w.Bus.SwapBuffers();
+            _sys.Execute(_w, 0.016f);
+            _w.Bus.SwapBuffers();
+            var hits = _w.Bus.Read<DamageAssessedEvent>().ToArray();
+
+            var his = hits.Where(d => d.HitEntity == onIt).ToArray();
+            Assert.Equal(100f - 0.75f * 30f, his.Sum(d => d.TotalDamage), 3);   // left at 22.5: under the 30 % line, alive
+            Assert.All(his, d => Assert.True(d.HasBodyPart == 1 && (d.BodyPart == Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinL || d.BodyPart == Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinR), $"part {d.BodyPart}"));
+            Assert.True(hits.Where(d => d.HitEntity == near).Sum(d => d.TotalDamage) > 0f, "the man nearby: the ordinary blast");
+        }
 }
 }
