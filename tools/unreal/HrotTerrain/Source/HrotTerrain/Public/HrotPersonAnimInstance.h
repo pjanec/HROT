@@ -33,6 +33,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float AimPitch = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float PlayRate = 1.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float TimeOffset = 0.f;
+	/** seconds a clip change takes to crossfade (stance, gait, weapon state) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float BlendTime = 0.25f;
+	/** degrees a second the aim turns toward AimYaw / AimPitch (0 = at once) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float AimTurnRate = 240.f;
 };
 
 UCLASS(Transient, Blueprintable)
@@ -53,7 +57,15 @@ public:
 	/** where in the loops to start (a contact sheet sets it so neighbours are not in step) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float TimeOffset = 0.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float BlendTime = 0.25f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float AimTurnRate = 240.f;
+
+	// the running state (the crossfade from the previous clips, the aim as it turns)
 	float BaseTime = 0.f, UpperTime = 0.f, ActionClock = 0.f;
+	TObjectPtr<UAnimSequence> PrevBaseAnim, PrevUpperAnim;
+	float PrevBaseTime = 0.f, PrevUpperTime = 0.f, BaseBlendAlpha = 1.f, UpperBlendAlpha = 1.f;
+	float AimYawNow = 0.f, AimPitchNow = 0.f;
+	bool bStarted = false;
 
 protected:
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;

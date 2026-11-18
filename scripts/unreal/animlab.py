@@ -39,6 +39,29 @@ GROUPS = [
         {"label": "aim yaw -45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": -45, "weapon": "rifle"},
         {"label": "aim pitch +25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 25, "weapon": "rifle"},
         {"label": "aim pitch -25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": -25, "weapon": "rifle"}]},
+    # ⭐ Mixamo, retargeted onto the mannequin (scripts/unreal/hrot_mixamo.py): prone, crawl, kneel, phone, idles
+    {"name": "mixamo", "anims": [
+        {"label": "prone idle", "base": "RTG_Prone_Idle.*"},
+        {"label": "prone crawl", "base": "RTG_Prone_Forward_mixamo.*"},
+        {"label": "crouch to prone", "base": "RTG_Crouch_To_Prone.*"},
+        {"label": "stand to kneel", "base": "RTG_Rifle_Stand_To_Kneel.*"},
+        {"label": "talking on phone", "base": "RTG_Talking_On_Phone.*"},
+        {"label": "looking around", "base": "RTG_Looking_Around.*"},
+        {"label": "waving", "base": "RTG_Waving.*"}]},
+    # ⭐ U-16 step 2: state CHANGES blend — posed in one state, switched, shot `after` seconds into the change
+    {"name": "transitions", "anims": [
+        {"label": "walk>jog +0.1s", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle",
+         "then": {"base": "MF_Rifle_Jog_Fwd"}, "after": 0.1},
+        {"label": "walk>jog +0.6s", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle",
+         "then": {"base": "MF_Rifle_Jog_Fwd"}, "after": 0.6},
+        {"label": "lowered>aimed +0.1s", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle",
+         "then": {"upper": "MM_Rifle_Idle_ADS"}, "after": 0.1},
+        {"label": "aim 0>90 +0.15s", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle",
+         "then": {"yaw": 90}, "after": 0.15},
+        {"label": "aim 0>90 +0.6s", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle",
+         "then": {"yaw": 90}, "after": 0.6},
+        {"label": "stand>prone +0.12s", "base": "RTG_Neutral_Idle.*", "then": {"base": "RTG_Prone_Idle.*"}, "after": 0.12},
+        {"label": "stand>prone +0.5s", "base": "RTG_Neutral_Idle.*", "then": {"base": "RTG_Prone_Idle.*"}, "after": 0.5}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
         {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},

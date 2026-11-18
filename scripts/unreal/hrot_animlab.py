@@ -53,6 +53,8 @@ def step_level():
 def step_index():
     paths = list(unreal.EditorAssetLibrary.list_assets("/Game/Characters", recursive=True, include_folder=False))
     paths += list(unreal.EditorAssetLibrary.list_assets("/Game/Weapons", recursive=True, include_folder=False))
+    if unreal.EditorAssetLibrary.does_directory_exist("/Game/Mixamo/Retargeted"):   # Mixamo, retargeted onto the mannequin (hrot_mixamo.py)
+        paths += list(unreal.EditorAssetLibrary.list_assets("/Game/Mixamo/Retargeted", recursive=True, include_folder=False))
     S["names"] = {p.rsplit(".", 1)[-1]: p for p in paths}
     S["manny"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SKM_Manny"))
     S["rifle"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SM_Rifle"))
@@ -95,6 +97,8 @@ def person(g, spec, x, y, row):
     ai.set_editor_property("aim_yaw", float(spec.get("yaw", 0))); ai.set_editor_property("aim_pitch", float(spec.get("pitch", 0)))
     ai.set_editor_property("time_offset", 0.3)
     S.setdefault("rows", {}).setdefault(g["name"], []).append(p)
+    if spec.get("then"):   # a TRANSITION: posed in this state, then switched to "then" and shot `after` seconds later (in shoot())
+        S.setdefault("transitions", {})[p.get_actor_label()] = (ai, spec)
     weapon = {"rifle": S["rifle"], "pistol": S["pistol"]}.get(spec.get("weapon"))
     if weapon:
         w = spawn(unreal.StaticMeshActor, (x, y, 100), label=f"W_{spec['label']}")
@@ -175,7 +179,18 @@ def shoot():
             for a in actors: a.set_is_temporarily_hidden_in_editor(row != sh["name"])
         for a in S["rows"].get(sh["name"], []):   # pose every person of this row now (deterministic; the editor's own tick is not)
             if isinstance(a, unreal.SkeletalMeshActor) and a.skeletal_mesh_component.get_animation_mode() == unreal.AnimationMode.ANIMATION_BLUEPRINT:
-                unreal.HrotTerrainLibrary.pose_now(a.skeletal_mesh_component, 0.6, 12)
+                sk = a.skeletal_mesh_component
+                unreal.HrotTerrainLibrary.pose_now(sk, 0.6, 12)
+                tr = S.get("transitions", {}).get(a.get_actor_label())
+                if tr:   # switch to the second state, then let `after` seconds of the blend pass
+                    st, spec = tr
+                    for k, prop in (("base", "base_anim"), ("upper", "upper_anim")):
+                        if k in spec["then"]:
+                            st.set_editor_property(prop, resolve(spec["then"][k])[1] if spec["then"][k] else None)
+                    if "yaw" in spec["then"]: st.set_editor_property("aim_yaw", float(spec["then"]["yaw"]))
+                    if "pitch" in spec["then"]: st.set_editor_property("aim_pitch", float(spec["then"]["pitch"]))
+                    steps = max(1, int(round(spec.get("after", 0.1) / 0.02)))
+                    unreal.HrotTerrainLibrary.pose_now(sk, spec.get("after", 0.1), steps)
         sh["shown"] = True; S["wait_until"] = time.time() + 3
         return True
     S["shots_todo"].pop(0)

@@ -16,20 +16,31 @@ namespace
 		return L > 0.f ? FMath::Fmod(FMath::Max(T, 0.f), L) : 0.f;
 	}
 
+	/** The same footstep phase in another clip: walk → jog keeps the stride (normalised time), never restarts it. */
+	float SamePhase(float T, const UAnimSequence* From, const UAnimSequence* To)
+	{
+		const float LF = From ? (float)From->GetPlayLength() : 0.f, LT = To ? (float)To->GetPlayLength() : 0.f;
+		return (LF > 0.f && LT > 0.f) ? FMath::Fmod(T / LF, 1.f) * LT : 0.f;
+	}
+
 	struct FHrotPersonProxy : public FAnimInstanceProxy
 	{
 		explicit FHrotPersonProxy(UAnimInstance* In) : FAnimInstanceProxy(In) {}
 
-		TObjectPtr<UAnimSequence> Base, Upper, Action;
+		TObjectPtr<UAnimSequence> Base, Upper, Action, PrevBase, PrevUpper;
 		FName UpperRoot;
-		float BaseT = 0.f, UpperT = 0.f, ActionT = 0.f, ActionW = 1.f, Yaw = 0.f, Pitch = 0.f;
+		float BaseT = 0.f, UpperT = 0.f, PrevBaseT = 0.f, PrevUpperT = 0.f, BaseAlpha = 1.f, UpperAlpha = 1.f;
+		float ActionT = 0.f, ActionW = 1.f, Yaw = 0.f, Pitch = 0.f;
 
 		virtual void PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds) override
 		{
 			FAnimInstanceProxy::PreUpdate(InAnimInstance, DeltaSeconds);
 			const UHrotPersonAnimInstance* P = CastChecked<UHrotPersonAnimInstance>(InAnimInstance);
 			Base = P->BaseAnim; Upper = P->UpperAnim; Action = P->ActionAnim; UpperRoot = P->UpperRootBone;
-			BaseT = P->BaseTime; UpperT = P->UpperTime; ActionW = P->ActionWeight; Yaw = P->AimYaw; Pitch = P->AimPitch;
+			BaseT = P->BaseTime; UpperT = P->UpperTime; ActionW = P->ActionWeight;
+			PrevBase = P->PrevBaseAnim; PrevUpper = P->PrevUpperAnim; PrevBaseT = P->PrevBaseTime; PrevUpperT = P->PrevUpperTime;
+			BaseAlpha = P->BaseBlendAlpha; UpperAlpha = P->UpperBlendAlpha;
+			Yaw = P->AimYawNow; Pitch = P->AimPitchNow;
 			ActionT = P->ActionTime >= 0.f ? P->ActionTime : P->ActionClock;
 		}
 
@@ -39,20 +50,44 @@ namespace
 			A->GetAnimationPose(Data, FAnimExtractContext(double(T), false));
 		}
 
+		/** Into = blend(From @ FromT, To @ ToT, Alpha); a null side is the pose already in Into (an upper layer fading in / out). */
+		static void SampleBlended(UAnimSequence* From, float FromT, UAnimSequence* To, float ToT, float Alpha, FPoseContext& Into)
+		{
+			if (Alpha >= 1.f || From == To) { if (To) Sample(To, ToT, Into); return; }
+			FPoseContext A(Into), B(Into);
+			if (From) Sample(From, FromT, A);
+			if (To) Sample(To, ToT, B);
+			FAnimationPoseData Out(Into), DA(A), DB(B);
+			FAnimationRuntime::BlendTwoPosesTogether(DA, DB, 1.f - Alpha, Out);   // weight of A = 1 − Alpha
+		}
+
 		virtual bool Evaluate(FPoseContext& Output) override
 		{
 			if (!Base) { Output.ResetToRefPose(); return true; }
-			Sample(Base, BaseT, Output);
+			SampleBlended(PrevBase, PrevBaseT, Base, BaseT, BaseAlpha, Output);
 			const FBoneContainer& BC = Output.Pose.GetBoneContainer();
 
 			// in place: the root keeps no translation (HROT moves the person; the clip only animates)
 			Output.Pose[FCompactPoseBoneIndex(0)].SetTranslation(FVector::ZeroVector);
 
-			// the upper body from UpperRoot up, taken from the upper clip (local space)
-			if (Upper)
+			// the upper body from UpperRoot up, from the upper clip — crossfading from the previous one (a null side = the base pose)
+			if (Upper || (PrevUpper && UpperAlpha < 1.f))
 			{
 				FPoseContext UpperPose(Output);
-				Sample(Upper, UpperT, UpperPose);
+				UpperPose.Pose.CopyBonesFrom(Output.Pose);
+				SampleBlended(PrevUpper, PrevUpperT, Upper, UpperT, UpperAlpha, UpperPose);
+				if (!Upper && UpperAlpha < 1.f)   // fading OUT: blend the old upper toward the base
+				{
+					FPoseContext Old(Output); Sample(PrevUpper, PrevUpperT, Old);
+					FAnimationPoseData O(UpperPose), DA(Old), DB(Output);
+					FAnimationRuntime::BlendTwoPosesTogether(DA, DB, 1.f - UpperAlpha, O);
+				}
+				else if (Upper && !PrevUpper && UpperAlpha < 1.f)   // fading IN from the base
+				{
+					FPoseContext New(Output); Sample(Upper, UpperT, New);
+					FAnimationPoseData O(UpperPose), DA(Output), DB(New);
+					FAnimationRuntime::BlendTwoPosesTogether(DA, DB, 1.f - UpperAlpha, O);
+				}
 				const int32 RootPose = BC.GetPoseBoneIndexForBoneName(UpperRoot);
 				if (RootPose != INDEX_NONE)
 				{
@@ -123,17 +158,45 @@ namespace
 void UHrotPersonAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
+	TObjectPtr<UAnimSequence> NewBase = BaseAnim, NewUpper = UpperAnim;
 	if (const AActor* Owner = GetOwningActor())
 		if (const UHrotPersonState* St = Owner->FindComponentByClass<UHrotPersonState>())
 		{
-			BaseAnim = St->BaseAnim; UpperAnim = St->UpperAnim; ActionAnim = St->ActionAnim; UpperRootBone = St->UpperRootBone;
+			NewBase = St->BaseAnim; NewUpper = St->UpperAnim; ActionAnim = St->ActionAnim; UpperRootBone = St->UpperRootBone;
 			ActionTime = St->ActionTime; ActionWeight = St->ActionWeight; AimYaw = St->AimYaw; AimPitch = St->AimPitch;
-			PlayRate = St->PlayRate; TimeOffset = St->TimeOffset;
+			PlayRate = St->PlayRate; TimeOffset = St->TimeOffset; BlendTime = St->BlendTime; AimTurnRate = St->AimTurnRate;
 		}
 	const float Dt = DeltaSeconds * PlayRate;
-	BaseTime = Wrap(BaseTime + Dt + (BaseTime == 0.f ? TimeOffset : 0.f), BaseAnim);
-	UpperTime = Wrap(UpperTime + Dt + (UpperTime == 0.f ? TimeOffset : 0.f), UpperAnim);
+	const bool bFirst = !bStarted;
+	bStarted = true;
+
+	// a state change starts a crossfade (the first state is taken at once — nothing to blend from)
+	if (NewBase != BaseAnim)
+	{
+		if (!bFirst && BaseAnim) { PrevBaseAnim = BaseAnim; PrevBaseTime = BaseTime; BaseBlendAlpha = 0.f; BaseTime = SamePhase(BaseTime, BaseAnim, NewBase); }
+		BaseAnim = NewBase;
+	}
+	if (NewUpper != UpperAnim)
+	{
+		if (!bFirst) { PrevUpperAnim = UpperAnim; PrevUpperTime = UpperTime; UpperBlendAlpha = 0.f; UpperTime = 0.f; }
+		UpperAnim = NewUpper;
+	}
+	const float Step = BlendTime > 0.f ? DeltaSeconds / BlendTime : 1.f;
+	BaseBlendAlpha = FMath::Min(1.f, BaseBlendAlpha + Step);
+	UpperBlendAlpha = FMath::Min(1.f, UpperBlendAlpha + Step);
+	if (BaseBlendAlpha >= 1.f) PrevBaseAnim = nullptr;
+	if (UpperBlendAlpha >= 1.f) PrevUpperAnim = nullptr;
+
+	if (bFirst) { BaseTime = TimeOffset; UpperTime = TimeOffset; AimYawNow = AimYaw; AimPitchNow = AimPitch; }
+	BaseTime = Wrap(BaseTime + Dt, BaseAnim);
+	UpperTime = Wrap(UpperTime + Dt, UpperAnim);
+	PrevBaseTime = Wrap(PrevBaseTime + Dt, PrevBaseAnim);
+	PrevUpperTime = Wrap(PrevUpperTime + Dt, PrevUpperAnim);
 	ActionClock = Wrap(ActionClock + Dt, ActionAnim);
+	// the aim turns toward its target at AimTurnRate degrees a second (never snaps)
+	const float MaxTurn = AimTurnRate > 0.f ? AimTurnRate * DeltaSeconds : 1e6f;
+	AimYawNow += FMath::Clamp(FMath::FindDeltaAngleDegrees(AimYawNow, AimYaw), -MaxTurn, MaxTurn);
+	AimPitchNow += FMath::Clamp(AimPitch - AimPitchNow, -MaxTurn, MaxTurn);
 }
 
 FAnimInstanceProxy* UHrotPersonAnimInstance::CreateAnimInstanceProxy()
