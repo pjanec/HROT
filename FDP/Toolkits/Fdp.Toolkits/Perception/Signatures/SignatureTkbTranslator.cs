@@ -35,6 +35,9 @@ namespace Fdp.Toolkit.Perception.Signatures
                     FiringHeatPerShot    = th.FiringHeatPerShot,
                     CooldownPerSecond    = th.CooldownPerSecond,
                     ReferenceSpeed       = th.ReferenceSpeed,
+                    IdleHeat             = th.IdleHeat,        // ⭐ CE-4657 — the calculator's type data (TD-3)
+                    RunningHeat          = th.RunningHeat,
+                    HasPowerPlant        = th.HasPowerPlant,
                 });
             if (dto?.Acoustic is { } ac && repo.IsComponentTypeRegistered<AcousticEmitter>() && !repo.HasComponent<AcousticEmitter>(entity))
                 repo.AddComponent(entity, new AcousticEmitter

@@ -54,6 +54,34 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>The speed counted as "running" for heat (m/s); 0 ⇒ 5 m/s.</summary>
         [EditUnit("m/s")]
         public float ReferenceSpeed { get; init; } = 5f;
+
+        // ── ⭐ CE-4657 (thermal drivers TD-3, TD-14, TD-16; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4 "type data") — read by the calculator and
+        //    the writers, NEVER sent at runtime (a reader knows the type). APPENDED.
+
+        /// <summary>An ENGINE (a vehicle, an aircraft, a generator) — its <c>HeatSource</c> is Off · Idle · Running · Dead; false: a BODY (a person, an
+        /// animal) — Standing · Moving.</summary>
+        public bool HasPowerPlant { get; init; }
+
+        /// <summary>Its power class (car · truck · tank · aircraft) — how long the ground it warmed stays warm (terrain's one enum, ruling 9).</summary>
+        public Fdp.Toolkit.Terrain.ThermalPowerClass PowerClass { get; init; }
+
+        /// <summary>Which end carries the engine and exhaust — the hot end of the hull and of the ground mark it leaves (terrain's one enum).</summary>
+        public Fdp.Toolkit.Terrain.HeatMarkEnd HotEnd { get; init; }
+
+        /// <summary>Its heat (0..1) with the engine IDLING, warmed through — our sensor's calculator (a body: standing).</summary>
+        [EditRange(0, 1)]
+        public float IdleHeat { get; init; } = 0.35f;
+
+        /// <summary>Its heat (0..1) RUNNING at <see cref="ReferenceSpeed"/>, warmed through (a body: running).</summary>
+        [EditRange(0, 1)]
+        public float RunningHeat { get; init; } = 0.8f;
+
+        /// <summary>How long a destroyed one of this type burns (s); 0 ⇒ it does not burn (TD-16 ①: "a fuelled type destroyed").</summary>
+        [EditUnit("s")]
+        public float FireSeconds { get; init; }
+
+        /// <summary>A person's clothing class (0 = none / not a person) — the image generator's emissivity hint; our sensor ignores it.</summary>
+        public byte ClothingClass { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3062</c> — how far this entity's sounds carry (metres). 0 ⇒ that sound is not made.</summary>

@@ -243,6 +243,10 @@ namespace Hrot.NED.Descriptors
         //   vehicles (no group: the entity's creator keeps it) → every node. 242 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md; 240 / 241 backend's).
         //   ⚠ the toolkit states it too (GroundHeatMarkSystem.DescriptorOrdinal; a rail pins it).
         dtGroundHeatMarks             = 242,
+        // ⭐ CE-4657 (thermal drivers TD-3 / TD-6; DESIGN_Thermal_Drivers.md §4) — an entity's heat source (the node that moves it, the Muscle group → every node) and
+        //   its fire spots (the Health owner, the Brain group → every node). 240 / 241 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md).
+        dtHeatSource                  = 240,
+        dtFireState                   = 241,
         // etc., all known descriptor types here
     }
 

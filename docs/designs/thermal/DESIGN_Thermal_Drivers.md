@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -229,6 +229,25 @@ more detailed design for it?"*
 | `PowerClass` / `HotEnd` had no type | terrain declares `ThermalPowerClass` and `HeatMarkEnd` (the mark needs them first); backend's `ThermalSignatureDto` is asked to use them (one enum, ruling 9) |
 | `ThermalDriversOps` was one class | a `static partial class`: terrain's `MarkWarmth` and backend's `Signature` / `BarrelHeat` in separate files of the one calculator |
 | ⚠ the per-attribute weather patch (`FormAttributeInstaller`, one field at a time) does NOT restamp | its patch context has no clock; the editor and HTTP send the whole value (CE-4346), which does. A reader takes `max(0, now − Since)`; a saved scenario keeps the time it was saved with |
+
+## 4d. As built — the components, the wire and the calculator *(CE-4657, TD-S1, backend, `2026-11-18`)*
+
+| piece | as built | where |
+|---|---|---|
+| **`HeatSource`** (487) | `{State : HeatSourceState, Since, MotionSince}` (`None` · `Off` · `Idle` · `Running` · `Dead` · `Standing` · `Moving`), `DataPolicy.Default` (the authored start state saved) | `Perception/Signatures/HeatSource.cs` |
+| **`FireState`** (488) | `Count` + 8 fixed-buffer spots `{X, Y, Z, Radius, Since (double), Seconds, Intensity}`; `Get` / `Set` / `TryAdd(spot, now)` (reuses a slot whose spot went out; false when all 8 burn) / `IsBurning(now)` / `Intensity01(now)`; `NoScenario` | same file |
+| wire | `dtHeatSource` 240 = `EntityHeatSource {EntityId, State, Since, MotionSince}` · `dtFireState` 241 = `EntityFireState {EntityId, List<DdsFireSpot>}`; both Reliable + TransientLocal + KeepLast 1; egress on change (`HeatSource` compared whole, `FireState` compared BEFORE converting — a steady tick builds nothing); ingress makes a GHOST for an unknown id (the heat-marks shape — the driver may arrive before the entity's master) and never overwrites the recorded owner | `EntityThermalDriverTranslators.cs`, the shared pack |
+| groups | `HeatSource` → Muscle (the node that moves it), `FireState` → Brain (the Health owner) | `HrotOwnershipGroups.cs`, `NedOwnershipGroupBinding.cs` |
+| type data | `ThermalSignatureDto` += `HasPowerPlant` · `PowerClass` · `HotEnd` (terrain's enums) · `IdleHeat` (0.35) · `RunningHeat` (0.8) · `FireSeconds` · `ClothingClass`; `ThermalState` += `IdleHeat` · `RunningHeat` · `HasPowerPlant` (stamped by `SignatureTkbTranslator`) | `SignaturesDto.cs`, `ThermalState.cs` |
+| **`ThermalDriversOps.Signature(type, source, speed, now, barrel, fire)`** | `Base + max(source, barrel, fire) × (1 − Base)` in CLOSED form; warm-up `1 − e^(−t·RunningHeatPerSecond)`, cooling `e^(−t·CooldownPerSecond)` (the TKB's existing rates read as time constants). Engine: Off / Dead cool from idle heat since `Since`; Idle warms to idle heat and keeps the last drive's residue cooling since `MotionSince` (when it stopped); Running warms to idle → running by speed / reference speed. Body: Standing = rest heat, or the last run's residue cooling since `MotionSince`; Moving warms by exertion since `MotionSince` (when it started). ⭐ a time of −∞ means **never** (an engine that never ran, a body that never moved) ⇒ nothing | `ThermalDriversOps.Signature.cs` |
+| **`ThermalDriversOps.BarrelHeat(heatAtLastShot, lastShotAt, coolPerSecond, now)`** | the existing per-frame barrel rule (`Combat.BarrelHeat.Tick`, linear) in closed form | same file |
+| rails | `EntityThermalDriverTranslatorTests` (ids 240 / 241 / 487 / 488; both drivers byte-for-byte to a late joiner, owner-guard, `Matches`, slot reuse) · `ThermalDriversOpsTests` (idle / off / running / body / hottest source / barrel / 0 B) | SimHost.Tests, Toolkits.Tests |
+
+| ⛔ deviation from §7 TD-S1 — and why | |
+|---|---|
+| TD-S1 listed *"the sensor re-based, `ThermalHeatSystem` retired"* | ⭐ moved into **CE-4658 (TD-S2)**: until `HeatSourceSystem` WRITES `HeatSource`, a sensor re-based on it would read every entity as cold — the thermal scenarios would go blind for a slice. Re-basing with its writer keeps the sensor working at every commit. `ThermalState.Heat` / `BarrelHeat` / `LastX..` stay until then |
+| `MotionSince` read as *"when the last motion STARTED (moving) / STOPPED (standing, idling)"* | the same field TD-4 names; the calculator needs the run's start while moving and the stop while at rest — one time each way, nothing more on the wire |
+| ⚠ ids 487 / 488 — the handoff's "move the test fixtures first" | ✅ Fdp.ModuleHost.Tests `RPos` / `RVel` MOVED to 500 / 501 (R-44's test-only range, unused there). ⚠ Fdp.Core.Tests `Tiny2` / `Tiny3` KEPT: the test-only range 500–511 is full in that project, and their siblings `Tiny4…6` already sit on production 489–491 — the suite never registers the toolkit's types (terrain's `TwClock`-on-493 precedent). Both suites re-run green |
 
 ## 5. UML
 

@@ -918,6 +918,48 @@ namespace Hrot.NED.Descriptors
         public double OnSince;
     }
 
+    // ⭐ CE-4657 (thermal drivers TD-3, TD-4; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4) — an entity's HEAT SOURCE: the decision (engine Off · Idle ·
+    //   Running · Dead; body Standing · Moving) and its times — the node that moves it → every node (an image generator included), sent on a change. Reliable +
+    //   TransientLocal + KeepLast 1 keyed by entity (the EntityRadarEmission shape): a late joiner knows how long every engine has run. Instants as doubles.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityHeatSource
+    {
+        [DdsKey] public int EntityId;
+        /// <summary><c>HeatSourceState</c>: 1 Off · 2 Idle · 3 Running · 4 Dead · 5 Standing · 6 Moving.</summary>
+        public byte State;
+        public double Since;
+        public double MotionSince;
+    }
+
+    /// <summary>⭐ CE-4657 (TD-6, §3c) — one fire spot of <see cref="EntityFireState"/>, in the holder's coordinates; it goes out at <c>Since + Seconds</c>.</summary>
+    [DdsStruct]
+    public partial struct DdsFireSpot
+    {
+        public float X;
+        public float Y;
+        public float Z;
+        public float Radius;
+        /// <summary>Seconds of sim time.</summary>
+        public double Since;
+        public float Seconds;
+        public float Intensity;
+    }
+
+    // ⭐ CE-4657 (thermal drivers TD-6, TD-16; DESIGN_Thermal_Drivers.md §3c, §4) — the fire spots on a vehicle, a building's damage record or a terrain cell's record,
+    //   the Health owner → every node. Reliable + TransientLocal + KeepLast(1) keyed by entity (the EntityGroundHeatMarks shape): a late joiner sees a wreck burning.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityFireState
+    {
+        [DdsKey]
+        public int EntityId;
+        [DdsManaged] public List<DdsFireSpot> Spots;
+    }
+
     // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) — a stochastic unit's state,
     //   the unit's brain owner → every node (a display node draws the footprint, the staff reads strength). Reliable + TransientLocal +
     //   KeepLast 1, like EntityRadarEmission: a late joiner must know every unit. Sent on change. Instants as doubles (SimInstant's memory).

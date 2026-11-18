@@ -107,6 +107,11 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4664 (thermal drivers TD-14) — a cell's warm vehicle stands, the moving node → every node (the image generator, our thermal sensor).
             yield return new EntityGroundHeatMarksEgressTranslator(participant);
             yield return new EntityGroundHeatMarksIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4657 (thermal drivers TD-3 / TD-6) — an entity's heat source (the moving node → every node) and its fire spots (the Health owner → every node)
+            yield return new EntityHeatSourceEgressTranslator(participant);
+            yield return new EntityHeatSourceIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityFireStateEgressTranslator(participant);
+            yield return new EntityFireStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
             yield return new EntityObstacleShapeEgressTranslator(participant);
             yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
